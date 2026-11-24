@@ -10,7 +10,9 @@
 // for the user to write in is one. Code that looks for such a box names it by this, and
 // code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a native
 // textarea on an author's page still does. One spelling of each lets the field's
-// element change without a lookup somewhere silently finding nothing.
+// element change without a lookup somewhere silently finding nothing. A package writes
+// the tag itself (module-input.md, "Text entry and drafts"), so a new tag changes the
+// package interface too.
 import { inputs } from "./inputs.js";
 export const TEXT_FIELD = inputs.textField;
 

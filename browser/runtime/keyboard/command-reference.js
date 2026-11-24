@@ -84,10 +84,10 @@ import {
   closeLayer,
   openLayer,
   openerOf,
-  rove,
   currentLocationIn,
   blurFocused,
 } from "../focus.js";
+import { rove } from "../lib/roving.js";
 import { closeControl, searchField } from "../widget-elements.js";
 import { offeredAction } from "../lib/controls.js";
 import { keeps } from "../lib/keeps.js";
@@ -962,7 +962,7 @@ function presentCommandReference() {
   if (search.ariaActiveDescendantElement !== row)
     search.ariaActiveDescendantElement = row;
   // The results are one roving group: Tab reaches the selected command, or the first,
-  // and the arrows walk the rest (focus.js, `rove`).
+  // and the arrows walk the rest (`rove`).
   rove(
     commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
     commandButton(commandReferenceView.tabStopCommandId),

@@ -72,7 +72,8 @@ import {
 } from "./key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
-import { el, PRESSABLE } from "../widget-elements.js";
+import { PRESSABLE } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
 import { actionClass } from "../lib/control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";

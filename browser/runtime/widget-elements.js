@@ -103,21 +103,6 @@ export function reveal(el, mayReveal) {
   return { ready, replacedView };
 }
 
-// The one way the layer makes an element: a tag, its classes, and the words it starts
-// with.
-/** @template {keyof HTMLElementTagNameMap} K
- * @overload @param {K} tag @param {string} [cls] @param {string | null} [text]
- * @returns {HTMLElementTagNameMap[K]} */
-/** @overload @param {string} tag @param {string} [cls] @param {string | null} [text]
- * @returns {HTMLElement} */
-/** @param {string} tag @param {string} [cls] @param {string | null} [text] */
-export function el(tag, cls, text) {
-  const node = document.createElement(tag);
-  if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
 // The user's hand on a widget, in the layer's own word: a drag, a keyboard grab or a
 // scrub the log has not taken yet. The element says it with an `lf-hold` event whose
 // promise settles as the hand comes off (`HOLD`, widget-upgrade.js), and settles it

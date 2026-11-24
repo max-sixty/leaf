@@ -93,7 +93,8 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
+import {LeafElement, setChildren} from '/runtime/widget-api.js';
+const layout = () => new CustomEvent('lf-layout', {bubbles: true, composed: true});
 customElements.define('lf-test-surface', class extends LeafElement {
   setup() {
     const datums = ['first', 'second'].map(key => {
@@ -139,9 +140,9 @@ customElements.define('lf-test-surface', class extends LeafElement {
     this.failure = phase;
     if (phase === 'disconnect') {
       this.remove();
-      threadSurface(document.querySelector('#healthy')).update();
+      document.querySelector('#healthy').dispatchEvent(layout());
     }
-    else threadSurface(this).update();
+    else this.dispatchEvent(layout());
   }
 });
 """
@@ -594,7 +595,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
+import {LeafElement, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat', class extends LeafElement {
   setup() {
     const row = document.createElement('section');
@@ -612,7 +613,7 @@ customElements.define('lf-test-seat', class extends LeafElement {
   }
   start() {
     this.started = true;
-    threadSurface(this).update();
+    this.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
   }
 });
 """
@@ -972,9 +973,9 @@ customElements.define('lf-test-seat',class extends LeafElement{
         == current
     )
     # The widget stops offering its seat, so the page keeps presenting both threads.
-    page.evaluate("""async()=>{
-      const {threadSurface}=await window.__lfWidgetApi();
-      const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
+    page.evaluate("""()=>{
+      const seat=document.querySelector('#seat');seat.side=null;
+      seat.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
     assert len(state_readings) == 1

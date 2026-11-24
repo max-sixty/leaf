@@ -14,7 +14,6 @@ import {
   setChildren,
   shadowStage,
   threadActions,
-  threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -206,7 +205,7 @@ customElements.define(
       const nominations = [];
       if (this.mode === "Feed") {
         for (const thread of collection.threads)
-          for (const message of threadTurns(thread)) {
+          for (const message of thread.turns) {
             const outlet = this.outlet(JSON.stringify([thread.key, message.key]));
             nominations.push(["message", thread.key, message.key, outlet]);
           }

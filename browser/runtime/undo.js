@@ -49,7 +49,7 @@
 
    What ⌘Z, or a notice's Undo, took back takes a tint once the page shows the
    withdrawal, after the page has gone there if it was out of view (`tint`). It is the
-   tint a message arriving and a revision's changed block take (motion.js,
+   tint a message arriving and a revision's changed block take (lib/motion.js,
    `backgroundFlash`), so the page marks every change it shows the same way. It tints
    the widget, message, thread or passage the undo changed, and a message the undo took
    away tints the thread that held it. The undo's notice stands its time and then until
@@ -125,7 +125,7 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
-import { backgroundFlash } from "./motion.js";
+import { backgroundFlash } from "./lib/motion.js";
 import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";

@@ -130,7 +130,7 @@ import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
-import { backgroundFlash } from "./motion.js";
+import { backgroundFlash } from "./lib/motion.js";
 import {
   authored,
   elementById,

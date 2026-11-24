@@ -47,7 +47,7 @@ import {
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./lib/keeps.js";
-import { reducedMotion, foldDuration } from "./motion.js";
+import { motionTime, reducedMotion } from "./lib/motion.js";
 import { says } from "./passages.js";
 import { plainPress } from "./pointer.js";
 import { holdRendering } from "./rendering.js";
@@ -327,7 +327,7 @@ const open = async (source, alt, from) => {
         escKey: false,
         // The native dialog owns its opening and closing. Zoom alone animates.
         showHideAnimationType: "none",
-        zoomAnimationDuration: reducedMotion() ? 0 : foldDuration(),
+        zoomAnimationDuration: reducedMotion() ? 0 : motionTime("--lf-motion-fold"),
         clickToCloseNonZoomable: false,
         bgClickAction: "close",
         tapAction: "zoom",

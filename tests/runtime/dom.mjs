@@ -167,6 +167,13 @@ sheets.dataset.lfRuntime = "";
 sheets.dataset.lfSheets = "";
 sheets.textContent = JSON.stringify({ chrome: "", marks: "" });
 document.head.append(sheets);
+// And the one rule of the page's own sheet that a script reads: what holds motion
+// until the page presents (`--lf-before-presentation` in browser/base.css, which
+// runtime/lib/motion.js reads on `body`). A test that stamps `data-lf-presented` lifts
+// it, as presentation does.
+const held = document.createElement("style");
+held.textContent = "body:not([data-lf-presented]) { --lf-before-presentation: 1; }";
+document.head.append(held);
 
 // A test's comparisons go through `assert.mjs`, which writes a node as its opening tag.
 const ASSERT = new URL("./assert.mjs", import.meta.url).href;

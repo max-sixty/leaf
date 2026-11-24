@@ -60,7 +60,7 @@
    - An explicit summary that arrives over a message the user is on or reads stays
      open.
    - A message that leaves the thread while drawn, as a reply the log refuses does,
-     folds away where it stood (motion.js, `foldBlock`). It leaves the transcript's
+     folds away where it stood (lib/motion.js, `foldBlock`). It leaves the transcript's
      messages at once: the fold keeps only its pixels, inert and without the names a
      reader finds a message by, until they have collapsed. Where no fold plays, under
      reduced motion, before presentation or in an engine without intrinsic-size
@@ -81,7 +81,7 @@ import {
   showsContents,
 } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { foldBlock, motionPlays } from "../motion.js";
+import { foldBlock, motionPlays } from "../lib/motion.js";
 import { voiced } from "../voice.js";
 
 // A summary's words, led by the name its agent gave the range as their first

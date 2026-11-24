@@ -92,7 +92,6 @@ import {
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
-  backgroundFlash,
   beginWalk,
   capturePlace,
   comparisonChanges,
@@ -122,6 +121,7 @@ import {
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { backgroundFlash } from "/runtime/lib/motion.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";

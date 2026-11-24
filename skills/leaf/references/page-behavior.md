@@ -49,9 +49,10 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   attached. Listen on `body`, which survives revisions, or set up again when
   `lf-page-interface` fires on `document` (`module-authoring.md`, "Startup and
   presentation").
-- Animate from JavaScript through `motion()`, which skips the animation for a user who
-  asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
-  shorten the page's under `@media (prefers-reduced-motion: reduce)`.
+- An animation a script plays skips for a user who asked for less motion, as the
+  library's motion module plays one (`module-authoring.md`, "Shared web code"). Leaf
+  stops only its own CSS motion for that user, so stop or shorten the page's under
+  `@media (prefers-reduced-motion: reduce)`.
 
 Leaf writes attributes of its own on the page's elements, such as on each element
 holding commented words. A script that reads, copies or observes attributes meets them,

@@ -29,7 +29,7 @@ import { holdFocus, focused, focusDestination, currentLocationIn } from "../focu
 import { HeldNews } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
-import { foldBlock } from "../motion.js";
+import { foldBlock } from "../lib/motion.js";
 
 /** @typedef {import("./thread-card.js").ThreadCommands} ThreadCommands */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */

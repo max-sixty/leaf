@@ -373,7 +373,7 @@ rule setting it on a range of monospace text, read by eye or from a screenshot.
 
 ### Intrinsic block retirement motion
 
-`browser/runtime/motion.js` (`foldBlock`) animates block retirement, a decided
+`browser/runtime/lib/motion.js` (`foldBlock`) animates block retirement, a decided
 block suggestion and a resolved inline thread, with `calc-size()`. Where
 intrinsic-size interpolation is missing it folds from the block's measured pixel
 height, and where `display` can't be animated it keeps an already-retired slot

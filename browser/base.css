@@ -509,7 +509,9 @@ body {
     }
     /* A declared shadow tree cannot see body's stamp, so transition suppression
      * reaches it as an inherited property its startup rule queries
-     * (styles/shadow-leading.css). */
+     * (styles/shadow-leading.css). Motion a script plays waits on the same property,
+     * which it reads on `body` (runtime/lib/motion.js, `motionPlays`), so a
+     * transition and a Web Animation start together. */
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome {
       --lf-before-presentation: 1;

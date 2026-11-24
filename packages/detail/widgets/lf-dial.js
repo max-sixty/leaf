@@ -111,10 +111,8 @@ import {
   actionClass,
   addressableLabel,
   focusDestination,
-  foldDuration,
   holdPlace,
   LeafElement,
-  motion,
   move,
   nextRender,
   offer,
@@ -126,6 +124,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { motion, motionTime } from "/runtime/lib/motion.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
@@ -989,7 +988,7 @@ customElements.define(
     // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
-      const duration = foldDuration();
+      const duration = motionTime("--lf-motion-fold");
       const window = shownWindow();
       const after = this.#positions(scope);
       for (const [node, top] of after) {

@@ -545,7 +545,7 @@ def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser,
     expect(picks).to_be_in_viewport()
 
 
-# Whether the options with id `arg` are taking the tint of a change now (motion.js,
+# Whether the options with id `arg` are taking the tint of a change now (lib/motion.js,
 # `backgroundFlash`), rows and all: each row paints its own ground over the box's.
 TINTED = """(id) => [document.getElementById(id), ...document.querySelectorAll(`#${id} > lf-option`)]
   .every((box) => box.getAnimations().some((played) =>

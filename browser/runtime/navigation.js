@@ -6,7 +6,7 @@ import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { sampleNotice } from "./sample-child.js";
-import { scrollBehavior } from "./motion.js";
+import { scrollBehavior } from "./lib/motion.js";
 import {
   SCROLL_SLACK,
   afterBrowserScroll,

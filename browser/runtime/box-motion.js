@@ -76,8 +76,8 @@
  * reads next: a tween would cut off the glyph just typed for its first frames as the
  * box widens, and the word and caret a new line takes, and a tween each key restarts
  * never settles. Only a line a key takes away travels, both edges on the one tween, as
- * anything leaving the page folds (motion.js), so words the box carries down with its
- * top edge stay where the eye can follow them, and nothing the user reads waits on it.
+ * anything leaving the page folds (lib/motion.js), so words the box carries down with
+ * its top edge stay where the eye can follow them, and nothing the user reads waits on it.
  * The user asked for typing to grow the box as a textarea's grows, and chose to keep a
  * removed line's travel.
  *
@@ -86,8 +86,8 @@
  * transform, so a part holding one is never carried whole: its parts are placed one by
  * one. The motion is presentation only: each part's layout is where it stands from the
  * change on, and a part's motion ends with the tween, so nothing it leaves behind needs
- * undoing. Each part's motion plays through motion.js's `playMotion`, so reduced motion
- * and the presentation boundary are answered there: while motion does not play, each
+ * undoing. Each part's motion plays through lib/motion.js's `playMotion`, so reduced
+ * motion and the presentation boundary are answered there: while motion does not play, each
  * reading takes the box as it stands, and a user asking for stillness mid-tween
  * finishes what is moving.
  *
@@ -133,7 +133,7 @@
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
 import { inlineStyle, keeps } from "./lib/keeps.js";
-import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
+import { motionEasing, motionPlays, motionTime, playMotion } from "./lib/motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { VISIBLE_FOCUS_MARKS, onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";

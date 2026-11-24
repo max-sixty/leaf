@@ -1,21 +1,24 @@
+// Motion a script plays: Web Animations that answer the user's motion preference and
+// the stylesheet's hold on a page not yet presented (`motion`, `playMotion`,
+// `motionPlays`), the times and curves the stylesheet sets for them (`motionTime`,
+// `motionEasing`), the tint that marks an arrival or a change (`backgroundFlash`) and
+// the fold that gives a block's room back (`foldBlock`).
+//
 // Arrival is not a gesture. Restored design-mode, widget, and
-// reading-position state appears at rest. `motion` plays nothing before
-// `data-lf-presented`, and theme transitions use the same presentation stamp.
+// reading-position state appears at rest. `motion` plays nothing while the stylesheet
+// says the page is not yet presented, and theme transitions wait on the same property.
 //
 // After presentation, changes that remove a visible unit use a short fold. The semantic
 // state is true at the start of the fold, while the old pixels collapse so the eye can
 // follow them. Reconciliation, not the originating press, owns the fold because the same
-// change can arrive from another tab or the agent. A resolved thread leaves the
-// open-thread vocabulary at once, folds in place, then moves under the resolved
-// disclosure. A message leaving a thread, as a reply the log refuses does, folds where
-// it stood (thread/transcript.js), and the thread gives its room back as it folds
-// (thread/reply-continuity.js).
+// change can arrive from another tab or the agent. On Leaf, a resolved thread leaves
+// the open-thread vocabulary at once, folds in place, then moves under the resolved
+// disclosure, and a message leaving a thread, as a reply the log refuses does, folds
+// where it stood while the thread gives its room back.
 //
-// Projection composes the complete final state before rendering. Ordered containers
-// measure once around that composition and show one FLIP from the current layout to the
-// final layout. A widget whose drag moves its own nodes defers its correction.
-
-import { pagePresented } from "./page-paint.js";
+// A caller composes the complete final state before rendering. An ordered container
+// measures once around that composition and shows one FLIP from the current layout to
+// the final layout. A widget whose drag moves its own nodes defers its correction.
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
@@ -38,27 +41,42 @@ preference.addEventListener("change", (event) => {
   if (event.matches) for (const played of [...active]) played.finish();
 });
 
-// Whether motion plays now, which `playMotion` asks before every animation. First replay
-// happens behind the presentation boundary. Its state should be the first frame the
-// user sees, not a motion from authored state they never saw; it collapses exactly as
-// reduced motion does. This one shared check reaches folds and FLIP alike without a
-// widget learning whether the page has been presented. A caller that must choose
-// before it animates, such as one keeping an old view drawn only while it fades, asks
-// this too.
-export const motionPlays = () => !reducedMotion() && pagePresented();
+// A custom property's value as `on` inherits or declares it. Each call reads the live
+// cascade.
+/** @param {string} property @param {Element} on */
+const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
+
+// Whether motion plays now, which `playMotion` asks before every animation: the user
+// has not asked for stillness, and the page's stylesheet does not hold motion until the
+// page presents. A page states that hold on its `body` as
+// `--lf-before-presentation: 1`, as Leaf's base.css does until the page's first
+// complete presentation, and stops its transitions by the same property, so a
+// stylesheet's motion and a script's start together. It is read on `body` rather than
+// on the element to animate, which a caller may not have placed yet. A page that
+// states no such property holds nothing. First replay happens behind that boundary. Its
+// state should be the first frame the user sees, not a motion from authored state they
+// never saw; it collapses exactly as reduced motion does. This one shared check reaches
+// folds and FLIP alike without a widget learning whether the page has been presented.
+// A caller that must choose before it animates, such as one keeping an old view drawn
+// only while it fades, asks this too.
+export const motionPlays = () =>
+  !reducedMotion() && token("--lf-before-presentation", document.body) !== "1";
 
 // Web-Animations motion goes through here, so a user who asked for stillness is
-// answered in one place rather than by each widget remembering the check: null under
-// reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Every motion this module plays shares one held-end-frame contract. A duration
-// a caller passes in is still a number this module has no reason for; see browser/AGENTS.md's
-// "Motion is brief and keeps the user oriented". `motion` is the packages' door, and its signature is part of what an
-// installed package calls, so it stays as pages know it.
+// answered in one place rather than by each widget remembering the check: null where
+// motion does not play (`motionPlays`), and a caller treats "no animation" and
+// "animation finished" as the same state. Where a caller must branch on the preference
+// itself, as for the `behavior` of a smooth `scrollTo`, it reads `reducedMotion` or
+// `scrollBehavior`. Every motion this module plays shares one held-end-frame contract.
+// A duration a caller passes in is still a number this module has no reason for:
+// motion the user waits on stays brief, and helps the eye follow a box from where it
+// was to where it is. `pseudoElement` names a pseudo-element of `el` to animate, as a
+// disclosure's `::details-content`.
 /** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes @param {number} ms @param {string | null} [pseudoElement] */
 export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });
 
-// The same door with the runtime's own surfaces' further timing: the one ease unless
+// The same door with a surface's further timing: the one ease unless
 // the caller names its surface's curve (`easing`, read with `motionEasing`), and a
 // `delay` that holds the first frame until the motion starts, so a part fading in after
 // another fades out stays unseen meanwhile. That is the backward half of the fill,
@@ -99,12 +117,11 @@ export function playMotion(
 }
 
 // CSS owns the durations and curves shared with stylesheet motion: the document-wide
-// ones on the root, and a surface's own on that surface, as the floating panel's are.
+// ones on the root (styles/tokens.css says what each is for), and a surface's own on
+// that surface, as the floating panel's are. A caller names the property it reads.
 // Registered <time> values resolve variables and calculations before this read; each
 // call reads the live cascade, so a revision or theme override changes CSS and Web
 // Animations together.
-/** @param {string} property @param {Element} on */
-const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
 // A `--lf-motion-*` duration, in milliseconds, as `on` inherits or declares it.
 /** @param {string} property @param {Element} [on] */
 export const motionTime = (property, on = document.documentElement) => {
@@ -116,21 +133,17 @@ export const motionTime = (property, on = document.documentElement) => {
 export const motionEasing = (property, on = document.documentElement) =>
   token(property, on);
 
-// How long the tint that marks an arrival or a change lasts (`backgroundFlash`).
-export const flashDuration = () => motionTime("--lf-motion-flash");
-// Independently rendered carriers join the same finite agent-work arrival window.
-export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
-
-// A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
-// so hover, theme changes and transparent surfaces never snap back when it ends. A box
-// drawn inside the element that paints a background of its own, such as an option's
-// row, would cover the element's tint, so it takes the tint too, and the whole element
-// reads as one tinted box. Theirs end with the element's, which is the one returned.
-// A flash lasts as long as the theme sets (`flashDuration`), whoever asks for it, so
-// the page marks each arrival and change alike.
+// A brief tint that fades to the element's own background, from the theme's highlight
+// (`--lf-hi-tint`). A cue supplies only its starting tint. Its target's live CSS owns
+// the endpoint, so hover, theme changes and transparent surfaces never snap back when
+// it ends. A box drawn inside the element that paints a background of its own, such as
+// an option's row, would cover the element's tint, so it takes the tint too, and the
+// whole element reads as one tinted box. Theirs end with the element's, which is the
+// one returned. A flash lasts as long as the theme sets (`--lf-motion-flash`), whoever
+// asks for it, so the page marks each arrival and change alike.
 /** @param {Element} el */
 export function backgroundFlash(el) {
-  const ms = flashDuration();
+  const ms = motionTime("--lf-motion-flash");
   /** @param {Element} box */
   const tint = (box) =>
     motion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
@@ -150,17 +163,8 @@ export function backgroundFlash(el) {
   return own;
 }
 
-// How long room takes to go back. Long enough that the eye can follow a paragraph's
-// worth of page closing, short enough that the act still reads as having happened at
-// the press: the board's own FLIP is 150ms over a card's width, and this is a taller
-// distance travelled by the whole column below it. A decided suggestion's retired
-// slot, a resolved inline thread and a message leaving a thread fold over it, and a
-// picture's zoom (media.js) takes the same time.
-export const foldDuration = () => motionTime("--lf-motion-fold");
-// A retained frame returns from an editor to its shorter reading.
-export const returnDuration = () => motionTime("--lf-motion-return");
-
-// Give a block's room back from its ordinary CSS shape. Native intrinsic-size
+// Give a block's room back from its ordinary CSS shape, over the time room takes to
+// go back (`--lf-motion-fold`). Native intrinsic-size
 // interpolation supplies the starting height, and the other lengths start at their
 // underlying stylesheet values. No measured box or temporary inline styles survive
 // the effect. `display` keeps an already-retired slot drawn until its pixels finish;
@@ -205,7 +209,7 @@ export function foldBlock(el, allocation = null) {
   const played = motion(
     el,
     frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"),
-    foldDuration(),
+    motionTime("--lf-motion-fold"),
   );
   if (!played || native) return played;
   if (getComputedStyle(el).display === "none") {

@@ -12,7 +12,7 @@ import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
-import { agentArrivalDuration, reducedMotion } from "./motion.js";
+import { motionTime, reducedMotion } from "./lib/motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,
@@ -253,7 +253,7 @@ function syncAgentArrival(control, receipt) {
   const elapsed = performance.now() - began;
   if (controlArrivals.get(control) === claim) return;
   controlArrivals.set(control, claim);
-  if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
+  if (elapsed >= motionTime("--lf-motion-agent-arrival") || reducedMotion()) return;
   inlineStyle(control).setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(

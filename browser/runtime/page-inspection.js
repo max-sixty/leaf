@@ -25,7 +25,7 @@ import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { requestJson, sessionIsActive } from "./layer-client.js";
 import { retainUserIntent } from "./user-intent.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { scrollBehavior } from "./motion.js";
+import { scrollBehavior } from "./lib/motion.js";
 import { readCurrentUserView } from "./user-view.js";
 import {
   closeControl,

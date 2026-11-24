@@ -73,8 +73,6 @@ import {
   addressableLabel,
   addressableWord,
   commandScope,
-  motion,
-  returnDuration,
   offered,
   offeredAction,
   LeafElement,
@@ -98,6 +96,7 @@ import {
   commandsChanged,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { motion, motionTime } from "/runtime/lib/motion.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -472,7 +471,7 @@ customElements.define(
         this.#returnMotion = motion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          returnDuration(),
+          motionTime("--lf-motion-return"),
         );
       if (discard) clearEdit(this.id);
       this.#stopPressAway?.();

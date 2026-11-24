@@ -267,21 +267,20 @@ page doesn't show once the handler finishes, Leaf reveals that place and lands t
 
 ## Motion
 
-Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can animate
-its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
-for less motion, and before `body[data-lf-presented]`; treat that as a finished
-animation. Where a module must branch on the preference itself, as for the `behavior`
-of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
-result the module already has during the gesture, not after a delay.
+result the module already has during the gesture, not after a delay. An animation a
+script plays, as `element.animate` does, plays nothing for a user who asked for less
+motion, and nothing before `body[data-lf-presented]`: the module shows the finished
+state at once. The library's motion module (`module-authoring.md`, "Shared web code")
+plays a Web Animation by both rules, reads a duration token in milliseconds, and gives
+an element the brief tint Leaf gives a newly arrived message. A disclosure can animate
+its `::details-content` without a wrapper. Where a module must branch on the
+preference itself, as for the `behavior` of a smooth `scrollTo`, it reads the
+`prefers-reduced-motion` media query.
 
-A widget removing an item asks `foldDuration()` each time rather than choosing a
-number, and a retained frame returning from an editor to its reading uses the shorter
-`returnDuration()`.
-
-`backgroundFlash(element)` gives an element a brief yellow tint that fades to its
-own background, and tints each box inside it that paints a background of its own too.
-It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
+A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
+than choosing a number, and a retained frame returning from an editor to its reading
+takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens").
 
 ## Notices and spoken words
 

@@ -35,9 +35,8 @@
    evicts a replaced widget before its replacement connects, and a registration only
    one element may hold passes from one to the other. A connection also ends the
    batch, so an element removed before it and put back after it leaves and returns.
-   The runtime's own subscriptions (data, projections, widget controllers),
-   LeafElement rendering and the host of other declared elements
-   (element-integration.js) hold it directly.
+   The runtime's own subscriptions (data, projections, widget controllers) and the
+   host of declared elements (element-integration.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 

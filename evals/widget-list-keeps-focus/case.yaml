@@ -43,15 +43,17 @@ assert:
       - holds focus across the list render with holdFocus(list, { key: <the row's
         key attribute> }), sets that attribute on each row, and calls the returned
         restore after rendering with the Add item button as its last stand-in;
-      - makes the popup a native auto popover (`popover` or `popover="auto"`) that
-        Add item opens through popovertarget, and closes it on a choice with
-        hidePopover(), placing no return focus of its own, since Leaf puts the user
-        on a popovertarget control as its popover opens and the browser returns them
-        there as it closes;
+      - makes the popup a native popover that Add item opens through
+        popovertarget. An auto popover (`popover` or `popover="auto"`) closes on a
+        choice with hidePopover() and places no return focus of its own, since Leaf
+        puts the user on a popovertarget control as its popover opens and the browser
+        returns them there as it closes. A manual popover returns nobody, so as the
+        widget closes it, it puts the user on Add item with
+        focusDestination(addItem, "return");
       - any focus it places itself goes through focusDestination with a cause;
       - the popup's Escape, if shown, is a command row in an element's lfCommands,
         not a listener.
       Fail if it calls element.focus() directly, searches for the nearest surviving
-      row itself, keeps the opener in a variable of its own, or installs focus or
-      keydown listeners.
+      row itself, hides the popup by any means but a native popover, or installs
+      focus or keydown listeners.
       Execution is unavailable, so not running checks is not a failure.

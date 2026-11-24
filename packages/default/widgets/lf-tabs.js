@@ -90,7 +90,6 @@ import {
   authoredTitle,
   setScroll,
   agentName,
-  PRESS,
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
@@ -119,7 +118,6 @@ import {
   tabStore,
   focusDestination,
   fragmentTarget,
-  rowArrows,
   scrollIntoView,
   fitsWhole,
   landingInsets,
@@ -128,6 +126,7 @@ import {
   commandsChanged,
 } from "/runtime/widget-api.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";

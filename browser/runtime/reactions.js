@@ -66,11 +66,9 @@ import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
 import {
-  PRESS,
   cycledRow,
   hasRows,
   nativePress,
-  rowArrows,
   savedReadingSettled,
 } from "./keyboard/bindings.js";
 import { anchorLabel } from "./thread/messages.js";
@@ -80,6 +78,7 @@ import { effect, untracked } from "/runtime/framework.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
+import { PRESS, rowArrows } from "./lib/keys.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor
  * @typedef {ReturnType<typeof import("./composing/surface.js").createResponseSurface>} ResponseSurface

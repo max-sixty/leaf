@@ -11,6 +11,7 @@
       "/runtime/lib/icon-paths.js",
       "/runtime/lib/icons.js",
       "/runtime/lib/keeps.js",
+      "/runtime/lib/keys.js",
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/shadow-tree.js",
       "/runtime/lib/syntax-languages.js",

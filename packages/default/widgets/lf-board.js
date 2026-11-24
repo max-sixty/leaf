@@ -95,8 +95,6 @@ import {
   motion,
   motionPreview,
   scrollerFor,
-  PRESS,
-  rowArrows,
   rankAt,
   focusDestination,
   scrollIntoView,
@@ -107,6 +105,7 @@ import {
   commandsChanged,
   reportFailure,
 } from "/runtime/widget-api.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a

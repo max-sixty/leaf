@@ -133,7 +133,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
 # A range and a select built the way Leaf builds its own, whose faces say no name.
 LEAF_SETTINGS = """<p id="settings"></p>
 <script type="module">
-import {offer} from '/runtime/widget-api.js';
+import {offer} from '/runtime/lib/controls.js';
 const rows = offer('input', 'probe-rows', undefined, 'range');
 rows.id = 'rows';
 rows.setAttribute('aria-label', 'Rows shown');
@@ -245,7 +245,8 @@ def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serv
 # A widget's worded control that `f` presses, as its command row names it (`lfCommands`,
 # `control`).
 KEYED = """import { nothing } from "/vendor/lit.js";
-import { LeafElement, offerAction } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { offerAction } from "/runtime/lib/controls.js";
 customElements.define("lf-keyed", class extends LeafElement {
   setup() {
     const feedback = offerAction("word", "keyed-feedback", "Add feedback");

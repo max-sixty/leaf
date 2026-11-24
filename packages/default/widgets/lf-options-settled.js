@@ -4,7 +4,8 @@
  * page-authored layout selectors read. A native details wrapper would reparent them,
  * so this disclosure owns their hidden state without changing that boundary. */
 import { html, nothing, render } from "/vendor/lit.js";
-import { comparisonChanges, selectableOffer, tabStore } from "/runtime/widget-api.js";
+import { comparisonChanges, tabStore } from "/runtime/widget-api.js";
+import { selectableOffer } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 const SETTLED_KEY = "lf-settled:";

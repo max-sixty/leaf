@@ -34,7 +34,7 @@
  * them, not a script's call, because this drawing is the first paint: a bar drawn here
  * and withdrawn once a script handed over its own would move the page as it loads.
  */
-import { offeredAction } from "/runtime/widget-api.js";
+import { offeredAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 import { html, nothing, render } from "/vendor/lit.js";

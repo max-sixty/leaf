@@ -4,8 +4,6 @@ import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
-  offer,
-  offerAction,
   LeafElement,
   queueActions,
   queueItemKey,
@@ -23,6 +21,7 @@ import {
   threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 customElements.define(

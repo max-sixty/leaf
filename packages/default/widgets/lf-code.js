@@ -82,14 +82,12 @@ import {
   alreadyShown,
   bodyText,
   failSoft,
-  nameAction,
-  offer,
-  offerAction,
   onUserInput,
   scrollersOf,
   scrollIntoView,
   tabStore,
 } from "/runtime/portable-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import {
   codeLanguage,
   synNodes,

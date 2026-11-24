@@ -872,11 +872,29 @@ export const commandsOn = directive(
 // the nodes it drew may have changed. A malformed declaration is refused as `keys`
 // refuses one, and since a listener's exception never reaches the element that
 // dispatched, the refusal is reported as that element's failure.
+//
+// Nothing hears an element that says its keys before it is placed, and they bind
+// nothing. Reading the property where it is needed instead would find it for a key,
+// along the key's path, but a declaration also acts before any key arrives, wherever
+// the user is: it wires the buttons its rows name and shows their availability, and
+// writes the element's `aria-keyshortcuts`; and the command reference lists every
+// scope in the page. Those need each declaration as it is made, and a property is
+// found only by a walk. Reading it as each element arrives would be such a walk on
+// every page at every mutation, and would still leave a later change to be said. So
+// the element says it, and the render check walks once for one never heard
+// (`commandsUnread`).
 const declared = new WeakMap();
+/** @type {WeakSet<Element>} */
+const heard = new WeakSet();
+/** Whether `element` holds an `lfCommands` this module never read.
+ * @param {Element} element */
+export const commandsUnread = (element) =>
+  element.lfCommands != null && !heard.has(element);
 addEventListener(COMMANDS, (event) => {
   const [element] = event.composedPath();
   if (!(element instanceof Element)) return;
   const declaration = element.lfCommands ?? null;
+  if (declaration !== null) heard.add(element);
   const standing = declared.get(element);
   if (declaration === (standing?.declaration ?? null)) {
     if (event.detail?.within) return paintKeysWithin(element);

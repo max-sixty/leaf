@@ -25,7 +25,7 @@ const NATIVE = "node_modules/@awesome.me/webawesome/dist/styles/native.css";
 const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
 
 /** A control a page writes itself: one Leaf didn't build (`data-lf-offer`,
- * element-markers.js) and that doesn't stand in Leaf's chrome. */
+ * lib/controls.js) and that doesn't stand in Leaf's chrome. */
 const PAGE_CONTROL = ":not([data-lf-offer], .lf-chrome *)";
 
 /** Leaf's control faces, as a page's own controls wear them: a word is a button, the

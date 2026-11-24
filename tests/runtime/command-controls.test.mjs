@@ -4,6 +4,7 @@ import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
+  commandsUnread,
   commandsWithin,
   projectCommandScope,
   keys,
@@ -2497,8 +2498,11 @@ test("a widget's commands stand from when it says them until it withdraws them",
   document.body.append(owner);
   try {
     assert.deepEqual(declared(owner), []);
+    assert.equal(commandsUnread(owner), true);
     say(owner);
     assert.deepEqual(declared(owner), ["declared.run"]);
+    assert.equal(commandsUnread(owner), false);
+    assert.equal(commandsUnread(part), false);
     owner.lfCommands = null;
     say(owner);
     assert.deepEqual(declared(owner), []);
@@ -2527,6 +2531,13 @@ test("a widget's commands stand from when it says them until it withdraws them",
     say(owner);
     owner.removeEventListener("error", hear);
     assert.equal(failures.length, 1);
+    // A declaration Leaf refused is one it read: the failure says what is wrong.
+    const fresh = inner.appendChild(document.createElement("div"));
+    fresh.lfCommands = owner.lfCommands;
+    fresh.addEventListener("error", hear);
+    say(fresh);
+    assert.equal(failures.length, 2);
+    assert.equal(commandsUnread(fresh), false);
     assert.equal(failures[0][0], owner);
     assert.match(failures[0][1], /not a stable command id/);
     assert.deepEqual(declared(owner), []);

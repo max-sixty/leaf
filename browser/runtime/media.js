@@ -39,7 +39,8 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { closeControl, offerAction, offered } from "./widget-elements.js";
+import { closeControl } from "./widget-elements.js";
+import { offerAction, offered } from "./lib/controls.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import {
   nativeLayers,

@@ -74,10 +74,7 @@ import {
   commandScope,
   motion,
   returnDuration,
-  offered,
-  offeredAction,
   LeafElement,
-  offer,
   TEXT_FIELD,
   sendDraft,
   saveDraft,
@@ -94,6 +91,7 @@ import {
   worksInside,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import {

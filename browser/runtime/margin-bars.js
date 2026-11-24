@@ -72,7 +72,8 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { paintSet } from "./target-paint-geometry.js";
-import { el, offerAction, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { offerAction } from "./lib/controls.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { onCurrentLocation } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";

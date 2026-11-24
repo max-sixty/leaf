@@ -185,12 +185,6 @@ export function contributionEntryRecord(control) {
 }
 
 /** @param {Element} control */
-export function contributionControlKey(control) {
-  const { owner, key } = contributionEntryRecord(control);
-  return JSON.stringify([owner, key]);
-}
-
-/** @param {Element} control */
 export function contributionEntrySource(control) {
   const offered = controlContributions.get(control);
   if (!offered) return null;
@@ -557,7 +551,7 @@ export function contributionControl(
 ) {
   const surfaces = presented.get(offered);
   /** @type {readonly Surface[]} */
-  const names = surface ? [surface] : ["margin", "page", "map", "inline"];
+  const names = surface ? [surface] : ["margin", "map", "inline"];
   for (const name of names) {
     const control = surfaces?.get(name)?.get(entryKey);
     if (control?.isConnected && (!visible || control.checkVisibility())) return control;

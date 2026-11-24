@@ -83,8 +83,6 @@ under its tag, each fact under its own name, as `layerFact(element.localName)?.a
 reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
 `$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
 guidance, so read the fact you need rather than whether an entry exists.
-`matchesWhen(element, when)` says whether the element's attributes satisfy
-a `when`, such as an `awaits`'s.
 
 ### Following a reference
 
@@ -255,14 +253,10 @@ arrives. Each `source.kind` adds its own facts:
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
 (`module-state.md`, "Declared widget state").
 
-`partOver(node)` is the part of the page `node` stands in: the heading over it, else
-the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On Me groups its items by it and a link's preview names a place by it. A
-question or section stands in the part around it, past its own heading. A module that
-counts items per heading as the reader moves through them, as `lf-toc` does, gives
-each heading the stretch of the page from the element it titles (`titledElement`,
-"Naming") to the next heading's, and counts each item in the stretch holding
-its first word, comparing positions with `compareDocumentPosition`.
+A module that counts items per heading as the reader moves through them, as `lf-toc`
+does, gives each heading the stretch of the page from the element it titles
+(`titledElement`, "Naming") to the next heading's, and counts each item in the stretch
+holding its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone; a row of the On lists opens by its `id`.

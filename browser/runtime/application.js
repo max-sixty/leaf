@@ -31,7 +31,6 @@ import {
   annotationSelection,
   createAnnotationInventory,
 } from "./annotation-inventory.js";
-import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
@@ -548,30 +547,11 @@ function createApplication(dependencies) {
     composition: dependencies.compositionSurface,
     reveal: openPageThread,
   };
-  // data-annotations=page is the one switch that hands presentation to the page: both
-  // page consumers refuse a document that keeps Leaf's own margin.
+  // data-annotations=page is the one switch that hands presentation to the page: the
+  // page's thread outlets refuse a document that keeps Leaf's own margin.
   const requirePageAnnotations = () => {
     if (annotationMode !== "page")
       throw new Error("Page annotation presentation requires data-annotations=page");
-  };
-  /** @type {symbol | null} */
-  let annotationRegistration = null;
-  /** @param {Element} owner @param {import("./annotation-view.js").Paint} render */
-  const consumeAnnotations = (owner, render) => {
-    requirePageAnnotations();
-    if (annotationRegistration)
-      throw new Error("The document already has a page annotation view");
-    const registration = Symbol("page annotation view");
-    annotationRegistration = registration;
-    const retire = () => {
-      if (annotationRegistration === registration) annotationRegistration = null;
-    };
-    try {
-      return createAnnotationView(owner, render, annotations, invalidateDom, retire);
-    } catch (error) {
-      retire();
-      throw error;
-    }
   };
   // The widgets whose element has `threadOutlets` (thread/surfaces.js), registered
   // for as long as they stand.
@@ -730,7 +710,6 @@ function createApplication(dependencies) {
     presentThread,
     watchThreadSurfaces,
     placePageThreads,
-    consumeAnnotations,
     threadActions,
     // The panel's On rows' own arrival, where `m` would arrive (queue-api.js).
     queueActions,
@@ -776,8 +755,6 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
 /** @type {ReturnType<typeof createApplication>["placePageThreads"]} */
 export const placePageThreads = (...args) => app().placePageThreads(...args);
-/** @type {ReturnType<typeof createApplication>["consumeAnnotations"]} */
-export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 /** @type {ReturnType<typeof createApplication>["registerThreadPresentation"]} */
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);

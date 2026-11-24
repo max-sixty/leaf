@@ -140,7 +140,7 @@ const visibleRecords = (offers) =>
       .map((record) => ({ offered, record })),
   );
 // Every control a target offers, before and after it alike, in canonical order, each
-// with its receipt. The Page Map and page annotation views list a target's controls so.
+// with its receipt. The Page Map lists a target's controls so.
 /** @template {Offer} O @param {MarginEntry<O>} entry */
 export const entryControls = (entry) =>
   [...entry.controls, ...entry.afterControls].sort(compareContributionEntryRecords);

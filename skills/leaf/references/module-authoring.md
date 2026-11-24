@@ -64,14 +64,14 @@ In [module-reading.md](module-reading.md):
 - "Reading the page": `says`, `named` and `phrasing` read an element's words, and
   `elementById` finds the element an address names.
 - "Naming": `nameOf`, `titledElement` and `anchorLabel`.
-- "Reading declarations": `layerFact` and `matchesWhen` read the registry.
+- "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
 - "Code": `langForPath`, `dressCode` and `copyControl`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
-  `answerWords`, `partOver` and `obligationActions`.
+  `answerWords` and `obligationActions`.
 - "Work hierarchies": `readWork`.
 - "Page history and reports": `readHistory` and `readReports`.
 - "Reading version changes": `comparisonChanges`.
@@ -106,7 +106,7 @@ In [module-annotations.md](module-annotations.md):
   `threadInput`, `landInThread` and `agentName`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
-- "Page annotation presentation": `placePageThreads` and `consumeAnnotations`.
+- "Page annotation presentation": `placePageThreads`.
 
 In [module-previews.md](module-previews.md):
 

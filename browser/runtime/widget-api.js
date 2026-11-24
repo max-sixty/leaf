@@ -20,7 +20,6 @@ export { signal } from "/runtime/framework.js";
 export { iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
-export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 
@@ -100,7 +99,7 @@ export { threadSummary } from "./thread/messages.js";
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-export { isNativeLayer, under } from "./shadow-tree.js";
+export { under } from "./shadow-tree.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
@@ -125,8 +124,8 @@ export {
   paintMarkdown,
   renderMarkdown,
 } from "./markdown.js";
-export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-export { atScrollEnd, scrollLimit } from "./scrolling.js";
+export { scopedMediaUrl } from "./media.js";
+export { atScrollEnd } from "./scrolling.js";
 export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
@@ -162,9 +161,8 @@ export {
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-// Whether a press is the plain one a control claims: the primary button, no modifier;
-// and whether a click came from the keyboard rather than a pointer.
-export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
+// Whether a click came from the keyboard rather than a pointer.
+export { pressIsKeyboardActivation } from "./pointer.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";

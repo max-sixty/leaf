@@ -63,7 +63,6 @@ import { ShotView } from "./shot-view.js";
 import { render } from "/vendor/lit.js";
 import {
   setScroll,
-  canvas2D,
   afterPresentation,
   announce,
   once,
@@ -74,10 +73,8 @@ import {
   focusDestination,
   closeNativeLayer,
   nextFrame,
-  isCanonicalMediaUrl,
   layoutChanged,
   keeps,
-  plainPress,
   scopedMediaUrl,
   widgetController,
   move,
@@ -280,7 +277,7 @@ export class Shot extends HTMLElement {
           image.onerror = () => resolve(false);
           const source = this.getAttribute(state);
           if (source !== null)
-            image.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
+            image.src = source.startsWith("/media/") ? scopedMediaUrl(source) : source;
           else resolve(false);
         });
       }),
@@ -437,7 +434,11 @@ export class Shot extends HTMLElement {
           focusDestination(handle, "press");
       });
       comparison.addEventListener("click", (event) => {
-        if (dragged || handleOf(event) || !plainPress(event)) return;
+        // The primary button with no modifier: a modified click keeps its usual meaning.
+        const plain =
+          event.button === 0 &&
+          !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
+        if (dragged || handleOf(event) || !plain) return;
         event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });
@@ -533,7 +534,9 @@ export class Shot extends HTMLElement {
   async #pixelMask(images) {
     const { width, height, data } = compareImagePixels(...images);
     const canvas = new OffscreenCanvas(width, height);
-    canvas2D(canvas).putImageData(new ImageData(data, width, height), 0, 0);
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("The browser could not create a 2D canvas context");
+    context.putImageData(new ImageData(data, width, height), 0, 0);
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));
     try {
       const image = document.createElement("img");

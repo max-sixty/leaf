@@ -1,6 +1,6 @@
-import { canvas2D } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
+  canvas2D,
   colourableAs,
   colouredAs,
   inPage,
@@ -443,7 +443,7 @@ export function unreadSyntax() {
 }
 
 // The page's own code blocks that declare a language Leaf colours and go uncoloured,
-// since no reading face reaches them (syntax.js), as on a page that takes no theme.
+// since no reading face reaches them (syntax.js), as on a page that selects no theme.
 // Nothing else says so: the block reads as text, and its author learns only from the
 // render, while a reader can take the plain block for a broken one. It is advice,
 // since a page of its own design may leave its code the colour of its ink. A widget's

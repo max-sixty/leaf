@@ -630,8 +630,8 @@
                 <tr id="reading-workflow">
                   <td>
                     <a href="/how-it-works/#stages">How far the agent has got</a> with
-                    an update: Queued for Claude, Up next, Replying, Not answered, Gone
-                    quiet
+                    an update: Queued for Claude, Delivered, Replying, Not answered,
+                    Gone quiet
                   </td>
                   <td>the message itself; the margin and Page Map entries</td>
                 </tr>
@@ -661,8 +661,12 @@
             <p id="resolving-agent">
               The agent resolves a thread only when the user asks, or when no review
               could change the outcome; the thread then reads “Resolved by” and the
-              agent's name. A new message from either side reopens a resolved thread. A
-              reaction, a progress message or a failure notice does not.
+              agent's name. The user's new message reopens a resolved thread, and so
+              does the agent's in a thread the agent resolved. In a thread the user
+              resolved, the agent's message goes in without reopening it, unless it asks
+              them a question; the agent reopens the thread itself where it judges they
+              would want to stop and read what it said. A reaction, a progress message
+              or a failure notice reopens nothing.
             </p>
             <p id="withdrawing">
               Outside a text box, <kbd>⌘Z</kbd> takes back the user's latest action, a

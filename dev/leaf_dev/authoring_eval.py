@@ -1,8 +1,9 @@
 """Short cases that author a real Leaf page with native tools.
 
 Each call owns a scratch cwd, credential home, temp directory and Leaf state.
-The arm's launcher initializes a writable page, so registry discovery and media
-registration use the same boundary as a real authoring run. The agent may edit,
+The author initializes the page with the arm's launcher, as in a real authoring
+run, so the packages the page selects, its theme among them, are the author's
+choice and a case can score it. The agent may edit,
 run commands and check rendering; this executor independently checks the final
 page, plain and with `--render`, without repairing it. Existing assertions read
 the authored HTML, not a claim in the reply. Authors' render checks follow the
@@ -195,10 +196,9 @@ def execute(
         )
         if leaf:
             # Packages the user installed on this machine, as `metadata.installed`
-            # names them, before the page the agent writes.
+            # names them, before the page the agent creates and writes.
             for package in metadata.get("installed", ()):
                 run_leaf(payload, state, "package", "install", package, check=True)
-            run_leaf(payload, state, "page", "init", str(page), check=True)
         else:
             page.mkdir()
         setup_seconds = time.monotonic() - started

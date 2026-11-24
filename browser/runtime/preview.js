@@ -184,8 +184,9 @@
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
      a resting pointer never covers what the user reads, and nor does one a pointer
-     reaches while it carries a press, as in a drag. A tab the user leaves takes its
-     preview away.
+     reaches while it carries a press, as in a drag. A target the pointer came to
+     shows after its dwell even where it redraws under the pointer meanwhile. A tab
+     the user leaves takes its preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
      once, with no fade, where the user aimed it there by a Tab or Shift+Tab, or by a
      placement standing in for one (`step`), the cause its mover gives (focus.js,
@@ -2187,14 +2188,17 @@ export function mountPreviews(chrome) {
       if (onPreview()) return ride();
       // Something that arrives under a pointer the user hasn't moved takes it, but
       // shows nothing: the user pointed at what was there before. A pointer carrying a
-      // press, as a drag does, is acting, not reading.
+      // press, as a drag does, is acting, not reading. A target that only redraws
+      // under the pointer that came to it, as an entry's icon does, is still what the
+      // user pointed at, so the dwell their move began goes on.
       if (still || event.buttons) {
         const target = aimed();
-        if (!sameTarget(target, pointing)) {
+        const stays = sameTarget(target, pointing);
+        if (!stays) {
           pointing = target;
           pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
         }
-        clearTimeout(dwell);
+        if (!stays || event.buttons) clearTimeout(dwell);
         if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
       } else aim();
     },

@@ -1549,7 +1549,7 @@ def test_a_box_off_the_reading_face_keeps_its_own_tables_code_and_comments(
     browser, serve
 ):
     """Content with its own design inside a themed page sits in a box that turns the
-    reading face off (`package-themes.md`, "Personal themes"). Its full-width table
+    reading face off (`package-themes.md`, "A page's theme"). Its full-width table
     stays a native table, its code keeps the spans and colours its author gave it with
     no clearance under the block, a plain block there stays uncoloured, and a comment
     still anchors on a word inside it. The code block outside keeps the face."""

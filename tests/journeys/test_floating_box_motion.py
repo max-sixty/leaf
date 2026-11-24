@@ -29,10 +29,11 @@ from render_cases_interaction import HOLD_MOTION
 from render_harness import open_page, resized, scroll_settled, write
 
 from leaf.render_checks import rendered, wait_for_probe
+from leaf_dev.frames import SCRIPT as FRAMES_SCRIPT
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-MOTION_FRAMES = browser_source("motion_frames.js")
+MOTION_FRAMES = FRAMES_SCRIPT.read_text() + browser_source("motion_frames.js")
 
 # Each box, what opens it with the caret in its field, and its parts (`motion_frames.js`).
 COMPOSERS = {

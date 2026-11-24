@@ -140,8 +140,7 @@ to place the box beside them: `place(box)` returns true when it handles the box,
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports. `describeFailure(error)` returns a
-short message for any thrown value when the widget presents its own recovery.
+`reportFailure(element, error)` only reports.
 
 ## Connection lifetimes
 
@@ -173,8 +172,6 @@ only one element may hold, such as `registerReadingRegion`, passes to the replac
 A `LeafElement` draws nothing while it is away and draws the current reading once on
 return, keeping unchanged template nodes. Have `start` restore what its cleanup removed,
 and when the element leaves, drop unfinished work but keep finished nodes.
-
-`Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 
 ## Revisions
 
@@ -367,8 +364,7 @@ page, and leaving cancels a scheduled paint, so schedule it again from `start`.
 `nextRender(callback)` runs in the rendering pass under way, or the next frame's, and
 `nextFrame(callback)` always waits a frame; cancel either with `cancelRender(id)`. The
 page doesn't count as settled until this work runs, so motion that may run until the
-user stops it, such as playback, uses `nextAnimation(callback)` and
-`cancelAnimation(id)` instead.
+user stops it, such as playback, calls the browser's `requestAnimationFrame` instead.
 
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
@@ -384,7 +380,7 @@ whole document. `keeps(node, name, value)` writes an attribute only when it woul
 back differently; pass booleans and counts as they are, and `null` to remove it.
 `keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
 `hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
-layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
+layout's 1/64px.
 
 ## Contained examples and scoped appearance
 

@@ -111,12 +111,11 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  glideTo,
+  glideBy,
   SCROLL_SLACK,
   scrollGoal,
   scrollLimit,
   scrollToEnd,
-  whereGlidesLand,
 } from "../scrolling.js";
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
@@ -129,6 +128,7 @@ import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX, wholeThread } from "./selectors.js";
 import {
   threadAttention,
+  inHand,
   todoWord,
   workflowWord,
   hasWorkflowLine,
@@ -231,7 +231,7 @@ function quoteReading(thread, anchors) {
 // the original log position (`workingPlace`): as the face of the step there, or as a
 // face of its own (transcript.js). An answer already streaming at the thread's end
 // replaces the working message and the step before it.
-const STOPPED = new Set(["ended", "stale", "interrupted"]);
+const STOPPED = new Set(["stopped", "quiet", "interrupted"]);
 // A step's face (transcript.js), the working message among them, standing for the work
 // under way where a thread reads the answer to the user's turn (`#fitAnswer`); and the
 // key each is drawn under there.
@@ -251,19 +251,22 @@ function workingMessage(thread, messages) {
   const pending = messages.filter((message) => message.progress);
   const lastProgress = pending.at(-1);
   const workflows = thread.workflows;
-  const running = workflows.find((workflow) => !workflow.condition && workflow.at_work);
+  const running = workflows.find(inHand);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
     /** @returns {workflow is Extract<import("../framework/application.js").Workflow, {detail: string}>} */
     (workflow) =>
-      workflow.condition !== null &&
-      STOPPED.has(workflow.condition.kind) &&
+      workflow.state === "blocked" &&
+      workflow.reason !== null &&
+      STOPPED.has(workflow.reason) &&
       Boolean(workflow.detail),
   );
-  const todo = thread.todos.find(
-    /** @returns {todo is import("../../types/contract.js").ServedTodo & {running: NonNullable<import("../../types/contract.js").ServedTodo["running"]>}} */
-    (todo) => todo.running !== null,
-  );
+  // The line of the start on a to-do of the agent's on the thread: one running, else
+  // one that stopped or went quiet, which keeps the line it last said.
+  const todos = thread.obligations.filter((item) => item.source.kind === "todo");
+  const todo = todos.find(inHand)?.line ?? null;
+  const stoppedTodo =
+    todos.find((item) => item.state === "blocked" && item.line) ?? null;
   /** @typedef {{words: string, position: number, live: boolean,
    * condition: import("../voice.js").Said | null, agent: string | null | undefined}} Step */
   /** @type {Step | null} */
@@ -289,8 +292,8 @@ function workingMessage(thread, messages) {
       ? progressStep
       : todo
         ? {
-            words: todo.running.text,
-            position: todo.running.seq,
+            words: todo.text,
+            position: todo.seq,
             live: true,
             condition: null,
             agent: null,
@@ -303,7 +306,15 @@ function workingMessage(thread, messages) {
               condition: workflowWord(stopped, agentName()),
               agent: stopped.agent,
             }
-          : progressStep;
+          : stoppedTodo?.line
+            ? {
+                words: stoppedTodo.line.text,
+                position: stoppedTodo.line.seq,
+                live: false,
+                condition: todoWord(stoppedTodo),
+                agent: null,
+              }
+            : progressStep;
   if (!step || !step.words || (!pending.length && !step.live && !step.condition))
     return null;
   const { words, position, live, condition, agent } = step;
@@ -311,7 +322,8 @@ function workingMessage(thread, messages) {
   // A workflow's detail is explicit agent work text linked to its exact input. A
   // to-do's line can be user-authored, so it supplies no reply visibility evidence.
   const work = runningLine?.detail ? runningLine : !running && !todo ? stopped : null;
-  const progress = !work && (running || (!todo && !stopped)) ? pending.at(-1) : null;
+  const progress =
+    !work && (running || (!todo && !stopped && !stoppedTodo)) ? pending.at(-1) : null;
   // Date the words being shown, rather than another message or the workflow's
   // liveness condition. A to-do line has no dated source in the thread reading.
   const timestamp = work?.ts ?? progress?.timestamp ?? null;
@@ -363,12 +375,16 @@ export function threadReading(thread, surface, commands) {
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
       .map((item) => item.message),
   );
-  const openTodos = new Map(thread.todos.map((todo) => [todo.id, todo]));
+  const openTodos = new Map(
+    thread.obligations
+      .filter((item) => item.source.kind === "todo" && item.state !== "done")
+      .map((todo) => [todo.id, todo]),
+  );
   /** @param {ThreadRecord["msgs"][number]} message */
   const leaves = (message) => {
     if (asking.has(message.id)) return { word: leafSays("Waiting on me"), todo: null };
     const todo = message.todo ? openTodos.get(message.id) : undefined;
-    return todo ? { word: todoWord(todo.running), todo: todo.id } : null;
+    return todo ? { word: todoWord(todo), todo: todo.id } : null;
   };
   // What ended a step comes from the server (`completed_by`), a provisional answer
   // included. A held reading keeps a step until the message that ended it is among the
@@ -1067,17 +1083,19 @@ export class ThreadView {
         return;
       // The user's turn stands wholly in sight, between the box's top edge and New
       // reply's ground, its head first where it is taller than that, read where the
-      // box is headed, New reply stuck at its foot (scrolling.js, `whereGlidesLand`),
-      // through the box's transforms. The box glides there, as it glides to the end.
-      const scale = scrollAxes(scroller).y.y;
-      const by = whereGlidesLand([scroller], () => {
+      // box is headed, New reply stuck at its foot, through the box's transforms. The
+      // box glides there, as it glides to the end, and reads the turn again at each
+      // frame (scrolling.js, `glideBy`), so a transcript that changes above the turn
+      // meanwhile still leaves it in sight.
+      glideBy(scroller, () => {
+        if (!turn.isConnected) return null;
+        const scale = scrollAxes(scroller).y.y;
         const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
         const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
         return scale
           ? carried(turn, scroller, Math.min(Math.max(below, 0), from()) / scale)
           : 0;
       });
-      glideTo(scroller, stood + by);
     });
   }
 

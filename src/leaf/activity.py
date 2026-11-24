@@ -1,20 +1,36 @@
-"""Canonical page availability and agent work projected from durable evidence.
+"""Where the agent's work stands, projected from durable evidence and the live claim.
 
-Status is the page's open (`waiting`) or closed (`idle`) declaration, the newest
-`status` event in the log (`declaration`), a start in the log is the item it has in hand (`todos`), claims
-prove ownership and turn lifetime, and pickup events prove delivery. Delivery remains
-interaction evidence rather than becoming the page's execution state. This module is
-the one fold that orders those facts and supplies every reader — browser chrome,
-hooks, and agent-facing state — with one answer.
+The log says what is owed (`obligations`, `workflows`, `todos`). This module adds what
+only the claim, the turn and the harness can say, and is the one producer of `running`
+and `blocked` (`standing`): for each update's delivery, each update's record and each
+to-do, and for the page.
+
+The evidence, each dated by when it was written: the agent's declaration, the newest
+`status` event, opens the page or closes it (`declaration`); a start is a lease on the
+item it names (`todos`); the claim proves who holds the page and when its turn opened
+and closed; a pickup proves a delivery; a stream proves a step or a reply under way.
+
+The page's reading is the agent's side of all of it, in the same words: `running`
+while its turn is at work, `blocked` when what it had in hand has stopped or gone
+quiet, when its turn waits on the user in its own window (`terminal`), or when nothing
+takes input and an owed update is stranded, which it says in that update's own reason;
+`waiting` while it owes something nobody is on, `done` when it owes nothing. Its
+`next_actor` is whose move changes that: the user's for a dialog in the terminal and
+for an update only a nudge will move. `presence` says whether anyone is there to take
+input: `here`, `away` between turns, `gone` when no session holds the page, `closed`
+once the agent declared it done with the page. Every reader, browser chrome, hooks and
+agent-facing state, takes this one answer.
 """
 
 import json
+from collections import Counter
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
 from .obligations import response_address
+from .standing import STRANDED, strength
 from .state import turn_closed, turn_open
 
 WORKING_GRACE = timedelta(minutes=15)
@@ -129,7 +145,9 @@ def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict]:
 
 
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
-    """Bind provisional response progress only to the exact input it names.
+    """Bind provisional response progress only to the exact input it names: the
+    update reads `running` with reason `replying`, or `blocked` by what became of the
+    reply.
 
     A durable response outranks it: a harness's failure reply has already answered
     the input, and the turn's leftover stream must not paint it as still replying."""
@@ -138,30 +156,21 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     workflow = next(
         (item for item in workflows if item["input"] == reply["responds"]), None
     )
-    if workflow is None or workflow["stage"] == "answered":
+    if workflow is None or workflow["reason"] == "failed":
         return
     workflow["response"] = _reply_evidence(reply)
-    workflow["stage"] = "replying"
-    workflow["activity"] = [
-        {
-            "kind": "replying",
-            "detail": None,
-            "ts": reply["updated_at"],
-            "session": reply["session"],
-            "turn": reply["turn"],
-        }
-    ]
     # `partial` is a turn that completed without a final answer: it ended with
     # the update unanswered.
-    condition = {
-        "disconnected": "stale",
+    blocked = {
+        "disconnected": "quiet",
         "interrupted": "interrupted",
         "failed": "failed",
-        "partial": "ended",
+        "partial": "stopped",
     }.get(reply["state"])
-    workflow["condition"] = (
-        {"kind": condition, "operation": "response"} if condition else None
+    workflow["state"], workflow["reason"] = (
+        ("blocked", blocked) if blocked else ("running", "replying")
     )
+    workflow["seen"] = True
 
 
 def reply_reservation_stands(
@@ -280,8 +289,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     return [
         obligation
         for obligation in acknowledged_obligations(state)
-        if obligation["stage"] != "queued"
-        and not (watched and _turn_wrote(obligation, state))
+        if not obligation["queued"] and not (watched and _turn_wrote(obligation, state))
     ]
 
 
@@ -330,7 +338,7 @@ def in_hand(obligation: dict, state: dict) -> bool:
     (`start_holds`, `todos.take_in_hand`): one covering it (`workflows.handed_over`,
     `started_by`), written since its pickup.
 
-    Read from the covering starts rather than the update's Working stage, which follows
+    Read from the covering starts rather than the update's own standing, which follows
     the one input a start names: a thread's one reply answers every input it holds,
     so a start on an earlier input there covers the newest that carries the answer."""
     delivered = obligation["delivery_seq"] or obligation["seq"]
@@ -562,47 +570,99 @@ def _start_age(
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
 
-def _canonical_workflows(
+def _stand_workflows(
     evidence: list[dict],
     present: dict,
     now: datetime,
     *,
     held: bool,
     turn: Turn,
-) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
-    """Age each workflow's evidence, and return beside them, for each Working update,
-    the start that holds it and how quiet and whether dropped that start is, which
-    the page reading below dates by."""
+    owed: set[str],
+    on_it: frozenset[str],
+) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]], list[str]]:
+    """Say where each workflow stands (`standing`) from its delivery evidence and the
+    claimant's turn. Returned beside them: for each update a start holds, that start
+    and how quiet and whether dropped it is, which the page reading below dates by;
+    and when each update no harness has carried was sent, whose pickup grace is a
+    moment the reading changes at.
+
+    A start that stands is the agent at work. One gone quiet or dropped leaves the
+    update `blocked`, `stopped` where it no longer holds what it took in hand
+    (`start_holds`) and `quiet` where nothing says. Without a start, an update a turn
+    took in waits while that turn runs; once it was seen to end with an answer still
+    owed (`owed`, the records the agent owes) the update is `stopped`, and taken in by
+    any other turn, `quiet`. One no harness has carried is `undelivered` past the
+    pickup grace. A waiting update a progress message of the agent's came after
+    (`on_it`, `served_state.work.lined`), as the line a line fork posts, is at work.
+    Nobody holding the page has nothing in hand, so an unheld page's updates read from
+    their delivery alone.
+
+    One reply answers every input its record holds, so a start standing on one of
+    them covers the rest: an input a turn took in is no more stopped than the work on
+    its answer is, and waits, delivered, while that work runs."""
     result = []
     aging = {}
+    sent = []
+    left = []
     for raw in evidence:
         item = dict(raw)
-        start = item.pop("held_by", None)
-        stage = item["stage"]
-        if stage == "working":
-            if held:
-                quiet, dropped = _start_age(start, present, now, turn)
-                if quiet:
-                    item["condition"] = {"kind": "stale", "operation": "work"}
-                aging[item["id"]] = (start, quiet, dropped)
+        start = item.pop("held_by")
+        pickup = item.pop("pickup")
+        state, reason, seen = "waiting", None, pickup == "opened"
+        handling = False
+        if item.pop("handed_back"):
+            state, reason, seen = "blocked", "failed", True
+        elif start is not None and held:
+            quiet, dropped = _start_age(start, present, now, turn)
+            aging[item["id"]] = (start, quiet, dropped)
+            item["ts"] = start["ts"]
+            seen = True
+            if quiet:
+                state, reason = "blocked", "stopped" if dropped else "quiet"
             else:
-                stage = item["fallback_stage"]
-                item["ts"] = item["fallback_ts"]
-                item["detail"] = None
-                item["detail_seq"] = None
-                item["agent"] = None
-                item["session"] = None
-                item["activity"] = []
-        if stage == "sent" and _quiet(item["ts"], now, PICKUP_GRACE):
-            item["condition"] = {"kind": "stale", "operation": "delivery"}
-        item["stage"] = stage
-        item.pop("fallback_stage", None)
-        item.pop("fallback_ts", None)
+                state = "running"
+        else:
+            if start is not None:
+                item.update(detail=None, detail_seq=None, agent=None, session=None)
+            if pickup == "opened":
+                in_turn = (
+                    item["delivery_session"] == present.get("claim_session")
+                    and item["delivery_turn"] == present["turn"]
+                )
+                handling = in_turn and turn.running
+                if not handling and item["obligation"] in owed:
+                    state = "blocked"
+                    reason = (
+                        "stopped" if in_turn and turn.ended is not None else "quiet"
+                    )
+                    left.append(item)
+            elif pickup is None:
+                sent.append(item["ts"])
+                if _quiet(item["ts"], now, PICKUP_GRACE):
+                    state, reason = "blocked", "undelivered"
+            if state == "waiting" and item["input"] in on_it:
+                state = "running"
+        item.update(
+            state=state,
+            reason=reason,
+            seen=seen,
+            # A start on a queued update is the agent taking it up ahead of the queue.
+            queued=pickup == "queued" and not (start is not None and held),
+            handling=handling,
+        )
         result.append(item)
-    return result, aging
+    covered = {
+        item["obligation"]
+        for item in result
+        if item["state"] == "running" and item["id"] in aging
+    }
+    for item in left:
+        if item["obligation"] in covered:
+            item["state"], item["reason"] = "waiting", None
+    return result, aging, sent
 
 
-def _canonical_todos(
+def _stand_todos(
     todos: list[dict],
     present: dict,
     now: datetime,
@@ -610,27 +670,50 @@ def _canonical_todos(
     held: bool,
     turn: Turn,
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
-    """Age the start running on each open to-do as a Working update's is aged, and
-    return beside them, for each to-do a start ran on, that start and how quiet and
-    whether dropped it is. A to-do's `running` is the start that holds it: one gone
-    quiet holds nothing, so every reader of the to-do finds it open with nothing
-    running, while the page reading below still dates its stall by that start.
-    Nobody holding the page has nothing in hand, so an unheld page's to-dos run
-    nothing."""
+    """Say where each open to-do stands as an update a start holds does, and return
+    beside them, for each to-do a start ran on, that start and how quiet and whether
+    dropped it is. A to-do nothing has started waits; one whose start went quiet or
+    was dropped is `blocked` and keeps the line it last said. Nobody holding the page
+    has nothing in hand, so an unheld page's to-dos wait with no line."""
     result = []
     aging = {}
     for raw in todos:
         todo = dict(raw)
-        start = todo["running"]
+        start = todo["line"]
         if start is not None and held:
             quiet, dropped = _start_age(start, present, now, turn)
             aging[todo["id"]] = (start, quiet, dropped)
-            if quiet:
-                todo["running"] = None
+            todo["state"], todo["reason"] = (
+                ("blocked", "stopped" if dropped else "quiet")
+                if quiet
+                else ("running", None)
+            )
         else:
-            todo["running"] = None
+            todo["line"] = None
         result.append(todo)
     return result, aging
+
+
+def _stand_records(updates: list[dict], workflows: list[dict]) -> list[dict]:
+    """Each update's record standing where the strongest workflow serving it does
+    (`standing.strength`, then the newer input), which `workflow` names."""
+    serving: dict[str, list[dict]] = {}
+    for item in workflows:
+        if item["obligation"] is not None:
+            serving.setdefault(item["obligation"], []).append(item)
+    records = []
+    for record in updates:
+        record = dict(record)
+        if record["state"] != "done" and (held := serving.get(record["id"])):
+            strongest = max(held, key=lambda item: (strength(item), item["seq"]))
+            record.update(
+                state=strongest["state"],
+                reason=strongest["reason"],
+                seen=strongest["seen"],
+                workflow=strongest["id"],
+            )
+        records.append(record)
+    return records
 
 
 def canonical_activity(
@@ -644,23 +727,30 @@ def canonical_activity(
     *,
     todo_reading=None,
     updates: dict,
+    on_it: frozenset[str] = frozenset(),
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
     `interaction_evidence` are the page's workflows and `updates` the records the
     user's updates publish (`workflows.handed_over`), and `events` the log they were
     read from, which holds the agent's open to-dos and the starts running on them
-    (`todos.TodoReading`). Workflows and to-dos come back aged, as `workflows` and
-    `todos`.
+    (`todos.TodoReading`). Each comes back saying where it stands (`standing`):
+    `workflows`, `records` for the updates, and `todos` for the open to-dos.
 
     `obligations` are the answers the agent owes: for each update record whose next
     actor is the agent, the workflow of the input it names, carrying the record's id as
-    `obligation` and, as `answer`, the operation that answers it
-    (`obligations.response_address`) with what its receipts give it
-    (`_receipt_bindings`). `reservations` reserve automatic replies from the
+    `obligation`, whether a harness queue holds it (`queued`) and, as `answer`, the
+    operation that answers it (`obligations.response_address`) with what its receipts
+    give it (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
-    answer may commit first; the automatic final then yields to it.
+    answer may commit first; the automatic final then yields to it. `on_it` are the
+    waiting turns a progress message of the agent's came after
+    (`served_state.work.lined`).
+
+    `counts` are the answers owed, each counted once: as `unseen` where no turn has
+    taken its update in and nothing is at work on it, so one a line fork's line stands
+    after counts as `running`, and otherwise by where its update stands.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
@@ -673,6 +763,7 @@ def canonical_activity(
     status = present["status"]
     declared = declared_at(present, events)
     turn, stream_live = current_turn(present, declared, stream, now)
+    closed = status["state"] == "idle"
     # What the harness observed the agent doing now: a live stream step while its turn
     # runs, the harness's own word that the turn waits on the user in its window, or
     # its word that the session is busy. Claude Code says busy while a turn runs,
@@ -681,10 +772,10 @@ def canonical_activity(
     observed = None
     if stream_live and turn.running:
         observed = stream
-    elif turn.step is not None and status["state"] != "idle":
+    elif turn.step is not None and not closed:
         assert turn.step_since is not None
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
-    elif turn.busy and status["state"] != "idle":
+    elif turn.busy and not closed:
         observed = (
             {"kind": "working", "detail": "", "ts": present["turn_opened"]}
             if turn.ended is None
@@ -703,17 +794,23 @@ def canonical_activity(
     )
     held = not unheld
 
-    workflows, aging = _canonical_workflows(
-        interaction_evidence, present, now, held=held, turn=turn
-    )
-    todos, todo_aging = _canonical_todos(log.owed, present, now, held=held, turn=turn)
-    bindings = _receipt_bindings(workflows, present)
-    _bind_reply(workflows, reply)
     owing = {
         record["source"]["id"]: record
         for record in updates["all"]
         if record["next_actor"] == "agent"
     }
+    workflows, aging, sent = _stand_workflows(
+        interaction_evidence,
+        present,
+        now,
+        held=held,
+        turn=turn,
+        owed={record["id"] for record in owing.values()},
+        on_it=on_it,
+    )
+    todos, todo_aging = _stand_todos(log.owed, present, now, held=held, turn=turn)
+    bindings = _receipt_bindings(workflows, present)
+    _bind_reply(workflows, reply)
 
     def owed_answer(item: dict) -> dict:
         answer = {
@@ -730,18 +827,32 @@ def canonical_activity(
             answer.update(writer="turn", attempt=reservation["attempt"])
         return answer
 
-    # The items in hand: each Working update, by the start that holds it, and each to-do
-    # a start runs on, each beside how quiet and whether dropped that start is. Their
-    # newest start is the line the page's status shows.
+    # The items in hand: each update a start holds, unless its reply now streams, and
+    # each to-do a start runs on, each beside how quiet and whether dropped that start
+    # is. Their newest start is the line the page's status shows.
     in_hand: list[tuple[dict, tuple[bool, bool]]] = [
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
-        if item["stage"] == "working"
+        if item["id"] in aging and item["response"] is None
     ] + [(start, (quiet, dropped)) for start, quiet, dropped in todo_aging.values()]
+
+    # A dialog in the agent's own window holds whatever its turn has in hand: the
+    # user's answer there is the move that frees it.
+    terminal = bool(observed and observed["kind"] in AWAITING_KINDS)
+    if terminal:
+        for item in (*workflows, *todos):
+            start = (aging.get(item["id"]) or todo_aging.get(item["id"]) or (None,))[0]
+            if (
+                item["state"] == "running"
+                and start is not None
+                and start.get("session") == present.get("claim_session")
+                and start.get("turn") == present["turn"]
+            ):
+                item["state"], item["reason"] = "blocked", "terminal"
 
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
-    # even when the primary label remains Closed, so every such boundary counts;
+    # even when the page still reads closed, so every such boundary counts;
     # consumers decide nothing locally and ask this fold for the next complete
     # reading when it arrives. A live harness's word moves without a deadline, and the
     # presence token carries it.
@@ -749,11 +860,7 @@ def canonical_activity(
         (_moment(status.get("ts")), WORKING_GRACE),
         (_moment(declared), WORKING_GRACE),
         (turn.until, timedelta()),
-        *(
-            (_moment(item["ts"]), PICKUP_GRACE)
-            for item in workflows
-            if item["stage"] == "sent"
-        ),
+        *((_moment(ts), PICKUP_GRACE) for ts in sent),
         *((_moment(start["ts"]), WORKING_GRACE) for start, _age in in_hand),
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
@@ -768,38 +875,14 @@ def canonical_activity(
     # reports delivery for every update the user handed over, but an update that owes
     # nothing, an input a newer one in its thread answers through, and a failed
     # answer the user must resend are no work the status may promise the agent
-    # picks up. These are the workflows themselves, so the conditions set below reach
-    # every reader of them.
+    # picks up.
     obligations = [item for item in workflows if item["input"] in owing]
     in_hand_now = [(start, age) for start, age in in_hand if not age[0]]
-    active_updates = [
-        item
-        for item in obligations
-        if item["stage"] in {"working", "replying"} and item["condition"] is None
+    # The updates the claimant's running turn took in and has neither started nor
+    # begun to answer.
+    handling = [
+        item for item in obligations if item["handling"] and item["response"] is None
     ]
-    opened = [item for item in obligations if item["stage"] == "picked_up"]
-    in_this_turn = [
-        item
-        for item in opened
-        if item.get("delivery_session") == present.get("claim_session")
-        and item.get("delivery_turn") == present["turn"]
-    ]
-    handling = in_this_turn if turn.running else []
-    for item in opened:
-        if item in handling:
-            continue
-        # Pickup remains durable history; the condition says the exact turn it
-        # entered is no longer a running turn handling it now: that turn was seen
-        # to end, or nothing says whether it runs, or the update was opened in some
-        # other, older turn.
-        item["condition"] = {
-            "kind": "ended"
-            if item in in_this_turn and turn.ended is not None
-            else "stale",
-            "operation": "work",
-        }
-    queued = [item for item in obligations if item["stage"] == "queued"]
-    pending = [item for item in obligations if item["stage"] == "sent"]
     # Owed updates that stalled with the agent to act: left by a turn seen to end
     # or be interrupted before answering, or still unpicked past the pickup grace.
     # With nothing taking input, these are what only a nudge will move. Work merely
@@ -807,107 +890,127 @@ def canonical_activity(
     # running a long step, which is also why admission nudges only after a seen
     # ending; unpicked input asks the user even without one, since with no record
     # to see an interrupt the user's nudge is its only remedy.
-    overdue = [
+    stranded = [
         item
         for item in obligations
-        if item["condition"] is not None
-        and (
-            item["condition"]["kind"] in {"ended", "interrupted"}
-            or item["condition"]["operation"] == "delivery"
-        )
+        if item["state"] == "blocked" and item["reason"] in STRANDED
     ]
 
-    # The page's `kind` reads this wherever it asks whether anyone is there; a watch
+    # `presence` reads this wherever it asks whether anyone is there; a watch
     # question such as the Stop hook's still asks for the lease.
     # Nor is the agent away where the nudge the next input gets starts a turn
     # (`Harness.input_wakes`).
     taking_input = takes_input(present, turn) or (
         nudge_due(present, turn) and present["input_wakes"]
     )
-    kind = "away"
+    presence = (
+        "closed" if closed else "gone" if unheld else "here" if taking_input else "away"
+    )
+    attended = presence in {"here", "away"}
+    state = "waiting" if obligations or todos else "done"
+    reason = None
     detail = ""
     detail_source = None
     ts = status.get("ts")
-    dropped = status_dropped
-    if status["state"] == "idle":
-        kind, dropped = "closed", False
-    elif unheld:
-        kind = "unheld"
-    elif in_hand_now:
+    dropped = status_dropped and not closed
+    if attended and in_hand_now:
         # What the work *is* comes from the agent, on every harness: the line of the
         # newest item it has in hand. An observed step says a session is alive and
         # moving; it cannot say what the user is waiting for, and a step that replaced
         # the line would trade the one reading written for them for the one that
         # happens to be newest. So it stands beside the line as `observed`.
         start, (_, dropped) = max(in_hand_now, key=lambda pair: pair[0]["seq"])
-        kind, detail, ts = "working", start["text"], start["ts"]
+        state, detail, ts = "running", start["text"], start["ts"]
         detail_source = {"event_id": start["id"], "item": start["item"]}
-    elif observed is not None:
+    elif attended and observed is not None:
         # A step the harness observed is Leaf's account, not the agent's line, so it
         # stands only as `observed` and the line stays empty for the agent to write.
-        kind, dropped, ts = "working", False, observed["ts"]
-    elif handling:
+        state, dropped, ts = "running", False, observed["ts"]
+    elif attended and handling:
         # Opening an exact delivery into the claimant's running turn proves generic
         # page work even before the agent starts an item. It does not bind that
-        # execution state back onto any other interaction; each receipt keeps its own
-        # workflow stage.
+        # execution state back onto any other interaction; each update keeps its own
+        # standing.
         latest = max(handling, key=lambda item: item.get("delivery_seq") or 0)
-        kind, ts, dropped = "working", latest["ts"], False
-    elif in_hand:
-        # Items still in hand whose turn has gone quiet or ended: the page stalls on
-        # the newest one's line, or is away when nothing takes input.
+        state, ts, dropped = "running", latest["ts"], False
+    elif attended and in_hand:
+        # Items still in hand whose turn has gone quiet or ended: the page is blocked
+        # on the newest one's line.
         start, (_, dropped) = max(in_hand, key=lambda pair: pair[0]["seq"])
-        detail, ts = start["text"], start["ts"]
+        state, detail, ts = "blocked", start["text"], start["ts"]
         detail_source = {"event_id": start["id"], "item": start["item"]}
-        kind = "stalled" if taking_input else "away"
-    elif taking_input:
-        kind, dropped = "listening", False
-    if dropped and kind != "working":
-        # A belief that lapsed is dated by when it lapsed, not by the start's own
-        # last word: "last checked in just now" beside an amber dot would argue with
-        # the dot. That is the turn's seen ending, or, for a start an earlier turn
-        # wrote that no background work carried into this one, this turn's opening,
-        # by which it had lapsed.
-        ts = turn.ended.isoformat() if turn.ended else present["turn_opened"]
+    elif presence == "here":
+        dropped = False
+    working = state == "running"
+    if working and terminal:
+        state, reason = "blocked", "terminal"
+    elif not working:
+        # The stranded update the page is blocked on where nothing is in hand: the
+        # page says why in that update's own reason, as its thread does.
+        lead = None
+        if presence != "here" and stranded:
+            state = "blocked"
+            if not in_hand:
+                lead = max(stranded, key=strength)
+        if state == "blocked":
+            reason = "stopped" if dropped else lead["reason"] if lead else "quiet"
+        if dropped:
+            # A belief that lapsed is dated by when it lapsed, not by the start's own
+            # last word: "last checked in just now" beside an amber dot would argue
+            # with the dot. That is the turn's seen ending, or, for a start an earlier
+            # turn wrote that no background work carried into this one, this turn's
+            # opening, by which it had lapsed.
+            ts = turn.ended.isoformat() if turn.ended else present["turn_opened"]
+        elif lead and lead["reason"] != "undelivered":
+            # So is an update a turn left: by that turn's ending where it was seen,
+            # else by the update's own last evidence.
+            ts = turn.ended.isoformat() if turn.ended is not None else lead["ts"]
+    # Whose move changes the reading: the user's where a dialog in the agent's own
+    # window holds the turn, or where only their nudge will move a stranded update.
+    next_actor = (
+        None
+        if state == "done"
+        else "user"
+        if reason == "terminal"
+        or (state == "blocked" and stranded and presence != "here")
+        else "agent"
+    )
 
+    served_obligations = [
+        {
+            **item,
+            "obligation": owing[item["input"]]["id"],
+            "answer": owed_answer(item),
+        }
+        for item in obligations
+    ]
+    counts = Counter(
+        "unseen" if not item["seen"] and item["state"] != "running" else item["state"]
+        for item in obligations
+    )
+    for item in workflows:
+        del item["queued"], item["handling"]
     return {
-        "kind": kind,
-        "held": held,
-        "dropped": dropped,
+        "presence": presence,
+        "state": state,
+        "reason": reason,
+        "next_actor": next_actor,
         "detail": detail,
         "detail_source": detail_source,
         # The step behind a working reading, reported whether or not it is also the
-        # sentence, so a consumer can show both without asking which harness this is. Only
-        # under `working`: a step standing beside "last checked in 30m ago" would argue
-        # with the amber dot the rest of that reading wears.
-        "observed": (
-            observed.get("detail", "") if observed and kind == "working" else ""
-        ),
-        "observed_kind": observed["kind"] if observed and kind == "working" else None,
-        # Whether that step waits on the user in the agent's own window, where the
-        # user answers it rather than on the page.
-        "awaiting": bool(
-            observed and kind == "working" and observed["kind"] in AWAITING_KINDS
-        ),
+        # sentence, so a consumer can show both without asking which harness this is.
+        # Only while the turn is at work or held by its own dialog: a step standing
+        # beside "last checked in 30m ago" would argue with the amber dot the rest of
+        # that reading wears.
+        "observed": (observed.get("detail", "") if observed and working else ""),
+        "observed_kind": observed["kind"] if observed and working else None,
         "counts": {
-            "active": len(active_updates),
-            "handling": len(handling),
-            "queued": len(queued),
-            "picked_up": len(opened) - len(handling),
-            "pending": len(pending),
-            "overdue": len(overdue),
-            "total": len(obligations),
+            kind: counts[kind] for kind in ("running", "waiting", "blocked", "unseen")
         },
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
         "workflows": workflows,
         "todos": todos,
-        "obligations": [
-            {
-                **item,
-                "obligation": owing[item["input"]]["id"],
-                "answer": owed_answer(item),
-            }
-            for item in obligations
-        ],
+        "records": _stand_records(updates["all"], workflows),
+        "obligations": served_obligations,
     }

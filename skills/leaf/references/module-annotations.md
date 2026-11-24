@@ -66,7 +66,9 @@ draws its own control as an entry with
 `presentContributionEntry(control, entry, {selected, unread})`, where `unread` draws
 the dot for agent words the user hasn't read beside the entry's count, and shows whether the agent is
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
-`receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
+`receipt` is `null` or a workflow's `{id, subject, state, reason, seen, detail}`. The
+control shows the agent at work while `state` is `"running"`, and an update a turn has
+taken in while `state` is `"waiting"` and `seen` is true.
 
 The returned registration's `hasCurrentLocation()` says whether the user's focus is
 inside any control presenting that contribution, across shadow roots and presentation
@@ -135,10 +137,12 @@ Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and 
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, and
-`attention.kind` is `"needs_user"` when it waits on the user and `"waiting"` when it is
-with the agent. `resolved` is set while it stands resolved. A message's `reactions`
-lists the reactions it takes and those in force, and is `null` on a message that takes
-none. An agent's message carries `agent`, the name it shows under.
+`attention` is the obligation record that speaks for it, or `null` when nobody owes a
+move there: its `next_actor` is `"user"` when the thread waits on the user and
+`"agent"` when it is with the agent, and its `state` says where that stands. `resolved`
+is set while it stands resolved. A message's `reactions` lists the reactions it takes
+and those in force, and is `null` on a message that takes none. An agent's message
+carries `agent`, the name it shows under.
 
 A Thread's `anchor` says what it is about, and is `null` for a comment on the whole
 page. It names a `section`, an element's id, and may say where inside that element with
@@ -226,9 +230,9 @@ drawn}`, each part optional:
 - `reply: {outlet, options}` names where the reply box stands, at the thread's end
   without `outlet`, with the options `parts.reply` takes, except that `hint` is called
   with `{resolved, attention}`: the thread as it is drawn, held news included, so the
-  box's words agree with Resolve and the notice. `attention` is what the thread waits
-  on, with the `word` Threads says it in, or null where it waits on nothing, as once
-  it is resolved.
+  box's words agree with Resolve and the notice. `attention` is whose `turn` the thread
+  is (`"user"` or `"agent"`) and its `state`, with the `word` Threads says it in, or
+  null where it waits on nothing, as once it is resolved.
 - `quote: true` quotes the words the thread is about over its messages, for a widget
   that stands apart from them. Without it, the thread quotes them only once the page
   no longer shows them as quoted, as after a revision rewrote them.

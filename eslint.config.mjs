@@ -162,9 +162,14 @@ const RENDERING_NAMES = [
   "cancelAnimationFrame",
   "ResizeObserver",
 ];
-const RENDERING_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
-  RENDERING_NAMES.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
-);
+// The one of them a package still reaches through runtime/rendering.js alone.
+const PACKAGE_RENDERING_NAMES = ["ResizeObserver"];
+/** @param {string[]} names */
+const renderingProperties = (names) =>
+  ["window", "globalThis"].flatMap((object) =>
+    names.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
+  );
+const RENDERING_PROPERTIES = renderingProperties(RENDERING_NAMES);
 const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
   object: "history",
   property,
@@ -1450,6 +1455,7 @@ export default [
       "tests/*_watch.js",
       "tests/watch_platform.js",
       "dev/leaf_dev/main_thread.js",
+      "dev/leaf_dev/frames.js",
     ],
     languageOptions: { globals: globals.browser },
   },
@@ -1654,7 +1660,8 @@ export default [
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it
-    // counts, so the layer and its packages reach both through runtime/rendering.js.
+    // counts, so the layer and its packages reach both through runtime/rendering.js. The
+    // packages' block below names the calls a package makes itself.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     // Prepaint runs before the module graph, so it cannot call the scheduler.
     ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
@@ -1874,7 +1881,7 @@ export default [
     // Properties the layer and its packages reach only through their owner. A file
     // takes a rule's options from the last block matching it, not a merge of every
     // block's, so all of them stand in this one list, and the history owners' block
-    // below repeats the others.
+    // and the packages' block below repeat the others.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     rules: {
       "no-restricted-properties": [
@@ -1893,6 +1900,32 @@ export default [
     files: ["browser/runtime/history.js", "browser/runtime/bootstrap.js"],
     rules: {
       "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
+    },
+  },
+  {
+    // Where a package writes the browser's own call, because the runtime's function
+    // adds nothing to it. Motion that may run until the user stops it, such as
+    // playback, calls the browser's frame, which the settled reading doesn't count; a
+    // size observer stays counted. The open-layers rule holds the runtime to one
+    // reading of every node, and a package asks its own popover or dialog whether it
+    // is open, so the rule is off here whole. Each other rule repeats what it keeps of
+    // the layer's, since a file takes a rule's options from the last block matching it.
+    files: ["packages/*/**/*.js"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...PACKAGE_RENDERING_NAMES.map((name) => ({
+          name,
+          message: RENDERING_MESSAGE,
+        })),
+      ],
+      "no-restricted-properties": [
+        "error",
+        ...renderingProperties(PACKAGE_RENDERING_NAMES),
+        ...HISTORY_PROPERTIES,
+        ...ID_PROPERTIES,
+      ],
+      "architecture/open-layers": "off",
     },
   },
   {

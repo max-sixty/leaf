@@ -28,7 +28,6 @@ import {
   offer,
   LeafElement,
   onCurrentLocation,
-  plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
@@ -219,8 +218,12 @@ class FileTreeWidget extends LeafElement {
       this.addEventListener(
         "click",
         (event) => {
+          // A modified click keeps its usual meaning.
+          const plain =
+            event.button === 0 &&
+            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
           if (
-            plainPress(event) &&
+            plain &&
             event
               .composedPath()
               .some(

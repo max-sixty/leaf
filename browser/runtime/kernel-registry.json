@@ -144,7 +144,7 @@
     "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"lf-tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 53,
+    "protocol": 54,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 52,
@@ -381,7 +381,7 @@
       ],
       "resolve": [
         {
-          "text": "The user resolved the thread."
+          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it, unless it asks them something. `leaf thread reopen <page> <message>` brings the thread back to their list, for news they would want to stop and read, such as that you could not do what they asked (`references/threads.md`)."
         }
       ],
       "unresolve": [
@@ -532,7 +532,7 @@
           }
         },
         {
-          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`); an explicit reply posts at once, and your final message is then not posted.",
+          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`), and for news the user would want to stop and read, such as that you could not do what they asked: they may have resolved the thread by then, and only that command's record says so. An explicit reply posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -866,6 +866,7 @@
               "not": { "pattern": "[\\r\\n]" }
             },
             "ephemeral": { "const": true },
+            "unannounced": { "const": true },
             "start": {
               "type": "object",
               "properties": {
@@ -918,6 +919,17 @@
                   { "required": ["todo"] },
                   { "required": ["failure"] },
                   { "required": ["anchor"] }
+                ]
+              }
+            },
+            "unannounced": {
+              "required": ["text"],
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["ephemeral"] },
+                  { "required": ["failure"] },
+                  { "required": ["obligation"] }
                 ]
               }
             },
@@ -977,6 +989,9 @@
               },
               {
                 "required": ["obligation"]
+              },
+              {
+                "required": ["unannounced"]
               }
             ]
           }
@@ -1486,6 +1501,8 @@
             "kind": { "const": "unresolve" },
             "seq": { "type": "integer", "minimum": 1 },
             "parent": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],

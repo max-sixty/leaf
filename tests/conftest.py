@@ -315,8 +315,9 @@ def _page_pool(tmp_path_factory):
 
 @pytest.fixture
 def initialized_page(_page_pool, tmp_path):
-    """Put a page initialized with `packages` at `destination`, from the pool, in the
-    default theme, or in none with `theme=False`.
+    """Put a page initialized with `packages` at `destination`, from the pool. The
+    page lists Leaf's `reading` theme ahead of them, as an author's page does, or
+    leaves it out with `reading=False`.
 
     `prepared`, a `(key, step)` pair, runs `step` on the page after `page init`, and
     `key` tells its shape from the bare initialized one: an example's stamped
@@ -339,22 +340,18 @@ def initialized_page(_page_pool, tmp_path):
     lent = []
     own = tmp_path.resolve()
 
-    def lend(destination, packages, prepared=None, *, theme=None):
+    def lend(destination, packages, prepared=None, *, reading=True):
         destination = Path(destination)
-        packages = tuple(packages)
+        packages = (
+            *(("reading",) if reading else ()),
+            *(package for package in packages if package != "reading"),
+        )
         key, step = prepared or (None, None)
-        theme_args = ["--no-theme"] if theme is False else []
 
         def initialize(target):
             made = CliRunner().invoke(
                 cli_model.cli,
-                [
-                    "page",
-                    "init",
-                    *package_selection_args(packages),
-                    *theme_args,
-                    str(target),
-                ],
+                ["page", "init", *package_selection_args(packages), str(target)],
             )
             assert made.exit_code == 0, made.output
             if step:
@@ -367,7 +364,7 @@ def initialized_page(_page_pool, tmp_path):
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
             return destination
-        shape = (layer_model.ASSETS, packages, theme, resolved, key)
+        shape = (layer_model.ASSETS, packages, resolved, key)
         page = _page_pool.lend(shape, destination, initialize)
         lent.append((shape, page))
         return page

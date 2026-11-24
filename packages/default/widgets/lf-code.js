@@ -91,7 +91,6 @@ import {
   offer,
   offerAction,
   onUserInput,
-  scrollBehavior,
   scrollersOf,
   scrollIntoView,
   synNodes,
@@ -285,7 +284,9 @@ customElements.define(
         scrollIntoView(row, {
           block: "center",
           within: scroller,
-          behavior: scrollBehavior(),
+          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "instant"
+            : "smooth",
           sideways: false,
         });
       };

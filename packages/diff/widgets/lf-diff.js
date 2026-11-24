@@ -36,7 +36,6 @@ import {
   announce,
   beginWalk,
   failSoft,
-  describeFailure,
   ensureSyntaxLanguage,
   focusDestination,
   generated,
@@ -59,7 +58,6 @@ import {
   releaseOutlets,
   reportFailure,
   retainUserIntent,
-  scrollBehavior,
   searchField,
   setChildren,
   shadowStage,
@@ -978,7 +976,8 @@ function fileError(view, error) {
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
+  const message = error instanceof Error ? error.message || error.name : String(error);
+  box.textContent = `That file's diff cannot be shown: ${message}`;
   setChildren(details, [header, box]);
   restore?.(header);
 }
@@ -2039,7 +2038,9 @@ customElements.define(
     land(box, node = box) {
       scrollIntoView(box, {
         block: "start",
-        behavior: scrollBehavior(),
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
         sideways: false,
       });
       focusDestination(node, "move");

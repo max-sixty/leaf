@@ -143,11 +143,11 @@ as an editor's highlighter, and `declarations` lists each `[property, value]` a 
 each `pre > code` in `root` whose `language-…` class names a language and that wears
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
-(`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
+(`package-themes.md`, "A page's theme"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
 `<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
-reading face as other personally themed content does.
+reading face as other content with its own design does.
 
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
@@ -172,12 +172,8 @@ alignment does.
 ### Media URLs
 
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it
-on a generated image or link, so it resolves on published pages too.
-`isCanonicalMediaUrl(href)` says whether a path is such a `/media/…` path.
-
-`canvas2D(canvas, options)` returns the native 2D context of a canvas or offscreen
-canvas, and throws if the browser cannot create it. Pass native context options when
-the drawing needs them.
+on a generated image or link, so it resolves on published pages too. Any other address
+goes on as written.
 
 ### Icons
 
@@ -231,11 +227,11 @@ change (`module-authoring.md`, "Drawing what a widget reads").
 
 ### Reading obligations and the On lists
 
-An obligation is what a widget waits on the user for, or what an update the user
-handed over is owed; the On lists show each one under its next actor.
-`readObligations()` returns `{phase, all, user, unanswered}`: `all` holds every
-obligation whose source is still there, answered and withdrawn ones included, `user`
-the open obligations waiting on the user, and `unanswered` every open obligation,
+An obligation is what a widget waits on the user for, what an update the user
+handed over is owed, or a to-do the agent opened; the On lists show each one under its
+next actor. `readObligations()` returns `{phase, all, user, unanswered}`: `all` holds
+every obligation whose source is still there, answered and withdrawn ones included,
+`user` the open obligations waiting on the user, and `unanswered` every open obligation,
 including those with the agent. Each record looks like this:
 
 ```js
@@ -246,14 +242,27 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | withdrawn
-  next_actor: null,   // user | agent | null
+  end: null,          // on a to-do, how the agent ended it: {detail, event}
+  next_actor: null,   // whose move it is: user | agent | null
+  state: "done",      // waiting | running | blocked | done
+  reason: null,       // what the state leaves out, such as why it is blocked
+  outcome: "done",    // how a done one ended: done | failed | dropped
+  answered: true,     // whether its own answer stands on it
 }
 ```
 
+Every record says where it stands in `next_actor`, `state`, `reason` and `outcome`, the
+same words a thread, a plan step and the page's status use. An open one is `waiting` on
+its `next_actor`; one the agent has in hand is `running`; one that is owed while nothing
+moves it is `blocked`, with the `reason`: `stopped` or `interrupted` (its turn ended
+first), `quiet` (nothing has renewed it for a quarter of an hour), `undelivered` (no
+turn has taken it in), `terminal` (the agent's turn waits on the user in its own window)
+or `failed` (handed back to send again). A `done` one is `answered` when the answer its
+source takes stands on it, and was withdrawn when `outcome` is `dropped`.
+
 A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
-show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
+show while it is open. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer: the
 innermost named group round the widget, an element whose registry entry declares
 `reading-role: group` such as an `lf-group`, or else the widget itself; `prompt.text`
@@ -264,7 +273,7 @@ arrives. Each `source.kind` adds its own facts:
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
   settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
-  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
@@ -309,10 +318,12 @@ through the widget's own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
-(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
-obligation's row lists in `also` the ids of the other obligations the user answers at
-the same place, such as the agent's answer in a thread about it.
+`source.kind`, `todo` for a to-do of the agent's, the obligation itself as
+`obligation`, and an `owner`, `user` or `agent`, naming its list. The record says where
+the row stands: the agent has it in hand while its `state` is `running`, and a row in
+`done` ended as its `outcome` and `end` say. An obligation's row lists in `also` the ids
+of the other obligations the user answers at the same place, such as the agent's answer
+in a thread about it.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row; an obligation is answered only
 through its widget or thread. Act on a collection only when its `phase` is `ready`.

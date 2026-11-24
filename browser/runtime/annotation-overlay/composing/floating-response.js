@@ -6,12 +6,13 @@
    its words the answer writes nothing, and the browser carries the box by its anchor;
    held in by an edge, the box stands in that edge's plane (floating.js). While the open
    box stands beside its words, a repaint solves no new position for it
-   (`nativeAttachment`); a scroll, a target or field resize, a viewport resize,
-   horizontal target motion and a declared layout change end that attachment.
-   Replacing its target or native seat retires it. The compact response strip keeps
-   ordinary collision placement, and a layout shift invalidates it too. A seated editor
-   carries its frame through attachment changes under the shared rule in
-   comment-placement.js; its durable anchor and native editor stay intact.
+   (`nativeAttachment`); a scroll, a target resize, a change of the field's height, a
+   viewport or pane resize, horizontal target motion and a declared layout change end
+   that attachment, and the field widening with its words stays inside the room the
+   attachment gave it. Replacing its target or native seat retires it. The compact
+   response strip keeps ordinary collision placement, and a layout shift invalidates it
+   too. A seated editor carries its frame through attachment changes under the shared
+   rule in comment-placement.js; its durable anchor and native editor stay intact.
 
    A detached draft stands beside the words the user selected while the browser Range
    that selected them still holds them (`selectedPassage`), so a refused send's box
@@ -40,7 +41,7 @@
    among them, and the next press there would open it (browser/AGENTS.md, "Controls
    stay where the user aims"), so there it waits for `c`. */
 import { pageRange } from "../../native-selection.js";
-import { cancelRender, nextRender } from "../../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
@@ -122,6 +123,22 @@ export function createFloatingResponsePlacement({
   // carry in.
   /** @type {Element} */
   let fabScroller = pageScroller;
+  // The element whose box bounds that placement, as a workspace pane does, or the page
+  // scroller where the window does (`commentBoundary`).
+  /** @type {Element} */
+  let fabRegion = pageScroller;
+  // The editing watch's size observer and the region it observes, which follows
+  // `fabRegion`: a workspace's layout can hand the box's text from the page's scroll
+  // to a pane's and back while the box stays open.
+  /** @type {{sizes: ResizeObserver, region: Element} | null} */
+  let watchedRegion = null;
+  function watchRegion() {
+    if (!watchedRegion || watchedRegion.region === fabRegion) return;
+    const { sizes, region } = watchedRegion;
+    if (region !== pageScroller) sizes.unobserve(region);
+    if (fabRegion !== pageScroller) sizes.observe(fabRegion);
+    watchedRegion.region = fabRegion;
+  }
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
@@ -154,6 +171,10 @@ export function createFloatingResponsePlacement({
   // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
+  // The open box a placement stands, whose motion asks that placement again when the
+  // box's size changes.
+  const followedOpen = () =>
+    following !== null && response.open && fabBar.hasAttribute("data-lf-placement");
   function fabMotion() {
     const box = fabField();
     // The composer holding the composition is the root, since the composition's frame is
@@ -171,7 +192,7 @@ export function createFloatingResponsePlacement({
       placement: {
         held: fabPosition.held,
         place: () => {
-          if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
+          if (!followedOpen()) return false;
           nativeAttachment = false;
           return placeFab();
         },
@@ -221,6 +242,9 @@ export function createFloatingResponsePlacement({
         height * scaleY,
       ),
       placement: fabPlacement.capture(),
+      // The frame's width in its own CSS pixels, which the card Send opens starts at
+      // (thread-preview.js, `size-width`), whatever scales the page after Send.
+      width,
       // The field the card grows out of (box-motion.js, `drawnAt`).
       field: following ? shown(following.outline()) : field,
       // How far the words stand above their end: where the user was reading them,
@@ -334,10 +358,24 @@ export function createFloatingResponsePlacement({
    * @returns {EditingObserver} */
   function editingObserver(autoUpdate) {
     return (reference, floating, update, options) => {
+      // The placement stands the box by the window's size, its region's and its
+      // reference's, and by the box's own. The open box a placement stands asks for
+      // it through its motion as its size changes (`fabMotion`), so a change of that
+      // box alone is the motion's; this watch hears every other.
       const stopSize = autoUpdate(reference, floating, update, {
         ...options,
+        elementResize: false,
         layoutShift: false,
       });
+      const sizes = sizeObserver((entries) => {
+        if (followedOpen() && entries.every(({ target }) => target === floating))
+          return;
+        update();
+      });
+      sizes.observe(reference.contextElement);
+      sizes.observe(floating);
+      watchedRegion = { sizes, region: pageScroller };
+      watchRegion();
       let x = reference.getBoundingClientRect().left;
       const stopMotion = autoUpdate(
         reference,
@@ -358,6 +396,8 @@ export function createFloatingResponsePlacement({
       return () => {
         stopMotion();
         stopSize();
+        sizes.disconnect();
+        if (watchedRegion?.sizes === sizes) watchedRegion = null;
       };
     };
   }
@@ -507,6 +547,8 @@ export function createFloatingResponsePlacement({
       place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     fabScroller = place.scroller;
+    fabRegion = boundary.scroller;
+    watchRegion();
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. The box's frame is no wider than the
     // card's measure (annotation-chrome.css), so its room is written up to that measure,
@@ -577,11 +619,11 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, room, scale, fromSubject }) {
+          fit({ width, room, scale, widens }) {
             if (!stillCurrent()) return;
-            // A box whose start stands away from its text takes its card's width
-            // (annotation-chrome.css).
-            keeps(fabBar, "data-lf-card-width", fromSubject ? null : "");
+            // A box its placement can't widen from the edge its words start at takes
+            // its widest at once (annotation-chrome.css).
+            keeps(fabBar, "data-lf-card-width", widens ? null : "");
             setWidth(width, scale.x);
             setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();

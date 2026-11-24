@@ -146,8 +146,8 @@ available from `portable-api.js`. It defaults to `instant` and updates Leaf's sc
 readers before that position paints, including writes during resize delivery. Smooth
 scrolling reports its positions through the browser's scroll events.
 
-`scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
-there. `landingInsets(scroller)` is how far a landing keeps from each edge of a
+`atScrollEnd(box)` says whether a box is scrolled as far down as it goes.
+`landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
@@ -264,10 +264,10 @@ page doesn't show once the handler finishes, Leaf reveals that place and lands t
 Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can animate
 its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
 for less motion, and before `body[data-lf-presented]`; treat that as a finished
-animation. `reducedMotion()`, `scrollBehavior()` and
-`onMotionPreferenceChange(listener)` read the preference where a module must branch on
-it. Animate only to help the eye follow a box from where it was to where it is, and draw
-a result the module already has during the gesture, not after a delay.
+animation. Where a module must branch on the preference itself, as for a scroll's
+`behavior`, it reads the `prefers-reduced-motion` media query. Animate only to help the
+eye follow a box from where it was to where it is, and draw a result the module already
+has during the gesture, not after a delay.
 
 A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter

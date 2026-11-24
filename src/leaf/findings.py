@@ -932,7 +932,7 @@ _TEXT = {
     "uncoloured-code": lambda at, v: (
         f"{at} declares {v['language']}, but no reading face reaches it, so Leaf"
         " leaves its tokens uncoloured; to colour it, set --lf-reading-face: 1 on a"
-        " box around the <pre>, or take the reading theme"
+        " box around the <pre>, or select the reading package"
     ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
@@ -2324,17 +2324,12 @@ _TEXT = {
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
     # back or could not, and why it ended. A prompt hook that could not serve a
-    # session's page again, or restart its server under this Leaf, says so too
-    # (`reconnect.serve_again`).
+    # session's page again says so too (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
         f"{v['page']}: server was down and did not start again: {v['error']}"
-    ),
-    "restart-refused": lambda at, v: (
-        f"{v['page']}: this Leaf stopped the server another installed Leaf ran, to"
-        f" restart it, and {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"
@@ -2505,6 +2500,12 @@ _TEXT = {
         f"message {v['message']!r} is folded under summary {v['summary']!r}, which"
         " stands as you wrote it; if this edit changes what it reports, summarize"
         f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
+    ),
+    "stays-closed": lambda at, v: (
+        f"the user resolved thread {v['thread']!r}, so this message went into it"
+        " without bringing it back to their list, which suits the answer or result"
+        f" they asked for; `{v['command']}` brings it back where the message holds"
+        " news they would want to stop and read"
     ),
     "title-kept": lambda at, v: (
         f"the thread is already titled {v['title']!r}, so the reply's title went"

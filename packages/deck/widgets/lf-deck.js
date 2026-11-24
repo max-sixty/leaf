@@ -90,7 +90,6 @@ import {
   queueTitle,
   readObligations,
   readQueues,
-  scrollBehavior,
   scrollIntoView,
   signal,
   tally,
@@ -400,7 +399,9 @@ customElements.define(
       // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
       // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
       // edges in view.
-      const behavior = scrollBehavior();
+      const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth";
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
         if (above || !next || this.#open.value !== next) return;
@@ -685,7 +686,7 @@ customElements.define(
     /** @param {DeckHeld} held @returns {[string, "leaf" | null]} */
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
-      if (held.some((item) => item.status === "open"))
+      if (held.some((item) => item.state !== "done"))
         return [`Waiting on ${agentName()}`, "leaf"];
       const words = held.map(answerWords).filter(Boolean).join("; ");
       return words ? [words, null] : ["Answered", "leaf"];

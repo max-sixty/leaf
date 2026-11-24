@@ -35,20 +35,18 @@ import { render as motionTemplate } from "./motion-view.js";
  * focus), read from the window as Leaf's prepaint counts input. */
 import { render } from "/vendor/lit.js";
 import {
-  cancelAnimation,
   commandsChanged,
   failSoft,
-  nextAnimation,
-  onMotionPreferenceChange,
   once,
   placesFailure,
-  reducedMotion,
   reportFailure,
   tabStore,
   whileConnected,
 } from "/runtime/portable-api.js";
 
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];
+// A user who asked for less motion is shown the study's end rather than its playback.
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 class MotionStudy extends HTMLElement {
   static lfPatch = "members";
@@ -201,13 +199,17 @@ class MotionStudy extends HTMLElement {
       };
       for (const type of INPUTS)
         addEventListener(type, input, { capture: true, passive: true, signal });
-      const preference = onMotionPreferenceChange(() => {
-        if (reducedMotion() && this.#playing) this.currentTime = this.duration;
-        else {
-          this.#paintControls();
-          commandsChanged(this);
-        }
-      });
+      reducedMotion.addEventListener(
+        "change",
+        () => {
+          if (reducedMotion.matches && this.#playing) this.currentTime = this.duration;
+          else {
+            this.#paintControls();
+            commandsChanged(this);
+          }
+        },
+        { signal },
+      );
       // Media events don't bubble but do pass the study on capture, so a recording a
       // revision adds joins the clock, and gives Play something to play, as one the
       // study started with does.
@@ -222,21 +224,18 @@ class MotionStudy extends HTMLElement {
       );
       this.#seekVideos();
       this.#paint();
-      return () => {
-        this.#pause();
-        preference();
-      };
+      return () => this.#pause();
     });
   }
 
   #playLabel() {
     if (this.#playing) return "Pause";
-    if (reducedMotion()) return "Show end";
+    if (reducedMotion.matches) return "Show end";
     return "Play";
   }
 
   #pause() {
-    if (this.#frame !== null) cancelAnimation(this.#frame);
+    if (this.#frame !== null) cancelAnimationFrame(this.#frame);
     this.#frame = null;
     const readVideo =
       this.#playing && this.#videos.length && this.#time < this.duration;
@@ -280,7 +279,7 @@ class MotionStudy extends HTMLElement {
       this.#pause();
       return;
     }
-    if (reducedMotion()) {
+    if (reducedMotion.matches) {
       this.currentTime = this.duration;
       return;
     }
@@ -306,7 +305,7 @@ class MotionStudy extends HTMLElement {
         reportFailure(this, new Error(`Playback failed: ${error.message}`));
       });
     }
-    this.#frame = nextAnimation(() => this.#tick());
+    this.#frame = requestAnimationFrame(() => this.#tick());
   }
 
   // Seeks every video once any is off the clock's time: a seek lands on the media's
@@ -346,7 +345,7 @@ class MotionStudy extends HTMLElement {
       this.#pause();
     }
     this.#paint();
-    if (this.#playing) this.#frame = nextAnimation(() => this.#tick());
+    if (this.#playing) this.#frame = requestAnimationFrame(() => this.#tick());
   }
 
   #template() {

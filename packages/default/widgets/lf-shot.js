@@ -62,6 +62,7 @@ import { ShotView } from "./shot-view.js";
 // A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
+  setScroll,
   afterPresentation,
   announce,
   once,
@@ -219,7 +220,7 @@ export class Shot extends HTMLElement {
             peer.scrollLeft !== viewport.scrollLeft ||
             peer.scrollTop !== viewport.scrollTop
           )
-            peer.scrollTo({
+            setScroll(peer, {
               left: viewport.scrollLeft,
               top: viewport.scrollTop,
               behavior: "instant",

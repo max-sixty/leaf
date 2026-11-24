@@ -2,6 +2,7 @@
  * The surrounding widget alone owns file revisions and disk writes.
  */
 import {
+  setScroll,
   langForPath,
   leafEditorView,
   sizeObserver,
@@ -683,7 +684,7 @@ export function createEditor(
       if (!view) retained = settings;
       else {
         view.setState(settings);
-        view.scrollDOM.scrollTo({ ...scroll, behavior: "instant" });
+        setScroll(view.scrollDOM, scroll);
       }
     },
     // Put the caret at the start of line `number`, or the last line where the file is
@@ -707,7 +708,7 @@ export function createEditor(
     connect() {
       if (view) return;
       view = new LeafEditorView({ state: retained, parent });
-      view.scrollDOM.scrollTo({ ...scroll, behavior: "instant" });
+      setScroll(view.scrollDOM, { top: scroll.top, left: scroll.left });
       resize?.observe(view.scrollDOM);
     },
     disconnect,

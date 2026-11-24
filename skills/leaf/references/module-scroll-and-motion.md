@@ -142,6 +142,11 @@ control's ring shows. `fitsWhole(target)` says whether the target and those marg
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
+To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
+available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
+readers before that position paints, including writes during resize delivery. Smooth
+scrolling reports its positions through the browser's scroll events.
+
 `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
@@ -260,7 +265,7 @@ Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can 
 its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
 for less motion, and before `body[data-lf-presented]`; treat that as a finished
 animation. Where a module must branch on the preference itself, as for the `behavior`
-of its own smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
+of a smooth `setScroll`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
 

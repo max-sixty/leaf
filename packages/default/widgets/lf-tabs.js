@@ -88,6 +88,7 @@ import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   authoredTitle,
+  setScroll,
   actionTemplate,
   agentName,
   PRESS,
@@ -701,7 +702,7 @@ export class TabSet extends LeafElement {
         @click=${() => {
           const strip = this.#strip;
           const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
-          strip.scrollTo({
+          setScroll(strip, {
             left:
               strip.scrollLeft +
               ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
@@ -874,7 +875,7 @@ export class TabSet extends LeafElement {
     } catch {
       // An unreadable place is no place.
     }
-    pageScroller.scrollTo({
+    setScroll(pageScroller, {
       top: place ? start : Math.min(from, start),
       behavior: "instant",
     });

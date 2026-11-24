@@ -80,6 +80,7 @@
 import {
   LeafElement,
   alreadyShown,
+  setScroll,
   bodyText,
   codeLanguage,
   commandsChanged,
@@ -424,7 +425,7 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) pre.scrollTo({ left: horizontal, behavior: "instant" });
+          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
           layoutChanged(this);
         };
         this.lfCommands = {

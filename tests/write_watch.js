@@ -527,15 +527,10 @@
   // Scroll writes that move nothing on purpose, as `EXPECTED` lists DOM writes:
   // CodeMirror's measure puts back the scroll its height map anchors, which the browser
   // clamps at the editor's end, and a landing or a glide stops a scroll the browser
-  // drives, which this watch can't see (arrivals.js, `stopWhereItStands`). A widget
-  // module's own write, as a package's is, is the module's to judge: it calls the
-  // browser's scroll methods itself, and the watch holds Leaf's runtime and the page's
-  // own scripts. The layer serves every package's modules, and the kernel's, from one
-  // `widgets/` directory, and a page's own from `page/widgets/`.
+  // drives, which this watch can't see (arrivals.js, `stopWhereItStands`).
   const EXPECTED_SCROLLS = [
     (by) => by[0].includes("vendor/codemirror."),
     (by) => /^stopWhereItStands\b.*\bruntime\/arrivals\.js:/.test(by[0]),
-    (by) => /(?:^|[\s(@])widgets\//.test(by[0]),
   ];
   // Run one scroll write to `box`, `options` saying how it moves.
   const scrollWrite = (box, how, options, write) => {

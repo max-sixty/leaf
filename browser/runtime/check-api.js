@@ -123,7 +123,7 @@ export {
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { holdScroll, scrolling, setScroll, watchScrollEnds } from "./arrivals.js";
+export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,

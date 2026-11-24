@@ -124,7 +124,7 @@ export const annotationSelection = (root) => ({
   revision: root.document.revision,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/place.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], savedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["savedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,

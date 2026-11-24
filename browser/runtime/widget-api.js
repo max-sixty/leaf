@@ -59,22 +59,15 @@ export { holdPlace, readingAt } from "./user-place.js";
 // user to write Markdown in.
 export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
-export { readObligations } from "./obligations/model.js";
-// The obligations a region of the page holds, by the rule every count and walk of them
-// reads, and which regions hold a widget that asks the user something, including one
-// whose obligation the inventory hasn't listed yet or lists as withdrawn.
-export {
-  obligationsByRegion,
-  obligationsIn,
-  regionsAwaiting,
-} from "./obligations/place.js";
+// The page's obligations, or those a region of it holds by the rule every count and walk
+// of them reads, with whether the region's markup asks the user something.
+export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
-export { readQueues, queueItemKey } from "./queue-api.js";
+export { readQueues } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
-export { queueActions } from "./application.js";
 export {
   placePageThreads,
   consumeAnnotations,

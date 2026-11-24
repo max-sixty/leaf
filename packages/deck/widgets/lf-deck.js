@@ -1,7 +1,7 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
  * through unread conversations. Each authored child is a card, the named group of a
  * question or a decision widget the user answers there with its own controls. A card waits while it
- * holds an obligation open on the user (`obligationsIn`, read from the server's
+ * holds an obligation open on the user (`readObligations(card)`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
@@ -71,8 +71,6 @@ import {
   LeafElement,
   motion,
   obligationActions,
-  obligationsByRegion,
-  obligationsIn,
   placeOf,
   openingView,
   viewMembers,
@@ -103,7 +101,7 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
 // Whether a card's obligations, by the reading, wait on the user, as the tally counts
 // them.
-/** @param {ReturnType<typeof obligationsIn>} held */
+/** @param {DeckHeld} held */
 const waitsOn = (held) => tally(held).onUser > 0;
 
 // The element focus is on, followed down through each open shadow tree, so that a
@@ -114,7 +112,7 @@ const focusedElement = () => {
   return at;
 };
 
-/** @typedef {ReturnType<typeof obligationsIn>} DeckHeld */
+/** @typedef {ReturnType<typeof readObligations>["all"]} DeckHeld */
 /** @typedef {(card: HTMLElement) => DeckHeld} DeckReadings */
 
 customElements.define(
@@ -219,14 +217,11 @@ customElements.define(
     }
 
     // Each card's obligations, or null until the page's first reading is in: what the
-    // cards hold by the one rule every count of a region reads, filed in one pass over
-    // the inventory (`obligationsByRegion`).
+    // card holds by the one rule every count of a region reads.
     /** @returns {DeckReadings | null} */
     #readings() {
-      const items = readObligations();
-      if (items.phase !== "ready") return null;
-      const held = obligationsByRegion(this.#cards, items.all);
-      return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
+      if (readObligations().phase !== "ready") return null;
+      return (/** @type {HTMLElement} */ card) => readObligations(card).all;
     }
 
     // Show one card, or none once the pass is over, without motion.
@@ -504,9 +499,8 @@ customElements.define(
         this.#end.toggleAttribute("hidden", false);
         return void focusDestination(this.#again, "move");
       }
-      const items = readObligations();
-      const waiting =
-        items.phase === "ready" ? obligationsIn(card, items.user)[0] : undefined;
+      const items = readObligations(card);
+      const waiting = items.phase === "ready" ? items.user[0] : undefined;
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
     }
@@ -604,11 +598,10 @@ customElements.define(
 
     render() {
       if (!this.#cards.length) return nothing;
-      const items = readObligations();
       const readings = this.#readings();
       const card = this.#open.value;
       const count = readings
-        ? tallyWords(tally(obligationsIn(this, items.all)), agentName())
+        ? tallyWords(tally(readObligations(this).all), agentName())
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {

@@ -77,10 +77,10 @@
  * Once every one is answered it shows a check, with the answer's own words where the panel
  * holds one obligation. So a queue shows each obligation's state and how far the user has
  * worked through it, and an undo that reopens an obligation puts On Me's symbol back. Which
- * obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
- * admitted obligation inventory, so a tally of the queue counts the same obligations. A row
- * whose panel's markup asks the user something keeps the line's room either way
- * (`regionsAwaiting`), so an answer moves no row. While the version diff is on, each tab
+ * obligations a panel holds is `readObligations(panel)`, read from the admitted obligation
+ * inventory, so a tally of the queue counts the same obligations. A row whose panel's
+ * markup asks the user something keeps the line's room either way (`asks`), so an answer
+ * moves no row. While the version diff is on, each tab
  * counts the marked passages its panel holds, including inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
@@ -89,8 +89,6 @@ import {
   addressableLabel,
   authoredTitle,
   agentName,
-  obligationsByRegion,
-  regionsAwaiting,
   answerWords,
   backgroundFlash,
   beginWalk,
@@ -107,6 +105,7 @@ import {
   pushEntry,
   registerReadingRegion,
   replaceEntry,
+  readObligations,
   restorePlace,
   tabStore,
   focusDestination,
@@ -405,13 +404,6 @@ export class TabSet extends LeafElement {
   // state, with the answer once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
-    // Every panel's obligations in one pass, read once the first panel asks for them.
-    /** @type {ReturnType<typeof obligationsByRegion> | undefined} */
-    let byPanel;
-    const held = (/** @type {Element} */ panel) =>
-      (byPanel ??= obligationsByRegion(this.#panels)).get(panel) ?? [];
-    // The panels whose markup asks the user something, whose rows keep the answer's room.
-    const asking = this.#down ? regionsAwaiting(this.#panels) : new Set();
     return html`${this.#edge("start")}${
         this.#side
           ? repeat(
@@ -433,14 +425,14 @@ export class TabSet extends LeafElement {
                   ${repeat(
                     run.panels,
                     (panel) => panel,
-                    (panel) => this.#tab(panel, held, asking),
+                    (panel) => this.#tab(panel),
                   )}
                 </div>`,
             )
           : repeat(
               this.#panels,
               (panel) => panel,
-              (panel) => this.#tab(panel, held, asking),
+              (panel) => this.#tab(panel),
             )
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
@@ -450,11 +442,14 @@ export class TabSet extends LeafElement {
     return active ? this.#buttons.get(active) : undefined;
   }
 
-  /** @param {Element} panel @param {(panel: Element) => NonNullable<ReturnType<ReturnType<typeof obligationsByRegion>["get"]>>} held @param {ReadonlySet<Node>} asking */
-  #tab(panel, held, asking) {
+  /** @param {Element} panel */
+  #tab(panel) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = asking.has(panel);
-    const items = hasAnswer ? held(panel) : [];
+    // A side list's row keeps the answer's room where its panel's markup asks the user
+    // something.
+    const held = this.#down ? readObligations(panel) : null;
+    const hasAnswer = Boolean(held?.asks);
+    const items = held?.asks ? held.all : [];
     // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn items
     // are already left out, so every item that isn't open is answered.
     const { onUser, onAgent, open, total } = tally(items);

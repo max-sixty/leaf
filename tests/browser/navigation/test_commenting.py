@@ -731,7 +731,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     panel_settled(page, view="queue")
 
     def card(source):
-        return page.locator(f".lf-fp-on-item[data-lf-key*='\"widget:{source}\"']")
+        return page.locator(f".lf-fp-on-item[data-lf-key='widget:{source}']")
 
     expect(card("shape")).to_have_count(0)
     expect(card("sug-window")).to_have_count(1)

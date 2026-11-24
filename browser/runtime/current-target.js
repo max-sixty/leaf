@@ -66,9 +66,12 @@ import { seenAhead } from "./scroll-containers.js";
 import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
 import { isReaction } from "./thread/model.js";
 import { threadNamed } from "./thread/state.js";
-import { readObligations } from "./obligations/model.js";
 import { keptEach } from "./kept.js";
-import { obligationPlace, obligationsIn } from "./obligations/place.js";
+import {
+  obligationPlace,
+  obligationsByRegion,
+  readObligations,
+} from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import {
   byRenderedOrder,
@@ -214,7 +217,7 @@ export function questionAsked(node) {
   const asked =
     (latest && thread?.obligations.filter((item) => item.message === latest.id)) || [];
   const drawn = byRenderedOrder(
-    obligationsIn(whole, asked),
+    obligationsByRegion([whole], asked).get(whole) ?? [],
     (item) => obligationPlace(item, all).source,
   );
   return drawn.find((item) => item.state !== "done") ?? null;

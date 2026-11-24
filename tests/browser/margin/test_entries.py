@@ -167,10 +167,10 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page = open_page(browser, serve(source))
     page.evaluate(
         """async () => {
-          const {contributionEntry, presentContributionEntry} =
+          const {presentContributionEntry} =
             await window.__lfWidgetApi();
           presentContributionEntry(document.getElementById('inline'),
-            contributionEntry({key: 'inline', icon: 'dot', label: 'Read inline name'}));
+            {key: 'inline', icon: 'dot', label: 'Read inline name'});
         }"""
     )
     control = page.get_by_role("button", name="Read inline name", exact=True)
@@ -194,11 +194,11 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           registerContribution({key: 'names', target: document.getElementById('target'),
             read: () => ({entries: ['action', 'disclosure'].map(behavior =>
-              contributionEntry({key: behavior, behavior, icon: 'dot',
+              ({key: behavior, behavior, icon: 'dot',
                 label: `Read ${behavior}`}))}), activate: () => {}});
         }"""
     )
@@ -276,15 +276,15 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     page = open_page(browser, url, context=context)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           window.pressed = [];
           registerContribution({key: 'held', target: document.getElementById('target'),
             read: () => ({entries: [
-              contributionEntry({key: 'sent', behavior: 'status', icon: 'sent',
-                label: 'Sent', context: '2m ago'}),
-              contributionEntry({key: 'act', icon: 'dot', label: 'Act on it',
-                title: 'Acts at once'}),
+              {key: 'sent', behavior: 'status', icon: 'sent',
+                label: 'Sent', context: '2m ago'},
+              {key: 'act', icon: 'dot', label: 'Act on it',
+                title: 'Acts at once'},
             ]}), activate: (key) => window.pressed.push(key)});
         }"""
     )
@@ -317,12 +317,12 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             # A row arriving beside the held one leaves the preview where it is.
             page.evaluate(
                 """async () => {
-                  const {contributionEntry, registerContribution} =
+                  const {registerContribution} =
                     await window.__lfWidgetApi();
                   registerContribution({key: 'arriving',
                     target: document.getElementById('before'),
-                    read: () => ({entries: [contributionEntry({key: 'note',
-                      icon: 'dot', label: 'Arrived'})]}), activate: () => {}});
+                    read: () => ({entries: [{key: 'note',
+                      icon: 'dot', label: 'Arrived'}]}), activate: () => {}});
                 }"""
             )
             expect(entry_keyed("note")).to_be_visible()
@@ -510,18 +510,18 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let swapped = false;
           let changed = false;
           const registration = registerContribution({
             key: 'retained', target: document.querySelector('#target'),
             read: () => ({entries: [
-              contributionEntry({key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
-                rank: swapped ? 'secondary' : 'primary'}),
-              contributionEntry({key: 'b', glyph: 'B', label: 'Action B',
-                rank: swapped ? 'primary' : 'secondary'}),
-              contributionEntry({key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'}),
+              {key: 'a', glyph: 'A', label: changed ? 'Action A now' : 'Action A',
+                rank: swapped ? 'secondary' : 'primary'},
+              {key: 'b', glyph: 'B', label: 'Action B',
+                rank: swapped ? 'primary' : 'secondary'},
+              {key: 'c', glyph: 'C', label: 'Action C', rank: 'secondary'},
             ]}),
             activate: key => {
               window.lfRetainedMarginClicks.push(key);
@@ -609,7 +609,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     open_threads(page)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let target = document.createElement('span');
           target.id = 'inline-margin-target';
@@ -624,7 +624,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
           const registration = registerContribution({
             key: 'inline-retained', target: () => target,
             read: () => ({entries: (swapped ? ['b', 'a'] : ['a', 'b']).map(key =>
-              contributionEntry({key, glyph: key.toUpperCase(),
+              ({key, glyph: key.toUpperCase(),
                 label: key === 'a' && changed ? 'Inline A now' : `Inline ${key.toUpperCase()}`}))}),
             activate: key => window.lfInlineMarginClicks.push(key),
           });
@@ -717,14 +717,14 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
     rendered(page)
     unplaced = page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           await new Promise(requestAnimationFrame);
           const registration = registerContribution({
             key: 'first-placement', target: document.querySelector('#how-cap'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'act', icon: 'dot', label: 'New margin action'
-            })]}), activate: () => {}
+            }]}), activate: () => {}
           });
           const row = registration.control('act', 'margin')
             .closest('.lf-margin-cluster');
@@ -772,7 +772,7 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
         with subtests.test(target_kind=kind):
             page.evaluate(
                 """async kind => {
-              const {contributionEntry, registerContribution} =
+              const {registerContribution} =
                 await window.__lfWidgetApi();
               const holder = document.getElementById(`holder-${kind}`);
               const target = document.getElementById(`target-${kind}`);
@@ -781,9 +781,9 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
               window.lifetime = {kind, holder, target, anchor, parent: anchor.parentNode,
                 contribution: registerContribution({
                   key: `target-lifetime-${kind}`, target,
-                  read: () => ({entries: [contributionEntry({
+                  read: () => ({entries: [{
                     key: 'action', icon: 'dot', label: `Target action ${kind}`
-                  })]}), activate: () => {}
+                  }]}), activate: () => {}
                 })};
             }""",
                 kind,
@@ -964,7 +964,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     page = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-              const { contributionEntry, registerContribution } =
+              const { registerContribution } =
                 await window.__lfWidgetApi();
           const makeRecord = label => {
             const shell = document.createElement('div');
@@ -996,9 +996,9 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
           for (const record of records) {
             const {target} = record;
             const margin = registerContribution({key: record.label, target,
-              read: () => ({entries: [contributionEntry({
+              read: () => ({entries: [{
                 key: record.label, glyph: '!', label: `${record.label} controls`
-              })]}), activate: () => {}});
+              }]}), activate: () => {}});
             record.margin = margin;
           }
           await new Promise(done =>
@@ -1294,10 +1294,10 @@ def test_a_row_follows_words_rewrapped_as_the_margin_begins_watching_their_box(
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     register = """async (id) => {
-      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+      const {registerContribution} = await window.__lfWidgetApi();
       registerContribution({key: id, target: document.getElementById(id),
-        read: () => ({entries: [contributionEntry({key: 'go', label: 'Go',
-          icon: 'check'})]}), activate() {}});
+        read: () => ({entries: [{key: 'go', label: 'Go',
+          icon: 'check'}]}), activate() {}});
     }"""
     page.evaluate(register, "first")
     expect(page.locator('[data-lf-margin-for="first"]')).to_have_count(1)

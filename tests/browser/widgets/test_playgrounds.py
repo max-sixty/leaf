@@ -56,8 +56,7 @@ CONTRIBUTOR_PAGE = leaf_page(
   <lf-playground-output>Implement the selected query.</lf-playground-output>
 </lf-playground></lf-group>
 <script type="module">
-import {PAGE_INTERFACE} from "/runtime/widget-api.js";
-document.addEventListener(PAGE_INTERFACE, event => {
+document.addEventListener("lf-page-interface", event => {
   event.detail.present(Promise.resolve().then(() => {
     if (sessionStorage.getItem('delay-query-contributors')) return;
     const playground = document.querySelector('#query-config');

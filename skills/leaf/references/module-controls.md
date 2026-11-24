@@ -60,7 +60,7 @@ Words a module writes into the page are the page's words unless it marks them ap
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
 box. After a view swap that rearranges a widget's contents without resizing it, call
-`layoutChanged(element)`, which dispatches `LAYOUT` to the widgets and runtime readers
+`layoutChanged(element)`, which dispatches `lf-layout` to the widgets and runtime readers
 that measure what they hold, so they read again.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field

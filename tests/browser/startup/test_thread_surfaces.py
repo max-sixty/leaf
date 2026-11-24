@@ -441,11 +441,11 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'review', target: document.getElementById('subject'),
-        read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
-          icon: 'dot', label: 'Mark reviewed'})]}),
+        read: () => ({entries: [{key: 'reviewed', behavior: 'action',
+          icon: 'dot', label: 'Mark reviewed'}]}),
         activate: (key) => { window.activated = key; }});
       const {consumeAnnotations} = await window.__lfWidgetApi();
       const box = document.querySelector('#review');

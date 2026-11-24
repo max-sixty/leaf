@@ -82,7 +82,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const tones = ['neutral', 'positive', 'negative'];
           let currentState = 'idle';
@@ -90,7 +90,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
           const registrations = tones.map((tone, index) =>
             registerContribution({
               key: `tone-${tone}`, target: document.querySelector(`#${tone}-target`),
-              read: () => ({entries: [contributionEntry({
+              read: () => ({entries: [{
                 key: tone, icon: 'check', label: tone, tone, state: currentState,
                 disabled: currentState === 'busy', workflowReceipt: stage ? {
                   id: `tone-${index}`,
@@ -99,7 +99,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                   reason: null,
                   seen: true,
                 } : null
-              })]}), activate: () => {}
+              }]}), activate: () => {}
             })
           );
           window.setToneState = state => {
@@ -401,16 +401,16 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # Two contributed actions fold the Thread control behind More. The visible
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       let cancelReceipt = null;
       window.agentContribution = registerContribution({
         key: 'carrier-probe', target: document.querySelector('#bracket'),
         read: () => ({entries: [
-          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
-            description: 'Edit the proposed bracket', behavior: 'disclosure'}),
-          contributionEntry({key: 'cancel', icon: 'cross', label: 'Cancel',
-            rank: 'secondary', workflowReceipt: cancelReceipt}),
+          {key: 'edit', icon: 'edit', label: 'Edit',
+            description: 'Edit the proposed bracket', behavior: 'disclosure'},
+          {key: 'cancel', icon: 'cross', label: 'Cancel',
+            rank: 'secondary', workflowReceipt: cancelReceipt},
         ]}), activate: () => {}
       });
       window.setAgentCancelReceipt = receipt => {
@@ -530,7 +530,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
           });
         }""")
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       const {readApplication} = await window.__lfCheckApi();
       const ownReceipt = readApplication().effective.workflows.find(
@@ -540,10 +540,10 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
       const contribution = registerContribution({
         key: 'receipt-probe', target: document.querySelector('#bracket'),
         read: () => ({entries: [
-          ...(approving ? [contributionEntry({key: 'approve', icon: 'check',
-            label: 'Approve', rank: 'complete'})] : []),
-          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
-            workflowReceipt: ownReceipt}),
+          ...(approving ? [{key: 'approve', icon: 'check',
+            label: 'Approve', rank: 'complete'}] : []),
+          {key: 'edit', icon: 'edit', label: 'Edit',
+            workflowReceipt: ownReceipt},
         ]}), activate: () => {}
       });
       window.offerApproval = () => {
@@ -1218,13 +1218,13 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     # restores the status fallback with the same canonical receipt.
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           window.lfReceiptSecondary = registerContribution({
             key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
-            })]}), activate: () => {}
+            }]}), activate: () => {}
           });
         }"""
     )
@@ -1350,13 +1350,13 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     resized(page, 1280, 720)
     page.evaluate(
         """async () => {
-              const {contributionEntry, registerContribution} =
+              const {registerContribution} =
                 await window.__lfWidgetApi();
           registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'shape-status', icon: 'pickup', label: 'Delivered', behavior: 'status'
-            })]}), activate: () => {}
+            }]}), activate: () => {}
           });
         }"""
     )

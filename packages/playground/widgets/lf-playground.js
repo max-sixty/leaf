@@ -1,4 +1,4 @@
-import { createPlayground } from "./playground-view.js";
+import { createPlayground, same } from "./playground-view.js";
 /* lf-playground: one form's working configuration, with one durable decision.
  *
  * Authors write the form as native fields among the preview's own markup, with presets
@@ -99,23 +99,6 @@ const ONE_PRESS = [
   'label:has(> input:is([type="checkbox"], [type="radio"]))',
   'input:is([type="checkbox"], [type="radio"], [type="range"])',
 ].join(", ");
-
-/** @param {readonly string[]} left @param {readonly string[]} right */
-const sameKeys = (left, right) =>
-  left.length === right.length && left.every((key, index) => key === right[index]);
-
-// Configuration objects have no meaningful key order, including contributor slices.
-/** @param {unknown} value */
-const configurationJSON = (value) =>
-  JSON.stringify(value, (_key, /** @type {unknown} */ item) =>
-    item && typeof item === "object" && !Array.isArray(item)
-      ? Object.fromEntries(
-          Object.entries(item).sort(([left], [right]) =>
-            left < right ? -1 : left > right ? 1 : 0,
-          ),
-        )
-      : item,
-  );
 
 /** @param {unknown} value @param {string} [path] @returns {JSONSnapshot} */
 function jsonSnapshot(value, path = "configuration") {
@@ -409,7 +392,7 @@ customElements.define(
     #normalize(candidate) {
       const names = Object.keys(this.#defaults).sort();
       const keys = Object.keys(candidate).sort();
-      if (!sameKeys(names, keys))
+      if (!same(names, keys))
         throw new Error(
           `configuration needs exactly these fields: ${names.join(", ")}`,
         );
@@ -605,7 +588,7 @@ customElements.define(
       const recorded = this.#tune()?.detail.values ?? this.#defaults;
       if (!this.controller.read().actions.tune?.available) return;
       this.#unsent.clear();
-      if (configurationJSON(values) === configurationJSON(recorded)) return;
+      if (same(values, recorded)) return;
       this.controller.dispatch({
         kind: "action",
         verb: "tune",
@@ -671,8 +654,7 @@ customElements.define(
       );
       return (
         choice.detail.instruction === this.#instruction() &&
-        configurationJSON(recorded) ===
-          configurationJSON({ ...Object.fromEntries(waiting), ...this.#values })
+        same(recorded, { ...Object.fromEntries(waiting), ...this.#values })
       );
     }
 
@@ -702,7 +684,7 @@ customElements.define(
           tune?.detail.values ?? this.#defaults
         );
         for (const name of this.#unsent)
-          if (Object.is(recorded[name], this.#values[name])) this.#unsent.delete(name);
+          if (same(recorded[name], this.#values[name])) this.#unsent.delete(name);
         const unsent = [...this.#unsent].map((name) => [name, this.#values[name]]);
         this.#restore({
           ...recorded,

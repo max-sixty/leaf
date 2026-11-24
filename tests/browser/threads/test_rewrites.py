@@ -794,7 +794,7 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", rewritten)
     expect(editor).to_have_js_property("selectionStart", len(rewritten))
-    expect_panel_says(page, "Undone: discarded")
+    expect_panel_says(page, "Undone: discarded an edit of “Fit the north bracket.”")
     assert edits() == []
     message.get_by_role("button", name="Save", exact=True).click()
     round_trip(page)

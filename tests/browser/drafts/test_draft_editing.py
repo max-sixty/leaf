@@ -961,7 +961,8 @@ def test_a_discarded_draft_edit_comes_back(browser, serve):
     press.click()
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", typed)
-    expect_panel_says(page, "Undone: discarded")
+    # Named as the rest of the chrome names the draft: nothing holding it has a name.
+    expect_panel_says(page, "Undone: discarded an edit of the draft")
     expect_panel_says(page, "Edit discarded", says=False)
 
     # By keyboard: Escape, then ⌘Z from the Edit control it lands on.

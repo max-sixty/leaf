@@ -774,22 +774,25 @@ function transferDraft(from, to, text) {
 }
 // Who keeps the words a box's Discard or Escape throws away: the page's undo (undo.js,
 // `keepDiscard`), set as the application mounts.
-/** @typedef {{ctx: string, text: string, payload: DraftPayload | undefined}} Discarded */
+/** @typedef {{ctx: string, text: string, payload: DraftPayload | undefined, at: Element | null}} Discarded */
 /** @type {((discarded: Discarded) => void) | null} */
 let keepDiscarded = null;
 /** @param {(discarded: Discarded) => void} keep */
 export const keepDiscardsWith = (keep) => {
   keepDiscarded = keep;
 };
-// Throw away the words `ctx`'s draft holds, as an editor's Discard and Escape do. A
-// draft holding no words leaves nothing to take back. The editor calls it only where
-// its words differ from what its subject already says.
+// Throw away the words `ctx`'s draft holds, as an editor's Discard and Escape do,
+// with the box they stand in (`at`) while it still stands, which says what they were
+// an edit of. A draft holding no words leaves nothing to take back. The editor calls it
+// only where its words differ from what its subject already says.
 /** @param {string} ctx */
 export function discardDraft(ctx) {
   const record = activeDraftRecord(ctx);
   clearDraft(ctx);
-  if (record?.text)
-    keepDiscarded?.({ ctx, text: record.text, payload: record.payload });
+  if (!record?.text) return;
+  const editor = [...draftEditors].find((view) => view.ctx === ctx);
+  const at = (editor && editorInput(editor)) ?? null;
+  keepDiscarded?.({ ctx, text: record.text, payload: record.payload, at });
 }
 /** @param {string} ctx */
 export const loadDraft = (ctx) => activeDraftRecord(ctx);

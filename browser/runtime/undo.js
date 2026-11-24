@@ -107,20 +107,23 @@
    a gesture of the user's that never reaches the log, so this page keeps it, the
    latest only, until the document reloads (`keepDiscard`). ⌘Z takes it back while it
    is the user's newest gesture: while every other gesture the page can take back was
-   there when it was made. So a newer gesture, in this tab or another, takes ⌘Z from
-   it, one taken back by another route leaves it the newest, and no clock decides.
+   logged by the reading the page held when it was made, or was on its way from this
+   page then. So a newer gesture, in this tab or another, takes ⌘Z from it, one taken
+   back by another route leaves it the newest, a list that arrives after it, as one
+   does between versions, is ordered the same way, and no clock decides.
    Taking it back gives its words back to their draft, as taking a message back does,
    and puts the user in its box where Resume writing opens it, which is tinted
    (`takeDiscard`). Its notice, "Edit discarded", offers ⌘Z's press by the rule above
    (`offerUndo`), and under a finger the menu's Undo row takes it. Restore discarded
    edit (`g D`), a keyboard's convenience as Resume writing is, takes it back whether
    or not it is the newest, so it reaches the discard after a newer gesture has taken
-   ⌘Z from it. Rejected, by the user, while only a rewrite's Escape
-   discarded: a timed Undo chip after the discard, a target the user cannot learn
-   (notifications.js), and a row of every page's menu for Restore discarded edit, which
-   put a command on each page for a mishap of one keyboard gesture. A draft's pointer
-   Discard is such a mishap too, and ⌘Z's row already stands on the menu, so taking a
-   discard back adds no row. */
+   ⌘Z from it. Rejected, by the user, while only a rewrite's Escape discarded: a timed
+   Undo chip after the discard, a target the user cannot learn (notifications.js), and a
+   row of every page's menu for Restore discarded edit, which put a command on each page
+   for a mishap of one keyboard gesture. A draft's pointer Discard is such a mishap too.
+   ⌘Z adds no row for it, since its row already stands on the menu. Restore discarded
+   edit keeps the row under Navigate it had for a rewrite's discard, now beside that
+   Undo row while a discard stands, until the user decides on it. */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -138,7 +141,7 @@ import { addressableWord } from "./lib/element-word.js";
 import { elementById } from "./passages.js";
 import { placeBox, placeHolder } from "./geometry.js";
 import { seenLanded } from "./scroll-containers.js";
-import { messageHolding, threadName } from "./thread/messages.js";
+import { messageHolding, messageWords, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { ago, saidNow } from "./presence.js";
@@ -153,7 +156,9 @@ import {
   PAGE_DRAFT,
   replyContext,
   rewriteContext,
+  threadDraft,
 } from "./drafts.js";
+import { aimTargetAt } from "./anchor-resolution.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
 import { inChrome } from "./ui-marks.js";
@@ -167,7 +172,8 @@ import { signal } from "/runtime/framework.js";
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
  * @typedef {import("../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("./thread/state.js").allThreads>[number]["root"] | import("./pending/dispatch.js").UndoCandidate | import("./framework/snapshot.js").Immutable<import("../types/domain.js").Event | import("../types/domain.js").Message>>>} UndoEvent
  * @typedef {typeof runtime.undo[number]} UndoEntry
- * @typedef {import("./drafts.js").Discarded & {kind: "discard", attempt: string, ts: string, before: ReadonlySet<string | undefined>}} Discard
+ * @typedef {Omit<import("./drafts.js").Discarded, "at"> & {kind: "discard", attempt: string, ts: string,
+ * before: {seq: number, attempts: ReadonlySet<string>}, message: string | null, widget: string | null}} Discard
  * @typedef {import("../types/contract.js").ServedGesture} Gesture
  * @typedef {ReturnType<typeof retainUserIntent>} UserIntent
  * @typedef {ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"]} OpenThread
@@ -329,18 +335,21 @@ export function createUndo({
 }) {
   // The edit this page last discarded, while it can be taken back (`keepDiscard`).
   const discard = signal(/** @type {Discard | null} */ (null));
+  // The attempts of the gestures on their way to the log, less those it refused.
+  const sending = () =>
+    readApplication().unresolved.flatMap((entry) =>
+      entry.state === "refused" ? [] : [entry.event.attempt],
+    );
   // The attempts of the gestures the page can still take back: on their way to the
-  // log, on the undo list, or the edit last discarded. One the log refused, or one
-  // taken back, is in none. Null between versions, when the page holds no undo list.
+  // log, on the undo list, or the edit last discarded. One taken back is in none. Null
+  // between versions, when the page holds no undo list.
   function takeable() {
-    const { effective, unresolved } = readApplication();
-    if (!effective.view) return null;
+    const { view } = readApplication().effective;
+    if (!view) return null;
     const discarded = discard.value;
     return new Set([
-      ...effective.view.undo.map(({ event }) => event.attempt),
-      ...unresolved.flatMap((entry) =>
-        entry.state === "refused" ? [] : [entry.event.attempt],
-      ),
+      ...view.undo.map(({ event }) => event.attempt),
+      ...sending(),
       ...(discarded ? [discarded.attempt] : []),
     ]);
   }
@@ -355,12 +364,21 @@ export function createUndo({
       for (const kept of gestures.keys()) if (!live.has(kept)) gestures.delete(kept);
     gestures.set(attempt, { ...gestures.get(attempt), ...facts });
   }
+  // What a discard was an edit of: a rewrite's message by its words, as taking a
+  // rewrite back says it, else the element its box stood in, as an action's undo names
+  // its widget.
+  /** @param {Discard} discarded */
+  const editOf = ({ message: id, widget }) => {
+    if (id === null) return widgetNamed(widget);
+    const message = threadNamed(id)?.msgs.find((one) => one.id === id);
+    return message ? quoted(messageWords(message), 48) : "a message";
+  };
   // What taking `event` back takes: by the name its gesture was acknowledged by where
   // this page made it, else in the words the page holds for it now; a discard by the
   // words taking it back gives back.
   /** @param {UndoEvent | Discard} event */
   const said = (event) => {
-    if (event.kind === "discard") return `discarded ${quoted(event.text, 48)}`;
+    if (event.kind === "discard") return `discarded an edit of ${editOf(event)}`;
     // By attempt as well, since an action still in the ledger goes by its pending id.
     const gesture = runtime.undo.find(
       (entry) =>
@@ -398,15 +416,20 @@ export function createUndo({
       ? { ...entry.event, id: entry.localId, ts: entry.timestamp }
       : null;
   };
-  // The discard while it is the user's newest gesture: everything else the page can
-  // take back was there when it was made (`keepDiscard`).
+  // The discard while it is the user's newest gesture: each other gesture on the list
+  // was logged by the reading the page held when it was made, or was on its way from
+  // this page then (`keepDiscard`).
   const newestDiscard = () => {
     const held = discard.value;
-    const live = held && takeable();
-    return live &&
-      [...live].every((attempt) => attempt === held.attempt || held.before.has(attempt))
-      ? held
-      : null;
+    const { view } = readApplication().effective;
+    if (!held || !view) return null;
+    const { seq, attempts } = held.before;
+    const newer = (/** @type {string | undefined} */ attempt) =>
+      attempt === undefined || !attempts.has(attempt);
+    return view.undo.some(({ event }) => event.seq > seq && newer(event.attempt)) ||
+      sending().some(newer)
+      ? null
+      : held;
   };
   // The user's newest gesture while this page holds it and the list doesn't: the edit
   // it last discarded, which never reaches the log, or an action still in the ledger.
@@ -612,10 +635,30 @@ export function createUndo({
   // A box's Discard or Escape is a gesture of the user's (the header), kept until
   // another takes its place or the document reloads.
   /** @param {import("./drafts.js").Discarded} discarded */
-  function keepDiscard(discarded) {
+  function keepDiscard({ at, ...discarded }) {
     const attempt = randomId();
-    const before = takeable() ?? new Set();
-    discard.value = { ...discarded, kind: "discard", attempt, ts: saidNow(), before };
+    // What it was an edit of, read while its box stands: a rewrite's message, else the
+    // element a press on the box aims at.
+    const rewrite = threadDraft(discarded.ctx);
+    const message = rewrite?.part === "rewrite" ? rewrite.name : null;
+    const widget =
+      message === null && at ? (aimTargetAt(at)?.anchor.section ?? null) : null;
+    // Both stand whether or not the page holds an undo list now, as between versions,
+    // so a list that arrives later is ordered by them. A page that has read none of the
+    // log has read through none of it.
+    const before = {
+      seq: runtime.lastEventSeq ?? 0,
+      attempts: new Set(sending().filter((one) => one !== undefined)),
+    };
+    discard.value = {
+      ...discarded,
+      kind: "discard",
+      attempt,
+      ts: saidNow(),
+      before,
+      message,
+      widget,
+    };
     notice("Edit discarded", { press: offerUndo(attempt) });
   }
   keepDiscardsWith(keepDiscard);

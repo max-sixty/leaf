@@ -22,16 +22,20 @@ const { wireInput } = createCompositionInputs({
 });
 
 // A reading whose undo list holds `attempts`, newest first, each the user's to take
-// back, as another tab's gestures reach this one.
+// back, as another tab's gestures reach this one. Each gesture keeps the place in the
+// log it was first given, and the reading has read through the latest.
 let taken = 0;
-const reading = (attempts) =>
-  servedState({
+const logged = new Map();
+const reading = (attempts) => {
+  for (const attempt of [...attempts].reverse())
+    if (!logged.has(attempt)) logged.set(attempt, logged.size + 1);
+  return servedState({
     taken: ++taken,
     browser: {
-      basis: { through_seq: attempts.length },
+      basis: { through_seq: logged.size },
       views: {
         1: {
-          basis: { through_seq: attempts.length },
+          basis: { through_seq: logged.size },
           undo: attempts.map((attempt, at) => ({
             event: {
               kind: "action",
@@ -40,8 +44,8 @@ const reading = (attempts) =>
               detail: {},
               revision: 1,
               attempt,
-              id: `e${at}`,
-              seq: attempts.length - at,
+              id: `e${logged.get(attempt)}`,
+              seq: logged.get(attempt),
             },
             newest: at === 0,
           })),
@@ -49,6 +53,7 @@ const reading = (attempts) =>
       },
     },
   });
+};
 applicationState.identify(1);
 
 const visits = [];
@@ -114,7 +119,7 @@ test("⌘Z takes the newest discard back, and Restore discarded edit takes it by
     "  The last discarded rewrite\nwith its spacing.  \n\nA newer draft",
   );
   assert.deepEqual(visits, [ctx]);
-  assert.match(String(takes().message), /^Undone: discarded “/);
+  assert.match(String(takes().message), /^Undone: discarded an edit of a message /);
   assert.equal(undo.restore.when(), false);
   clearDraft(ctx);
 
@@ -154,4 +159,18 @@ test("g D restores the discarded rewrite", (t) => {
   assert.equal(goTo.goToSequenceActive(), false);
   assert.equal(loadDraft(rewriteContext("keyboard"))?.text, "Recover by keyboard");
   assert.deepEqual(visits, [rewriteContext("keyboard")]);
+});
+
+test("a discard made while no undo list is held is ordered once the list arrives", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  applicationState.identify(1);
+  applicationState.adopt(reading(["older"]));
+  // The page shows a revision its reading holds no view of, so it holds no list.
+  applicationState.identify(2);
+  discard("between", "Discarded between versions");
+  applicationState.identify(1);
+  assert.equal(takes().press?.command, "history.undo");
+  applicationState.adopt(reading(["later", "older"]));
+  assert.equal(takes().press?.command, null);
+  clearDraft(rewriteContext("between"));
 });

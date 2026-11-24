@@ -1019,7 +1019,7 @@ RANK_CASES = json.loads((Path(__file__).parents[1] / "rank_cases.json").read_tex
 
 def test_rank_rules_match_the_browser_cases():
     """`tests/runtime/board-order.test.mjs` reads the same cases against
-    `projection/model.js`, so the two runtimes rank authored units alike and the
+    `lib/rank.js`, so the two runtimes rank authored units alike and the
     append door admits what a widget computes."""
     assert RANK == RANK_CASES["pattern"]
     for index, rank in RANK_CASES["authored"]:

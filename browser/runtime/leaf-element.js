@@ -115,8 +115,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   /** The widget's reading as Leaf set it (`module-plain-elements.md`, "`state`"):
    *  each declared verb's state with every admitted and unresolved record folded in,
-   *  whether the user may act on it now (`available`), and whether `takeBack` would
-   *  take its action in force back (`undoable`). An element whose tag declares no verb
+   *  whether the user may act on it now (`available`), the reason they may not where
+   *  Leaf has one (`unavailable`), and whether `takeBack` would take its action in
+   *  force back (`undoable`). An element whose tag declares no verb
    *  holds an empty one once Leaf has set its inputs. Undefined where no host set it:
    *  off a Leaf page, and for a widget the page did not capture, such as one with no
    *  id.

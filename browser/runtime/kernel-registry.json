@@ -21,6 +21,7 @@
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/once.js",
       "/runtime/lib/queued-work.js",
+      "/runtime/lib/rank.js",
       "/runtime/lib/role-button-press.js",
       "/runtime/lib/scroll-range.js",
       "/runtime/lib/shadow-tree.js",

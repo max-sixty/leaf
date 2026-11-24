@@ -170,7 +170,15 @@ handed over is owed, or a to-do the agent opened; the On lists show each one und
 next actor. `readObligations()` returns `{phase, all, user, unanswered}`: `all` holds
 every obligation whose source is still there, answered and withdrawn ones included,
 `user` the open obligations waiting on the user, and `unanswered` every open obligation,
-including those with the agent. Each record looks like this:
+including those with the agent.
+
+`readObligations(region)` returns the same lists holding only what a region of the
+page holds, by the rule `lf-tabs` and `lf-tally` count with: the obligations whose
+widget is `region` or stands inside it, shadow trees included, less those withdrawn.
+It adds `asks`, whether the region's markup holds a widget declaring `awaits`, even one
+whose obligation has yet to arrive or was withdrawn, as a side list keeps a row's room
+for an answer through both. A module that marks every card or section reads each one
+this way. Each record looks like this:
 
 ```js
 {
@@ -218,22 +226,10 @@ arrives. Each `source.kind` adds its own facts:
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
-  newest has one. `obligationsIn` never counts an update.
+  newest has one. No region holds an update.
 
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state"). `obligationsIn(region, obligations)`
-returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
-`lf-tally` count with it, so a module marking obligations per card or section should
-too, passing `readObligations().user` for those waiting on the user.
-`obligationsByRegion(regions, obligations)` answers the same for many regions in one
-pass, as a `Map` from each region to its obligations; a module that marks every card
-or section in one render reads it, since asking `obligationsIn` once per region costs
-the regions times the obligations.
-`regionsAwaiting(regions)` returns the `Set` of `regions` whose markup holds a widget
-declaring `awaits`, whether its obligation has yet to arrive or was withdrawn, as
-`lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
-not the regions' elements, and follows each revision, so ask it rather than
-reading the regions' elements in a render.
+(`module-state.md`, "Declared widget state").
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
@@ -245,23 +241,24 @@ each heading the stretch of the page from the element it titles (`titledElement`
 its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
-it is gone. `obligationActions.next({within, dir})` steps to the next obligation
-waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does in On
-Me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
+it is gone; a row of the On lists opens by its `id`.
+`obligationActions.next({within, dir})` steps to the next obligation waiting on the
+user inside `within`, or the previous with `dir: -1`, as `m` does in On Me, and
+resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On Me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind`, `todo` for a to-do of the agent's, the obligation itself as
-`obligation`, and an `owner`, `user` or `agent`, naming its list. The record says where
-the row stands: the agent has it in hand while its `state` is `running`, and a row in
-`done` ended as its `outcome` and `end` say. An obligation's row lists in `also` the ids
-of the other obligations the user answers at the same place, such as the agent's answer
-in a thread about it.
-`queueItemKey(row)` names a row across moves between lists, and `nameOf(row)` gives
-the words On Me names it by ("Naming"). `queueActions.open(key)` goes to a row; an obligation is answered only
-through its widget or thread. Act on a collection only when its `phase` is `ready`.
+under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
+it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
+to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
+`agent`, naming its list. The record says where the row stands: the agent has it in
+hand while its `state` is `running`, and a row in `done` ended as its `outcome` and
+`end` say. An obligation's row lists in `also` the ids of the other obligations the
+user answers at the same place, such as the agent's answer in a thread about it.
+`nameOf(row)` gives the words On Me names a row by ("Naming"). An obligation is
+answered only through its widget or thread. Act on a collection only when its `phase`
+is `ready`.
 
 ### Work hierarchies
 

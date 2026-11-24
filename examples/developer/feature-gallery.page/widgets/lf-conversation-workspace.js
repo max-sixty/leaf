@@ -5,8 +5,7 @@ import {
   compoundReadingRegionId,
   HeldReading,
   LeafElement,
-  queueActions,
-  queueItemKey,
+  obligationActions,
   nameOf,
   readObligations,
   answerWords,
@@ -261,7 +260,7 @@ customElements.define(
         ...Object.fromEntries(
           Object.keys(this.queues).map((name) => [
             name,
-            queues[name].map(queueItemKey),
+            queues[name].map((item) => item.id),
           ]),
         ),
       });
@@ -291,7 +290,7 @@ customElements.define(
       const queues = readQueues();
       const layout = this.indexLayout();
       for (const [name, list] of Object.entries(this.queues)) {
-        const current = new Map(queues[name].map((item) => [queueItemKey(item), item]));
+        const current = new Map(queues[name].map((item) => [item.id, item]));
         const rows = layout[name].map((key) => {
           const item = current.get(key);
           const identity = JSON.stringify([name, key]);
@@ -299,7 +298,7 @@ customElements.define(
           if (!row) {
             const node = offer("li");
             const open = offerAction("word", "");
-            open.addEventListener("click", () => void queueActions.open(key));
+            open.addEventListener("click", () => void obligationActions.open(key));
             row = { node, open };
             this.queueRows.set(identity, row);
           }

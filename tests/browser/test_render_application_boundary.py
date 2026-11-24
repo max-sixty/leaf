@@ -1460,9 +1460,10 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On Me's route and Threads' row each take the user to the primary reader that
-    owns the thread's widget. The panel opens no view of the thread, and the widget
-    arrives as the same native node."""
+    """Opening the widget's On Me row by its id, which arrives where the row's own Show
+    does, and Threads' row each take the user to the primary reader that owns the
+    thread's widget. The panel opens no view of the thread, and the widget arrives as
+    the same native node."""
     page = open_page(browser, package_workspace(serve))
     page.set_viewport_size({"width": 693, "height": 900})
     workspace = page.locator("#workspace")
@@ -1476,7 +1477,7 @@ def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
 
     other_thread.click()
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.obligationActions.open(item.id); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

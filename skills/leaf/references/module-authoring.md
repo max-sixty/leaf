@@ -262,8 +262,8 @@ nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wa
 the page wait for the work each has started; `page check --render` starts what
 `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, pass the work to the widget controller's
-`present(promise)` instead, so it lands before presentation.
+now would move what the user sees, say the work with a `pending-task` event instead
+("A widget that also runs off Leaf"), so it lands before presentation.
 
 ### First paint
 

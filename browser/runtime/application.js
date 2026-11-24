@@ -17,7 +17,8 @@ import {
 } from "./semantic-state.js";
 import { announce } from "./notifications.js";
 import { hasObligationSource } from "./obligations/source.js";
-import { answeredInWords, readObligations } from "./obligations/model.js";
+import { answeredInWords } from "./obligations/model.js";
+import { readObligations } from "./obligations/place.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -731,13 +732,17 @@ function createApplication(dependencies) {
     placePageThreads,
     consumeAnnotations,
     threadActions,
+    // The panel's On rows' own arrival, where `m` would arrive (queue-api.js).
     queueActions,
+    // Goes to an obligation by its id, which is also its row's on an On list: an
+    // update's or a to-do's at its row's arrival, a question asked in words at its
+    // message, and any other where the walk would.
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
       if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
-        return queueActions.open(JSON.stringify([item.source.kind, item.id]));
+        return queueActions.open(id);
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
         return threadDestinations.openPageThread(item.message, {
@@ -803,11 +808,6 @@ export const obligationActions = Object.freeze({
   next: /** @type {ReturnType<typeof createApplication>["nextObligation"]} */ (
     ...args
   ) => app().nextObligation(...args),
-});
-export const queueActions = Object.freeze({
-  open: /** @type {ReturnType<typeof createApplication>["queueActions"]["open"]} */ (
-    ...args
-  ) => app().queueActions.open(...args),
 });
 /** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
 export const wireInput = (...args) => app().wireInput(...args);

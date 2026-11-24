@@ -123,7 +123,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         "aria-label", re.compile(r"^Page menu · ")
     )
     view = page.locator(panel_view("queue"))
-    items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
+    items = ".lf-fp-on-item[data-lf-key^='widget:']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(

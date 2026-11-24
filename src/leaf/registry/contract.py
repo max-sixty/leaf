@@ -341,7 +341,7 @@ def declares_string(field_schema) -> bool:
 
 # A position record's rank: a base-36 fraction written as its digits after the point,
 # never ending in 0, so string order is numeric order. The runtime's
-# `projection/model.js` owns the reasoning and computes the keys between neighbours;
+# `lib/rank.js` owns the reasoning and computes the keys between neighbours;
 # this rule is the one both runtimes must read the same way, and
 # `tests/rank_cases.json` holds both runtimes to the same cases.
 RANK = "[0-9a-z]*[1-9a-z]"

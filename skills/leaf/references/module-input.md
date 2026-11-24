@@ -176,8 +176,10 @@ nearby button.
 ### Inline shortcut hints
 
 To show a command's key on the page, set `bindingBadge` on its row or route: an empty
-element the widget positions in or beside its control, or `null` for a badge at the
-control's corner. Leaf gives the element the class `lf-binding-seat`, which positions it
+element the widget positions over its control, or beside it over a box that holds the
+element, or `null` for a badge at the control's corner. Where anything else stands at the
+element's place, the key shows as a chip there instead. Leaf gives the element the class
+`lf-binding-seat`, which positions it
 absolutely and has it take no pointer, so a press where it stands lands on what is under
 it. Leaf writes the key into it while the key works, and the widget gives it the class
 `lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check

@@ -131,10 +131,8 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                 tag: {
                     "description": "A body normalized by an asynchronous renderer.",
                     "attributes": {
-                        "type": "object",
                         "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "data",
                     "verbatim": True,

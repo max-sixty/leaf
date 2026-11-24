@@ -279,11 +279,7 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     """A package member can belong to different families without validator changes."""
     label = {
         "description": "A package's shared label.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "owners": ["lf-option", "lf-card"],
     }

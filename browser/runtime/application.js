@@ -763,8 +763,12 @@ function createApplication(dependencies) {
 
 /** @type {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
+// A widget can draw before the application mounts, as one a page's own script defines
+// does. No document-wide presenter exists yet then, and each presents the document as
+// it stands when the mount registers it, so the request has nothing to reach.
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */
-export const invalidateDom = (...args) => app().invalidateDom(...args);
+export const invalidateDom = () =>
+  application ? application.invalidateDom() : Promise.resolve();
 /** @type {ReturnType<typeof createApplication>["landInThread"]} */
 export const landInThread = (...args) => app().landInThread(...args);
 /** @type {ReturnType<typeof createApplication>["navigateToDatum"]} */

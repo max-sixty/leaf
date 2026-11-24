@@ -363,8 +363,8 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
 ):
     """A widget that draws without Leaf's helpers says it has drawing under way with a
     `pending-task` event, as one that also runs off Leaf does (module-authoring.md, "A
-    widget that also runs off Leaf"). The page holds the widget's presentation on it, as
-    on `present(promise)`, and presents once the drawing is in."""
+    widget that also runs off Leaf"). The page holds the widget's presentation on it,
+    and presents once the drawing is in."""
     package = tmp_path / "pending-package"
     tag = "lf-pending-proof"
     add_test_widget(package, tag, upgrade=True)

@@ -1038,11 +1038,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "example": "<lf-piece>Example</lf-piece>",
     }

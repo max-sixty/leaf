@@ -57,10 +57,8 @@ question on On Me and admits the ids its buttons mark:
 "lf-verdict": {
   "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
   "attributes": {
-    "type": "object",
     "properties": { "verdict": { "type": "string", "enum": ["ship", "hold"] } },
-    "required": ["id"],
-    "additionalProperties": false
+    "required": ["id"]
   },
   "content": "empty",
   "verbs": {
@@ -71,6 +69,11 @@ question on On Me and admits the ids its buttons mark:
   "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
 }
 ```
+
+`leaf package init --widget` writes a smaller widget of this kind to start from
+([packages.md, "Package reach"](packages.md#package-reach)). It draws from `state` and
+records with `lf-action` as this one does, under names of its own, and puts no question
+on On Me and marks no comment target.
 
 Each `lf-` event the element dispatches, and `pending-task` and `error`, bubbles and is
 composed, so Leaf hears it from inside any shadow tree. Where an entry says an event
@@ -126,8 +129,10 @@ this.dispatchEvent(hold);
   recorded value. `attr` names the attribute in which a page's markup writes the
   starting value, as for any value record. Leaf sets `state` on the element too, as
   on any widget, so this form doesn't suit an element with a `state` property of its
-  own. Undo names the action in Leaf's own words (`module-state.md`, "The widget
-  controller").
+  own. The `state` Leaf sets is how the element learns the user may not act: Leaf
+  neither disables it nor makes it inert, so an element that doesn't read the verb's
+  `available` shows the user's change until Leaf sets the property back. Undo names
+  the action in Leaf's own words (`module-state.md`, "The widget controller").
 - **A third-party component.** A component from a third-party library keeps its own
   tag, since the library's styles and the component's own children find it by that
   tag. The page writes it inside the element the registry declares, as in
@@ -244,8 +249,7 @@ this.dispatchEvent(hold);
 
 A widget that draws with Lit usually extends `LeafElement`, the Lit element on this
 protocol in the library's
-[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js), as the starter that
-`leaf package init --widget` writes does. Its `render()` draws `this.state`, its Lit properties and the page readings it reads
+[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js). Its `render()` draws `this.state`, its Lit properties and the page readings it reads
 synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
 changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
 announces each update with `pending-task`, says `lf-commands` after each draw, defines
@@ -256,5 +260,7 @@ part it generated beside them, or says `static shadow = true` and slots them. Th
 module's header is the class's whole contract.
 
 Only the class follows a page reading, so a widget that draws from one must extend it.
+A plain element can still draw its own reports in its `state` setter, since Leaf sets
+`state` again as they turn ready (`module-reading.md`, "Page history and reports").
 A widget that draws with Lit's standalone `render`, as the opening example does, that
 imports nothing, or that wraps a component written without Leaf extends `HTMLElement`.

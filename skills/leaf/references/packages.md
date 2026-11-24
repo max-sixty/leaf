@@ -20,13 +20,21 @@ pages that select it. Presentation or behavior used by one page stays in that pa
 `<style>`, its scripts or `page/`. Anything reused belongs in a package:
 
 ```bash
-leaf package init packages/callout --widget lf-callout
-leaf package check packages/callout
-leaf page init --package reading --package packages/callout PAGE
-leaf package install packages/callout
+leaf package init packages/signoff --widget lf-signoff
+leaf package check packages/signoff
+leaf page init --package reading --package packages/signoff PAGE
+leaf package install packages/signoff
 leaf package list
 leaf package run NAME SCRIPT [ARGS]...
 ```
+
+`package init` creates the package's `registry.json` and `defaults.css`, which are all
+a CSS-only widget needs, and often all a theme does. Each `--widget TAG` adds a
+working starter under that tag, a yes-or-no choice: its declaration, its module at
+`widgets/<tag>.js` and its rule in `defaults.css`. The starter is a small widget that
+records what the user presses (`module-plain-elements.md`), there to be changed into
+the widget you need: each of its three parts is yours to rewrite, or to delete where
+your widget needs none.
 
 `--package` takes a name of lowercase letters, digits and hyphens, which selects an
 installed or bundled package, or a path. A path is relative to the directory `page
@@ -245,11 +253,7 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
 ```json
 "lf-merge-film": {
   "description": "A merge replayed frame by frame.",
-  "attributes": {
-    "type": "object",
-    "required": ["id"],
-    "additionalProperties": false
-  },
+  "attributes": { "required": ["id"] },
   "content": "members",
   "example": "<lf-merge-film id=\"film\">…</lf-merge-film>"
 }
@@ -287,6 +291,20 @@ leave it off a widget whose module rewrites or reorders what it holds. Whatever 
 module adds to a verbatim widget stands inside a box of controls the library built
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
 page's (`module-plain-elements.md`, "Words it writes").
+
+A declaration names each of its element's attributes in `properties`, and the schema's
+other keywords, such as `required`, constrain the attributes named there. `page check`
+refuses an attribute `properties` doesn't name, such as a misspelt one. Composition
+writes `"type": "object"` and `"additionalProperties": false` into the attribute schema
+and into each verb's `detail` schema
+([package-data.md, "User state"](package-data.md#user-state)), so a declaration leaves
+both out of each. An attribute schema may write `"additionalProperties": true` to admit
+attributes it doesn't name, as a widget that passes them to an inner element does. A
+`detail` schema that writes any other value for either keyword is refused. A
+declaration with nothing to say about its element's attributes leaves `attributes` out,
+and the element then takes only an optional `id`. The attributes any element takes
+(`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand
+outside the schema unless it names one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

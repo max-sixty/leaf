@@ -2027,14 +2027,15 @@ packages/callout/
               id="widget-init-command"
             ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
             <p>
-              Leaf writes a valid markup-widget element declaration and its one-shot
-              browser module, then checks the complete candidate before changing the
-              package. The tutorial below stays with the smaller CSS-only form so each
-              contract remains visible. A behavior module imports Leaf's package API
-              from
-              <code>/runtime/widget-api.js</code>; it declares each interactive
-              capability once, as the <code>lfCommands</code> of the element it applies
-              in. The same live command rows feed keyboard dispatch, help, accessibility
+              Leaf writes a working starter, a yes-or-no choice that records the user's
+              press: its element declaration, its browser module and its style rule. It
+              checks the complete candidate before changing the package, and each part
+              is there to be changed into the widget you need. The tutorial below stays
+              with the smaller CSS-only form so each contract remains visible. A module
+              that needs Leaf's functions imports them from
+              <code>/runtime/widget-api.js</code>, and one that adds keys declares each
+              command once, as the <code>lfCommands</code> of the element it applies in.
+              The same live command rows feed keyboard dispatch, help, accessibility
               shortcuts, and—when <code>decision</code> names the action—the controls
               shown inline for an obligation.
             </p>
@@ -2083,11 +2084,7 @@ packages/callout/
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
@@ -2096,8 +2093,11 @@ packages/callout/
               the entry needs no other Leaf declaration: the body is the author's markup
               unless <code>content</code> says otherwise. Every element takes an
               <code>id</code>, which Leaf adds with its grammar, so the entry says only
-              that this one requires it; <code>description</code> and
-              <code>example</code> make the merged registry useful to an author.
+              that this one requires it. Leaf also writes the schema's
+              <code>type</code> and <code>additionalProperties</code>, so
+              <code>page check</code> refuses an attribute the entry doesn't name, such
+              as a misspelt one. <code>description</code> and <code>example</code> make
+              the merged registry useful to an author.
             </p>
             <p>
               The <a href="#keys">registry-key reference</a> lists every other fact a

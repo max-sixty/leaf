@@ -120,11 +120,37 @@ MODULES = "$modules"
 def complete_declarations(registry: dict) -> dict:
     """Write into a merged vocabulary's element declarations the default each may
     leave unsaid, so every reader reads a complete entry: an element's content is its
-    author's markup (`content`) unless it declares another."""
+    author's markup (`content`) unless it declares another, and its attribute schema
+    (`attributes`) and each verb's `detail` schema admit only what they name unless
+    they say otherwise (`_closed_by_default`); validation refuses a `detail` that
+    does. An element that declares no `attributes` takes none of its own, so its
+    schema is the one that names nothing.
+
+    It runs before validation, so it completes only an entry of the shape it reads
+    and leaves any other for validation to refuse."""
     for entry in element_declarations(registry).values():
-        if isinstance(entry, dict):
-            entry.setdefault("content", "markup")
+        if not isinstance(entry, dict):
+            continue
+        if isinstance(attributes := entry.setdefault("attributes", {}), dict):
+            entry["attributes"] = _closed_by_default(attributes)
+        entry.setdefault("content", "markup")
+        verbs = entry.get("verbs")
+        for spec in verbs.values() if isinstance(verbs, dict) else ():
+            if isinstance(spec, dict) and isinstance(
+                detail := spec.get("detail"), dict
+            ):
+                spec["detail"] = _closed_by_default(detail)
     return registry
+
+
+def _closed_by_default(schema: dict) -> dict:
+    """`schema` with `"type": "object"` and `"additionalProperties": false` written in,
+    each where it doesn't write that keyword. `type` stands first and
+    `additionalProperties` last, where a declaration that writes both puts them, so the
+    vocabulary reads the same either way."""
+    closed = {"type": "object", **schema}
+    closed.setdefault("additionalProperties", False)
+    return closed
 
 
 def body_is_data(entry: Mapping) -> bool:

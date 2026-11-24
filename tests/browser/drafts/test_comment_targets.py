@@ -672,12 +672,10 @@ customElements.define('lf-draft-subject', class extends LeafElement {
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
                 "attributes": {
-                    "type": "object",
                     "properties": {
                         "source": {"type": "string"},
                     },
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "inputs": {

@@ -200,7 +200,25 @@ class FileTreeWidget extends LeafElement {
       // press's mousedown, and a reveal there would move the row from under the
       // pointer before the mouseup, which would fall on another row and open neither.
       const stopCurrentLocation = onCurrentLocation(
-        (/** @type {Element | null} */ row, cause) => {
+        (
+          /** @type {Element | null} */ row,
+          cause,
+          /** @type {Element | null} */ left,
+        ) => {
+          // Only the focused row carries the rows' scope. Its `when` reads focus
+          // anywhere in this tree, and Leaf reads a scope's rows again only as focus
+          // moves into, out of or within that scope, so a row focus has left would
+          // go on naming its keys as they stood when focus left it.
+          if (
+            left !== row &&
+            left?.getAttribute("role") === "treeitem" &&
+            left.lfCommands === fileActions
+          ) {
+            left.lfCommands = null;
+            left.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
+          }
           // A route to this navigator lands on its usable entry control.
           if (row === this) {
             const input = root.querySelector("input");

@@ -2396,15 +2396,14 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     """A hook lists its session's pages and then re-vendors each, and another session
     can take one in between. The re-vendor is then that session's to make, under its
     own Leaf, so this hook leaves the page as it found it."""
-    vendored = vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed)
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
     service_model.claim_page(claimed)
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 
     assert hook_transport_model.read_plans("s1") == []
-    layer = layer_record(claimed)
-    assert layer is not None
-    assert layer["protocol"] == vendored
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 
 def test_two_renewals_of_a_page_take_turns(claimed, monkeypatch):
@@ -2454,26 +2453,22 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
     """Two versions of Leaf can each find the page vendored at a protocol they do not speak and
     each set out to re-vendor it. Whichever takes the page lock second finds the page
     the other left, and an older Leaf finding a newer Leaf's page leaves it there."""
+    stamp = claimed / schema_model.LAYER_FILE
+    record = layer_record(claimed)
+    assert record is not None
     vendored_at_another_protocol(claimed)
     locked = vendoring_model.page_locked
     raced = iter([True])
+    newer = {"format": f"leaf-layer/{LAYER.since + 1}", **record}
 
     def newer_leaf_first(page_dir):
         if next(raced, False):
             # Another Leaf's own `page init` reaches the page before this one.
-            record = layer_record(page_dir)
-            (page_dir / schema_model.LAYER_FILE).unlink()
-            assert record is not None
-            LAYER.write(
-                page_dir / schema_model.LAYER_FILE,
-                {**record, "protocol": record["protocol"] + 2},
-            )
+            stamp.unlink()
+            cleanup_model.write_json(stamp, newer)
         return locked(page_dir)
 
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
-    layer_2 = layer_record(claimed)
-    assert layer_2 is not None
-    newer = layer_2["protocol"] + 2
 
     assert (
         vendoring_model.renew_layer(
@@ -2481,9 +2476,7 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
         )
         is None
     )
-    layer_3 = layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == newer
+    assert json.loads(stamp.read_text()) == newer
 
 
 def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(

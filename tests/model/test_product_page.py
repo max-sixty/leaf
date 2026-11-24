@@ -349,10 +349,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
 
 
 def test_the_event_log_page_quotes_the_registry():
-    """The declaration the page annotates is `lf-options`' own."""
+    """The declaration the page annotates is `lf-options`' own, and each note stands
+    at the line it explains."""
     source = SourceDocument(EVENT_LOG.read_text())
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
-    shown = json.loads("{" + code_block(source, "options-verbs") + "}")
+    block = code_block(source, "options-verbs")
+    shown = json.loads("{" + block + "}")
     assert shown == {
         "verbs": entry["verbs"],
         "awaits": {
@@ -360,6 +362,25 @@ def test_the_event_log_page_quotes_the_registry():
             "answered": entry["awaits"]["answered"],
         },
     }
+    lines = block.splitlines()
+    noted = []
+    for note in source.tree.select("lf-code#options-verbs > lf-note"):
+        position = note.attrs["at"]
+        assert isinstance(position, str)
+        noted.append(lines[int(position) - 1].strip())
+    explained = [
+        '"choose": ',
+        '"unit": "widget"',
+        '"record": ',
+        '"unit": "option"',
+        '"creates": ',
+        '"answer": ',
+        '"value": ',
+        '"answered": ',
+    ]
+    assert [line[: len(key)] for line, key in zip(noted, explained, strict=True)] == (
+        explained
+    ), noted
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

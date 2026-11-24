@@ -523,16 +523,21 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           };
           // The watcher gets its first clock reading before the held publication.
           await Promise.resolve();
-          const other = api.widgetController(document.getElementById('ag-finch'));
-          other.present(new Promise(resolve => { window.__proofOtherResume = resolve; }));
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          // Said from inside a worker, the work is that worker's preparation.
+          const prepare = (worker, promise) =>
+            worker.querySelector('strong').dispatchEvent(new PendingTaskEvent(promise));
+          prepare(
+            document.getElementById('ag-finch'),
+            new Promise(resolve => { window.__proofOtherResume = resolve; }),
+          );
           window.__proofOtherPending = () =>
             readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
-          const controller = api.widgetController(owner);
           if (holding === 'defer') {
             window.__proofResume = owner.defer();
           } else {
             let resolve;
-            controller.present(new Promise(done => { resolve = done; }));
+            prepare(owner, new Promise(done => { resolve = done; }));
             window.__proofResume = resolve;
           }
         }""",

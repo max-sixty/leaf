@@ -293,14 +293,12 @@ def test_a_pinned_view_reads_its_threads_under_its_own_registry():
         layer = deepcopy(model.model_layer())
         layer["lf-value-ask"] = {
             "attributes": {
-                "type": "object",
                 "properties": {
                     "active": {"type": "boolean"},
                     "value": {"type": "boolean"},
                     "chosen": {"type": "boolean"},
                 },
                 "required": ["id"],
-                "additionalProperties": False,
             },
             "content": "none",
             "awaits": {
@@ -379,13 +377,11 @@ def test_false_and_zero_are_typed_answers(value):
     registry = deepcopy(model.model_layer())
     registry["lf-value-ask"] = {
         "attributes": {
-            "type": "object",
             "properties": {
                 "active": {"type": "boolean"},
                 "value": {"type": ["boolean", "integer"]},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "none",
         "awaits": {
@@ -806,13 +802,11 @@ def conditional_registry():
     registry = deepcopy(model.model_layer())
     registry["lf-conditional"] = {
         "attributes": {
-            "type": "object",
             "properties": {
                 "phase": {"enum": ["closed", "open"]},
                 "ready": {"type": "boolean"},
             },
             "required": ["id", "phase"],
-            "additionalProperties": False,
         },
         "content": "none",
         "verbs": {

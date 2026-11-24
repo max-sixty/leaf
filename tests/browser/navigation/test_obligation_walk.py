@@ -377,7 +377,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           const source = document.querySelector('#sug-refill');
           // Revealing the suggestion waits for its update, which the test holds.
           source.hidden = 'until-found';
@@ -385,7 +385,8 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
             const {promise: ready, reject} = Promise.withResolvers();
             window.rejectObligationReveal = reject;
             ready.then(() => {}, () => { window.obligationRevealRejected = true; });
-            widgetController(source).present(ready);
+            // Said from inside the suggestion, the work is its preparation.
+            source.querySelector('lf-new').dispatchEvent(new PendingTaskEvent(ready));
             Object.defineProperty(source, 'updateComplete', {value: ready, configurable: true});
             queueMicrotask(() => delete source.updateComplete);
             window.obligationRevealStarted = true;

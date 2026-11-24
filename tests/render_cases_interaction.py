@@ -1304,21 +1304,17 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "description": "A proposal the user settles with one press and may talk over first in a seat "
     "of its own. `asks` opens the decision; the press settles it.",
     "attributes": {
-        "type": "object",
         "properties": {
             "asks": {"type": "boolean"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "verbs": {
         "settle": {
             "detail": {
-                "type": "object",
                 "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
                 "required": ["answer"],
-                "additionalProperties": False,
             },
             "unit": "widget",
         }

@@ -127,12 +127,10 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
     entry = {
         "description": "A test-owned conditional Ask.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "phase": {"enum": ["closed", "open"]},
             },
             "required": ["id", "phase"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "verbs": {
@@ -141,11 +139,7 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
                 "record": {"kind": "value", "attr": "phase"},
             },
             "answer": {
-                "detail": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
-                },
+                "detail": {"properties": {}},
                 "unit": "widget",
             },
         },

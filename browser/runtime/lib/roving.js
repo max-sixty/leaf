@@ -7,7 +7,7 @@
    ``` */
 import { keeps } from "./keeps.js";
 
-// `stop` is the one item Tab reaches. Null leaves the group no stop.
+// A null `stop` takes every item out of the tab order.
 /** @param {Iterable<Element>} items @param {Element | null | undefined} stop */
 export function rove(items, stop) {
   for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);

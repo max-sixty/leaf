@@ -47,11 +47,9 @@ export { growthIsSeen, landingInsets, shownWindow, whenNone } from "./geometry.j
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
-// Putting the user on an element, saying what moved them there; holding their place,
-// caret included, across a move or re-render of the node they stand on, by key in a
-// list; hearing each move of their current location with its cause; and running
-// something once they move off an element, or once a press lands away from it
-// (`onPressAway`).
+// Hearing each move of the user's current location with its cause
+// (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
+// a press that lands away from a surface (`onPressAway`).
 export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 // The page's obligations, or those a region of it holds by the rule every count and walk
 // of them reads, with whether the region's markup asks the user something.

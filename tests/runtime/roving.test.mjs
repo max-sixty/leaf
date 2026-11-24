@@ -1,4 +1,4 @@
-/* A group's one Tab stop: Tab reaches the stop, and the group's arrows the rest. */
+/* A group's one Tab stop: Tab reaches only the stop. */
 
 import assert from "node:assert/strict";
 import test from "node:test";

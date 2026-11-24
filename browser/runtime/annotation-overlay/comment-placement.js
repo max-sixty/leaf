@@ -102,7 +102,9 @@
    joins above it and as the words typed in it wrap. The room above its foot still
    caps it, so what stands over the line scrolls once the surface's top meets the
    boundary's, and the boundary's foot lifts it, line and all, once what stands under
-   the line passes it.
+   the line passes it. Its cap also rises by what has grown under the line, so a
+   surface the boundary's head holds in, as one beside a tall element scrolled part
+   out of the window is, still grows down as its user types.
 
    A held surface grows no taller than the room from its held edge, or than the tallest
    it has stood since its line last moved (`fit`'s `stood`), whichever is more
@@ -859,13 +861,20 @@ export function commentPlacement() {
       apply(state) {
         const { scale, line } = measure(state);
         // The height a held surface caps no lower than: the tallest it has stood
-        // while its line stood where it stands now, else the height it last stood.
-        const stood = held
+        // while its line stood where it stands now, else the height it last stood,
+        // and with either what has grown under the line it holds, as far as the
+        // boundary's height. The room is read from where the rule stands the
+        // surface, so where the boundary's head holds it in, lower than that, the
+        // room above its foot is less than it stands in and only this lets the words
+        // typed under its line grow it down.
+        const tall = held
           ? Math.max(
               held.foot - held.top,
               tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
-            ) / scale.y
+            )
           : 0;
+        const stood =
+          Math.min(tall + grown(state, scale), Math.max(tall, shown.height)) / scale.y;
         fit({
           side,
           width: Math.max(

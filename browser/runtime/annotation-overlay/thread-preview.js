@@ -688,12 +688,16 @@ export function createThreadPreview({
   }
 
   // How much of the card stands under the line a card beside its subject holds while
-  // the user writes (the header's rule): the height of its reply row, which runs to
-  // the card's foot (annotation-chrome.css), in client pixels. A row its motion is
-  // carrying (box-motion.js) keeps its height, where its edges are drawn off its
-  // layout.
+  // the user writes (the header's rule): the height of its reply box, the field that
+  // ends its reply row at the card's foot (annotation-chrome.css), in client pixels.
+  // The shelf of pictures the row holds over the field stands over the line, so a
+  // picture pasted into a draft lifts the turns as an answer does and leaves the
+  // words where they are. A field its motion is carrying (box-motion.js) keeps its
+  // height, where its edges are drawn off its layout.
   const underReply = () =>
-    previewList.querySelector(".lf-thread-reply")?.getBoundingClientRect().height ?? 0;
+    previewList
+      .querySelector(".lf-thread-reply .lf-compose-field")
+      ?.getBoundingClientRect().height ?? 0;
 
   // Whether news at the thread's end, which grows the card at the edge it does not
   // hold, would move what the user is on (thread-card.js, `newsMoves`). Held by its top,
@@ -1544,7 +1548,10 @@ export function createThreadPreview({
       }
     });
     declareOffFlowSurface(preview, {
-      resizing: () => placementDriver.resized(),
+      standing: () =>
+        previewSession && placementDriver.resized()
+          ? placedThreadPreview(previewSession)
+          : null,
       bringBack: (behavior) =>
         scrollToElement(
           entryPlace(previewSession?.entry) ?? previewSession?.control ?? null,

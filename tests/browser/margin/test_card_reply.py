@@ -1809,6 +1809,34 @@ def test_open_reply_keeps_its_first_line_after_card_moves_to_right_rail(browser,
             before,
             after,
         )
+    # Under its words a card would hold an answer behind its notice while the user
+    # writes. Beside them the answer shows at once and grows the card up from the
+    # reply's first line.
+    root = preview.locator(".lf-page-thread").get_attribute("data-lf-thread")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "An agent answer arriving while the user types. " * 4,
+        },
+    )
+    told(page)
+    expect(preview).to_contain_text("An agent answer arriving while the user types.")
+    expect(preview.locator(".lf-thread-news")).to_have_count(0)
+    rendered(page)
+    answered = page.evaluate(CARD_AND_REPLY)
+    assert answered["cardTop"] < after["cardTop"] - 20, (after, answered)
+    for edge in ("editorTop", "editorBottom"):
+        assert answered[edge] == pytest.approx(after[edge], abs=0.5), (
+            edge,
+            after,
+            answered,
+        )
 
 
 def test_a_growing_draft_beside_its_words_holds_the_editor_s_top(browser, serve):
@@ -1874,6 +1902,62 @@ def test_a_growing_draft_beside_its_words_holds_the_editor_s_top(browser, serve)
     sent = read()
     for edge in ("cardTop", "turn", "pageScroll", "transcript"):
         assert sent[edge] == pytest.approx(held[edge], abs=0.5), (edge, held, sent)
+
+
+def test_a_growing_draft_in_a_card_the_window_s_head_holds_grows_it_down(
+    browser, serve
+):
+    """A card beside a section taller than the window waits at the window's head once
+    the section's first line has scrolled above it. Written in there, it still grows
+    down: its head, the turn being answered and the reply's first line stay, where a
+    card whose room was read from where its row stands, above the window, would have
+    none and would take each line out of its transcript."""
+    source = leaf_page(
+        "Room for a conversation",
+        '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
+        '<section id="open"><h2>The question</h2><p>What should this cost?</p>'
+        '<div style="height: 150vh"></div></section>'
+        '<div style="height: 200vh"></div>',
+    )
+    page = open_page(browser, serve(source, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 864)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 60)")
+    rendered(page)
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", "right")
+    editor = preview.locator(".lf-thread-reply leaf-text")
+    expect(editor).to_be_focused()
+    editor.type("words")
+    rendered(page)
+    page.mouse.move(400, 400)
+    page.mouse.wheel(0, 120)
+    scroll_settled(page)
+    rendered(page)
+
+    def read():
+        return {
+            **page.evaluate(CARD_AND_REPLY),
+            "transcript": preview.locator(".lf-thread-transcript").evaluate(
+                "list => list.scrollTop"
+            ),
+        }
+
+    held = read()
+    assert held["cardTop"] == pytest.approx(held["head"], abs=0.5), held
+    readings = [held]
+    for _ in range(3):
+        editor.press("Shift+Enter")
+        editor.type("more")
+        rendered(page)
+        readings.append(read())
+    for earlier, now in pairwise(readings):
+        for edge in ("cardTop", "turn", "editorTop", "transcript"):
+            assert now[edge] == pytest.approx(held[edge], abs=0.5), (edge, held, now)
+        for edge in ("cardBottom", "editorBottom"):
+            assert now[edge] > earlier[edge] + 10, (edge, earlier, now)
 
 
 def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve):

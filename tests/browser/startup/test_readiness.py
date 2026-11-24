@@ -802,6 +802,87 @@ def test_a_value_typed_before_leaf_starts_outlasts_the_one_the_reload_carries(
     expect(page.locator("#who")).to_have_value("Grace")
 
 
+def test_a_reload_the_user_asks_for_before_leaf_starts_brings_back_no_older_value(
+    browser, serve
+):
+    """A user who changes a value the reload Leaf asked for carries while the document
+    it brings still loads Leaf, and then reloads the page themselves before Leaf has
+    started, doesn't get the carried value back over theirs: their change ended the
+    reload's claim, though no runtime had started there to say so."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.locator("#who").fill("Grace")
+        page.reload(wait_until="commit")
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            try:
+                route.continue_()
+            except Exception:
+                pass
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    expect(page.locator("#who")).not_to_have_value("Ada")
+
+
+def test_a_value_carried_to_an_entry_left_by_back_rides_another_reload(browser, serve):
+    """A value the user typed comes back after a reload Leaf asks for, Back to an
+    earlier entry of the page taken before Leaf started, and a second reload Leaf asks
+    for while that entry's return still waits on something slow to upgrade: the value
+    is the document's, and goes on to the address the second reload loads."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            '</label></p><p id="later">Later.</p>',
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#later'")
+    page.wait_for_function("navigation.transition === null")
+    page.add_init_script(HOLD_INTERFACES % json.dumps([1]))
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+
+    def back_before_leaf_starts():
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.evaluate("history.back()")
+        page.wait_for_function("location.hash === ''")
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+
+    release = reload_with_its_answers_held(
+        page, serve, anchored=False, meanwhile=back_before_leaf_starts
+    )
+    release(True)
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
 def test_an_option_chosen_before_leaf_starts_outlasts_the_one_the_reload_carries(
     browser, serve
 ):
@@ -915,14 +996,15 @@ def scroll_away(page):
     page.wait_for_function('Reflect.get(window, Symbol.for("leaf.inputs")).count > 0')
 
 
-def reload_with_its_answers_held(page, serve, anchored=True):
+def reload_with_its_answers_held(page, serve, anchored=True, meanwhile=None):
     """A reload Leaf asks for, as a server restarted under another Leaf causes, whose
     document then waits on the server's answers, as on a slow server, with its runtime
     started and, where `anchored`, the page's words anchored, so the document records
     where the user is as it goes. Returns `release(again, then)`: `then()` runs, as a
     reload the user asks for, say, and the document's waiting requests are answered, as
     another Leaf would answer them where `again`, which has it reload once more as Leaf
-    asks; it returns once the document then standing is ready."""
+    asks; it returns once the document then standing is ready. `meanwhile` runs as that
+    document commits, before its runtime asks the server anything."""
     documents = {"count": 0, "again": False}
     held = []
 
@@ -957,6 +1039,8 @@ def reload_with_its_answers_held(page, serve, anchored=True):
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
         )
+    if meanwhile:
+        meanwhile()
     holding(page, held, 1, "the arriving document's first answer")
     if anchored:
         wait_for_check_api(page, "(api) => api.anchoringIsReady()")

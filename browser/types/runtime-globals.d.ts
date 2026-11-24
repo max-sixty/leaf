@@ -121,6 +121,8 @@ interface Window {
       readonly typing?: unknown;
     } | null;
     handOff(value: unknown): boolean;
+    /** Keeps the stored handoff while `owed()` says it is still owed (prepaint.js). */
+    oweHandoffWhile(owed: () => boolean): void;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };

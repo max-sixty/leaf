@@ -328,11 +328,35 @@
   // The place a reload Leaf asked for hands the document it loads (version.js,
   // `handOff`), read from the tab once, so the bootstrap's key hold and the version
   // controller read the one value: a reload of the address it was written for. The
-  // first reader asks after the bootstrap has taken Leaf's marks off the address. The
-  // version controller drops it from the tab once its arrival has put back what it
-  // carries, so a document that reloads again before then leaves it for the next
-  // (version.js, `installArrival`).
+  // first reader asks after the bootstrap has taken Leaf's marks off the address.
+  //
+  // The tab keeps it only while the user is still owed the place it holds (`owed`), so
+  // a document that goes before then, as by a second reload Leaf asks for, leaves the
+  // next one the same handoff, and it is dropped as the document goes, or as its page
+  // goes hidden, once nothing owes it: a tab the browser discards while hidden goes with
+  // no `pagehide`, and its next load is a reload that would find it. Until the
+  // runtime's arrival says what it owes (`oweHandoffWhile`; version.js,
+  // `installArrival`), that is while the user hasn't acted within the entry, steps Back
+  // or Forward and leaving the window aside (document-inputs.js, `away`). An input of
+  // the user's ends a handoff's claim on where they were, never on what they wrote: a
+  // runtime that has started writes a reload Leaf asks for a fresh handoff from the
+  // document as it goes (version.js, `handOff`), in a listener that runs after this
+  // drop, the first. A document's own departure fires its `pagehide` before the hide
+  // that follows it, and has handed on what it hands on; a page put into the
+  // back/forward cache may come back, so its later hide still drops.
   const HANDOFF_KEY = "lf-revision-handoff";
+  let owed = () => inputs.count === inputs.away;
+  let gone = false;
+  const dropUnowed = () => {
+    if (!owed()) tabStore.set(HANDOFF_KEY, null);
+  };
+  addEventListener("pagehide", (event) => {
+    gone = !event.persisted;
+    dropUnowed();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!gone && document.visibilityState === "hidden") dropUnowed();
+  });
   /** @type {{url?: unknown, typing?: unknown} | null} */
   let handoff = null;
   let handoffRead = false;
@@ -359,9 +383,11 @@
       }
       return handoff;
     },
-    /** @param {unknown} value null drops it */
-    handOff: (value) =>
-      tabStore.set(HANDOFF_KEY, value === null ? null : JSON.stringify(value)),
+    /** @param {unknown} value */
+    handOff: (value) => tabStore.set(HANDOFF_KEY, JSON.stringify(value)),
+    oweHandoffWhile: (predicate) => {
+      owed = predicate;
+    },
     keepDisclosure,
     finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.

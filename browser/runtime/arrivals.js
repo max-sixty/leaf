@@ -51,8 +51,8 @@
    A script's write of a box's scroll offset is heard as it is made, whichever script
    makes it: this module wraps the browser's own entry points for one, `scrollTo`,
    `scroll` and `scrollBy` on an element and on the window, the `scrollTop` and
-   `scrollLeft` setters, and `scrollIntoView`, which writes the offset of every box that
-   scrolls its target (`heardWrite`). The platform tells a page of a write only by a
+   `scrollLeft` setters, and `scrollIntoView`, which writes the offsets of the boxes
+   that scroll its target (`heardWrite`). The platform tells a page of a write only by a
    `scroll` event at the next rendering update, which for a write made in a frame
    callback or a resize delivery comes after that frame has painted, and the event says
    a box moved, never that a script moved it. Heard only there, a write is nobody's
@@ -64,8 +64,8 @@
    only for the code that imports it, which a page's script and another vendor's
    component never do. The wrap changes nothing a call does; it records the move the
    call made (`wrote`). Every other scroll is still heard by its events alone: a smooth
-   write, which moves the box later, and a reveal the browser makes of its own accord,
-   as for a focus or a fragment. So in a shadow tree nobody enrolled, whose events this
+   write, which moves the box later, and a reveal made any other way, as a focus or a
+   fragment makes one. So in a shadow tree nobody enrolled, whose events this
    module doesn't hear, a write's scroll ends after the quiet spell and a smooth one
    goes unheard.
 
@@ -401,8 +401,10 @@ function wrote(box, top, left, places = true) {
 //   it stands, which `setScroll` drops: dropping one takes predicting where each call's
 //   arguments put the box, and a wrong prediction would lose a script's write. A writer
 //   that may name the position its box holds asks first (lib/scroll-range.js,
-//   `scrollMoves`). Nor does a failure in what hears the write reach the caller, whose
-//   call the browser would not have failed: it is reported once the call has returned.
+//   `scrollMoves`). The caller gets what the browser's call returns, as Chromium
+//   returns a promise of the scroll's end. Nor does a failure in what hears the write
+//   reach the caller, whose call the browser would not have failed: it is reported once
+//   the call has returned.
 // - A write into a scroll the browser drives leaves the box the browser's
 //   (`browserScrolls`), as it was while such a write went unheard. CodeMirror's measure
 //   corrects its scroller's offset as the reader scrolls it; read as the script's, that
@@ -415,7 +417,8 @@ function wrote(box, top, left, places = true) {
 // - Each document has entry points of its own: a live sample's page loads this module
 //   and hears its own, and an element made in another document keeps that document's.
 let writing = false;
-/** @param {(this: any, ...args: any[]) => void} native
+/** @typedef {(this: any, ...args: any[]) => unknown} ScrollCall */
+/** @param {ScrollCall} native
  * @param {boolean} [page] Whether the call scrolls the page, as the window's do. */
 function hearsWrite(native, page = false) {
   /** @this {unknown} @param {unknown[]} args */
@@ -424,17 +427,19 @@ function hearsWrite(native, page = false) {
     if (writing || !isElement(box)) return native.apply(this, args);
     const { scrollTop, scrollLeft } = box;
     const browser = browserScrolls(box);
+    let result;
     writing = true;
     try {
-      native.apply(this, args);
+      result = native.apply(this, args);
     } finally {
       writing = false;
     }
     heard(box, scrollTop, scrollLeft, !browser);
+    return result;
   };
 }
-// `wrote`, for a write the hearing heard: what fails there is reported once the call has
-// returned.
+// Record a write the hearing made for a caller (`wrote`). What fails here is reported
+// once that call has returned.
 /** @param {Element} box @param {number} top @param {number} left @param {boolean} places */
 function heard(box, top, left, places) {
   try {
@@ -457,31 +462,47 @@ for (const offset of ["scrollTop", "scrollLeft"]) {
       set: hearsWrite(native.set),
     });
 }
-// A reveal writes the offset of every box that scrolls its target, the page's included,
-// so each box the target is drawn in is read before the call and after it. The call
-// reveals in the documents around this one too, as a live sample's host page, whose own
-// runtime hears that scroll by its events.
-/** @type {(this: any, ...args: any[]) => void} */
-const reveal = Element.prototype.scrollIntoView;
-/** @this {unknown} @param {any[]} args */
-Element.prototype.scrollIntoView = function heardWrite(...args) {
-  if (writing || !isElement(this)) return reveal.apply(this, args);
-  const stood = [];
-  for (let box = renderedParent(this); box; box = renderedParent(box))
-    stood.push({
-      box,
-      top: box.scrollTop,
-      left: box.scrollLeft,
-      browser: browserScrolls(box),
-    });
-  writing = true;
-  try {
-    reveal.apply(this, args);
-  } finally {
-    writing = false;
+// A reveal writes the offsets of the boxes that scroll its target, the page's among
+// them. So the hearing notes where the target and each box it is drawn in stand, makes
+// the call, and records each one the call moved. A target slotted into a closed shadow
+// tree names no slot (`assignedSlot`), so the boxes of that tree go unread, and their
+// moves are heard by their events. The call reveals in the documents around this one
+// too, as in a live sample's host page, whose own runtime hears that scroll by its
+// events.
+/** @param {ScrollCall} native */
+function hearsReveal(native) {
+  /** @this {unknown} @param {unknown[]} args */
+  return function heardWrite(...args) {
+    if (writing || !isElement(this)) return native.apply(this, args);
+    const stood = [];
+    for (let box = /** @type {Element | null} */ (this); box; box = renderedParent(box))
+      stood.push({
+        box,
+        top: box.scrollTop,
+        left: box.scrollLeft,
+        browser: browserScrolls(box),
+      });
+    let result;
+    writing = true;
+    try {
+      result = native.apply(this, args);
+    } finally {
+      writing = false;
+    }
+    for (const { box, top, left, browser } of stood) heard(box, top, left, !browser);
+    return result;
+  };
+}
+{
+  const reveals = /** @type {Record<string, ScrollCall | undefined>} */ (
+    /** @type {unknown} */ (Element.prototype)
+  );
+  for (const method of ["scrollIntoView", "scrollIntoViewIfNeeded"]) {
+    const native = reveals[method];
+    // Firefox lacks scrollIntoViewIfNeeded.
+    if (native) reveals[method] = hearsReveal(native);
   }
-  for (const { box, top, left, browser } of stood) heard(box, top, left, !browser);
-};
+}
 /** @param {Element} box @param {ScrollToOptions} options */
 function unheardWrite(box, options) {
   writing = true;

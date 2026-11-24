@@ -108,9 +108,13 @@ def test_the_page_scrolls_from_the_start_of_its_principal_flow(
 # The last thing `box` holds, which stands past its scrollport's end: the page holds it
 # in `main`.
 HELD = "(box.matches('html') ? document.querySelector('main') : box).lastElementChild"
+REVEAL = f"{HELD}.scrollIntoView({{block: 'end', behavior: 'instant'}})"
+AWAY = "window.scrollTo({top: 2000, behavior: 'instant'})"
 
 # Each of the browser's own scroll writes, made on `box` from its start, with whether
-# it moves the box at once (`placed`), later (`glides`) or not at all (`unmoved`).
+# it moves the box at once (`placed`), later (`glides`) or not at all (`unmoved`), and
+# for a write the page first stands elsewhere for, where (`AWAY`, the boxes at the
+# page's start then out of sight).
 WRITES = {
     "scrollTo": ("box.scrollTo({top: 120, behavior: 'instant'})", "placed"),
     "scroll": ("box.scroll(0, 120)", "placed"),
@@ -120,10 +124,14 @@ WRITES = {
     "window.scrollTo": ("window.scrollTo(0, 120)", "placed"),
     "window.scroll": ("window.scroll({top: 120, behavior: 'instant'})", "placed"),
     "window.scrollBy": ("scrollBy(0, 120)", "placed"),
-    # A reveal of what the box holds, which moves the box and may move those around it.
-    "scrollIntoView": (
-        f"{HELD}.scrollIntoView({{block: 'end', behavior: 'instant'}})",
+    # A reveal of what the box holds moves the box, and the page too where the box
+    # stands out of sight; one of the root moves the page.
+    "scrollIntoView": (REVEAL, "placed"),
+    "scrollIntoView, box out of sight": (REVEAL, "placed", AWAY),
+    "scrollIntoView, of the root": (
+        "document.documentElement.scrollIntoView({behavior: 'instant'})",
         "placed",
+        AWAY,
     ),
     "restated": ("box.scrollTo({top: 0, behavior: 'instant'})", "unmoved"),
     "smooth": ("box.scrollTo({top: 120, behavior: 'smooth'})", "glides"),
@@ -144,13 +152,15 @@ FOREIGN = f"""() => {{
 # What the runtime reads of `write` to the box `selector` names, a path through shadow
 # roots: whether a scroll is under way there as the write returns (`heard`), and, where
 # the write moves the box, whether the box is the browser's to move at the `scroll`
-# event the write sends (`browser`). Each write starts from a box standing still at
-# its start, in a page standing at its own, where the box is in sight: the writes that
-# put them back there are scrolls of their own, which end first.
-HEARD = """async ([selector, write, moves, deadline]) => {
+# event the write sends (`browser`), and the page likewise where the page first stood
+# `away` (`page`). Each write starts from a box standing still at its start, in a page
+# standing at its own, where the box is in sight, or `away`: the writes that put them
+# there are scrolls of their own, which end first.
+HEARD = """async ([selector, write, moves, away, deadline]) => {
   const {browserScrolls, scrolling, watchScrollEnds} = await window.__lfCheckApi();
   const box = selector.reduce(
     (root, step) => (root.shadowRoot ?? root).querySelector(step), document);
+  const page = document.scrollingElement;
   // Each wait ends at its own event, under a deadline that names the event still
   // missing.
   const within = (what, wait) => Promise.race([
@@ -159,9 +169,10 @@ HEARD = """async ([selector, write, moves, deadline]) => {
       () => reject(new Error(`no ${what} after ${write} in ${selector.join(' ')}`)),
       deadline)),
   ]);
-  for (const moved of [box, document.scrollingElement])
+  for (const moved of [box, page])
     if (moved.scrollTop || moved.scrollLeft)
       moved.scrollTo({top: 0, left: 0, behavior: 'instant'});
+  if (away) new Function(away)();
   await within('end of the scrolls before it', new Promise((resolve) => {
     if (!scrolling()) return resolve();
     const stop = watchScrollEnds(() => {
@@ -170,13 +181,38 @@ HEARD = """async ([selector, write, moves, deadline]) => {
       resolve();
     });
   }));
-  const target = box === document.scrollingElement ? document : box;
-  const scrolled = new Promise((resolve) => {
-    target.addEventListener('scroll', () => resolve(browserScrolls(box)), {once: true});
+  const scrolled = (moved) => new Promise((resolve) => {
+    (moved === page ? document : moved).addEventListener(
+      'scroll', () => resolve(browserScrolls(moved)), {once: true});
   });
+  const events = [scrolled(box), away ? scrolled(page) : null];
   new Function('box', write)(box);
   const heard = scrolling();
-  return {heard, browser: moves ? await within('scroll event', scrolled) : null};
+  const [browser, carried] = moves
+    ? await within('scroll event', Promise.all(events)) : [null, null];
+  return {heard, browser, page: carried};
+}"""
+
+# What each of the browser's calls returns to its caller through the hearing, beside
+# what it returns in a document nothing wraps, by the kind of value.
+RETURNS = """() => {
+  const frame = document.createElement('iframe');
+  frame.style.cssText =
+    'position:fixed;inline-size:0;block-size:0;border:0;visibility:hidden';
+  document.body.append(frame);
+  const plain = frame.contentDocument.body.appendChild(
+    frame.contentDocument.createElement('div'));
+  const kind = (value) => Object.prototype.toString.call(value);
+  const calls = {
+    scrollTo: (box) => box.scrollTo({top: 0, behavior: 'instant'}),
+    scrollIntoView: (box) => box.scrollIntoView({block: 'nearest', behavior: 'instant'}),
+    'window.scrollTo': (box) => box.ownerDocument.defaultView.scrollTo(0, 0),
+  };
+  const heard = document.querySelector('#pane');
+  const returned = Object.fromEntries(Object.entries(calls).map(
+    ([name, call]) => [name, {heard: kind(call(heard)), plain: kind(call(plain))}]));
+  frame.remove();
+  return returned;
 }"""
 
 BOXES = {"box": ["#pane"], "page": ["html"], "foreign": ["#foreign", "div"]}
@@ -188,10 +224,12 @@ def test_a_script_s_scroll_write_is_heard_as_it_is_made(request, serve, engine):
     a component Leaf never saw, is a script's placement from the call itself: a scroll
     is under way as the call returns, and at the `scroll` event the write sends the box
     stands where a script put it. Heard only at that event, as the browser tells a page
-    of a write, the box would read there as the browser's to move. A write that moves
-    nothing is not heard. A smooth one is the browser's to move from its first `scroll`
-    event, where the runtime hears the box's events at all: in a shadow tree it never
-    staged it hears none, so the box reads as moved by nobody."""
+    of a write, the box would read there as the browser's to move. A reveal is such a
+    write to each box it moves, the page among them. A write that moves nothing is not
+    heard. A smooth one is the browser's to move from its first `scroll` event, where
+    the runtime hears the box's events at all: in a shadow tree it never staged it hears
+    none, so the box reads as moved by nobody. The caller gets what the browser's call
+    returns."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -204,19 +242,40 @@ def test_a_script_s_scroll_write_is_heard_as_it_is_made(request, serve, engine):
         ),
     )
     page.evaluate(FOREIGN)
+
+    def applies(name, how):
+        """Whether the write `how` is one for the box `name`: the window's calls and a
+        reveal of the root move the page, and only another box stands out of sight."""
+        if how.startswith("window.") or how.endswith("of the root"):
+            return name == "page"
+        return name != "page" or "out of sight" not in how
+
     read = {
         (name, how): page.evaluate(
-            HEARD, [selector, write, moves != "unmoved", SERVED_TIMEOUT_MS]
+            HEARD,
+            [
+                selector,
+                write,
+                moves != "unmoved",
+                away[0] if away else None,
+                SERVED_TIMEOUT_MS,
+            ],
         )
         for name, selector in BOXES.items()
-        for how, (write, moves) in WRITES.items()
-        if name == "page" or not how.startswith("window.")
+        for how, (write, moves, *away) in WRITES.items()
+        if applies(name, how)
     }
     assert read == {
         (name, how): {
-            "placed": {"heard": True, "browser": False},
-            "unmoved": {"heard": False, "browser": None},
-            "glides": {"heard": False, "browser": name != "foreign"},
+            "placed": {
+                "heard": True,
+                "browser": False,
+                "page": False if len(WRITES[how]) > 2 else None,
+            },
+            "unmoved": {"heard": False, "browser": None, "page": None},
+            "glides": {"heard": False, "browser": name != "foreign", "page": None},
         }[WRITES[how][1]]
         for name, how in read
     }
+    returned = page.evaluate(RETURNS)
+    assert all(call["heard"] == call["plain"] for call in returned.values()), returned

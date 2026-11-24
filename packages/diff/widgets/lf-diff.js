@@ -36,7 +36,6 @@ import {
   announce,
   beginWalk,
   failSoft,
-  ensureSyntaxLanguage,
   focusDestination,
   generated,
   generatedElement,
@@ -65,6 +64,7 @@ import {
   commandsChanged,
 } from "/runtime/portable-api.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,

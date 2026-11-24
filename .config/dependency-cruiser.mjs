@@ -40,10 +40,9 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
   "shadow-tree.js": [],
-  "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
+  "contribution-model.js": ["words.js", "kernel-facts.js"],
   "margin-model.js": [
     "contribution-model.js",
-    "icon-paths.js",
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
@@ -52,7 +51,6 @@ const exactClosures = {
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
-    "icon-paths.js",
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
@@ -93,7 +91,6 @@ const exactClosures = {
     "document-inputs.js",
     "control-keys.js",
     "language-paths.js",
-    "syntax-languages.js",
     "shadow-tree.js",
     "scroll-containers.js",
     "keyboard/bindings.js",

@@ -1,9 +1,9 @@
 /* Code as tokens: the one tokenizing engine, its grammars, the language a block names,
-   and the nodes and lines a caller builds from what it returns. It loads in any
-   document (portable-api.js): it reads nothing Leaf composes into a page, and a failure
-   is the caller's to report, as a widget reports one through `failSoft`. syntax.js
-   highlights the page's own blocks; language-paths.js reads the host's declared
-   file-extension map. */
+   and the nodes and lines a caller builds from what it returns. It reads nothing Leaf
+   composes into a page, and a failure is the caller's to report, as a widget reports
+   one through `failSoft`. Leaf colours the page's own blocks itself (`dressCode` in the
+   package API), and `langForPath` there names the language a file path means, by the
+   page's composed `$languages` table. */
 import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
 
 // The language a block of code names, by HTML's own convention for it: a class prefixed
@@ -40,9 +40,11 @@ const tokenizer = () => (tokenizerReady ??= import("/vendor/syntax.esm.js"));
 /** @type {Map<string, ReturnType<typeof tokenizer>>} */
 const languagesReady = new Map();
 
-// The registry generates the literal import map. A missing language is a bundle
-// mismatch, not a reason to silently color a declared language as plain text.
-// An absent language prepares only the theme, for a diff of an unknown file type.
+// Loads the engine and `lang`'s grammar, once, so a caller can load one ahead of the
+// call that colours in it. The registry generates the literal import map. A missing
+// language is a bundle mismatch, not a reason to silently color a declared language as
+// plain text. An absent language prepares only the theme, for a diff of an unknown file
+// type.
 /** @param {string | null | undefined} lang */
 export function ensureSyntaxLanguage(lang) {
   if (!lang) return tokenizer();

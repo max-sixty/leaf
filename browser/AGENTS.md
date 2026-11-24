@@ -805,7 +805,7 @@ block names what a package answers with the browser's own call instead.
 | The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `lib/shadow-tree.js` `closedOver`                                                      |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                          |
 | The element a URL fragment names, or the part of a widget its key names; a package's address too      | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`, `elementNamed`             |
-| The element an id an element gives names: in that element's message first, then on the page           | `references.js` `authoredElement`                                                      |
+| The element an id names, read from the element that gives it: its message first, then the page        | `references.js` `authoredElement`                                                      |
 | The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `thread/messages.js` `addressableAt`                                                   |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |

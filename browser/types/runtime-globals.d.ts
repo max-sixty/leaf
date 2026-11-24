@@ -116,6 +116,7 @@ interface Window {
       readonly url?: unknown;
       readonly typing?: unknown;
       readonly keys?: unknown;
+      readonly carry?: unknown;
     } | null;
     handOff(value: unknown): boolean;
     /** Whether the tab still keeps a handoff (version.js, `installArrival`). */

@@ -56,8 +56,9 @@
  * fresh-document install does and as a delivery that moved on does, such as a server
  * restarted under another Leaf (`reloadNow`), also stores a page-scoped, one-use handoff
  * as the document goes (`handOff`) of what the record doesn't hold: each reading
- * region's place, the values typed into authored controls, with focus and its caret
- * where it was in one, back in the replacement turn so typing goes on before the page
+ * region's place, the values typed into authored controls, which the arriving document
+ * takes as the parser adds each control (prepaint.js), with focus and its caret where
+ * it was in one, back in the replacement turn so typing goes on before the page
  * presents, the words being written with their native editing session, the comparison
  * and the pointer. The document that reload loads consumes it, at that revision or a
  * newer one, once its arrival has put back what it carries; one that goes before then,
@@ -115,7 +116,7 @@ import {
 } from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
-import { captureCarry, documentState, restoreCarry } from "./carry.js";
+import { captureCarry, placeIn, restoreCarry } from "./carry.js";
 import {
   captureDraftEditing,
   draftEditingDestination,
@@ -3298,21 +3299,16 @@ export function createVersionController({
     // regions, focus, caret and the reply being written, belongs to the entry it was
     // written on (`handOff`), so an arrival at another, as after Back taken before Leaf
     // started, leaves where the user is to that entry's record. What it carries of the
-    // document, the values typed into the page's form, its disclosures and the
-    // comparison shown, comes back wherever the document arrives, as a Back within one
-    // document keeps it.
+    // document comes back wherever the document arrives, as a Back within one document
+    // keeps it: the values typed into the page's form and its disclosures, which the
+    // parser's watch put back (prepaint.js), and the comparison shown.
     const currentIntent = arrival.intent;
     const placed =
       handoff && handoff.entry === window.navigation?.currentEntry?.key
         ? handoff
         : null;
     const restoreCarryScroll =
-      handoff &&
-      restoreCarry(
-        placed ? handoff.carry : documentState(handoff.carry),
-        new Map(),
-        currentIntent.handoff,
-      );
+      placed && restoreCarry(placeIn(placed.carry), new Map(), currentIntent.handoff);
     // The arrival in order, returning to the entry's record where it calls for it
     // (`returnToRecord`, history.js `arrive`).
     /** @param {() => Promise<void>} returnToRecord */

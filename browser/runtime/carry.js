@@ -26,7 +26,9 @@
  * and radio inputs. Select values, contenteditable markup, and file-input values are
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own
- * lifecycles. `version.js` owns when capture and restoration run for each install.
+ * lifecycles. `version.js` owns when capture and restoration run for each install. The
+ * document a reload brings takes the values, checked state and disclosures as the parser
+ * adds each control (prepaint.js), before the user can change them.
  *
  * Focus is named by identity a reload keeps (`focusKey`), which history's record of an
  * entry uses too (history.js): a page element by the id and tag above, or by its
@@ -252,19 +254,13 @@ export function captureCarry(root, authored) {
   return { records, held };
 }
 
-// What records carry of the document itself, values, checked state and disclosures,
-// which a Back within one document keeps too, without where the user was in it, focus,
-// caret and scroll offsets, which belong to the entry the records were read on
-// (version.js, `installArrival`).
+// Where the user was among records, focus, caret and scroll offsets, without what
+// they carry of the document itself, values, checked state and disclosures, which an
+// arriving document takes as the parser adds each control (prepaint.js) and the user
+// may have changed since (version.js, `installArrival`).
 /** @param {readonly CarryRecord[] | null | undefined} records @returns {CarryRecord[]} */
-export const documentState = (records) =>
-  (records ?? []).map(({ id, name, open, value, checked }) => ({
-    id,
-    name,
-    ...(open !== undefined && { open }),
-    ...(value !== undefined && { value }),
-    ...(checked !== undefined && { checked }),
-  }));
+export const placeIn = (records) =>
+  (records ?? []).map(({ open, value, checked, ...place }) => place);
 
 // Restore authored values, disclosures, focus and caret in the replacement turn, so
 // typing continues while renderers settle. Generated controls become visible after

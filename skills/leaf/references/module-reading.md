@@ -286,8 +286,10 @@ A widget an agent reports on reads `readReports(this)` in its render:
 the state the reports describe is drawn; until then, return `noChange`, and the widget
 draws again as it turns. Each report has `id`, `target`, `source`, `action`,
 `detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
-on the same unit and verb, or `settled` by a stamped version. Pass
-`{kind: "thread", id}` for a Thread's reports, or nothing for all of them; their
+on the same unit and verb, or `settled` by a stamped version. The element form is for
+the widget's own render: its `phase` waits on that element's drawing, and only that
+element draws again as it turns. Pass `{kind: "widget", id}` for another widget's
+reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them; their
 `phase` is the page's.
 
 ### Reading version changes

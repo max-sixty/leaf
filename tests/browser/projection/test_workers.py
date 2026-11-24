@@ -506,7 +506,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
                 return noChange;
               }
               api.clockValue(() => window.__proofClock);
-              window.__proofReads.push(api.readReports(owner).reports.map(report => report.text));
+              window.__proofReads.push(api.readReports({kind: 'widget', id: owner.id}).reports.map(report => report.text));
               return noChange;
             }
           });
@@ -516,7 +516,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
-            return api.readReports(owner).reports.some(report => report.text === 'held report') &&
+            return api.readReports({kind: 'widget', id: owner.id}).reports.some(report => report.text === 'held report') &&
               proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
               !proof.pending.includes('projection:chrome');
           };

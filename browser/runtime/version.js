@@ -60,8 +60,8 @@
  * started, with focus and its caret where it was in one, back in the replacement turn
  * so typing goes on before the page presents, the words being written with their native
  * editing session, the comparison and the pointer. The document that reload loads, at
- * that revision or a newer one, puts back what it carries, and the tab keeps it only
- * while that arrival still owes the user its place (prepaint.js), so one that
+ * that revision or a newer one, puts back what it carries, and the tab keeps it whole
+ * only while that arrival still owes the user its place (prepaint.js), so one that
  * goes before then, as by a second reload Leaf asks for, leaves it to the next. One
  * that goes later, once its arrival has returned the user or their own input has ended
  * it, hands a reload Leaf asks for what it holds then, with its place only where the
@@ -197,12 +197,7 @@ import { keeps } from "./lib/keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import {
-  LayerRefused,
-  admitReading,
-  leafReloads,
-  reportPageError,
-} from "./layer-client.js";
+import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
 import { projectDocument, readApplication, readPart } from "./semantic-state.js";
 import {
   AsyncDirective,
@@ -3287,13 +3282,13 @@ export function createVersionController({
         return null;
       }
     })();
-    // Once the arrival no longer owes the handoff's place, prepaint drops it as the
-    // document goes, and a reload Leaf asks for takes a fresh one of what the document
-    // holds then: what the arrival put back and the user's newer changes.
+    // Once the arrival no longer owes the handoff's place, a reload Leaf asks for takes a
+    // fresh one of what the document holds as it goes, over what prepaint kept of the
+    // old: what the arrival put back and the user's newer changes.
     addEventListener("pagehide", () => {
       if (owes()) return;
       const revision = runtime.currentRevision;
-      if (leafReloads() && revision !== null)
+      if (window.lfStorage.leafReload && revision !== null)
         handOff(reloadLanding ?? { revision, url: location.href });
       else if (anchoringIsReady() && !pendingRestoration()?.owes())
         tabStore.set(VIEW_KEY, JSON.stringify(captureView()));

@@ -883,6 +883,79 @@ def test_a_value_carried_to_an_entry_left_by_back_rides_another_reload(browser, 
     expect(page.locator("#who")).to_have_value("Ada")
 
 
+def test_a_reload_before_leaf_starts_carries_on_the_values_the_user_left(
+    browser, serve
+):
+    """Values a reload Leaf asks for carries come back after a second such reload,
+    taken before Leaf has started in the document between, as when its layer moved on
+    while it loaded, where the user changed one of them: the others come back, and the
+    one they changed doesn't come back as it was before their change."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            '</label></p><p><label>Town <input id="town" autocomplete="off">'
+            "</label></p>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.locator("#town").fill("Paris")
+    page.evaluate("document.activeElement.blur()")
+    documents = {"count": 0}
+    held = []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def another(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    # The live document hears from a server restarted under another Leaf and reloads;
+    # the document that reload brings waits on its layer's registry, which then names
+    # another layer, and the source's probe, the registry at the server's root, says
+    # the source moved on, so it reloads before its runtime has started.
+    def answer(route):
+        path = urlsplit(route.request.url).path
+        if documents["count"] < 2 and (
+            path == "/registry.json" or documents["count"] == 0
+        ):
+            another(route)
+        elif documents["count"] == 1 and path.endswith("/registry.json"):
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "the arriving document's layer registry")
+    page.wait_for_function("document.readyState !== 'loading'")
+    page.locator("#who").fill("Grace")
+    route = held.pop()
+    response = route.fetch()
+    registry = response.json()
+    registry["$layer"]["generation"] = "another"
+    with page.expect_navigation(wait_until="commit"):
+        route.fulfill(response=response, json=registry)
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    expect(page.locator("#town")).to_have_value("Paris")
+    expect(page.locator("#who")).not_to_have_value("Ada")
+
+
 def test_an_option_chosen_before_leaf_starts_outlasts_the_one_the_reload_carries(
     browser, serve
 ):

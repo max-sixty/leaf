@@ -123,6 +123,8 @@ interface Window {
     handOff(value: unknown): boolean;
     /** Keeps the stored handoff while `owed()` says it is still owed (prepaint.js). */
     oweHandoffWhile(owed: () => boolean): void;
+    /** Whether the document is going by a reload Leaf asked for (layer-client.js). */
+    leafReload: boolean;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };

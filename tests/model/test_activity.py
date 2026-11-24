@@ -279,12 +279,16 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     ) == ("blocked", "terminal", "user", "awaiting_user")
 
     # Escape: the turn ended with no Stop hook, and the move it held reads Turn
-    # ended at once.
-    harness_says("idle")
-    claim_record = service_model.page_claim(claimed)
-    assert claim_record is not None
-    assert claim_record["turn_closed"] is None
-    assert _standing(_activity_at(claimed)["obligations"][0]) == ("blocked", "stopped")
+    # ended at once, whether or not a command the turn ran goes on.
+    for idle in ("shell", "idle"):
+        harness_says(idle)
+        claim_record = service_model.page_claim(claimed)
+        assert claim_record is not None
+        assert claim_record["turn_closed"] is None
+        assert _standing(_activity_at(claimed)["obligations"][0]) == (
+            "blocked",
+            "stopped",
+        )
 
     # The next prompt renews the turn the interrupt left open, and the move it
     # holds is handled in it again.
@@ -327,10 +331,11 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
 def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     """Claude Code's record stays `busy` after a turn ends while the background
     subagents it left run. Until the record leaves `busy`, the page reads working,
-    in the agent's last line, with the background observed beside it. A background
-    shell leaves the record `shell`, which is idle, and the page reads the turn
-    ended at once. The record dates its `busy`, so work that starts after that
-    break doesn't bring the start back."""
+    in the agent's last line, with the background observed beside it. A command the
+    turn left running carries the start on once they end, though a command alone
+    isn't observed work, and once nothing runs the page reads the turn ended. The
+    record dates its `busy`, so work that starts after that break doesn't bring the
+    start back."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
@@ -402,15 +407,24 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
             for item in _served_at(claimed, minutes)["workflows"]
         } == {comment["id"]: ("running", None), follow_up["id"]: ("waiting", None)}
 
-    for idle in ("idle", "shell"):
-        harness_says(idle)
-        ended = _activity_at(claimed, 10)
-        assert (
-            ended["presence"],
-            ended["state"],
-            ended["reason"],
-            ended["observed"],
-        ) == ("away", "blocked", "stopped", "")
+    # The workers end and a command the turn left runs on: the start's line
+    # stands, with nothing observed beside it.
+    harness_says("shell")
+    command = _activity_at(claimed, 10)
+    assert (command["state"], command["detail"], command["observed"]) == (
+        "running",
+        "Workers are comparing layouts",
+        "",
+    )
+
+    harness_says("idle")
+    ended = _activity_at(claimed, 10)
+    assert (
+        ended["presence"],
+        ended["state"],
+        ended["reason"],
+        ended["observed"],
+    ) == ("away", "blocked", "stopped", "")
 
     # Background work the session starts after that break carries no start the
     # break dropped.

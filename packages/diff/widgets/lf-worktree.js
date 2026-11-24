@@ -7,6 +7,7 @@ customElements.define(
   "lf-worktree",
   class extends LeafElement {
     static lfPatch = "members";
+    static shadow = true;
     render() {
       return render(this);
     }

@@ -106,9 +106,12 @@ back runs instead: it closes the editor without losing the changed words. Where 
 away from the editor saves them, `keep` saves them too, as `lf-draft` does; otherwise it
 keeps them where reopening finds them and shows that the widget holds them.
 
-Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
-a widget's state or the threads. For any other state it reads, hold the value in a
-`signal` or call `commandsChanged(element)` after changing it.
+Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
+such as the threads, and, for the scopes a `LeafElement` drew or declared on itself,
+after each of its draws, so their rows may read `this.state`. For any other state a row
+reads, hold the value in a `signal` or call `commandsChanged(element)` after changing
+it; `commandsChanged(element, {within: true})` has every scope on the element or inside
+it read again, as after a redraw of the nodes their rows read.
 
 ### How scopes compose
 
@@ -141,9 +144,10 @@ their own activation and editing.
 
 Leaf already answers Enter, Space and the opening arrow on a `details > summary` or a
 button with `aria-expanded`; a row that names the same press uses `DISCLOSE(element)` as
-its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text direction,
-and `PRESS` is Enter and Space. `labelOf(row)` is a row's key text for a tooltip;
-`saying(rows)` names, for an announcement, the keys that would run the rows now.
+its `keys`. The library names the keys that press a button and the arrows along a row
+in its text direction (`module-authoring.md`, "Shared web code"). `labelOf(row)` is a
+row's key text for a tooltip; `saying(rows)` names, for an announcement, the keys that
+would run the rows now.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
 the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as

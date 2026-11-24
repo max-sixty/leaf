@@ -8,7 +8,9 @@
    a blank page.
 
    The widget tells its host what Leaf needs to hear through standard events, which Leaf
-   reads from outside and a plain page may ignore. A failure is an `error` ErrorEvent,
+   reads from outside and a plain page may ignore. That it has connected and wants what
+   its host sets on it is `lf-connect` (`CONNECT`), and a gesture's hold on its own nodes
+   is `lf-hold` (`HoldEvent`). A failure is an `error` ErrorEvent,
    bubbling and composed, which a Leaf page reports to the agent as the page's error,
    naming the widget (layer-client.js, `failureOf`). Drawing still under way is a
    `pending-task` event (`PendingTaskEvent`), the Web Components Community Group's draft
@@ -86,6 +88,28 @@ export class PendingTaskEvent extends Event {
   }
 }
 
+// That an element has connected and wants what its host sets on it now: a bubbling,
+// composed event the element dispatches from `connectedCallback`. A Leaf page answers
+// before `dispatchEvent` returns (element-integration.js): it dresses the element's open
+// shadow root and makes the sets it can, each bound input and then `state`. It
+// cancels the event where it will set `state`, at once or once it has everything the
+// element draws from. Without the event Leaf makes the same sets once it sees the
+// element arrive, a microtask later.
+export const CONNECT = "lf-connect";
+
+// A hold an element has on its own nodes through a gesture that rewrites them, such
+// as a drag that moves them or an edit in place: `complete` settles as the hold ends.
+// A Leaf page reads the document again then (widget-controller.js), since the gesture
+// changed the element's nodes outside any draw.
+export const HOLD = "lf-hold";
+export class HoldEvent extends Event {
+  /** @param {PromiseLike<unknown>} complete */
+  constructor(complete) {
+    super(HOLD, { bubbles: true, composed: true });
+    this.complete = complete;
+  }
+}
+
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while
 // rearranging descendants, so the widget states that geometry change explicitly, and
 // geometry readers listen for it instead of watching every DOM mutation.
@@ -113,18 +137,22 @@ export const PREVIEW = "lf-preview";
 export const PREVIEW_ENDED = "lf-preview-ended";
 export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
+const WITHIN = Symbol("whether the element drew what its scopes read");
 const REFUSED = Symbol("why Leaf refused the declaration");
-/** @typedef {Event & {[CHANGED]: Element, [REFUSED]?: unknown}} CommandsChangedEvent */
+/** @typedef {Event & {[CHANGED]: Element, [WITHIN]: boolean, [REFUSED]?: unknown}} CommandsChangedEvent */
 // That an element's `lfCommands`, or anything its rows read, changed. An element out of
 // the document, such as a control built before it is placed, has no way out to the
 // window, so its event is dispatched there directly, carrying the element, as a failure's
 // is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
-// it, since a listener's exception never reaches the dispatcher.
-/** @param {Element} el */
-export function commandsChanged(el) {
+// it, since a listener's exception never reaches the dispatcher. `within: true` says the
+// element drew, so the keys declared on it and on anything under it may read differently
+// from the nodes it drew, where the plain form speaks for the element's own rows alone.
+/** @param {Element} el @param {{within?: boolean}} [options] */
+export function commandsChanged(el, { within = false } = {}) {
   /** @type {CommandsChangedEvent} */
   const event = Object.assign(new Event(COMMANDS, { bubbles: true, composed: true }), {
     [CHANGED]: el,
+    [WITHIN]: within,
   });
   (el.isConnected ? el : window).dispatchEvent(event);
   if (event[REFUSED]) throw event[REFUSED];
@@ -138,6 +166,8 @@ export const ANNOUNCE = "lf-announce";
 // The element a `commandsChanged` event names, and the refusal its reader hands back.
 /** @param {CommandsChangedEvent} event */
 export const commandsChangedOn = (event) => event[CHANGED];
+/** @param {CommandsChangedEvent} event */
+export const commandsChangedWithin = (event) => event[WITHIN];
 /** @param {CommandsChangedEvent} event @param {unknown} error */
 export const refuseCommands = (event, error) => {
   event[REFUSED] = error;

@@ -67,7 +67,7 @@
    The application constructs this owner with its semantic invalidation command.
    Each instance batches changed roots until the next microtask; the renderer never
    imports application coordination to discover how a changed datum is presented.
-   `LeafElement`, which may not import the application, stamps a widget's marks
+   element-data.js, which may not import the application, stamps a widget's marks
    through the module's `projectMarked`, which reaches the owner the application
    constructed. */
 

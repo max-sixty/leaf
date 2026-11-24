@@ -850,11 +850,11 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"your start on {asked['id']} lapsed when its turn ended"
+        f"your start on {asked['id']} lapsed: no agent of yours carried it"
         in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
+    assert f"your start on {asked['id']} lapsed: no agent of yours carried it" in reason
     assert f"`leaf thread reply {delivered_ref(claimed, asked['id'])}`" in reason
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
@@ -880,7 +880,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply {delivered_ref(claimed, follow['id'])}`" in reason
-    assert f"your start on {asked['id']} lapsed when its turn ended" in reason
+    assert f"your start on {asked['id']} lapsed: no agent of yours carried it" in reason
     assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 

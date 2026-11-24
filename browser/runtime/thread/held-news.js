@@ -139,7 +139,6 @@ import { growthIsSeen, whenNone } from "../geometry.js";
 import { offerAction } from "../widget-elements.js";
 import { keeps, keepsText } from "../lib/keeps.js";
 import { keys } from "../keyboard/scopes.js";
-import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
 import { isReaction, messageKey } from "./model.js";
 import { threadIdNamed, threadNamed, threadState } from "./state.js";
@@ -151,6 +150,7 @@ import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
 import { holdUserPlace } from "../user-place.js";
 import { closestAcross } from "../lib/shadow-tree.js";
+import { PRESS } from "../lib/keys.js";
 
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */

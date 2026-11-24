@@ -83,6 +83,7 @@ import {
   el,
   focusDestination,
   LeafElement,
+  PendingTaskEvent,
   offered,
   offeredAction,
   onCurrentLocation,
@@ -833,7 +834,9 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(Promise.race([opening, waited.promise]));
+          this.dispatchEvent(
+            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+          );
           deferredArrival(opening);
           initial = false;
         }

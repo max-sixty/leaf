@@ -984,7 +984,11 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")
-    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    live = {
+        "state": "busy",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
     )
@@ -1075,7 +1079,11 @@ def test_the_server_nudges_a_first_claiming_turn_escape_left_unwatched(
     since that watch wakes the session itself."""
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
-    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    live = {
+        "state": "busy",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
     )
@@ -1427,7 +1435,11 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")
-    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    live = {
+        "state": "busy",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
     )
@@ -1529,7 +1541,11 @@ def test_a_start_holds_its_message_while_background_work_runs(
     and the watch wakes a turn that names it, once."""
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
-    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    live = {
+        "state": "busy",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(live)
     )
@@ -1599,6 +1615,93 @@ def test_a_start_holds_its_message_while_background_work_runs(
     reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert asked["id"] in reminder["additionalContext"]
     assert left_owed() == []
+
+
+def test_a_start_holds_its_message_while_a_background_command_runs(
+    claimed, interactive, capsys
+):
+    """A turn that starts a message and leaves a command running in the background
+    ends over it, and Claude Code's record reads `shell` from that ending. Until the
+    command exits, the page reads the message Working and the watch names nothing,
+    as for work given to a background agent, though approving the command in a
+    dialog dated the record after the start. Once the command exits with the
+    message still owed, the page reads it stalled and the watch wakes a turn that
+    names it. A command that later turn leaves running carries no start of the
+    earlier one."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+
+    def harness_says(status: str, at_ms: int | None = None) -> None:
+        cleanup_model.write_json(
+            registry / f"{os.getpid()}.json",
+            {
+                "pid": os.getpid(),
+                "sessionId": "s1",
+                "status": status,
+                "statusUpdatedAt": at_ms or int(time.time() * 1000),
+            },
+        )
+
+    asked = append_carried_log_record(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "Does the suite pass?"},
+    )
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+
+    def left_owed() -> list[str]:
+        with service_model.PageTransaction(claimed) as page:
+            return [event["id"] for event in session_model.left_owed(page)]
+
+    def standing() -> tuple[str, str | None]:
+        [workflow] = [
+            item
+            for item in activity_reading(claimed)["workflows"]
+            if item["input"] == asked["id"]
+        ]
+        return workflow["state"], workflow["reason"]
+
+    harness_says("busy")
+    hooks_model.cmd_hook("claude-code", prompt)
+    capsys.readouterr()
+    started = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(claimed), asked["id"], "--text", "Running the suite"],
+    )
+    assert started.exit_code == 0, started.output
+    [start] = [
+        event for event in events_model.read_events(claimed) if event["kind"] == "start"
+    ]
+    # Approving the command in a dialog dates the record's `busy` after the start.
+    written_ms = int(datetime.fromisoformat(start["ts"]).timestamp() * 1000)
+    harness_says("busy", at_ms=written_ms + 1)
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert left_owed() == []
+    harness_says("shell")
+    assert standing() == ("running", None)
+    assert left_owed() == []
+
+    # The command exits with the message unanswered.
+    harness_says("idle")
+    assert standing() == ("blocked", "stopped")
+    woke = hooks_model.cmd_watch("claude-code", stop)
+    assert woke is not None
+    assert woke.startswith(f"{claimed} has an update still owed an answer")
+    harness_says("busy")
+    hooks_model.cmd_hook("claude-code", prompt)
+    reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert asked["id"] in reminder["additionalContext"]
+
+    # The reminded turn ends with another command running, without starting the
+    # message again: neither its `busy` nor its command carries the earlier start.
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    assert standing() == ("blocked", "stopped")
+    harness_says("shell")
+    assert standing() == ("blocked", "stopped")
 
 
 def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(

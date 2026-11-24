@@ -255,12 +255,15 @@ interface DocumentEventMap {
   >;
   /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
+  /** A hold a widget has on its own nodes through a gesture (`widget-upgrade.js`). */
+  "lf-hold": import("../runtime/widget-upgrade.js").HoldEvent;
   /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
    * sets `delivery` on each it sends (`widget-controller.js`). */
   "lf-action": CustomEvent<{
     verb: string;
     detail?: Record<string, unknown>;
     says?: string;
+    attempt?: string;
   }> & { delivery?: PromiseLike<unknown> };
   "lf-undo": CustomEvent<{ verb: string; unit?: string }> & {
     delivery?: PromiseLike<unknown>;

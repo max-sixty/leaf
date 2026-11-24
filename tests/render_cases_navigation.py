@@ -970,6 +970,7 @@ import { nothing } from '/vendor/lit.js';
 import { offer, LeafElement, setChildren } from '/runtime/widget-api.js';
 import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     this.show(this.value);
     return nothing;

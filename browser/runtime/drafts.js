@@ -1127,6 +1127,13 @@ export function giveBackWords(ctx, text, payload, under = null) {
   if (reply && under !== null) clearDraft(under);
   keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
 }
+// The box on screen that shows `ctx`'s words, or null where none does.
+/** @param {string} ctx */
+const shownIn = (ctx) =>
+  [...draftEditors]
+    .filter((view) => view.ctx === ctx)
+    .map((view) => editorInput(view))
+    .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
 // What a refusal left the user, given every attempt it refused, read once each sender's
 // own answer has returned its words (`standGesture`) and any owner has reopened its box
 // for them.
@@ -1174,12 +1181,6 @@ export function keepRefusedWords(attempts) {
     );
     return ctx === undefined ? [] : [ctx];
   });
-  /** @param {string} ctx */
-  const shownIn = (ctx) =>
-    [...draftEditors]
-      .filter((view) => view.ctx === ctx)
-      .map((view) => editorInput(view))
-      .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
   // Words back where Resume writing already goes are resumed at their end too, not at
   // the start of the box the send emptied.
@@ -1611,21 +1612,22 @@ export function mirrorDraft(
 // draft is still the generation that record was read at (`draftEditingStands`), and
 // after its words otherwise. That record moves with them, so a reload that still puts
 // the user back in the box puts the caret after them (version.js,
-// `restoreEditingContinuity`). Where the return of the user's place has ended, or
-// this document doesn't put them back there, the words left the panel's field, where
-// the keys stood, with nothing to put them back, so the panel says the draft is kept,
-// with Resume writing, which goes to their end. A document served without the drafts
-// takes them once its first reading has told it what the draft holds
-// (`hearReading`).
+// `restoreEditingContinuity`). The words leave the panel's field, where the keys stood,
+// as the hand-back ends; where they aren't then on screen in their box (`shownIn`),
+// the panel says the draft is kept, with Resume writing, which goes to their end, as
+// it does for words from a document that doesn't put the user back here. A document
+// served without the drafts takes them once its first reading has told it what the
+// draft holds (`hearReading`).
 const HELD_WORDS = "lf-held-words";
 /** @param {Event} [event] */
 function takeHeldWords(event) {
-  if (event instanceof CustomEvent && event.detail === "ended") noticeDraftKept();
+  const ended = event instanceof CustomEvent ? event.detail : null;
+  if (typeof ended === "string" && !shownIn(ended)) noticeDraftKept();
   if (heard.store === null && !offlineInteractive) return;
   const left = tabStore.get(HELD_WORDS);
   if (!left) return;
   tabStore.set(HELD_WORDS, null);
-  /** @type {{context: string, words: string, ended: boolean}[]} */
+  /** @type {{context: string, words: string}[]} */
   let kept;
   try {
     kept = JSON.parse(left);
@@ -1657,8 +1659,7 @@ function takeHeldWords(event) {
         attempt: activeDraftRecord(context)?.attempt,
       });
   }
-  if (kept.some(({ ended }) => ended) || !window.lfStorage?.placesUser())
-    noticeDraftKept();
+  if (!window.lfStorage?.placesUser()) noticeDraftKept();
 }
 
 // The drafts start from the copies the page this tab reloaded left waiting

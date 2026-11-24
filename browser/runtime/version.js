@@ -70,14 +70,15 @@
  * left. Words the user types through the reload change it after that moment: the key
  * hold types them into the value and caret it carries for a field of the page's own,
  * and the drafts move its record of the box being written (`draftEditing`) with the
- * words they take in (bootstrap.js, `typeBack`; drafts.js, `takeHeldWords`). Until the
- * arriving document has returned the user to the entry, printed keys wait
- * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back,
- * except keys typed for the box they were writing in, which are its words as they are
- * typed, so the box comes back holding them (bootstrap.js, `typeBack`). Waiting keys
- * are no input (document-inputs.js, `holdKeys`), so they don't end the return; any
- * other input does, and drops them. The keys not yet pressed when the document goes
- * carry to the next reload Leaf asks for of the address (bootstrap.js,
+ * words they take in (bootstrap.js, `typeBack`; drafts.js, `takeHeldWords`).
+ *
+ * Until the arriving document has returned the user to the entry, printed keys wait
+ * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back. Keys
+ * typed for the box the user was writing in are the exception: they are its words as
+ * they are typed, so the box comes back holding them (bootstrap.js, `typeBack`).
+ * Waiting keys are no input (document-inputs.js, `holdKeys`), so they don't end the
+ * return; any other input does, and drops them. The keys not yet pressed when the
+ * document goes carry to the next reload Leaf asks for of the address (bootstrap.js,
  * `holdEarlyKeys`). An in-place
  * patch is no navigation, so it restores the page's place, the margin's and the panel's
  * thread location, focus, and the selected obligation by id itself; it gives an unnamed
@@ -3350,15 +3351,11 @@ export function createVersionController({
             // thread's card included; the words being written go back after that return,
             // into the box it put the user in, as the reply of whichever view of the
             // thread the claim opened.
-            // A field's focus and caret are the handoff's to put back, which it did
-            // as the document arrived (`restoreCarry`), not the record's.
+            // Focus on a control of the page's own, with its caret, is the handoff's to
+            // put back, which it did as the document arrived (`restoreCarry`), not the
+            // record's (history.js, `returnTo`).
             await keepReplySession(placed, async () => {
-              await returnToRecord(
-                !placed.carry?.some(
-                  (/** @type {import("./carry.js").CarryRecord} */ record) =>
-                    record.focus && record.caret,
-                ),
-              );
+              await returnToRecord(!window.lfStorage.handedFocus);
               await restoreEditingContinuity(placed, currentIntent);
             });
           } else await returnToRecord();

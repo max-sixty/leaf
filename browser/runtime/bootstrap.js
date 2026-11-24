@@ -407,16 +407,14 @@
     // that box (`typeBack`): a Space is a word space rather than a scroll of the page,
     // whatever the single-key preference. Once an input of theirs ends the hand-back
     // (`counted`), their keys are the page's again.
-    const { handoff, tabStore, placesUser } = window.lfStorage;
+    const { handoff, tabStore, placesUser, handedFocus } = window.lfStorage;
     let moved = false;
     const typingBack = () => placesUser() && handoff?.typing === true && !moved;
     // The box the reload hands back: a draft's editor, named by its draft's context
-    // (version.js, `captureHandoff`), or a field of the page's own, by the carry record
-    // that holds its focus (carry.js).
+    // (version.js, `captureHandoff`), or a field of the page's own (prepaint.js,
+    // `handedFocus`).
     const draft = handoff?.draftEditing?.context ?? null;
-    const field = draft
-      ? null
-      : handoff?.carry?.find((record) => record.focus && record.part === undefined);
+    const field = draft ? null : handedFocus;
     /** @param {string} key */
     const read = (key) => {
       try {
@@ -426,16 +424,12 @@
       }
     };
     // The words the tab keeps for their drafts until the runtime types them in
-    // (`typeBack`), in the order they were typed, each saying whether the return of the
-    // user's place had ended.
-    /** @returns {{context: string, words: string, ended: boolean}[]} */
+    // (`typeBack`), in the order they were typed.
+    /** @returns {{context: string, words: string}[]} */
     const keptWords = () => {
       const kept = read(HELD_WORDS);
       return Array.isArray(kept) ? kept : [];
     };
-    /** @param {{context: string, words: string, ended: boolean}[]} kept */
-    const storeWords = (kept) =>
-      tabStore.set(HELD_WORDS, kept.length ? JSON.stringify(kept) : null);
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's
@@ -478,19 +472,30 @@
     /** @type {((words: HeldWords | null) => void) | null} */
     let seat = null;
     // What the held keys say, wherever they show: each key as its badge, then Leaf's
-    // words. The keys lead, so a narrow field that cuts the line short keeps them.
+    // words. The keys lead, so a narrow field that cuts the line short keeps them. Words
+    // typed for a draft are in it already, which is what Leaf says of them, until the
+    // user moves on.
+    /** @param {string[]} keys @param {string} saying @returns {HeldWords} */
+    const said = (keys, saying) =>
+      keys.length
+        ? [
+            ...keys.flatMap((key, at) => [
+              ...(at ? [" "] : []),
+              { key: key === " " ? "Space" : key },
+            ]),
+            saying,
+          ]
+        : [];
     /** @returns {HeldWords} */
     const words = () => {
-      const keys = [...[...typed].map((key) => ({ key })), ...held];
-      return [
-        ...keys.flatMap(({ key }, at) => [
-          ...(at ? [" "] : []),
-          { key: key === " " ? "Space" : key },
-        ]),
-        keys.length === 1
+      const kept = said(moved ? [] : [...typed], " kept in the draft");
+      const waiting = said(
+        held.map(({ key }) => key),
+        held.length === 1
           ? " runs when the page is ready"
           : " run when the page is ready",
-      ];
+      );
+      return [...kept, ...(kept.length && waiting.length ? [" · "] : []), ...waiting];
     };
     // Words already shown are not shown again: the panel's field repaints for each, and
     // each of its paints asks the keyboard owner to take the keys again
@@ -524,14 +529,17 @@
     // at once (`typeIntoField`). A draft's takes it through the tab, which keeps it
     // until the runtime types it in, at once where the runtime has loaded and else as
     // a document of the page next loads (drafts.js, `takeHeldWords`), so the box comes
-    // back holding it. Until then the hold shows the draft's words as it shows held
-    // keys (`typed`).
+    // back holding it. Until the hand-back ends the hold shows the draft's words as it
+    // shows held keys (`typed`), and then asks the runtime whether they are on screen.
     let typed = "";
     /** @param {string} key */
     const typeBack = (key) => {
       if (!draft) return typeIntoField(key);
       typed += key;
-      storeWords([...keptWords(), { context: draft, words: key, ended: false }]);
+      tabStore.set(
+        HELD_WORDS,
+        JSON.stringify([...keptWords(), { context: draft, words: key }]),
+      );
       document.dispatchEvent(new Event(HELD_WORDS));
       if (shown) show();
       else beat ||= setTimeout(show, 150);
@@ -580,9 +588,10 @@
       if (shown) show();
       else beat ||= setTimeout(show, 150);
     };
-    // Whether the hold takes `event`, which then acts only when the run is replayed.
-    // Where a place is handed back, the input clock asks this first and leaves such a
-    // key uncounted until then (document-inputs.js, `holdKeys`).
+    // Whether the hold takes `event`, which then goes into the box the reload hands back
+    // (`typeBack`) or waits in the run until it is replayed (`queue`). Where a place is
+    // handed back, the input clock asks this first and leaves such a key uncounted
+    // (document-inputs.js, `holdKeys`).
     /** @param {KeyboardEvent} event */
     const holds = (event) => {
       if (!window.lfKeyboard.quick && !typingBack()) return false;
@@ -636,6 +645,10 @@
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
+      // The hand-back is over, and the runtime says the draft is kept where its words
+      // aren't on screen in their box, as after a step to another entry (drafts.js,
+      // `takeHeldWords`).
+      if (typed) document.dispatchEvent(new CustomEvent(HELD_WORDS, { detail: draft }));
       typed = "";
       if (!held.length) {
         hide();
@@ -702,13 +715,6 @@
       counted: (stepped) => {
         if (!stepped && (taken || !placesUser())) return;
         moved = true;
-        // Words typed for a draft stay in it, with nothing now to put them back where
-        // the user was, which the panel says.
-        if (typed) {
-          typed = "";
-          storeWords(keptWords().map((kept) => ({ ...kept, ended: true })));
-          document.dispatchEvent(new CustomEvent(HELD_WORDS, { detail: "ended" }));
-        }
         letGo();
       },
     });

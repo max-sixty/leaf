@@ -1653,21 +1653,22 @@ def test_words_typed_through_a_reload_stay_in_the_reply_when_the_user_moves_on(
     """Words the user types on as a reload Leaf asked for comes are words for the reply
     they were writing in. Moving on before the reload has put them back there, by
     scrolling, pressing the page or pressing a key that prints nothing, ends the
-    return, not the user's wish for the words, so they go into the reply's draft, the
-    panel says the draft is kept where the keys stood, and Resume writing takes the
-    user back to their end (SOUL.md, "Preserve the user's attention and work")."""
+    return, not the user's wish for the words. They go into the reply's draft as they
+    are typed, which the panel says beside them; the reply isn't on screen once the
+    page has answered, so the panel says the draft is kept, and Resume writing takes
+    the user back to their end (SOUL.md, "Preserve the user's attention and work")."""
     page, _ = writing_a_reply(request.getfixturevalue(engine), serve)
     release = reload_with_its_answers_held(page, serve)
     page.keyboard.type(" more")
-    expect(page.locator(".lf-held-key").first).to_be_visible()
+    expect_panel_says(page, "kept in the draft")
     if ending == "scroll":
         scroll_away(page)
     elif ending == "pointer":
         page.locator("h1").click()
     else:
         page.keyboard.press(ending)
-    expect_panel_says(page, "Draft kept")
     release(False)
+    expect_panel_says(page, "Draft kept")
     wait_for(
         lambda: reply_draft(serve),
         lambda words: words == "Hold more",
@@ -1690,7 +1691,8 @@ def test_words_typed_through_a_reload_stay_in_the_reply_across_a_step_back(
     the user to another entry, and in Firefox, which says no step is the user's, the
     keys stay held there, but they are still the reply's words: they go into its draft
     rather than run there as the page's single-key commands, one of which resolves the
-    thread."""
+    thread. The entry the step reaches shows no reply, so the panel says the draft is
+    kept, in Firefox as in Chromium."""
     page, reply = writing_a_reply(request.getfixturevalue(engine), serve)
     # The entry the step goes back to stands on the thread rather than in its reply.
     page.keyboard.press("Escape")
@@ -1699,6 +1701,7 @@ def test_words_typed_through_a_reload_stay_in_the_reply_across_a_step_back(
     page.wait_for_function("navigation.transition === null")
     reply.click()
     page.keyboard.press("End")
+    page.add_init_script(SAYS_DRAFT_KEPT)
     release = reload_with_its_answers_held(page, serve)
     page.keyboard.type(" more")
     expect(page.locator(".lf-held-key").first).to_be_visible()
@@ -1718,6 +1721,8 @@ def test_words_typed_through_a_reload_stay_in_the_reply_across_a_step_back(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "resolve"
     ]
+    expect(reply).to_have_count(0)
+    page.wait_for_function("window.saidDraftKept === true")
 
 
 def test_words_typed_through_a_reload_reach_the_reply_when_the_page_opens_anew(
@@ -2376,6 +2381,7 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
         page.locator("#result").click(modifiers=["Alt"])
         reply = page.locator(".lf-fab-input")
     write(reply, held)
+    page.add_init_script(SAYS_DRAFT_KEPT)
     original_document = page.evaluate("performance.timeOrigin")
     replaced = {"document": False}
     answers = []
@@ -2416,6 +2422,7 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
     expect(reply).to_have_js_property("value", reads)
     page.keyboard.type(" now")
     expect(reply).to_have_js_property("value", reads + " now")
+    assert not page.evaluate("window.saidDraftKept")
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)

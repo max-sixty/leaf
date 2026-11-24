@@ -134,15 +134,13 @@ interface Window {
     readonly handoff: {
       readonly typing?: unknown;
       readonly draftEditing?: { readonly context: string } | null;
-      /** Each carried control's state (carry.js, `CarryRecord`), which the key hold
-       * types the user's words into while the reload hands back their field. */
-      readonly carry?: {
-        id: string;
-        focus?: boolean;
-        part?: string;
-        value?: string;
-        caret?: [number, number, ...unknown[]];
-      }[];
+    } | null;
+    /** The carried record of the control of the page's own the handoff puts focus back
+     * in, which the key hold types the user's words into (prepaint.js). */
+    readonly handedFocus: {
+      id: string;
+      value?: string;
+      caret?: [number, number, ...unknown[]];
     } | null;
     /** Whether the handoff puts the user back where they were, here (prepaint.js). */
     placesUser(): boolean;

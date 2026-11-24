@@ -10,6 +10,8 @@ files beside this one:
   obligations and history;
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
+- [module-plain-elements.md](module-plain-elements.md): a widget written as a plain
+  custom element, which Leaf drives by properties and events;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
   presses, and text entry;
 - [module-previews.md](module-previews.md): the preview Leaf shows of an element the
@@ -52,8 +54,9 @@ without Leaf, where `widget-api.js` can't. The host maps `/runtime/` and `/vendo
 a Leaf install with its own import map and gives the element its drawing box. For the
 widget's look it links the layer's `portable.css`, served beside `/widgets/`
 (`packages.md`, "Styles and composition"). Use `LeafElement` ("Drawing what a widget
-reads") or extend `HTMLElement`. Leaf adds its services through events and element
-declarations that a plain host can ignore:
+reads") or extend `HTMLElement`; a plain element that only records state and reads
+bound data needs no import at all (`module-plain-elements.md`). Leaf adds its services
+through events and element declarations that a plain host can ignore:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -74,8 +77,8 @@ declarations that a plain host can ignore:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
-- Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
-  which only Leaf reads.
+- Comment targets: `data-lf-part` marks or `registerVisualParts`
+  (`module-annotations.md`, "Visual parts"), which only Leaf reads.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
 - State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
@@ -114,10 +117,10 @@ script", lists.
 
 ## Upgrade
 
-A widget extends `LeafElement` and builds itself in `setup()` ("Drawing what a widget
-reads"). Any other custom element starts `connectedCallback` with
+A `LeafElement` builds itself in `setup()` ("Drawing what a widget reads"). Any other
+custom element starts `connectedCallback` with
 `if (!once(this)) return;`, since `once(this)` is true only on the element's first
-connection. Use `disconnectedCallback` only for teardown that must happen at once, such
+connection, or with a guard of its own where it imports nothing. Use `disconnectedCallback` only for teardown that must happen at once, such
 as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
 callback calls the `super` method.
 
@@ -137,8 +140,7 @@ to place the box beside them: `place(box)` returns true when it handles the box,
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports. `describeFailure(error)` returns a
-short message for any thrown value when the widget presents its own recovery.
+`reportFailure(element, error)` only reports.
 
 ## Connection lifetimes
 
@@ -170,8 +172,6 @@ only one element may hold, such as `registerReadingRegion`, passes to the replac
 A `LeafElement` draws nothing while it is away and draws the current reading once on
 return, keeping unchanged template nodes. Have `start` restore what its cleanup removed,
 and when the element leaves, drop unfinished work but keep finished nodes.
-
-`Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 
 ## Revisions
 
@@ -288,7 +288,7 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-A widget extends `LeafElement`, a `LitElement` that draws everything in one `render()`.
+`LeafElement` is a `LitElement` that draws everything in one `render()`.
 A `shadow` widget uses an ordinary shadow root; other widgets draw into
 themselves or a generated part `createRenderRoot()` returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the
@@ -364,8 +364,7 @@ page, and leaving cancels a scheduled paint, so schedule it again from `start`.
 `nextRender(callback)` runs in the rendering pass under way, or the next frame's, and
 `nextFrame(callback)` always waits a frame; cancel either with `cancelRender(id)`. The
 page doesn't count as settled until this work runs, so motion that may run until the
-user stops it, such as playback, uses `nextAnimation(callback)` and
-`cancelAnimation(id)` instead.
+user stops it, such as playback, calls the browser's `requestAnimationFrame` instead.
 
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
@@ -379,9 +378,11 @@ loop that `page check` counts as a fault.
 Writing a value a node already has still reaches screen readers and can repaint the
 whole document. `keeps(node, name, value)` writes an attribute only when it would read
 back differently; pass booleans and counts as they are, and `null` to remove it.
-`keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
-`hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
-layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
+`keepsText(node, text)` does the same for words. For a flag such as `hidden`,
+`toggleAttribute(name, force)` writes only when the flag changes, where the `hidden`
+setter rewrites the attribute on every set. Round a measured length to layout's 1/64px,
+as `Math.round(length * 64) / 64`, before writing it into a style, so a measure that
+jitters below that writes nothing new.
 
 ## Contained examples and scoped appearance
 

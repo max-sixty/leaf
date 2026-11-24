@@ -220,38 +220,46 @@ test("an open thread stays reachable while Page Map retains every action in orde
 test("thread aggregation preserves canonical user attention and obligation precedence", () => {
   const recovery = marker("recovery", "comment", {
     userAttention: {
-      word: { text: "Not answered", voice: "leaf" },
-      reason: "workflow",
+      word: { text: "Send it again", voice: "leaf" },
+      reason: "resend",
     },
   });
   const item = marker("question", "comment", {
     userAttention: { word: { text: "On you", voice: "agent" }, reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
-  assert.equal(readingContext({ items: [recovery] }).text, "Not answered");
+  assert.equal(readingContext({ items: [recovery] }).text, "Send it again");
   assert.equal(readingContext({ items: [recovery, item] }).text, "On you");
 });
 
 test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
-  // The server's attention for a thread an open to-do holds once the reply it
+  // The record the server names for a thread an open to-do holds once the reply it
   // answered has settled, and for one an agent is working on. Threads says Still to do
   // and Working on their cards; the margin and Page Map say the same of them.
-  const working = Object.freeze({ id: "w", stage: "working", condition: null });
-  const thread = (attention, { workflows = [], unread = 0, todos = [] } = {}) => ({
+  const working = Object.freeze({
+    id: "w",
+    state: "running",
+    reason: null,
+    seen: true,
+  });
+  const thread = (attention, { workflows = [], unread = 0 } = {}) => ({
     resolved: null,
     workflows,
     attention,
-    todos,
+    obligations: attention ? [attention] : [],
     unread: Array.from({ length: unread }, (_, index) => ({ message: `m${index}` })),
   });
-  const waitingOnTodo = { kind: "waiting", reason: "todo", workflow: null };
-  const todo = (line) => [
-    {
-      id: "t1",
-      title: "Rebuild the banner quieter",
-      running: line ? { text: line } : null,
-    },
-  ];
+  // A record of `kind` on `next_actor`, standing as `standing` says (`standing.py`).
+  const record = (kind, next_actor, standing = {}) => ({
+    id: `${kind}:r`,
+    source: { kind, id: "r" },
+    next_actor,
+    state: "waiting",
+    reason: null,
+    outcome: null,
+    prompt: { text: kind === "todo" ? "Rebuild the banner quieter" : null },
+    ...standing,
+  });
   // Each line with who says it, on the margin entry and the Page Map row alike.
   const said = (held) => {
     const item = marker("thread", "comment", threadMarks(held, "Claude"));
@@ -264,48 +272,65 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     [text, voice],
     [text, voice],
   ];
+  assert.deepEqual(said(thread(record("todo", "agent"))), both("Still to do", "agent"));
   assert.deepEqual(
-    said(thread(waitingOnTodo, { todos: todo() })),
-    both("Still to do", "agent"),
-  );
-  assert.deepEqual(
-    said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),
+    said(thread(record("todo", "agent", { state: "running" }), { unread: 1 })),
     both("On it", "agent"),
   );
   // A thread whose workflow is under way carries it as its receipt, which says it in
   // the workflow's own words; its line is what else it holds.
-  const busy = thread(
-    { kind: "waiting", reason: "workflow", workflow: "w" },
-    { workflows: [working], unread: 2 },
-  );
+  const busy = thread(record("update", "agent", { state: "running", workflow: "w" }), {
+    workflows: [working],
+    unread: 2,
+  });
   assert.equal(threadMarks(busy, "Claude").workflowReceipt, working);
   // What it holds unread is Leaf's news.
   assert.deepEqual(said(busy), both("2 unread", "leaf"));
-  // A failed response paints no progress, so the line says Threads' word for it, in
+  // A blocked workflow paints no progress, so the line says Threads' word for it, in
   // Leaf's voice, since Leaf observed it.
-  const failed = Object.freeze({
-    id: "f",
-    stage: "picked_up",
-    condition: { kind: "failed", operation: "response" },
+  const stopped = Object.freeze({
+    id: "s",
+    state: "blocked",
+    reason: "stopped",
+    seen: true,
   });
   assert.deepEqual(
     said(
       thread(
-        { kind: "waiting", reason: "workflow", workflow: "f" },
-        { workflows: [failed] },
+        record("update", "agent", {
+          state: "blocked",
+          reason: "stopped",
+          workflow: "s",
+        }),
+        {
+          workflows: [stopped],
+        },
       ),
     ),
-    both("Not answered", "leaf"),
+    both("Stopped", "leaf"),
   );
-  const onUser = thread(
-    { kind: "needs_user", reason: "obligation", workflow: null },
-    { unread: 1 },
-  );
+  const onUser = thread(record("message", "user"), { unread: 1 });
   assert.deepEqual(threadMarks(onUser, "Claude").userAttention, {
     word: { text: "Your turn", voice: "agent" },
     reason: "obligation",
   });
   assert.deepEqual(said(onUser), both("Your turn", "agent"));
+  // An update handed back is the user's to send again, in Leaf's voice.
+  const failed = Object.freeze({
+    id: "f",
+    subject: { kind: "thread", id: "th" },
+    state: "blocked",
+    reason: "failed",
+    seen: true,
+  });
+  const handedBack = thread(
+    record("update", "user", { state: "blocked", reason: "failed", workflow: "f" }),
+    { workflows: [failed] },
+  );
+  assert.deepEqual(threadMarks(handedBack, "Claude").userAttention, {
+    word: { text: "Send it again", voice: "leaf" },
+    reason: "resend",
+  });
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

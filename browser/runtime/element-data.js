@@ -1,20 +1,20 @@
-/* Leaf's data integration for one element it hosts (element-integration.js), which
-   calls initialize as it first meets the element, deliver each time a delivery moves,
-   and connect with the element's presentation region on each arrival. The returned
-   disconnect releases that region's data hold. The widget itself reads ordinary
-   properties and reports drawn marks; this owner associates those drawings with the
-   snapshots Leaf supplied, independently of Lit.
+/* Leaf's data integration for one element it drives (element-integration.js), which
+   calls initialize before the element's first draw from Leaf, deliver in each pass of
+   sets, and connect with the element's presentation region on each arrival. The
+   returned disconnect releases that region's data hold.
+   The widget itself reads ordinary properties and reports drawn marks; this owner
+   associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
    Bound values. A module reads each input (`inputs`) through the plain property its
    declaration names (`property`): as the input's delivery moves, Leaf sets that
    property on the element to the delivered value, or null while the source has none,
    so the widget reads `this.value` as it would anywhere else a host sets it, and draws
-   again as any element does when a host sets a property: in its setter, or, on Lit, by
-   declaring the property reactive. A widget whose body is data (`content: data`) takes its `<pre>` as its
+   again as any element does when a host sets a property: in its setter, or, on Lit,
+   by declaring the property reactive. A widget whose body is data (`content: data`) takes its `<pre>` as its
    `value`, as a `<textarea>`'s text is: where the markup binds the input whose property
    is `value` to nothing, to a source or to another widget's output, Leaf sets
-   `value` to the text the page wrote in its `<pre>` once, as it first meets the
-   element, since the widget's drawing replaces the `<pre>`. Its other inputs, such as the lines a code block
+   `value` to the text the page wrote in its `<pre>` once, with its first sets, since
+   the widget's drawing replaces the `<pre>`. Its other inputs, such as the lines a code block
    follows, leave the `<pre>` alone. Any other unbound input, and one a module hosts on
    an element it made without a `<pre>`, is left to the widget and whoever else hosts
    it.
@@ -33,6 +33,7 @@
    primitive values share a revision, a digest of the value. A null value, or an input
    the markup leaves unbound, names words no bound value supplied, stamped without a
    source. Off a Leaf page no one listens, and the marks mean nothing. */
+import { untracked } from "/runtime/framework.js";
 import {
   awaitsData,
   bindsInput,
@@ -49,9 +50,10 @@ export class ElementData {
   #stage;
   /** @type {{input: string, property: string, bound: boolean, read: ReturnType<typeof dataReader> | null}[]} */
   #inputs;
-  // Each property's last supplied snapshot, and primitive values a later drawing
-  // can still name. Object values carry their snapshot through suppliedSnapshot.
-  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
+  // Each property's last supplied snapshot, undefined once its setter threw, and
+  // primitive values a later drawing can still name. Object values carry their snapshot
+  // through suppliedSnapshot.
+  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null | undefined, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
   #sent = new Map();
 
   /** @param {Element} element @param {() => void} stage */
@@ -105,8 +107,13 @@ export class ElementData {
     return registry[this.#element.localName]?.inputs ? joinDataDelivery(region) : null;
   }
 
-  // Read before shouldUpdate, so an unchanged-value gate still follows delivery.
+  // Read before shouldUpdate, so an unchanged-value gate still follows delivery. A
+  // setter that throws leaves its input owed the value again at the next delivery, and
+  // every other input is still read and set, so the caller follows each one's next
+  // delivery; the first failure is thrown once all are set.
   deliver() {
+    /** @type {{error: unknown} | null} */
+    let failed = null;
     for (const entry of this.#inputs) {
       if (!entry.bound) continue;
       entry.read ??= dataReader(this.#element, entry.input, this.#stage);
@@ -119,9 +126,18 @@ export class ElementData {
         primitives.delete(value);
         primitives.set(value, snapshot);
       }
+      // Recorded before the set, since a setter may draw and report `drawn` inside it.
       this.#sent.set(entry.property, { snapshot, primitives });
-      Object.assign(this.#element, { [entry.property]: value });
+      try {
+        // The caller follows the delivery it read above; what the element's setter
+        // reads is the element's own to follow.
+        untracked(() => Object.assign(this.#element, { [entry.property]: value }));
+      } catch (error) {
+        this.#sent.set(entry.property, { snapshot: undefined, primitives });
+        failed ??= { error };
+      }
     }
+    if (failed) throw failed.error;
   }
 
   /** @param {Record<string, unknown>} detail */

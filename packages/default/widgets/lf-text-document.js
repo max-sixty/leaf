@@ -41,7 +41,6 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  keepsHidden,
   generatedElement,
   offer,
   offerAction,
@@ -49,7 +48,6 @@ import {
   renderMarkdown,
   reportFailure,
   sizeObserver,
-  layoutPx,
   syntax,
   textWidth,
   nextFrame,
@@ -860,15 +858,18 @@ class TextDocument extends LeafElement {
         firstBox -
         this.getBoundingClientRect().height;
     else return;
-    panel.style.setProperty("--lf-preview-block", layoutPx(measured));
+    panel.style.setProperty(
+      "--lf-preview-block",
+      `${Math.round(measured * 64) / 64}px`,
+    );
   }
   // The press shows only while the box cuts lines off, as a thread's quote label does.
   measureCut() {
     if (!this.cut) return;
     const { panel, box } = this.cut;
-    keepsHidden(
-      box,
-      panel.hidden ||
+    box.toggleAttribute(
+      "hidden",
+      panel.hasAttribute("hidden") ||
         panel.hasAttribute("data-lf-all") ||
         panel.scrollHeight <= panel.clientHeight + 1,
     );
@@ -1201,7 +1202,7 @@ class TextDocument extends LeafElement {
       // The press goes once it has shown the lines, so focus moves to the listing.
       press.addEventListener("click", () => {
         literal.toggleAttribute("data-lf-all", true);
-        keepsHidden(box, true);
+        box.toggleAttribute("hidden", true);
         if (this.sourceView) focusDestination(this.sourceView.pre, "return");
       });
       box.append(press);

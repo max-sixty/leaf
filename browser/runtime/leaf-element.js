@@ -14,16 +14,18 @@
    What it says to its host, all of it events a plain element could dispatch:
 
    - `lf-connect`, each time it connects, before `setup()`. Leaf answers before the
-     event returns: it dresses the element's open shadow root and sets what it has for
-     the element, each delivered input and then `state`. `state` is `null` while Leaf
-     has more to set before the element can draw, such as a source nobody has read yet
-     or a revision's replacement whose document is not adopted, and the element draws
-     nothing until `state` is set again. An ancestor hears a descendant's `lf-connect`
-     and draws again, since it may own the place of a part a renderer mounted anew.
+     event returns: it dresses the element's open shadow root and makes the sets it
+     can, each bound input and then `state`, so `setup()` reads them. Leaf cancels the
+     event where it will set `state` on the element, and such an element draws nothing
+     until `state` is set: Leaf sets nothing while it waits for a source nobody has
+     read yet or for a revision's replacement to be adopted. An ancestor hears a
+     descendant's `lf-connect` and draws again, since it may own the place of a part a
+     renderer mounted anew.
    - `pending-task`, once for each update Lit schedules, made in the stack that asked
      for the update, with a promise that settles once `updateComplete` has: the page
-     reads as presented only after the draw. A widget whose drawing finishes after the
-     render, such as highlighting or a loading frame, extends that by overriding
+     reads as presented only after the draw, and a set Leaf makes holds its claim on
+     the drawing the set started. A widget whose drawing finishes after the render,
+     such as highlighting or a loading frame, extends that by overriding
      `getUpdateComplete`, as any Lit element does. An update asked for while `defer()`
      holds the element is in once the release has drawn it.
    - `lf-commands`, after each draw, at its render root: the render may have changed
@@ -93,10 +95,12 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#signalError.error = error;
   }
 
-  /** @type {WidgetState | null | undefined} */
+  /** @type {WidgetState | undefined} */
   #state;
-  // Set up and connected at least once: from here its updates are announced.
-  #live = false;
+  // A host answered `lf-connect`: it sets `state`, and nothing draws before it has.
+  #hosted = false;
+  // Set up, with Lit connected: from here a pending update can be drawn at once.
+  #ready = false;
   // The hold a gesture has on drawing, settled as it releases.
   /** @type {PromiseWithResolvers<void> | null} */
   #hold = null;
@@ -109,16 +113,18 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #box = null;
   #broken = false;
 
-  /** The widget's reading as Leaf set it: each declared verb's state with every
-   *  admitted and unresolved record folded in, whether the user may act on it now
-   *  (`available`, and why not in `unavailable`), and whether `takeBack` would take its
-   *  action in force back (`undoable`). Undefined where no host set it: off a Leaf
-   *  page, and for an element the registry does not declare a recording widget.
+  /** The widget's reading as Leaf set it (`module-plain-elements.md`, "`state`"):
+   *  each declared verb's state with every admitted and unresolved record folded in,
+   *  whether the user may act on it now (`available`), and whether `takeBack` would
+   *  take its action in force back (`undoable`). An element whose tag declares no verb
+   *  holds an empty one once Leaf has set its inputs. Undefined where no host set it:
+   *  off a Leaf page, and for a widget the page did not capture, such as one with no
+   *  id.
    *  @returns {WidgetState} */
   get state() {
     return /** @type {WidgetState} */ (this.#state);
   }
-  /** @param {WidgetState | null | undefined} value */
+  /** @param {WidgetState | undefined} value */
   set state(value) {
     const old = this.#state;
     this.#state = value;
@@ -135,8 +141,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     // updated(), schedules a new update, announced in its turn. Lit's constructor
     // requests the first update before this class's private fields exist.
     if (
-      #live in this &&
-      this.#live &&
+      #announced in this &&
       this.isConnected &&
       this.isUpdatePending &&
       (!wasPending || !this.#updating)
@@ -168,7 +173,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   // Draw the pending update before the caller returns.
   #drawNow() {
-    if (!this.#live || !this.isConnected || this.#updating || !this.isUpdatePending)
+    if (!this.#ready || !this.isConnected || this.#updating || !this.isUpdatePending)
       return;
     this.#announce();
     this.performUpdate();
@@ -191,10 +196,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       // A shadow root exists before the host is asked, so the host can dress it.
       if (first && /** @type {typeof LeafElement} */ (this.constructor).shadow)
         Object.assign(this, { renderRoot: this.createRenderRoot() });
-      this.dispatchEvent(new Event(CONNECT, { bubbles: true, composed: true }));
+      const answered = !this.dispatchEvent(
+        new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
+      );
+      this.#hosted ||= answered;
       if (first) this.#setup();
       super.connectedCallback();
-      this.#live = true;
+      this.#ready = true;
       if (first) this.#drawNow();
     });
   }
@@ -229,11 +237,11 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   setup() {}
 
   /** Record an action of the widget's own: an `lf-action` event Leaf sends, after
-   *  which `this.state` already shows the result. Returns a promise of the event the
-   *  server admitted, or of `null` once it refuses and Leaf has restored the server's
-   *  state; `null` at once where nothing records the action, as off a Leaf page or
-   *  while it is not `available`. `attempt` names the draft the words were written in
-   *  (`sendDraft`).
+   *  which `this.state` already shows the result. Returns the event's `delivery`, a
+   *  promise of the event the server admitted, or of `null` once it refuses and Leaf
+   *  has set the server's state again; `null` at once where nothing records the
+   *  action, as off a Leaf page or while it is not `available`. `attempt` names the
+   *  draft the words were written in (`sendDraft`).
    *  @param {string} verb @param {Record<string, unknown>} detail
    *  @param {{says?: string, attempt?: string | null | undefined}} [options]
    *  @returns {Promise<unknown> | null} */
@@ -257,9 +265,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  @returns {Promise<unknown> | null} */
   #send(type, detail) {
     const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
-      new CustomEvent(type, { bubbles: true, composed: true, cancelable: true, detail })
+      new CustomEvent(type, { bubbles: true, composed: true, detail })
     );
-    return (this.dispatchEvent(event) && event.delivery) || null;
+    this.dispatchEvent(event);
+    return event.delivery ?? null;
   }
 
   /** Hold drawing through a gesture that rewrites the element's nodes, and return the
@@ -288,9 +297,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   // Whether the element has a reading to draw: none after a `setup()` that threw, or
-  // while its host has more to set.
+  // until the host that answered it has set its `state`.
   #draws() {
-    return !this.#broken && this.#state !== null;
+    return !this.#broken && !(this.#hosted && this.#state === undefined);
   }
 
   /** @param {Parameters<LitElement["update"]>[0]} changed */

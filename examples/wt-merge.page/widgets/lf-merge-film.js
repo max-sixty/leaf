@@ -24,10 +24,8 @@ import {
   generatedElement,
   holdFocus,
   keeps,
-  keepsHidden,
   keepsText,
   layoutChanged,
-  layoutPx,
   offer,
   once,
   preserveReadingRegions,
@@ -308,13 +306,13 @@ customElements.define(
       for (const p of parts)
         p.element.classList.toggle("film-picked", p.id === this.#inspected);
       if (!part) {
-        keepsHidden(this.inspector, true);
+        this.inspector.toggleAttribute("hidden", true);
         if (this.#inspected) this.#inspect(null);
         return;
       }
       keepsText(this.inspectorTitle, part.label);
       keepsText(this.inspectorBody, part.info);
-      keepsHidden(this.inspector, false);
+      this.inspector.toggleAttribute("hidden", false);
       const { x, y } = await computePosition(part.element, this.inspector, {
         placement: "right-start",
         middleware: [
@@ -329,8 +327,8 @@ customElements.define(
       });
       // A later frame, inspection or disconnection retires this pending placement.
       if (paint !== this.#inspectorPaint || !this.isConnected) return;
-      this.inspector.style.left = layoutPx(x);
-      this.inspector.style.top = layoutPx(y);
+      this.inspector.style.left = `${Math.round(x * 64) / 64}px`;
+      this.inspector.style.top = `${Math.round(y * 64) / 64}px`;
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already

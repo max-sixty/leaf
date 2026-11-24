@@ -54,8 +54,8 @@ rule draws at once is drawn.
   pressed control only to bring it whole into a scroller that showed part of it, or
   where the gesture says it takes the user somewhere. Without a gesture, as when news
   arrives or a widget finishes loading, a box may grow or shrink into free room, but
-  reading content and controls stay put. The exception is a thread card at its least
-  width, which the user chose to let widen once, from its start, when a long message
+  reading content and controls stay put. The exception is a thread card narrower than
+  the measure, which the user chose to let widen once, from its start, when a long message
   arrives, carrying its controls (`data-lf-widens`; `annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
   that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
@@ -418,7 +418,9 @@ keyboard's.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
-the browser's own. A rendering callback does its layout reads before its writes, since
+the browser's own, except `requestAnimationFrame` in a package, which is for motion
+that may run until the user stops it, such as playback, and which the settled reading
+doesn't count. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
 in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
 forced style also lays out whatever in `body` is out of date, a closed tab's panel
@@ -693,7 +695,8 @@ A question the runtime asks in many places has one owner, which every caller ask
 since a second copy drifts from it at the edges, such as under a stuck header or in a
 shadow tree. Before writing or approving a predicate or measurement, look for its
 question in "The browser answers first" and then here. A change that creates an owner
-adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
+adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`, whose packages'
+block names what a package answers with the browser's own call instead.
 
 | Question                                                                                              | Owner                                                                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |

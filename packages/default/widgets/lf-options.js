@@ -127,7 +127,6 @@ import {
   offer,
   offerAction,
   placePreview,
-  pressIsKeyboardActivation,
   quoted,
   reachedForWords,
   rowWalk,
@@ -306,7 +305,7 @@ customElements.define(
         if (!(target instanceof Element)) return;
         const option = target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
+        if (e.detail !== 0 && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
@@ -392,8 +391,9 @@ customElements.define(
     }
 
     #doneAvailable() {
+      const answer = this.state?.answer;
       return isAnswered(this.state)
-        ? Boolean(this.state?.answer?.undoable)
+        ? Boolean(answer && "undoable" in answer && answer.undoable)
         : this.#available("answer");
     }
 

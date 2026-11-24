@@ -95,9 +95,12 @@ def agents_words(page_dir) -> list[str]:
 
 def on_it(page_dir) -> list[str]:
     """The inputs the served workflows of the page, which has a document, read as the
-    agent's work in hand, which the page words On it while their delivery stands."""
+    agent's work in hand (`running`), which the page words On it while their delivery
+    stands."""
     work = read_page(page_dir, events_model.read_events(page_dir)).work
-    return sorted(item["input"] for item in work.workflows if item["at_work"])
+    return sorted(
+        item["input"] for item in work.workflows if item["state"] == "running"
+    )
 
 
 class _Untitled:
@@ -171,6 +174,41 @@ def test_a_thread_message_reaches_the_session_at_once_and_its_line_goes_in_besid
 
     thread_model.post_reply(claimed, {"responds": asked}, "It matches the lease.")
     assert on_it(claimed) == []
+
+
+def test_a_line_after_a_newer_message_leaves_one_its_turn_left_stopped(claimed):
+    """The line is no start, so it covers no other message of its thread. Where a turn
+    took in a message and ended without answering it, and a line then stands after a
+    newer message there, the newer one reads On it by the line alone and the older
+    still reads stopped."""
+    assert stamp(claimed).exit_code == 0
+    asked = said(claimed, "Why a 2-second poll?")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    with PageTransaction(claimed) as page:
+        delivery_model.record_pickup(
+            page, [asked], session=claim["id"], turn=claim["turn"]
+        )
+    state_model.close_session_turn(claim["id"])
+    again = said(claimed, "And why not a watch?", asked["id"])
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "parent": asked["id"],
+            "author": "agent",
+            "text": "checking why the poll is 2 s",
+            "ephemeral": True,
+        },
+    )
+
+    work = read_page(claimed, events_model.read_events(claimed)).work
+    assert {
+        item["input"]: (item["state"], item["reason"]) for item in work.workflows
+    } == {
+        asked["id"]: ("blocked", "stopped"),
+        again["id"]: ("running", None),
+    }
 
 
 @pytest.mark.parametrize("joins", ["reply", "edit"])

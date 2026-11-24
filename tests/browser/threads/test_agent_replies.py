@@ -1052,8 +1052,8 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     real = page.locator(f'#cd-q .lf-msg[data-lf-event="{answer["id"]}"]')
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
-    # The server settled its turn, and the thread's `attention` still reads
-    # `needs_user` for recovery. The task seats the thread, so the margin lists none
+    # The server settled its turn, and the thread's `attention` is still the user's
+    # move, for recovery. The task seats the thread, so the margin lists none
     # for it, and Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
     expect(status).to_have_text("Send it again")
@@ -1270,7 +1270,7 @@ def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(
         }""",
         root,
     )
-    assert any(workflow["stage"] == "working" for workflow in workflows), workflows
+    assert any(workflow["state"] == "running" for workflow in workflows), workflows
     thread = open_panel_thread(page, root)
     expect(thread.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
     expect(thread.locator(".lf-thread-working")).to_contain_text(

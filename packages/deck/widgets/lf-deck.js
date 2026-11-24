@@ -73,7 +73,6 @@ import {
   currentLocationIn,
   keepView,
   keeps,
-  keepsHidden,
   keepsText,
   layoutChanged,
   LeafElement,
@@ -90,7 +89,6 @@ import {
   queueTitle,
   readObligations,
   readQueues,
-  scrollBehavior,
   scrollIntoView,
   signal,
   tally,
@@ -241,7 +239,7 @@ customElements.define(
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
       }
-      keepsHidden(this.#end, Boolean(card));
+      this.#end.toggleAttribute("hidden", Boolean(card));
       this.#open.value = card;
       this.#defaulted = false;
       this.#waited = null;
@@ -347,7 +345,7 @@ customElements.define(
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
       }
-      keepsHidden(this.#end, Boolean(next));
+      this.#end.toggleAttribute("hidden", Boolean(next));
       this.#open.value = next;
       // The end frame holds its words and its record of the pass before the deck
       // measures the height it grows to.
@@ -400,7 +398,9 @@ customElements.define(
       // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
       // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
       // edges in view.
-      const behavior = scrollBehavior();
+      const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth";
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
         if (above || !next || this.#open.value !== next) return;
@@ -496,7 +496,7 @@ customElements.define(
     /** @param {HTMLElement | null} card */
     #arrive(card) {
       if (!card) {
-        keepsHidden(this.#end, false);
+        this.#end.toggleAttribute("hidden", false);
         return void focusDestination(this.#again, "move");
       }
       const items = readObligations();
@@ -685,7 +685,7 @@ customElements.define(
     /** @param {DeckHeld} held @returns {[string, "leaf" | null]} */
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
-      if (held.some((item) => item.status === "open"))
+      if (held.some((item) => item.state !== "done"))
         return [`Waiting on ${agentName()}`, "leaf"];
       const words = held.map(answerWords).filter(Boolean).join("; ");
       return words ? [words, null] : ["Answered", "leaf"];
@@ -698,7 +698,7 @@ customElements.define(
       // Once the pass is over the end frame's button is the step back in.
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();
-      keepsHidden(this.#end, Boolean(this.#open.value));
+      this.#end.toggleAttribute("hidden", Boolean(this.#open.value));
       if (!readings || this.#drag) return;
       const card = this.#open.value;
       const waiting = this.#cards.filter((each) => waitsOn(readings(each)));

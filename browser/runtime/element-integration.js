@@ -1,31 +1,41 @@
-/* Leaf's side of the protocol a widget has with its host. Every custom element is
-   hosted the same way, from outside, whether it is a plain `HTMLElement` or built on
-   `LeafElement` (leaf-element.js): it imports nothing to be hosted.
+/* Leaf's side of the protocol a widget has with its host. Every custom element whose
+   tag declares `verbs` or `inputs` is driven the same way, from outside
+   (`hostDeclaredElements`), whether its class is a plain `HTMLElement` or a
+   `LeafElement` (leaf-element.js), so its module needs none of Leaf's helpers. While
+   such an element stands in the document or a declared shadow stage, Leaf sets on it:
 
-   Leaf hosts each element of a tag declaring `verbs` or `inputs`. While the element
-   stands, Leaf sets each bound input on the property its declaration names
-   (element-data.js) and then its `state`: its widget's reading (`widgetState`,
-   widget-controller.js) where it records under an id the page captured, and an empty
-   reading where it only reads data. `state` is `null` from the moment Leaf hosts the
-   element until it has set everything the element draws from, which a source nobody
-   has read yet (`awaitsData`, data.js) or a revision's replacement whose document is
-   not adopted holds back, so an element can tell "nothing yet" from "no host", which
-   leaves `state` undefined. Each set runs in the stack that moved the reading, inside
-   a claim on the element's render region, so the page reads as presented only once the
-   setter has returned and the `updateComplete` the element then holds, if it has one,
-   has settled. An element that holds the page's data version holds it until that draw.
+   - `state`, where the element is a widget whose tag declares `verbs`: its reading
+     (`widgetState`, widget-controller.js), once its class is defined and again each
+     time the reading moves, whoever moved it;
+   - the property each bound input names, and a written data body as its `value`
+     (element-data.js, "Bound values").
+
+   Leaf sets none of them until the reading holds every declared verb and the page has
+   read the data a bound source names, so the element never draws a reading nobody has
+   made yet. Each pass of sets runs in the stack that moved the reading, inside a claim
+   on the element's render region. So a gesture's result is drawn before the
+   `dispatchEvent` that recorded it returns, and the page reads as presented, and as
+   showing a data delivery, only once the setters have returned and the drawing they
+   announced with `pending-task` is in. A visual may have redrawn the parts it marks by
+   then, which the pass says with `layoutChanged` (visual-parts.js).
+
    Where one publication moves several readings, their `state`s are set in the page's
-   rendered order, a parent before what it holds, whichever module was defined first: a
-   parent's draw may move a member to where that member's own draw then finds it.
+   rendered order, a parent before what it holds, whichever class was defined first: a
+   parent's draw may move a member to where that member's own draw then finds it. A
+   draw an element starts by itself is promised no order.
 
-   An element is hosted when it says `lf-connect` (widget-upgrade.js, `CONNECT`),
-   before that event returns, or else once Leaf sees it arrive and its module has
-   defined it. On `lf-connect` Leaf also dresses the element's open shadow root
-   (shadow-stage.js), whatever its tag declares.
+   A setter that throws is the element's failure. The pass reports it and still makes
+   its other sets, and the set that threw is owed again in the next pass. The fail-soft
+   box stands after what the element holds, unless the element places its own, until a
+   pass whose sets all return.
 
-   Drawing that outlasts a setter is a `pending-task` event, recording is an
-   `lf-action` event, and a gesture that rewrites the element's nodes is an `lf-hold`
-   event (widget-controller.js). */
+   An element is driven from the moment Leaf sees it arrive with its class defined. One
+   that says `lf-connect` as it connects (`CONNECT`, widget-upgrade.js) is driven before
+   that event returns instead, so what it builds and first draws can read what Leaf
+   set, and Leaf cancels the event where it will set the element's `state`: a widget's
+   reading, or, on an element that only reads data, an empty one once its inputs are
+   set. Leaf also dresses the open shadow root of an element that says it
+   (shadow-stage.js), whatever its tag declares. */
 import { effect, signal, untracked } from "/runtime/framework.js";
 import {
   attachApplicationPresentation,
@@ -35,14 +45,29 @@ import { widgetDescriptor } from "./widget-descriptors.js";
 import { widgetController, widgetMounted, widgetState } from "./widget-controller.js";
 import { ElementData } from "./element-data.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { watchArrivals, watchOwner } from "./arrivals.js";
-import { CONNECT, failSoftUnreported, reportFailure } from "./widget-upgrade.js";
+import { liveStages, watchArrivals, watchOwner } from "./arrivals.js";
+import {
+  CONNECT,
+  PENDING_TASK,
+  failSoftUnreported,
+  failurePlaced,
+  layoutChanged,
+  placesFailure,
+  reportFailure,
+} from "./widget-upgrade.js";
 import { adoptShadowStage } from "./shadow-stage.js";
 import { byRenderedOrder } from "./shadow-tree.js";
 import { tick } from "./version-signal.js";
 
 let regions = 0;
-const EMPTY = Object.freeze({});
+// What `state` holds on an element that only reads data, once its inputs are set.
+const NO_VERBS = Object.freeze({});
+// An arrival offers an element again whenever its children change (arrivals.js).
+/** @type {WeakSet<Element>} */
+const hosted = new WeakSet();
+// The elements that said `lf-connect`.
+/** @type {WeakSet<Element>} */
+const asked = new WeakSet();
 
 // The `state`s a publication owes, each by its element. Every reading's own effect
 // claims its region and adds to them as the publication notifies it; writing `owed`
@@ -53,15 +78,13 @@ const owed = signal(0);
 effect(() => {
   owed.value;
   if (!owing.size) return;
-  const sets = byRenderedOrder([...owing], ([element]) => element);
+  const passes = byRenderedOrder([...owing], ([element]) => element);
   owing.clear();
   untracked(() => {
-    for (const [, set] of sets) set();
+    for (const [, pass] of passes) pass();
   });
 });
 
-/** @type {WeakSet<Element>} */
-const hosted = new WeakSet();
 /** @param {Element} element */
 function host(element) {
   if (hosted.has(element)) return;
@@ -69,106 +92,169 @@ function host(element) {
   const descriptor = widgetDescriptor(element);
   const verbs = Object.keys(descriptor?.declaration.verbs ?? {});
   const controller = verbs.length ? widgetController(element) : null;
-  const reads = Boolean(registry[element.localName]?.inputs);
+  // A tag that declares verbs has a `state` only where the page captured the widget.
+  const records = Boolean(registry[element.localName]?.verbs);
+  const visual = Boolean(registry[element.localName]?.visual);
   const name = descriptor
     ? `widget:${descriptor.id}:render`
     : `element:${element.localName}:${++regions}`;
   /** @type {import("./framework/presentation.js").PresentationHandle | null} */
   let region = null;
+  // The open claim the next pass settles.
   /** @type {import("./framework/presentation.js").PresentationTicket | null} */
   let ticket = null;
-  // What `state` holds: undefined before the first set, null while more is owed, else
-  // the reading it was made from.
-  /** @type {object | null | undefined} */
-  let shown;
+  /** @type {import("./widget-controller.js").WidgetReading | null} */
+  let shown = null;
+  let written = false;
+  // Whether the element has had a pass of sets.
+  let passed = false;
+  /** @type {HTMLElement | null} */
+  let box = null;
   const claim = () => {
     ticket ??= region?.present((reason) => failSoftUnreported(element, reason)) ?? null;
   };
   // A source's accepted reading claims the region, and its delivery draws.
   const data = new ElementData(element, claim);
-  // The first set is made as the element connects, so its `setup()` reads it; each
-  // later one waits its turn among the readings its publication moved.
-  let first = true;
+  // The element may hold nodes no later set makes again, so its failure stands after
+  // them, in the tree that shows them.
+  if (!failurePlaced(element))
+    placesFailure(element, (placed) => {
+      box?.remove();
+      box = placed;
+      (element.shadowRoot ?? element).append(placed);
+      return true;
+    });
+  // The drawing that the sets of the pass under way announce.
+  /** @type {PromiseLike<unknown>[] | null} */
+  let announced = null;
+  element.addEventListener(PENDING_TASK, (event) =>
+    announced?.push(
+      /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (event).complete,
+    ),
+  );
+  // One set the element is owed, made whether or not another threw.
+  /** @param {unknown[]} failures @param {() => void} owed */
+  const attempt = (failures, owed) => {
+    try {
+      owed();
+    } catch (error) {
+      failures.push(error);
+    }
+  };
+  // The data body and each bound input, which the element's own effect follows.
+  /** @param {unknown[]} failures */
+  const setInputs = (failures) => {
+    // What a setter reads is the element's own to follow, never the pass's.
+    if (!written)
+      attempt(failures, () => {
+        untracked(() => data.initialize());
+        written = true;
+      });
+    attempt(failures, () => data.deliver());
+  };
+  // Whether a pass owes `state`: a reading that moved, or, on an element with none
+  // that said `lf-connect`, the empty state that says its first inputs are set.
+  /** @param {import("./widget-controller.js").WidgetReading | null} reading */
+  const owesState = (reading) =>
+    reading ? reading !== shown : !passed && asked.has(element) && !records;
+  /** @param {import("./widget-controller.js").WidgetReading | null} reading
+   * @param {unknown[]} failures */
+  const setState = (reading, failures) =>
+    attempt(failures, () => {
+      const state = reading ? widgetState(reading) : NO_VERBS;
+      untracked(() => Object.assign(element, { state }));
+      shown = reading;
+    });
+  // What a pass's sets came to, said to whoever hears it: the claim, the page's error
+  // report, and the readers of a visual's layout.
+  /** @param {import("./framework/presentation.js").PresentationTicket | null} drawing
+   * @param {PromiseLike<unknown>[]} tasks @param {unknown[]} failures */
+  const settle = (drawing, tasks, failures) => {
+    if (visual) layoutChanged(element);
+    if (failures.length) {
+      reportFailure(element, failures[0]);
+      drawing?.reject(failures[0]);
+      return;
+    }
+    box?.remove();
+    box = null;
+    const drawn = Promise.all(tasks);
+    drawing?.resolve(drawn);
+    // The drawing the sets announced may redraw the marks as it lands.
+    if (visual && tasks.length)
+      void drawn.then(
+        () => layoutChanged(element),
+        () => {},
+      );
+  };
   const draw = () => {
     claim();
     const drawing = ticket;
     ticket = null;
-    /** @param {(() => void) | null} [write] */
-    const settle = (write) => {
-      try {
-        if (write) untracked(write);
-        // A setter that schedules its draw, as a Lit property does, says when it is in.
-        drawing?.resolve(
-          /** @type {{updateComplete?: unknown}} */ (element).updateComplete,
-        );
-      } catch (error) {
-        reportFailure(element, error);
-        drawing?.reject(error);
-      }
-    };
-    /** @type {(() => void) | null} */
-    let write = null;
-    try {
-      const delivered = !data.awaitsDelivery();
-      if (delivered) data.deliver();
-      const reading = controller?.read();
-      // A revision's replacement lacks its verbs until its document is adopted.
-      const whole = !reading || verbs.every((verb) => verb in reading.state);
-      const next =
-        !delivered || !whole ? null : (reading ?? (reads ? EMPTY : undefined));
-      if (next !== undefined && next !== shown) {
-        shown = next;
-        const state = reading && next === reading ? widgetState(reading) : next && {};
-        write = () => Object.assign(element, { state });
-      }
-    } catch (error) {
-      reportFailure(element, error);
-      drawing?.reject(error);
+    const reading = controller?.read() ?? null;
+    // A revision's replacement lacks its verbs until its document is adopted.
+    if (
+      (reading && !verbs.every((verb) => verb in reading.state)) ||
+      data.awaitsDelivery()
+    ) {
+      drawing?.resolve();
       return;
     }
-    if (first || !write) {
-      first = false;
-      return settle(write);
-    }
-    owing.set(element, () => settle(write));
+    /** @type {PromiseLike<unknown>[]} */
+    const tasks = [];
+    /** @type {unknown[]} */
+    const failures = [];
+    announced = tasks;
+    setInputs(failures);
+    announced = null;
+    const finish = () => {
+      if (owesState(reading)) {
+        announced = tasks;
+        setState(reading, failures);
+        announced = null;
+      }
+      passed = true;
+      untracked(() => settle(drawing, tasks, failures));
+    };
+    // The first pass is made at once, so an element that asked reads it as it builds.
+    // A later `state` waits its turn among the readings its publication moved.
+    if (!passed || !owesState(reading)) return finish();
+    owing.set(element, finish);
     tick(owed);
   };
-  /** @type {Array<(() => unknown) | null>} */
-  let leaving = [];
-  try {
-    untracked(() => data.initialize());
-  } catch (error) {
-    reportFailure(element, error);
-  }
+  /** @type {(() => void) | null} */
+  let leave = null;
   watchOwner(element, {
-    connect() {
-      region = descriptor
-        ? attachWidgetPresentation(descriptor.id, "render")
-        : attachApplicationPresentation(name);
-      leaving = [effect(draw), data.connect(name), () => region?.disconnect()];
-      if (descriptor) widgetMounted();
-    },
-    // The element keeps what was set on it while away, so a return sets `state` again
-    // only where its reading has moved.
+    // A paint that mounts the element connects it inside that paint, and what the
+    // connection reads is its own to follow, never that paint's.
+    connect: () =>
+      untracked(() => {
+        const attached = descriptor
+          ? attachWidgetPresentation(descriptor.id, "render")
+          : attachApplicationPresentation(name);
+        region = attached;
+        const leaveData = data.connect(name);
+        const stop = effect(draw);
+        leave = () => {
+          stop();
+          leaveData?.();
+          attached.disconnect();
+        };
+        if (descriptor) widgetMounted();
+      }),
     disconnect() {
-      for (const leave of leaving) leave?.();
-      region = ticket = null;
+      leave?.();
+      leave = region = ticket = null;
     },
   });
 }
 
-/** @param {Element} element */
-const declares = (element) => {
-  const entry = registry[element.localName];
-  return Boolean(entry?.verbs || entry?.inputs);
-};
-
-// An element that asks is hosted before its `lf-connect` returns, so its `setup()` and
-// first draw read what Leaf set. Its open shadow root is dressed whatever it declares.
+// An element that asks is driven before its `lf-connect` returns, and hears, by the
+// event's cancellation, that Leaf will set its `state`.
 /** @type {WeakSet<ShadowRoot>} */
 const dressed = new WeakSet();
 document.addEventListener(CONNECT, (event) => {
-  const element = event.composedPath()[0];
+  const [element] = event.composedPath();
   if (!(element instanceof Element)) return;
   untracked(() => {
     const root = element.shadowRoot;
@@ -176,28 +262,31 @@ document.addEventListener(CONNECT, (event) => {
       dressed.add(root);
       adoptShadowStage(root);
     }
-    if (declares(element)) host(element);
+    const entry = registry[element.localName];
+    if (!entry?.verbs && !entry?.inputs) return;
+    asked.add(element);
+    host(element);
+    if (!entry.verbs || widgetDescriptor(element)) event.preventDefault();
   });
 });
 
-// Each other element of a tag declaring `verbs` or `inputs`, once its module has
-// defined it.
-/** @type {WeakSet<Element>} */
-const met = new WeakSet();
+/** Drive each element whose tag declares `verbs` or `inputs` from outside while it
+ * stands. An element is driven only once its class is defined: a property set on an
+ * element before its upgrade would be the element's own, and hide the class's setter
+ * from every later set. One watch holds every such tag, and a tag's definition offers
+ * the elements already standing under it. */
 export function hostDeclaredElements() {
-  const tags = tagsDeclaring((entry) => Boolean(entry.verbs || entry.inputs));
+  const tags = tagsDeclaring((entry) => entry.verbs || entry.inputs);
   if (!tags.length) return;
-  watchArrivals(tags.join(","), [], {
+  const offer = watchArrivals(tags.join(","), [], {
     arrive(element) {
-      if (met.has(element)) return;
-      met.add(element);
-      // A tag no module defines keeps no element alive waiting for one.
-      const waiting = new WeakRef(element);
-      void customElements.whenDefined(element.localName).then(() => {
-        const defined = waiting.deref();
-        if (defined) host(defined);
-      });
+      if (customElements.get(element.localName)) host(element);
     },
     leave() {},
   });
+  for (const tag of tags)
+    void customElements.whenDefined(tag).then(() => {
+      for (const root of [document, ...liveStages()])
+        for (const element of root.querySelectorAll(tag)) offer(element);
+    });
 }

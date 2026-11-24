@@ -1330,7 +1330,7 @@ def thread_page(serve):
 
 def linked_thread(page, name):
     return page.locator(
-        f":is(.lf-page-thread:not([data-lf-part], .lf-fp-view *), .lf-fp-view)"
+        f":is(.lf-page-thread:not([data-lf-kind], .lf-fp-view *), .lf-fp-view)"
         f'[data-lf-thread="{name}"]'
     )
 

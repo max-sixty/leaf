@@ -260,7 +260,9 @@ customElements.define(
     /** @returns {(Outcome | "undo")[]} */
     #offered() {
       const outcome = this.#outcome();
-      if (outcome) return this.state?.decide?.undoable ? ["undo"] : [];
+      const decide = this.state?.decide;
+      if (outcome)
+        return decide && "undoable" in decide && decide.undoable ? ["undo"] : [];
       /** @type {Outcome[]} */
       const decisions = ["accept", "reject"];
       return decisions;

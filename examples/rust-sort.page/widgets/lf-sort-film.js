@@ -15,8 +15,6 @@ import {
   loadMarkdown,
   offer,
   once,
-  onMotionPreferenceChange,
-  reducedMotion,
   registerVisualParts,
   sizeObserver,
   whileConnected,
@@ -112,7 +110,8 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       this.#build();
-      if (!reducedMotion())
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+      if (!reducedMotion.matches)
         this.#autoPlayTimer = setTimeout(() => {
           this.#autoPlayTimer = 0;
           // Shown, not merely laid out: a film in a tab the user has not opened still
@@ -128,15 +127,18 @@ customElements.define(
         loadMarkdown().then((ready) => {
           if (ready && !signal.aborted && this.#step >= 0) this.#renderNote();
         });
-        const stopMotionWatch = onMotionPreferenceChange((reduce) => {
-          if (reduce) this.#pause();
-        });
+        reducedMotion.addEventListener(
+          "change",
+          () => {
+            if (reducedMotion.matches) this.#pause();
+          },
+          { signal },
+        );
         const sized = sizeObserver(() => {
           if (this.#svgWidth() !== this.#laidOut) this.#relayout();
         });
         sized.observe(this.stage);
         return () => {
-          stopMotionWatch();
           sized.disconnect();
           this.#pause();
         };

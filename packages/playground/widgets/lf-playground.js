@@ -72,7 +72,6 @@ import {
   layoutChanged,
   onCurrentLocation,
   onPress,
-  isNativeLayer,
   LeafElement,
   registerReadingRegion,
   reachedForWords,
@@ -84,6 +83,7 @@ import {
   under,
   worksInside,
   commandsChanged,
+  widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -239,8 +239,7 @@ customElements.define(
         let width = innerWidth;
         const putAway = () => {
           const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction && isNativeLayer(instruction))
-            closeNativeLayer(instruction);
+          if (innerWidth !== width && instruction) closeNativeLayer(instruction);
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
@@ -666,7 +665,8 @@ customElements.define(
     }
 
     #undo() {
-      return Boolean(this.state?.choose?.undoable);
+      const choose = this.state?.choose;
+      return Boolean(choose && "undoable" in choose && choose.undoable);
     }
 
     #available() {
@@ -707,7 +707,10 @@ customElements.define(
         chosen: () => this.#chosen(),
         // The submission's action says why it can't be sent (module-state.md, "The
         // widget controller"), so the bar keeps no rule of its own about delivery.
-        unavailable: this.state?.choose?.unavailable ?? null,
+        // `state` says only whether it can, so the reason comes from the controller.
+        unavailable:
+          (this.state && widgetController(this).read().actions.choose?.unavailable) ??
+          null,
       });
       this.#paint();
       return template;

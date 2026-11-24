@@ -315,7 +315,7 @@ import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
 import { offlineInteractive } from "./context.js";
 import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
-import { plainPress } from "./pointer.js";
+import { plainPress } from "./lib/keys.js";
 import {
   isElement,
   isHTML,

@@ -368,7 +368,8 @@ def verb_answers(
 
     The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave in its own containers (the record's
-    `within`); an attribute or value record reads
+    `within`); `every` asks for an action meeting `detail` at each member the widget
+    holds now; an attribute or value record reads
     through authored markup (`marks`, the document's `projection.attribute_marks`) as
     well as the fold, so a version that honors the answer keeps it answered and a
     cleared value opens the obligation again; any other verb answers while one of its
@@ -382,17 +383,38 @@ def verb_answers(
         within = spec["record"]["within"]
         return container_empty(rec, within, empty["when"], byid, registry, holders)
     owner = rec["attrs"].get("id")
+    if every := condition.get("every"):
+        return all(
+            meets(projection.actions.get((owner, unit, verb)), condition)
+            for unit in held_members(rec, every["member"], byid, holders)
+        )
     held = projection.actions.get((owner, owner, verb))
     if "detail" in condition:
-        return held is not None and all(
-            key in held[0]["detail"] and held[0]["detail"][key] == value
-            for key, value in condition["detail"].items()
-        )
+        return meets(held, condition)
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
         value = folded_value(*held) if held else markup_value(owner, spec, byid, marks)
         return value not in (None, "", [])
     return held is not None
+
+
+def meets(held, condition: dict) -> bool:
+    """Whether an action in force (`held`) meets a condition's `detail`: every named
+    field equals its declared value in the action's detail, and with no `detail`,
+    that the action stands at all."""
+    return held is not None and all(
+        key in held[0]["detail"] and held[0]["detail"][key] == value
+        for key, value in condition.get("detail", {}).items()
+    )
+
+
+def held_members(owner: dict, tag: str, byid: dict, holders: dict[str, dict]):
+    """The ids of the `tag` elements whose widget is `owner` once position records in
+    force have moved them (`holders`), so a member a version adds joins the set
+    and one it removes leaves it."""
+    for unit, record in byid.items():
+        if record["tag"] == tag and holders.get(unit, record.get("holder")) is owner:
+            yield unit
 
 
 def obligation_answered(

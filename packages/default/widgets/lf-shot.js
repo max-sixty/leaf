@@ -74,6 +74,7 @@ import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps } from "/runtime/lib/keeps.js";
+import { plainPress } from "/runtime/lib/keys.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
 import "/vendor/webawesome-views.js";
@@ -403,11 +404,8 @@ export class Shot extends HTMLElement {
           focusDestination(handle, "press");
       });
       comparison.addEventListener("click", (event) => {
-        // The primary button with no modifier: a modified click keeps its usual meaning.
-        const plain =
-          event.button === 0 &&
-          !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
-        if (dragged || handleOf(event) || !plain) return;
+        // A modified click keeps its usual meaning.
+        if (dragged || handleOf(event) || !plainPress(event)) return;
         event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });

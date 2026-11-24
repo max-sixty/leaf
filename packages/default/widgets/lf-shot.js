@@ -62,15 +62,14 @@ import { ShotView } from "./shot-view.js";
 import { render } from "/vendor/lit.js";
 import {
   afterPresentation,
-  failSoft,
   frameFor,
-  placesFailure,
-  PendingTaskEvent,
   focusDestination,
   scopedMediaUrl,
   move,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { failSoft, placesFailure } from "/runtime/lib/failure.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";

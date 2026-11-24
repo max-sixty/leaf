@@ -6,7 +6,7 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { dataBody } from "../widget-upgrade.js";
+import { dataBody } from "../lib/data-body.js";
 import { authoredRank } from "../lib/rank.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */

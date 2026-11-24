@@ -313,10 +313,8 @@ the focused control that matches it `data-lf-control-focus`, and
 own attributes. Don't ask with `:has()` where focus is, by a mark or by `:focus`: in
 Chromium that makes every focus move restyle the page.
 
-Leaf rings the obligation the user is in. A widget whose own control shows where
-the user is, as an option group's row does, declares `--lf-obligation-ring: none` on
-the control while it holds visible focus, and Leaf then draws no ring round the
-obligation.
+Leaf rings the obligation the user is in, and draws no ring round it while visible
+focus is inside it, so a widget's own focus ring is the one that shows.
 
 ### Layers
 

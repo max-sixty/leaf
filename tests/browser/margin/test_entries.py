@@ -22,6 +22,7 @@ from render_harness import (
     open_threads,
     panel_settled,
     post_event,
+    press_draft_control,
     put_preview_away,
     resized,
     sending,
@@ -1093,7 +1094,7 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     assert cursor_over(page, edit) != "crosshair"
     edit.click()
     expect(page.locator("#draft leaf-text")).to_be_focused()
-    draft_control(page, "cancel", "draft").click()
+    press_draft_control(page, "cancel", "draft")
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)

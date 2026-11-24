@@ -12,10 +12,10 @@
  * so the box is the same size with its controls as without them, and opening the
  * editor adds no row of buttons under it; a refused save's status joins the toolbar.
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
- * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
- * box or a key stands in it, and the open editor, a draft that asks for an edit and a
- * finger always, since a pencil that shows only under the pointer left a `required` draft
- * with no sign of how to answer it; clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * the pencil gives the box back unchanged. Which states show the toolbar is draft.css's;
+ * typing in the open editor puts it away until the pointer next moves over the box,
+ * which this module says as the custom state `typing`, so it stands over none of the
+ * words being typed. Clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
  * and changed the box's size as the editor opened. The same
@@ -176,6 +176,7 @@ customElements.define(
     #stopPressAway = null;
     /** @type {Promise<void> | undefined} */
     #dressing;
+    #states = this.attachInternals().states;
 
     setup() {
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
@@ -188,6 +189,8 @@ customElements.define(
       if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
+      // The pointer coming to the box brings back the toolbar typing put away.
+      this.addEventListener("pointermove", () => this.#states.delete("typing"));
       // Capture only the pointer Discard's old allocation. The command still owns
       // closing, discarding and focus; its new reading is true before this effect.
       this.addEventListener(
@@ -431,6 +434,7 @@ customElements.define(
       editor.value = seed ?? loadEdit(this.id) ?? effective;
       editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
+        this.#states.add("typing");
         saveEdit(this.id, editor.value);
         if (this.#failed) {
           this.#failed = false;
@@ -491,6 +495,7 @@ customElements.define(
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
       this.#editor = null;
+      this.#states.delete("typing");
       this.#failed = false;
       this.#paintTools();
       if (stood) {

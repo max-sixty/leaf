@@ -33,6 +33,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    press_draft_control,
     refuse,
     resized,
     round_trip,
@@ -294,7 +295,7 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
         "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
     )
     with sending(page, "the touch draft"):
-        draft_control(page, "save", "plan").click()
+        press_draft_control(page, "save", "plan")
     expect(page.locator("#plan .lf-draft-body")).to_contain_text("Second paragraph")
 
 

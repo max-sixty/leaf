@@ -811,12 +811,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       clear: both;
     }
   }
-  /* Focus inside the control is carried by the exact row, so the control holding it
-   * stands down the location ring of the obligation around it (page-paint.js,
-   * `locationStandsDown`), which would otherwise read as a second border. */
-  lf-options:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible] {
-    --lf-obligation-ring: none;
-  }
   /* A joined group's row shows its mark's focus: its ring, and the aim wash above. */
   lf-options:not(:where([data-lf-exhibit]) *) > lf-option > .lf-pick {
     --lf-focus-box: lf-option;

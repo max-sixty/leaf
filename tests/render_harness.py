@@ -3029,6 +3029,13 @@ def draft_control(scope, key: str, draft_id: str, *, visible=True):
     )
 
 
+def press_draft_control(scope, key: str, draft_id: str):
+    """Press a draft's toolbar control as a pointer reaches it: over the box first,
+    which brings back a toolbar typing put away (draft.css), then on the control."""
+    scope.locator(f'lf-draft[id="{draft_id}"]').hover()
+    draft_control(scope, key, draft_id).click()
+
+
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
     """The suggestion `suggestion_id`'s margin entry `key` (accept, reject, undo), or
     all of its entries."""

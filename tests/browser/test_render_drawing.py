@@ -979,6 +979,8 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         editor.click()
         write(editor, f"Revised words in {mode} mode.")
         with sending(page, f"document edit in {mode} mode"):
+            # Typing put the toolbar away until the pointer comes back over the box.
+            draft.hover()
             draft.get_by_role("button", name="Save", exact=True).click()
         expect(draft.locator(".lf-draft-body")).to_have_text(
             f"Revised words in {mode} mode."

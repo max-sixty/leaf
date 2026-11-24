@@ -153,9 +153,8 @@ const PROJECTED_LOCATION = RUNTIME_PAINT_ATTRIBUTE.location;
 // The location ring round `element`, the decision the user stands in, or none
 // (obligations/view.js, `markHere`). Each box the decision shows through draws it, as
 // it would its focus ring, so it is also the focus ring of a decision the user arrived
-// on, and the focus floor draws none of its own there (surfaces.css). A control inside
-// the decision that carries the location itself stands it down (page-paint.js,
-// `locationStandsDown`).
+// on, and the focus floor draws none of its own there (surfaces.css). Visible focus
+// inside the decision stands it down (page-paint.js, `locationStandsDown`).
 /** @param {Element | null} element */
 export function paintLocation(element) {
   locationElement = element;
@@ -176,8 +175,8 @@ function drawLocation() {
   locationProjected = boxes;
 }
 
-// Layout can change which boxes a marked element shows through, and a control inside
-// the decision can take the location over.
+// Layout can change which boxes a marked element shows through, and focus inside the
+// decision can stand the location ring down.
 export function geometryChanged() {
   if (locationFrame) return;
   locationFrame = nextRender(() => {

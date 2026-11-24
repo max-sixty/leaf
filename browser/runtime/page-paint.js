@@ -95,18 +95,13 @@ export const pagePresented = () =>
 export const pageUpgraded = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
 
-// Whether the decision `element`, which wears the location mark (`obligation`), has a
-// control inside that carries the location itself: the control holding visible focus
-// there says so on itself with `--lf-obligation-ring: none`. A rule saying it on the
-// decision had to ask with `:has()` where focus is (focus.js, `--lf-focus-box`). The
-// location ring (target-paint.js) and a landing that reveals it (landing-scroll.js) read
-// it here.
+// Whether the decision `element`, which wears the location mark (`obligation`), holds
+// visible focus inside it. That focus draws its own ring, which already says where the
+// user is, so the location ring (target-paint.js) stands down rather than drawing a
+// second band round the same place: one band says where the user is, whichever widget
+// holds the focus. Rejected: each widget declaring that its focus carries the
+// location, which leaves two bands round every widget that doesn't say so.
 /** @param {Element} element */
-export const locationStandsDown = (element) => {
-  if (!element.hasAttribute("data-lf-focus-visible-within")) return false;
-  const control = element.querySelector("[data-lf-focus-visible]");
-  return (
-    control !== null &&
-    getComputedStyle(control).getPropertyValue("--lf-obligation-ring").trim() === "none"
-  );
-};
+export const locationStandsDown = (element) =>
+  element.hasAttribute("data-lf-focus-visible-within") &&
+  !element.hasAttribute("data-lf-focus-visible");

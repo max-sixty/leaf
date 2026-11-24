@@ -46,15 +46,20 @@
  * `aria-label` or else its words, in document order. A mark under a visual standing
  * inside the source is that visual's, by the page's declarations (`declaredVisuals`).
  * Marks and `lfParts` are read as they stand, and a reading kept from either is made
- * again once a layout change is said on the visual or inside it (widget-upgrade.js,
+ * again once a layout change is said on the visual or inside it (lib/widget-events.js,
  * `LAYOUT`), which a visual says after it draws, a reveal that draws included, and Leaf
  * says for an element each time it sets the element's properties
  * (element-integration.js). A change said elsewhere leaves the reading kept, so a
- * film playing on the page doesn't make every other visual read its parts again. */
+ * film playing on the page doesn't make every other visual read its parts again.
+ *
+ * Beside each visual's count, the module keeps one of every layout change said in the
+ * page (`layoutsChanged`), for a reading of what widgets draw that has no single
+ * visual to ask about, such as whether a picture is a control's (anchor-resolution.js)
+ * or where a frame's entries stand (reading-place.js). */
 
 import { labelWords } from "./lib/words.js";
 import { under, upFrom } from "./lib/shadow-tree.js";
-import { LAYOUT } from "./widget-upgrade.js";
+import { LAYOUT } from "./lib/widget-events.js";
 import { version } from "./kept.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
@@ -75,6 +80,14 @@ let isVisual = () => false;
 export const declaredVisuals = (declared) => {
   isVisual = declared;
 };
+
+// How many times an element in the page has said its layout changed, which a reader of
+// what widgets draw that the page's reading doesn't hear reads (kept.js, `version`).
+// The count is taken as the event starts down from the window, so it has moved before
+// any listener the event reaches reads it.
+const layouts = version();
+export const layoutsChanged = () => layouts.read();
+addEventListener(LAYOUT, () => layouts.move(), { capture: true });
 
 // How many times a layout change has been said on each visual a reading has asked
 // about, or inside it: the elements an `lf-layout` event passes on its way out.

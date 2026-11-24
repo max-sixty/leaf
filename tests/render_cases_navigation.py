@@ -967,7 +967,8 @@ DATA_PROJECTION_PAGE = leaf_page(
 
 DATA_PROJECTION_MODULE = """
 import { nothing } from '/vendor/lit.js';
-import { LeafElement, setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-feed', class extends LeafElement {
@@ -1001,12 +1002,10 @@ def data_projection_page(serve):
     feed = {
         "description": "A project-supplied live feed.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {

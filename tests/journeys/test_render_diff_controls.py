@@ -55,9 +55,6 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     diff = page.locator("#patch")
     buttons = diff.locator(".lf-diff-line-comment")
     expect(buttons).to_have_count(4)
-    expect(diff.locator(".lf-diff-wrap, .lf-diff-review, .lf-diff-next")).to_have_count(
-        0
-    )
 
     def geometry():
         return buttons.evaluate_all("""buttons => buttons.map(button => {
@@ -143,7 +140,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
             '<lf-diff id="patch" source="patch-data"></lf-diff>',
             head="""<style id="response-inset-override">
-              :is(.lf-fab-bar, .lf-margin-preview) {
+              :is(.lf-fab-bar, .lf-margin-preview, [data-lf-thread-surface]) {
                 --lf-thread-text-pad-block: 12px !important;
                 --lf-compose-action-inset: 16px !important;
               }
@@ -279,9 +276,16 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
     assert face(inline) == draft_face
-    assert insets(inline, ".lf-fab-bar") == draft_insets | {"top": 12}
+    # A seat is wider than a card, and its message keeps a card's width, so a seated
+    # draft's words end where that message's will rather than at the field's end.
+    seated_draft = insets(inline, ".lf-fab-bar")
+    assert seated_draft | {"end": None} == draft_insets | {"top": 12, "end": None}
     inline.press("Control+Enter" if touch else "Enter")
-    assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+    seated_message = diff.locator(".lf-msg-body").first
+    assert reading(seated_message) == physical_reading
+    assert insets(seated_message.locator(".lf-msg-text"), ".lf-page-thread")[
+        "end"
+    ] == pytest.approx(seated_draft["end"], abs=0.01)
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])

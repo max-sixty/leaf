@@ -73,15 +73,25 @@ _RECORD_BODY = {
     "required": ["kind"],
     "additionalProperties": False,
 }
+# A value record may also name the element's `property` that holds the value in the
+# browser, and the `event` the element says a change of it with, `change` unless
+# named (`RECORD_BINDING`, element-integration.js "Recorded properties").
 _RECORD_VALUE = {
     "type": "object",
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+        "event": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:._-]*$"},
     },
     "required": ["kind", "attr"],
+    "dependentRequired": {"event": ["property"]},
     "additionalProperties": False,
 }
+# The members of a record that bind it to the element in the browser. They say how
+# the page's element holds the state, not what the state is or where it reads in
+# markup, so no fold reads them (`registry.contract.recorded`).
+RECORD_BINDING = frozenset({"property", "event"})
 
 # A `when` predicate selects instances by string attribute values or, with a
 # boolean, by an attribute's presence or absence. One condition shape serves
@@ -101,8 +111,9 @@ AWAITING_CONDITION = {
 # the condition its current state meets. An empty condition means the verb's state
 # stands (a non-empty attribute or value record, otherwise an action in force). `when`
 # narrows the verb to instances whose attributes match; `empty` holds when the one
-# member container it names inside the widget is left with no members by the current
-# positions. One map, so every answer is a reading of state the fold already keeps.
+# container of the verb's position record (`within`) inside the widget that its `when`
+# selects is left with no members by the current positions. One map, so every answer
+# is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -114,11 +125,8 @@ ANSWERED_SCHEMA = {
             "detail": {"type": "object", "minProperties": 1},
             "empty": {
                 "type": "object",
-                "properties": {
-                    "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-                    "when": AWAITING_CONDITION,
-                },
-                "required": ["within", "when"],
+                "properties": {"when": AWAITING_CONDITION},
+                "required": ["when"],
                 "additionalProperties": False,
             },
         },
@@ -149,7 +157,10 @@ REFERENCE_SCHEMA = {
 # A custom detail carries exactly the keys its declaration spells. Field meanings
 # such as `resolves` read those declarations, so patternProperties and combinators
 # cannot admit unnamed keys. `registry.schema.check_schema` validates the nested
-# schemas and the standard keywords left unrestricted here.
+# schemas and the standard keywords left unrestricted here. A declaration may leave
+# out `type` and `additionalProperties`: composition writes them in
+# (`registry.contract.complete_declarations`), so every composed detail has both, and
+# one that writes another value for either is refused.
 _VERB_DETAIL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -406,14 +417,20 @@ DECLARATION_SCHEMA = {
     "type": "object",
     "properties": {
         "description": {"type": "string", "pattern": r"\S"},
-        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The two
-        # keywords Leaf's readers take an attribute's own schema and presence from are
-        # named, so the browser's types know them.
+        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The keywords
+        # Leaf's readers read are named, so the browser's types know them: an
+        # attribute's own schema (`properties`), its presence (`required`), and whether
+        # the schema admits attributes it doesn't name (`additionalProperties`). A
+        # declaration may leave the schema out, or `type` and `additionalProperties`
+        # out of it. Composition writes them in
+        # (`registry.contract.complete_declarations`), so this schema, which reads a
+        # composed declaration, still requires `attributes`.
         "attributes": {
             "type": "object",
             "properties": {
                 "properties": {"type": "object"},
                 "required": {"type": "array", "items": {"type": "string"}},
+                "additionalProperties": {},
             },
         },
         "content": {"enum": ["markup", "members", "data", "markdown", "empty"]},

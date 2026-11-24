@@ -1038,11 +1038,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "example": "<lf-piece>Example</lf-piece>",
     }
@@ -1980,9 +1976,9 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # Fifteen arrivals a step apart: one and a half bounds in all.
     page.evaluate(
         """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
+          const {afterPresentation} = await window.__lfWidgetApi();
           for (let i = 1; i <= 15; i++)
-            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+            afterPresentation(() => new Promise(resolve => setTimeout(resolve, i * step)));
         }""",
         step_ms,
     )
@@ -1992,10 +1988,10 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # has taken its place, so the arrivals left swing between two and three.
     page.evaluate(
         """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          deferredArrival(new Promise(() => {}));
+          const {afterPresentation} = await window.__lfWidgetApi();
+          afterPresentation(() => new Promise(() => {}));
           window.churn = setInterval(() => {
-            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+            afterPresentation(() => new Promise(resolve => setTimeout(resolve, step * 1.5)));
           }, step);
         }""",
         step_ms,

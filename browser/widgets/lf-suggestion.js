@@ -19,13 +19,9 @@
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import { nothing } from "/vendor/lit.js";
-import {
-  commandScope,
-  LeafElement,
-  failSoft,
-  registerContribution,
-  says,
-} from "/runtime/widget-api.js";
+import { registerContribution, says } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { foldBlock } from "../runtime/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
@@ -197,8 +193,8 @@ customElements.define(
 
     /** @type {ReturnType<typeof registerContribution> | null} */
     #margin = null;
-    /** @type {ReturnType<typeof commandScope> | null} */
-    #commandScope = null;
+    /** @type {HTMLElement["lfCommands"]} */
+    #commands = null;
     /** @type {Outcome | null} */
     #presentedOutcome = null;
 
@@ -280,7 +276,7 @@ customElements.define(
           accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
           rank: "primary",
           activation: "undo",
-          scope: this.#commandScope,
+          scope: this.#commands,
         }),
       };
       /** @param {Outcome} kind @returns {EntryInput} */
@@ -291,7 +287,7 @@ customElements.define(
         accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
         disabled: !this.state?.decide?.available,
         activation: kind,
-        scope: this.#commandScope,
+        scope: this.#commands,
       });
       return this.#offered().map((key) =>
         key === "undo" ? entry.undo() : decision(key),
@@ -349,16 +345,16 @@ customElements.define(
     }
 
     #ensureCommands() {
-      if (this.#commandScope) return;
+      if (this.#commands) return;
       /** @type {[Outcome | "undo", string][]} */
       const labels = [
         ["accept", "Accept"],
         ["reject", "Reject"],
         ["undo", "Undo"],
       ];
-      this.#commandScope = commandScope(
-        "On a suggested change",
-        labels.map(([key, label]) => ({
+      this.#commands = {
+        title: "On a suggested change",
+        rows: labels.map(([key, label]) => ({
           id: `suggestion.${key}`,
           contextKeys: () => {
             const position = this.#offered().indexOf(key);
@@ -371,8 +367,8 @@ customElements.define(
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
-      );
-      this.lfCommands = this.#commandScope;
+      };
+      this.lfCommands = this.#commands;
       this.dispatchEvent(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );

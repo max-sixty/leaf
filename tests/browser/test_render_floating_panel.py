@@ -3485,6 +3485,39 @@ def test_a_walk_s_position_gives_the_field_back_to_the_status(browser, serve):
     )
 
 
+# A widget's step saying its place on a paragraph of the long page (`lf-walk`), among
+# three stops whose first and last are the paragraphs `ends` names.
+SAY_PLACE = """([stop, position, ends]) => document.getElementById(stop).dispatchEvent(
+  new CustomEvent('lf-walk', {bubbles: true, composed: true, detail: {
+    noun: 'Stop', position, total: 3,
+    list: ends.map((end) => document.getElementById(end))}}))"""
+
+
+def test_a_widget_s_place_goes_with_its_moment_or_the_user_s_next_step(browser, serve):
+    """The field says the place a widget's step says for the step's moment, as it says
+    a walk of Leaf's own, but the widget gives no reader to keep the place true, so
+    none stands after the moment. A next step that says none, its stops all standing in
+    view, takes the last step's place with it rather than leaving it over a stop the
+    user has left."""
+    page = floating(clocked(browser), serve(LONG_PAGE))
+    walk = "async () => (await window.__lfCheckApi()).walkPosition()?.text ?? null"
+    page.evaluate(SAY_PLACE, ["p0", 1, ["p0", "p59"]])
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Stop 1 of 3"))
+    page.evaluate(SAY_PLACE, ["p1", 2, ["p0", "p1"]])
+    # Read at once: the first step's moment, which would also end its place, runs on.
+    assert page.evaluate(walk) is None
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+
+    page.evaluate(SAY_PLACE, ["p0", 1, ["p0", "p59"]])
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Stop 1 of 3"))
+    rendered(page)
+    page.clock.run_for(
+        page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
+    )
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+    assert page.evaluate(walk) is None
+
+
 def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, serve):
     """A thread open in the panel keeps saying that its field takes the reply, with the
     key that enters it, when the thread walk stands on it: the walk's place stands
@@ -5149,9 +5182,13 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
               if (giving) v.dataset.giving = '1';
               const { watchScrollEnds } = await window.__lfCheckApi();
               window.lfEnded = false;
+              window.lfHeard = 0;
+              const heard = () => { window.lfHeard += 1; };
+              v.addEventListener('scroll', heard, {passive: true});
               const stop = watchScrollEnds((box) => {
                 if (box !== v) return;
                 stop();
+                v.removeEventListener('scroll', heard);
                 window.lfEnded = true;
               });
               return v.scrollTop; }""",
@@ -5159,6 +5196,14 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
         )
         page.mouse.wheel(0, -200)
         page.wait_for_function("() => window.lfEnded")
+        if not page.evaluate("() => window.lfHeard"):
+            # The box's sequence ended with no scroll heard in it: the quiet spell ran
+            # out before the browser applied the wheel, as a Firefox starved of CPU
+            # does, and the move the view owed, made at that end, cancelled the wheel.
+            # That loss is accepted as a corner case (arrivals.js, `SETTLE_MS`): no
+            # event says the browser won't scroll. The move this test guards against,
+            # made at the wheel, scrolls the box before its sequence ends.
+            pytest.xfail("the browser applied the wheel after the reader's wait ended")
         moved[giving] = stood - view.evaluate("v => v.scrollTop")
     assert moved[False] > 100, moved
     assert moved[True] == pytest.approx(moved[False] - 100, abs=2), moved

@@ -1019,7 +1019,7 @@ RANK_CASES = json.loads((Path(__file__).parents[1] / "rank_cases.json").read_tex
 
 def test_rank_rules_match_the_browser_cases():
     """`tests/runtime/board-order.test.mjs` reads the same cases against
-    `projection/model.js`, so the two runtimes rank authored units alike and the
+    `lib/rank.js`, so the two runtimes rank authored units alike and the
     append door admits what a widget computes."""
     assert RANK == RANK_CASES["pattern"]
     for index, rank in RANK_CASES["authored"]:
@@ -1722,12 +1722,10 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     zone = {
         "description": "A project package's differently named pane.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "reading-role": "pane",
@@ -4036,10 +4034,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     def declare(registry):
         registry["lf-label"] = {
             "description": "An inline label.",
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "markup",
             "owners": ["lf-column"],
         }

@@ -313,7 +313,8 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement, clockValue} = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           window.clockVersion = 0;
           const probes = [];
@@ -568,10 +569,8 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
     entry = {
         "description": "Late shadow words.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,

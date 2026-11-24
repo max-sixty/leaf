@@ -65,7 +65,7 @@ def failed_widget(page: Page) -> None:
     """A failed full-width exhibit beside the document's prose."""
     page.evaluate("""async () => {
         const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-        const {failSoft} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+        const {failSoft} = await import(new URL('runtime/lib/failure.js', new URL(boot, location.href)));
         const host = document.createElement('div');
         host.id = 'failed-exhibit';
         host.dataset.lfSpace = 'available';
@@ -2537,12 +2537,10 @@ def diff_moved_reply(page: Page) -> None:
     diff_file_reply(page)
     sample = page.frame_locator("#dfg-sample iframe")
     diff = sample.locator("#dfg-patch")
-    diff.evaluate("""async widget => {
-      const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-      const {threadSurface} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+    diff.evaluate("""widget => {
       for (const outlet of widget.shadowRoot.querySelectorAll('.lf-diff-thread-outlet'))
         document.querySelector('main').append(outlet);
-      threadSurface(widget).update();
+      widget.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
     }""")
     expect(diff.locator(".lf-page-thread")).to_have_count(0)
     settle(page)

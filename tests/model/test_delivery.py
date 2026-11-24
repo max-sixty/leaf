@@ -378,10 +378,7 @@ def test_recordless_requests_wake_without_user_obligations(
 
     (page_dir / "page").mkdir(exist_ok=True)
     declaration = _stateful_page_declaration(page_dir, "lf-archive")
-    verb = {
-        "unit": "widget",
-        "detail": {"type": "object", "properties": {}, "additionalProperties": False},
-    }
+    verb = {"unit": "widget", "detail": {}}
     declaration["verbs"] = {
         "archive": {**verb, "attention": True},
         "edit": verb,

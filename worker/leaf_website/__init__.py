@@ -68,7 +68,6 @@ from leaf.codex import (
     start_app_server_delivery,
 )
 from leaf.delivery import read_delivery, stream_reply_target
-from leaf.event_contracts import write_refusal
 from leaf.file_bindings import bound_files
 from leaf.files import latest_revision, revision_path
 from leaf.harness import EmbeddedHarness
@@ -273,13 +272,10 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`), refusing a page at another protocol."""
+    (`leaf.page_memory`), refusing a page at another protocol, as reading its layer
+    record does (`registry.storage.layer_record`)."""
 
     def bind() -> tuple[dict, dict | None]:
-        # The protocol before the identity, whose reader checks a shape that is this
-        # Leaf's protocol's.
-        if refusal := write_refusal(page_dir):
-            raise RuntimeError(str(refusal))
         return layer_metadata(page_dir), preview_metadata(page_dir)
 
     return memo(page_dir, _Binding).get(None, bind)

@@ -10,7 +10,7 @@ export { generatedElement } from "./element-markers.js";
    words change holds one room for all of them with `data-lf-room`, which the theme
    sizes without script and which cuts words past it (controls.css). A module that
    rearranges what it holds inside an unchanged box says so with `lf-layout`
-   (widget-upgrade.js).
+   (lib/widget-events.js).
 
    The shared drag guard (`reachedForWords`) distinguishes a click from the mouseup
    ending an active text selection by comparing the selection's focus end with the
@@ -22,21 +22,25 @@ export { generatedElement } from "./element-markers.js";
    class alone. The theme's one pressable rule reads that value, and `PRESSABLE` reads
    it for the passes written in JavaScript.
 
-   `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements, inside the container or pressed around it, as their
-   own controls and uses `owners` to distinguish a container's declared member widgets
-   from nested widgets that own their own interaction. What it cannot know is which of the controls it finds the
-   container's own module put there — an option's pick mark, a gloss's own mark — so the
-   caller names that apparatus, which is the container's to press. The answer otherwise
-   fails closed: declining one ambiguous container gesture is safer than recording a
-   choice while the user operates nested evidence. */
+   `aimedAt` answers what a click on a container that takes a gesture on its whole box
+   was for: the container, something working inside it or pressed around it, or the
+   selection of words the click ended. It treats platform interactive elements, inside
+   the container or pressed around it, as their own controls and uses `owners` to
+   distinguish a container's declared member widgets from nested widgets that own their
+   own interaction (`worksInside`). What it cannot know is which of the controls it
+   finds the container's own module put there — an option's pick mark, a gloss's own
+   mark — so the caller names that apparatus, which is the container's to press. The
+   answer otherwise fails closed: declining one ambiguous container gesture is safer
+   than recording a choice while the user operates nested evidence. */
 import { pageRange, selectionBackward } from "./native-selection.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
+import { HOLD } from "./lib/widget-events.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
+import { onPress, pressRecords } from "./focus.js";
 import { actionTemplate } from "./lib/icons.js";
 import {
   closestAcross,
@@ -99,50 +103,50 @@ export function reveal(el, mayReveal) {
   return { ready, replacedView };
 }
 
-// The one way the layer makes an element: a tag, its classes, and the words it starts
-// with.
-/** @template {keyof HTMLElementTagNameMap} K
- * @overload @param {K} tag @param {string} [cls] @param {string | null} [text]
- * @returns {HTMLElementTagNameMap[K]} */
-/** @overload @param {string} tag @param {string} [cls] @param {string | null} [text]
- * @returns {HTMLElement} */
-/** @param {string} tag @param {string} [cls] @param {string | null} [text] */
-export function el(tag, cls, text) {
-  const node = document.createElement(tag);
-  if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-// The user's hand on a widget, in the layer's own word: a drag the log has not taken
-// yet. This module holds it, and everything that has to wait for the hand asks here:
-// `dragHeld` is whether any widget holds one. The widget calls `dragging` as it takes
-// the hand up and puts it down, and puts it down in `disconnectedCallback` too, since a
-// widget that leaves with the hand up would hold every waiter for the rest of the
-// page's life. The hand holds back what would replace or take back the nodes under it,
-// a new revision and an undo (`unaccountedGesture`, composing/engagement.js, and the
-// undo of an action still in the ledger, undo.js's `travelling`); the
-// widget holds its own drawing through its controller's `defer()`, and every other
-// widget goes on drawing.
+// The user's hand on a widget, in the layer's own word: a drag, a keyboard grab or a
+// scrub the log has not taken yet. The element says it with an `lf-hold` event whose
+// promise settles as the hand comes off (`HOLD`, lib/widget-events.js), and settles it
+// as the element leaves the page too, since one that left with the hand up would hold
+// every waiter for the rest of the page's life. This module holds each one, and
+// everything that has to wait for the hand asks here: `dragHeld` is whether any stands.
+// The hand holds back what would replace or take back the nodes under it, a new
+// revision and an undo (`unaccountedGesture`, composing/engagement.js, and the undo of
+// an action still in the ledger, undo.js's `travelling`). What the element draws
+// meanwhile is its own to hold (`lf-defer`, which `LeafElement.defer()` says), and
+// every other widget goes on drawing. An element that holds only its own drawing, as
+// while an editor stands in place of its words, says no `lf-hold`: what a revision
+// waits for under a text field in use is another rule (composing/engagement.js).
+//
+// Holding while a pointer is down anywhere would need no declaration, and is not done.
+// A grab by keyboard has no pointer; a press whose release the window never hears
+// stays down until the next press (focus.js, `pressing`), which would hold every
+// revision on a page the user is only reading; and Undo's availability follows these
+// hands as a signal, so a pointer's would drop its chip at every press.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's ⌘Z row — a row no widget declares. The hands are a
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
-/** @type {import("@preact/signals-core").Signal<Set<Element>>} */
+/** @type {import("@preact/signals-core").Signal<Set<Event>>} */
 const hands = signal(new Set());
 
 export const dragHeld = () => hands.value.size > 0;
 
-/** @param {Element} el @param {boolean} on */
-export const dragging = (el, on) => {
-  const held = new Set(hands.peek());
-  if (on) held.add(el);
-  else held.delete(el);
-  hands.value = held;
-  paintKeysWithin(el);
-};
+document.addEventListener(HOLD, (event) => {
+  const [origin] = event.composedPath();
+  /** @param {boolean} on */
+  const move = (on) => {
+    const held = new Set(hands.peek());
+    if (on) held.add(event);
+    else held.delete(event);
+    hands.value = held;
+    if (origin instanceof Element) paintKeysWithin(origin);
+  };
+  move(true);
+  const ended = () => move(false);
+  Promise.resolve(event.complete).then(ended, ended);
+});
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds or what holds it. This is the second: the nearest thing
@@ -203,6 +207,24 @@ export function worksInside(node, container) {
   );
   if (inner && inner !== container && container.contains(inner)) return inner;
   return closestAcross(container.parentNode, PRESSES);
+}
+
+// What a click on such a container was for, asked once so that no caller holds two
+// checks and their order. A click that landed on something working inside or around
+// the container is that thing's (`worksInside`); where that is a control, the click
+// guard below has already asked whether the click ended a selection. A click elsewhere
+// in the container that ended a selection of its words is the selection's, and the
+// answer is null (`reachedForWords`); a click made with Enter or Space never ends one.
+// Any other click is the container's. Asking about the selection first would deaden an
+// option's own pick mark whenever words in the option were selected.
+/** @param {MouseEvent} event @param {Element} container @returns {Element | null} */
+export function aimedAt(event, container) {
+  const { target } = event;
+  if (!isElement(target)) return null;
+  const inner = worksInside(target, container);
+  if (inner) return inner;
+  if (!pressIsKeyboardActivation(event) && reachedForWords(container)) return null;
+  return container;
 }
 
 /** What else the user could aim at, at `node`, at any point on the page, marked words
@@ -271,24 +293,49 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // then reaches for Accept would press a control that has gone dead — and stays dead,
 // because a press that refuses a drag (`user-select: none`) never collapses the
 // selection that deadened it either.
-// Which is a reading rather than this listener's own business, because the same press
-// reaches things `offer` never made: the panel's quote, whose press travels the page to
-// the passage, and the list's landing, which moves the card the words are on. Each is
-// the same complaint in its own place — the user draws across the words to take them
-// and the page goes somewhere.
+// Which is a reading rather than this listener's own business, because a container that
+// takes a click on its whole box asks it of its words too (`aimedAt`).
 // It asks only where the selection stopped, and not whether a press happened at all:
-// which presses can be a drag is each caller's own question. A click carries the answer
-// in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
-// read.
-/** @param {Element} el */
-export function reachedForWords(el) {
+// which presses can be a drag is each caller's own question, which both ask of the
+// click's `detail` (`pressIsKeyboardActivation`).
+//
+// It reads the selection as the press's `mouseup` arrives, not as its click does. A
+// mouse press on words already selected leaves them selected until its `mouseup` in
+// every engine; Firefox collapses them before the click and Chromium only after it.
+// Read at the click, the same press would be the selection's in Chromium and the
+// container's in Firefox, where a press on a comment's mark inside an option's
+// selected words would pick the option rather than open the thread. Not as early as
+// `pointerup`: a tap's `mousedown`, which collapses the selection it landed beside,
+// comes after its `pointerup`. A click that no pointer press began, such as one a
+// script dispatches with a click count, reads the selection as it stands.
+/** @type {import("./focus.js").PressRecords<{focus?: Node | null}>} */
+const releases = pressRecords();
+onPress((start) => {
+  releases.keep(start, {});
+});
+addEventListener(
+  "mouseup",
+  () => {
+    const release = releases.kept();
+    if (release) release.focus = selectionFocus();
+  },
+  { capture: true, passive: true },
+);
+
+// The node the selection's focus end stands in, or null where no words are selected.
+function selectionFocus() {
   const sel = getSelection();
-  if (!sel?.rangeCount) return false;
+  if (!sel?.rangeCount) return null;
   const range = pageRange(sel);
-  const focus = selectionBackward(sel, range)
-    ? range.startContainer
-    : range.endContainer;
-  return !range.collapsed && renderedUnder(focus, el);
+  if (range.collapsed) return null;
+  return selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+}
+
+/** @param {Element} el */
+function reachedForWords(el) {
+  const released = releases.kept()?.focus;
+  const focus = released === undefined ? selectionFocus() : released;
+  return focus !== null && renderedUnder(focus, el);
 }
 
 document.addEventListener(

@@ -2,7 +2,7 @@
  * exact values in a disclosure below. The table is the widget's authored content, slotted
  * into the disclosure, so a reader who opens it reads and comments on the page's own
  * cells. */
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { html, svg } from "/vendor/lit.js";
 
 const WIDTH = 640;

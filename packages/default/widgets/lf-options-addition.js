@@ -6,7 +6,6 @@ import {
   move,
   saveDraft,
   sendDraft,
-  TEXT_FIELD,
   watchDraft,
   whileConnected,
   wireInput,
@@ -21,7 +20,7 @@ import {
 
 const ANOTHER = "Another option";
 
-/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap[typeof TEXT_FIELD], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
+/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap["leaf-text"], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
 
 export class OptionAddition {
   #host;
@@ -35,7 +34,7 @@ export class OptionAddition {
   /** @type {Comment | null} */
   #end = null;
 
-  /** @param {import("/runtime/widget-api.js").LeafElement} host
+  /** @param {import("/runtime/lib/leaf-element.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -61,6 +60,7 @@ export class OptionAddition {
         (/** @type {string | null} */ value) => ui.sync.load(value ?? ""),
         {
           input: ui.input,
+          box: () => ui.sync.composition().frame,
           // Resume writing (`g i`) comes back to the field, which stands in the group.
           resume: () => ({ where: ui.input, input: () => ui.input }),
         },
@@ -83,7 +83,7 @@ export class OptionAddition {
   /** @returns {OptionEditor} */
   #buildForm() {
     const form = offer("form", "lf-another");
-    const input = offer(TEXT_FIELD);
+    const input = offer("leaf-text");
     input.name = "option";
     input.setAttribute("aria-label", ANOTHER);
     // Its hint is Leaf's words, as every empty box's is (voice.js).
@@ -96,6 +96,7 @@ export class OptionAddition {
     form.append(bindingBadge, input);
     const sync = wireInput(input, {
       hint: "Add another option…",
+      sendClass: "lf-option-add",
       sends: "add and select option",
       action: "add",
       allowsMedia: () => "Images can be added to comments, not options",

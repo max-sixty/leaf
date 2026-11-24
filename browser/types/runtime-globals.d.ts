@@ -4,8 +4,28 @@ interface DocumentInputs {
   readonly textBox: string;
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
+  /** Which state a reload carries for a control (document-inputs.js). */
+  holdsValue(
+    node: Element,
+  ): node is
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLElementTagNameMap["leaf-text"];
+  holdsTick(node: Element): node is HTMLInputElement;
+  holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
-  holdKeys(holds: ((event: KeyboardEvent) => boolean) | null): void;
+  readonly away: number;
+  readonly entered: number;
+  holdKeys(
+    hold: {
+      holds(event: KeyboardEvent): boolean;
+      /** `stepped`: the input is a step Back or Forward the browser says the user
+       * took; otherwise it is an act within the entry. */
+      counted(stepped: boolean): void;
+    } | null,
+  ): void;
+  /** Whether the user has changed `node` in this document (document-inputs.js). */
+  edited(node: Element): boolean;
   observe(read: (event: Event) => void): () => boolean;
 }
 
@@ -110,9 +130,12 @@ interface Window {
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
-    /** The place handed to this document by the reload that loaded it (version.js). */
-    readonly handoff: { readonly url?: unknown; readonly typing?: unknown } | null;
-    handOff(value: unknown): boolean;
+    /** The handoff the reload that loaded this document handed it (prepaint.js). */
+    readonly handoff: { readonly typing?: unknown } | null;
+    /** Whether the handoff puts the user back where they were, here (prepaint.js). */
+    placesUser(): boolean;
+    /** What this document hands on as it goes from now on (prepaint.js). */
+    handOnWith(handingOn: () => object | null): void;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };
@@ -148,13 +171,12 @@ interface Element {
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
    * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
-   * title, rows and options, or a `commandScope()` value. */
+   * title, rows and options. */
   lfCommands?:
     | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
         title: string | null;
         rows: readonly import("../runtime/keyboard/bindings.js").Command[];
       })
-    | import("../runtime/keyboard/scopes.js").CommandCapability
     | null
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
@@ -208,11 +230,19 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or a function returning words read off
-   * the page, such as keys (`saying`), which a listener calls as it says them. */
+   * (`lib/widget-events.js`, `ANNOUNCE`): the words, or the words and the command rows
+   * whose keys Leaf names after them (`notifications.js`). */
   "lf-announce": CustomEvent<
-    import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
+    | import("../runtime/voice.js").Words
+    | {
+        words: string;
+        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+      }
   >;
+  /** Where a step of a widget's own walk landed, which Leaf's panel says, or null
+   * where the user has left that stop (`lib/widget-events.js`, `WALK`;
+   * `walk-position.js`). */
+  "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace | null>;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
    * in its Errors list (`errors.js`). */
   "lf-error": CustomEvent<string>;
@@ -241,8 +271,15 @@ interface DocumentEventMap {
       ready(event: KeyboardEvent): boolean;
       keep(): boolean;
     } & (
-      | { keys?: never; pause?: never; release?: never }
-      | { keys: KeyboardEvent[]; pause(): void; release(): void }
+      | { keys?: never; pressed?: never; pause?: never; release?: never }
+      | {
+          keys: readonly KeyboardEvent[];
+          /** The first key leaves the run as the controller presses it. */
+          pressed(): void;
+          pause(): void;
+          /** Ends the take, letting go of any key the run still holds. */
+          release(): void;
+        }
     )
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null
@@ -259,10 +296,13 @@ interface DocumentEventMap {
       { type: "step" }
     >["detail"]
   >;
-  /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
-  "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
-  /** A hold a widget has on its own nodes through a gesture (`widget-upgrade.js`). */
-  "lf-hold": import("../runtime/widget-upgrade.js").HoldEvent;
+  /** Drawing a widget has under way, by the community protocol (`lib/pending-task.js`). */
+  "pending-task": import("../runtime/lib/pending-task.js").PendingTaskEvent;
+  /** A hold a widget has on its own drawing (`lib/widget-events.js`). */
+  "lf-defer": import("../runtime/lib/widget-events.js").DeferEvent;
+  /** A hold the user has on something in an element, until `complete` settles
+   * (`lib/widget-events.js`, `HOLD`). */
+  "lf-hold": Event & { complete?: PromiseLike<unknown> };
   /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
    * sets `delivery` on each it sends (`widget-controller.js`). */
   "lf-action": CustomEvent<{

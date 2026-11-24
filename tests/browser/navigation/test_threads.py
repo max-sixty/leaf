@@ -34,7 +34,7 @@ from render_harness import (
 )
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -1487,6 +1487,62 @@ def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve, anch
     expect(view).to_have_attribute("data-lf-thread", opened or "")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
+    request, serve, engine
+):
+    """Back from a thread a press on a row of Threads opened in the panel, as one about a
+    passage opens for a user who chose the panel for threads, returns to Threads, on
+    that row, as the view's own way back does, rather than closing the panel; Forward
+    opens the thread again. The entry keeps the list and its row across a reload of the
+    document, which forgets the panel's views, so the thread the reload opens again
+    still gives way to Threads on Back, and after Escape put the thread away, when Back
+    has no thread to put away."""
+    url = serve(LONG_PAGE)
+    for n, text in enumerate(("First question?", "Second question?", "Third?"), 1):
+        panel_comment(
+            serve.page_dir, text, {"section": f"p{n}", "quote": f"Paragraph {n}."}
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
+    open_threads(page)
+    rows = page.locator(".lf-fp-thread")
+    expect(rows).to_have_count(3)
+    pressed = rows.nth(1)
+    key = pressed.get_attribute("data-lf-key")
+    pressed.click()
+    opened = page.locator(PANEL_THREAD).get_attribute("data-lf-thread") or ""
+    thread = linked_thread(page, opened)
+    expect(thread).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+
+    row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
+    for reload in (True, False):
+        if reload:
+            page.reload()
+            wait_until_ready(page)
+            expect(thread).to_be_visible()
+        page.go_back()
+        expect(page.locator(panel_view("threads"))).to_be_visible()
+        expect(row).to_be_focused()
+        expect(thread).to_be_hidden()
+        page.wait_for_function("navigation.transition === null")
+        page.go_forward()
+        expect(thread).to_be_visible()
+        page.wait_for_function("navigation.transition === null")
+
+    # Escape puts the thread away where the user stands, so Back has no thread to put
+    # away, and the entry's own record names the row.
+    page.keyboard.press("Escape")
+    if thread.is_visible():
+        page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
+    expect(row).to_be_focused()
+
+
 def test_following_a_thread_url_uses_native_history(browser, serve):
     page = open_page(browser, thread_page(serve))
     entries = page.evaluate("history.length")
@@ -1517,9 +1573,9 @@ def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engin
     """An entry's `?thread=` names the thread view standing open on it, renamed as views
     open and close where the user stands. A link followed out of a thread a URL opened
     puts the view away and leaves an entry naming no thread; Back returns to the
-    thread, with the user in it and the page where it was, and Forward to the link's
-    target with the view put away again. Escape puts the view away by renaming the
-    entry, never by a traversal."""
+    thread, with the user on the link they left by and the page where it was, and
+    Forward to the link's target with the view put away again. Escape puts the view
+    away by renaming the entry, never by a traversal."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Where does this end?")
     append_carried_log_record(
@@ -1541,27 +1597,25 @@ def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engin
         return dict(parse_qsl(urlsplit(page.url).query))
 
     start = page.evaluate("navigation.currentEntry.index")
-    thread.get_by_role("link", name="the last paragraph").click()
+    link = thread.get_by_role("link", name="the last paragraph")
+    link.click()
     expect(page.locator("#p59")).to_be_focused()
     expect(thread).to_be_hidden()
     page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
     entries = page.evaluate("navigation.entries().length")
 
     page.go_back()
-    expect(thread).to_be_focused()
+    expect(link).to_be_focused()
     assert query()["thread"] == root
     page.wait_for_function("scrollY === 0")
     page.go_forward()
     expect(thread).to_be_hidden()
     expect(page.locator("#p59")).to_be_in_viewport()
     assert "thread" not in query()
-    if engine == "browser":
-        # Playwright's Firefox names no destination for Forward
-        # (notes/browser-support.md), so no place of the entry's comes back there.
-        expect(page.locator("#p59")).to_be_focused()
+    expect(page.locator("#p59")).to_be_focused()
 
     page.go_back()
-    expect(thread).to_be_focused()
+    expect(link).to_be_focused()
     page.keyboard.press("Escape")
     expect(thread).to_be_hidden()
     page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))

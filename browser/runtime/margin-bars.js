@@ -72,7 +72,8 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { paintSet } from "./target-paint-geometry.js";
-import { el, reveal } from "./widget-elements.js";
+import { reveal } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
 import { offerAction } from "./lib/controls.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { onCurrentLocation } from "./focus.js";
@@ -81,7 +82,7 @@ import { inkedBox, scrollContainer } from "./geometry.js";
 import { union } from "./rect.js";
 import { scrollBehavior } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
-import { LAYOUT } from "./widget-upgrade.js";
+import { LAYOUT } from "./lib/widget-events.js";
 import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { keeps, layoutPx } from "./lib/keeps.js";
 import { pageRung } from "./keyboard/register.js";

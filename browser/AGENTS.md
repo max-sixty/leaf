@@ -102,7 +102,8 @@ rule draws at once is drawn.
   changes with no reading behind it takes the same hold around that change, as Page
   Map does when a widget's own contribution joins it, and the dial around its fold; a
   gesture's own result is its handler's to place. Owner: `user-place.js`
-  (`holdUserPlace`, `holdPlace`), whose header records the costs the user accepted.
+  (`holdUserPlace`, `holdPlace`, `holdPlaceOf`), whose header records the costs the
+  user accepted.
   Checks:
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
   `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
@@ -665,9 +666,10 @@ follow the browser's focus visibility. `geometry.js` decides whether the user ca
 box (`seenRect`), because Leaf's chrome covers the page without clipping it: each
 surface fixed over the page declares the one box it covers (`declareCover`), and a box
 is in front of the user where no scroller clips it and no such box covers it.
-`user-place.js` holds the user's place across one change (`holdPlace`), because scroll
-anchoring holds the first box on screen: it can't keep still a control below growth
-on screen, the reading line below growth inside that box, or a place the change hides.
+`user-place.js` holds the user's place across one change (`holdPlaceOf`, and `holdPlace`
+around a module's own), because scroll anchoring holds the first box on screen: it
+can't keep still a control below growth on screen, the reading line below growth inside
+that box, or a place the change hides.
 
 ### One writer for each fact
 
@@ -756,7 +758,8 @@ block names what a package answers with the browser's own call instead.
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                                |
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                           |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                                  |
-| What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                               |
+| What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
+| Holding what the reader reads across a module's own change that hides it                              | `user-place.js` `holdPlace`                                                            |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
@@ -804,7 +807,8 @@ block names what a package answers with the browser's own call instead.
 | Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `lib/shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `lib/shadow-tree.js` `closedOver`                                                      |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                          |
-| The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                             |
+| The element a URL fragment names, or the part of a widget its key names; a package's address too      | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`, `elementNamed`             |
+| The element an id names, read from the element that gives it: its message first, then the page        | `references.js` `authoredElement`                                                      |
 | The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `thread/messages.js` `addressableAt`                                                   |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |
@@ -818,6 +822,7 @@ block names what a package answers with the browser's own call instead.
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                           |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `lib/words.js` `labelWords`, `counted`, `capitalized`                                  |
 | The word for an element's kind, a widget's own word for it included                                   | `lib/element-word.js` `addressableWord`, `widgetWord`                                  |
+| The order a position container lists its units in, and the rank that puts a unit at an index          | `lib/rank.js` `byRank`, `rankAt`, `authoredRank`                                       |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                            |
 | What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                             |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                        |
@@ -832,7 +837,7 @@ block names what a package answers with the browser's own call instead.
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |
 | The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                                |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                                  |
-| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)         |
+| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName`                                                      |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                       |
 | The open conversations about an element or the part a heading heads, and whose turn                   | `thread/placement.js` `conversationsAbout`                                             |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                            |
@@ -840,7 +845,7 @@ block names what a package answers with the browser's own call instead.
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                                   |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                            |
 | Which message drafts hold words or a drawing, for every view of drafts                                | `drafts.js` `draftsReading`                                                            |
-| Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                                 |
+| Which obligations a region of the page holds                                                          | `obligations/place.js` `readObligations`                                               |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                       |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                                 |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                              |

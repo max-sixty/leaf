@@ -23,6 +23,7 @@ import {
   addressedElements,
   addressedFocus,
   aimTargetAt,
+  elementNamed,
   focusTargetAt,
   fragmentAddress,
   fragmentTarget,
@@ -34,7 +35,7 @@ import {
 import { targetElement } from "/runtime/resolved-target.js";
 import { registry } from "/runtime/registry.js";
 import { visualPartProblems } from "/runtime/visual-parts.js";
-import { layoutChanged } from "/runtime/widget-upgrade.js";
+import { layoutChanged } from "/runtime/lib/widget-events.js";
 import { kept } from "/runtime/kept.js";
 import { focusDestination, handBack } from "/runtime/focus.js";
 
@@ -198,6 +199,30 @@ test("a fragment names an element by its id first, else a widget's key", () => {
   revealAddressed(source, "frame:two");
   assert.equal(fragmentTarget("#film:frame:two")?.dataset.frame, "two");
   assert.equal(fragmentTarget("#missing:frame:two"), null);
+});
+
+test("an address in an agent's message names its message's element before the page's", () => {
+  // A thread Leaf seats in the page's flow stands before the page's own element.
+  document.body.innerHTML =
+    '<div data-lf-runtime><div class="lf-msg-body"><section id="twice">Message</section>' +
+    '<b id="only-said">From</b></div></div>' +
+    '<main><section id="twice">Page</section><p id="100%">Full</p></main>';
+  const source = film();
+  document.querySelector("main").append(source);
+  const [message, page] = document.querySelectorAll("section");
+  const from = document.querySelector("b");
+
+  assert.equal(elementNamed("twice"), page);
+  assert.equal(elementNamed("twice", page), page);
+  assert.equal(elementNamed("#twice", from), message);
+  assert.equal(elementNamed("twice", from), message);
+  // An id the page lacks names what a reply Leaf draws holds.
+  assert.equal(elementNamed("only-said"), from);
+  // What the message doesn't hold, the page does, a widget's key included.
+  assert.equal(elementNamed("film:frame:two", from), source);
+  // A bare address keeps each `%` it spells; a fragment spells one encoded.
+  assert.equal(elementNamed("100%")?.localName, "p");
+  assert.equal(elementNamed("#100%25")?.localName, "p");
 });
 
 // A plot of three points, drawn as one line, that draws a mark for a point when asked

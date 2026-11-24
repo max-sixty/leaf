@@ -79,7 +79,7 @@ def requested_documents(page):
 
 OFFLINE_WIDGET = """\
 import { html } from "/vendor/lit.js";
-import { LeafElement, widgetController } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -95,8 +95,7 @@ customElements.define("lf-offline-test", class extends LeafElement {
   render() {
     const {state} = this;
     const action = state.choose;
-    // `state` says whether the user may choose; the controller's reading says why not.
-    const unavailable = widgetController(this).read().actions.choose.unavailable;
+    const unavailable = action.unavailable;
     return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
       <button id="local" @click=${() => { this.#local += 1; this.requestUpdate(); }}>
@@ -117,12 +116,10 @@ OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "choice": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {

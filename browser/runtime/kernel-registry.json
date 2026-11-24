@@ -9,19 +9,26 @@
       "/runtime/lib/canvas.js",
       "/runtime/lib/control-faces.js",
       "/runtime/lib/controls.js",
+      "/runtime/lib/data-body.js",
       "/runtime/lib/element-word.js",
+      "/runtime/lib/elements.js",
       "/runtime/lib/exception.js",
+      "/runtime/lib/failure.js",
       "/runtime/lib/frame-pass.js",
       "/runtime/lib/icon-paths.js",
       "/runtime/lib/icons.js",
       "/runtime/lib/keeps.js",
       "/runtime/lib/keys.js",
+      "/runtime/lib/leaf-element.js",
       "/runtime/lib/markdown.js",
       "/runtime/lib/motion-timing.js",
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/once.js",
+      "/runtime/lib/pending-task.js",
       "/runtime/lib/queued-work.js",
+      "/runtime/lib/rank.js",
       "/runtime/lib/role-button-press.js",
+      "/runtime/lib/roving.js",
       "/runtime/lib/scroll-range.js",
       "/runtime/lib/shadow-tree.js",
       "/runtime/lib/shown-box.js",
@@ -30,6 +37,7 @@
       "/runtime/lib/text-alignment.js",
       "/runtime/lib/text-width.js",
       "/runtime/lib/time-axis.js",
+      "/runtime/lib/widget-events.js",
       "/runtime/lib/words.js"
     ]
   },
@@ -169,7 +177,7 @@
     "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"lf-tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 55,
+    "protocol": 56,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 52,

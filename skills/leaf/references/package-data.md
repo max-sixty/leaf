@@ -21,8 +21,9 @@ and changes it by asking the owner with a command the owner turns into its own v
 log then holds one answer whichever widget the user changed it in, Undo takes back
 that one action, and the same two modules work off Leaf, where the owner keeps the
 answer itself. A view whose own place on the page is that answer, as a board card
-stands in the column of a pick, declares `shows` instead ("Views of an answer"),
-since the server has to place it.
+stands in the column of a pick, declares `shows` instead: its module reads the
+owner's state and records the owner's verb through `widgetController(owner)`
+([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
 
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
@@ -143,12 +144,15 @@ The record kind fixes the event's payload, a closed object with every field requ
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
-  attribute holds no other JSON type, so a number is recorded as its digits.
+  attribute holds no other JSON type, so a number is recorded as its digits. The
+  record may also name the element's property that holds the value, so that Leaf
+  records it with no module code (`module-plain-elements.md`,
+  "`record.property`").
 - `position` sends `{unit, value, rank}`: the moved element's id, the destination
   container's id, and the element's rank there. A container is an element of the tag `record.within` names, a declared
-  one, inside the widget and with an id of its own, and its members are its children
-  that have ids. The widget is never its own container, so a widget with one list of
-  members still holds them in a container element.
+  one, with an id of its own, and its members are its children that have ids. It is
+  the widget itself where `within` names the widget's own tag, as for a list the user
+  reorders, or an element inside the widget, as each column of a board is.
 
 `leaf page state` lists each move in force with its container and rank, not the order
 that results. Authored members rank `1`, `2`, `3` and on in authored order, in base
@@ -159,12 +163,14 @@ log but no longer place their members: that version's author writes each moved m
 where the user left it, and those moves can no longer be undone.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
-detail field holding the moved element. A verb with no record declares its own closed
+detail field holding the moved element. A verb with no record declares its own
 `detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
 naming what the verb's state is about, by element id or by data key, as a playground's
-submitted settings do. That schema itself holds only `type: "object"`, `properties`,
-`required` and `additionalProperties: false`, so a rule across fields, such as
-`if`/`then`, is refused; each property takes any schema.
+submitted settings do. That schema holds only `properties`, which names its fields, and
+`required`, so a rule across fields, such as `if`/`then`, is refused; each property
+takes any schema. Leaf writes the schema's `type` and `additionalProperties`
+(`packages.md`, "A widget"), so an action's detail holds only the fields `properties`
+names.
 
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$verbs.attention` in the registry). Changes to
@@ -191,7 +197,7 @@ widget in `owners`, requires only an `id`, and has `content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
 presentation, but `package check` refuses one that declares state, obligations,
-history, data or visual parts of its own; the parent's controller records and presents
+history, data or visual parts of its own; the parent records and draws
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions
 or services belongs in authored markup.
@@ -212,14 +218,16 @@ package's own lists neither. An element that another widget's verb names by id, 
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
 `awaits.answered` separately says when the obligation is complete: `{}` once the
-verb has a state, `when` for instances with matching attributes, and `empty` while the
-named container has no members. A page-owned queue can declare:
+verb has a state, which a starting value the page's markup writes gives it too, `when`
+for instances with matching attributes, and `empty` while the one container of the
+verb's position record (`within`) whose attributes match its `when` has no members. A
+page-owned queue can declare:
 
 ```json
 {
   "value": "move",
   "answered": {
-    "move": { "empty": { "within": "lf-queue-column", "when": { "queued": [true] } } }
+    "move": { "empty": { "when": { "queued": [true] } } }
   }
 }
 ```
@@ -233,7 +241,7 @@ keep its widget on the page, such as a decided question collapsed with its optio
 obligation's question, its region and its words (`authoring-on-me.md`, "On the page"),
 so a widget needs no prompt of its own.
 
-The module reads and records this state through `widgetController(owner)`
+The module reads this state as `this.state` and records it with `record()`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
@@ -360,12 +368,10 @@ contract").
 {
   "lf-builds": {
     "attributes": {
-      "type": "object",
       "properties": {
         "source": { "type": "string" }
       },
-      "required": ["id", "source"],
-      "additionalProperties": false
+      "required": ["id", "source"]
     },
     "content": "empty",
     "inputs": {

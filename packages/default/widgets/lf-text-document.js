@@ -32,8 +32,6 @@
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
 import {
-  failSoft,
-  LeafElement,
   whileConnected,
   setRenderedChildren,
   setChildLists,
@@ -42,6 +40,8 @@ import {
   afterPresentation,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
 import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";

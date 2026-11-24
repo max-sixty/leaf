@@ -1,5 +1,6 @@
 import { html } from "/vendor/lit.js";
-import { LeafElement, el } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { el } from "/runtime/lib/elements.js";
 import { offer } from "/runtime/lib/controls.js";
 
 // Only the generated controls repaint; authored evidence keeps its nodes and state.

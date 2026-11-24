@@ -387,18 +387,20 @@ export function createAnchorTravel({
   // key whose part the widget no longer draws, since the user has picked another of its
   // items, names such a place too. The browser's own landing on a traversal is that
   // offset, so travel lands the place by the fragment rule itself (`scrollToFragment`).
-  /** @param {URL} url */
-  function returnToFragment(url) {
+  // It runs under the intent of the traversal's restoration (history.js), which a
+  // later navigation ends.
+  /** @param {URL} url @param {ReturnType<typeof retainUserIntent>} intent */
+  function returnToFragment(url, intent) {
     const address = fragmentAddress(url.hash);
     if (!address) return null;
-    return fragmentShown(address) ? null : fragmentNavigationStep(url, false);
+    return fragmentShown(address) ? null : fragmentNavigationStep(url, false, intent);
   }
 
   // A key's part is asked for first, as `navigateToDatum` asks for it, and a key the
   // widget draws nothing for lands on the widget.
-  /** @param {URL} url @param {boolean} focus */
-  function fragmentNavigationStep(url, focus) {
-    const mayArrive = retainTravel();
+  /** @param {URL} url @param {boolean} focus @param {ReturnType<typeof retainUserIntent>} [intent] */
+  function fragmentNavigationStep(url, focus, intent) {
+    const mayArrive = retainTravel(intent);
     return async () => {
       const address = fragmentAddress(url.hash);
       const drawing =

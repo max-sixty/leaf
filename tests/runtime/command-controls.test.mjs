@@ -15,6 +15,7 @@ import {
   watchCommandScopes,
 } from "../../browser/runtime/keyboard/scopes.js";
 import { saying } from "../../browser/runtime/keyboard/control-keys.js";
+import { liveEl } from "../../browser/runtime/notifications.js";
 import {
   activeRows,
   commandAvailable,
@@ -1711,10 +1712,15 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
     () => contributionEntry({ ...entry, role: "escape" }),
     /^TypeError: Unknown contribution entry option: role$/,
   );
-  // Only the keyboard owner mints a scope projected onto shared controls.
+  // The rows of the scope an entry names are checked as written, as an element's
+  // `lfCommands` are.
   assert.throws(
-    () => contributionEntry({ ...entry, scope: { scope: { title: "Counterfeit" } } }),
-    /^TypeError: A margin entry scope needs a commandScope capability$/,
+    () =>
+      contributionEntry({
+        ...entry,
+        scope: { title: "Malformed", rows: [{ id: "Not an id", title: "run" }] },
+      }),
+    /not a stable command id/,
   );
   const scope = commandScope("Status command", [
     {
@@ -2471,6 +2477,14 @@ test("a key is named beside a row only while its press would run the row", (t) =
   inner.focus();
   assert.equal(saying(rows), "Escape cancel, w or q leave");
   assert.equal(activeCommandBinding(["fixture.top"]), null);
+  // A widget's announcement that gives the rows is heard with the same keys after its
+  // words, read as the words are said.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  window.dispatchEvent(
+    new CustomEvent("lf-announce", { detail: { words: "Card grabbed", rows } }),
+  );
+  t.mock.timers.runAll();
+  assert.equal(liveEl.textContent, "Card grabbed — Escape cancel, w or q leave");
 });
 
 test("an announced scope says no key on a touchscreen", (t) => {
@@ -2542,6 +2556,56 @@ test("a widget's commands stand from when it says them until it withdraws them",
     assert.match(failures[0][1], /not a stable command id/);
     assert.deepEqual(declared(owner), []);
   } finally {
+    owner.remove();
+  }
+});
+
+test("one stated object is one scope on each element and margin entry that holds it", async () => {
+  const { registerContribution } = await import("/runtime/contributions.js");
+  const { presentContributionEntry } =
+    await import("/runtime/contribution-controls.js");
+  const owner = document.createElement("section");
+  const editor = owner.appendChild(document.createElement("div"));
+  const control = owner.appendChild(document.createElement("button"));
+  document.body.append(owner);
+  let runs = 0;
+  const stated = {
+    title: "Stated",
+    rows: [{ id: "stated.run", title: "Run", keys: ["Alt+2"], run: () => runs++ }],
+  };
+  for (const at of [owner, editor]) {
+    at.lfCommands = stated;
+    at.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+  }
+  const entry = {
+    key: "run",
+    icon: "check",
+    label: "Run",
+    activation: "stated.run",
+    scope: stated,
+  };
+  // An entry's control in the widget, as a seated margin entry's is.
+  presentContributionEntry(control, entry);
+  const registration = registerContribution({
+    key: "stated-probe",
+    target: owner,
+    read: () => ({ entries: [entry] }),
+  });
+  try {
+    reflectFirstScopes();
+    reflectKeys();
+    // Two elements hold the scope and an entry's control projects it, and the widget's
+    // commands count it once: an entry naming another object would add a second.
+    assert.deepEqual(
+      commandsWithin(owner).map(({ row }) => row.id),
+      ["stated.run"],
+    );
+    // The entry is the command the elements declared: its availability and its run.
+    assert.equal(registration.entry("run").disabled, false);
+    assert.equal(registration.activate("run"), true);
+    assert.equal(runs, 1);
+  } finally {
+    registration.unregister();
     owner.remove();
   }
 });

@@ -7,8 +7,8 @@
  * Every name starts with `--lf-`, so none meets a name a page or its framework coins
  * (tests/model/test_theme_tokens.py). The ones a page, theme or package may rely on
  * are those the references name (skills/leaf/references/package-themes.md, "Theme
- * tokens"), and Leaf's examples and instructions use no other; the rest are Leaf's own
- * and change freely. */
+ * tokens"), and Leaf's examples, instructions and bundled packages use no other; the
+ * rest are Leaf's own and change freely. */
 /* The times of motion, registered so each computes to a time a script can read
    (runtime/lib/motion-timing.js, `motionTime`) as a stylesheet reads it with `var()`. */
 /* How long the tint that marks an arrival or a change lasts. */
@@ -107,11 +107,6 @@
      (state.css). */
   --lf-top-covered: calc(var(--lf-head-room) + var(--lf-root-headers, 0px));
   --lf-landing-room: 12px;
-  /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
-     floor where that is taller, and its 1px rule. The default package draws the strip
-     at it, and the root's `scroll-padding` adds it where a page tab strip stands over
-     the root (`--lf-root-headers`, root-headers.js). */
-  --lf-tabstrip-h: calc(9px + max(38px, var(--lf-aim-floor)));
   /* A list's band, the heading that opens each group of its rows (controls.css,
      `.lf-rows-group`): a thread head's height, and the aim floor under a finger, since
      a band that folds its group is a press with no room for a reach, and a list's bands
@@ -603,10 +598,6 @@
         calc(b * min(2.3, 1 + 0.014 / hypot(a, b)))
     )
   );
-  /* A translucent backdrop is the paper it floats over, so it is derived rather than
-     restated: a project that overrides --lf-paper gets a backdrop that follows it, where a
-     second hex kept the default ivory behind a recoloured page. */
-  --lf-veil: color-mix(in srgb, var(--lf-paper) 93.3%, transparent);
   /* Comments use violet so their marks remain distinct from links, focus, and the
      semantic status colors. One hue at three strengths says posted, hovered, and
      active without changing meaning between page and code surfaces. */

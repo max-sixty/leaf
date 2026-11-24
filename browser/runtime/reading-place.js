@@ -51,8 +51,8 @@
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions, reading-region shifts and the subjects a
- * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
- * working-place checkpoints separately own an entry's viewport offset (history.js).
+ * region shows in turn, a root tab set (lf-tabs) for each of its views, and history
+ * for each entry the user leaves, in the entry's record (history.js).
  * `readingBlock` is the block on screen the reader reads in one region or the page,
  * across the column their pointer or focus names, the column a captured place reads its
  * line from; `sectionsInView` names the sections of every block and drawing on screen,
@@ -78,7 +78,7 @@ import {
   stickyHolder,
 } from "./geometry.js";
 import { scrollAxes } from "./element-axes.js";
-import { layoutsChanged } from "./widget-upgrade.js";
+import { layoutsChanged } from "./visual-parts.js";
 import {
   composedParentNode,
   drawn,
@@ -266,7 +266,7 @@ const textEnvelope = (block, segments, range) => {
 //
 // A frame's layout stands while the page's words, the parts drawn, the window, and the
 // frame's size, scroll axes and skipping are as they were, until a widget says its
-// layout changed (widget-upgrade.js, `layoutsChanged`), and while every entry a reading
+// layout changed (visual-parts.js, `layoutsChanged`), and while every entry a reading
 // finds in its band, and the first past it, stands where the layout has it: a change in
 // flow at or above the band's foot moves one of those. A box moved by none of these, such
 // as a paragraph a script transforms or one an anchor places, stays where the layout has

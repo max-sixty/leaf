@@ -2,6 +2,7 @@
 has, failed redraws, and inspecting a merge film by touch and keyboard."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -23,12 +24,14 @@ from render_harness import (
     long_press,
     names,
     open_page,
+    panel_says,
     plant_quiet_word,
     resized,
     sending,
 )
 
 from browser.threads import open_panel_thread
+from browser.widgets import hear_walks, walks_said
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 
@@ -751,6 +754,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(chart).to_be_focused()
     expect(preview).to_have_attribute("data-lf-route", "focus")
     assert said(page) == ["week w1", "kind features", "hours 21"]
+    hear_walks(page)
     for key, words in (
         ("ArrowRight", ["week w2", "kind features", "hours 18"]),
         ("ArrowDown", ["week w2", "kind fixes", "hours 14"]),
@@ -761,6 +765,14 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
         page.keyboard.press(key)
         expect(preview.locator(".lf-preview-detail")).to_have_text(words[1:])
         assert said(page) == words, key
+    # Each step said its point's place in its series to the page.
+    assert walks_said(page) == [
+        "Point 2 of 2",
+        "Point 2 of 2",
+        "Point 1 of 2",
+        "Point 1 of 2",
+        "Point 2 of 2",
+    ]
 
     # Focus arriving on a point the pointer reads takes it over: the pointer leaving
     # leaves it, and the arrows step on from it.
@@ -819,6 +831,55 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(ring).to_be_hidden()
     assert chart.evaluate("el => el.lfPreview()") is None
     page.mouse.move(2, 2)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_s_place_goes_as_the_pointer_takes_the_reader_to_another_point(
+    engine, request, serve
+):
+    """A key's step on a chart whose rows run past the window says its place in Leaf's
+    panel, "Point 2 of 12", for the step's moment. The pointer reaching another point
+    takes the reader off the point that step landed on, and the chart says so, so the
+    panel stops saying the place at once, where it would otherwise name a point the
+    reader has left for the rest of the moment. The page's clock stands still from the
+    step on, so the moment can't end the place here."""
+    body = """{
+  ariaLabel: "Deploys by month, over twelve months",
+  marks: [
+    Plot.barX(
+      [14, 18, 11, 22, 27, 19, 24, 30, 26, 21, 33, 29].map((deploys, i) => ({
+        month: `M${String(i + 1).padStart(2, "0")}`,
+        deploys,
+      })),
+      {y: "month", x: "deploys"},
+    ),
+  ],
+}"""
+    source = leaf_page(
+        "chart rows",
+        '<h1 id="t">Deploys</h1><button id="before">Before</button>'
+        + chart_markup("deploys", body).replace(
+            '<lf-chart id="deploys">', '<lf-chart id="deploys" data-height="1600">'
+        ),
+    )
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(source))
+    chart = page.locator("#deploys")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    render_checks_model.rendered(page)
+
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ArrowDown")
+    page.clock.run_for(100)
+    assert "Point 2 of 12" in panel_says(page)
+    chart.locator("[data-lf-plot=bar] rect").nth(3).hover()
+    page.clock.run_for(100)
+    assert "Point 2 of 12" not in panel_says(page), (
+        "the panel names the point the keys left the reader on, "
+        "with the pointer on another"
+    )
 
 
 def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):

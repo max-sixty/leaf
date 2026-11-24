@@ -70,26 +70,23 @@
  */
 import { html, render, nothing } from "/vendor/lit.js";
 import {
-  addressableLabel,
-  commandScope,
+  aimedAt,
+  nameOf,
   motion,
-  LeafElement,
-  TEXT_FIELD,
   sendDraft,
   saveDraft,
   loadDraft,
   clearDraft,
   watchDraft,
   whileConnected,
-  reachedForWords,
   dressCode,
   focusDestination,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
-  worksInside,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
@@ -160,14 +157,14 @@ customElements.define(
       if (!body) throw new Error("draft needs its prepared Markdown body");
       return (this.#preparedBody = body);
     }
-    /** @type {HTMLElementTagNameMap[typeof TEXT_FIELD] | null} */
+    /** @type {HTMLElementTagNameMap["leaf-text"] | null} */
     #editor = null;
     #sending = false;
     #failed = false;
     /** @type {HTMLDivElement | null} */
     #tools = null;
-    /** @type {ReturnType<typeof commandScope> | null} */
-    #commandScope = null;
+    /** @type {HTMLElement["lfCommands"]} */
+    #commands = null;
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
@@ -214,18 +211,12 @@ customElements.define(
       );
 
       // A click opens the exact source at its rendered caret. A control or link inside
-      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // the draft and a completed word selection own their own gestures (`aimedAt`);
       // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
-        if (
-          ev.detail === 0 ||
-          ev.button !== 0 ||
-          (ev.target instanceof Element && worksInside(ev.target, this))
-        )
-          return;
-        if (reachedForWords(this)) return;
+        if (ev.detail === 0 || ev.button !== 0 || aimedAt(ev, this) !== this) return;
         if (!this.#available()) return;
         ev.preventDefault();
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
@@ -321,40 +312,43 @@ customElements.define(
     }
 
     #ensureCommands() {
-      if (this.#commandScope) return;
-      this.#commandScope = commandScope("On a draft", [
-        {
-          id: "draft.edit",
-          keys: [],
-          control: () => this.#control("edit"),
-          decision: true,
-          title: "Edit",
-          when: () => !this.#editor && !this.#sending && this.#available(),
-          run: () => this.#open(),
-        },
-        {
-          id: "draft.save",
-          reach: "in an open draft editor",
-          keys: ["Mod+Enter"],
-          control: () => this.#control("save"),
-          decision: true,
-          title: () => (this.#failed ? "Retry" : "Save"),
-          when: () => Boolean(this.#editor) && !this.#sending && this.#available(),
-          run: () => this.#commit(),
-        },
-        {
-          id: "draft.cancel",
-          reach: "in an open draft editor",
-          keys: ["Escape"],
-          control: () => this.#control("cancel"),
-          decision: true,
-          title: "Discard",
-          when: () => Boolean(this.#editor),
-          run: () => this.#close(true),
-          keep: () => this.#commit(),
-        },
-      ]);
-      this.lfCommands = this.#commandScope;
+      if (this.#commands) return;
+      this.#commands = {
+        title: "On a draft",
+        rows: [
+          {
+            id: "draft.edit",
+            keys: [],
+            control: () => this.#control("edit"),
+            decision: true,
+            title: "Edit",
+            when: () => !this.#editor && !this.#sending && this.#available(),
+            run: () => this.#open(),
+          },
+          {
+            id: "draft.save",
+            reach: "in an open draft editor",
+            keys: ["Mod+Enter"],
+            control: () => this.#control("save"),
+            decision: true,
+            title: () => (this.#failed ? "Retry" : "Save"),
+            when: () => Boolean(this.#editor) && !this.#sending && this.#available(),
+            run: () => this.#commit(),
+          },
+          {
+            id: "draft.cancel",
+            reach: "in an open draft editor",
+            keys: ["Escape"],
+            control: () => this.#control("cancel"),
+            decision: true,
+            title: "Discard",
+            when: () => Boolean(this.#editor),
+            run: () => this.#close(true),
+            keep: () => this.#commit(),
+          },
+        ],
+      };
+      this.lfCommands = this.#commands;
       this.dispatchEvent(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
@@ -400,7 +394,7 @@ customElements.define(
 
     // The draft as the rest of the chrome names it, never by its id.
     #named() {
-      const label = addressableLabel(this);
+      const label = nameOf(this);
       return label ? `“${label}”` : `the ${addressableWord(this)}`;
     }
 
@@ -427,7 +421,7 @@ customElements.define(
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.defer();
-      const editor = offer(TEXT_FIELD, "lf-draft-edit");
+      const editor = offer("leaf-text", "lf-draft-edit");
       editor.dataset.lfRuntime = "";
       // It stands where the prose did, so it reads in the prose's faces.
       editor.facesOf = this.#body;
@@ -447,7 +441,7 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      editor.lfCommands = this.#commandScope;
+      editor.lfCommands = this.#commands;
       this.#body.after(editor);
       editor.dispatchEvent(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
@@ -558,8 +552,8 @@ customElements.define(
       }
     }
 
-    // The body `render` painted draws its code and formulas once it stands
-    // (module-state.md, "The widget controller").
+    // The body `render` painted draws its code and formulas once it stands, and the
+    // update waits for them (lib/leaf-element.js, `pending-task`).
     /** @param {Map<PropertyKey, unknown>} changed */
     updated(changed) {
       super.updated(changed);

@@ -386,13 +386,10 @@ const widgetObligation = keptEach(
  * @returns {ObligationLists}
  */
 function normalizedObligations(obligations, widgets, descriptors, pendingWithdrawals) {
-  /** @type {Map<string, import("../../types/domain.js").ClassifiedEntry[]>} */
-  const withdrawing = new Map();
-  for (const withdrawal of pendingWithdrawals.values()) {
-    const widget = withdrawal.e.widget;
-    if (widget !== undefined)
-      withdrawing.set(widget, [...(withdrawing.get(widget) ?? []), withdrawal]);
-  }
+  const withdrawing = Map.groupBy(
+    pendingWithdrawals.values(),
+    (withdrawal) => withdrawal.e.widget,
+  );
   const all = (obligations ?? []).map(
     /** @returns {ObligationRecord} */ (item) => {
       if (!hasObligationSource(item, "widget")) return item;

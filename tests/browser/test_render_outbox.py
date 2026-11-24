@@ -1530,7 +1530,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { LeafElement } from "/runtime/widget-api.js";
+        """import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-outer-board", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -2939,10 +2939,8 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
@@ -2950,14 +2948,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         },
         layer_widgets={
             "lf-preparation.js": """
-import {widgetController} from '/runtime/widget-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    widgetController(this).present(fetch('/preparation-content').then(() => {
+    this.dispatchEvent(new PendingTaskEvent(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
-    }));
+    })));
   }
 });
 """

@@ -3702,10 +3702,8 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-decoration id="decoration"></lf-decoration>',
@@ -5217,10 +5215,8 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
 LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
-        "type": "object",
         "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "shadow": True,
@@ -5621,7 +5617,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.set_viewport_size({"width": 900, "height": 600})
-    # A draft written on the passage, which the page opens again as it loads.
+    # A draft written on the passage, which the page opens again on a visit.
     page.evaluate(
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
@@ -5637,7 +5633,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         }"""
     )
     page.add_init_script(script=HEARD_AS_IT_STARTS)
-    page.reload()
+    page.goto(page.url)
     try:
         expect(page.locator(".lf-composer")).to_be_visible()
     except AssertionError as closed:

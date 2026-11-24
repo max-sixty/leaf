@@ -22,7 +22,7 @@
    travel, for its own box and those inside it. An end that leaves the box where
    its last one did, as Firefox sends after a layout move, chose nothing. A place
    keeper's write returns the reader to a place they already had (reading-place.js,
-   `restorePlace`; user-place.js, `holdPlace`; continuity's move of the page with its
+   `restorePlace`; user-place.js, `returnPlace`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
    is the keeper's. An explicit landing counts from its start (`startScroll`), even
    when instant, since layout it caused can be announced before its sequence ends.

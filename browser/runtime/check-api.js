@@ -40,7 +40,8 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export { uiInside } from "./ui-marks.js";
+export { inChrome, uiInside } from "./ui-marks.js";
+export { anchoringIsReady } from "./anchor-resolution.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { NOTICE_MS, notice } from "./notifications.js";
@@ -110,7 +111,7 @@ export {
   placeNode,
 } from "./reading-place.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
-export { walkPosition } from "./walk-position.js";
+export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
 export {
   closeNativeLayer,

@@ -5,9 +5,11 @@
  * `<figcaption>`. The user chose this, as for option and board cards (lf-options.js):
  * a name Leaf reads is data apart from any title the page shows. The inline modes need
  * no controller; the registry owns their quotation semantics.
- * The shared host owns the child page and its independent event log. The frame
- * takes its child's height, so the surrounding page scrolls the sample like any
- * other block and focus moves into it the way it moves into any iframe. A `window`
+ * The shared host owns the child page, its independent event log and the frame's
+ * height (sample.js): the frame takes its child's height, so the surrounding page
+ * scrolls the sample like any other block and focus moves into it the way it moves into
+ * any iframe, and a resize the reader did not ask for waits while it would move what
+ * they see. A `window`
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
  * final Escape brings focus back to this element. Full view promotes the same frame
@@ -21,21 +23,12 @@
  * when that opens. Until then nothing loads, the frame keeps its placeholder height
  * and the status line stays empty, so starting moves nothing; `ready` waits, and
  * Reset starts the child. The browser's Find searches only the children that have
- * started. A frame the reader sees as it mounts starts at once, and the containing
- * page presents before it unless the frame's resize on arrival would move what the
- * reader sees, waiting only while it still would. The sample's arrival is its child's,
- * which the host counts (sample.js); a frame waiting to start counts until the
- * browser's first reading of it has said whether it starts (`whenNear`). A resize of
- * a child the reader did not ask to load, one that started near the window but out of
- * their sight, waits while it would move what they see, the frame keeping its current
- * height (`heldGrowth`), until they look away, or until they click, type or press a
- * key inside the child, which makes every later resize of that document theirs,
- * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
- * page, or one of a frame the reader saw as it mounted or as it started, as when a
- * tab, a link or a jump brings it into view, is theirs and applies at once. The user
- * chose to fit a frame they bring into view to its page as soon
- * as the page draws, over keeping its placeholder height until they look away or
- * click into it, which left a short page standing in a blank frame. The status line
+ * started. A frame the reader sees as it mounts starts at once, in the task that
+ * shows it to them, the page arriving or a view they opened: the host makes that
+ * showing wait for the frame's fit to its child only where it starts in that task.
+ * The sample's arrival is its child's,
+ * which the host counts; a frame waiting to start counts until the
+ * browser's first reading of it has said whether it starts (`whenNear`). The status line
  * keeps its room through loading, ready and failure, so the frame below it stays put; a
  * failure's words that run past it stand in a disclosure the reader opens over the
  * frame.
@@ -45,15 +38,11 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  frameFor,
   growthIsSeen,
   whileConnected,
   mountSample,
-  widgetController,
   focusDestination,
-  heldGrowth,
   whenNear,
-  whenNone,
 } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
@@ -100,24 +89,6 @@ export class Sample extends HTMLElement {
   }
   /** @type {HTMLDetailsElement | null} */
   #disclosure = null;
-  /** @type {number | undefined} */
-  #heightReading;
-  // Settles what `#start` returns: the frame's first fit to its child.
-  /** @type {(() => void) | null} */
-  #fitted = null;
-  #fit = () => {
-    this.#frame.style.height = `${this.#heightReading}px`;
-    this.#fitted?.();
-    this.#fitted = null;
-  };
-  #scheduleFit = frameFor(this, this.#fit);
-  // Drops a resize `heldGrowth` holds.
-  /** @type {(() => void) | null} */
-  #heldFit = null;
-  // Whether the current document's resizes wait while seen until the reader claims
-  // it, and whether the reader asked for the load.
-  #unclaimed = false;
-  #asked = false;
   /** @type {{source: Promise<SampleReady>, ready: Promise<SampleReady>} | null} */
   #following = null;
   get #ready() {
@@ -176,34 +147,20 @@ export class Sample extends HTMLElement {
     if (!this.#pageView || this.#host || this.#mounting || this.#nearing) return;
     // A frame the reader sees as it mounts is part of what they are being shown, the
     // page arriving or a view they opened, such as a thread in the floating panel: it
-    // starts at once, and that showing waits for its resize to its child.
-    if (this.#seen()) {
-      this.#start(true, { present: true });
+    // starts at once, in the task that shows it, so that showing waits for its resize
+    // to its child (sample.js). Any other starts as it nears the window. A window
+    // keeps its height.
+    if (!this.hasAttribute("window") && !this.#modal && growthIsSeen(this.#frame)) {
+      this.#start();
       return;
     }
-    // One the reader sees as it starts, brought into view by a tab, a link or a jump,
-    // is theirs too, and fits its page as soon as that draws; `whenNear` holds the fit
-    // as the landing of the gesture that brought it near. One that starts near the
-    // window but out of their sight arrives as news, and lands nothing they see.
     this.#nearing = whenNear(this.#frame, () => {
       this.#nearing = null;
-      const asked = this.#seen();
-      const fitted = this.#start(asked);
-      return asked ? fitted : undefined;
+      this.#start();
     });
   }
 
-  // Whether the frame's resize to its child would move what the reader sees now. A
-  // window keeps its height.
-  #seen() {
-    return !this.hasAttribute("window") && !this.#modal && growthIsSeen(this.#frame);
-  }
-
-  // Start the child. Its resize on arrival applies at once where the reader `asked`
-  // for it, and otherwise waits while they see it (`#height`). Returns the frame's
-  // first fit to its child, or its readiness settling where it fits nothing then.
-  /** @param {boolean} asked @returns {Promise<unknown>} */
-  #start(asked, { present = false } = {}) {
+  #start() {
     this.#mounting = true;
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
@@ -218,13 +175,6 @@ export class Sample extends HTMLElement {
           throw new DOMException("sample disconnected", "AbortError");
         }
         this.#host = host;
-        host.on("height", ({ height }) => this.#height(height));
-        // A click, a key or text entered in the child claims the frame. A wheel, or a
-        // touch that scrolls, moves the containing page past it and claims nothing.
-        host.on("input", ({ type }) => {
-          if (type === "click" || type === "keydown" || type === "input")
-            this.#release();
-        });
         host.on("loading", () => {
           this.#focusedContent = false;
           this.#track(host.ready);
@@ -248,46 +198,12 @@ export class Sample extends HTMLElement {
       },
     );
     // A failed child is drawn by this widget's status and Reset. That is a
-    // completed parent rendering; the public sample.ready still rejects. A first
-    // document that departs before upgrading holds it until the next document,
-    // which a reload brings, or Reset: the parent cannot tell a reload from an
-    // external destination.
-    // The child's startup is another document's, and nothing in this page reads
-    // it, so presentation waits for it only where its arrival would move what the
-    // reader sees now. A window, and a frame below the window or scrolled past,
-    // let the page present and take keys without them while they load. The page
-    // reads as arriving until each started child has.
-    this.#asked = asked;
-    const following = this.#track(ready);
-    this.#starting.resolve(following);
-    const shown = following.catch(() => {});
-    /** @type {PromiseWithResolvers<void>} */
-    const { promise: fitted, resolve: fit } = Promise.withResolvers();
-    this.#fitted = fit;
-    const landing = Promise.race([fitted, shown]);
-    if (!asked) return landing;
-    // What the reader asked with, the page's presentation or the gesture that brought
-    // the frame near, waits for the frame only while they see it: once they look away
-    // its fit moves nothing they see. In Chromium a child whose arrival waits on a
-    // rendering gets none while its frame is off screen (notes/browser-support.md, "A
-    // sample's page out of view in Chromium"), so without that end a reader who
-    // scrolled past the frame as it loaded would hold the page until they came back.
-    const away = this.#lookAway(landing);
-    if (present) widgetController(this).present(Promise.race([shown, away]));
-    return Promise.race([landing, away]);
-  }
-
-  // Resolves once the reader looks away from the frame before `landing`, its first fit
-  // to its child.
-  /** @param {Promise<unknown>} landing @returns {Promise<void>} */
-  #lookAway(landing) {
-    return new Promise((resolve) => {
-      const stop = whenNone([this.#frame], growthIsSeen, () => {
-        stop();
-        resolve();
-      });
-      landing.then(stop);
-    });
+    // completed parent rendering; the public sample.ready still rejects. The child's
+    // startup is another document's, and nothing in this page reads it: a window, and
+    // a frame below the window or scrolled past, let the page present and take keys
+    // without them while they load. The page reads as arriving until each started
+    // child has.
+    this.#starting.resolve(this.#track(ready));
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded
@@ -370,8 +286,6 @@ export class Sample extends HTMLElement {
   #return() {
     this.#embed();
     focusDestination(this.#full, "return");
-    if (this.#heightReading !== undefined)
-      this.#height(this.#heightReading, { immediate: true, asked: true });
   }
 
   #embed() {
@@ -395,36 +309,9 @@ export class Sample extends HTMLElement {
 
   /** @param {boolean} value */
   #setWindow(value) {
-    this.#host?.setWindow(value).then(
-      ({ height }) => this.#height(height, { asked: true }),
-      (/** @type {unknown} */ error) => this.#failure(error),
-    );
-  }
-
-  // The child owns its body observer and reports values over the private port.
-  // Full view retains the embedded height while its same frame fills the dialog;
-  // returning applies the current block reading without replacing any native editor.
-  // An unclaimed child's reading waits while its resize would be seen, unless
-  // the reader `asked` for it, by Reset or Return to page.
-  /** @param {number} height */
-  #height(height, { immediate = false, asked = false } = {}) {
-    if (this.hasAttribute("window") || this.#modal) return;
-    this.#heightReading = height;
-    this.#heldFit?.();
-    this.#heldFit = null;
-    const fit = immediate ? this.#fit : this.#scheduleFit;
-    if (this.#unclaimed && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
-    else fit();
-  }
-
-  // The reader's click or key inside the child makes the frame theirs to move: a
-  // resize held while they read applies now, and so does each later one.
-  #release() {
-    this.#unclaimed = false;
-    if (!this.#heldFit) return;
-    this.#heldFit();
-    this.#heldFit = null;
-    this.#fit();
+    this.#host
+      ?.setWindow(value)
+      .catch((/** @type {unknown} */ error) => this.#failure(error));
   }
 
   // Cancellation is this widget's own, and the departed notice draws a departure.
@@ -461,19 +348,16 @@ export class Sample extends HTMLElement {
   #track(promise) {
     keeps(this.#reset, "aria-disabled", "true");
     this.#say("Loading sample…");
-    this.#unclaimed = !this.#asked;
-    this.#asked = false;
     return this.#follow(promise);
   }
 
   // One `ready` per usable document the host promises, so a departure and the reload
-  // that follows it are one wait for a selection or a page module. The reading gives
-  // the document's height and posture, so the sample draws the document ready in the
-  // turn the host learns it is, before the document reports its arrival, which the host
-  // counts until then (sample.js). A command to the document awaited first would let
-  // the page read arrived while the sample still drew it loading. A posture the
-  // document doesn't stand in yet, as one changed while the host was mounting, reaches
-  // it now.
+  // that follows it are one wait for a selection or a page module. The sample draws
+  // the document ready in the turn the host learns it is, before the document reports
+  // its arrival, which the host counts until then (sample.js). A command to the
+  // document awaited first would let the page read arrived while the sample still drew
+  // it loading. A posture the document doesn't stand in yet, as one changed while the
+  // host was mounting, reaches it now.
   /** @param {Promise<SampleReady>} promise */
   #follow(promise) {
     if (promise === this.#following?.source) return this.#following.ready;
@@ -481,7 +365,6 @@ export class Sample extends HTMLElement {
       if (this.#ready !== ready) return reading;
       const asWindow = this.hasAttribute("window") || this.#modal;
       if (reading.block === asWindow) this.#setWindow(asWindow);
-      else this.#height(reading.height, { immediate: true });
       keeps(this.#reset, "aria-disabled", null);
       this.#say("");
       this.dispatchEvent(
@@ -536,10 +419,9 @@ export class Sample extends HTMLElement {
       if (!this.#pageView) return this.ready;
       this.#nearing?.();
       this.#nearing = null;
-      this.#start(true);
+      this.#start();
       return this.#ready;
     }
-    this.#asked = true;
     return this.#track(this.#host.reset());
   }
 }

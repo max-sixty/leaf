@@ -166,7 +166,7 @@ function actionWords(event, gesture) {
     case "choice":
       return `chose ${gesture.chosen.map((words) => quoted(words)).join(", ") || "nothing"} in ${widget}`;
     case "move":
-      return `moved ${quoted(gesture.unit)} to ${quoted(gesture.to)} in ${widget}`;
+      return `moved ${quoted(gesture.unit)}${gesture.to ? ` to ${quoted(gesture.to)}` : ""} in ${widget}`;
     case "edit":
       return `edited ${widget}`;
     case "add":
@@ -468,9 +468,7 @@ export function createUndo({
     // Back returns to where the user was reading.
     const url = new URL(window.location.href);
     url.hash = place.fragment;
-    if (window.navigation)
-      return window.navigation.navigate(url.href).finished.catch(() => {});
-    window.location.assign(url);
+    return window.navigation.navigate(url.href).finished.catch(() => {});
   }
 
   // Tint what taking `event` back changed, as the page draws it now (the header): the

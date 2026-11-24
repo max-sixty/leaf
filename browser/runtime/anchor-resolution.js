@@ -16,7 +16,6 @@ import {
   targetElement,
   passageGeometry,
 } from "./resolved-target.js";
-import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { declaredRoot, queryAllUnder } from "./shadow.js";
@@ -33,14 +32,14 @@ import {
   visualPartFocus,
   visualPartAdmission,
   declaredVisuals,
+  layoutsChanged,
 } from "./visual-parts.js";
 import {
   blockAt,
   AROUND,
-  cut,
   contextAround,
-  neighbourhood,
   pageText,
+  passageContext,
   readingPart,
   readingFrom,
   runReading,
@@ -49,20 +48,20 @@ import {
   segmentsIn,
   textNodesUnder,
   quoteFrom,
-  spanIn,
   DATUM,
   elementById,
   excerpt,
   findQuote,
   fileModelsPassage,
   leafSurface,
+  pageDocument,
   pageQueryAll,
   settledAway,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { authoredElement } from "./references.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
-import { layoutsChanged } from "./widget-upgrade.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   accessibleName,
@@ -299,7 +298,7 @@ const outermostAcross = (element, selector) => {
 // panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
 // pictures (widget-elements.js, PRESSES). What makes a press, such as a role, is not
 // what the page's reading hears, so it follows the document changing
-// (`documentChanged`) and a widget's layout (widget-upgrade.js, `layoutsChanged`).
+// (`documentChanged`) and a widget's layout (visual-parts.js, `layoutsChanged`).
 /** @param {Element} element */
 const claimsVisualGesture = (element) => {
   documentChanged();
@@ -522,39 +521,11 @@ export function anchorForPassage(selected, node) {
       ? runReading(first, last)
       : pageText();
   const base = projected || { section };
-  const [start, stop] = spanIn(reading, segments);
-  for (let width = CONTEXT; ; width *= 2) {
-    const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
-    const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
-    const anchor = {
-      ...base,
-      quote,
-      ...(prefix && { prefix }),
-      ...(suffix && { suffix }),
-    };
-    const resolved = resolveAnchor(anchor);
-    if (resolved?.exact && resolved.kind === "passage") {
-      // Quotes discard boundary whitespace. Compare the characters the passage
-      // reader retained, rather than demanding the drag's cosmetic spaces survive.
-      const first = resolved.segments[0];
-      const last = resolved.segments.at(-1);
-      const from = units[0]?.start;
-      const to = units.at(-1)?.end;
-      if (
-        first &&
-        last &&
-        from &&
-        to &&
-        first.node === from.node &&
-        first.start === from.offset &&
-        last.node === to.node &&
-        last.end === to.offset
-      )
-        return anchor;
-    }
-    if ([...prefix].length < width && [...suffix].length < width)
-      return { ...anchor, detached: true };
-  }
+  const context = passageContext(reading, segments, units, (context) => {
+    const resolved = resolveAnchor({ ...base, quote, ...context });
+    return resolved?.exact && resolved.kind === "passage" ? resolved.segments : [];
+  });
+  return { ...base, quote, ...context };
 }
 
 // Design names the authored interface, including an agent-authored widget in a Leaf
@@ -1103,20 +1074,21 @@ export function resolveAnchor(anchor) {
 const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
 
 // What a fragment names (anchor-coordinate.js, `fragmentKey`): the element whose id it
-// spells, read as the anchor `{section}` is, so an id in chrome, in a message's own
-// markup, or on content a revision settled away names nothing here. Failing that, a
-// widget and a key, whose `place` is the element the key addresses under the widget
-// (`addressedElements`) or null until the widget draws it (`revealAddressed`). A
-// fresh load's arrival, a followed link, Back and Forward, and a reply's reference all
-// read their destination through this.
+// spells, as `named` finds one, which by default reads the id as the anchor `{section}`
+// is, so content a revision settled away names nothing. Failing that, a widget and a
+// key, whose `place` is the element the key addresses under the widget
+// (`addressedElements`) or null until the widget draws it (`revealAddressed`). A fresh
+// load's arrival, a followed link, Back and Forward, and a reply's reference all read
+// their destination through this.
 /** @param {string | null | undefined} fragment
+ * @param {(id: string) => Element | null} [named]
  * @returns {{element: Element, key: string | null, place: Element | null} | null} */
-export function fragmentAddress(fragment) {
+export function fragmentAddress(fragment, named = pageElement) {
   if (!fragment) return null;
-  const named = pageElement(fragmentId(fragment));
-  if (named) return { element: named, key: null, place: named };
+  const whole = named(fragmentId(fragment));
+  if (whole) return { element: whole, key: null, place: whole };
   const keyed = fragmentKey(fragment);
-  const element = keyed && pageElement(keyed.id);
+  const element = keyed && named(keyed.id);
   if (!keyed || !element) return null;
   return {
     element,
@@ -1132,4 +1104,27 @@ export function fragmentAddress(fragment) {
 export function fragmentTarget(fragment) {
   const address = fragmentAddress(fragment);
   return address ? (address.place ?? address.element) : null;
+}
+
+// The element an address a package module holds names (widget-api.js, `elementById`):
+// an id, or a widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
+// it) or bare, as `fragmentTarget` reads it. Each id is looked up as `from` gives it
+// (references.js, `authoredElement`), in `from`'s own message first and then the page,
+// so a copy of a page id that Leaf draws in a reply never answers for the page's own.
+// An id neither holds names what the whole document holds, as a fragment's arrival
+// reads it: a widget in a reply Leaf draws, which every count of a region's
+// obligations places where the reply stands (obligations/place.js). Content a
+// revision settled away names nothing, as for a fragment.
+/** @param {string | null | undefined} address @param {Node | null} [from] */
+export function elementNamed(address, from = null) {
+  if (!address) return null;
+  // A bare address is read as the fragment that spells it, each `%` kept.
+  const fragment = address.startsWith("#")
+    ? address
+    : `#${address.replaceAll("%", "%25")}`;
+  const found = fragmentAddress(fragment, (id) => {
+    const element = authoredElement(id, from ?? pageDocument()) ?? elementById(id);
+    return element && !settledAway(element) ? element : null;
+  });
+  return found ? (found.place ?? found.element) : null;
 }

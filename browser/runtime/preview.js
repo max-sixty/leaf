@@ -30,7 +30,10 @@
      and left as they are where they come back the same: `{name, keys, detail, list,
      at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
-     accessible name where that says more than the face should; `at` is where to stand,
+     accessible name where that says more than the face should; `keys` are presses the
+     control's own chips leave out, as a grip's activation keys or the keys of a Go-to
+     door, each the bindings of its steps, which the face spells as it spells those
+     chips (`lines`); `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `about` is what it
      is about, which it leaves in view as it does the box it stands by, as a margin
@@ -42,13 +45,13 @@
      for the rest, as "and 26 more threads" (`fit`), where another preview's last line
      that fits ends in an ellipsis. When what it says changes under an aim
      that stays inside the element, as a chart's point, it says so (`lf-preview`,
-     widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
-     on the element or a finger holding it reads it; a preview the user put away stays
-     away, whatever the element declares, until they aim again. When its preview goes,
-     whatever puts it away, the pointer or focus leaving, the press after a finger's
-     hold, Escape or another target's taking its place, though not while a focus
-     reading is only suspended out of sight, the element hears `lf-preview-ended`
-     (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
+     lib/widget-events.js), and a standing preview redraws in place, or a pointer
+     resting on the element or a finger holding it reads it; a preview the user put
+     away stays away, whatever the element declares, until they aim again. When its
+     preview goes, whatever puts it away, the pointer or focus leaving, the press
+     after a finger's hold, Escape or another target's taking its place, though not
+     while a focus reading is only suspended out of sight, the element hears
+     `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
      `detail.declared` is what its `lfPreview` returned for the reading that ended, the
      last it returned while that preview stood, a new object for each reading, so a mark it drew for that reading, as a
      chart's ring on its point, comes off then, and one it drew for a reading it has
@@ -244,9 +247,7 @@
    hit tests for its side, never the page's elements (root AGENTS.md,
    "Responsiveness"). The target a finger held wears `data-lf-touch-held` while its
    preview stands, so its surface can keep it where the finger held it (margin-layout.js,
-   `HELD`). The mark is the finger's alone: a thread's hold on an element is
-   `data-lf-held` (thread/presentation.js), and each pass that writes one clears it
-   from elements it no longer holds.
+   `HELD`).
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
    holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.
@@ -308,7 +309,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { drawnKeys } from "./keyboard/command-hints.js";
-import { advertisesKeys } from "./keyboard/bindings.js";
+import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
@@ -323,7 +324,7 @@ import {
   renderedUnder,
   under,
 } from "./lib/shadow-tree.js";
-import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
+import { PREVIEW, PREVIEW_ENDED } from "./lib/widget-events.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
 import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";
@@ -853,10 +854,10 @@ function lines(declared, own) {
   const keys = advertisesKeys()
     ? [
         ...new Map(
-          [...(declared?.keys ?? []), ...(own.keys ?? [])].map((steps) => [
-            steps.join(" "),
-            steps,
-          ]),
+          [
+            ...(declared?.keys ?? []).map((press) => press.map(spell)),
+            ...(own.keys ?? []),
+          ].map((steps) => [steps.join(" "), steps]),
         ).values(),
       ]
     : [];

@@ -614,7 +614,7 @@ passes, since its arrival sets the frame's height (`browser/runtime/sample.js`),
 `page check --render` scrolls each frame still waiting into view
 (`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
 holds the page's presentation, or the jump that showed it, only while they still see
-its frame (`packages/default/widgets/lf-sample.js`). Recheck with
+its frame (`browser/runtime/sample.js`). Recheck with
 `tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
@@ -1250,16 +1250,17 @@ In Playwright's Firefox 159.0 (build 1572, macOS), after Back from a same-docume
 entry a followed fragment link added, `navigation.entries()` no longer lists that
 entry, and Forward to it fires a `traverse` navigate event whose `destination.key` is
 empty and `destination.index` is -1; once applied, `navigation.currentEntry` is null.
-Stock Firefox 160.0 (macOS) and Chromium 156 name the entry. So in the test engine
-`browser/runtime/history.js` finds no working-place checkpoint for Forward: it
-restores only the browser's saved offset and leaves focus on `body`. The entry's URL
-still names the thread view it shows (`?thread=`, `thread/address.js`), so the view
-opens or goes as in Chromium. Observed 2026-11-21 on the installed test engine, and
-2026-11-22 in stock Firefox 160 through Marionette; disposition: recorded, not
-corrected, since no stable release shows it. To recheck, follow a fragment link, go
-Back, and read `destination.key` in Forward's `navigate` event:
+Stock Firefox 160.0 (macOS) and Chromium 156 name the entry. Observed 2026-11-21 on
+the installed test engine, and 2026-11-22 in stock Firefox 160 through Marionette;
+disposition: no longer reproduces. On 2026-11-22 a probe of the same steps in build
+1572 (`leaf-dev probe --browser firefox`, a followed fragment link, Back, Forward)
+named Forward's destination, `key` set and `index` 1, and returned the record history
+wrote to it, and `browser/runtime/history.js` now reads an entry's record from
+`destination.getState()` rather than by key.
 `tests/browser/navigation/test_threads.py::test_back_and_forward_show_the_thread_each_entry_names`
-asserts focus after Forward in Chromium only.
+asserts focus after Forward in Chromium and Firefox. To recheck, follow a fragment
+link, go Back, and read `destination.key` and `destination.getState()` in Forward's
+`navigate` event.
 
 ### Firefox drops focus as it applies a same-document traversal
 

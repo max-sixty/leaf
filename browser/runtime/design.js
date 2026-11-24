@@ -4,7 +4,7 @@ import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { shownBox } from "./geometry.js";
 import { layoutPx } from "./lib/keeps.js";
 import { paintSet } from "./target-paint-geometry.js";
-import { el } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
 import { tabStore } from "./tab-store.js";
 import {
   isAddressable,

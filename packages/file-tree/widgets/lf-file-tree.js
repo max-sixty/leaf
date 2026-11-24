@@ -19,15 +19,14 @@
  */
 import { render } from "/vendor/lit.js";
 import {
-  commandScope,
   focusDestination,
   navigateToDatum,
-  LeafElement,
   onCurrentLocation,
   scrollIntoView,
   shadowStage,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer } from "/runtime/lib/controls.js";
 import { PRESS } from "/runtime/lib/keys.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -169,21 +168,25 @@ class FileTreeWidget extends LeafElement {
           missing: `${file.path} is no longer available.`,
         });
     };
-    const fileActions = commandScope("In files", [
-      {
-        id: "files.open",
-        title: "Open file or toggle folder",
-        keys: PRESS,
-        when: focusedRow,
-        run: () => activate(true),
-      },
-      {
-        id: "files.walk",
-        title: "Move among files and folders",
-        keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
-        when: focusedRow,
-      },
-    ]);
+    /** @type {HTMLElement["lfCommands"]} */
+    const fileActions = {
+      title: "In files",
+      rows: [
+        {
+          id: "files.open",
+          title: "Open file or toggle folder",
+          keys: PRESS,
+          when: focusedRow,
+          run: () => activate(true),
+        },
+        {
+          id: "files.walk",
+          title: "Move among files and folders",
+          keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
+          when: focusedRow,
+        },
+      ],
+    };
     this.lfCommands = fileActions;
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
@@ -197,7 +200,25 @@ class FileTreeWidget extends LeafElement {
       // press's mousedown, and a reveal there would move the row from under the
       // pointer before the mouseup, which would fall on another row and open neither.
       const stopCurrentLocation = onCurrentLocation(
-        (/** @type {Element | null} */ row, cause) => {
+        (
+          /** @type {Element | null} */ row,
+          cause,
+          /** @type {Element | null} */ left,
+        ) => {
+          // Only the focused row carries the rows' scope. Its `when` reads focus
+          // anywhere in this tree, and Leaf reads a scope's rows again only as focus
+          // moves into, out of or within that scope, so a row focus has left would
+          // go on naming its keys as they stood when focus left it.
+          if (
+            left !== row &&
+            left?.getAttribute("role") === "treeitem" &&
+            left.lfCommands === fileActions
+          ) {
+            left.lfCommands = null;
+            left.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
+          }
           // A route to this navigator lands on its usable entry control.
           if (row === this) {
             const input = root.querySelector("input");

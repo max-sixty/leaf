@@ -112,6 +112,8 @@ import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
+import { nameIn, namedIn } from "./carry.js";
+import { renderedUnder } from "./lib/shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
@@ -136,7 +138,8 @@ import { signal } from "./framework.js";
  * @typedef {import('./focus.js').Caret} Caret
  * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
  * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
- * resume: (() => EditorDestination | null) | null, closed: () => boolean}} DraftEditor */
+ * resume: (() => EditorDestination | null) | null, closed: () => boolean,
+ * box: () => Element | null}} DraftEditor */
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches
@@ -979,8 +982,9 @@ const openedFrom = new Map();
 // for settlement. Editor membership is mechanical: connected root editors recover
 // by context, and retained reply mirrors land through their current thread owner.
 // Unsubscribing retires that membership alongside the listener. A subscription also
-// says whether its box takes words now (`closed`), which a wired box's wiring answers
-// (`mirrorDraft`), so Resume writing asks the editor it reaches.
+// says whether its box takes words now (`closed`) and which box its words are written
+// in (`box`), which a wired box's wiring answers (`mirrorDraft`), so Resume writing and
+// history ask the editor they reach.
 //
 // It does not run on subscribe, which is where this parts company with controller state. The
 // draft a box opens with and the news that another tab changed one are different facts,
@@ -1279,14 +1283,16 @@ function moveToPage(ctx) {
 //
 // The command resumes the writing place; `resumeDraft` resumes the draft a press names,
 // as a row of Threads' Drafts does, at the caret the place last kept for it, else at its
-// words' end. Opening a draft is no content edit, so it leaves the writing place where
-// it was. Each travels to the draft, a Back step, except where the caller opens it
+// words' end, or on a control inside its box the route names (`control`), as history
+// returns the user to one (`draftFocus`). Opening a draft is no content edit, so it
+// leaves the writing place where it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
-/** @typedef {{travel?: boolean}} DraftRoute */
+/** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret, control?: import("./carry.js").FocusKey,
+ * intent?: ReturnType<typeof retainUserIntent>}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string) => Promise<boolean>}} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -1299,19 +1305,19 @@ export function createWritingResume({
       : Boolean(writingRoute(ctx)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
   const resume = () => (writingPlace ? resumeAt(writingPlace) : Promise.resolve());
+  // A route that names the caret, as a return to an entry the user left writing does
+  // (history.js), puts it there rather than where the words were last written.
   /** @param {string} ctx @param {DraftRoute} [route] */
-  const resumeDraft = (ctx, route = {}) =>
-    resumeAt(
-      [writingPlace, ...earlierPlaces].find((place) => place?.context === ctx) ?? {
-        context: ctx,
-        selection: atEnd(ctx),
-        generation: randomId(),
-      },
-      route,
-    );
+  const resumeDraft = (ctx, route = {}) => {
+    const place = [writingPlace, ...earlierPlaces].find(
+      (place) => place?.context === ctx,
+    ) ?? { context: ctx, selection: atEnd(ctx), generation: randomId() };
+    return resumeAt(route.caret ? { ...place, selection: route.caret } : place, route);
+  };
   /** @param {WritingPlace} place @param {DraftRoute} [route] @returns {Promise<void>} */
   const resumeAt = async (place, route = {}) => {
-    const intent = retainUserIntent();
+    // A route a restoration starts runs under its intent (history.js).
+    const intent = route.intent ?? retainUserIntent();
     let input;
     // A thread view holds its own drafts, which the thread's destination reveals.
     if (threadDraft(place.context))
@@ -1344,11 +1350,14 @@ export function createWritingResume({
       !editor?.closed() &&
       !("disabled" in field && field.disabled)
     ) {
+      const box = route.control ? (editor?.box() ?? null) : null;
+      const within = box && route.control ? namedIn(box, route.control) : null;
       // Coming back to the words is the user dealing with any error over them, as a
       // press on it is (errors.js, `passErrorsAt`).
       intent.handoff(() => {
         passErrorsAt(field);
-        focusDestination(field, "move", { caret: place.selection });
+        if (within && within !== box) focusDestination(within, "return");
+        else focusDestination(field, "move", { caret: place.selection });
       });
       return;
     }
@@ -1368,16 +1377,18 @@ export function createWritingResume({
   // box opens on its own record, as Resume writing opens it, and the user stands on the
   // box rather than in it (`standsOnDraft`), so a walk key goes on walking and `c` puts
   // the caret in the words. It answers whether the user arrived. Opening a draft is no
-  // content edit, so it leaves the writing place where it was.
-  /** @param {string} ctx */
-  const showDraft = async (ctx) => {
+  // content edit, so it leaves the writing place where it was. Back to such a stop opens
+  // the box where the user stands (`travel: false`, history.js).
+  /** @param {string} ctx @param {DraftRoute} [options] */
+  const showDraft = async (ctx, { travel = true, intent: asked } = {}) => {
     const route = writingRoute(ctx);
     if (!route) return false;
-    const intent = retainUserIntent();
+    const intent = asked ?? retainUserIntent();
     const frame = await arriveEditor(() => route(ctx), {
       intent,
       caret: null,
       onFrame: true,
+      travel,
     });
     return Boolean(frame) && intent();
   };
@@ -1415,6 +1426,36 @@ export function captureDraftEditing(at = focused()) {
       words: input.value,
       selection: readCaret(input),
       scroll,
+    };
+  }
+  return null;
+}
+
+// The draft focus is on, as history keeps it for an entry the user left writing
+// (history.js): its context, and the caret where focus is in its editor, or `box` where
+// the user stands on the box it is written in, as a walk leaves them
+// (`standsOnDraft`), or on a control inside it, as a drawing's Undo, which `control`
+// names within the box (carry.js, `nameIn`). A reply's mirror is its thread's, which
+// history names by the thread. The words stay in the drafts store, which brings them
+// back with the box.
+/** @param {Element | null} [at] @returns {{draft: string, caret?: import("./focus.js").Caret, box?: true, control?: import("./carry.js").FocusKey} | null} */
+export function draftFocus(at = focused()) {
+  const editing = captureDraftEditing(at);
+  if (editing && !editing.mirrored)
+    return {
+      draft: editing.context,
+      ...(editing.selection && { caret: editing.selection }),
+    };
+  if (!at) return null;
+  for (const view of draftEditors) {
+    if (view.mirrored) continue;
+    const box = view.box();
+    if (!box || !renderedUnder(at, box)) continue;
+    const frame = writingRoute(view.ctx)?.(view.ctx)?.frame?.();
+    return {
+      draft: view.ctx,
+      box: true,
+      ...(at !== frame && { control: nameIn(box, at) }),
     };
   }
   return null;
@@ -1472,13 +1513,19 @@ export function restoreDraftEditing(editing, input) {
 }
 
 /** @param {string} ctx @param {(value: string | null, payload?: DraftPayload) => void} callback
- * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null, closed?: () => boolean}} [options] */
+ * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null, closed?: () => boolean, box?: () => Element | null}} [options] */
 export function watchDraft(
   ctx,
   callback,
-  { input = null, mirrored = false, resume = null, closed = () => false } = {},
+  {
+    input = null,
+    mirrored = false,
+    resume = null,
+    closed = () => false,
+    box = () => null,
+  } = {},
 ) {
-  const editor = input && { ctx, input, mirrored, resume, closed };
+  const editor = input && { ctx, input, mirrored, resume, closed, box };
   if (editor) draftEditors.add(editor);
   /** @param {CustomEvent<DraftNews>} ev */
   const update = (ev) =>
@@ -1538,7 +1585,13 @@ export function mirrorDraft(
       sync.load(value ?? blank());
       onChange(value);
     },
-    { input: ta, mirrored, resume, closed: sync.closed },
+    {
+      input: ta,
+      mirrored,
+      resume,
+      closed: sync.closed,
+      box: () => sync.composition().frame,
+    },
   );
   return off;
 }

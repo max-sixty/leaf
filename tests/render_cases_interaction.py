@@ -652,13 +652,12 @@ MESSAGE_ROOM_PAGE = leaf_page(
 
 
 # What each item of the panel's On view says, as On Me's card or On <agent>'s line: its
-# obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
-# "agent" or "done"), its title, its prompt where its card is open, and what it says of
-# its ending (such as "Answered: …"), each null where the item has none, and its box.
+# obligation's id, the list it stands in ("you", "agent" or "done"), its title, its
+# prompt where its card is open, and what it says of its ending (such as "Answered: …"),
+# each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
     '.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving]) .lf-fp-on-item')].map((c) => ({
-  kind: JSON.parse(c.dataset.lfKey)[0],
-  id: JSON.parse(c.dataset.lfKey)[1],
+  id: c.dataset.lfKey,
   list: c.dataset.lfList,
   title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
     ?? null,
@@ -1305,21 +1304,17 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "description": "A proposal the user settles with one press and may talk over first in a seat "
     "of its own. `asks` opens the decision; the press settles it.",
     "attributes": {
-        "type": "object",
         "properties": {
             "asks": {"type": "boolean"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "verbs": {
         "settle": {
             "detail": {
-                "type": "object",
                 "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
                 "required": ["answer"],
-                "additionalProperties": False,
             },
             "unit": "widget",
         }

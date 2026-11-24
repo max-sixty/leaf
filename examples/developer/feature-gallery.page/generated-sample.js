@@ -36,11 +36,7 @@ whileConnected(section, (signal) => {
           await host.destroy();
           return;
         }
-        const fit = ({ height }) => {
-          frame.style.height = `${height}px`;
-        };
-        host.on("height", fit);
-        fit(await host.ready);
+        await host.ready;
         keepsText(status, "Choose a delivery in the sample.");
         remove.disabled = false;
       } catch (error) {

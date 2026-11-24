@@ -69,8 +69,8 @@
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
  * around the reader or opening out from them. Leaf's one hold keeps the place
- * (`holdPlace`, given the line's words by `readingAt`), since the browser's scroll
- * anchoring can't: Skim hides the block it anchors.
+ * (`holdPlace`), since the browser's scroll anchoring can't: Skim hides the block it
+ * anchors.
  *
  * The dial is a radio group of the three depths, Web Awesome's, the control every
  * choice among a few views takes, as a recording's scopes and an image pair's views
@@ -108,19 +108,18 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  addressableLabel,
+  nameOf,
   focusDestination,
   holdPlace,
-  LeafElement,
   motion,
   move,
   phrasing,
   onPress,
-  readingAt,
   shownWindow,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
@@ -890,7 +889,7 @@ customElements.define(
         this.#unfoldRun(marker, { pressed: true }),
       );
       button.lfPreview = () => {
-        const names = outermost(blocks).map(addressableLabel).filter(Boolean);
+        const names = outermost(blocks).map(nameOf).filter(Boolean);
         return names.length
           ? {
               list: {
@@ -948,16 +947,7 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      // The block holding the words at the line, since a fold replaces whole blocks:
-      // its gist lands where the block's top stood, line for line. A block that began
-      // above the window would take its gist out of sight with its top, 978px up for a
-      // paragraph of 2,700px, so its gist lands where the words read stood.
-      const words = readingAt(scope);
-      const at = words instanceof Range ? words.startContainer : words;
-      const block =
-        at && [...this.#blocks(scope, scope)].find((each) => each.contains(at));
-      const begun = block && block.getBoundingClientRect().top < shownWindow().top;
-      const hold = holdPlace(block && !begun ? block : words, (node) => {
+      const hold = holdPlace(scope, (node) => {
         const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
         return folded && owner.get(folded);
       });

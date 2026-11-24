@@ -14,7 +14,7 @@ import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
 import { reducedMotion } from "./motion.js";
 import { motionTime } from "./lib/motion-timing.js";
-import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { projectCommandScope, statedScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,
   commandBinding,
@@ -52,20 +52,23 @@ export const contributionOwnsCommand = (record) =>
   record !== undefined && commandEntries.has(record);
 // The key this module projects an entry's scope onto its control under.
 const CONTRIBUTION_ENTRY = Symbol("contribution entry");
+// An entry's scope: the one kept for its record, or the one its `scope` states, which
+// a package gives as the object its element holds as `lfCommands` (`statedScope`).
+/** @param {EntryInput} declared */
+const scopeOf = (declared) =>
+  commandScopes.get(declared) ??
+  (declared.scope == null ? undefined : statedScope(declared.scope));
 /** @template {object} R @param {R} record @param {EntryInput} declared */
 function bindScope(record, declared) {
-  const scope = commandScopes.get(declared) ?? declared.scope;
-  if (scope != null) commandScopes.set(record, scope);
+  const scope = scopeOf(declared);
+  if (scope) commandScopes.set(record, scope);
   if (contributionOwnsCommand(declared)) commandEntries.add(record);
   return record;
 }
 
 /** @param {EntryInput} offered */
 export function contributionEntry(offered) {
-  const scope = commandScopes.get(offered) ?? offered.scope;
-  if (scope != null && !isCommandScope(scope))
-    throw new TypeError("A margin entry scope needs a commandScope capability");
-  const command = entryCommand(scope, offered.activation);
+  const command = entryCommand(scopeOf(offered), offered.activation);
   if (command) commandEntries.add(offered);
   return bindScope(
     normalizeContributionEntry(
@@ -126,7 +129,7 @@ export function normalizeReading(reading, owner, previous = null) {
       prior &&
       contributionOwnsCommand(prior) &&
       entry.activation === prior.activation &&
-      (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)
+      scopeOf(entry) === commandScopes.get(prior)
     )
       commandEntries.add(entry);
     if (!isContributionEntry(entry)) return contributionEntry(entry);
@@ -179,12 +182,6 @@ export function contributionEntryRecord(control) {
   if (!record)
     throw new TypeError("A presented margin control needs a margin entry record");
   return record;
-}
-
-/** @param {Element} control */
-export function contributionControlKey(control) {
-  const { owner, key } = contributionEntryRecord(control);
-  return JSON.stringify([owner, key]);
 }
 
 /** @param {Element} control */
@@ -458,7 +455,9 @@ export const contributionHost = elementDirective(
 // A control's receipts are seat state, not entry semantics: the seat that shows a
 // control paints what its projection chose, on every pass, so a control keeps no
 // receipt from the seat or the projection it last stood in. Retained controls call
-// it directly; templates bind `${contributionReceipts(receipt, awaitsUser)}`.
+// it directly, or pass `receipt` and `awaitsUser` to `presentContributionEntry` where
+// they draw the entry in the same pass; templates bind
+// `${contributionReceipts(receipt, awaitsUser)}`.
 /** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
 export function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
@@ -471,13 +470,20 @@ export const contributionReceipts = elementDirective(
 
 // An entry's badges stand in one row on its top edge (`.lf-badges`, controls.css): the
 // unread dot, for agent content the user has not taken in (the same Thread `unread`
-// the panel paints), and its count where it stands for more than one.
+// the panel paints), and its count where it stands for more than one. Like `selected`,
+// each receipt (`presentContributionReceipts`), `receipt` and `awaitsUser`, is painted
+// where the options carry it, and otherwise left as the seat last painted it.
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
- * @param {HostOptions & {preview?: import("./preview.js").Read | null, unread?: boolean}} [options] */
+ * @param {HostOptions & {preview?: import("./preview.js").Read | null, unread?: boolean,
+ * receipt?: import("./framework/application.js").Workflow | null, awaitsUser?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
+  if (Object.hasOwn(options, "receipt"))
+    syncContributionAgentWorkflow(control, options.receipt);
+  if (Object.hasOwn(options, "awaitsUser"))
+    syncContributionTurn(control, Boolean(options.awaitsUser));
   // Its label is its preview, which a resting pointer, the keyboard and a finger
   // holding it read (`entryPreview`), unless its projection says what it opens more
   // fully, as a thread's entry previews its threads.
@@ -545,7 +551,7 @@ export function contributionControl(
 ) {
   const surfaces = presented.get(offered);
   /** @type {readonly Surface[]} */
-  const names = surface ? [surface] : ["margin", "page", "map", "inline"];
+  const names = surface ? [surface] : ["margin", "map", "inline"];
   for (const name of names) {
     const control = surfaces?.get(name)?.get(entryKey);
     if (control?.isConnected && (!visible || control.checkVisibility())) return control;

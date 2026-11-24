@@ -462,6 +462,7 @@ export function createPrimaryReader(
               settlement: () => null,
               move: () => null,
               whole: (part) => part,
+              controls: () => null,
             });
             /** @type {MessagePart} */
             const part = {

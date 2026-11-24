@@ -1468,10 +1468,12 @@ def heard_draft_settled(page, ctx: str) -> None:
     page.wait_for_function("([has, ctx]) => !has(ctx)", arg=[has, ctx])
 
 
-def write_draft_elsewhere(page, ctx: str, text: str) -> str:
+def write_draft_elsewhere(page, ctx: str, text: str, over: dict | None = None) -> str:
     """Write a new generation of the draft at `ctx` to the page's server, as another
-    tab or device would, over the one the server holds; return its attempt."""
-    current = stored_draft(page, ctx)
+    tab or device would, over the one the server holds, or over the record `over`
+    the test read before, which asks nothing of the page, as one mid-navigation can't
+    answer; return its attempt."""
+    current = over or stored_draft(page, ctx)
     attempt = os.urandom(16).hex()
     origin = urlsplit(page.url)
     answer = page.request.post(

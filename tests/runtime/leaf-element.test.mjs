@@ -7,9 +7,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/runtime/framework.js";
 import { html, nothing } from "/vendor/lit.js";
-import { LeafElement, shadowStage } from "/runtime/widget-api.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { focused, focusDestination } from "/runtime/focus.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
+import { showFailure } from "/runtime/lib/failure.js";
 import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
 import {
   applicationState,
@@ -451,7 +452,7 @@ test("a failed preparation stands beside the render root, which the next draw st
   document.body.append(element);
   await settled(element);
   // The controller shows a rejected `present()` on its owner, as here.
-  failSoftUnreported(element, new Error("could not prepare"));
+  showFailure(element, new Error("could not prepare"));
   assert.ok(element.part.isConnected);
   assert.match(element.textContent, /failed: could not prepare/);
   applicationState.setPhase("offline");
@@ -497,6 +498,8 @@ test("a draw reads again the keys of what it drew and around it, not of the page
       render() {
         return html`<button>Open</button><button>Close</button>`;
       }
+      // A subclass that leaves `super.updated()` out still has its keys read.
+      updated() {}
     },
   );
   const element = document.createElement(tag);

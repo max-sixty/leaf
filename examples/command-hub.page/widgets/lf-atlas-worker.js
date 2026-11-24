@@ -1,15 +1,8 @@
 /* Atlas owns roster composition. A visible report keeps its reading until the
  * user asks for the latest, while identity and state come from the public projection. */
 import { html, noChange } from "/vendor/lit.js";
-import {
-  ago,
-  HeldReading,
-  LeafElement,
-  readWork,
-  reportSequence,
-  reportsReady,
-  workAncestor,
-} from "/runtime/widget-api.js";
+import { ago, HeldReading, readReports, readWork } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-worker",
@@ -56,15 +49,14 @@ customElements.define(
     }
     render() {
       keeps(this, "state", this.state.state.value);
-      const worker = readWork(workAncestor(this, "scope")).workers.find(
-        (row) => row.element === this,
-      );
+      const worker = readWork(this).workers.find((row) => row.element === this);
       keepsText(
         this.querySelector(".atlas-worker-state"),
         `${worker.state}${worker.quiet ? " · quiet" : ""}`,
       );
-      if (!reportsReady(this)) return noChange;
-      const report = reportSequence(this).findLast(
+      const { phase, reports } = readReports(this);
+      if (phase !== "ready") return noChange;
+      const report = reports.findLast(
         (row) => row.source === "report" && row.disposition === "effective",
       );
       const next = JSON.stringify({

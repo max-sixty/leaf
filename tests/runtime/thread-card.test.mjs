@@ -18,7 +18,7 @@ test("a thread card's output updates its commands without invalidating its prese
   const model = {
     key: "card-presentation",
     id: "card-presentation",
-    summary: { topic: "A thread" },
+    name: "A thread",
     surface: "margin",
     messages: [],
     summaries: [],

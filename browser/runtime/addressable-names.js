@@ -25,7 +25,7 @@ export function addressableSays(addressable) {
 }
 
 // What names an element, where the authoring contract gives it a name
-// (`skills/leaf/references/module-reading.md`, "Naming elements"): the name its author
+// (`skills/leaf/references/module-reading.md`, "Naming"): the name its author
 // declares, else the caption HTML gives it. A widget the registry registers declares
 // its name in its `label` attribute (the registry's `$attributes`), as an option, a
 // card, a tab or a column does, and takes none from its markup. Plain markup is named

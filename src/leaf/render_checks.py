@@ -454,6 +454,7 @@ def wait_until_ready(
     caller opens the page at `asked_again`, or the page's one reload from the same
     server replaces the document the caller is still reading.
     """
+    from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     asked = {
@@ -482,6 +483,15 @@ def wait_until_ready(
             ).json_value()
         except PlaywrightTimeout:
             break
+        except PlaywrightError as error:
+            # The page may replace its document on the way to ready, as a revision
+            # that cannot be patched in does, between the standing the old document
+            # answered and the read of that answer. The wait goes on in the new one.
+            if _DOCUMENT_REPLACED not in str(error):
+                raise
+            standing = None
+            left = round((stalls - time.monotonic()) * 1000)
+            continue
         if standing in ("ready", "refused"):
             if fixed_server:
                 _refuse_unstarted(page)
@@ -503,6 +513,10 @@ def wait_until_ready(
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words}: no progress in {timeout_ms}ms")
+
+
+# The words of Playwright's error for a call whose document went away under it.
+_DOCUMENT_REPLACED = "Execution context was destroyed"
 
 
 def _refuse_unstarted(page) -> None:

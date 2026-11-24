@@ -5,9 +5,16 @@ sets its `state` and its bound `notes`, hears the `lf-action` a press dispatches
 reads each choice as a comment target from its `data-lf-part` mark
 (module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
-export.
+export. `tests/fixtures/packages/controls` holds two components with no code written
+for Leaf, each recorded because a declaration's `record` names the property that
+holds its value: Web Awesome's select, which the page writes inside the `lf-select`
+that keeps its value, and `lf-level`, a range that announces every change of its
+value, a script's set included. The starter `leaf package init --widget` writes is
+such an element too, tested here as the command writes it.
 """
 
+import pytest
+from click.testing import CliRunner
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -17,14 +24,18 @@ from render_harness import (
     holding,
     http_error_console,
     leaf_page,
+    navigate,
     open_page,
     round_trip,
     sending,
+    tab_onto,
+    told,
     undo,
     write,
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log
 from leaf.schema import PLUGIN_ROOT
@@ -32,6 +43,7 @@ from leaf.schema import PLUGIN_ROOT
 FIXTURES = PLUGIN_ROOT / "tests" / "fixtures" / "packages"
 VERDICT = FIXTURES / "verdict"
 SHORTLIST = FIXTURES / "shortlist"
+CONTROLS = FIXTURES / "controls"
 
 QUESTION = """
 <h1 id="title">Release 4.2</h1>
@@ -215,6 +227,53 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
     expect(ada).to_have_attribute("aria-pressed", "true")
 
 
+def test_the_starter_package_init_writes_draws_and_records(browser, serve, tmp_path):
+    """The widget `package init --widget` writes works as written: it draws its two
+    choices, a press shows as chosen and reaches the log, Undo takes it back, and a
+    quoted copy draws its choices disabled and records nothing."""
+    package = tmp_path / "starter"
+    made = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(package), "--widget", "lf-thing"]
+    )
+    assert made.exit_code == 0, made.output
+    markup = (
+        '<h1 id="title">Starter</h1><lf-thing id="thing"></lf-thing>'
+        '<lf-sample id="quoted" label="A quoted starter">'
+        '<lf-thing id="quoted-thing"></lf-thing></lf-sample>'
+    )
+    url = live_url(serve(leaf_page("Starter", markup), packages=(package,)))
+    page = open_page(browser, url)
+    yes, no = (
+        page.locator("#thing").get_by_role("button", name=name)
+        for name in ("Yes", "No")
+    )
+    expect(yes).to_have_attribute("aria-pressed", "false")
+    expect(no).to_have_attribute("aria-pressed", "false")
+
+    def chosen():
+        return [
+            (event["widget"], event["action"], event["detail"])
+            for event in event_log.read_events(serve.page_dir)
+            if event["kind"] == "action"
+        ]
+
+    with sending(page, "the choice"):
+        yes.click()
+    expect(yes).to_have_attribute("aria-pressed", "true")
+    assert chosen() == [("thing", "choose", {"value": "yes"})]
+
+    undo(page)
+    expect(yes).to_have_attribute("aria-pressed", "false")
+
+    quoted = page.locator("#quoted-thing").get_by_role("button", name="Yes")
+    expect(quoted).to_have_attribute("aria-disabled", "true")
+    # Playwright presses no disabled control, so the click is forced onto it.
+    quoted.click(force=True)
+    round_trip(page)
+    expect(quoted).to_have_attribute("aria-pressed", "false")
+    assert len(chosen()) == 1
+
+
 def test_a_plain_element_in_an_agent_s_reply_draws_and_records(browser, serve):
     """A reply's markup mounts after the page has started, inside the thread's shadow
     tree, on a page that holds no such element: the element there is set its recorded
@@ -262,3 +321,338 @@ def test_a_plain_element_in_an_agent_s_reply_draws_and_records(browser, serve):
         ("reply-verdict", "hold"),
         ("reply-verdict", "ship"),
     ]
+
+
+PLAN = """
+<h1 id="title">Seats</h1>
+<lf-group id="plan" label="Which plan?">
+  <p id="premise">Seats are billed monthly on every plan.</p>
+  <lf-select id="plan-choice">
+    <wa-select placeholder="Choose a plan">
+      <wa-option value="starter">Starter</wa-option>
+      <wa-option value="team">Team</wa-option>
+      <wa-option value="scale">Scale</wa-option>
+    </wa-select>
+  </lf-select>
+</lf-group>
+"""
+QUOTED_PLAN = """
+<lf-sample id="quoted-plan" label="A quoted choice">
+  <lf-select id="quoted-choice" value="starter">
+    <wa-select>
+      <wa-option value="starter">Starter</wa-option>
+      <wa-option value="team">Team</wa-option>
+    </wa-select>
+  </lf-select>
+</lf-sample>
+"""
+
+
+def chose(page_dir, value):
+    """Record a choice of plan as another tab's pick reaches the log."""
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "choose",
+            "detail": {"value": value},
+        },
+    )
+
+
+def chosen(page_dir):
+    return [
+        (event["widget"], event["detail"]["value"])
+        for event in event_log.read_events(page_dir)
+        if event["kind"] == "action" and event["action"] == "choose"
+    ]
+
+
+def pick(page, widget, value):
+    """Choose `value` in the select `widget` with the pointer. The select says
+    `change` once it has drawn the choice, after the press returns."""
+    select = page.locator(f"#{widget}")
+    select.get_by_role("combobox").click()
+    select.locator(f'wa-option[value="{value}"]').click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_component_with_no_code_for_leaf_records_what_its_declaration_names(
+    engine, serve, request
+):
+    """The select holds its value in `value` and says `change`. The `lf-select` round
+    it keeps that property on it, and the tag's `record` names the property. A pick by
+    pointer and one by keyboard are each recorded and answer the question on On Me, a
+    reload shows the recorded pick, and Undo takes it back and asks again. The select
+    stands under the library's own tag, where an option whose words change finds it,
+    so it shows the new words."""
+    url = live_url(serve(leaf_page("Seats", PLAN), packages=(CONTROLS,)))
+    page = open_page(request.getfixturevalue(engine), url)
+    select = page.locator("#plan-choice")
+    shown = select.get_by_role("combobox")
+    expect_obligations_answered(page, "0/1")
+
+    with sending(page, "the pick"):
+        pick(page, "plan-choice", "team")
+    assert chosen(serve.page_dir) == [("plan-choice", "team")]
+    expect_obligations_answered(page, "1/1")
+
+    select.locator('wa-option[value="team"]').evaluate(
+        "node => { node.textContent = 'Team, billed yearly'; }"
+    )
+    expect(shown).to_have_value("Team, billed yearly")
+
+    navigate(page, url)
+    expect(shown).to_have_value("Team")
+    expect_obligations_answered(page, "1/1")
+
+    undo(page)
+    expect(shown).to_have_value("")
+    expect_obligations_answered(page, "0/1")
+
+    tab_onto(shown)
+    page.keyboard.press("Enter")
+    expect(select.locator("wa-select")).to_have_js_property("open", True)
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    with sending(page, "the pick"):
+        page.keyboard.press("Enter")
+    expect(shown).to_have_value("Scale")
+    # The reload's set and the Undo's recorded nothing of their own.
+    assert chosen(serve.page_dir) == [("plan-choice", "team"), ("plan-choice", "scale")]
+    expect_obligations_answered(page, "1/1")
+
+
+def test_a_recorded_property_shows_what_the_page_holds(browser, serve):
+    """The element shows the recorded value whoever wrote it, and an event it
+    dispatches while its property reads that value, as a later answer to Leaf's set
+    does, records nothing. A change made where the user may not act, and one the
+    server refuses, returns to the recorded value. A value the user is still changing
+    survives a move of the reading that leaves the recorded value alone, and is
+    recorded once the element says `change`."""
+    url = live_url(serve(leaf_page("Seats", PLAN + QUOTED_PLAN), packages=(CONTROLS,)))
+    chose(serve.page_dir, "scale")
+    page = open_page(browser, url)
+    select, quoted = page.locator("#plan-choice"), page.locator("#quoted-choice")
+    expect(select).to_have_js_property("value", "scale")
+
+    chose(serve.page_dir, "starter")
+    told(page)
+    expect(select).to_have_js_property("value", "starter")
+    select.dispatch_event("change")
+
+    # The quoted select says `change` before the trip of the pick behind it ends.
+    pick(page, "quoted-choice", "team")
+
+    def refuse(route):
+        command = route.request.post_data_json
+        if command["kind"] != "action":
+            return route.continue_()
+        route.fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": command["attempt"],
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    page.route("**/api/event", refuse)
+    with sending(page, "the pick the server refuses"):
+        pick(page, "plan-choice", "team")
+    page.unroute("**/api/event")
+    consume_browser_errors(page, http_error_console(400))
+    assert select.evaluate("node => node.value") == "starter"
+    assert quoted.evaluate("node => node.value") == "starter"
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    pick(page, "plan-choice", "team")
+    holding(page, held, 1, "the pick whose delivery is held")
+    # A value still being changed, as a slider's is through a drag.
+    select.evaluate("node => { node.value = 'scale'; }")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert select.evaluate("node => node.value") == "scale"
+    with sending(page, "the value the user settled on"):
+        select.dispatch_event("change")
+    assert chosen(serve.page_dir) == [
+        ("plan-choice", "scale"),
+        ("plan-choice", "starter"),
+        ("plan-choice", "team"),
+        ("plan-choice", "scale"),
+    ]
+
+
+LEVEL = """
+<h1 id="title">Report</h1>
+<p id="premise">Set how much detail the report carries.</p>
+<lf-level id="detail" label="Detail" min="0" max="10" value="3"></lf-level>
+"""
+
+
+def levels(page_dir):
+    return [
+        event["detail"]["value"]
+        for event in event_log.read_events(page_dir)
+        if event["kind"] == "action" and event["action"] == "set"
+    ]
+
+
+def test_what_an_element_says_from_inside_leaf_s_set_is_not_the_user_s_act(
+    browser, serve
+):
+    """The range keeps its value within its scale and says `level-change` from
+    inside every set that moves it, so as Leaf sets a recorded 70 it comes to hold 10
+    and says so. Leaf records nothing of that, on arrival or as Undo sets the value
+    again, and records the step the user makes, which the range says with the same
+    event."""
+    url = live_url(serve(leaf_page("Report", LEVEL), packages=(CONTROLS,)))
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "detail",
+            "action": "set",
+            "detail": {"value": "70"},
+        },
+    )
+    page = open_page(browser, url)
+    level = page.locator("#detail")
+    expect(level).to_have_js_property("value", "10")
+
+    tab_onto(level.get_by_role("slider"))
+    with sending(page, "the step"):
+        page.keyboard.press("ArrowLeft")
+    assert levels(serve.page_dir) == ["70", "9"]
+
+    undo(page)
+    expect(level).to_have_js_property("value", "10")
+    tab_onto(level.get_by_role("slider"))
+    with sending(page, "the step"):
+        page.keyboard.press("ArrowLeft")
+    assert levels(serve.page_dir) == ["70", "9", "9"]
+
+
+WORKER = {
+    "lf-plain-worker": {
+        "description": "A worker, which says what its agent last reported.",
+        "attributes": {
+            "properties": {"state": {"enum": ["idle", "working"]}},
+            "required": ["id", "state"],
+        },
+        "content": "empty",
+        "verbs": {
+            "state": {
+                "writer": "agent",
+                "unit": "widget",
+                "text": True,
+                "record": {"kind": "value", "attr": "state"},
+            }
+        },
+    }
+}
+WORKER_MODULE = """import { readReports } from "/runtime/widget-api.js";
+customElements.define("lf-plain-worker", class extends HTMLElement {
+  #line = null;
+  set state({ state }) {
+    const { phase, reports } = readReports(this);
+    if (phase !== "ready") return;
+    const said = reports.findLast((report) => report.disposition === "effective");
+    this.#line ??= this.appendChild(document.createElement("output"));
+    this.#line.textContent = `${state.value}: ${said?.text ?? "no report yet"}`;
+  }
+});"""
+
+
+def roster(serve):
+    """A page holding one worker, `wren`, that has reported nothing."""
+    return live_url(
+        serve(
+            leaf_page(
+                "Roster", '<lf-plain-worker id="wren" state="idle"></lf-plain-worker>'
+            ),
+            layer_registry=WORKER,
+            layer_widgets={"lf-plain-worker.js": WORKER_MODULE},
+        )
+    )
+
+
+def report_working(page, page_dir):
+    """Log wren's report that it is working, and wait for the page to take it in."""
+    report = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "report",
+            str(page_dir),
+            "wren",
+            "state",
+            "value=working",
+            "text=checking the mount prices",
+        ],
+    )
+    assert report.exit_code == 0, report.output
+    told(page)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_plain_element_draws_its_reports_once_they_are_ready(engine, serve, request):
+    """An element with no base class reads its own reports in its `state` setter. A
+    reading is not ready inside the set that a report moves, so the element draws
+    nothing then, and Leaf sets its `state` again once the reports are ready: on
+    arrival, as a report comes in, and on a page that opens holding one."""
+    url = roster(serve)
+    page = open_page(request.getfixturevalue(engine), url)
+    worker = page.locator("#wren output")
+    expect(worker).to_have_text("idle: no report yet")
+
+    report_working(page, serve.page_dir)
+    expect(worker).to_have_text("working: checking the mount prices")
+
+    navigate(page, url)
+    expect(worker).to_have_text("working: checking the mount prices")
+
+
+def test_a_plain_element_that_left_waits_again_for_the_work_it_left_with(
+    browser, serve
+):
+    """A report waits for work under way inside its element. The element leaves and
+    returns before that work is in: Leaf sets its `state` again as it returns, and it
+    is still told to wait, since the work it left with holds its preparation again
+    before it draws. It draws the report once the work is in."""
+    page = open_page(browser, roster(serve))
+    worker = page.locator("#wren output")
+    expect(worker).to_have_text("idle: no report yet")
+    page.evaluate(
+        """async () => {
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
+          window.wren = document.querySelector('#wren');
+          window.home = wren.parentNode;
+          window.work = Promise.withResolvers();
+          window.preparing = () => readApplicationPresentation().pending
+            .includes('widget:wren:preparation');
+          // Said from inside the element, the work is its preparation.
+          wren.querySelector('output').dispatchEvent(new PendingTaskEvent(work.promise));
+        }"""
+    )
+    report_working(page, serve.page_dir)
+    assert worker.text_content() == "idle: no report yet"
+
+    page.evaluate("() => { wren.remove(); }")
+    page.wait_for_function("() => !preparing()")
+    page.evaluate("() => { home.append(wren); }")
+    # The return has drawn by the time the work it left with is presented again.
+    page.wait_for_function("() => preparing()")
+    assert worker.text_content() == "idle: no report yet"
+
+    page.evaluate("() => { work.resolve(); }")
+    expect(worker).to_have_text("working: checking the mount prices")

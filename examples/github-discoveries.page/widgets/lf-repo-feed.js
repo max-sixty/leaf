@@ -4,7 +4,7 @@
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
-  LeafElement,
+  clockValue,
   whileConnected,
   tabStore,
   HeldReading,
@@ -12,6 +12,7 @@ import {
   readThreads,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered } from "/runtime/lib/controls.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -445,7 +446,11 @@ class RepoFeed extends LeafElement {
       .replace(/[^a-z0-9]/gi, "")
       .slice(0, 2)
       .toUpperCase();
-    const days = Math.floor((Date.now() - new Date(item.at)) / 86400000);
+    // The day count on the page's clock: the card redraws as it changes, on the
+    // server's time, as every age Leaf draws does.
+    const days = clockValue((now) =>
+      Math.floor((now - Date.parse(item.at)) / 86400000),
+    );
     const when =
       days < 1
         ? "Today"

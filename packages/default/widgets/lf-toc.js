@@ -60,16 +60,14 @@ import {
   comparisonChanges,
   frameFor,
   holdFocus,
-  inChrome,
   landingInsets,
-  LeafElement,
-  obligationsIn,
   readObligations,
   readThreads,
   scrollerFor,
   whileConnected,
   named,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 
@@ -85,10 +83,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, {
-        label: named,
-        chrome: inChrome,
-      }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named }));
     }
     get #nav() {
       return this.#drawing.nav;
@@ -195,7 +190,7 @@ customElements.define(
         main
           ? sectionMarks(main, standing, {
               threads: readThreads().threads,
-              onMe: obligationsIn(main, readObligations().user),
+              onMe: readObligations(main).user,
               changes: comparisonChanges(main),
             })
           : new Map(),

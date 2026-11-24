@@ -3,7 +3,7 @@ import { exceptionText } from "/runtime/lib/exception.js";
 import { at } from "./locate.js";
 
 // The complete renderer must be idempotent. Draw each widget's reading again directly,
-// through its `redraw` (leaf-element.js), rather than through its update cycle, which
+// through its `redraw` (/runtime/lib/leaf-element.js), rather than through its update cycle, which
 // could skip an unchanged value or show a throw as the widget's failure box. Compare
 // both id-bearing structure and body records: text is absent from shallowSigs.
 /** @param {(Element & {redraw?: unknown}) | null | undefined} widget

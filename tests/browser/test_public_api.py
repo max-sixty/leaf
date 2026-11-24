@@ -143,7 +143,7 @@ def output_package(path, value):
     )
     registry_path.write_text(json.dumps(registry))
     module = f"""import {{ html }} from "/vendor/lit.js";
-    import {{ LeafElement }} from "/runtime/widget-api.js";
+    import {{ LeafElement }} from "/runtime/lib/leaf-element.js";
 customElements.define("lf-output-proof", class extends LeafElement {{
   setup() {{
     for (const count of [{{count: 2}}, {json.dumps(value)}, null]) {{
@@ -363,13 +363,13 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
 ):
     """A widget that draws without Leaf's helpers says it has drawing under way with a
     `pending-task` event, as one that also runs off Leaf does (module-authoring.md, "A
-    widget that also runs off Leaf"). The page holds the widget's presentation on it, as
-    on `present(promise)`, and presents once the drawing is in."""
+    widget that also runs off Leaf"). The page holds the widget's presentation on it,
+    and presents once the drawing is in."""
     package = tmp_path / "pending-package"
     tag = "lf-pending-proof"
     add_test_widget(package, tag, upgrade=True)
     (package / "widgets" / f"{tag}.js").write_text(
-        'import { PendingTaskEvent } from "/runtime/portable-api.js";\n'
+        'import { PendingTaskEvent } from "/runtime/lib/pending-task.js";\n'
         'import { once } from "/runtime/lib/once.js";\n'
         f'customElements.define("{tag}", class extends HTMLElement {{\n'
         "  connectedCallback() {\n"

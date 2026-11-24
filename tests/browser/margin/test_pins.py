@@ -720,15 +720,15 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
         layout="sidebar",
     )
     page = open_page(browser, serve(source))
-    page.evaluate("""async () => {
-      const { registerReadingRegion } =
-        await window.__lfWidgetApi();
+    page.evaluate("""() => {
       const host = document.getElementById('reader-host');
       const root = host.attachShadow({mode:'open'});
-      root.innerHTML = '<section style="height:240px; overflow:auto">'
+      root.innerHTML = '<section data-lf-scroll="reader" style="height:240px; overflow:auto">'
         + '<slot></slot><div style="height:400px"></div></section>';
-      const body = root.querySelector('section');
-      window.stopSlottedRegion = registerReadingRegion({id:'slotted-reader', host, body});
+      host.setAttribute('data-lf-scroll-host', 'reader');
+      // Leaf reads the marks in a shadow root whose host has said `lf-connect`.
+      host.dispatchEvent(
+        new CustomEvent('lf-connect', {bubbles: true, composed: true, cancelable: true}));
       document.getElementById('ask-help').addEventListener('click', event => {
         event.currentTarget.textContent = 'Channel explanation';
       });

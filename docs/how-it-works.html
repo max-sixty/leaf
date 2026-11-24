@@ -1482,6 +1482,22 @@ sequenceDiagram
               as a hook would, and the adapter and watch then deliver its input. Leaf
               never reads a harness's record of the installed copy.
             </p>
+            <p id="leaf-copy-protocol">
+              Each copy of Leaf speaks one page protocol, a number, and a page's
+              protocol is the protocol number of the Leaf that last initialized it. The
+              number covers only what one copy of Leaf writes and another must read,
+              which is the page's event log and the records Leaf keeps outside its
+              document. The copy serving a page supplies the runtime and composes the
+              page's layer from the packages it selects, so a change to Leaf's own
+              runtime, widgets or themes leaves the number alone. The build refuses a
+              change to the schema of a logged event, or of
+              <code>layer.json</code>, until the number moves. "Page protocol" in the
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/src/leaf/layer-registry.md#page-protocol"
+                >layer registry reference</a
+              >
+              says how the records Leaf keeps carry the number.
+            </p>
             <p id="leaf-copy-outlast">
               Three things outlive the process, so a session can find one that another
               copy of Leaf wrote. Leaf compares each one's record with the session's
@@ -1499,8 +1515,8 @@ sequenceDiagram
                 <tr id="leaf-copy-page">
                   <th scope="row">Each page the session holds</th>
                   <td>
-                    The page protocol in <code>layer.json</code>, from the Leaf that
-                    last initialized the page
+                    The page protocol, which the <code>format</code> field of its
+                    <code>layer.json</code> names
                   </td>
                   <td>
                     The first hook that reads the session's pages, as a prompt or Stop
@@ -2142,14 +2158,14 @@ flowchart TD
     "record": {"kind": "attribute", "attr": "selected"}
   },
   "add": {
-    "detail": {"type": "object",
-               "properties": {"option": {"type": "string"},
-                              "text": {"type": "string", "minLength": 1}},
-               "required": ["option", "text"], "additionalProperties": false},
+    "detail": {
+      "properties": {"option": {"type": "string"},
+                     "text": {"type": "string", "minLength": 1}},
+      "required": ["option", "text"]},
     "unit": "option",
     "creates": {"child": "lf-option", "words": "text"}
   },
-  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+  "answer": {"detail": {}, "unit": "widget"}
 },
 "awaits": {
   "value": "choose",
@@ -2159,38 +2175,38 @@ flowchart TD
   }
 }
 </code></pre>
-              <lf-note at="3"
+              <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
               >
-              <lf-note at="4"
+              <lf-note at="3"
                 >One unit for the whole <code>lf-options</code>, so every pick uses the
                 same coordinate and a later pick replaces an earlier one.</lf-note
               >
-              <lf-note at="5"
+              <lf-note at="4"
                 >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
                 next version.</lf-note
               >
-              <lf-note at="12"
+              <lf-note at="11"
                 >The unit is the value of <code>detail.option</code>, so each added
                 option has a coordinate of its own.</lf-note
               >
-              <lf-note at="13"
+              <lf-note at="12"
                 >The action adds an <code>lf-option</code> to the options, with
                 <code>detail.text</code> as its text.</lf-note
               >
-              <lf-note at="15"
+              <lf-note at="14"
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
-              <lf-note at="18"
+              <lf-note at="17"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
               >
-              <lf-note at="19"
+              <lf-note at="18"
                 >A single choice is answered when an option is selected. A multiple
                 choice is answered when the user presses Done. Undo can make the
                 obligation unanswered again.</lf-note

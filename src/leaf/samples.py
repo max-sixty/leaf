@@ -23,7 +23,6 @@ from threading import Lock
 from .data import write_data
 from .event_log import start_log
 from .page_memory import PageMemory, memory_of
-from .registry.kernel import kernel_protocol
 from .registry.storage import LAYER
 from .revision_artifact import Disposable, RevisionArtifact
 from .revisioning import activate_source
@@ -99,13 +98,7 @@ class Samples:
                 target.write_bytes(resource.data)
             # The child selects the layer its parent's revision was captured under,
             # which this Leaf composes for it as for any page.
-            LAYER.write(
-                child / LAYER_FILE,
-                {
-                    **json.loads(artifact.manifest)["layer"],
-                    "protocol": kernel_protocol(),
-                },
-            )
+            LAYER.write(child / LAYER_FILE, json.loads(artifact.manifest)["layer"])
             # A frozen parent lends the package bytes it captured, not whatever
             # copies page init may since have replaced in its directory.
             for directory, files in executing(artifact).package_copies.items():

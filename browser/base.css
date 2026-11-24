@@ -452,7 +452,7 @@ body {
     overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
-   * height (lf-sample.js). So the body keeps to its content rather than filling the
+   * height (runtime/sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The frame is the sample's window, and it holds the sample's
@@ -585,8 +585,8 @@ main {
  * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
  * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
- * runtime's and modules' `data-lf-scroll`, which a reading region's body takes when it
- * registers (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * runtime's and modules' `data-lf-scroll`, which every reading region's body wears
+ * (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
  * state.css). Each value it changes is one everything in the box inherits, so a box
  * that holds thousands of elements states the whole restart beside its overflow and
  * the mark changes nothing there (a text document's listing). The runtime reads no
@@ -821,23 +821,6 @@ video {
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
-/* The block an option row is about (§): its `for`, which lf-options writes.
- * It points; it never supplies the row's words. It names the block by the name the
- * chrome gives it, without the kind word a thread's § coordinate adds, with a "Jump to"
- * title, and rides at the words' end, out of the way of what the row says (the package
- * theme drops it under the words where both don't fit on a line). The user chose the
- * block's name over showing its raw id as "what it is". */
-.lf-ref {
-  font: var(--lf-font-small);
-  color: var(--lf-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.lf-ref:hover {
-  color: var(--lf-accent);
-  text-decoration: underline;
-}
-
 /* The label font: small capitals in the UI sans that name a region, ranking below every
    heading they stand among. A pane's name takes it, and so does each label a widget or
    the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a

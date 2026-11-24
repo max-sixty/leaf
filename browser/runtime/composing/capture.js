@@ -3,7 +3,7 @@
  * The response surface calls `remember` only at genuine selection gestures, refining
  * a completed pointer selection after snapping. One semantic anchor and direction survive same-page revisions;
  * neither editor selections nor programmatic restoration choose that passage.
- * Browser history separately owns the native working place at each return checkpoint.
+ * History separately keeps the selection on each entry the user leaves (history.js).
  * Restore selection resolves current words through shared travel, refusing a missing
  * or ambiguous passage rather than choosing another occurrence. */
 import { pageRange, selectEnds, selectionBackward } from "../native-selection.js";

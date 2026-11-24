@@ -641,7 +641,7 @@ def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
 import { html } from '/vendor/lit.js';
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-draft-subject', class extends LeafElement {
   static properties = {words: {attribute: false}, key: {attribute: false}};
   constructor() {
@@ -672,12 +672,10 @@ customElements.define('lf-draft-subject', class extends LeafElement {
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
                 "attributes": {
-                    "type": "object",
                     "properties": {
                         "source": {"type": "string"},
                     },
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "inputs": {

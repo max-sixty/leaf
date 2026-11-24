@@ -18,19 +18,23 @@ from leaf.structure import SourceDocument
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { layerFact, LeafElement, widgetController } from "/runtime/widget-api.js";
+import { layerFact } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
-    return this.attachShadow({mode: "open"});
+    return this.shadowRoot ?? this.attachShadow({mode: "open"});
   }
 
   setup() {
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     const held = globalThis.__heldLocalPresentations?.get(this.id);
-    if (held) widgetController(this).present(held);
+    // Said from inside the widget, the work is its preparation, which holds the page
+    // apart from the widget's own drawing.
+    if (held) this.createRenderRoot().dispatchEvent(new PendingTaskEvent(held));
   }
 
   // The gesture writes its own result into the output, which a deferral holds the
@@ -66,12 +70,10 @@ PAGE_DECLARATION = {
     "lf-local": {
         "description": "A page-owned local widget.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "choice": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {
@@ -173,12 +175,10 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "visual": {"parts": "parts"},
@@ -246,12 +246,10 @@ SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,

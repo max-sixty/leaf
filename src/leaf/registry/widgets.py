@@ -9,6 +9,7 @@ from .contract import (
     body_is_data,
     deciding_outcomes,
     deciding_verb,
+    element_declarations,
     fact_condition,
     gathering,
     registry_error,
@@ -122,12 +123,33 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     """What the element declaration of `tag` in `registry`, read with its defaults
     written in, advises its author, each finding naming the file `path`: a data
     input's source attribute not declared a string, which `leaf data`'s own grammar
-    still checks; and a measured input whose source or run receipt an instance may
-    leave out, so that instance is never compared with its source's latest run."""
+    still checks; a measured input whose source or run receipt an instance may
+    leave out, so that instance is never compared with its source's latest run; and
+    a position record whose `within` names no container the declarations place
+    at or inside the widget (`_containers`), so a drop of the widget's own members is
+    refused at admission. The last is advice, not a refusal, because it can still
+    work: a container outside the declared membership may stand in a member's
+    markup, and another package may declare the membership that places it."""
     entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
     found = []
+    members = _members(registry)
+    for verb, spec in state_specs(entry):
+        record = spec.get("record") or {}
+        if record.get("kind") != "position":
+            continue
+        if record["within"] not in (containers := _containers(tag, registry, members)):
+            found.append(
+                registry_finding(
+                    "position-container",
+                    path,
+                    tag,
+                    verb=verb,
+                    within=record["within"],
+                    containers=containers,
+                )
+            )
     for input_name, spec in entry.get("inputs", {}).items():
         source_attr = spec.get("source")
         if source_attr and not _typed(properties, source_attr, "string"):
@@ -157,6 +179,36 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
                 )
             )
     return found
+
+
+def _members(registry: dict) -> dict[str, set[str]]:
+    """Each tag some declaration names in `owners` → the tags that name it."""
+    members: dict[str, set[str]] = {}
+    for name, entry in element_declarations(registry).items():
+        for owner in entry.get("owners", []):
+            members.setdefault(owner, set()).add(name)
+    return members
+
+
+def _containers(tag: str, registry: dict, members: dict) -> list[str]:
+    """`tag` and the tags the declarations place inside it through `owners`, at any
+    depth, that hold members of their own: where a position record of `tag` can put
+    its units. A member that records positions itself is the nearer owner of every
+    place beneath it (`projection.recorded_owner`), so the search neither counts nor
+    passes it."""
+    inside, frontier = set(), [tag]
+    while frontier:
+        for member in members.get(frontier.pop(), ()):
+            if member == tag or member in inside:
+                continue
+            if any(
+                (spec.get("record") or {}).get("kind") == "position"
+                for _verb, spec in state_specs(registry[member])
+            ):
+                continue
+            inside.add(member)
+            frontier.append(member)
+    return sorted(name for name in inside | {tag} if name in members)
 
 
 def _validate_widget_structure(

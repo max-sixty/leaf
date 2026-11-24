@@ -28,9 +28,11 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
-  // A box the runtime opts into scroll reach (reach.js), as the page's `scroll` class
-  // does for its own boxes.
+  // A box the runtime or a module opts into scroll reach (reach.js), as the page's
+  // `scroll` class does for its own boxes. A value names the box a reading region,
+  // and the frame around one names the region it holds (reading-regions.js).
   scrollSurface: "data-lf-scroll",
+  scrollHost: "data-lf-scroll-host",
   scrolls: "data-lf-scrolls",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",

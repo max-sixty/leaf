@@ -1147,7 +1147,7 @@ export const spelledKeysRule = {
         context.report({
           node,
           message:
-            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/scopes.js), rather than spelling it in the words: both name a key only while it would work.",
+            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/control-keys.js), which a package's `lf-announce` reaches by giving its rows (`{words, rows}`), rather than spelling it in the words: both name a key only while it would work.",
         });
     };
     return {
@@ -1941,6 +1941,8 @@ export default [
   {
     // Thread folding accepts values; it must not obtain them from browser
     // stores or painters. The current derived reading has the same dependency floor.
+    // Of the library, a fold reaches only the rank keys (lib/rank.js), which take
+    // values too.
     files: [
       "browser/runtime/projection/model.js",
       "browser/runtime/projection/state.js",
@@ -1956,7 +1958,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|kept|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|kept|kernel-facts|semantic-state|lib/rank)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

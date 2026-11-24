@@ -1,7 +1,7 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
 import { html } from "/vendor/lit.js";
-import { ago, HeldReading } from "/runtime/widget-api.js";
+import { HeldReading } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
@@ -52,11 +52,7 @@ customElements.define(
                   <dt>Tests</dt>
                   <dd>${record.tests}</dd>
                   <dt>Observed</dt>
-                  <dd>
-                    <time datetime=${record.observedAt} title=${record.observedAt}
-                      >${ago(record.observedAt)}</time
-                    >
-                  </dd>
+                  <dd><lf-age datetime=${record.observedAt}></lf-age></dd>
                 </dl>
                 <h4>Files</h4>
                 <pre>${record.files ?? "No files recorded."}</pre>

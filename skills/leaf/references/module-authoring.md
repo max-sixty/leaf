@@ -55,7 +55,7 @@ In [module-state.md](module-state.md):
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
   `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
   which Leaf remembers, names in the address and returns the user to their place in.
-- "Time readings": `ago`, `agePreview` and `clockValue` read the server's time.
+- "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
@@ -137,6 +137,18 @@ the widget's own module, and gives the element its drawing box. For the widget's
 links the layer's `portable.css`, served beside `/widgets/` (`packages.md`, "Styles and
 composition").
 
+`says()`, `named()` and `motion` are not among the portable functions, so the widget
+does without them, on a Leaf page too:
+
+- In place of `says()` and `named()`, it takes a part's name from an attribute, as
+  `lf-timeline` takes an event's from `label`, and reads a data body with the
+  library's `data-body.js` or from a bound input (`module-reading.md`, "Reading the
+  page"). It takes no other words from an element the author wrote: on a Leaf page
+  that element can also hold words Leaf wrote, which its `textContent` or a copy of
+  its nodes would carry along.
+- In place of `motion`, it moves a box with a transition in its stylesheet, as
+  `lf-timeline` moves its playhead (`module-scroll-and-motion.md`, "Motion").
+
 Leaf adds its services through the protocol's properties, events and declarations
 (`module-plain-elements.md`), and a plain host ignores them all: there the widget's
 `state` is never set, it binds no key, shows no preview, offers no comment target and
@@ -153,6 +165,8 @@ says nothing aloud. Off Leaf:
 - `tabStore` keeps nothing: a read answers null. Focus, scrolling and controls use the
   document's native behavior, and `langForPath` reads shipped defaults in place of the
   page's composed language map.
+- Leaf stops no motion there for a user who asked for less, so the widget's sheet
+  declares its motion under `@media (prefers-reduced-motion: no-preference)`.
 
 `lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
 `lf-timeline` are the worked examples.
@@ -166,7 +180,8 @@ script", lists.
   observers and registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
-  never with `textContent` (`module-reading.md`, "Reading the page").
+  never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
+  also runs off Leaf imports neither ("A widget that also runs off Leaf").
 - Build injected controls, and a press that looks like Leaf's controls by its role,
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
@@ -183,8 +198,8 @@ script", lists.
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
-- Animate with `motion`, never `element.animate` (`module-scroll-and-motion.md`,
-  "Motion").
+- Animate with `motion` or in a stylesheet, never with `element.animate`
+  (`module-scroll-and-motion.md`, "Motion").
 
 ## Upgrade
 

@@ -1,7 +1,7 @@
-/* Where a `refers` attribute resolves: in the referrer's own message before the
-   page, never in another message. And a verb handed an attribute its entry doesn't
-   declare is the caller's error. `navigateToDatum` and widget data inputs both read
-   references this way. */
+/* Where a `refers` attribute resolves, for `navigateToDatum` and a widget's data input
+   alike: in the referrer's own message before the page, never in another message. And
+   `navigateToDatum` handed an attribute its entry doesn't declare is the caller's
+   error. */
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
@@ -86,6 +86,6 @@ test("an attribute the referrer's entry does not declare is the caller's error",
   document.body.innerHTML = "<main></main>";
   const film = driver("film", "code");
   document.querySelector("main").append(film);
-  assert.throws(() => requireReference("navigateToDatum", film, "about"), TypeError);
-  assert.doesNotThrow(() => requireReference("navigateToDatum", film, "for"));
+  assert.throws(() => requireReference(film, "about"), TypeError);
+  assert.doesNotThrow(() => requireReference(film, "for"));
 });

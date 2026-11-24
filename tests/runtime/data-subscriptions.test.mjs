@@ -341,7 +341,6 @@ function outputScene(draw) {
       inputs: {
         rows: { reference: "for", contract: "rows", property: "value" },
       },
-      refers: { for: {} },
     },
   });
   customElements.define(
@@ -457,6 +456,28 @@ test("an output's readers follow the element under their bound id, in their own 
   document.querySelector("main").append(late);
   await settleOutput();
   assert.deepEqual(readings.get("late").at(-1), { rows: ["held"] });
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("a reader that read before its producer's class was defined reads what the class holds", async () => {
+  const readings = [];
+  const { producerTag, consumerTag } = outputScene((element, value) =>
+    readings.push(value),
+  );
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;
+  await settleOutput();
+  assert.deepEqual(readings, [null]);
+  // The class holds a value from its construction and says no `change` for it, as a
+  // form control says none for its first value.
+  customElements.define(
+    producerTag,
+    class extends HTMLElement {
+      rows = { rows: ["held"] };
+    },
+  );
+  await settleOutput();
+  assert.deepEqual(readings, [null, { rows: ["held"] }]);
   document.body.replaceChildren();
   await settleOutput();
 });

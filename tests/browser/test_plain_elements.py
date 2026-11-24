@@ -9,7 +9,8 @@ export. `tests/fixtures/packages/controls` holds two components with no code wri
 for Leaf, each recorded because a declaration's `record` names the property that
 holds its value: Web Awesome's select, which the page writes inside the `lf-select`
 that keeps its value, and `lf-level`, a range that announces every change of its
-value, a script's set included. The starter `leaf package init --widget` writes is
+value, a script's set included. The select's value is also an output, which
+`lf-chosen` reads. The starter `leaf package init --widget` writes is
 such an element too, tested here as the command writes it.
 """
 
@@ -336,6 +337,7 @@ PLAN = """
   </lf-select>
 </lf-group>
 """
+CHOSEN = '<lf-chosen id="plan-chosen" for="plan-choice"></lf-chosen>'
 QUOTED_PLAN = """
 <lf-sample id="quoted-plan" label="A quoted choice">
   <lf-select id="quoted-choice" value="starter">
@@ -432,16 +434,24 @@ def test_a_recorded_property_shows_what_the_page_holds(browser, serve):
     does, records nothing. A change made where the user may not act, and one the
     server refuses, returns to the recorded value. A value the user is still changing
     survives a move of the reading that leaves the recorded value alone, and is
-    recorded once the element says `change`."""
-    url = live_url(serve(leaf_page("Seats", PLAN + QUOTED_PLAN), packages=(CONTROLS,)))
+    recorded once the element says `change`. The select's `value` is also an output.
+    `lf-chosen`, which reads it, shows each value Leaf sets, for which the element
+    says no `change`, and the user's pick, whose `change` only bubbles to the element
+    from the select inside it."""
+    url = live_url(
+        serve(leaf_page("Seats", PLAN + CHOSEN + QUOTED_PLAN), packages=(CONTROLS,))
+    )
     chose(serve.page_dir, "scale")
     page = open_page(browser, url)
     select, quoted = page.locator("#plan-choice"), page.locator("#quoted-choice")
+    reader = page.locator("#plan-chosen")
     expect(select).to_have_js_property("value", "scale")
+    expect(reader).to_have_text("scale")
 
     chose(serve.page_dir, "starter")
     told(page)
     expect(select).to_have_js_property("value", "starter")
+    expect(reader).to_have_text("starter")
     select.dispatch_event("change")
 
     # The quoted select says `change` before the trip of the pick behind it ends.
@@ -468,11 +478,13 @@ def test_a_recorded_property_shows_what_the_page_holds(browser, serve):
     consume_browser_errors(page, http_error_console(400))
     assert select.evaluate("node => node.value") == "starter"
     assert quoted.evaluate("node => node.value") == "starter"
+    assert reader.text_content() == "starter"
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     pick(page, "plan-choice", "team")
     holding(page, held, 1, "the pick whose delivery is held")
+    expect(reader).to_have_text("team")
     # A value still being changed, as a slider's is through a drag.
     select.evaluate("node => { node.value = 'scale'; }")
     held[0].continue_()

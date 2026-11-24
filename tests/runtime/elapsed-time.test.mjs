@@ -82,6 +82,11 @@ test("the sentence and compact elapsed readings name the same figure", (t) => {
     assert.equal(shortAgo(ts), compact);
     assert.equal(ago(ts), compact === "now" ? "just now" : `${compact} ago`);
   }
+  // A timestamp that names no moment has no age.
+  for (const ts of ["", null, "yesterday", "1795543200000"]) {
+    assert.equal(ago(ts), "");
+    assert.equal(shortAgo(ts), "");
+  }
 });
 
 // Dates and times read as the reader's platform writes them, so these cases hold where

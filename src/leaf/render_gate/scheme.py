@@ -203,6 +203,13 @@ def exception_finding(error) -> Finding:
     return Finding("page-exception", values={"text": message})
 
 
+def unready_finding(error: PageNotReady) -> Finding:
+    """A page that never got ready, as a finding: the stage it never reached, and the
+    words `render_checks.wait_until_ready` raised with, which are the page's own
+    reason where the page declared it cannot start."""
+    return Finding("not-ready", values={"stage": error.stage, "error": str(error)})
+
+
 def collect_page_exceptions(page, errors: list[Finding]) -> None:
     """Collect native exceptions from every document, as findings."""
     page.on("pageerror", lambda error: errors.append(exception_finding(error)))
@@ -384,9 +391,7 @@ def _render_page(
             return ended([], complete=True)
     if unready is not None:
         failed_stage = unready.stage
-        unsettled = [
-            Finding("not-ready", values={"stage": unready.stage, "error": str(unready)})
-        ]
+        unsettled = [unready_finding(unready)]
     else:
         try:
             wait_for_probe(page, "pageSettled")

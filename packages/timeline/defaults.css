@@ -205,9 +205,11 @@ lf-event::before {
   margin-inline-start: -1px;
   background: var(--lf-accent);
 }
-/* Step changes move the retained line to its new time. The shared presentation and
- * reduced-motion guards suppress this transition when the page must appear at rest. */
-@media screen {
+/* Step changes move the retained line to its new time. Leaf holds this transition
+ * until the page is presented. The reader's preference is asked here, since a page
+ * without Leaf has no guard for it (module-authoring.md, "A widget that also runs off
+ * Leaf"). */
+@media screen and (prefers-reduced-motion: no-preference) {
   .lf-timeline-playhead-line {
     transition: left var(--lf-motion-mark) ease;
   }

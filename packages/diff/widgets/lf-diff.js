@@ -32,7 +32,6 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
-  DISCLOSE,
   beginWalk,
   failSoft,
   focusDestination,
@@ -447,17 +446,6 @@ function summaryNode(record, open, verified = true) {
   /** @type {TextPresentation} */
   const view = { kind: "text", row: details, details, header: summary };
   paintSummary(view, record, verified);
-  summary.lfCommands = {
-    title: "On a diff",
-    rows: [
-      {
-        id: "diff.toggle",
-        keys: () => DISCLOSE(summary),
-        title: () => `${details.open ? "hide" : "show"} this file`,
-      },
-    ],
-  };
-  commandsChanged(summary);
   paintFileDetails(view, verified ? record : {});
   return view;
 }

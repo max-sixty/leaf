@@ -11,11 +11,11 @@
    So every key a surface names is a key that works, and the row's one word covers the
    three keys it binds.
 
-   `DISCLOSE` answers that for an element, and every row over a disclosure reads it — this
-   scope's, and a widget's own row re-wording the same press — so the two never name
-   different keys. It also answers where the element stands, the arrows being
-   named only where this scope reaches: a widget's disclosure inside a comment message
-   keeps the platform's pair alone.
+   `DISCLOSE` answers that for an element, and the page's one row over every disclosure
+   reads it (page.js), a widget's among them, so a widget declares no row for its own.
+   A disclosure in Leaf's chrome, such as one in a widget a Thread reply holds, keeps
+   the platform's pair alone. The row doesn't reach it there, so the reference, which
+   lists the row wherever the user is, names no arrow while they are on one.
 
    One scope covers both spellings, `details > summary` and ARIA's disclosure pattern
    (`aria-expanded` on a button), because a user on a settled group cannot see
@@ -29,18 +29,41 @@
    an `aria-expanded` control fires nothing anywhere. Both keep that state in an
    attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
    and `shadowStage` hands it each root. */
+import { PRESS, rowArrows } from "../lib/keys.js";
+import { inChrome } from "../ui-marks.js";
 import { paintKeysWithin } from "./scopes.js";
 
-export { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "../control-keys.js";
+/** @param {Element | null} el */
+export const DISCLOSE = (el) => {
+  const disclosure = disclosureAt(el);
+  if (!disclosure) return [...PRESS, "ArrowLeft", "ArrowRight"];
+  const { element, open } = disclosure;
+  const [back, ahead] = rowArrows(element);
+  return inChrome(element) ? PRESS : [...PRESS, open ? back : ahead];
+};
+
+export const DISCLOSURE_SELECTOR =
+  'details > summary, :is(button, [role="button"])[aria-expanded]';
+
+// The disclosure at this element and whether it is open, or null where none stands.
+// The reference asks from wherever the user is, listing scopes the page has.
+/** @param {Element | null} el */
+export function disclosureAt(el) {
+  if (!el?.matches(DISCLOSURE_SELECTOR)) return null;
+  return {
+    element: el,
+    open: el.matches("details > summary")
+      ? el.matches("details[open] > summary")
+      : el.getAttribute("aria-expanded") === "true",
+  };
+}
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
 // because `shadowStage` calls it, far above the surfaces it repaints for.
-// This pair is what DISCLOSE reads, so a toggle moves every row bound through it, and
-// with them the `aria-keyshortcuts` a listener is read. Unrepainted, the attribute said
-// whichever way the row was when its scope was declared, naming the arrow that no longer
-// moves the section and withholding the one that does. The watcher that already hears
-// this write repaints the keys of the disclosure that moved, so it is the one place they
-// are kept current, rather than a repaint each DISCLOSE row has to remember for itself.
+// A toggle writes one of this pair and reports nothing to the keyboard, so the watch
+// reports it: the scopes on, in and around the control that moved read their rows again
+// (scopes.js, `paintKeysWithin`), since a row may read which way it stands. The
+// page's own row needs no repaint, the dispatcher reading DISCLOSE as it is asked.
 // A write that says what the attribute already said is not a disclosure changing, and
 // taking it for one closes a loop: a key paint that writes `aria-expanded` on a
 // control would schedule the next paint with every paint, and the page would repaint

@@ -6,9 +6,10 @@ reads each choice as a comment target from its `data-lf-part` mark
 (module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
 export. `tests/fixtures/packages/controls` holds two components with no code written
-for Leaf, each recorded because its declaration's `record` names the property that
-holds its value: `lf-select`, Web Awesome's select, and `lf-level`, a range that
-announces every change of its value, a script's set included.
+for Leaf, each recorded because a declaration's `record` names the property that
+holds its value: Web Awesome's select, which the page writes inside the `lf-select`
+that keeps its value, and `lf-level`, a range that announces every change of its
+value, a script's set included.
 """
 
 import pytest
@@ -276,18 +277,22 @@ PLAN = """
 <h1 id="title">Seats</h1>
 <lf-group id="plan" label="Which plan?">
   <p id="premise">Seats are billed monthly on every plan.</p>
-  <lf-select id="plan-choice" placeholder="Choose a plan">
-    <wa-option value="starter">Starter</wa-option>
-    <wa-option value="team">Team</wa-option>
-    <wa-option value="scale">Scale</wa-option>
+  <lf-select id="plan-choice">
+    <wa-select placeholder="Choose a plan">
+      <wa-option value="starter">Starter</wa-option>
+      <wa-option value="team">Team</wa-option>
+      <wa-option value="scale">Scale</wa-option>
+    </wa-select>
   </lf-select>
 </lf-group>
 """
 QUOTED_PLAN = """
 <lf-sample id="quoted-plan" label="A quoted choice">
   <lf-select id="quoted-choice" value="starter">
-    <wa-option value="starter">Starter</wa-option>
-    <wa-option value="team">Team</wa-option>
+    <wa-select>
+      <wa-option value="starter">Starter</wa-option>
+      <wa-option value="team">Team</wa-option>
+    </wa-select>
   </lf-select>
 </lf-sample>
 """
@@ -328,10 +333,12 @@ def pick(page, widget, value):
 def test_a_component_with_no_code_for_leaf_records_what_its_declaration_names(
     engine, serve, request
 ):
-    """The select holds its value in `value` and says `change`, and its tag's `record`
-    names that property. A pick by pointer and one by keyboard are each recorded and
-    answer the question on On Me, a reload shows the recorded pick, and Undo takes it
-    back and asks again."""
+    """The select holds its value in `value` and says `change`. The `lf-select` round
+    it keeps that property on it, and the tag's `record` names the property. A pick by
+    pointer and one by keyboard are each recorded and answer the question on On Me, a
+    reload shows the recorded pick, and Undo takes it back and asks again. The select
+    stands under the library's own tag, where an option whose words change finds it,
+    so it shows the new words."""
     url = live_url(serve(leaf_page("Seats", PLAN), packages=(CONTROLS,)))
     page = open_page(request.getfixturevalue(engine), url)
     select = page.locator("#plan-choice")
@@ -343,6 +350,11 @@ def test_a_component_with_no_code_for_leaf_records_what_its_declaration_names(
     assert chosen(serve.page_dir) == [("plan-choice", "team")]
     expect_obligations_answered(page, "1/1")
 
+    select.locator('wa-option[value="team"]').evaluate(
+        "node => { node.textContent = 'Team, billed yearly'; }"
+    )
+    expect(shown).to_have_value("Team, billed yearly")
+
     navigate(page, url)
     expect(shown).to_have_value("Team")
     expect_obligations_answered(page, "1/1")
@@ -353,7 +365,7 @@ def test_a_component_with_no_code_for_leaf_records_what_its_declaration_names(
 
     tab_onto(shown)
     page.keyboard.press("Enter")
-    expect(select).to_have_js_property("open", True)
+    expect(select.locator("wa-select")).to_have_js_property("open", True)
     page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowDown")
     with sending(page, "the pick"):

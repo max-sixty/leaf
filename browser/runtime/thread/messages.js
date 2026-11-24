@@ -35,14 +35,7 @@ import {
 } from "../lib/markdown.js";
 import { pageLinks } from "../page-markdown.js";
 import { reportPageError } from "../layer-client.js";
-import {
-  deleted,
-  editable,
-  isReaction,
-  lastMovedAt,
-  messageKey,
-  turns,
-} from "./model.js";
+import { deleted, editable, isReaction, messageKey, turns } from "./model.js";
 import { counted, excerptWords, labelWords } from "../lib/words.js";
 import {
   MessageEditor,
@@ -219,12 +212,6 @@ export const threadHeading = (thread) =>
     ? html`<span class="lf-thread-name-pending">Generating thread name…</span
         ><span class="lf-quiet"> ${threadName(thread)}</span>`
     : threadName(thread);
-
-/** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
-export const threadSummary = (thread) => ({
-  topic: threadName(thread),
-  latest: lastMovedAt(thread),
-});
 
 // A message's opening line, as a preview reads it: its first line of words, else
 // Drawing for one drawn without words.

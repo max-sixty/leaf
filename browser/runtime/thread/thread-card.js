@@ -95,8 +95,8 @@ import {
   HOLDS,
   anchorPlace,
   messageReading,
+  threadName,
   threadPassage,
-  threadSummary,
 } from "./messages.js";
 import { generatedElement } from "../widget-elements.js";
 import { offeredAction } from "../lib/controls.js";
@@ -153,7 +153,7 @@ import { PRESS } from "../lib/keys.js";
  * input_id?: string, reply_id: string | null, attempt?: string | null,
  * reply_kind: "work" | "progress"} | null,
  * live: boolean, condition: import("../voice.js").Said | null}} WorkingMessage */
-/** @typedef {{key: string, summary: ReturnType<typeof threadSummary>,
+/** @typedef {{key: string, name: string,
  * id: string, attempt: string | null, surface: string, resolved: boolean,
  * attention: ReturnType<typeof threadAttention>, resolvedBy: string,
  * settlement: {kind: "resolve" | "unresolve", word: string, label: string},
@@ -406,10 +406,9 @@ export function threadReading(thread, surface, commands) {
         leaves: leaves(message),
       }),
     );
-  const summary = threadSummary(thread);
   return Object.freeze({
     key: threadKey(thread),
-    summary,
+    name: threadName(thread),
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,
@@ -861,7 +860,7 @@ export class ThreadView {
     // A card is itself where a send or a walk stands the user, so it carries the
     // thread's name.
     keeps(this.node, "role", "group");
-    keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
+    keeps(this.node, "aria-label", `Thread, ${model.name}`);
     // A thread whose reply stands elsewhere ends with its messages, so it grows only at
     // its foot, the growing tail of the region holding it, as the panel's view is
     // (tests/shift_watch.js).

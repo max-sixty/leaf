@@ -6,7 +6,7 @@ import {
   HeldReading,
   LeafElement,
   obligationActions,
-  queueTitle,
+  nameOf,
   readObligations,
   answerWords,
   readQueues,
@@ -16,7 +16,6 @@ import {
   setChildren,
   shadowStage,
   threadActions,
-  threadSummary,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -207,7 +206,7 @@ customElements.define(
         }
         row.button.toggleAttribute("hidden", !thread);
         if (thread) {
-          keepsText(row.button, threadSummary(thread).topic);
+          keepsText(row.button, nameOf(thread));
           keeps(row.button, "aria-current", key === this.selected ? "true" : null);
         }
         return row.node;
@@ -306,7 +305,7 @@ customElements.define(
             setChildren(row.node, []);
             return row.node;
           }
-          keepsText(row.open, `Open ${queueTitle(item)}`);
+          keepsText(row.open, `Open ${nameOf(item)}`);
           setChildren(row.node, [row.open]);
           return row.node;
         });

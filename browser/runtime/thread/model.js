@@ -407,18 +407,6 @@ export const moved = (message) => ({
   ts: message.edited?.ts ?? message.ts ?? null,
 });
 
-// When a thread last moved: the latest move of any of its turns.
-/** @param {{msgs: readonly {id: string, token?: string, edited?: {seq?: number, ts: string} | undefined, seq?: number, ts?: string}[], root: {id: string}}} thread */
-export function lastMovedAt(thread) {
-  let latest = null;
-  for (const message of turns(thread)) {
-    const { ts } = moved(message);
-    if (ts !== null && (latest === null || Date.parse(ts) > Date.parse(latest)))
-      latest = ts;
-  }
-  return latest;
-}
-
 /** @param {import("../../types/domain.js").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
 

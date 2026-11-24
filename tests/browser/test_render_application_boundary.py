@@ -51,13 +51,13 @@ from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { LeafElement, readThreads, threadSummary } from '/runtime/widget-api.js';
+import { LeafElement, nameOf, readThreads } from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
-    this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+    this.topic = collection.threads[0] && nameOf(collection.threads[0]);
     return html`<pre>${collection.threads.map(thread =>
       thread.turns.map(message => message.body.text).join('\n')
     ).join('\n')}</pre>`;
@@ -79,7 +79,7 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { LeafElement, signal, threadActions, readThreads, threadSummary } from '/runtime/widget-api.js';
+import { LeafElement, nameOf, signal, threadActions, readThreads } from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   query = signal('');
   setup() { this.query.value = this.getAttribute('filter') ?? ''; }
@@ -89,11 +89,11 @@ customElements.define('lf-thread-filter', class extends LeafElement {
     this.sameReading = collection === readThreads();
     this.updates = (this.updates ?? 0) + 1;
     const shown = collection.threads.filter(thread =>
-      threadSummary(thread).topic.toLowerCase().includes(this.query.value.toLowerCase()));
+      nameOf(thread).toLowerCase().includes(this.query.value.toLowerCase()));
     return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
       @input=${event => { this.query.value = event.target.value; }}>
       <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
-        @click=${() => threadActions.open(thread.key)}>${threadSummary(thread).topic}</button></li>`)}</ul>`;
+        @click=${() => threadActions.open(thread.key)}>${nameOf(thread)}</button></li>`)}</ul>`;
   }
 });
 """

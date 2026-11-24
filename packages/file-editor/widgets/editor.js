@@ -1,11 +1,7 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import {
-  langForPath,
-  leafEditorView,
-  sizeObserver,
-} from "/runtime/widget-api.js";
+import { langForPath, leafEditorView, sizeObserver } from "/runtime/widget-api.js";
 import { syntaxNow } from "/runtime/lib/syntax-tokens.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {

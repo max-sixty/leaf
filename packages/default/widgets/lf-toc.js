@@ -65,7 +65,6 @@ import {
   keeps,
   landingInsets,
   LAYOUT,
-  layoutPx,
   LeafElement,
   obligationsIn,
   PAGE_INTERFACE,
@@ -624,7 +623,7 @@ customElements.define(
       const transform = (
         /** @type {{start: number, size: number}} */ { start, size },
       ) =>
-        `translateY(${layoutPx(start)}) scaleY(${Math.round(Math.max(floor, size) * 64) / 64})`;
+        `translateY(${Math.round(start * 64) / 64}px) scaleY(${Math.round(Math.max(floor, size) * 64) / 64})`;
       if (reach <= 0) {
         this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;

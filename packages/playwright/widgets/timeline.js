@@ -22,7 +22,6 @@ import {
   frameFor,
   sizeObserver,
   whileConnected,
-  layoutPx,
   assignRows,
   axisTicks,
   textWidth as measure,
@@ -406,12 +405,12 @@ export class RecordingTimeline {
       const previous = clusters[index - 1];
       if (!previous) return "none";
       const previousEnd = previous.flip ? previous.x : previous.x + previous.width;
-      return layoutPx(Math.max(12, cluster.x - previousEnd - LABEL_GAP));
+      return `${Math.round(Math.max(12, cluster.x - previousEnd - LABEL_GAP) * 64) / 64}px`;
     }
     const next = clusters[index + 1];
     if (!next) return "none";
     const nextStart = next.flip ? next.x - next.width : next.x;
-    return layoutPx(Math.max(12, nextStart - cluster.x - LABEL_GAP));
+    return `${Math.round(Math.max(12, nextStart - cluster.x - LABEL_GAP) * 64) / 64}px`;
   }
   // Each name in a label is its own mark's target; a count zooms to its marks.
   /** @param {LabelCluster} cluster @param {string} lane */

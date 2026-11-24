@@ -3,7 +3,6 @@ import { nothing } from "/vendor/lit.js";
 import {
   generatedElement,
   keeps,
-  keepsHidden,
   keepsText,
   LeafElement,
   offer,
@@ -57,7 +56,10 @@ customElements.define(
         workAncestor(this, "scope") ?? this.parentElement,
       ).goals.find((row) => row.element === this);
       keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
-      keepsHidden(this.comment, this.writing || !threadSurface(this).open);
+      this.comment?.toggleAttribute(
+        "hidden",
+        this.writing || !threadSurface(this).open,
+      );
       return nothing;
     }
   },

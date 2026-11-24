@@ -883,9 +883,9 @@ async function boot() {
   }
   const threadAddress = createThreadAddress({
     shown: openThreadView,
-    putAway: (list, from) => {
+    putAway: (list, from, intent) => {
       app?.overlay?.threadPreview.close();
-      floatingPanel.putThreadAway(list, from);
+      floatingPanel.putThreadAway(list, from, intent);
     },
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
   });

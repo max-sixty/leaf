@@ -371,7 +371,13 @@ import {
   REPLY_HINT,
 } from "./words.js";
 import { coarsePointer } from "./pointer.js";
-import { afterScript, holdRendering, nextRender, sizeObserver } from "./rendering.js";
+import {
+  afterScript,
+  afterSettling,
+  holdRendering,
+  nextRender,
+  sizeObserver,
+} from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
@@ -6229,34 +6235,56 @@ export function createFloatingPanel({
     restoreCurrentLocation,
     // The thread whose view stands open above the row, read through the trail, and
     // putting that view away: what the entry's thread address follows and asks for
-    // (thread/address.js). Where an entry's record names a list, the list shows: the
-    // view gives way to it where it stood over it, by its way back (`back`); else the
-    // list opens, or stays, as after a reload, which forgets the views the panel stood.
-    // It stands on the row the record names, the one the user left by, else on the row
-    // of `from`, the thread the user was in, wherever it showed. `listShown` names a list
-    // a thread view opens over that stands open, and the row focus is on in it, which the
-    // record keeps (history.js).
+    // (thread/address.js). Where an entry's record names a list, the list shows as the
+    // user left it: the view gives way to it where it stood over it, by its way back
+    // (`back`); else the list opens, or stays, as after a reload, which forgets the views
+    // the panel stood, On on the tab it stood at. It stands on the row the record names,
+    // the one the user left by, else on the row of `from`, the thread the user was in,
+    // wherever it showed, and where it was read to once what it holds has drawn, unless
+    // the user has moved since (`intent`). `listShown` names the list that stands open,
+    // the On tab, the row focus is on in it and how far it was read, which the record
+    // keeps (history.js). The lists it names are those whose route is the view's name
+    // alone, as Threads, On, Versions and All pages are; one a route qualifies, as a
+    // menu group or Errors, stays shut.
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
-    /** @param {import("./history.js").RecordList | null} [list] @param {string | null} [from] */
-    putThreadAway: (list = null, from = null) => {
+    /** @param {import("./history.js").RecordList | null} list @param {string | null} from
+     * @param {import("./user-intent.js").UserIntent} intent */
+    putThreadAway: (list, from, intent) => {
       const top = trail.value.at(-1);
-      const view = list && VIEWS.thread.over?.find((over) => over === list.view);
-      if (threadOf(top) && view && trail.value.at(-2)?.view === view) back();
+      const route = list && /** @type {PanelRoute} */ ({ view: list.view });
+      const turned = list?.tab ? chooseQueueTab(list.tab) : false;
+      if (threadOf(top) && route && trail.value.at(-2)?.view === route.view) back();
       else {
         if (threadOf(top)) close();
-        if (view && !showing({ view })) open({ view });
+        if (route && !showing(route)) open(route);
       }
-      if (!view) return;
-      const key = list?.row ?? (from && threadByKey(from)?.key);
+      if (!list) return;
+      if (turned) paint();
+      const view = shownView();
+      const key = list.row ?? (from && threadByKey(from)?.key);
       const row = key && listRows().find((node) => rowKey(node) === key);
       if (row) focusDestination(row, "return");
+      if (!view || !list.scroll) return;
+      void present().then(() =>
+        afterSettling(() => {
+          if (intent() && shownView() === view)
+            moveScrollerBy(view, list.scroll - view.scrollTop);
+        }),
+      );
     },
     listShown: () => {
-      const view = trail.value.at(-1)?.view;
-      if (!view || !VIEWS.thread.over?.some((over) => over === view)) return null;
+      const top = trail.value.at(-1);
+      const view = shownView();
+      if (!top || !view || Object.keys(top).some((part) => part !== "view"))
+        return null;
       const at = focused();
       const row = at ? listRows().find((node) => renderedUnder(at, node)) : null;
-      return { view, row: row ? rowKey(row) : null };
+      return {
+        view: top.view,
+        tab: top.view === "queue" ? queueTab : null,
+        row: row ? rowKey(row) : null,
+        scroll: view.scrollTop,
+      };
     },
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,

@@ -15,6 +15,7 @@ from render_harness import (
     open_latest,
     open_page,
     open_threads,
+    panel_menu,
     panel_view,
     scroll_settled,
     select_words,
@@ -27,7 +28,7 @@ from render_harness import (
 from browser.test_render_drawing import draw_over
 from browser.threads import choose_threads_in_panel
 from leaf.render_checks import wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, on_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -176,6 +177,50 @@ def test_a_reload_keeps_the_list_the_panel_showed(request, serve, engine):
     expect(page.locator(panel_view("threads"))).to_be_visible()
     reload(page)
     expect(page.locator(panel_view("threads"))).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("where", ["On Claude", "Versions", "Threads read down"])
+def test_a_reload_keeps_where_the_user_stood_in_the_panel(
+    request, serve, engine, where
+):
+    """Whatever the floating panel shows comes back after a reload as the user left it,
+    as the entry's record has it (history.js): the agent's On list rather than On Me, a
+    list the menu opens, as Versions, and how far down a list the user had read."""
+    url = serve(LONG_PAGE)
+    if where == "Versions":
+        stamp_page(
+            serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
+        )
+    if where == "Threads read down":
+        for n in range(1, 31):
+            panel_comment(
+                serve.page_dir,
+                f"Question {n}?",
+                {"section": f"p{n}", "quote": f"Paragraph {n}."},
+            )
+    page = open_page(request.getfixturevalue(engine), url)
+    title = page.locator(".lf-fp-title")
+    if where == "On Claude":
+        on_tab(page, "On Claude").click()
+        expect(title).to_have_text("On Claude")
+        view = page.locator(panel_view("queue"))
+    elif where == "Versions":
+        view = panel_menu(page, "versions")
+        expect(title).to_have_text("Versions")
+    else:
+        open_threads(page)
+        view = page.locator(panel_view("threads"))
+        expect(view.locator(".lf-fp-thread")).to_have_count(30)
+        view.evaluate("view => view.scrollBy({top: 300, behavior: 'instant'})")
+        scroll_settled(page)
+    read_to = view.evaluate("view => view.scrollTop")
+    assert where != "Threads read down" or read_to > 100
+
+    reload(page)
+    expect(title).to_have_text(where.split(" read")[0])
+    scroll_settled(page)
+    assert abs(view.evaluate("view => view.scrollTop") - read_to) <= 2
 
 
 @pytest.mark.parametrize("engine", ENGINES)

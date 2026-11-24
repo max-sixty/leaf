@@ -197,7 +197,8 @@ import { reloadDocument } from "./layer-client.js";
  * @typedef {{anchor: import("./anchor-resolution.js").CapturedAnchor, ends: [number, number]}
  * | {thread: string | null, message: string, quote: string, prefix?: string,
  * suffix?: string, ends: [number, number]}} RecordSelection
- * @typedef {{view: string, row: string | null}} RecordList
+ * @typedef {{view: string, tab: "you" | "agent" | null, row: string | null,
+ * scroll: number}} RecordList
  * @typedef {{page: import("./reading-place.js").ReadingPlace | null,
  * focus: RecordFocus | null, selection: RecordSelection | null,
  * thread: ViewReading | null, list: RecordList | null}} EntryRecord

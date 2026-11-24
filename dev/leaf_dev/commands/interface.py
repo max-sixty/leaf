@@ -5,10 +5,12 @@ with its form and what uses it.
 
 Each part is read from the list that defines it, as the check that guards it reads it:
 
-- Manifest keys: `$keys` in `browser/registry.json`, the keys an element declaration
-  may carry, which `test_the_key_docs_hold_to_the_keys_their_schema_admits` holds to
-  `schema.DECLARATION_SCHEMA`. A key's form is the attribute Leaf paints it as for a
-  stylesheet, where the kernel registry's `$marks` paints one.
+- Declaration keys: `$keys` in `browser/registry.json`, an element declaration's
+  keys, which `test_the_key_docs_hold_to_the_keys_their_schema_admits` holds to
+  `schema.DECLARATION_SCHEMA`. `description` is among them: every declaration carries
+  it, and `$keys` gives its meaning in the table's own opening entry. A key's form is
+  the attribute Leaf paints it as for a stylesheet, where the kernel registry's
+  `$marks` paints one, and Leaf's own elements that carry it.
 - Leaf's elements: the tags `browser/registry.json` declares (`is_element_name`); the
   other keys there are selector idioms, whose classes are styling names. An element's
   form is the facts its declaration states.
@@ -20,7 +22,7 @@ Each part is read from the list that defines it, as the check that guards it rea
   name the section gives in code of a member of the element or its class (`lf` then
   a capital, `static name`, or `name()` where no function has that name), a mark
   (`data-lf-…`), or an event Leaf's runtime listens for or makes. A lead named by a
-  registry field, as `record.property` is, belongs to the manifest's `verbs`. Names
+  registry field, as `record.property` is, belongs to the declaration key `verbs`. Names
   that other references give and the index doesn't, such as `lfCopy`, are left out.
 - Functions: `widget-api.js`'s exports, `export *` followed, as
   `tests/runtime/widget-api.test.mjs` reads them. A function's form is the section the
@@ -45,7 +47,8 @@ Each part is read from the list that defines it, as the check that guards it rea
 
 A name's users are counted in three groups: the bundled packages (`packages/*`), the
 library's modules (`browser/runtime/lib/`), and the example pages (`examples/`, a page
-being its HTML file, its `.page` directory and its earlier versions). A use is:
+being its HTML file, its `.page` directory and its earlier versions). The counts leave
+out Leaf's own registry, whose elements a key's form names instead. A use is:
 
 - for a key, an element declaration in a registry that carries it;
 - for an element, its start tag;
@@ -106,7 +109,7 @@ from leaf_dev.styling_names import (
 # What each reading reads, at one version of Leaf.
 PATHS = ("browser", "packages", "examples", REFERENCES, "src/leaf")
 PARTS = {
-    "keys": "Manifest keys",
+    "keys": "Declaration keys",
     "elements": "Leaf's elements",
     "protocol": "The widget protocol",
     "functions": "Functions",
@@ -425,12 +428,17 @@ class Tree:
 
 
 def keys(tree: Tree) -> dict[str, Name]:
+    # Each `$` table opens with its own description, which paints nothing.
     painted = tree.json("browser/runtime/kernel-registry.json")["$marks"]
-    rows = {
-        key: Name(f"painted {painted[key]['attribute']}" if key in painted else "")
-        for key in tree.json("browser/registry.json")["$keys"]
-        if key != "description"
-    }
+    del painted["description"]
+    core = tree.json("browser/registry.json")
+    rows = {}
+    for key in core["$keys"]:
+        own = [tag for tag in sorted(core) if is_element_name(tag) and key in core[tag]]
+        form = [f"painted {painted[key]['attribute']}"] if key in painted else []
+        rows[key] = Name(
+            "; ".join(form + ([f"Leaf's {', '.join(own)}"] if own else []))
+        )
     for path, user in tree.users.items():
         if path.endswith("registry.json"):
             for tag, declaration in tree.json(path).items():
@@ -707,7 +715,7 @@ def printed(parts: dict[str, dict[str, Name]]) -> str:
                 form += f" (sets: {', '.join(sorted(row.sets)) or '-'};"
                 form += f" reads: {', '.join(sorted(row.reads)) or '-'})"
             lines.append(
-                f"  {name:{width}}  {packages:>5}  {library:>4}  {examples:>5}  {form}"
+                f"  {name:{width}}  {packages:>5}  {library:>4}  {examples:>5}  {form}".rstrip()
             )
         lines.append("")
     return "\n".join(lines)
@@ -717,9 +725,10 @@ def printed(parts: dict[str, dict[str, Name]]) -> str:
 @click.option("--json", "as_json", is_flag=True, help="Print one JSON document.")
 @base_option()
 def interface(as_json: bool, base: str | None) -> None:
-    """Print every name a package's author can lean on Leaf for: its manifest keys,
-    elements, widget protocol, functions and styling names, each with its form and
-    what uses it. With --base, print the names this tree adds and removes."""
+    """Print every name a package's author can lean on Leaf for: an element
+    declaration's keys, Leaf's elements, the widget protocol, functions and styling
+    names, each with its form and what uses it. With --base, print the names this
+    tree adds and removes."""
     head = census(Tree.working())
     if base is None:
         click.echo(

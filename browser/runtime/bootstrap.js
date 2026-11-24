@@ -402,8 +402,7 @@
     // that box: a Space starts a run as a letter does, rather than scrolling the page,
     // and the hold takes keys whatever the single-key preference.
     const { handoff, tabStore, placesUser } = window.lfStorage;
-    const handedBack = placesUser();
-    const typingBack = handedBack && handoff?.typing === true;
+    const typingBack = () => placesUser() && handoff?.typing === true;
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's
@@ -412,7 +411,7 @@
     // own.
     /** @type {KeyboardEvent[]} */
     const held = (() => {
-      if (!handedBack) return [];
+      if (!placesUser()) return [];
       try {
         const kept = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
         return Array.isArray(kept)
@@ -502,7 +501,7 @@
     // key uncounted until then (document-inputs.js, `holdKeys`).
     /** @param {KeyboardEvent} event */
     const holds = (event) => {
-      if (!window.lfKeyboard.quick && !typingBack) return false;
+      if (!window.lfKeyboard.quick && !typingBack()) return false;
       if (event.isComposing || HALF_PRESSES.has(event.key)) return false;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =
@@ -521,7 +520,7 @@
       // runtime's text field; its closed root makes the host the event's origin.
       const origin = event.composedPath()[0];
       const typing = origin instanceof Element && takesLetters(origin);
-      if (typing || !printed || (event.key === " " && !typingBack)) return false;
+      if (typing || !printed || (event.key === " " && !typingBack())) return false;
       // Once the document upgrades, the dispatcher supplies readiness from
       // command declarations. Useful page keys pass immediately; only a key
       // whose input is still loading starts another ordered run.
@@ -529,7 +528,7 @@
     };
     /** @param {KeyboardEvent} event */
     const hold = (event) => {
-      if (!window.lfKeyboard.quick && !typingBack) return letGo();
+      if (!window.lfKeyboard.quick && !typingBack()) return letGo();
       if (holds(event)) {
         queue(event);
         event.preventDefault();
@@ -597,16 +596,19 @@
     // much as a press, ends that hand-back, so the keys held for the place it would put
     // back go at once (`counted`), and a document that goes then leaves none of them.
     // The run's own presses, once the place is back, are the clock's inputs too, and
-    // let go of nothing (`taken`). On any other load a held key still counts, so a key
-    // typed while the page starts still stops arrival work, such as reopening a comment
-    // box, as it always did.
-    if (handedBack)
-      holdKeys({
-        holds: (event) => HALF_PRESSES.has(event.key) || holds(event),
-        counted: () => {
-          if (!taken) letGo();
-        },
-      });
+    // let go of nothing (`taken`). Elsewhere a held key still counts, so a key typed
+    // while the page starts still stops arrival work, such as reopening a comment box,
+    // as it always did. Whatever the load, the run belongs to the entry its keys were
+    // typed at: a step Back or Forward before the runtime takes it lets it go, so its
+    // keys neither run at the entry the step reached nor count against its return
+    // (document-inputs.js, `within`). Whether the place is handed back is asked of the
+    // entry the user stands at as each input comes (prepaint.js, `placesUser`).
+    holdKeys({
+      holds: (event) => placesUser() && (HALF_PRESSES.has(event.key) || holds(event)),
+      counted: (stepped) => {
+        if (!taken && (stepped || placesUser())) letGo();
+      },
+    });
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through

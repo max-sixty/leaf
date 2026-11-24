@@ -17,7 +17,10 @@ interface DocumentInputs {
   readonly away: number;
   readonly within: number;
   holdKeys(
-    hold: { holds(event: KeyboardEvent): boolean; counted(): void } | null,
+    hold: {
+      holds(event: KeyboardEvent): boolean;
+      counted(stepped: boolean): void;
+    } | null,
   ): void;
   /** Whether the user has changed `node` in this document (document-inputs.js). */
   edited(node: Element): boolean;

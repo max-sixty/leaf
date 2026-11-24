@@ -30,9 +30,9 @@
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
   // waits for is not superseded by it. The hold hears of every other input the clock
-  // counts, a step Back or Forward included (`counted`), each of which ends the
-  // hand-back the held keys were typed for, but not of leaving the window, after which
-  // the keys still land where they were typed for (bootstrap.js, `holdEarlyKeys`).
+  // counts (`counted`), and whether it is a step Back or Forward, which leaves the
+  // entry the held keys were typed at, but not of leaving the window, after which the
+  // keys still land where they were typed for (bootstrap.js, `holdEarlyKeys`).
   /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
   let hold = null;
   /** @type {Set<(event: Event) => void>} */
@@ -176,7 +176,7 @@
     if (event.type === "blur") away++;
     else {
       within++;
-      hold?.counted();
+      hold?.counted(false);
     }
     for (const read of inputReaders) read(event);
   };
@@ -193,7 +193,7 @@
     inputs++;
     away++;
     within = 0;
-    hold?.counted();
+    hold?.counted(true);
   };
   if (window.navigation?.currentEntry)
     window.navigation.addEventListener("navigate", (event) => {

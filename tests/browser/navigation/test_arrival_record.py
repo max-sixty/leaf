@@ -685,6 +685,69 @@ def test_a_key_before_back_taken_before_leaf_starts_leaves_the_entry_its_record(
     expect(card).to_be_focused()
 
 
+def test_keys_held_at_an_entry_go_when_back_leaves_it_before_leaf_starts(
+    browser, serve
+):
+    """A key the user presses while a page loads with nothing handed to it waits for
+    Leaf to start, at the entry they pressed it at. Back to another entry before Leaf
+    starts lets it go, so it neither runs there nor keeps that entry from its record."""
+    page, first, _, card = two_thread_entries(browser, serve)
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            page.evaluate("setTimeout(() => location.reload())")
+        holding(page, module, 1, "the reloaded document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.keyboard.press("T")
+        expect(page.locator(".lf-held-key")).to_have_text("T")
+        page.evaluate("history.back()")
+        page.wait_for_function(
+            f"new URL(location.href).searchParams.get('thread') === '{first}'"
+        )
+        expect(page.locator(".lf-held-key")).to_have_count(0)
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    expect(card).to_have_attribute("data-lf-thread", first)
+    expect(card).to_be_focused()
+
+
+def test_a_key_pressed_before_forward_to_the_reload_s_entry_goes_with_the_step(
+    browser, serve
+):
+    """A reload Leaf asks for at an entry, then Back to an earlier one and a reload of
+    it before Leaf starts, and a key pressed there before Forward to the first entry:
+    the key goes with the entry it was pressed at, so the first entry gets the place the
+    handoff kept for it, the reply being written."""
+    page, first, second, card = two_thread_entries(browser, serve)
+    reply = card.locator(".lf-thread-reply leaf-text")
+    module = []
+    try:
+        leaf_reloads_with_its_module_held(page, serve, module)
+        page.evaluate("history.back()")
+        page.wait_for_function(
+            f"new URL(location.href).searchParams.get('thread') === '{first}'"
+        )
+        page.reload(wait_until="commit")
+        holding(page, module, 2, "the reloaded document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.keyboard.press("t")
+        expect(page.locator(".lf-held-key")).to_have_text("t")
+        page.evaluate("history.forward()")
+        page.wait_for_function(
+            f"new URL(location.href).searchParams.get('thread') === '{second}'"
+        )
+        expect(page.locator(".lf-held-key")).to_have_count(0)
+    finally:
+        start_leaf(page, module)
+    expect(card).to_have_attribute("data-lf-thread", second)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hold")
+
+
 @pytest.mark.parametrize("engine", ENGINES)
 def test_back_before_leaf_starts_leaves_the_reload_s_place_to_its_entry(
     request, serve, engine

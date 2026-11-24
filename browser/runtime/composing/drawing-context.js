@@ -8,8 +8,8 @@
  * inspector; opening it serializes this frozen canvas, never captures the current page
  * again. The renderer loads at the first preview, outside page presentation.
  */
-import { describeFailure } from "../exception.js";
-import { canvas2D } from "../canvas.js";
+import { describeFailure } from "../lib/exception.js";
+import { canvas2D } from "../lib/canvas.js";
 import { LEAF_SURFACE } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { drawingGeometry } from "./drawing-geometry.js";

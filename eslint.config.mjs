@@ -294,6 +294,12 @@ const ownerRuntimeSyntax = [
     message:
       "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
   },
+  {
+    selector:
+      ":matches(ExportNamedDeclaration, ExportAllDeclaration)[source.value=/(?:^|\\/)lib\\/[^\\/]+$/]",
+    message:
+      "Nothing re-exports the library: each module that uses a library module imports it by its own path (browser/AGENTS.md, “The library of shared web code”).",
+  },
 ];
 
 const ownerBoundary = {
@@ -321,6 +327,13 @@ const ownerBoundary = {
   ],
   "no-restricted-syntax": ["error", ...ownerRuntimeSyntax],
 };
+
+// What a module of the library (browser/runtime/lib/) may import: a /vendor/ bundle or
+// a module beside it in that flat directory, by a path with no `..`, written or
+// percent-encoded, to climb out of either.
+const librarySpecifier = "(?:/vendor/(?!.*(?:\\.\\.|%))|\\./[^/\\\\%]+$)";
+const LIBRARY_MESSAGE =
+  "The library imports only /vendor/ bundles and its own modules (browser/AGENTS.md, “The library of shared web code”): code that needs the runtime is not library code.";
 
 const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
 const runtimeName = (file) =>
@@ -611,7 +624,7 @@ const nativeLayersRule = {
 // other at exactly those edges. A frame's `contentDocument.activeElement` is the frame
 // page's own question. The option names the files that may still read it.
 const CURRENT_LOCATION_READ_MESSAGE =
-  "Read the user’s current location with focused() (runtime/focus.js; widget-api.js in a package), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
+  "Read the user’s current location with focused() (runtime/focus.js), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
 export const currentLocationReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -649,7 +662,7 @@ export const currentLocationReadsRule = {
           context.report({
             node,
             message:
-              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
+              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js): contains() stops at a shadow root.",
           });
       },
     };
@@ -1631,8 +1644,9 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$)",
-              message: "Render checks use the public API or diagnostic adapter.",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$|lib/[^/\\\\%]+$)",
+              message:
+                "Render checks use the public API, the library or the diagnostic adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -1831,7 +1845,8 @@ export default [
     // subject to the same boundary. Nor is another primitive,
     // whose own imports this same rule holds: `rendering.js`, which every rendering
     // callback is counted through, or `focus.js`, which a primitive that moves the
-    // user's node asks to keep their current location on it.
+    // user's node asks to keep their current location on it. Nor is a module of the
+    // library (lib/), which its own block below keeps clear of every owner.
     files: runtimePrimitives.map((name) => `browser/runtime/${name}`),
     rules: {
       "no-restricted-imports": [
@@ -1839,11 +1854,11 @@ export default [
         {
           patterns: [
             {
-              regex: `^(?!/vendor/|\\.\\.?/(?:${runtimePrimitives
+              regex: `^(?!/vendor/|\\.\\.?/lib/[^/\\\\%]+$|\\.\\.?/(?:${runtimePrimitives
                 .map((name) => name.replaceAll(".", "\\."))
                 .join("|")})$)`,
               message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or another primitive may be imported.",
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle, a library module (lib/) or another primitive may be imported.",
             },
           ],
         },
@@ -1854,6 +1869,36 @@ export default [
           selector:
             "ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
           message: "Runtime primitives import statically and re-export nothing.",
+        },
+      ],
+    },
+  },
+  {
+    // The library of shared web code holds none of the page's state and reaches none
+    // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
+    // it names only a /vendor/ bundle and the modules beside it, whether it imports
+    // statically or lazily. That keeps out the runtime, and with it the framework's
+    // facade (/runtime/framework.js) and the kernel registry, neither of which is in
+    // the graph the import graph's check reads. So each module loads in a document
+    // Leaf did not compose. A module holds one concern, so none gathers the others'
+    // exports.
+    files: ["browser/runtime/lib/**/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [{ regex: `^(?!${librarySpecifier})`, message: LIBRARY_MESSAGE }] },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...ownerRuntimeSyntax,
+        {
+          selector: `ImportExpression[source.type="Literal"]:not([source.value=/^${librarySpecifier.replaceAll("/", "\\/")}/])`,
+          message: LIBRARY_MESSAGE,
+        },
+        {
+          selector: "ExportAllDeclaration, ExportNamedDeclaration[source]",
+          message:
+            "A library module re-exports nothing: its importer names the module that holds what it needs.",
         },
       ],
     },
@@ -1933,12 +1978,13 @@ export default [
     // Where a package writes the browser's own call, because the runtime's function
     // adds nothing to it. Motion that may run until the user stops it, such as
     // playback, calls the browser's frame, which the settled reading doesn't count; a
-    // size observer stays counted. The open-layers rule holds the runtime to one
-    // reading of every node, and a package asks its own popover or dialog whether it
-    // is open, so the rule is off here whole. A package opens and closes its popover
-    // or dialog with the browser's own methods, whose focus return Leaf reads as a
-    // return, so the native-layers and layer-returns rules are off here too. Each
-    // other rule repeats what it keeps of the layer's, since a file takes a rule's
+    // size observer stays counted. The open-layers and current-location-reads rules hold
+    // the runtime to one reading of every node and of where the user is, and a package
+    // asks its own popover or dialog whether it is open, and its own tree's
+    // `activeElement` what is focused there, so both rules are off here whole. A package
+    // opens and closes its popover or dialog with the browser's own methods, whose focus
+    // return Leaf reads as a return, so the native-layers and layer-returns rules are
+    // off here too. Each other rule repeats what it keeps of the layer's, since a file takes a rule's
     // options from the last block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
@@ -1956,6 +2002,7 @@ export default [
         ...ID_PROPERTIES,
       ],
       "architecture/open-layers": "off",
+      "architecture/current-location-reads": "off",
       "architecture/native-layers": "off",
       "architecture/layer-returns": "off",
     },

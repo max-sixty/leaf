@@ -57,7 +57,6 @@ import { sectionMarks } from "./toc-marks.js";
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
 import {
-  atScrollEnd,
   comparisonChanges,
   frameFor,
   holdFocus,
@@ -75,8 +74,6 @@ import {
   sizeObserver,
   whileConnected,
   named,
-  focused,
-  currentLocationIn,
 } from "/runtime/widget-api.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
@@ -101,6 +98,10 @@ customElements.define(
     }
     get #rows() {
       return this.#drawing.track;
+    }
+    // The element focus is on, in the tree this map stands in.
+    get #focused() {
+      return /** @type {Document | ShadowRoot} */ (this.getRootNode()).activeElement;
     }
     get #lens() {
       return this.#drawing.lens;
@@ -163,7 +164,7 @@ customElements.define(
     // changing a row.
     #reconcile() {
       const previous = this.#sections.map(({ destination }) => destination);
-      const held = this.#sections.find(({ link }) => link === focused());
+      const held = this.#sections.find(({ link }) => link === this.#focused);
       const restore = held && holdFocus(this.#nav);
       render(this.#drawing.render(), this, { host: this });
       this.#sections = this.#drawing.sections();
@@ -276,7 +277,7 @@ customElements.define(
         this.#flowOpen ??= disclosure.open;
         if (!disclosure.open) disclosure.open = true;
       } else if (this.#flowOpen !== undefined) {
-        const open = this.#flowOpen || currentLocationIn(this.#rows);
+        const open = this.#flowOpen || this.#rows.contains(this.#focused);
         if (disclosure.open !== open) disclosure.open = open;
         this.#flowOpen = undefined;
       }
@@ -583,7 +584,11 @@ customElements.define(
       this.#standLens(clear, this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      const end = atScrollEnd(this.#scroller);
+      // At the scroller's end the last section shown is current, though its heading
+      // stands below the threshold. Fractional layout and scaled displays can leave a
+      // scroll a pixel or so short of the end, so within two pixels counts as there.
+      const { scrollHeight, clientHeight, scrollTop } = this.#scroller;
+      const end = scrollHeight - clientHeight - scrollTop <= 2;
       for (const measured of this.#measured)
         if (measured.shown && (end || measured.position <= threshold))
           current = measured;

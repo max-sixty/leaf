@@ -32,7 +32,10 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
 // the focused scope. If one of them reached a painter or an application service, every
-// caller would acquire that owner's initialization graph.
+// caller would acquire that owner's initialization graph. A module of the library of
+// shared web code (`lib/`) is no owner, and lint keeps each clear of every owner
+// (`eslint.config.mjs`), so a root may reach one without naming it here.
+const library = `^${runtime}lib/`;
 const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
@@ -114,7 +117,6 @@ const exactClosures = {
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",
-    "exception.js",
     "page-paint.js",
     "kept.js",
   ],
@@ -220,7 +222,7 @@ export default {
       comment: `${root} reaches only: ${allowed.join(", ") || "itself"}.`,
       severity: "error",
       from: { path: isModule(root) },
-      to: { reachable: true, pathNot: isOneOf([root, ...allowed]) },
+      to: { reachable: true, pathNot: [isOneOf([root, ...allowed]), library] },
     })),
     ...Object.entries(forbiddenClosures).map(([root, forbidden]) => ({
       name: `no-reach-from-${root}`,

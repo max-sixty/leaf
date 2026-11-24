@@ -64,10 +64,9 @@ import {
   sizeObserver,
   whileConnected,
   scrollIntoView,
-  focused,
-  currentLocationIn,
   commandsChanged,
 } from "/runtime/portable-api.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -975,8 +974,7 @@ function fileError(view, error) {
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  const message = error instanceof Error ? error.message || error.name : String(error);
-  box.textContent = `That file's diff cannot be shown: ${message}`;
+  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
   restore?.(header);
 }
@@ -1113,9 +1111,14 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
+              const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
+              // The box holds its expand-all control, which counts as in the box.
               return (
-                currentLocationIn(this) &&
-                Boolean(search.value || currentLocationIn(search))
+                this.contains(root.activeElement) &&
+                Boolean(
+                  search.value ||
+                  search.contains(this.shadowRoot?.activeElement ?? null),
+                )
               );
             },
             title: () =>
@@ -1906,10 +1909,7 @@ customElements.define(
     // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
-      const currentLocation = this.shadowRoot && focused(this.shadowRoot);
-      return currentLocation && this.shadowRoot.contains(currentLocation)
-        ? currentLocation
-        : null;
+      return this.shadowRoot?.activeElement ?? null;
     }
 
     // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -2035,13 +2035,7 @@ customElements.define(
     // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoView(box, {
-        block: "start",
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant"
-          : "smooth",
-        sideways: false,
-      });
+      scrollIntoView(box, { block: "start", behavior: "smooth", sideways: false });
       focusDestination(node, "move");
     }
 

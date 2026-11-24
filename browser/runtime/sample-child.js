@@ -8,7 +8,7 @@ import {
   onCurrentLocation,
   onUserInput,
 } from "./focus.js";
-import { exceptionRecord } from "./exception.js";
+import { exceptionRecord } from "./lib/exception.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { startNearWork, whenArrived } from "./presentation.js";
 import { sizeObserver } from "./rendering.js";

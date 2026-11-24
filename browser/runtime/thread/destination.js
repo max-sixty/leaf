@@ -46,7 +46,23 @@
    (`reader: "primary"`) returns the user to a thread they had there, as a live revision
    carrying the panel's view across does (floating-panel.js, `restoreCurrentLocation`):
    the primary is asked as the last resort is, and keeps the thread once the page could
-   draw it.
+   draw it, unless it holds it already as a placement Leaf forced (below). A route to a
+   card (`reader: "card"`) returns the user to a thread they had read beside its
+   passage, as Back to such an entry does (thread/address.js): it opens
+   as a route under the cards choice does, whatever the choice now, the card standing
+   where it can and the placements Leaf forces taking the thread where it can't. A
+   route to where a thread stands (`reader: "standing"`) takes the reader of the view
+   that shows the thread: the primary where its view does, the page's (`"card"`) where
+   a card or a widget's seat does, and none where nothing shows it, which then follows
+   the choice. It reads that from the drawing of the thread itself, not of the part
+   asked for, which may stand folded inside it; the route then goes as one to that
+   reader does, revealing the part and recording the trip as every route does. A draft's
+   return fills the box of the view the entry's return opened (history.js), and a
+   reload's hand-back of the reply being written the box of the view the user writes in
+   (version.js), so neither moves the thread to where the choice says once the entry's
+   record has said where the user stands. A route that asks the primary for a thread it
+   already holds leaves the reason it holds it, which belongs to the placement rather
+   than the route: one Leaf placed there still goes back to the page once it can.
 
    A route that travels into the primary brings the thread's passage into view as well
    as the primary's view of it (`taken`): nearest, in the room the floating panel's view
@@ -250,7 +266,7 @@ export function createThreadDestinations({
   /** @typedef {{part?: "thread" | "reply" | "message" | null,
    * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
    * intent?: ReturnType<typeof retainUserIntent>, origin?: ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>,
-   * reader?: "page" | "primary" | null}} OpenThreadOptions */
+   * reader?: "page" | "primary" | "card" | "standing" | null}} OpenThreadOptions */
   /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(
     id,
@@ -267,7 +283,17 @@ export function createThreadDestinations({
   ) {
     if (!intent()) return null;
     part ??= openingPart();
+    if (reader === "standing") {
+      const shown = threadFocusTarget(id, { part: "thread" });
+      reader =
+        !shown || !presented(shown)
+          ? null
+          : presentation?.owner.isConnected && renderedUnder(shown, presentation.owner)
+            ? "primary"
+            : "card";
+    }
     const page = reader === "page";
+    const card = reader === "card";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
     // The return place, read before any reader is asked (the header).
@@ -296,7 +322,7 @@ export function createThreadDestinations({
         ...addressedPart(thread, id, part),
         focus,
         last,
-        page,
+        page: page || card,
         signal: abort.signal,
         current: () =>
           !abort.signal.aborted &&
@@ -310,8 +336,12 @@ export function createThreadDestinations({
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
+      // A thread the primary already holds keeps the reason it holds it (the header).
+      const holds = selected.reader
+        .destination(thread.key, { part: "thread" })
+        ?.checkVisibility();
       if (resort) lastResort.add(thread.key);
-      else lastResort.delete(thread.key);
+      else if (!holds) lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
       if (result === false) lastResort.delete(thread.key);
       // A reader that declines at once is answered at once, so the page's own drawing
@@ -464,7 +494,7 @@ export function createThreadDestinations({
       const invocation = { opened: null };
       if (preview && (!place || placeDrawn(id)))
         intent.handoff(() => {
-          invocation.opened = preview.open(id, { origin });
+          invocation.opened = preview.open(id, { origin, card });
         });
       const opened = invocation.opened;
       if (opened) {
@@ -644,8 +674,18 @@ export function createThreadDestinations({
     const thread = threadNamed(name);
     if (!thread) return null;
     if (part === "reply")
-      return openPageThread(thread.id, { part: "reply", intent, travel });
-    const landed = await openPageThread(name, { part: "message", intent, travel });
+      return openPageThread(thread.id, {
+        part: "reply",
+        intent,
+        travel,
+        reader: "standing",
+      });
+    const landed = await openPageThread(name, {
+      part: "message",
+      intent,
+      travel,
+      reader: "standing",
+    });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }
@@ -681,13 +721,6 @@ export function createThreadDestinations({
     },
     holdsThreadDraft: (/** @type {string} */ context) =>
       Boolean(threadHolding(context)),
-    // The reader drawing `node`, as a route's `reader` names it: "primary" for a node
-    // the primary's presentation holds, else null, which leaves the route its default.
-    // A route asked with it returns the user to the reader they had the thread in.
-    readerOf: (/** @type {Node} */ node) =>
-      presentation?.owner.isConnected && renderedUnder(node, presentation.owner)
-        ? /** @type {const} */ ("primary")
-        : null,
     threadFocusTarget,
     threadHere,
     threadAtCurrentLocation,

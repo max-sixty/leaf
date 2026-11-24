@@ -5617,7 +5617,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.set_viewport_size({"width": 900, "height": 600})
-    # A draft written on the passage, which the page opens again as it loads.
+    # A draft written on the passage, which the page opens again on a visit.
     page.evaluate(
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
@@ -5633,7 +5633,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         }"""
     )
     page.add_init_script(script=HEARD_AS_IT_STARTS)
-    page.reload()
+    page.goto(page.url)
     try:
         expect(page.locator(".lf-composer")).to_be_visible()
     except AssertionError as closed:

@@ -4,8 +4,28 @@ interface DocumentInputs {
   readonly textBox: string;
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
+  /** Which state a reload carries for a control (document-inputs.js). */
+  holdsValue(
+    node: Element,
+  ): node is
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLElementTagNameMap["leaf-text"];
+  holdsTick(node: Element): node is HTMLInputElement;
+  holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
-  holdKeys(holds: ((event: KeyboardEvent) => boolean) | null): void;
+  readonly away: number;
+  readonly entered: number;
+  holdKeys(
+    hold: {
+      holds(event: KeyboardEvent): boolean;
+      /** `stepped`: the input is a step Back or Forward the browser says the user
+       * took; otherwise it is an act within the entry. */
+      counted(stepped: boolean): void;
+    } | null,
+  ): void;
+  /** Whether the user has changed `node` in this document (document-inputs.js). */
+  edited(node: Element): boolean;
   observe(read: (event: Event) => void): () => boolean;
 }
 
@@ -110,9 +130,12 @@ interface Window {
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
-    /** The place handed to this document by the reload that loaded it (version.js). */
-    readonly handoff: { readonly url?: unknown; readonly typing?: unknown } | null;
-    handOff(value: unknown): boolean;
+    /** The handoff the reload that loaded this document handed it (prepaint.js). */
+    readonly handoff: { readonly typing?: unknown } | null;
+    /** Whether the handoff puts the user back where they were, here (prepaint.js). */
+    placesUser(): boolean;
+    /** What this document hands on as it goes from now on (prepaint.js). */
+    handOnWith(handingOn: () => object | null): void;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };
@@ -248,8 +271,15 @@ interface DocumentEventMap {
       ready(event: KeyboardEvent): boolean;
       keep(): boolean;
     } & (
-      | { keys?: never; pause?: never; release?: never }
-      | { keys: KeyboardEvent[]; pause(): void; release(): void }
+      | { keys?: never; pressed?: never; pause?: never; release?: never }
+      | {
+          keys: readonly KeyboardEvent[];
+          /** The first key leaves the run as the controller presses it. */
+          pressed(): void;
+          pause(): void;
+          /** Ends the take, letting go of any key the run still holds. */
+          release(): void;
+        }
     )
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null

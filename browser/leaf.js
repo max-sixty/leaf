@@ -11,7 +11,7 @@ import { offlineInteractive, runtime, annotationMode } from "./runtime/context.j
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
-import { mountHistory } from "./runtime/history.js";
+import { arrive, beginArrival, mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -24,6 +24,7 @@ import {
   pageReadiness,
   settlePageInterface,
   afterPresentation,
+  deferredArrival,
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { pagePresented } from "./runtime/page-paint.js";
@@ -42,7 +43,6 @@ import {
   composerOpen,
   composerQuote,
   fabBar,
-  fabInput,
   pendingAbout,
   pendingAnchor,
   pendingDrawing,
@@ -207,10 +207,6 @@ async function boot() {
   // Automatic recovery belongs to this arrival. A press made while its presentation
   // waits owns the page; recovery must not capture a fresh focus intent after that wait.
   const recoverComposer = retainUserIntent({ since: 0 });
-  // Capture the requested address before widgets add their display fragment. Authored
-  // fragments take precedence, so a copied heading still reaches its passage.
-  const arrivalUrl = new URL(location.href);
-  const threadArrival = retainUserIntent({ since: 0 });
 
   // This declaration belongs to the executable document lifetime. The revision capture
   // includes it in executable identity, so selecting another presentation retires this
@@ -370,8 +366,8 @@ async function boot() {
     paintKeys,
   });
 
-  // Where the user is in the chrome's views, a margin card or entry and the panel's
-  // thread or list, which a revision carries.
+  // Where the user is in the chrome's thread views, a margin card or entry and the
+  // panel's thread, which a revision carries.
   const captureChrome = () => {
     const margin = app?.overlay?.captureCurrentLocation() ?? null;
     const panel = floatingPanel.captureCurrentLocation();
@@ -380,10 +376,12 @@ async function boot() {
 
   const version = createVersionController({
     initialDocument,
-    compositionInput: fabInput,
     openThread: (id, options) =>
-      app.threadDestinations.openPageThread(id, { ...options, travel: false }),
-    threadReader: (node) => app.threadDestinations.readerOf(node),
+      app.threadDestinations.openPageThread(id, {
+        reader: "standing",
+        ...options,
+        travel: false,
+      }),
     refreshThread: () => app.refreshThread(),
     midComposition: (...args) => app.midComposition(...args),
     hasPending: () => app.hasPending(),
@@ -843,15 +841,37 @@ async function boot() {
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
     thread: {
-      claim: (url, place) => threadAddress.claim(url, place),
-      drawing: (id) => app.threadDestinations.threadFocusTarget(id, { part: "thread" }),
+      claim: (url, record, intent) => threadAddress.claim(url, record, intent),
+      open: () => openThreadView(),
+      focusTarget: (id, part) => app.threadDestinations.threadFocusTarget(id, { part }),
       name: (url) => threadAddress.name(url),
     },
+    list: () => floatingPanel.listShown(),
+    // A draft's box opens where the user stands, as the walk or Resume writing opened it,
+    // with the user on the box, in its words or on a control inside it.
+    draft: (key, intent) =>
+      key.box && !key.control
+        ? writingResume.showDraft(key.draft, { travel: false, intent })
+        : writingResume.resumeDraft(key.draft, {
+            travel: false,
+            intent,
+            ...(key.caret && { caret: key.caret }),
+            ...(key.control && { control: key.control }),
+          }),
   });
-  const landFragment = version.aimArrival();
-  const { landArrival, savedView, handedOff, restored } = offlineInteractive
-    ? { landArrival: () => {}, savedView: null, handedOff: false, restored: false }
-    : version.installArrival();
+  // The document's one arrival (history.js, `beginArrival`), whose intent every route
+  // it starts runs under, and which the handoff of a reload Leaf asked for joins
+  // (version.js, `installArrival`).
+  const restoration = offlineInteractive ? null : beginArrival();
+  // The address the document arrives at, read with its entry and before widgets add
+  // their display fragment. Authored fragments take precedence, so a copied heading
+  // still reaches its passage.
+  const arrivalUrl = new URL(location.href);
+  const arrivalIntent = restoration?.intent ?? retainUserIntent({ since: 0 });
+  const landFragment = version.aimArrival(arrivalIntent);
+  const { landArrival, savedView, restored } = restoration
+    ? version.installArrival(restoration)
+    : { landArrival: async () => {}, savedView: null, restored: false };
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
   // The entry's `?thread=` (thread/address.js).
   // The thread view standing open: the panel's, else a margin card's.
@@ -860,23 +880,29 @@ async function boot() {
     const panel = floatingPanel?.shownThread() ?? null;
     if (panel) return { id: panel, reader: "primary" };
     const card = app?.overlay?.threadPreview.shown() ?? null;
-    return card ? { id: card, reader: null } : null;
+    return card ? { id: card, reader: "card" } : null;
   }
   const threadAddress = createThreadAddress({
     shown: openThreadView,
-    putAway: () => {
-      floatingPanel.putThreadAway();
+    putAway: (list, from, intent) => {
       app?.overlay?.threadPreview.close();
+      floatingPanel.putThreadAway(list, from, intent);
     },
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
   });
   threadAddress.followOpenThread();
-  // A revision's handoff carries the thread views open across the reload itself
-  // (version.js, `captureRetainedCurrentLocation`).
-  const threadArrive = handedOff
+  // A reload, Leaf's own among them, or Back or Forward from another document,
+  // arrives at the entry's record, which returns the user where they left it
+  // (history.js, `arrive`); the handoff of a reload Leaf asked for adds only what the
+  // record doesn't hold (version.js). Only a visit the entry kept no record of travels
+  // to the thread its address names.
+  const threadArrive = restoration?.record
     ? null
-    : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
-  if (threadArrive) void afterPresentation(threadArrive);
+    : threadAddress.arrive(arrivalUrl, arrivalIntent, { restored });
+  // The arrival holds its work until it has run (history.js, `run`).
+  /** @param {() => PromiseLike<unknown>} work */
+  const arriving = (work) => (restoration ? restoration.run(work) : work());
+  if (threadArrive) void arriving(() => afterPresentation(threadArrive));
 
   async function presentPage() {
     // Saved state gates state-dependent interaction, not the commenting interface.
@@ -897,7 +923,7 @@ async function boot() {
             .catch(() => {});
         }, 0),
       );
-    void whenArrived().then(landFragment);
+    void arriving(() => whenArrived().then(landFragment));
     if (offlineInteractive) {
       landFragment();
       document.dispatchEvent(new Event(PRESENTATION));
@@ -910,7 +936,9 @@ async function boot() {
     // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
     // interaction, after the landing's synchronous part, rather than after an editor
     // the landing waits for: awaited first, a margin map presented its authored spans.
-    const arrival = landArrival();
+    const arrival = deferredArrival(
+      restoration ? arrive(restoration, landArrival) : landArrival(async () => {}),
+    );
     document.dispatchEvent(new Event(PRESENTATION));
     await arrival;
     const currentRevision = runtime.currentRevision;
@@ -965,9 +993,12 @@ async function boot() {
     // drawn content, so it cannot be a prerequisite for revealing the page itself.
     const draftOpened =
       !offlineInteractive &&
-      // A thread address takes the reader to its destination. The saved draft
-      // remains available through Resume writing, without taking that arrival's focus.
+      // A thread address takes the reader to its destination, and an entry's record
+      // back where they were, which opens the draft only where they were writing it.
+      // The saved draft remains available through Resume writing, without taking that
+      // arrival's focus.
       !threadArrive &&
+      !restoration?.record &&
       recoverComposer() &&
       responseSurface.openDraft(savedComposer);
     if (draftOpened) {

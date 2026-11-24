@@ -148,6 +148,7 @@ import {
   CLOSING,
   COLLAPSE,
   COLLAPSE_CHARS,
+  CONTEXT,
   OPENING,
   PHRASING,
   TEXT_BLOCK,
@@ -316,7 +317,7 @@ export function settledAway(el) {
 export const GENERATED = ".lf-ui, [data-lf-gen]";
 // A message's body: what the runtime renders from its writer's Markdown, any HTML an
 // agent wrote in it included.
-const MESSAGE_BODY = ".lf-msg-body";
+export const MESSAGE_BODY = ".lf-msg-body";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
 // What a heading in it heads, as a page's title in its header heads the page (`headed`).
@@ -1275,7 +1276,7 @@ export const readingFrom = (segments) => readSegments(segments, true);
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 /** @param {string} text @param {number} from @param {number} to */
-export const cut = (text, from, to) => [...text].slice(from, to).join("");
+const cut = (text, from, to) => [...text].slice(from, to).join("");
 
 // Copyable words use the same segments as prose, with the walk's computed line
 // boundaries and whitespace. They need no DOM-coordinate map; quote readings above
@@ -2346,6 +2347,71 @@ export function runReading(first, last) {
     segments,
     segments.map(() => null),
   );
+}
+// The words of a message's body (`authoredScope`), a document of its own, read by the
+// page's rules for words (`textNodesUnder`) as one passage cell: the reading a passage
+// in the message is told apart from its other copies in (`passageIn`, `findQuote`). It
+// is read afresh each time it is asked.
+/** @param {Element} body @returns {PageReading} */
+export function messageReading(body) {
+  const segments = textNodesUnder(body);
+  return indexed(
+    segments,
+    segments.map(() => null),
+  );
+}
+// The words on each side of the passage `segments` that tell it apart in `reading`:
+// the context a short unique quote keeps, widened until `find`, given it, finds this
+// very passage, or until the reading's edges are reached, where the passage is
+// `detached`. The quote discards boundary whitespace, so the passage found is this one
+// where its first character is the passage's first (`units`, `readingFrom`) and its
+// last the passage's last, whatever cosmetic spaces the selection held. Anchor capture
+// asks it of the page's reading (anchor-resolution.js, `anchorForPassage`), and a
+// selection in a message of the message's (`passageIn`).
+/** @param {PageReading} reading @param {readonly Segment[]} segments
+ * @param {readonly TextUnit[]} units
+ * @param {(context: {prefix?: string, suffix?: string}) => readonly Segment[]} find
+ * @returns {{prefix?: string, suffix?: string, detached?: true}} */
+export function passageContext(reading, segments, units, find) {
+  const [start, stop] = spanIn(reading, segments);
+  const from = units[0]?.start;
+  const to = units.at(-1)?.end;
+  for (let width = CONTEXT; ; width *= 2) {
+    const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
+    const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
+    const context = { ...(prefix && { prefix }), ...(suffix && { suffix }) };
+    const found = find(context);
+    const first = found[0];
+    const last = found.at(-1);
+    if (
+      first &&
+      last &&
+      from &&
+      to &&
+      first.node === from.node &&
+      first.start === from.offset &&
+      last.node === to.node &&
+      last.end === to.offset
+    )
+      return context;
+    if ([...prefix].length < width && [...suffix].length < width)
+      return { ...context, detached: true };
+  }
+}
+// The words from `from` to `to` in `reading` as a passage no anchor names, as words
+// selected in a message: their quote, with the context that tells them apart there
+// (`passageContext`), and where the quote starts (`at`); null where none does, so the
+// passage is found again by the quote rules alone (`findQuote`), never by an offset
+// among copies.
+/** @param {PageReading} reading @param {number} from @param {number} to */
+export function passageIn(reading, from, to) {
+  const segments = spanOf(reading, from, to);
+  const { text: quote, units } = readingFrom(segments);
+  if (!quote) return null;
+  /** @param {{prefix?: string, suffix?: string}} context */
+  const find = (context) => findQuote(reading, quote, context);
+  const { detached, ...context } = passageContext(reading, segments, units, find);
+  return detached ? null : { quote, ...context, at: spanIn(reading, find(context))[0] };
 }
 // The roots of the page's parts, in reading order.
 export function readingParts() {

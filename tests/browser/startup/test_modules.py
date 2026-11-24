@@ -339,7 +339,7 @@ def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, 
         page.reload()
         wait_until_ready(page, through="presented")
         holding(page, held, 1, "CodeMirror")
-        page.keyboard.press("c")
+        # The reload puts the user back in the field they left.
         expect(field).to_be_focused()
         page.keyboard.type(" words")
         expect(field).to_have_js_property("value", "Kept words")

@@ -34,7 +34,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -189,6 +189,44 @@ def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serv
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_after_a_reload_returns_to_the_place_the_entry_left(
+    request, serve, engine
+):
+    """An entry keeps where the user was across a reload of the document, as a revision
+    that changes the page's code reloads it: Back after the reload returns to the line
+    they were reading and to the link they followed, as Back before it does."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Return across a reload",
+                "<h1>Return across a reload</h1>"
+                + "".join(
+                    f"<p>Reading paragraph {n} carries on long enough to name a place.</p>"
+                    for n in range(40)
+                )
+                + '<p><a id="reference" href="#destination">Read the destination</a></p>'
+                + "".join(f"<p>Middle paragraph {n}.</p>" for n in range(60))
+                + '<section id="destination" style="min-height:900px">'
+                "<h2>Destination</h2></section>",
+            )
+        ),
+    )
+    page.locator("#reference").scroll_into_view_if_needed()
+    page.evaluate("scrollBy({top: 120, behavior: 'instant'})")
+    scroll_settled(page)
+    read_to = page.evaluate("scrollY")
+    page.locator("#reference").click()
+    expect(page.locator("#destination")).to_be_focused()
+    scroll_settled(page)
+    page.reload()
+    wait_until_ready(page)
+    page.go_back()
+    expect(page.locator("#reference")).to_be_focused()
+    page.wait_for_function("top => Math.abs(scrollY - top) <= 2", arg=read_to)
+
+
 TWO_LINE_PATCH = """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
@@ -315,6 +353,171 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
       return s.focusNode && {at: s.focusNode.parentElement.id, offset: s.focusOffset};
     }""")
     assert returned == (None if close_source else before)
+
+
+# Prose whose selections and carets history returns to, and a decision far below that
+# `m` leaves them for.
+EXACT_ENDS_PAGE = leaf_page(
+    "Exact ends",
+    "<h1>Exact ends</h1>"
+    '<p id="spaced">Tend · sandboxing keeps the runner apart from the host.</p>'
+    '<p id="marked"><em>Emphasis</em> and then the words after it carry on.</p>'
+    '<div style="height:1600px"></div>'
+    '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+    '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+    '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("where", ["before a space", "where an element ends"])
+def test_history_returns_a_caret_between_the_same_characters(
+    request, serve, engine, where
+):
+    """A caret in prose comes back between the characters it stood between, though it
+    stood just before a space, or where an element ends and the words after it begin."""
+    page = open_page(request.getfixturevalue(engine), serve(EXACT_ENDS_PAGE))
+    block = "spaced" if where == "before a space" else "marked"
+    page.evaluate(
+        """block => {
+          const at = document.getElementById(block);
+          if (block === 'spaced') getSelection().collapse(at.firstChild, 4);
+          else getSelection().collapse(at, 1);
+        }""",
+        block,
+    )
+    # How many of the block's characters stand before the caret.
+    before = """block => {
+      const s = getSelection();
+      if (!s.rangeCount || !s.isCollapsed) return null;
+      const r = document.createRange();
+      r.setStart(document.getElementById(block), 0);
+      r.setEnd(s.focusNode, s.focusOffset);
+      return document.getElementById(block).contains(s.focusNode) ? r.toString().length : null;
+    }"""
+    assert page.evaluate(before, block) == (4 if block == "spaced" else 8)
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(
+        f"([block, want]) => ({before})(block) === want",
+        arg=[block, 4 if block == "spaced" else 8],
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_with_its_trailing_space(request, serve, engine):
+    """Words selected with the space after them come back with that space, though the
+    passage a comment on them would quote ends at their last word."""
+    page = open_page(request.getfixturevalue(engine), serve(EXACT_ENDS_PAGE))
+    page.evaluate("""() => {
+      const text = document.getElementById('spaced').firstChild;
+      const at = text.data.indexOf('keeps');
+      getSelection().setBaseAndExtent(text, at, text, at + 'keeps the '.length);
+    }""")
+    assert page.evaluate("getSelection().toString()") == "keeps the "
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function("() => getSelection().toString() === 'keeps the '")
+
+
+UNNAMED_PROSE = """
+<h1>Unnamed prose</h1>
+<div><p>The passage without a name carries the words to select and more after them.</p></div>
+<div style="height:1600px"></div>
+<lf-group id="ask" label="Which route?"><h2>Which route?</h2>
+<lf-options id="routes"><lf-option id="left">Left</lf-option>
+<lf-option id="right">Right</lf-option></lf-options></lf-group>
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_in_unnamed_prose_across_a_revision(
+    request, serve, engine
+):
+    """Words selected where no element names them are a working place too: Back after
+    a trip selects them again, and still selects the same words after a revision wrote
+    others before them in their paragraph."""
+    url = serve(leaf_page("Unnamed prose", UNNAMED_PROSE))
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    selected = """() => {
+      const text = [...document.querySelectorAll('p')]
+        .find((p) => p.textContent.includes('without a name')).firstChild;
+      const at = text.data.indexOf('words to select');
+      getSelection().setBaseAndExtent(text, at, text, at + 'words to select'.length);
+    }"""
+    page.evaluate(selected)
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function("() => getSelection().toString() === 'words to select'")
+
+    page.wait_for_function("navigation.transition === null")
+    page.go_forward()
+    expect(page.locator("#ask")).to_be_focused()
+    # A selection the revision would rewrite holds the revision back (version.js).
+    page.evaluate("getSelection().removeAllRanges()")
+    _publish(
+        serve.page_dir,
+        2,
+        leaf_page(
+            "Unnamed prose",
+            UNNAMED_PROSE.replace(
+                "<p>The passage",
+                "<p>New words come first, and the words to see. The passage",
+            ),
+        ),
+        "words before the selection",
+    )
+    told(page)
+    expect(page.get_by_text("New words come first")).to_be_attached()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(
+        """() => {
+          const s = getSelection();
+          return s.toString() === 'words to select' &&
+            s.anchorNode.data.slice(s.anchorOffset - 9, s.anchorOffset) === 'ries the ';
+        }"""
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_widgets_named_control_across_a_revision(
+    request, serve, engine
+):
+    """Focus on a control a widget generates comes back by the key the widget names it
+    by inside its element (carry.js), though a revision has drawn the widget again."""
+    page_html = leaf_page(
+        "Named control",
+        '<h1>Named control</h1><lf-code id="snippet"><pre><code class="language-python">'
+        "first = 1\nsecond = 2</code></pre></lf-code>"
+        '<div style="height:1600px"></div><lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+        '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+    )
+    url = serve(page_html)
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    source = page.locator('#snippet pre[data-lf-carry="source"]')
+    source.focus()
+    expect(source).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    _publish(
+        serve.page_dir,
+        2,
+        page_html.replace("second = 2", "second = 3"),
+        "a new line of code",
+    )
+    told(page)
+    expect(page.locator("#snippet")).to_contain_text("second = 3")
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(source).to_be_focused()
 
 
 # A widget that draws one item at a time, as one fetching each item when it is picked
@@ -2335,30 +2538,29 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     assert take_browser_errors(page) == []
 
 
-@pytest.mark.parametrize("navigation_api", [False, True])
-def test_restore_selection_back_keeps_the_offset_before_reveal(
-    browser, serve, navigation_api
-):
-    """Disclosure can reshape the source before successful arrival commits its entry."""
-    page = open_page(
-        browser,
-        serve(RESTORE_SELECTION_PAGE),
-        init_script=None
-        if navigation_api
-        else "Object.defineProperty(window, 'navigation', {value:undefined});",
-    )
+def test_restore_selection_back_keeps_the_place_read_before_reveal(browser, serve):
+    """The disclosure the arrival opens reshapes the page above the place the user left
+    before the arrival commits its entry, so the entry keeps the place read before it:
+    Back stands what the user was reading where it stood on screen, though the page
+    above it has grown since."""
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE))
     page.emulate_media(reduced_motion="reduce")
     _select_remembered_backwards(page)
     page.keyboard.press("Escape")
     page.locator("#selected-details summary").click()
     page.locator("#away").scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
+    stood = page.locator("#away").evaluate("node => node.getBoundingClientRect().top")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function("() => getSelection().toString().includes('amber passage')")
     assert page.evaluate("scrollY") < before - 300
     page.go_back()
-    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before)
+    page.wait_for_function(
+        "top => Math.abs(document.getElementById('away').getBoundingClientRect().top"
+        " - top) < 2",
+        arg=stood,
+    )
     assert take_browser_errors(page) == []
 
 
@@ -2591,3 +2793,141 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
     )
     assert after["page"] == pytest.approx(page_top, abs=2), after
     assert after["log"] < started + 200 < after["limit"], (started, after)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_across_lines_of_a_diff(request, serve, engine):
+    """Words selected across two lines of a diff, one passage its widget drew from one
+    value, come back as they were when Back returns to the entry."""
+    url = serve(
+        leaf_page(
+            "Selection across lines",
+            '<h1 id="title">Wording</h1><lf-diff id="patch" source="patch-data"></lf-diff>'
+            '<div style="height:1600px"></div>'
+            '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+            '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+            '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"
+        "@@ -10,2 +10,3 @@\n Text in the tree says what holds now.\n"
+        "-Old wording.\n+Instructions must reach a reader who has only\n"
+        "+that text and the files it points to.\n",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    first, last = '["AGENTS.md","new",11]', '["AGENTS.md","new",12]'
+    page.locator("#patch").evaluate(
+        """(diff, [first, last]) => {
+          const at = (key, word, after) => {
+            const line = diff.shadowRoot.querySelector(`[data-lf-datum='${key}']`);
+            const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+            for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+              const i = node.data.indexOf(word);
+              if (i >= 0) return [node, i + after * word.length];
+            }
+          };
+          const [from, to] = [at(first, "reach", 0), at(last, "files", 1)];
+          getSelection().setBaseAndExtent(from[0], from[1], to[0], to[1]);
+        }""",
+        [first, last],
+    )
+    page.evaluate(
+        "async () => { window.__lfPageRange = (await window.__lfCheckApi()).pageRange; }"
+    )
+    # The words selected, as the page's own reading of the selection finds them.
+    selected = (
+        "() => getSelection().rangeCount"
+        " ? window.__lfPageRange(getSelection())?.toString() : null"
+    )
+    words = page.evaluate(selected)
+    assert words and words.startswith("reach") and words.endswith("files")
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(f"() => ({selected})() === {words!r}")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("how", ["push", "replace"])
+def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
+    request, serve, engine, how
+):
+    """A visit to a fragment whose page leaves that address while deferred work still
+    arrives doesn't land on the fragment once the work comes in."""
+    url = serve(
+        leaf_page(
+            "Late landing",
+            '<h1 id="top">Late landing</h1><div style="height:2600px"></div>'
+            '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
+        ).replace(
+            "</head>",
+            "<script type=\"module\">import {afterPresentation} from '/runtime/widget-api.js';"
+            "afterPresentation(() => new Promise((done) => (window.__arrived = done)));"
+            "</script></head>",
+        )
+    )
+    page = request.getfixturevalue(engine).new_page()
+    page.goto(f"{url}#target")
+    wait_until_ready(page, through="presented")
+    page.wait_for_function("typeof window.__arrived === 'function'")
+    page.evaluate(
+        f"() => {{ history.{how}State(null, '', location.pathname + location.search);"
+        " scrollTo({top: 0, behavior: 'instant'}); window.__arrived(); }"
+    )
+    wait_until_ready(page)
+    scroll_settled(page)
+    assert page.evaluate("scrollY") < 50
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_traversal_left_before_its_part_is_drawn_doesnt_travel_to_it(
+    request, serve, engine
+):
+    """Back to a widget's part the widget has to draw first, then a move to another
+    address before it has drawn it: the part, once drawn, takes the user nowhere."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items",
+                """
+<h1 id="top">Items</h1>
+<p><a id="to-part" href="#items:a/2">Part 2 of item a</a></p>
+<lf-item-link id="jump" for="items" key="b/1"></lf-item-link>
+<lf-items id="items"></lf-items>
+<div style="height:1600px"></div>
+""",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets={
+                **ITEMS_WIDGETS,
+                "lf-items.js": ITEMS_WIDGETS["lf-items.js"].replace(
+                    "new Promise((resolve) => setTimeout(resolve, 50))",
+                    "new Promise((resolve) => window.__holdReveal"
+                    " ? (window.__reveals ??= []).push(resolve) : setTimeout(resolve, 50))",
+                ),
+            },
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator("#to-part").click()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#jump button").click()
+    page.wait_for_url(re.compile(r"#items:b/1$"))
+    expect(page.locator('#items [data-item="b"][data-part="1"]')).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("window.__holdReveal = true")
+    page.go_back()
+    page.wait_for_function("() => window.__reveals?.length === 1")
+    page.evaluate(
+        "() => { history.pushState(null, '', location.pathname + location.search);"
+        " scrollTo({top: 0, behavior: 'instant'}); window.__reveals[0](); }"
+    )
+    expect(page.locator('#items [data-item="a"][data-part="2"]')).to_be_attached()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") < 50

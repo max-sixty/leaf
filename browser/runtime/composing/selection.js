@@ -660,7 +660,7 @@ export function createSelectionComposer({
         syncSuggestMode();
         refreshThread();
       },
-      { input: fabInput },
+      { input: fabInput, box: () => syncComposer.composition().frame },
     );
   }
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box

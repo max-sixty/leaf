@@ -16,7 +16,6 @@ import {
   targetElement,
   passageGeometry,
 } from "./resolved-target.js";
-import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { declaredRoot, queryAllUnder } from "./shadow.js";
@@ -38,10 +37,9 @@ import {
 import {
   blockAt,
   AROUND,
-  cut,
   contextAround,
-  neighbourhood,
   pageText,
+  passageContext,
   readingPart,
   readingFrom,
   runReading,
@@ -50,7 +48,6 @@ import {
   segmentsIn,
   textNodesUnder,
   quoteFrom,
-  spanIn,
   DATUM,
   elementById,
   excerpt,
@@ -524,39 +521,11 @@ export function anchorForPassage(selected, node) {
       ? runReading(first, last)
       : pageText();
   const base = projected || { section };
-  const [start, stop] = spanIn(reading, segments);
-  for (let width = CONTEXT; ; width *= 2) {
-    const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
-    const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
-    const anchor = {
-      ...base,
-      quote,
-      ...(prefix && { prefix }),
-      ...(suffix && { suffix }),
-    };
-    const resolved = resolveAnchor(anchor);
-    if (resolved?.exact && resolved.kind === "passage") {
-      // Quotes discard boundary whitespace. Compare the characters the passage
-      // reader retained, rather than demanding the drag's cosmetic spaces survive.
-      const first = resolved.segments[0];
-      const last = resolved.segments.at(-1);
-      const from = units[0]?.start;
-      const to = units.at(-1)?.end;
-      if (
-        first &&
-        last &&
-        from &&
-        to &&
-        first.node === from.node &&
-        first.start === from.offset &&
-        last.node === to.node &&
-        last.end === to.offset
-      )
-        return anchor;
-    }
-    if ([...prefix].length < width && [...suffix].length < width)
-      return { ...anchor, detached: true };
-  }
+  const context = passageContext(reading, segments, units, (context) => {
+    const resolved = resolveAnchor({ ...base, quote, ...context });
+    return resolved?.exact && resolved.kind === "passage" ? resolved.segments : [];
+  });
+  return { ...base, quote, ...context };
 }
 
 // Design names the authored interface, including an agent-authored widget in a Leaf

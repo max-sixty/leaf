@@ -78,8 +78,8 @@ async function sourceMovedOn() {
 
 // A reload Leaf asks for, as a delivery that moved on and a revision that needs a fresh
 // document do, rather than the user. The document going hands the one it loads the
-// user's place (version.js, `handOff`), and the tab carries its unsent words to it
-// (drafts.js), so the leave prompt that reload raises asks the user nothing
+// user's place (version.js, `captureHandoff`), and the tab carries its unsent words to
+// it (drafts.js), so the leave prompt that reload raises asks the user nothing
 // (`takeLeafUnload`). A page's own prompt can still keep the document: `leafReloads`
 // stays true, so whichever departure ends it later hands over the place it leaves,
 // while a later prompt is no longer the reload's, so a close asks before dropping words.

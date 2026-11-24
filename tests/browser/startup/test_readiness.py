@@ -2,7 +2,9 @@
 wait for it, and the readable page a startup fault leaves."""
 
 import itertools
+import json
 import re
+from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_carried_log_record, append_command, wait_for
@@ -21,6 +23,7 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
+    holding,
     leaf_page,
     open_page,
     open_threads,
@@ -34,6 +37,8 @@ from render_harness import (
     reported_browser_errors,
     selection_field,
     sending,
+    take_browser_errors,
+    wait_for_check_api,
     watched,
     write,
 )
@@ -42,7 +47,7 @@ from browser.threads import PANEL_REPLY, open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import asked_again, wait_until_ready
 from leaf.render_gate.page_code import run_page_code
-from leaf_dev.browser import open_on_me
+from leaf_dev.browser import PANEL_THREAD, open_on_me
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -592,6 +597,1148 @@ def restart_under_another_runtime(page, serve, answer=None):
     page.unroute("**/registry.json")
 
 
+# The page interfaces of the documents the reloads bring, numbered from the first
+# reload's, that never settle (`reload_in_a_row`).
+HOLD_INTERFACES = """((held) => {
+  const loads = Number(sessionStorage.getItem("test-loads") || 0) + 1;
+  sessionStorage.setItem("test-loads", String(loads));
+  if (held.includes(loads))
+    document.addEventListener("lf-page-interface", (event) =>
+      event.detail.present(new Promise(() => {})),
+    );
+})(%s)"""
+
+
+def reload_in_a_row(page, serve, waits, slow=()):
+    """Reloads Leaf asks for in a row: the tab's server restarted under another Leaf
+    (`answer_as_another_runtime`), and so did the server each of the documents the
+    first reloads bring first hears from, so each reloads too, while its arrival still
+    waits for its first answer and so before it has put the user back. `waits` runs
+    one step in each of those documents while it waits, so there is one reload more
+    than steps. `slow` numbers those documents, from 1, whose page interface never
+    settles (presentation.js, `settlePageInterface`), as a widget slow to upgrade holds
+    it, so their anchoring is not yet ready as they go. Returns once the last reload
+    has landed."""
+    if slow:
+        page.add_init_script(HOLD_INTERFACES % json.dumps(list(slow)))
+    reloads = {"count": 0}
+    replaced = {"documents": 0}
+    # The answers each document the reloads bring asks for, by its number from 1, held
+    # until it has taken its step.
+    held = {}
+
+    # Each reload asks for a new document; a rename of the entry the page makes is no
+    # new document.
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            replaced["documents"] += 1
+
+    def answer(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    # A document's probe of its source, the registry at the server's root, settles
+    # that the runtime moved on, and the document reloads; every other answer to a
+    # document still to take a step waits, its own layer's registry among them.
+    def another_runtime(route):
+        if reloads["count"] > len(waits):
+            route.continue_()
+            return
+        if urlsplit(route.request.url).path == "/registry.json":
+            answer(route)
+            reloads["count"] += 1
+        elif 1 <= replaced["documents"] == reloads["count"]:
+            held.setdefault(replaced["documents"], []).append(route)
+        else:
+            answer(route)
+
+    page.on("request", navigated)
+    page.route("**/api/**", another_runtime)
+    page.route("**/registry.json", another_runtime)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    for document, wait in enumerate(waits, start=1):
+        waiting = held.setdefault(document, [])
+        holding(page, waiting, 1, "the arriving document's first answer")
+        page.wait_for_function("() => document.readyState !== 'loading'")
+        wait()
+        with page.expect_navigation(wait_until="commit"):
+            while waiting:
+                answer(waiting.pop(0))
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+
+
+def test_a_value_typed_into_the_page_rides_a_reload_after_a_scroll(browser, serve):
+    """A value the user typed into the page's own form comes back after two reloads
+    Leaf asks for in a row though they scrolled in the document between, which ended
+    its arrival before it had put them back where they were, while something slow to
+    upgrade still held back that document's anchoring: an input ends the reload's claim
+    on where the user was, never on what they typed."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.add_init_script(HOLD_INTERFACES % json.dumps([1]))
+    release = reload_with_its_answers_held(page, serve, anchored=False)
+    scroll_away(page)
+    release(True)
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
+def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
+    """A value the user typed into the page's own form, and an option they chose before
+    the one its author chose, come back after two reloads Leaf asks for in a row, the
+    second before the first's arrival has put them back, while something slow to
+    upgrade still holds back that document's anchoring. The form asks the browser to
+    keep no value of its own, so only Leaf's carry can."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><form autocomplete="off"><p><label>Name <input id="who">'
+            "</label></p>"
+            '<label><input type="radio" name="pace" id="slow"> slow</label>'
+            '<label><input type="radio" name="pace" checked> steady</label>'
+            '<label><input type="radio" name="pace" id="fast"> fast</label>'
+            "</form>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.locator("#slow").check()
+    reload_in_a_row(page, serve, [lambda: None], slow={1})
+    expect(page.locator("#who")).to_have_value("Ada")
+    expect(page.locator("#slow")).to_be_checked()
+
+
+def test_a_value_a_page_script_writes_yields_to_the_one_the_reload_carries(
+    browser, serve
+):
+    """A value the user typed comes back after a reload Leaf asks for though the page's
+    own script writes the field's first value as the page loads: the carried value is
+    the user's, newer than what the page starts the field with."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p><script>0</script>"
+            "<script>document.getElementById('who').value = 'initial'</script>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    expect(page.locator("#who")).to_have_value("initial")
+    page.locator("#who").fill("Ada")
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
+def while_leaf_reloads(page, serve, act):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, with
+    `act` run in the document it brings while that document's entry module still
+    loads, so before Leaf has started there. Returns once that document is ready."""
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        act()
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+
+
+@pytest.mark.parametrize("step", ["stay", "back"])
+def test_a_value_typed_before_leaf_starts_outlasts_the_one_the_reload_carries(
+    browser, serve, step
+):
+    """A value the user types into the page's own form while the document a reload Leaf
+    asked for brings is still loading Leaf stays as they typed it, whether they stayed
+    on the entry the reload landed on or went Back to another first: the value the
+    reload carries from the document before is older than their edit."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            '</label></p><p id="later">Later.</p>',
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    if step == "back":
+        page.wait_for_function("navigation.transition === null")
+        page.evaluate("location.hash = '#later'")
+        page.wait_for_function("navigation.transition === null")
+
+    def type_again():
+        if step == "back":
+            page.evaluate("history.back()")
+            page.wait_for_function("location.hash === ''")
+        page.locator("#who").fill("Grace")
+
+    while_leaf_reloads(page, serve, type_again)
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
+def test_a_reload_the_user_asks_for_before_leaf_starts_brings_back_no_older_value(
+    browser, serve
+):
+    """A user who changes a value the reload Leaf asked for carries while the document
+    it brings still loads Leaf, and then reloads the page themselves before Leaf has
+    started, doesn't get the carried value back over theirs: their change ended the
+    reload's claim, though no runtime had started there to say so."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.locator("#who").fill("Grace")
+        page.reload(wait_until="commit")
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            try:
+                route.continue_()
+            except Exception:
+                pass
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    expect(page.locator("#who")).not_to_have_value("Ada")
+
+
+# A form of two fields that keep no value of the browser's own across a reload, and
+# a paragraph to put a second entry of the page at.
+NAME_AND_TOWN = (
+    '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off"></label></p>'
+    '<p><label>Town <input id="town" autocomplete="off"></label></p>'
+    '<p id="later">Later.</p>'
+)
+
+# The handoff the tab holds for the page, if any (prepaint.js).
+STORED_HANDOFF = """() => {
+  const key = Object.keys(sessionStorage).find((key) => key.endsWith("lf-revision-handoff"));
+  return key ? JSON.parse(sessionStorage.getItem(key)) : null;
+}"""
+
+# The page going hidden, as when the user switches tabs; a hidden tab the browser
+# discards goes with no `pagehide`, so what the tab holds then is what its next load
+# finds.
+SHOW_AS = """(state) => {
+  Object.defineProperty(document, "visibilityState", {value: state, configurable: true});
+  document.dispatchEvent(new Event("visibilitychange"));
+}"""
+
+
+def carried_values(page):
+    """The values the tab's stored handoff carries, by control id."""
+    stored = page.evaluate(STORED_HANDOFF) or {}
+    return {record["id"]: record.get("value") for record in stored.get("carry", [])}
+
+
+def reload_before_leaf_starts(page, serve, meanwhile, by_leaf=True):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, then
+    `meanwhile` in the document it brings, which waits on its layer's registry so its
+    runtime hasn't started, then another reload of that document: Leaf's where
+    `by_leaf`, as when the registry names another layer and the source's probe, the
+    registry at the server's root, says the source moved on, else the user's. Returns
+    once the document that reload brings is ready."""
+    documents = {"count": 0}
+    held = []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def another(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    def answer(route):
+        path = urlsplit(route.request.url).path
+        if documents["count"] < 2 and (
+            path == "/registry.json" or documents["count"] == 0
+        ):
+            another(route)
+        elif documents["count"] == 1 and path.endswith("/registry.json"):
+            held.append(route)
+        else:
+            route.continue_()
+
+    born = page.evaluate("performance.timeOrigin")
+    page.on("request", navigated)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "the arriving document's layer registry")
+    page.wait_for_function(
+        "(born) => performance.timeOrigin !== born && document.readyState !== 'loading'",
+        arg=born,
+    )
+    meanwhile()
+    route = held.pop()
+    if by_leaf:
+        response = route.fetch()
+        registry = response.json()
+        registry["$layer"]["generation"] = "another"
+        with page.expect_navigation(wait_until="commit"):
+            route.fulfill(response=response, json=registry)
+    else:
+        page.reload(wait_until="commit")
+        try:
+            route.continue_()
+        except Exception:
+            pass
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+
+
+@pytest.mark.parametrize("reloads", ["Leaf", "the user"])
+def test_a_value_carried_to_an_entry_left_by_back_rides_another_reload(
+    browser, serve, reloads
+):
+    """A value a reload Leaf asks for carries comes back after the user steps Back to
+    an earlier entry of the page before Leaf has started and the page reloads again,
+    whether Leaf asks for that reload or the user does: the value is the document's,
+    wherever in it the user stands."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#later'")
+    page.wait_for_function("navigation.transition === null")
+
+    def back():
+        page.evaluate("history.back()")
+        page.wait_for_function("location.hash === ''")
+
+    reload_before_leaf_starts(page, serve, back, by_leaf=reloads == "Leaf")
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
+def test_a_reload_before_leaf_starts_carries_on_the_values_the_user_left(
+    browser, serve
+):
+    """Values a reload Leaf asks for carries come back after a second such reload,
+    taken before Leaf has started in the document between, where the user changed one
+    of them: the others come back as they were, and the one they changed comes back as
+    they changed it."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.locator("#town").fill("Paris")
+    page.evaluate("document.activeElement.blur()")
+    reload_before_leaf_starts(page, serve, lambda: page.locator("#who").fill("Grace"))
+    expect(page.locator("#town")).to_have_value("Paris")
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
+def test_startup_recovery_s_reload_keeps_words_typed_before_leaf_started(
+    browser, serve
+):
+    """Words the user typed into a page whose module failed on its way, which no reload
+    had handed anything, come back after startup recovery reloads it."""
+    url = live_url(serve(leaf_page("Restarted", NAME_AND_TOWN)))
+    page = open_page(browser, url)
+    documents = {"count": 0}
+    held, failed = [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def lose(route):
+        if documents["count"] == 1 and not failed:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    # Recovery's probe of the source, the registry at the server's root, waits while the
+    # user types.
+    def probe(route):
+        if documents["count"] == 1 and urlsplit(route.request.url).path == (
+            "/registry.json"
+        ):
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/runtime/rendering.js", lose)
+    page.route("**/registry.json", probe)
+    with page.expect_navigation(wait_until="commit"):
+        page.goto(url, wait_until="commit")
+    holding(page, held, 1, "startup recovery's probe")
+    page.locator("#who").fill("Grace")
+    with page.expect_navigation(wait_until="commit"):
+        held.pop().continue_()
+    wait_until_ready(page)
+    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    assert len(failed) == 1, failed
+    take_browser_errors(page)
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
+@pytest.mark.parametrize("arrives", ["back at its entry", "at another entry"])
+def test_a_handoff_written_as_the_page_hid_comes_back_only_to_its_entry(
+    browser, serve, arrives
+):
+    """The handoff a page writes as it hides, before Leaf has put back what a reload
+    carried, comes back to a document arriving at the same entry, as Back to a
+    document the browser didn't keep, or a discarded tab's return, brings, and to no
+    document at another entry of the page."""
+    url = live_url(serve(leaf_page("Restarted", NAME_AND_TOWN)))
+    page = open_page(browser, url)
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.evaluate(SHOW_AS, "hidden")
+        # The browser discards the tab: the document goes with no `pagehide`.
+        page.evaluate(
+            """() => addEventListener(
+              "pagehide", (event) => event.stopImmediatePropagation(), {capture: true})"""
+        )
+        page.goto("about:blank")
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            try:
+                route.continue_()
+            except Exception:
+                pass
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    if arrives == "back at its entry":
+        page.go_back()
+        assert (
+            page.evaluate("performance.getEntriesByType('navigation')[0].type")
+            == "back_forward"
+        )
+    else:
+        page.goto(url)
+    wait_until_ready(page)
+    expect(page.locator("#who")).to_have_value(
+        "Ada" if arrives == "back at its entry" else ""
+    )
+
+
+def test_a_key_typed_while_a_page_handed_only_values_starts_ends_its_arrival(
+    browser, serve
+):
+    """A reload that hands the document only the values the user typed, as startup
+    recovery's does after a document that never started, hands back no place. So a key
+    the user presses while the page starts ends its arrival, as on a fresh load: the
+    thread its address names, the page's first, doesn't open, so `t` walks to that
+    first thread rather than on from it to the next."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Restarted",
+                '<h1>Form</h1><p id="first">The first finding.</p>'
+                '<p><label>Name <input id="who" autocomplete="off"></label></p>'
+                '<p id="second">The second finding.</p>',
+            )
+        )
+    )
+    for thread, section in [("one", "first"), ("two", "second")]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "id": thread,
+                "text": f"Why {section}?",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(browser, url)
+    documents = {"count": 0}
+    probes, states, failed = [], [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def lose(route):
+        if documents["count"] == 1 and not failed:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    # Recovery's probe of the source waits while the user types into the document that
+    # never started, and the reloaded document's first reading waits while the user
+    # presses a key.
+    def probe(route):
+        if documents["count"] == 1 and urlsplit(route.request.url).path == (
+            "/registry.json"
+        ):
+            probes.append(route)
+        else:
+            route.continue_()
+
+    def state(route):
+        if documents["count"] == 2:
+            states.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/runtime/rendering.js", lose)
+    page.route("**/registry.json", probe)
+    page.route("**/api/state*", state)
+    page.goto(f"{url}&thread=one", wait_until="commit")
+    holding(page, probes, 1, "startup recovery's probe")
+    page.locator("#who").fill("Grace")
+    page.evaluate("document.activeElement.blur()")
+    with page.expect_navigation(wait_until="commit"):
+        probes.pop().continue_()
+    holding(page, states, 1, "the reloaded document's first reading")
+    page.wait_for_function("document.readyState !== 'loading'")
+    page.keyboard.press("t")
+    page.unroute("**/api/state*")
+    for route in states:
+        route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    assert len(failed) == 1, failed
+    take_browser_errors(page)
+    expect(page.locator("#who")).to_have_value("Grace")
+    expect(
+        page.locator(
+            f'{PANEL_THREAD}[data-lf-thread="one"], '
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="one"]'
+        )
+    ).to_be_focused()
+
+
+def test_a_page_that_starts_hidden_keeps_its_handoff_in_the_tab(browser, serve):
+    """A document a reload brings into a hidden tab, as Leaf's reload of a background
+    tab does, leaves the handoff it was given in the tab while it stays hidden, so a
+    discard before Leaf has put back what it carries loses nothing."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.add_init_script(
+        """Object.defineProperty(document, "visibilityState",
+          {value: "hidden", configurable: true});"""
+    )
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        assert page.evaluate("document.visibilityState") == "hidden"
+        stored = carried_values(page)
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    assert stored == {"who": "Ada"}
+
+
+def test_a_page_hidden_before_leaf_starts_keeps_what_its_reload_carried(browser, serve):
+    """A page hidden before Leaf has started, after the user clicked in its prose, keeps
+    in the tab the values the reload Leaf asked for carried, which haven't reached the
+    page yet, for a tab the browser discards while hidden; shown again, it keeps
+    none."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.locator("#town").fill("Paris")
+    page.evaluate("document.activeElement.blur()")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.locator("h1").click()
+        page.evaluate(SHOW_AS, "hidden")
+        hidden = carried_values(page)
+        page.evaluate(SHOW_AS, "visible")
+        shown = page.evaluate(STORED_HANDOFF)
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    assert hidden == {"who": "Ada", "town": "Paris"}
+    assert shown is None
+
+
+def test_startup_recovery_s_reload_carries_on_the_values_a_reload_brought(
+    browser, serve
+):
+    """Values a reload Leaf asks for carries come back after startup recovery reloads
+    the document it brought, whose module failed on its way, where the user changed one
+    of them meanwhile: the others as they were, and theirs as they changed it."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.locator("#town").fill("Paris")
+    page.evaluate("document.activeElement.blur()")
+    documents = {"count": 0}
+    held, failed = [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def lose(route):
+        if documents["count"] == 1 and not failed:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    def another(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    # The live document hears from a server restarted under another Leaf and reloads;
+    # the document that brings loses a module on its way, and recovery's probe of the
+    # source, the registry at the server's root, waits while the user types.
+    def answer(route):
+        if documents["count"] == 0:
+            another(route)
+        elif documents["count"] == 1 and urlsplit(route.request.url).path == (
+            "/registry.json"
+        ):
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/runtime/rendering.js", lose)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "startup recovery's probe")
+    page.locator("#who").fill("Grace")
+    with page.expect_navigation(wait_until="commit"):
+        held.pop().continue_()
+    wait_until_ready(page)
+    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    assert len(failed) == 1, failed
+    take_browser_errors(page)
+    expect(page.locator("#town")).to_have_value("Paris")
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
+def test_a_reload_s_arrival_leaves_no_handoff_in_the_tab(browser, serve):
+    """Once the document a reload Leaf asked for brought has put back what it carried,
+    the tab holds no handoff, so no later load can bring those values back over the
+    user's newer ones."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+    assert page.evaluate(STORED_HANDOFF) is None
+
+
+def test_a_page_hidden_after_its_own_prompt_kept_it_hands_on_the_newer_value(
+    browser, serve
+):
+    """A page whose own leave prompt kept it from a reload Leaf asked for, and which
+    is then hidden, hands on the value the user typed after the earlier reload's
+    values came back, not the one that reload carried."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+    page.locator("#who").click()
+    page.locator("#who").fill("Grace")
+    page.evaluate("document.activeElement.blur()")
+    page.on("dialog", lambda dialog: dialog.dismiss())
+    page.evaluate(
+        """() => addEventListener("beforeunload", (event) => {
+          event.preventDefault();
+          event.returnValue = "";
+        })"""
+    )
+    answer_as_another_runtime(page)
+    with page.expect_event("dialog"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Again."},
+        )
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.evaluate(SHOW_AS, "hidden")
+    assert carried_values(page).get("who") == "Grace"
+
+
+def test_an_option_chosen_before_leaf_starts_outlasts_the_one_the_reload_carries(
+    browser, serve
+):
+    """An option the user chooses while the document a reload Leaf asked for brings is
+    still loading Leaf stays chosen, though the reload carries another option of the
+    same group, and the page's own script moves the option its author chose
+    meanwhile."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><form autocomplete="off">'
+            '<p id="first"><label><input type="radio" name="pace" id="slow"> slow</label>'
+            '<label><input type="radio" name="pace" id="steady" checked> steady</label>'
+            '<label><input type="radio" name="pace" id="fast"> fast</label></p>'
+            '<p id="second"></p></form>',
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#slow").check()
+
+    def choose_again():
+        page.locator("#fast").check()
+        page.evaluate(
+            "document.getElementById('second')"
+            ".append(document.getElementById('steady').closest('label'))"
+        )
+
+    while_leaf_reloads(page, serve, choose_again)
+    expect(page.locator("#fast")).to_be_checked()
+
+
+def test_a_disclosure_closed_before_leaf_starts_stays_closed(browser, serve):
+    """A disclosure the user opens and closes again by its summary while the document
+    a reload Leaf asked for brings is still loading Leaf stays closed, though the
+    reload carries it open."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Notes</h1><details id="more"><summary>More</summary>'
+            "<p>The rest of the notes.</p></details>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    more = page.locator("#more")
+    more.locator("summary").click()
+    expect(more).to_have_attribute("open", "")
+
+    def open_and_close():
+        more.locator("summary").click()
+        expect(more).to_have_attribute("open", "")
+        more.locator("summary").click()
+        expect(more).not_to_have_attribute("open", "")
+
+    while_leaf_reloads(page, serve, open_and_close)
+    expect(more).not_to_have_attribute("open", "")
+
+
+def test_a_disclosure_opened_before_leaf_starts_stays_open_beside_its_group(
+    browser, serve
+):
+    """A named disclosure the user opens while the document a reload Leaf asked for
+    brings is still loading Leaf stays open, though the reload carries another of its
+    group open, which opening would close it: the user's choice in the group is
+    newer than the one the reload carries."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Notes</h1><details id="first" name="notes"><summary>First</summary>'
+            '<p>The first notes.</p></details><details id="second" name="notes">'
+            "<summary>Second</summary><p>The second notes.</p></details>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    first, second = page.locator("#first"), page.locator("#second")
+    first.locator("summary").click()
+    expect(first).to_have_attribute("open", "")
+    while_leaf_reloads(page, serve, lambda: second.locator("summary").click())
+    expect(second).to_have_attribute("open", "")
+    expect(first).not_to_have_attribute("open", "")
+
+
+def test_a_right_click_on_a_summary_before_leaf_starts_leaves_its_disclosure_carried(
+    browser, serve
+):
+    """A right-click on a disclosure's summary while the document a reload Leaf asked
+    for brings is still loading Leaf opens no menu of Leaf's and toggles nothing, so
+    the disclosure still comes back open as the reload carries it."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Notes</h1><details id="more"><summary>More</summary>'
+            "<p>The rest of the notes.</p></details>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    more = page.locator("#more")
+    more.locator("summary").click()
+    expect(more).to_have_attribute("open", "")
+    while_leaf_reloads(
+        page, serve, lambda: more.locator("summary").click(button="right")
+    )
+    expect(more).to_have_attribute("open", "")
+
+
+def scroll_away(page):
+    """Scroll the page with the wheel, and wait until the document has heard it: an
+    input of the user's, as its clock counts them (document-inputs.js). A document
+    that has not painted yet may not hear a wheel at all."""
+    page.mouse.move(400, 300)
+    page.mouse.wheel(0, 200)
+    page.wait_for_function('Reflect.get(window, Symbol.for("leaf.inputs")).count > 0')
+
+
+def reload_with_its_answers_held(page, serve, anchored=True):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, whose
+    document then waits on the server's answers, as on a slow server, with its runtime
+    started and, where `anchored`, the page's words anchored, so the document records
+    where the user is as it goes. Returns `release(again, then)`: `then()` runs, as a
+    reload the user asks for, say, and the document's waiting requests are answered, as
+    another Leaf would answer them where `again`, which has it reload once more as Leaf
+    asks; it returns once the document then standing is ready."""
+    documents = {"count": 0, "again": False}
+    held = []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def another(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    def answer(route):
+        url = route.request.url
+        asked = "/api/" in url or urlsplit(url).path == "/registry.json"
+        if documents["count"] == 0 or (
+            documents["count"] == 1 and documents["again"] and asked
+        ):
+            another(route)
+        elif documents["count"] == 1 and "/api/" in url:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "the arriving document's first answer")
+    if anchored:
+        wait_for_check_api(page, "(api) => api.anchoringIsReady()")
+    else:
+        # The panel mounts in the task that begins the document's arrival (leaf.js), and
+        # takes over the row the document served before its runtime started
+        # (bootstrap.js, `standRow`), which carries `data-lf-served`.
+        page.wait_for_function(
+            "document.querySelector('.lf-floating-panel:not([data-lf-served])') !== null"
+        )
+
+    def answer_held(again):
+        for route in held:
+            try:
+                another(route) if again else route.continue_()
+            except Exception:
+                pass
+
+    def release(again, then=lambda: None):
+        documents["again"] = again
+        then()
+        if again:
+            with page.expect_navigation(wait_until="commit"):
+                answer_held(True)
+        else:
+            answer_held(False)
+        wait_until_ready(page)
+        page.unroute("**/api/**")
+        page.unroute("**/registry.json")
+        page.remove_listener("request", navigated)
+
+    return release
+
+
+def writing_a_reply(browser, serve, form="", filled=None):
+    """A page with `form` above a paragraph a thread is about, open at the user's reply
+    to the thread in its card, which holds the words "Hold" and has focus. `filled`
+    maps the fields of `form` to the values the user typed there first."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            f"<h1>Rehearsal</h1>{form}"
+            '<p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    for field, value in (filled or {}).items():
+        page.locator(field).fill(value)
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    reply = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
+        ".lf-thread-reply leaf-text"
+    )
+    write(reply, "Hold")
+    return page, reply
+
+
+def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve):
+    """Words the user types on as the tab reloads, into the reply box they were writing
+    in, reach that box though a second reload Leaf asks for comes before the first
+    document has put the box back, as typed words survive every path (SOUL.md)."""
+    page, reply = writing_a_reply(browser, serve)
+    reload_in_a_row(page, serve, [lambda: page.keyboard.type(" the resend")])
+    expect(reply).to_have_js_property("value", "Hold the resend")
+
+
+# In the first document the next reload brings, a reload Leaf asks for (layer-client.js,
+# `reloadDocument`) as the held key `x` goes into the box it replays into, with no frame
+# after it, so the keys after `x` are still held as the document goes.
+RELOAD_AS_X_REPLAYS = """(() => {
+  const loads = Number(sessionStorage.getItem("test-x-loads") || 0) + 1;
+  sessionStorage.setItem("test-x-loads", String(loads));
+  if (loads !== 1) return;
+  const frame = window.requestAnimationFrame.bind(window);
+  let gone = false;
+  window.requestAnimationFrame = (callback) => (gone ? 0 : frame(callback));
+  let reload = null;
+  document.addEventListener("lf-upgraded", () => {
+    const entry = document.querySelector('script[type="module"][src$="/leaf.js"]');
+    void import(new URL("runtime/layer-client.js", entry.src).href).then((module) => {
+      reload = module.reloadDocument;
+    });
+  });
+  addEventListener("input", (event) => {
+    if (gone || !reload || event.data !== "x") return;
+    gone = true;
+    reload();
+  }, true);
+})()"""
+
+
+def test_keys_still_held_as_another_reload_comes_follow_the_first_into_the_reply(
+    browser, serve
+):
+    """Words the user typed through a reload Leaf asked for go into the reply box it
+    hands back one key at a time. Another reload coming after the first key has gone in
+    hands the box back again, and the keys still to go follow there, rather than going
+    with the document that was pressing them."""
+    page, reply = writing_a_reply(browser, serve)
+    page.add_init_script(RELOAD_AS_X_REPLAYS)
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.keyboard.type("xyz")
+    finally:
+        page.unroute("**/leaf.js")
+    with page.expect_navigation(wait_until="commit"):
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    expect(reply).to_have_js_property("value", "Holdxyz")
+
+
+def test_a_key_held_through_a_reload_goes_with_a_scroll_across_another(browser, serve):
+    """A key typed while a reload's arrival waits is meant for the place it puts back.
+    Scrolling the page ends that arrival and lets the key go with it, so a second
+    reload Leaf asks for, which hands back where the user has gone instead, a field of
+    the page's own, brings the key back no more: a word typed there is the only one."""
+    page, _ = writing_a_reply(
+        browser, serve, '<p><input id="who" aria-label="Name" autocomplete="off"></p>'
+    )
+
+    release = reload_with_its_answers_held(page, serve)
+    page.keyboard.type("x")
+    scroll_away(page)
+    page.focus("#who")
+
+    release(True)
+    who = page.locator("#who")
+    expect(who).to_be_focused()
+    page.keyboard.type("y")
+    expect(who).to_have_value("y")
+
+
+def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
+    browser, serve
+):
+    """A key typed while a reload's arrival waits rides a second reload to the next
+    document's hold. Letting it go there, as Escape does, ends it for good: a third
+    reload, coming before that document's anchoring is ready, brings it back no more
+    (bootstrap.js, `holdEarlyKeys`)."""
+    page, reply = writing_a_reply(browser, serve)
+    reload_in_a_row(
+        page,
+        serve,
+        [lambda: page.keyboard.type("x"), lambda: page.keyboard.press("Escape")],
+        slow={2},
+    )
+    expect(reply).to_have_js_property("value", "Hold")
+
+
+# The user leaving the window and coming back, as switching to another application
+# does: the document loses focus, which a headless browser never lets it do, so the
+# page is told so for the length of the window's `blur`.
+LEAVE_THE_WINDOW = """() => {
+  Object.defineProperty(document, "hasFocus", { value: () => false, configurable: true });
+  dispatchEvent(new FocusEvent("blur"));
+  delete document.hasFocus;
+}"""
+
+
+def test_leaving_the_window_while_a_reload_arrives_leaves_the_return_owed(
+    browser, serve
+):
+    """A user writing a reply when Leaf reloads the page, who types on and then leaves
+    the window and comes back while the server is slow to answer the document the
+    reload brings, comes back to the reply with the words they typed: leaving the
+    window is no input within the page, as a step Back is none, so the reload still
+    owes them their place, and the keys held for it still land there."""
+    page, reply = writing_a_reply(browser, serve)
+    release = reload_with_its_answers_held(page, serve)
+    page.keyboard.type(" more")
+    page.evaluate(LEAVE_THE_WINDOW)
+    release(False)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hold more")
+
+
+def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
+    browser, serve
+):
+    """A reload Leaf asks for hands back the reply the user was writing and a value
+    they typed into the page's form. Scrolling away while the server is slow to answer
+    ends that return, so a reload the user then asks for comes back to where they
+    went, as the entry's record says, rather than into the reply, and the value the
+    handoff carried doesn't come back over the one they typed after the scroll: the
+    tab keeps the handoff only while its arrival owes it. The thread the address names
+    opens again, as on any reload."""
+    page, reply = writing_a_reply(
+        browser,
+        serve,
+        '<p><input id="who" aria-label="Name"></p>',
+        filled={"#who": "Ada"},
+    )
+    who = page.locator("#who")
+    release = reload_with_its_answers_held(page, serve)
+    scroll_away(page)
+    who.fill("Grace")
+    release(False, lambda: page.reload(wait_until="commit"))
+    # A carried value lands as the arrival begins, long before readiness, so it would
+    # stand by now. The browser keeps no value of its own on this reload.
+    expect(who).not_to_have_value("Ada")
+    expect(reply).to_have_js_property("value", "Hold")
+    expect(reply).not_to_be_focused()
+
+
 def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):
     """A server restarted under another Leaf runs another runtime, whose state the
     tab's code may misread. The tab refuses that server's answer, asks its source, and
@@ -615,9 +1762,10 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
     browser, serve, view, address
 ):
     """Leaf reloads the tab, not the user, so their place rides across the reload, as
-    it does into a revision that needs a fresh document (version.js, `handOff`): the
-    thread they had open, in the margin card or the floating panel they had it in, its
-    reply box with the words they had selected, and a disclosure they opened. The
+    it does into a revision that needs a fresh document, in the entry's record
+    (history.js) and the reload's handoff (version.js, `handOff`): the thread they had
+    open, in the margin card or the floating panel they had it in, its reply box with
+    the words they had selected, and a disclosure they opened. The
     handoff is spent on that reload, so an ordinary one after it keeps only what a
     reload keeps, such as the thread its address names, and not the disclosure."""
     version_url = serve(
@@ -734,8 +1882,8 @@ def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
     browser, serve, view
 ):
     """The panel's lists are where the user is too: Threads, with the user on the row
-    they were on, and On Me come back open across the reload (floating-panel.js,
-    `captureCurrentLocation`)."""
+    they were on, and On Me come back open across the reload, as the entry's record
+    has them (history.js)."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -871,6 +2019,80 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "resolve"
     ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_typed_through_the_reload_acts_where_the_user_is_put_back(
+    request, serve, engine
+):
+    """A key the user presses on as the tab reloads acts in the thread view the reload
+    puts them back in, as the entry's record has it (history.js): `r` resolves the
+    thread they were on in the panel, not another, though the new document hears it
+    before it has opened the view (keyboard/bindings.js, `placeHandedBack`), and the
+    panel goes on to the next thread, as a resolve there does."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>'
+            '<p id="cost">It cost four hours.</p>',
+        )
+    )
+    for thread, section in [("rows", "result"), ("hours", "cost")]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "id": thread,
+                "text": f"Why {section}?",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    open_panel_thread(page, "rows").focus()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="rows"]')).to_be_focused()
+    replaced = {"document": False}
+    answers = []
+
+    def navigated(frame):
+        if frame == page.main_frame:
+            replaced["document"] = True
+
+    def state_answer(route):
+        if replaced["document"]:
+            answers.append(route)
+        else:
+            route.fallback()
+
+    answer_as_another_runtime(page)
+    page.on("framenavigated", navigated)
+    page.route("**/api/state*", state_answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    page.wait_for_function("() => document.readyState !== 'loading'")
+    page.keyboard.press("r")
+    page.unroute("**/api/state*", state_answer)
+    for route in answers:
+        route.fallback()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+
+    resolved = wait_for(
+        lambda: [
+            event["parent"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "resolve"
+        ],
+        bool,
+        failure="the key typed through the reload resolved no thread",
+    )
+    assert resolved == ["rows"]
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="hours"]')).to_be_focused()
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):

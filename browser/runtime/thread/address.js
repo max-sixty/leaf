@@ -22,14 +22,23 @@
    A traversal shows the thread its entry names (`claim`): it opens that thread where
    the user stands, or puts the open thread away where the entry names none, beside any
    fragment the entry carries, and resolves to false, leaving the page and the user's
-   place in it to the entry's record (history.js). Where the user was in the thread's
-   view, the record holds the route's `reader` request for that view, which the claim
-   passes on, so a thread about a passage the user read in the floating panel opens
-   there again. The user's choice of where threads open (threads-in-panel.js) says
-   where routes open a thread from now on, not which view the user stood in, so Back
-   after Show on page returns them to the panel's view they read the thread in, though
-   Show on page chose cards. Rejected: opening the entry's thread by the choice alone,
-   under which that Back no longer returned the user to the view they had left.
+   place in it to the entry's record (history.js). The record holds the reader the
+   entry's view was, the route's `reader` request for it, which the claim passes on, so
+   a thread about a passage the user read in the floating panel opens there again, and
+   one they read in its card opens in its card, or where Leaf places it when no card can
+   stand by then (thread/destination.js, `reader: "card"`). The user's choice of where
+   threads open (threads-in-panel.js) says where routes open a thread from now on, not
+   which view the user stood in, so Back after Show on page returns them to the panel's
+   view they read the thread in, though Show on page chose cards, and Back after Open in
+   panel to the card, though Open in panel chose the panel. Rejected: opening the
+   entry's thread by the choice alone, under which that Back no longer returned the
+   user to the view they had left. Where the record says
+   the floating panel showed a list, the list comes back as the user left it: On on
+   its tab, read to where they had read it, standing on the row the record names, the
+   one the user left by, else the row of the thread put away (floating-panel.js,
+   `putThreadAway`), so Back from a thread opened from Threads returns to Threads on
+   its row though a reload has forgotten the panel's views since, or Escape put the
+   thread away first.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
    focus. Where the browser restored the page's place, as on a reload, the arrival is a
@@ -44,12 +53,13 @@ import { effect, untracked } from "/runtime/framework.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../errors.js";
 import { fragmentTarget } from "../anchor-resolution.js";
-import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { threadNamed } from "./state.js";
 
-/** @typedef {{id: string, reader: "primary" | null}} OpenThread */
+/** @typedef {{id: string, reader: "primary" | "card"}} OpenThread */
 
-/** @param {{shown: () => OpenThread | null, putAway: () => void,
+/** @param {{shown: () => OpenThread | null,
+ * putAway: (list: import("../history.js").RecordList | null, from: string | null,
+ *   intent: import("../user-intent.js").UserIntent) => void,
  * openPageThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} options */
 export function createThreadAddress({ shown, putAway, openPageThread }) {
   // The thread an entry's URL names, by its id, or null.
@@ -83,32 +93,35 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   }
 
   /** @type {import("../history.js").ThreadClaim} */
-  function claim(url, place) {
+  function claim(url, record, intent) {
     const id = named(url);
     const open = shown();
-    const kept = place?.thread?.id === id ? place.thread : null;
+    const kept = record?.thread ?? null;
+    const list = record?.list ?? null;
     if (!id)
-      return open
+      return open || list
         ? () => {
-            putAway();
+            putAway(list, open?.id ?? null, intent);
             return false;
           }
         : null;
     if (open?.id === id && (!kept || open.reader === kept.reader)) return null;
-    // Navigation though it takes no focus, not an editing continuation allowed to
-    // open the thread after the user has gone elsewhere.
-    const retained = retainUserIntent();
-    const intent = restrictUserIntent(retained, retained);
+    // Under the intent of the restoration that asks (history.js), which a newer
+    // navigation or the user's own input ends.
     return async () => {
       if (!intent()) return false;
       if (!threadNamed(id)) {
         raiseError(`Thread ${id} is unavailable`);
         return false;
       }
+      // Where the user stands, moving no scroller: a passage the page no longer shows
+      // there, as one a revision moved into a closed tab, leaves the thread to the
+      // floating panel rather than reveal it under the user.
       await openPageThread(id, {
         part: "thread",
         focus: false,
         travel: false,
+        scroll: false,
         intent,
         reader: kept?.reader ?? null,
       });
@@ -116,16 +129,16 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
     };
   }
 
-  // The arrival's route to the thread `url` names, under the intent the arrival began
-  // with, or null where it names none. `restored` is an arrival whose place the browser
-  // restored, a reload's or a traversal's into the document.
-  /** @param {URL} url @param {import("../user-intent.js").UserIntent} arrival
+  // The arrival's route to the thread `url` names, under the arrival's intent
+  // (history.js, `beginRestoration`), or null where it names none. `restored` is an
+  // arrival whose place the browser restored, a reload's or a traversal's into the
+  // document.
+  /** @param {URL} url @param {import("../user-intent.js").UserIntent} intent
    * @param {{restored: boolean}} options */
-  function arrive(url, arrival, { restored }) {
+  function arrive(url, intent, { restored }) {
     const id = url.searchParams.get("thread");
     if (!id) return null;
     const beside = !restored && Boolean(fragmentTarget(url.hash));
-    const intent = restrictUserIntent(arrival, arrival);
     return async () => {
       if (!intent()) return null;
       if (!threadNamed(id)) {

@@ -83,7 +83,7 @@ export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
-export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
+export { draft } from "./drafts.js";
 export { layerFact } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot

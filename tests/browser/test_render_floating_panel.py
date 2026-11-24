@@ -1139,18 +1139,9 @@ def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
     """On a phone the On view's four tabs keep their words whole, and turning between
     them moves no tab. At 390px they share their line with Close, giving up their
     insets to fit rather than sending Close to a line of its own; narrower, the presses
-    may stand on a line over them. On Claude's plan head may take that line alone.
-    Close stays put on every other tab."""
+    may stand on a line over them. Close stays put on every tab."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
-    steps = [
-        {"depth": 0, "title": "Ship the migration", "state": "working"},
-        {"depth": 1, "title": "Write the note", "state": "open"},
-    ]
-    written = CliRunner().invoke(
-        cli_model.cli, ["task", "plan", str(serve.page_dir)], input=json.dumps(steps)
-    )
-    assert written.exit_code == 0, written.output
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -1183,9 +1174,6 @@ def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
                 now = page.evaluate(tabs)
                 assert stood in (None, now), (tab, stood, now)
                 stood = now
-                if tab == "On Claude":
-                    expect(page.locator(".lf-fp-plan-head")).to_be_visible()
-                    continue
                 box = close.bounding_box()
                 assert closed in (None, box), (tab, closed, box)
                 closed = box
@@ -4208,25 +4196,40 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(view).to_have_count(0)
 
 
-def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
+def test_on_me_groups_by_the_plan_and_the_plan_heads_on_claude(browser, serve):
     """While the agent's plan gives the user a step, On Me groups by it until the user
     picks another grouping: under each goal's band the items its steps name, in step
-    order, and those no goal names last, each card saying its item's place. On Claude, which replaced
-    the Plan tab, is headed at its foot by the plan's progress, which discloses the
-    goal and its steps over the list; a step waiting on the user turns the view to On
-    Me, and focus with it."""
+    order, and those no goal names last, each card saying its item's place. On Claude
+    opens with the goal and its steps over its list, which leaves out what the plan
+    names; a finished step says what its end said, and a step waiting on the user
+    turns the view to On Me, and focus with it."""
     url = serve(OBLIGATION_PAGE)
+
+    def leaf(*args) -> dict:
+        written = CliRunner().invoke(cli_model.cli, [*args], input=None)
+        assert written.exit_code == 0, written.output
+        return json.loads(written.output.splitlines()[-1])
+
     steps = [
-        {"depth": 0, "title": "Ship the migration", "state": "working"},
-        {"depth": 1, "title": "Read the old schema", "state": "done"},
-        {"depth": 1, "title": "Ask the DBA", "state": "dropped"},
+        {"depth": 0, "title": "Ship the migration"},
+        {"depth": 1, "todo": "Read the old schema"},
+        {"depth": 1, "todo": "Ask the DBA"},
         {"depth": 1, "item": "widget:schema"},
-        {"depth": 1, "title": "Write the note", "state": "open"},
+        {"depth": 1, "todo": "Write the note"},
+        {"depth": 0, "todo": "Tidy the changelog"},
     ]
     written = CliRunner().invoke(
         cli_model.cli, ["task", "plan", str(serve.page_dir)], input=json.dumps(steps)
     )
     assert written.exit_code == 0, written.output
+    reading, asking, _, _, tidying = json.loads(written.output.splitlines()[-1])[
+        "steps"
+    ][1:]
+    page_dir = str(serve.page_dir)
+    leaf("task", "end", page_dir, reading["item"], "done", "--text", "Notes in #old")
+    leaf("task", "end", page_dir, asking["item"], "dropped", "--text", "Not needed")
+    tidied = "Tidied in " + "https://example.com/changelog/" * 4
+    leaf("task", "end", page_dir, tidying["item"], "done", "--text", tidied)
     page = floating(browser, url)
     page.locator(".lf-fp-leaf").click()
     view = page.locator(panel_view("queue"))
@@ -4244,20 +4247,28 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(view.locator(".lf-fp-on-place")).to_have_text(["Ask", "Ask"])
 
     tabs = page.locator(".lf-fp-filters button")
-    expect(tabs).to_have_text(["Menu", "On Me 2", "On Claude 0", "Threads 0"])
+    expect(tabs).to_have_text(["Menu", "On Me 2", "On Claude 1", "Threads 0"])
     panel_tab(page, "On Claude").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On Claude")
-    head = page.locator(".lf-fp-plan-head")
-    expect(head).to_have_text("Plan 1 of 3")
-    expect(page.locator(".lf-fp-plan-goal")).to_have_count(0)
-    head.click()
-    expect(head).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".lf-fp-plan-goal")).to_have_text(
         re.compile(r"Ship the migration\s*1 of 3")
     )
-    plan_steps = page.locator(".lf-fp-plan > .lf-fp-plan-steps > .lf-fp-plan-step")
+    plan_steps = page.locator(".lf-fp-plan").first.locator(
+        ":scope > .lf-fp-plan-steps > .lf-fp-plan-step"
+    )
     expect(plan_steps).to_have_count(4)
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
+    expect(plan_steps.nth(0).locator(".lf-fp-plan-detail")).to_have_text(
+        "Notes in #old"
+    )
+    # The open to-do stands in the plan only.
+    expect(view.locator(".lf-fp-on-item")).to_have_count(0)
+    # A to-do at the top is drawn as a step, and the words its end gave read whole.
+    tidy = page.locator(".lf-fp-plan").nth(1).locator(".lf-fp-plan-step")
+    expect(tidy.get_by_role("img")).to_have_accessible_name("Done")
+    detail = tidy.locator(".lf-fp-plan-detail")
+    expect(detail).to_have_text(tidied)
+    assert detail.evaluate("el => el.scrollWidth <= el.clientWidth")
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On Me")
     expect(panel_tab(page, "On Me")).to_be_focused()

@@ -1311,11 +1311,11 @@ def cmd_edit(
     Leaf names it (`_folding_summaries`), since only the agent knows whether its
     edit changes what the summary reports. Admission refuses a message another voice
     wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
-    obligation. Under one lease, the rename is admitted before the edit is appended,
-    so a refused title leaves the text unedited.
+    obligation. The edit and the rename land together or not at all
+    (`event_contracts.append_all_admitted`), so a refused title leaves the text
+    unedited.
     """
-    from leaf.event_contracts import admitted_event, voiced
-    from leaf.page_view import PageView
+    from leaf.event_contracts import append_all_admitted
     from leaf.registry.storage import require_registry
 
     title = agent_title(title)
@@ -1338,8 +1338,7 @@ def cmd_edit(
         if title is not None:
             thread = thread_named(page_dir, events, message)
             named = title_event(thread, title)
-            admitted_event(PageView(page_dir), events, voiced(named))
-        records = []
+        edit = None
         if body is not None:
             edit = {
                 "kind": "edit",
@@ -1369,9 +1368,9 @@ def cmd_edit(
                     *_answered_widgets(events, message, fragment),
                     *_folding_summaries(page_dir, events, message),
                 ]
-            records.append(append_admitted(page, edit)[0])
-        if named is not None:
-            records.append(append_admitted(page, named)[0])
+        records = append_all_admitted(
+            page, [event for event in (edit, named) if event is not None]
+        )
     note(*answered)
     return records
 

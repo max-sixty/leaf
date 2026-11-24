@@ -1703,25 +1703,31 @@ customElements.define(
         node: details,
         open: details.open,
         changed: () => {
-          const was = disclosure.open;
-          disclosure.open = details.open;
-          // A closed file seats no thread on its lines, so Leaf asks for the seats again.
-          this.dispatchEvent(
-            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-          );
+          if (this.settleDisclosure(entry)) this.layoutChanged();
           this.paintFoldAll();
-          if (
-            was === disclosure.open ||
-            !details.open ||
-            !this.fileEntries?.includes(entry) ||
-            entry.refused
-          )
-            return;
-          this.present(this.loadEntry(entry));
         },
       };
       entry.disclosure = disclosure;
       details.addEventListener("toggle", disclosure.changed);
+    }
+
+    // A file drawn open fires `toggle` though nothing changed, so only a change of the
+    // open state counts. Returns whether it changed; a file that opens loads its patch.
+    /** @param {FileEntry} entry */
+    settleDisclosure(entry) {
+      const disclosure = entry.disclosure;
+      if (!disclosure || disclosure.open === disclosure.node.open) return false;
+      disclosure.open = disclosure.node.open;
+      if (disclosure.open && this.fileEntries?.includes(entry) && !entry.refused)
+        this.present(this.loadEntry(entry));
+      return true;
+    }
+
+    // A closed file seats no thread on its lines, so Leaf asks for the seats again.
+    layoutChanged() {
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {FileEntry} entry */
@@ -1805,9 +1811,7 @@ customElements.define(
       }
       this.markRuns();
       this.refreshDiffTools();
-      this.dispatchEvent(
-        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-      );
+      this.layoutChanged();
     }
 
     // The file view keeps every datum under its retained owner; only the active
@@ -1863,6 +1867,12 @@ customElements.define(
       const folds = this.shownFolds();
       const open = folds.some((details) => !details.open);
       for (const details of folds) if (details.open !== open) details.open = open;
+      // Each file's `toggle` arrives in a task of its own and would ask for a pass of
+      // its own, so the press settles every file now and asks for one.
+      let changed = false;
+      for (const entry of this.shownEntries())
+        changed = this.settleDisclosure(entry) || changed;
+      if (changed) this.layoutChanged();
       this.paintFoldAll();
       window.dispatchEvent(
         new CustomEvent("lf-announce", {

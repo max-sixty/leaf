@@ -253,12 +253,23 @@ def schema_complaint(schema: dict, instance) -> dict | None:
     that value breaks, beside `error`. Of several complaints it takes jsonschema's
     `best_match`, which goes inside a `oneOf` or `anyOf` to the branch the instance
     nearly matched, so a step with an unknown `state` names that field rather than
-    the whole step."""
+    the whole step. Where every branch fails at the same depth, `best_match` stops at
+    the `oneOf` itself, whose words say only that no branch fit; where one branch
+    has fewer errors than every other, the complaint goes inside to it, so a step
+    with a field no branch takes names that field."""
     from jsonschema.exceptions import best_match
 
     error = best_match(json_validator(schema).iter_errors(instance))
     if error is None:
         return None
+    while error.validator in ("oneOf", "anyOf") and error.context:
+        branches: dict = {}
+        for each in error.context:
+            branches.setdefault(each.relative_schema_path[0], []).append(each)
+        nearest, *rest = sorted(branches.values(), key=len)
+        if rest and len(rest[0]) == len(nearest):
+            break
+        error = best_match(nearest)
     return {
         "field": "".join(
             f"/{str(part).replace('~', '~0').replace('/', '~1')}"

@@ -1677,8 +1677,10 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # The thread holding the words just written, rather than whichever is first:
     # an example that ships a log opens with threads already in the panel, and
     # theirs would be first. triage-board ships none today, so `.first` was
-    # right by accident and would stop being on the day it does.
+    # right by accident and would stop being on the day it does. Its row opens it in
+    # the panel's view once the tab chooses the panel for threads about a passage.
     def written():
+        choose_threads_in_panel(page)
         open_threads(page)
         page.locator(".lf-fp-thread").filter(
             has_text="Can the migration fix ship first?"

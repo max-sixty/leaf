@@ -31,7 +31,7 @@ export default {
     // (`__lfCheckApi()`, `__lfOverlayApi()`).
     "browser/runtime/{,annotation-overlay/}check-api.js",
     // A widget module, which its registry entry names by tag.
-    "{browser,packages/*,tests/fixtures/packages/*}/widgets/lf-*.js",
+    "{browser,packages/*,docs/*,tests/fixtures/packages/*}/widgets/lf-*.js",
     // The render gate's probes, which Python calls by name, and the script an export
     // draws its page with.
     "src/leaf/{render-checks/*,static-export}.js",

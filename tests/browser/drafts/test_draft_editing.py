@@ -12,10 +12,13 @@ from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_DRAWN, JOURNEY_V1, _publish
 from render_harness import (
     CHROME_ROOT,
+    available_commands,
     compare_with,
     consume_browser_errors,
     draft_control,
     example_media,
+    expect_panel_says,
+    field_press,
     hold_selection,
     holding,
     http_error_console,
@@ -26,6 +29,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    undo,
     write,
 )
 
@@ -209,8 +213,7 @@ DRAFT_BLOCKS = """# Workshop
 
 The morning starts at nine. Read the [setup guide](https://example.com/setup) first.
 
-
-Two blank lines stand before these words.
+Two paragraphs stand a gap apart.
 
 - one **bold** item
 - a second with `inline`
@@ -225,7 +228,6 @@ leaf page init ./workshop
 >
 > Practice beats theory.
 >
-
 ## Heading two
 
 ![Room layout](/media/051bee487bfb5d13.png)
@@ -402,11 +404,78 @@ delta span` too.
 > charlie marker hidden with the break before it."""
 
 
+def test_a_draft_shows_each_blank_line_and_saves_one_per_gap(browser, serve):
+    """Return between two paragraphs drew nothing until a word was typed, so the user
+    pressed it again and wrote blank lines the prose dropped, and the draft then opened
+    with its words moved. Each Return shows a line, a word typed after one stands where it
+    will stand, and saving writes each run of blank lines between two blocks as the one
+    gap the prose draws, so the draft reopens where it read; a code block keeps its
+    blank lines. A draft written with a run, opened and saved untouched, records no
+    edit."""
+    url = serve(
+        leaf_page(
+            "Blank lines",
+            '<h1>Blank lines</h1><lf-draft id="typed"><pre>Alpha.\n\nBravo.</pre></lf-draft>'
+            '<lf-draft id="written"><pre>Alpha.\n\n\n\nBravo.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url, init_script=MARGIN_EDITOR_ROOTS)
+    draft = page.locator("#typed")
+    editor = draft.locator("leaf-text")
+    words = ["Alpha", "Bravo", "Charlie", "two"]
+    draft_control(page, "edit", "typed").click()
+    expect(editor).to_be_focused()
+    rendered(page)
+    opened = draft.evaluate(DRAFT_AS_DRAWN, words)
+    editor.evaluate("field => field.setSelectionRange(6, 6)")
+    editor.press("Enter")
+    rendered(page)
+    returned = draft.evaluate(DRAFT_AS_DRAWN, words)
+    assert returned["Bravo"][1] > opened["Bravo"][1] + opened["Alpha"][3] / 2, (
+        opened,
+        returned,
+    )
+    page.keyboard.insert_text("Charlie.")
+    rendered(page)
+    typed = draft.evaluate(DRAFT_AS_DRAWN, words)
+    assert typed["Bravo"][1] == pytest.approx(returned["Bravo"][1], abs=1), (
+        returned,
+        typed,
+    )
+    expect(editor).to_have_js_property("value", "Alpha.\n\nCharlie.\n\nBravo.")
+    source = "Alpha.\n\n\n\nBravo.\n\n```\none\n\n\ntwo\n```"
+    write(editor, source)
+    press_draft_control(page, "save", "typed")
+    round_trip(page)
+    expect(editor).to_have_count(0)
+    shown = draft.evaluate(DRAFT_AS_DRAWN, words)
+    draft_control(page, "edit", "typed").click()
+    expect(editor).to_be_focused()
+    rendered(page)
+    expect(editor).to_have_js_property(
+        "value", "Alpha.\n\nBravo.\n\n```\none\n\n\ntwo\n```"
+    )
+    reopened = draft.evaluate(DRAFT_AS_DRAWN, words)
+    for word in ["Alpha", "Bravo", "two"]:
+        assert reopened[word] == pytest.approx(shown[word], abs=1), (shown, reopened)
+    page.keyboard.press("Escape")
+    draft_control(page, "edit", "written").click()
+    expect(page.locator("#written leaf-text")).to_be_focused()
+    press_draft_control(page, "save", "written")
+    expect(page.locator("#written leaf-text")).to_have_count(0)
+    edits = [
+        event["detail"]["value"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "edit"
+    ]
+    assert edits == ["Alpha.\n\nBravo.\n\n```\none\n\n\ntwo\n```"]
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_arrow_keys_visit_every_blank_line_of_a_draft(engine, request, serve):
-    """Up from a draft's last line visits every line on the way to its first. Blank
-    lines that share the gap the prose leaves between two blocks each stand shorter
-    than CodeMirror's vertical motion aims past, so the arrows skipped them."""
+    """Up from a draft's last line visits every line on the way to its first. A blank
+    line standing as the gap the prose leaves between two blocks can stand shorter
+    than CodeMirror's vertical motion aims past, so the arrows skipped it."""
     source = "Alpha\n\nBravo\n\n\nCharlie\n\n\n\nDelta"
     url = serve(
         leaf_page(
@@ -918,6 +987,82 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     expect(editor).to_have_count(0)
 
 
+def test_a_discarded_draft_edit_comes_back(browser, serve):
+    """A press on Discard can be a stray one, aimed at the words under the toolbar, so
+    it loses nothing for good: ⌘Z takes it back as it takes back any gesture of the
+    user's, opening the draft again on the discarded words and sending nothing. The
+    discard's notice offers that Undo at the panel field's end, and leaves once the
+    words are back. After a newer gesture, ⌘Z takes that one back first, then the
+    discard. Discarding words the draft already says leaves nothing to take back."""
+    url = serve(
+        leaf_page(
+            "Discarded draft",
+            "<h1>Discarded draft</h1>"
+            '<lf-draft id="note"><pre>Saved words.</pre></lf-draft>'
+            '<lf-draft id="other"><pre>Other words.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url)
+    editor = page.locator("#note leaf-text")
+    edit = draft_control(page, "edit", "note")
+    typed = "Words typed, then thrown away."
+
+    def edits():
+        return [
+            e["detail"]["value"]
+            for e in events_model.read_events(serve.page_dir)
+            if e.get("action") == "edit"
+        ]
+
+    # By pointer: Discard, then the notice's Undo.
+    page.locator("#note .lf-draft-body").click()
+    write(editor, typed)
+    press_draft_control(page, "cancel", "note")
+    expect(editor).to_have_count(0)
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Saved words.")
+    expect_panel_says(page, "Edit discarded")
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Undo")
+    expect(press.locator("kbd")).to_have_text(re.compile(r"^(⌘z|Ctrl\+z)$"))
+    press.click()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+    # Named as the rest of the chrome names the draft: nothing holding it has a name.
+    expect_panel_says(page, "Undone: discarded an edit of the draft")
+    expect_panel_says(page, "Edit discarded", says=False)
+
+    # By keyboard: Escape, then ⌘Z from the Edit control it lands on.
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    expect(edit).to_be_focused()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+    assert edits() == []
+
+    # A newer gesture takes ⌘Z, so ⌘Z takes that one back first, then the discard.
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    other = page.locator("#other leaf-text")
+    draft_control(page, "edit", "other").click()
+    write(other, "Other words, saved.")
+    with sending(page, "the save"):
+        press_draft_control(page, "save", "other")
+    expect(page.locator("#other .lf-draft-body")).to_have_text("Other words, saved.")
+    edit.focus()
+    undo(page)
+    expect(page.locator("#other .lf-draft-body")).to_have_text("Other words.")
+    expect(editor).to_have_count(0)
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+
+    write(editor, "Saved words.")
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert "history.undo" not in available_commands(page)
+
+
 def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
     """An open editor's words come back on reload whenever they differ from the
     current text, words that walk a saved edit back to the authored text included."""
@@ -1000,6 +1145,37 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
     ]
     assert [e["detail"]["value"] for e in edits] == [exact]
+
+
+def test_return_beside_a_paragraph_leaves_the_caret_where_words_stand_alone(
+    browser, serve
+):
+    """Words on a line touching a paragraph join it, and Return there then writes hard
+    breaks, so Return on a blank line or before a paragraph's first words leaves the
+    caret with a blank line on each side."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return beside a paragraph",
+                "<h1>Return beside a paragraph</h1>"
+                '<lf-draft id="source"><pre>Alpha.</pre></lf-draft>',
+            )
+        ),
+    )
+    draft_control(page, "edit", "source").click()
+    editor = page.locator("#source leaf-text")
+    write(editor, "Alpha.\n\nBravo.")
+    # On the one blank line between two paragraphs.
+    editor.evaluate("field => field.setSelectionRange(7, 7)")
+    editor.press("Enter")
+    page.keyboard.insert_text("x")
+    expect(editor).to_have_js_property("value", "Alpha.\n\nx\n\nBravo.")
+    # Before a paragraph's first words.
+    editor.evaluate("field => field.setSelectionRange(11, 11)")
+    editor.press("Enter")
+    page.keyboard.insert_text("y")
+    expect(editor).to_have_js_property("value", "Alpha.\n\nx\n\ny\n\nBravo.")
 
 
 def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
@@ -1134,13 +1310,17 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
         page.get_by_role("heading", name="Release note").hover()
         rendered(page)
         controls = draft.locator("[data-lf-draft-action]:visible")
-        before = controls.evaluate_all(
-            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
-        )
         button = draft_control(page, action, "note")
         box = button.bounding_box()
         x = box["x"] + (2 if edge == "left" else box["width"] - 2)
         page.mouse.move(x, box["y"] + box["height"] / 2)
+        # Typing put the toolbar away, and it takes presses once the pointer has
+        # rested on it (draft.css).
+        expect(draft.locator(".lf-draft-tools")).to_have_css("pointer-events", "auto")
+        rendered(page)
+        before = controls.evaluate_all(
+            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+        )
         page.mouse.down()
         expect(button).to_be_focused()
         rendered(page)

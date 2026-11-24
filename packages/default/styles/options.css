@@ -812,6 +812,27 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     > lf-option[data-lf-control-focus-visible] {
     outline: var(--lf-focus-ring);
   }
+  /* A row is a positioned table (below), and Firefox paints a positioned table's own
+   * ground over its outline wherever the outline stands inside its edge, which a joined
+   * row's does, so a row draws the ring on a box laid over it, its ::after, at its
+   * corners, as a ring overlay does (surfaces.css). Rejected: a row that isn't a table,
+   * or isn't positioned, which would move its words, mark and digit; a stacking context
+   * on the row, which Firefox still paints the ground over. */
+  lf-options:not([settled]):not(:where([data-lf-exhibit]) *):not(
+      :has(> lf-option:where([label]))
+    )
+    > lf-option[data-lf-control-focus-visible] {
+    outline: none;
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      outline: var(--lf-focus-ring);
+      outline-offset: var(--lf-focus-ring-inset);
+    }
+  }
   lf-options:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option[data-lf-control-focus] {
     --lf-wears-ring: 1;
@@ -1036,6 +1057,44 @@ lf-options:not(:has(> lf-option:where([label]))) > lf-option > .lf-key-badge {
   top: 0;
   bottom: 0;
   margin: auto 0;
+}
+/* A row's digit stands in its own column, before the control it labels, where a card's
+ * stands over its mark. While the digit shows, the control reaches back over that
+ * column, so a press on the digit is a press on its control, as on a card: on a mark it
+ * picks the row, whatever words of the row are selected, and leaves the user on the
+ * mark; on the add field it puts the user in the field, as a press on the field's own
+ * padding does. The digit takes no pointer (surfaces.css, `.lf-binding-seat`), and
+ * without the reach the press would land on the row or the add form, neither of them a
+ * control. The mark stands the row's height, its box drawn at the centre as at rest, so
+ * its reach covers the column from the row's top to its foot, and a press above or
+ * beside the digit on a row of several lines is the mark's too; the field's reach stands
+ * against the add form, from its start edge to the field. Only while the digit shows:
+ * each reach is a positioned box, which Chromium's hit test visits on every call
+ * (surfaces.css), and at rest a drag that starts in the column selects the row's words. */
+lf-options:not(:has(> lf-option:where([label])))
+  > lf-option
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ .lf-pick {
+  height: auto;
+  margin: 0;
+  &::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
+  }
+}
+lf-options:not(:has(> lf-option:where([label])))
+  > .lf-another
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ leaf-composition-field
+  > .lf-compose-field
+  > leaf-text::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: calc(var(--lf-key-badge-col) + var(--lf-pick-col) + var(--lf-row-gap));
 }
 /* Paper prints the group as never choosable: the offers go with the rest of the UI and
  * the chosen card's mark stays, because its label declares a word the page says

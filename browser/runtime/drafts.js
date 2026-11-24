@@ -87,6 +87,11 @@
    destination, and the refusal's notice names that address, for every gesture the
    refusal took down (`keepRefusedWords`).
 
+   An editor's Discard and Escape throw its changed words away (`discardDraft`), as a
+   message rewrite and an `lf-draft` edit do: the draft settles in every tab, as Cancel
+   settles it, and the words go to the page's undo, which keeps them as a gesture ⌘Z
+   takes back (undo.js, `keepDiscard`) and gives them back here (`giveBackWords`).
+
    Settlement is generation-specific. `activeDraftRecord` filters settled records and
    the generation this document is sending. The server never hands this document a
    generation the log admitted (`drafts.py`), so nothing here asks the log whether
@@ -767,14 +772,27 @@ function transferDraft(from, to, text) {
   tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return place;
 }
-// Put words the user put away back into `ctx`, as a new generation every view shows,
-// unless it holds words of its own: those are newer than the words coming back.
-/** @param {string} ctx @param {string} text @param {DraftPayload} [payload] */
-export function restoreDraft(ctx, text, payload) {
-  if (draftHasContent(ctx)) return false;
-  saveDraft(ctx, text, payload);
-  tellDraft(ctx, text, payload);
-  return true;
+// Who keeps the words a box's Discard or Escape throws away: the page's undo (undo.js,
+// `keepDiscard`), set as the application mounts.
+/** @typedef {{ctx: string, text: string, payload: DraftPayload | undefined, at: Element | null}} Discarded */
+/** @type {((discarded: Discarded) => void) | null} */
+let keepDiscarded = null;
+/** @param {(discarded: Discarded) => void} keep */
+export const keepDiscardsWith = (keep) => {
+  keepDiscarded = keep;
+};
+// Throw away the words `ctx`'s draft holds, as an editor's Discard and Escape do,
+// with the box they stand in (`at`) while it still stands, which says what they were
+// an edit of. A draft holding no words leaves nothing to take back. The editor calls it
+// only where its words differ from what its subject already says.
+/** @param {string} ctx */
+export function discardDraft(ctx) {
+  const record = activeDraftRecord(ctx);
+  clearDraft(ctx);
+  if (!record?.text) return;
+  const editor = [...draftEditors].find((view) => view.ctx === ctx);
+  const at = (editor && editorInput(editor)) ?? null;
+  keepDiscarded?.({ ctx, text: record.text, payload: record.payload, at });
 }
 /** @param {string} ctx */
 export const loadDraft = (ctx) => activeDraftRecord(ctx);
@@ -1545,6 +1563,7 @@ export const draft = (ctx) => ({
   /** @param {string} text @param {DraftPayload} [payload] */
   save: (text, payload) => saveDraft(ctx, text, payload),
   clear: () => clearDraft(ctx),
+  discard: () => discardDraft(ctx),
   /** @param {(value: string | null, payload?: DraftPayload) => void} callback
    * @param {{input?: DraftField | (() => DraftField | null), resume?: () => EditorDestination | null, box?: () => Element | null}} [options] */
   watch: (callback, options) => watchDraft(ctx, callback, options),

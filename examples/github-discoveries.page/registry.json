@@ -138,9 +138,6 @@
   "lf-repo-feed": {
     "description": "An obligation-free stream of repository changes with distance, topic and contextual discussion.",
     "attributes": {
-      "properties": {
-        "source": { "type": "string" }
-      },
       "required": ["id", "source"]
     },
     "content": "empty",

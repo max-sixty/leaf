@@ -16,7 +16,10 @@
  * draft.css's, which reads two custom states this module keeps: `typing`, from a
  * keystroke in the editor until the pointer has rested on the toolbar (`restArming`) or
  * focus leaves the editor, and `pointed`, while the pointer is on the toolbar meanwhile.
- * Clicking the prose still opens the editor at that spot. Rejected: a resting row under
+ * The rest stands though ⌘Z takes a Discard back: a press aimed at the words under the
+ * toolbar would otherwise land on Save, which sends the agent a turn, or on Discard,
+ * which closes the editor mid-sentence. Clicking the prose still opens the editor at
+ * that spot. Rejected: a resting row under
  * the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
@@ -33,7 +36,9 @@
  * The editor opens where the prose stood and in its faces: its field takes each
  * block's type and the gaps between blocks from the draft's place on the page, and
  * draws a picture as the picture, under its source once the caret reaches it
- * (`facesOf`, composing/text-field.js), so no word moves as it opens. Rejected:
+ * (`facesOf`, composing/text-field.js), so no word moves as it opens. It draws each
+ * blank line typed between blocks, and saving writes each run of them as the one gap
+ * the prose draws (`valueToSave`). Rejected:
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
  * would lose their document type, chosen by the user.
  *
@@ -47,8 +52,10 @@
  *
  * The editor reads as an ordinary text box: its words stand in the field until the user
  * leaves it, and the field's own undo walks them back. Two ways out throw its changes
- * away, Discard and Escape, as a message rewrite's do; every other way out saves them
- * as Save does, which submits one absolute edit through the shared send generation. A
+ * away, Discard and Escape, as a message rewrite's do, and ⌘Z, which their notice
+ * offers, puts them back and opens the editor on them (the draft's `discard`), so a
+ * stray press on Discard loses nothing for good; every other way out saves them as Save
+ * does, which submits one absolute edit through the shared send generation. A
  * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
  * phone keeps what was typed without finding Save first, and Android's back
  * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
@@ -500,7 +507,10 @@ customElements.define(
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
           motionTime("--lf-motion-return"),
         );
-      if (discard) this.#edit.clear();
+      // Words the box already says are no loss, so only changed ones are kept for ⌘Z
+      // to take back.
+      if (discard && this.#editor.value === this.#savedText) this.#edit.clear();
+      else if (discard) this.#edit.discard();
       this.#stopPressAway?.();
       this.#stopPressAway = null;
       // Only where the user was in it. A close this tab's own gesture made
@@ -535,7 +545,12 @@ customElements.define(
     async #commit() {
       if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
-      const text = this.#editor.value;
+      // Saved as the prose reads it, with one blank line for each gap. Opening and
+      // leaving a draft written with more saves nothing.
+      const text =
+        this.#editor.value === this.#savedText
+          ? this.#savedText
+          : this.#editor.valueToSave;
       if (text === this.#savedText) {
         this.#close(true);
         return;

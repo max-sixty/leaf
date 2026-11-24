@@ -483,6 +483,16 @@ package the page selects provides it, whatever the widget is called. A package's
 guidance, in its registry entries and its `instructions/author.md`, is that package's
 advice rather than Leaf's, so it may name any widget.
 
+### Keep the package interface small
+
+A package leans on Leaf only through the package interface: the keys of an element
+declaration, the widget protocol, Leaf's own elements, the functions `widget-api.js`
+exports and the styling names the references declare. Another author's package has
+nothing else, so Leaf's bundled widgets use nothing else, and each name is one more
+thing every author learns and every later change keeps working. A change meets a
+widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
+need of Leaf", says how to choose where it can't.
+
 ### Wait for the event that ends the work
 
 Code waits for the event that ends the work, such as a response, a process's exit, a
@@ -571,6 +581,12 @@ makes Leaf harder to develop than it is worth:
   the file you're reading, so search for them as **What it repeats** says.
 - **A mechanism a dependency or the platform already provides.** Delegate it ("Use
   dependencies").
+- **A name the package interface could lose.** `uv run leaf-dev interface` lists every
+  name with its form and what uses it. Look at a function one bundled widget calls, a
+  key one declaration sets, a styling name one sheet reads, and a name that says what
+  HTML or another name already says. Move the promise into Leaf, or the code into the
+  library or the widget, and remove the name (`packages/AGENTS.md`, "A widget's need of
+  Leaf").
 
 ## Working on the repository
 

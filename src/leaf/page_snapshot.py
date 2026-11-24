@@ -128,13 +128,26 @@ def capture_page_snapshot(
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against.
 
-    A host publishing from an existing transition lends its held transaction;
-    other callers take the page's append lease for the complete capture. `log` and
-    `data` are the part of the page's log and stored data to freeze in place of all of
-    them, which every reading of the capture folds from (`exporting`).
+    The log, the revisions it can name, the stored data and the page's presence are
+    read together under the page's append lease, which every gesture waits for. A
+    host publishing from an existing transition lends its held transaction. Other
+    callers take the lease for those reads alone, so a capture holds up a gesture
+    only while it reads them (root `AGENTS.md`, "Responsiveness"). The capture
+    executes the candidate before it takes the lease, since that reads nothing of
+    the log, and each listed revision after it releases the lease, since a revision
+    never changes once its marker is listed (`revision_artifact`).
+
+    `log` and `data` are the part of the page's log and stored data to freeze in
+    place of all of them, which every reading of the capture folds from
+    (`exporting`).
     """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
+    # The server delivering the snapshot supplies its runtime and this Leaf's
+    # probes beside it (`runtime_selection`), so the probes call the runtime
+    # they were written against, whichever Leaf captured the revision.
+    selected = executing(artifact or _artifact_of(page_dir, document, revision))
+    registry = copy.deepcopy(selected.registry)
     with (
         nullcontext(transaction)
         if transaction is not None
@@ -143,89 +156,65 @@ def capture_page_snapshot(
         events = tuple(copy.deepcopy(page.events if log is None else log))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
-        artifacts: dict[int, RevisionArtifact] = {
-            revision: read_artifact(page_dir, revision) for revision in revisions
-        }
-        selected = artifact or artifacts.get(revision)
-        if selected is None or selected.html != document.data:
-            page_registry = read_page_registry(page_dir)
-            if page_registry is None:
-                raise ValueError(
-                    f"no registry.json in {page_dir}; run `leaf page init` first"
-                )
-            selected = capture_artifact(
-                page_dir,
-                document,
-                page_registry.registry,
-                declaration_sources=page_registry.declaration_sources,
-                widget_sources=page_registry.widget_sources,
-            )
-        # The server delivering the snapshot supplies its runtime and this Leaf's
-        # probes beside it (`runtime_selection`), so the probes call the runtime
-        # they were written against, whichever Leaf captured the revision.
-        artifacts[revision] = selected
-        artifacts = {number: executing(value) for number, value in artifacts.items()}
-        selected = artifacts[revision]
-        registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry) if data is None else data
-        # External data remains current even in a historical document. Its media
-        # belongs to this frozen reading, not the immutable authored revision.
-        data_urls = {
-            url
-            for source in data["sources"].values()
-            if "value" in source
-            for url in resource_urls(
-                source["value"], registry["$data"]["contracts"][source["contract"]]
-            )
-            if url.startswith("/media/")
-        }
-        data_resources = {
-            url: capture_local_resource(page_dir, url) for url in sorted(data_urls)
-        }
-        layer = served_layer(registry["$layer"], page_dir)
-        # Stored revisions take their held readings; a candidate the snapshot
-        # captured is the checked document under its capture's vocabulary.
-        stored_readings = {
-            revision: read_revision(page_dir, revision) for revision in revisions
-        }
-        shown = stored_readings.get(revision)
-        readings: dict[int, SourceReading] = dict(stored_readings)
-        if shown is None or shown.digest != selected.digest:
-            readings[revision] = SourceReading(document, selected.registry)
-        # Read inside the transaction, so a snapshot serves what it froze even if
-        # the page directory later moves or goes away.
-        for reading in readings.values():
-            _ = (reading.document, reading.registry)
-        # So does the layer each one is served under, which names the page's own
-        # package copies (`vendoring`).
-        layers = {
-            _layer_key(metadata): served_layer(metadata, page_dir)
-            for metadata in (
-                reading.registry["$layer"] for reading in readings.values()
-            )
-        }
-        revision_names = {
-            revision: revision_path(page_dir, revision).name for revision in revisions
-        }
-        revision_names[revision] = (
-            artifact_name(revision, artifacts[revision]) + ".html"
-        )
         present, live_stream = presence_with_activity(
             page_dir, list(events), process=process
         )
         observed_at = now_iso()
-        snapshot_active = document_descriptor(
-            revision,
-            list(events),
-            url=url,
-            executable=selected.executable,
-            activated_at=(
-                shown.activated_at
-                if shown is not None and shown.digest == selected.digest
-                else observed_at
-            ),
-        )
         taken = time.time()
+    artifacts: dict[int, RevisionArtifact] = {
+        number: executing(read_artifact(page_dir, number)) for number in revisions
+    }
+    artifacts[revision] = selected
+    # External data remains current even in a historical document. Its media
+    # belongs to this frozen reading, not the immutable authored revision.
+    data_urls = {
+        url
+        for source in data["sources"].values()
+        if "value" in source
+        for url in resource_urls(
+            source["value"], registry["$data"]["contracts"][source["contract"]]
+        )
+        if url.startswith("/media/")
+    }
+    data_resources = {
+        url: capture_local_resource(page_dir, url) for url in sorted(data_urls)
+    }
+    layer = served_layer(registry["$layer"], page_dir)
+    # Stored revisions take their held readings; a candidate the snapshot
+    # captured is the checked document under its capture's vocabulary.
+    stored_readings = {
+        revision: read_revision(page_dir, revision) for revision in revisions
+    }
+    shown = stored_readings.get(revision)
+    readings: dict[int, SourceReading] = dict(stored_readings)
+    if shown is None or shown.digest != selected.digest:
+        readings[revision] = SourceReading(document, selected.registry)
+    # Read at capture, so a snapshot serves what it froze even if the page
+    # directory later moves or goes away.
+    for reading in readings.values():
+        _ = (reading.document, reading.registry)
+    # So does the layer each one is served under, which names the page's own
+    # package copies (`vendoring`).
+    layers = {
+        _layer_key(metadata): served_layer(metadata, page_dir)
+        for metadata in (reading.registry["$layer"] for reading in readings.values())
+    }
+    revision_names = {
+        revision: revision_path(page_dir, revision).name for revision in revisions
+    }
+    revision_names[revision] = artifact_name(revision, selected) + ".html"
+    snapshot_active = document_descriptor(
+        revision,
+        list(events),
+        url=url,
+        executable=selected.executable,
+        activated_at=(
+            shown.activated_at
+            if shown is not None and shown.digest == selected.digest
+            else observed_at
+        ),
+    )
     files_reading = hashlib.sha256(
         repr(
             (
@@ -259,6 +248,27 @@ def capture_page_snapshot(
         data_resources=data_resources,
         revision_names=revision_names,
         reading=reading,
+    )
+
+
+def _artifact_of(
+    page_dir: Path, document: SourceDocument, revision: int
+) -> RevisionArtifact:
+    """`revision`'s stored artifact where it holds `document`, or else `document`
+    captured under the page's current layer."""
+    if revision in list_revisions(page_dir):
+        stored = read_artifact(page_dir, revision)
+        if stored.html == document.data:
+            return stored
+    page_registry = read_page_registry(page_dir)
+    if page_registry is None:
+        raise ValueError(f"no registry.json in {page_dir}; run `leaf page init` first")
+    return capture_artifact(
+        page_dir,
+        document,
+        page_registry.registry,
+        declaration_sources=page_registry.declaration_sources,
+        widget_sources=page_registry.widget_sources,
     )
 
 

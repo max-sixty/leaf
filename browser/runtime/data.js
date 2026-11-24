@@ -11,14 +11,18 @@
    (`suppliedSnapshot`), so whoever holds the value can name its revision.
 
    A widget output is a property its element holds under the output's declared name,
-   as a form control holds `value`, and the element says it changed by dispatching
-   `change` on itself. Nothing is published to Leaf: a reader's input names the
-   producer (`reference`) and reads the one output of its contract off the element
-   standing under that id, again whenever that element says `change`, and resolves
-   the id again whenever a producer arrives or leaves under it, so it follows a
-   replacement. A
-   reader that arrives late, or before its producer's module has loaded, reads what the
-   element holds then. Outputs stay outside the application state: no reading of the log
+   as a form control holds `value`. Nothing is published to Leaf: a reader's input
+   names the producer (`reference`) and reads the one output of its contract off the
+   element standing under that id, and resolves the id again whenever a producer
+   arrives or leaves under it, so it follows a replacement. A reader reads the
+   property as the reader first draws, and again (`changeOf`) when the element
+   dispatches `change` on itself, when the element's class is defined, and when
+   `heldMoved` says the property changed with no such `change`, as
+   element-integration.js says for a property a verb records ("Recorded
+   properties"). The definition counts because the element held no output before it
+   and may dispatch no `change` for the first value its class holds. A value the
+   element comes to hold at any other time, with no `change`, reaches no reader.
+   Outputs stay outside the application state: no reading of the log
    depends on one, so a change runs no fold and no selection, and only the readers of
    that producer hear it. The proof that a reader has drawn is the one every element
    Leaf delivers to has: its region is claimed in the stack that moved its reading
@@ -35,9 +39,10 @@ import { runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { bindingAttributes, registry, tagsDeclaring } from "./registry.js";
+import { isElementName } from "./registry-contract.js";
 import { watchArrivals } from "./arrivals.js";
-import { referencedProjection, requireReference } from "./references.js";
+import { referencedProjection } from "./references.js";
 import { reportPageError } from "./layer-client.js";
 import { tick } from "./version-signal.js";
 
@@ -123,7 +128,7 @@ function watchProducers() {
     },
   });
 }
-/** @type {WeakMap<Element, ReturnType<typeof signal<number>>>} */
+/** @type {WeakMap<Element, {peek(): number, value: number}>} */
 const changes = new WeakMap();
 /** @param {Element} producer */
 function changeOf(producer) {
@@ -135,17 +140,28 @@ function changeOf(producer) {
     producer.addEventListener("change", (event) => {
       if (event.target === producer) tick(moved);
     });
+    // A widget's element holds no output until its class is defined, and the class
+    // may dispatch no `change` for the first value it holds, as a form control
+    // dispatches none.
+    const tag = producer.localName;
+    if (isElementName(tag) && !customElements.get(tag))
+      void customElements.whenDefined(tag).then(() => tick(moved));
   }
   return said;
 }
-
-/** @typedef {{contract: string, source?: string, reference?: string}} DataInput */
+/** Have the readers of `element`'s outputs read them again, after a change the
+ * element may have dispatched no `change` on itself to report.
+ * @param {Element} element */
+export function heldMoved(element) {
+  const said = changes.get(element);
+  if (said) tick(said);
+}
 
 // The reading of one source, which moves only as state application delivers: the
 // accepted one claims the element's region inside the publication that accepts it, and
 // the delivered one draws, so a reading accepted for a revision still being activated
 // never draws into the document it replaces. The first read takes the accepted reading.
-/** @param {string} source @param {DataInput} declaration @param {string} input @param {() => void} accepted */
+/** @param {string} source @param {import("./registry.js").InputDeclaration} declaration @param {string} input @param {() => void} accepted */
 function deliveredSource(source, declaration, input, accepted) {
   const selected = applicationState.select(
     /** @returns {DataSnapshot | null} */ (root) => {
@@ -249,12 +265,9 @@ const supplied = new WeakMap();
 export const suppliedSnapshot = (value) => supplied.get(value);
 
 // Whether the markup binds a declared input, to a source or to a widget's output.
-/** @param {Element} element @param {{source?: string, reference?: string}} declaration */
-export const bindsInput = (element, { source, reference }) =>
-  Boolean(
-    (source && element.getAttribute(source)) ||
-    (reference && element.getAttribute(reference)),
-  );
+/** @param {Element} element @param {import("./registry.js").InputDeclaration} declaration */
+export const bindsInput = (element, declaration) =>
+  bindingAttributes(declaration).some((attribute) => element.getAttribute(attribute));
 
 // Whether `element` binds a page data source while the page has read no data yet.
 // Until the first state answer is accepted, a source has no reading because none has
@@ -292,7 +305,6 @@ export function dataReader(element, input, accepted) {
     throw new Error(
       `<${element.localName}> input binds both an external source and widget output`,
     );
-  if (declaration.reference) requireReference("data", element, declaration.reference);
   const bound = source
     ? deliveredSource(source, declaration, input, accepted)
     : widget && declaration.reference

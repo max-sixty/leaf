@@ -476,7 +476,7 @@ def source_roots(source: Path, runtime: Path) -> list[Path]:
     (`leaf`), whose edits reach the page as copies at its next init."""
     from leaf.layer import layer_inputs
 
-    return layer_inputs(tuple(source_packages(source)), runtime)
+    return layer_inputs(tuple(source_packages(source, runtime)), runtime)
 
 
 def refresh_preview(
@@ -500,7 +500,7 @@ def refresh_preview(
     """
     try:
         refresh_composition(source)
-        fixture = read_fixture(source, runtime=runtime)
+        fixture = read_fixture(source, runtime=runtime, base=runtime)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
@@ -514,8 +514,7 @@ def refresh_preview(
                 "both the fixture and the preview's authored files changed; "
                 "reconcile them before retrying"
             )
-        packages = source_packages(source)
-        selection_args = package_selection_args(packages)
+        selection_args = package_selection_args(fixture.packages)
         # Initialization owns the change decision. Ask before a process-owned
         # server is taken down; the actual init checks again before committing.
         planned = json.loads(
@@ -838,7 +837,7 @@ def serve_preview(
                 staged = Path(raw) / "page"
                 prepared_page = prepare_page(
                     staged,
-                    read_fixture(source, runtime=runtime),
+                    read_fixture(source, runtime=runtime, base=runtime),
                     partial(leaf, launcher, runtime),
                 )
                 mark_preview(source, staged, runtime, user, state["authored"])
@@ -1242,7 +1241,7 @@ def export_preview(
         page = Path(staging) / "page"
         prepared = prepare_page(
             page,
-            read_fixture(source, runtime=runtime),
+            read_fixture(source, runtime=runtime, base=runtime),
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""

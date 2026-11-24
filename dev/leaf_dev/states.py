@@ -1540,6 +1540,18 @@ def option_reference_hovered(page: Page) -> None:
     page.locator("#off-workaround-approve").hover()
 
 
+def option_row_by_keyboard(page: Page) -> None:
+    """The patch decision with the keyboard on the row it leaves open, which wears the
+    focus ring inside its edge, below the picked row's ring, with the group's digits
+    showing."""
+    option_references(page)
+    keyboard_modality(page)
+    page.locator("#off-workaround-revise > .lf-pick").focus()
+    expect(page.locator("#off-workaround-revise")).to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+
+
 def go_to_on_me(page: Page) -> None:
     """Open On Me by Go to On Me (`g` then `M`), the route every runtime shares, as
     `go_to_threads` opens Threads."""
@@ -2275,6 +2287,18 @@ def gloss_open(page: Page) -> None:
     gloss.scroll_into_view_if_needed()
     gloss.click()
     expect(gloss.locator(".lf-gloss-popover")).to_be_visible()
+
+
+def gallery_age(page: Page) -> None:
+    """An age the page's markup writes, drawn in place of the time its author wrote."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-age").scroll_into_view_if_needed()
+
+
+def brief_observed(page: Page) -> None:
+    """The captured pull request's last line, the age a page's own widget draws of when
+    its facts were observed."""
+    page.locator("#pr-reviewed-request .pr-observed").scroll_into_view_if_needed()
 
 
 def settled_option(page: Page) -> None:
@@ -3402,6 +3426,12 @@ STATES = (
         region="#off-workaround-decision",
     ),
     State(
+        "ship-option-row-keyboard",
+        "ship-review",
+        option_row_by_keyboard,
+        region="#off-workaround-decision",
+    ),
+    State(
         "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
     ),
     State("threads-drafts", "ship-review", threads_drafts, region=".lf-fp-opened"),
@@ -3622,6 +3652,13 @@ STATES = (
         "feature-gallery",
         gloss_open,
         region="#bg-gloss .lf-gloss-popover",
+    ),
+    State("gallery-age", "feature-gallery", gallery_age, region="#bg-age"),
+    State(
+        "walkthrough-observed",
+        "pr-walkthrough",
+        brief_observed,
+        region="#pr-reviewed-request .pr-observed",
     ),
     State(
         "settled-option",

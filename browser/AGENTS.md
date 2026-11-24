@@ -284,8 +284,14 @@ concrete and playable").
   of them, so a preview there would cover it and take their next Escape, and `K` reads
   it there on demand, inside a modal dialog too, as an editor's hover key does
   (check:
-  `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). A preview the user put
-  away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
+  `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). `K` also reads where
+  the caret stands, inside what focus is on or anywhere while nothing has focus.
+  Caret browsing in Chromium and Firefox walks the caret through words that take no
+  focus, so there an element such as an age previews to the keyboard without a Tab
+  stop of its own (check: `test_k_reads_the_caret_where_no_tab_reaches`). Safari has
+  no such caret (`../notes/browser-support.md`, "A keyboard caret in Safari"). A
+  preview the user put away stays away until they aim again, whatever the element
+  declares meanwhile. A `title` is its writer's: the
   browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
   so two tooltips never stand together. Leaf's own controls declare their words to the
   preview and write no title on Leaf.
@@ -474,7 +480,8 @@ interface. `runtime/lib/` is that home. It holds code that keeps none of the pag
 state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
 thrown value. A function that reads the page's state, the registry or anything else
 Leaf composes into a page is not library code, and stays in its owner behind
-`widget-api.js`.
+`widget-api.js`, which gains a name only as `../packages/AGENTS.md`, "A widget's need of
+Leaf", says.
 
 - A library module imports only `/vendor/` bundles and the modules beside it, so it
   loads in a document Leaf didn't compose (lint, the library's block in
@@ -814,6 +821,7 @@ block names what a package answers with the browser's own call instead.
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                    |
+| The attributes that bind a widget's input, which `data.js` asks to tell whether markup sets one       | `registry.js` `bindingAttributes`                                                      |
 | Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                             |
 | Paint on the next frame, or watch a size                                                              | `lib/frame-pass.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                 |
 | Write a DOM value only when it changed; a style property needs no guard (`lib/keeps.js` header)       | `lib/keeps.js` `keeps`                                                                 |
@@ -832,7 +840,8 @@ block names what a package answers with the browser's own call instead.
 | What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                              |
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                       |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                                   |
-| The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                                |
+| The clock time behind an age, and what an age previews                                                | `presence.js` `clockTime`, `agePreview`                                                |
+| An age kept current in a page, a message or a widget's template: the `lf-age` element                 | `age.js`                                                                               |
 | When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                                 |
 | A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                              |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |

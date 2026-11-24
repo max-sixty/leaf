@@ -15,7 +15,10 @@
    widget keeps importing from here.
 
    Shared web code that reaches none of Leaf's is no part of this surface: it is the
-   library's (lib/; browser/AGENTS.md, "The library of shared web code"). */
+   library's (lib/; browser/AGENTS.md, "The library of shared web code").
+
+   Each export is a name every package author learns, so one joins this file only
+   after the questions in packages/AGENTS.md, "A widget's need of Leaf". */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 import { growthIsSeen } from "./geometry.js";
@@ -40,6 +43,7 @@ export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
+export { alreadyShown } from "./landing-scroll.js";
 // Holding what the reader reads across one change the browser's scroll anchoring
 // can't keep still, such as one hiding what it anchors.
 export { holdPlace } from "./user-place.js";
@@ -76,7 +80,7 @@ export {
   showReadingSubject,
 } from "./reading-regions.js";
 export { named, phrasing, says } from "./passages.js";
-export { ago, agePreview, clockValue } from "./presence.js";
+export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";

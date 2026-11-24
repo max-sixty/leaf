@@ -29,6 +29,10 @@
    whose root the file doesn't hold, such as the chrome's. A custom highlight's ranges
    become spans (`markHighlights`).
 
+   An age (`lf-age`, browser/runtime/age.js) can't tick in a file that runs no script,
+   so the file says when instead: the time its author wrote in it, else the clock time
+   the age previews, which names its zone. The age the element drew is left out.
+
    `:defined` and `:state()` hold only for an element a script defined, and none runs in
    the file. So each element defined when it was drawn carries `data-lf-defined`,
    listing the custom states it held that the file's CSS names, and the file's CSS
@@ -197,8 +201,15 @@
     for (const node of document.querySelectorAll(".lf-chrome, body [data-lf-runtime]"))
       node.remove();
     markHighlights();
-    const shown = trees();
+    const shown = trees().filter(
+      (tree) => !(tree instanceof ShadowRoot && tree.host.localName === "lf-age"),
+    );
     for (const tree of shown) {
+      for (const age of tree.querySelectorAll("lf-age")) {
+        if (age.textContent.trim()) continue;
+        const said = age.lfPreview?.("pointer");
+        if (said && typeof said.name === "string") age.textContent = said.name;
+      }
       for (const node of tree.querySelectorAll(
         "script, noscript, link[rel~=modulepreload]",
       ))

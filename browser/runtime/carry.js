@@ -26,10 +26,8 @@
  * and radio inputs. Select values, contenteditable markup, and file-input values are
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own
- * lifecycles. `version.js` owns when capture and restoration run for each install. A
- * control the user has changed in the arriving document since it started keeps their
- * newer state (document-inputs.js, `edited`); one only the page's own script has set
- * takes the carried value, which is the user's.
+ * lifecycles. `version.js` owns when capture and restoration run for each install,
+ * and which records a reload's arrival restores (`installArrival`).
  *
  * Focus is named by identity a reload keeps (`focusKey`), which history's record of an
  * entry uses too (history.js): a page element by the id and tag above, or by its
@@ -58,7 +56,6 @@ import {
   upFrom,
 } from "./lib/shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
-import { inputs } from "./inputs.js";
 import { elementById, inPage, pageDocument } from "./passages.js";
 import { ADDRESSABLE } from "./anchor-resolution.js";
 import { runtime } from "./context.js";
@@ -289,15 +286,12 @@ export function restoreCarry(
     const arrived = elementById(record.id, pageDocument());
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
-    if (!inputs.edited(arrived)) {
-      // Only a disclosure's record says whether it was open.
-      if (record.open !== undefined && isHTML(arrived, "details"))
-        arrived.open = record.open;
-      if (record.value !== undefined && holdsValue(arrived))
-        arrived.value = record.value;
-      if (record.checked !== undefined && holdsTick(arrived))
-        arrived.checked = record.checked;
-    }
+    // Only a disclosure's record says whether it was open.
+    if (record.open !== undefined && isHTML(arrived, "details"))
+      arrived.open = record.open;
+    if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
+    if (record.checked !== undefined && holdsTick(arrived))
+      arrived.checked = record.checked;
     positions.push({ arrived, record });
   }
   // Values and disclosures are owed even when a connected widget took focus during

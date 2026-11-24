@@ -56,9 +56,9 @@
  * fresh-document install does and as a delivery that moved on does, such as a server
  * restarted under another Leaf (`reloadNow`), also stores a page-scoped, one-use handoff
  * as the document goes (`handOff`) of what the record doesn't hold: each reading
- * region's place, the values typed into authored controls, but where the user has
- * changed one since the document started, with focus and its caret where it was in
- * one, back in the replacement turn so typing goes on before the page presents, the
+ * region's place, the values typed into authored controls, but for one the user has
+ * changed since the document started, with focus and its caret where it was in one,
+ * back in the replacement turn so typing goes on before the page presents, the
  * words being written with their native editing session, the comparison
  * and the pointer. The document that reload loads consumes it, at that revision or a
  * newer one, once its arrival has put back what it carries; one that goes before then,
@@ -117,6 +117,7 @@ import {
 import { servedExecutable } from "./document-identity.js";
 
 import { captureCarry, documentState, restoreCarry } from "./carry.js";
+import { inputs } from "./inputs.js";
 import {
   captureDraftEditing,
   draftEditingDestination,
@@ -3301,17 +3302,26 @@ export function createVersionController({
     // started, leaves where the user is to that entry's record. What it carries of the
     // document comes back wherever the document arrives, as a Back within one document
     // keeps it: the values typed into the page's form, its disclosures and the
-    // comparison shown, but for a control the user has changed here since (carry.js,
-    // `restoreCarry`).
+    // comparison shown. A control the user has changed here since the document started,
+    // or one in an exclusive group they changed, keeps their change, which is newer than
+    // anything the records carry, and is owed nothing of where they were in it either,
+    // since their input ended the arrival's claim on the place (document-inputs.js,
+    // `edited`); so its record goes unrestored.
     const currentIntent = arrival.intent;
     const placed =
       handoff && handoff.entry === window.navigation?.currentEntry?.key
         ? handoff
         : null;
+    /** @param {readonly import("./carry.js").CarryRecord[] | null | undefined} records */
+    const unchanged = (records) =>
+      (records ?? []).filter(({ id }) => {
+        const node = elementById(id, pageDocument());
+        return !node || !inputs.edited(node);
+      });
     const restoreCarryScroll =
       handoff &&
       restoreCarry(
-        placed ? handoff.carry : documentState(handoff.carry),
+        unchanged(placed ? handoff.carry : documentState(handoff.carry)),
         new Map(),
         currentIntent.handoff,
       );

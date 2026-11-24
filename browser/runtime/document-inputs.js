@@ -23,45 +23,50 @@
   let hold = null;
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
-  // The controls the user has changed in this document: a field they typed into or a
-  // box they ticked, as its trusted `input` says; a group of radios they chose among,
-  // the radios of one `name` in one form, or in one tree where they have none; and a
-  // disclosure whose summary they pressed, or took Enter or Space on. A page's own
-  // script that sets a value or opens a disclosure makes no such input, so state a
-  // reload carries yields to the user's newer change alone (carry.js, `restoreCarry`).
+  // The controls the user has changed in this document (`edited`), whose state a
+  // reload's arrival leaves as they left it (version.js, `installArrival`): a field or
+  // box a trusted `input` came from, and a disclosure whose summary took a trusted
+  // `click`, which the browser fires for a press, a tap or a key that activates it, and
+  // for no right-click or cancelled press. A control in an exclusive group counts as
+  // changed where the user changed any member, since HTML keeps the group to one
+  // choice and restoring one member would undo theirs: radios of one name in one form,
+  // or in one tree where they have none, and disclosures of one name in one tree. A
+  // page's own script makes no trusted input, so a value it writes reads as its own,
+  // even one written in answer to the user, as a script that takes their paste and
+  // writes it itself does, and so does a disclosure find-in-page opens.
   /** @type {WeakSet<Element>} */
   const changed = new WeakSet();
   /** @type {WeakMap<Node, Set<string>>} */
-  const chosenAmong = new WeakMap();
-  /** @param {HTMLInputElement} radio */
-  const radioScope = (radio) => radio.form ?? radio.getRootNode();
+  const changedGroups = new WeakMap();
+  // The exclusive group `node` stands in, as its scope and its kind and name.
+  /** @param {Element} node @returns {[Node, string] | null} */
+  const groupOf = (node) => {
+    if (node instanceof HTMLInputElement && node.type === "radio" && node.name)
+      return [node.form ?? node.getRootNode(), `radio ${node.name}`];
+    const name = node instanceof HTMLDetailsElement && node.getAttribute("name");
+    return name ? [node.getRootNode(), `details ${name}`] : null;
+  };
+  /** @param {Element} node */
+  const noteChange = (node) => {
+    changed.add(node);
+    const group = groupOf(node);
+    if (!group) return;
+    const [scope, name] = group;
+    changedGroups.set(scope, (changedGroups.get(scope) ?? new Set()).add(name));
+  };
   /** @param {Event} event */
-  const noteChange = (event) => {
-    if (!event.isTrusted) return;
+  const change = (event) => {
+    if (!(event instanceof Event) || !event.isTrusted) return;
+    const path = event.composedPath();
     if (event.type === "input") {
-      const [origin] = event.composedPath();
-      if (!(origin instanceof Element)) return;
-      changed.add(origin);
-      if (
-        origin instanceof HTMLInputElement &&
-        origin.type === "radio" &&
-        origin.name
-      ) {
-        const scope = radioScope(origin);
-        const names = chosenAmong.get(scope) ?? new Set();
-        chosenAmong.set(scope, names.add(origin.name));
-      }
+      if (path[0] instanceof Element) noteChange(path[0]);
       return;
     }
-    const presses =
-      event.type === "pointerdown" ||
-      (event instanceof KeyboardEvent && (event.key === "Enter" || event.key === " "));
-    if (!presses) return;
-    const summary = event
-      .composedPath()
-      .find((node) => node instanceof HTMLElement && node.localName === "summary");
+    const summary = path.find(
+      (node) => node instanceof HTMLElement && node.localName === "summary",
+    );
     const details = summary instanceof HTMLElement ? summary.parentElement : null;
-    if (details instanceof HTMLDetailsElement) changed.add(details);
+    if (details instanceof HTMLDetailsElement) noteChange(details);
   };
   // Early key holding and the runtime ask the same question of a key's origin.
   // Selects and custom options keep typeahead without being text editors.
@@ -109,12 +114,8 @@
     },
     edited(node) {
       if (changed.has(node)) return true;
-      return (
-        node instanceof HTMLInputElement &&
-        node.type === "radio" &&
-        Boolean(node.name) &&
-        Boolean(chosenAmong.get(radioScope(node))?.has(node.name))
-      );
+      const group = groupOf(node);
+      return Boolean(group && changedGroups.get(group[0])?.has(group[1]));
     },
     observe(read) {
       inputReaders.add(read);
@@ -132,13 +133,14 @@
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
     if (event instanceof KeyboardEvent && hold?.holds(event)) return;
-    noteChange(event);
     inputs++;
     hold?.counted(false);
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
     window.addEventListener(type, input, { capture: true, passive: true });
+  for (const type of ["input", "click"])
+    window.addEventListener(type, change, { capture: true, passive: true });
   // Going Back or Forward is the user's word too, though the browser's own buttons send
   // the page no input. Where the Navigation API runs, the step counts as it begins,
   // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has

@@ -10,6 +10,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     consume_browser_errors,
     holding,
+    leaf_page,
     open_latest,
     open_page,
     panel_field,
@@ -283,6 +284,34 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         assert after is not None
         after["scroll"] = editor.evaluate("el=>el.scrollTop")
     assert after == before
+
+
+def test_a_revision_that_redraws_a_chosen_option_keeps_the_choice(browser, serve):
+    """An option the user chose among radios stays chosen through a revision installed
+    in place that replaces the radios, as one rewrapping them does: the choice carries
+    to the replacements, which no input of the user's has touched since."""
+
+    def page_with(wrapper):
+        return leaf_page(
+            "Pace",
+            f'<h1 id="subject">Pace</h1><form id="f"><{wrapper} id="group">'
+            '<label><input type="radio" name="pace" id="slow"> slow</label>'
+            '<label><input type="radio" name="pace" id="steady" checked> steady</label>'
+            f"</{wrapper}></form>",
+        )
+
+    page = open_page(browser, live_url(serve(page_with("p"))))
+    page.locator("#slow").check()
+    birth = page.evaluate("performance.timeOrigin")
+    revision = int(
+        page.locator('meta[name="lf-revision"][data-lf-runtime]').get_attribute(
+            "content"
+        )
+    )
+    stamp_page(serve.page_dir, page_with("div"), "Rewrap the options")
+    wait_for_revision(page, revision + 1)
+    assert page.evaluate("performance.timeOrigin") == birth
+    expect(page.locator("div#group #slow")).to_be_checked()
 
 
 def test_a_field_a_fresh_revision_makes_a_file_input_leaves_its_words_behind(

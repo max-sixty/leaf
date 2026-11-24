@@ -837,6 +837,53 @@ def test_a_disclosure_closed_before_leaf_starts_stays_closed(browser, serve):
     expect(more).not_to_have_attribute("open", "")
 
 
+def test_a_disclosure_opened_before_leaf_starts_stays_open_beside_its_group(
+    browser, serve
+):
+    """A named disclosure the user opens while the document a reload Leaf asked for
+    brings is still loading Leaf stays open, though the reload carries another of its
+    group open, which opening would close it: the user's choice in the group is
+    newer than the one the reload carries."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Notes</h1><details id="first" name="notes"><summary>First</summary>'
+            '<p>The first notes.</p></details><details id="second" name="notes">'
+            "<summary>Second</summary><p>The second notes.</p></details>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    first, second = page.locator("#first"), page.locator("#second")
+    first.locator("summary").click()
+    expect(first).to_have_attribute("open", "")
+    while_leaf_reloads(page, serve, lambda: second.locator("summary").click())
+    expect(second).to_have_attribute("open", "")
+    expect(first).not_to_have_attribute("open", "")
+
+
+def test_a_right_click_on_a_summary_before_leaf_starts_leaves_its_disclosure_carried(
+    browser, serve
+):
+    """A right-click on a disclosure's summary while the document a reload Leaf asked
+    for brings is still loading Leaf opens no menu of Leaf's and toggles nothing, so
+    the disclosure still comes back open as the reload carries it."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Notes</h1><details id="more"><summary>More</summary>'
+            "<p>The rest of the notes.</p></details>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    more = page.locator("#more")
+    more.locator("summary").click()
+    expect(more).to_have_attribute("open", "")
+    while_leaf_reloads(
+        page, serve, lambda: more.locator("summary").click(button="right")
+    )
+    expect(more).to_have_attribute("open", "")
+
+
 def scroll_away(page):
     """Scroll the page with the wheel, and wait until the document has heard it: an
     input of the user's, as its clock counts them (document-inputs.js). A document
@@ -1073,8 +1120,8 @@ def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
     scroll_away(page)
     who.fill("Grace")
     release(False, lambda: page.reload(wait_until="commit"))
-    # A carried value lands as the parser adds its field, long before readiness, so
-    # it would stand by now. The browser keeps no value of its own on this reload.
+    # A carried value lands as the arrival begins, long before readiness, so it would
+    # stand by now. The browser keeps no value of its own on this reload.
     expect(who).not_to_have_value("Ada")
     expect(reply).to_have_js_property("value", "Hold")
     expect(reply).not_to_be_focused()

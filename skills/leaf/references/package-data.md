@@ -446,13 +446,14 @@ own copy and redraws only when the value differs. Assign a new value rather than
 editing the held one, and say `change` after each assignment: Leaf takes the object
 the widget already held as unchanged without reading into it, so a large value costs
 its readers nothing while another output changes. Hold what changes often, such as a
-selection, as a small output of its own beside the large one. Dispatch it on the
-element itself: a control inside the element says a bubbling `change` of its own,
-which Leaf doesn't count, and which a module listening on its own element tells apart
-by `event.target`. Where a verb also records the property (`module-plain-elements.md`,
-"`record.property`"), its `record` names the event that reports a change, so Leaf
-also reads the property again at that event, even from a control inside the element,
-and after Leaf sets the recorded value.
+selection, as a small output of its own beside the large one. Leaf reads at each
+`change` the element hears, whether the element dispatched it or it bubbled from a
+control inside, as a `change` listener on the element would. The property must hold
+the new value by then: read it from the control, or set it in a listener on the
+control, since a listener on the element itself may run after Leaf's. Where a verb
+also records the property (`module-plain-elements.md`, "`record.property`"), Leaf
+reads it again at the event its `record` names, and after Leaf sets the recorded
+value.
 
 Leaf sets the consumer's property before the producer's `dispatchEvent` returns. A
 consumer that draws in its setter has drawn by then; a consumer that extends
@@ -462,7 +463,7 @@ On a page without Leaf the same module needs no import for this, and the host do
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
 
 `page check --render` and `package check --render` validate the value an output
-holds each time its element says `change` during their render, including values later
+holds at each `change` its element hears during their render, including values later
 withdrawn or replaced and values from contained samples whose frames are later
 disposed. They listen at the window, so they check a producer inside another widget's
 shadow tree only where its `change` is composed, which `new Event("change")` is not. A

@@ -409,12 +409,13 @@ test("an output's readers follow the element under their bound id, in their own 
   holdRows(pageProducer, { rows: ["edited"] });
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
-  // A control inside the producer says `change` for itself, not for the producer.
+  // A `change` that bubbles to the producer from a control inside it is read as the
+  // producer's own is.
   const control = pageProducer.appendChild(document.createElement("input"));
-  pageProducer.rows = { rows: ["unsaid"] };
+  pageProducer.rows = { rows: ["said inside"] };
   control.dispatchEvent(new Event("change", { bubbles: true }));
   await settleOutput();
-  assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["said inside"] });
   control.remove();
   // Markup owns the binding, captured at the first read.
   const otherProducer = document.createElement(producerTag);

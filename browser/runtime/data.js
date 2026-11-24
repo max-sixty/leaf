@@ -15,13 +15,16 @@
    names the producer (`reference`) and reads the one output of its contract off the
    element standing under that id, and resolves the id again whenever a producer
    arrives or leaves under it, so it follows a replacement. A reader reads the
-   property as the reader first draws, and again (`changeOf`) when the element
-   dispatches `change` on itself, when the element's class is defined, and when
-   `heldMoved` says the property changed with no such `change`, as
-   element-integration.js says for a property a verb records ("Recorded
-   properties"). The definition counts because the element held no output before it
-   and may dispatch no `change` for the first value its class holds. A value the
-   element comes to hold at any other time, with no `change`, reaches no reader.
+   property as the reader first draws, and again (`changeOf`) at each `change` the
+   element hears, its own or one bubbling from a control inside it, when the
+   element's class is defined, and when `heldMoved` says the property changed with
+   no `change`, as element-integration.js says for a property a verb records
+   ("Recorded properties"). The read is made as the event reaches the element, as a
+   host's own `change` listener would make it, so the property holds its new value
+   by then: a listener the element adds on itself may run after the read. The
+   definition counts because the element held no output before it and may dispatch
+   no `change` for the first value its class holds. A value the element comes to
+   hold at any other time, with no `change`, reaches no reader.
    Outputs stay outside the application state: no reading of the log
    depends on one, so a change runs no fold and no selection, and only the readers of
    that producer hear it. The proof that a reader has drawn is the one every element
@@ -136,10 +139,8 @@ function changeOf(producer) {
   if (!said) {
     const moved = (said = signal(0));
     changes.set(producer, moved);
-    // A control inside the producer says `change` too; only the producer's own counts.
-    producer.addEventListener("change", (event) => {
-      if (event.target === producer) tick(moved);
-    });
+    // Whichever said it: the producer, or a control inside it.
+    producer.addEventListener("change", () => tick(moved));
     // A widget's element holds no output until its class is defined, and the class
     // may dispatch no `change` for the first value it holds, as a form control
     // dispatches none.

@@ -299,8 +299,8 @@ function host(element) {
     heldMoved(element);
   };
   // The user's change of a recorded property, recorded as its verb's action. The
-  // event may come from a control inside the element, where the property's readers
-  // (data.js) don't hear it, so Leaf tells them after recording the change.
+  // record's event may be another than `change`, the one event the property's
+  // readers (data.js) hear, so Leaf tells them after recording the change.
   for (const { verb, property, event } of properties)
     element.addEventListener(event, () => {
       if (setting) return;

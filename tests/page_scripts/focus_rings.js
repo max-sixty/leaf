@@ -3,6 +3,9 @@
 (helpers) => {
   const { named } = helpers;
 
+  // Whether a computed colour paints nothing.
+  const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
+
   function deepFocus() {
     let e = document.activeElement;
     while (e) {
@@ -401,7 +404,6 @@
       // Whether a box paints at a ring sample: its fill anywhere, or its border where the
       // sample lies on it. A face drawn by its border alone, such as a playground choice,
       // can cover a pixel of its neighbour's ring, which a reading of fills alone misses.
-      const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
       const paints = (n, x, y) => {
         const s = getComputedStyle(n);
         if (s.backgroundImage !== "none" || !clear(s.backgroundColor)) return true;
@@ -856,11 +858,15 @@
       const cs = getComputedStyle(el, "::after");
       if (cs.content !== "none" && ringed(cs)) carriers.push([el, "after"]);
     };
-    // The stop's own outline shows where the keyboard is in any ink: an author's
-    // outline replaces Leaf's ring as it replaces the browser's (surfaces.css, "The
-    // user chose this").
+    // The stop's own outline shows where the keyboard is in any visible ink: an
+    // author's outline replaces Leaf's ring as it replaces the browser's
+    // (surfaces.css, "The user chose this").
     const cs = getComputedStyle(e);
-    if (cs.outlineStyle !== "none" && Number.parseFloat(cs.outlineWidth) > 0)
+    if (
+      cs.outlineStyle !== "none" &&
+      Number.parseFloat(cs.outlineWidth) > 0 &&
+      !clear(cs.outlineColor)
+    )
       return null;
     if (shadowBand(cs, accent, mixed) > 0) return null;
     overlaid(e);

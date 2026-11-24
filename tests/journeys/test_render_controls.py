@@ -1469,6 +1469,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             for _ in range(3):
                 page.keyboard.press("Escape")
             panel_settled(page, open=False)
+            # A scope that held a thread's view chose the panel for threads; the next
+            # opens them beside their passages again.
+            choose_threads_in_panel(page, on=False)
             # A draft editor and captured source are conditional chrome: Tab can stand
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.

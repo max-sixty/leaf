@@ -3329,7 +3329,7 @@ def test_document_reading_survives_width_reflow(browser, serve, local_region):
     page.mouse.wheel(0, 160)
     scroll_settled(page)
     reading = """async () => {
-      const {capturePlace} = await window.__lfWidgetApi();
+      const {capturePlace} = await window.__lfCheckApi();
       return capturePlace();
     }"""
     if local_region == "bounded":

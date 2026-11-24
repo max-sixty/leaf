@@ -207,8 +207,8 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or the words and the command rows whose
-   * keys Leaf names after them (`notifications.js`). */
+   * (`lib/widget-events.js`, `ANNOUNCE`): the words, or the words and the command rows
+   * whose keys Leaf names after them (`notifications.js`). */
   "lf-announce": CustomEvent<
     | import("../runtime/voice.js").Words
     | {
@@ -217,7 +217,7 @@ interface WindowEventMap {
       }
   >;
   /** Where a step of a widget's own walk landed, which Leaf's panel says
-   * (`widget-upgrade.js`, `WALK`; `walk-position.js`). */
+   * (`lib/widget-events.js`, `WALK`; `walk-position.js`). */
   "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace>;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
    * in its Errors list (`errors.js`). */
@@ -267,10 +267,10 @@ interface DocumentEventMap {
   >;
   /** Drawing a widget has under way, by the community protocol (`lib/pending-task.js`). */
   "pending-task": import("../runtime/lib/pending-task.js").PendingTaskEvent;
-  /** A hold a widget has on its own drawing (`widget-upgrade.js`). */
-  "lf-defer": import("../runtime/widget-upgrade.js").DeferEvent;
+  /** A hold a widget has on its own drawing (`lib/widget-events.js`). */
+  "lf-defer": import("../runtime/lib/widget-events.js").DeferEvent;
   /** A hold the user has on something in an element, until `complete` settles
-   * (`widget-upgrade.js`, `HOLD`). */
+   * (`lib/widget-events.js`, `HOLD`). */
   "lf-hold": Event & { complete?: PromiseLike<unknown> };
   /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
    * sets `delivery` on each it sends (`widget-controller.js`). */

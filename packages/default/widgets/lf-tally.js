@@ -26,10 +26,10 @@ import { render as tallyTemplate } from "./tally-view.js";
 import {
   agentName,
   elementById,
-  LeafElement,
   obligationActions,
   readObligations,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 customElements.define(

@@ -4,7 +4,8 @@ import test from "node:test";
 const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");
 const { adoptRegistry } = await import("/runtime/registry.js");
 const { createDataProjection } = await import("/runtime/projection/data.js");
-const { LeafElement } = await import("/runtime/widget-api.js");
+const { LeafElement } = await import("/runtime/lib/leaf-element.js");
+await import("/runtime/element-integration.js");
 const { nothing } = await import("/vendor/lit.js");
 createDataProjection({ invalidateDom() {} });
 

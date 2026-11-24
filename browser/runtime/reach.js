@@ -11,7 +11,7 @@ import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
 import { shadowRootsIn } from "./shadow.js";
-import { LAYOUT } from "./widget-upgrade.js";
+import { LAYOUT } from "./lib/widget-events.js";
 import { eventSource } from "./pointer.js";
 import { keeps } from "./lib/keeps.js";
 

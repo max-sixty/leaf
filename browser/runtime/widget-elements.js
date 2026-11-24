@@ -10,7 +10,7 @@ export { generatedElement } from "./element-markers.js";
    words change holds one room for all of them with `data-lf-room`, which the theme
    sizes without script and which cuts words past it (controls.css). A module that
    rearranges what it holds inside an unchanged box says so with `lf-layout`
-   (widget-upgrade.js).
+   (lib/widget-events.js).
 
    The shared drag guard (`reachedForWords`) distinguishes a click from the mouseup
    ending an active text selection by comparing the selection's focus end with the
@@ -37,7 +37,7 @@ import { pageRange, selectionBackward } from "./native-selection.js";
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { HOLD } from "./widget-upgrade.js";
+import { HOLD } from "./lib/widget-events.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { onPress, pressRecords } from "./focus.js";
@@ -105,7 +105,7 @@ export function reveal(el, mayReveal) {
 
 // The user's hand on a widget, in the layer's own word: a drag, a keyboard grab or a
 // scrub the log has not taken yet. The element says it with an `lf-hold` event whose
-// promise settles as the hand comes off (`HOLD`, widget-upgrade.js), and settles it
+// promise settles as the hand comes off (`HOLD`, lib/widget-events.js), and settles it
 // as the element leaves the page too, since one that left with the hand up would hold
 // every waiter for the rest of the page's life. This module holds each one, and
 // everything that has to wait for the hand asks here: `dragHeld` is whether any stands.

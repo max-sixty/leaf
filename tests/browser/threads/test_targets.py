@@ -952,7 +952,7 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     old = "The original requirement keeps a human review before release. " * 12
     module = """
 import { html } from '/vendor/lit.js';
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-quote-subject', class extends LeafElement {
   static properties = {label: {attribute: false}, words: {attribute: false}};
   setup() {

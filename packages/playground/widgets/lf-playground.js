@@ -70,11 +70,11 @@ import {
   holdFocus,
   onCurrentLocation,
   onPress,
-  LeafElement,
   says,
   wear,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";

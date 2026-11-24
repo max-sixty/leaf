@@ -1,6 +1,7 @@
 /* A local consumer exercises declaration-driven reports without shipping a task UI. */
 import { nothing } from "/vendor/lit.js";
-import { LeafElement, readWork, threadSurface } from "/runtime/widget-api.js";
+import { readWork, threadSurface } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(

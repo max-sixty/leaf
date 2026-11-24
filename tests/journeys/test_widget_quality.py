@@ -219,7 +219,7 @@ def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browse
     )
     (package / "widgets/lf-first-box.js").write_text("""\
 import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-first-box", class extends LeafElement {
   render() { return html`<div style="block-size:40px">Drawn view</div>`; }
 });

@@ -3,7 +3,6 @@
 import { noChange } from "/vendor/lit.js";
 import {
   HeldReading,
-  LeafElement,
   obligationActions,
   nameOf,
   readObligations,
@@ -16,6 +15,7 @@ import {
   threadActions,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

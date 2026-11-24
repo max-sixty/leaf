@@ -25,7 +25,7 @@ import {
 } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { DEFER } from "./widget-upgrade.js";
+import { DEFER } from "./lib/widget-events.js";
 import { PENDING_TASK } from "./lib/pending-task.js";
 import { showFailure } from "./lib/failure.js";
 import { watchOwner } from "./arrivals.js";

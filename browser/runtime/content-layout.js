@@ -4,7 +4,7 @@
 import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
 import { nextFrame, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { repaintPage } from "./repaint.js";
-import { layoutChanged } from "./widget-upgrade.js";
+import { layoutChanged } from "./lib/widget-events.js";
 import { layoutBox, layoutParts, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";

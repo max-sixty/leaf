@@ -1,7 +1,8 @@
 /* This review packet owns its forge facts and composition. Leaf supplies typed
  * source delivery, safe Markdown, the shared clock and identity-aware comments. */
 import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
-import { ago, dressCode, LeafElement, pageLinks } from "/runtime/widget-api.js";
+import { ago, dressCode, pageLinks } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";
 

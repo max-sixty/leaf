@@ -241,7 +241,7 @@ import {
   threadNamed,
 } from "./thread/state.js";
 import { discussed, isNews, threadCounts } from "./thread/model.js";
-import { LeafElement } from "./leaf-element.js";
+import { LeafElement } from "./lib/leaf-element.js";
 import {
   RESOLVED,
   threadAttention,

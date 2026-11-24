@@ -4,7 +4,6 @@
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
-  LeafElement,
   whileConnected,
   tabStore,
   HeldReading,
@@ -12,6 +11,7 @@ import {
   readThreads,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered } from "/runtime/lib/controls.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";

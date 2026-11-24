@@ -78,7 +78,7 @@ import {
   stickyHolder,
 } from "./geometry.js";
 import { scrollAxes } from "./element-axes.js";
-import { layoutsChanged } from "./widget-upgrade.js";
+import { layoutsChanged } from "./visual-parts.js";
 import {
   composedParentNode,
   drawn,
@@ -266,7 +266,7 @@ const textEnvelope = (block, segments, range) => {
 //
 // A frame's layout stands while the page's words, the parts drawn, the window, and the
 // frame's size, scroll axes and skipping are as they were, until a widget says its
-// layout changed (widget-upgrade.js, `layoutsChanged`), and while every entry a reading
+// layout changed (visual-parts.js, `layoutsChanged`), and while every entry a reading
 // finds in its band, and the first past it, stands where the layout has it: a change in
 // flow at or above the band's foot moves one of those. A box moved by none of these, such
 // as a paragraph a script transforms or one an anchor places, stays where the layout has

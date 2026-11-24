@@ -51,7 +51,8 @@ from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { LeafElement, nameOf, readThreads } from '/runtime/widget-api.js';
+import { nameOf, readThreads } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
@@ -79,7 +80,8 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { LeafElement, nameOf, threadActions, readThreads } from '/runtime/widget-api.js';
+import { nameOf, threadActions, readThreads } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   static properties = { query: { state: true } };
   setup() { this.query = this.getAttribute('filter') ?? ''; }
@@ -1224,7 +1226,8 @@ def arrived(page, thread_id):
 
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
-import { LeafElement, readThreads, threadActions } from '/runtime/widget-api.js';
+import { readThreads, threadActions } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {

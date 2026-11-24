@@ -21,12 +21,12 @@ import { render } from "/vendor/lit.js";
 import {
   focusDestination,
   navigateToDatum,
-  LeafElement,
   onCurrentLocation,
   scrollIntoView,
   shadowStage,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer } from "/runtime/lib/controls.js";
 import { PRESS } from "/runtime/lib/keys.js";
 import { keeps } from "/runtime/lib/keeps.js";

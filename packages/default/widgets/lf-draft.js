@@ -73,7 +73,6 @@ import {
   aimedAt,
   nameOf,
   motion,
-  LeafElement,
   sendDraft,
   saveDraft,
   loadDraft,
@@ -87,6 +86,7 @@ import {
   onPressAway,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";

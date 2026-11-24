@@ -34,7 +34,7 @@ export class OptionAddition {
   /** @type {Comment | null} */
   #end = null;
 
-  /** @param {import("/runtime/widget-api.js").LeafElement} host
+  /** @param {import("/runtime/lib/leaf-element.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
   constructor(host, { offered, available, commit }) {
     this.#host = host;

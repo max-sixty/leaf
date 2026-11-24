@@ -19,7 +19,8 @@
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import { nothing } from "/vendor/lit.js";
-import { LeafElement, registerContribution, says } from "/runtime/widget-api.js";
+import { registerContribution, says } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { foldBlock } from "../runtime/motion.js";

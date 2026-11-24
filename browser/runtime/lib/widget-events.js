@@ -1,14 +1,11 @@
-/* The events with which a widget tells its host what Leaf needs to hear, by name. The
-   module imports nothing Leaf composes into a page, so `LeafElement`
-   (leaf-element.js), which dispatches them, loads in a plain HTML page that maps
-   `/runtime/` with its own import map too (portable-api.js).
+/* The events with which a widget tells its host what Leaf needs to hear, by name.
 
    Leaf reads each event from outside, and a plain page may ignore it. That the widget
    has connected and wants what its host sets on it is `lf-connect` (`CONNECT`), a hold
    it has on its own drawing is `lf-defer` (`DeferEvent`), and the user's hold on
    something in it is `lf-hold` (`HOLD`). A failure is an `error` event
-   (lib/failure.js), and drawing still under way a `pending-task` event
-   (lib/pending-task.js). A rearrangement inside an unchanged box is `lf-layout`
+   (failure.js), and drawing still under way a `pending-task` event
+   (pending-task.js). A rearrangement inside an unchanged box is `lf-layout`
    (`LAYOUT`), which the readers that measure what a widget holds hear. And the keys an
    element binds are data on it, `lfCommands`, which the widget says it set or changed
    with `lf-commands` (`COMMANDS`): Leaf reads them then and binds them
@@ -24,7 +21,6 @@
    one of a chart's points to the next, or a grip's words stop being true once its card
    is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
-import { version } from "./kept.js";
 
 // That an element has connected and wants what its host sets on it now: a bubbling,
 // composed event the element dispatches from `connectedCallback`. A Leaf page answers
@@ -64,13 +60,6 @@ export const HOLD = "lf-hold";
 // widget that seats threads for its outlets again, follows the event and no resize
 // (anchor-controls.js), so such a widget says it after any change in the data it shows.
 export const LAYOUT = "lf-layout";
-// How many times an element in the page has said its layout changed, which a reader of
-// what widgets draw that the page's reading doesn't hear reads (kept.js, `version`).
-// The count is taken as the event starts down from the window, so it has moved before
-// any listener the event reaches reads it.
-const layouts = version();
-export const layoutsChanged = () => layouts.read();
-addEventListener(LAYOUT, () => layouts.move(), { capture: true });
 /** Say `el`'s layout changed, as Leaf says for an element it drives.
  * @param {Element} el */
 export const layoutChanged = (el) =>

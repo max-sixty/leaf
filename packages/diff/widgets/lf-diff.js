@@ -36,7 +36,6 @@ import {
   holdFocus,
   langForPath,
   move,
-  LeafElement,
   threadSurface,
   retainUserIntent,
   searchField,
@@ -45,6 +44,7 @@ import {
   whileConnected,
   scrollIntoView,
 } from "/runtime/portable-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";

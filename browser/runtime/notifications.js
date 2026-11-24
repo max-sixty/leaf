@@ -52,7 +52,7 @@ import { el } from "./lib/elements.js";
 import { elementDirective } from "./lib/controls.js";
 import { keeps } from "./lib/keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
-import { ANNOUNCE } from "./widget-upgrade.js";
+import { ANNOUNCE } from "./lib/widget-events.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
 import { saying } from "./keyboard/control-keys.js";
@@ -145,9 +145,9 @@ export function announce(msg) {
   }, 30);
 }
 
-// A widget's words for a listener (`ANNOUNCE`, widget-upgrade.js), said here: the words
-// themselves, or `{words, rows}`, the words and the command rows whose keys a listener
-// hears after them, named as a press would reach them when the words are said
+// A widget's words for a listener (`ANNOUNCE`, lib/widget-events.js), said here: the
+// words themselves, or `{words, rows}`, the words and the command rows whose keys a
+// listener hears after them, named as a press would reach them when the words are said
 // (keyboard/control-keys.js, `saying`).
 addEventListener(ANNOUNCE, ({ detail }) =>
   announce(

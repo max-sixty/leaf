@@ -259,9 +259,9 @@ export const bindsInput = (element, { source, reference }) =>
 // Whether `element` binds a page data source while the page has read no data yet.
 // Until the first state answer is accepted, a source has no reading because none has
 // been read, not because it holds none, so an element drawing it then would draw "no
-// data" and move its contents when the data came (leaf-element.js, `shouldUpdate`). An
-// input bound to another widget's output, or a declared source the element doesn't
-// name, waits for nothing. The acceptance draws the element with the accepted reading,
+// data" and move its contents when the data came (lib/leaf-element.js,
+// `shouldUpdate`). An input bound to another widget's output, or a declared source the
+// element doesn't name, waits for nothing. The acceptance draws the element with the accepted reading,
 // as any element's first read takes it. A page whose first read brought no state
 // settles offline, and its elements draw then, saying their sources hold nothing,
 // since no answer is coming to fill them.

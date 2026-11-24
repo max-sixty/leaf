@@ -10,7 +10,7 @@
 
    Core registers scopes through internal `keys(el, title, rows)`; a package widget
    declares the same scope as data on its element, `lfCommands`, which this module reads
-   when the element says it changed (`lf-commands`, widget-upgrade.js). A module
+   when the element says it changed (`lf-commands`, lib/widget-events.js). A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; the command reference gathers their section presentations.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
@@ -83,7 +83,7 @@ import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
-import { COMMANDS } from "../widget-upgrade.js";
+import { COMMANDS } from "../lib/widget-events.js";
 import { reportFailure } from "../lib/failure.js";
 
 /** @typedef {import("./bindings.js").Command} Command
@@ -858,8 +858,8 @@ export const commandsOn = directive(
 // A package widget's keys are data on the element they apply in, `lfCommands`: the
 // scope's title, rows and options as `keys` takes them, in one object (`statedScope`).
 // The element says when it sets or changes them, or anything its rows read, with an
-// `lf-commands` event it dispatches on itself (`COMMANDS`, widget-upgrade.js), so a page
-// without Leaf, which hears nothing, binds no key. The element is the one the event
+// `lf-commands` event it dispatches on itself (`COMMANDS`, lib/widget-events.js), so a
+// page without Leaf, which hears nothing, binds no key. The element is the one the event
 // began at, read off its path, since the window sees a shadow host as the target of an
 // event from inside its root; a closed root hides the element, and its host is read in
 // its place. A declaration other than the one standing stands in its

@@ -20,7 +20,7 @@
    place before an open thread's Reply show.
 
    A package widget's walk says each step's place with an `lf-walk` event (`WALK`,
-   widget-upgrade.js) on the stop the step landed on, so a widget calls nothing of
+   lib/widget-events.js) on the stop the step landed on, so a widget calls nothing of
    Leaf's and a page without Leaf hears nothing. The event carries a place and no
    reader, so nothing says when a list that changed, or a reading the widget moved
    without a step, has made the place wrong. The place therefore stands for its step's
@@ -40,7 +40,7 @@ import { answerStep, answeringStep, gesture } from "./notifications.js";
 import { afterScript } from "./rendering.js";
 import { repaint } from "./repaint.js";
 import { focusDestination, focused } from "./focus.js";
-import { WALK } from "./widget-upgrade.js";
+import { WALK } from "./lib/widget-events.js";
 
 /** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
  * @typedef {readonly (Element | null | undefined)[]} WalkEnds

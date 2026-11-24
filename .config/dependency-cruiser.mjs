@@ -96,8 +96,6 @@ const exactClosures = {
     "repaint.js",
     "shadow.js",
     "arrivals.js",
-    // A widget's declared commands arrive by the event it dispatches.
-    "widget-upgrade.js",
     "page-paint.js",
     "kept.js",
   ],

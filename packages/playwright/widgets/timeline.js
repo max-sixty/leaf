@@ -17,7 +17,8 @@
  * milliseconds from the recording's origin.
  */
 import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
-import { frameFor, sizeObserver, whileConnected } from "/runtime/widget-api.js";
+import { frameFor, whileConnected } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { layoutPx } from "/runtime/lib/keeps.js";
 import { textWidth as measure } from "/runtime/lib/text-width.js";
 import {

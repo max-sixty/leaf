@@ -14,7 +14,7 @@ import {
   createSemanticApplication,
 } from "/runtime/framework.js";
 
-import { bindQueuedWork } from "./queued-work.js";
+import { bindQueuedWork } from "./lib/queued-work.js";
 import { tick } from "./version-signal.js";
 
 /** @param {unknown} reason */

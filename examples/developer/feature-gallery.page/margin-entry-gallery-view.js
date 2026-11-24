@@ -1,6 +1,6 @@
 /* Lit view for the margin-entry exhibit, constructed during widget setup. */
 import { html, ref } from "/vendor/lit.js";
-import { offerActionElement } from "/runtime/widget-api.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
 const GROUPS = [
   {
     heading: "Rank and behavior",

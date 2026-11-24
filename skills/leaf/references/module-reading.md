@@ -37,19 +37,18 @@ document around it, as a contents list does, reads it with
 To name an element elsewhere, such as in a feed row, use `addressableLabel(element)`,
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
-named element around it. A registered widget with no name gets an empty label, and
-`addressableWord(element)` gives the word for its kind instead. That word is the
-element's `aria-roledescription`, which the module that builds the element writes along
-with a role for it, since ARIA ignores the attribute on an element with no role, as
-`lf-playground` makes each preset a `group` it calls "preset".
-Without one, it is what the element answers from an `lfWord()` method, for a word that
-depends on the element, as `lf-suggestion` says "insertion" or "rewrite"; else its tag
-without `lf-`. Where a widget's words alone
-don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
-returns the words that describe it. A
-widget's name is its `label` attribute, as an option card's, a board card's or a
-column's is, which names its element on every widget that takes it (the registry's
-`$attributes`), whether or not the widget draws it.
+named element around it. A registered widget with no name gets an empty label: say the
+word for its kind instead, which the library gives (`module-authoring.md`, "Shared web
+code"). That word is the element's `aria-roledescription`, which the module that
+builds the element writes along with a role for it, since ARIA ignores the attribute
+on an element with no role, as `lf-playground` makes each preset a `group` it calls
+"preset". Without one, it is what the element answers from an `lfWord()`
+method, for a word that depends on the element, as `lf-suggestion` says "insertion"
+or "rewrite"; else its tag without `lf-`. Where a widget's words alone don't convey
+its structure, as a rewrite's old and new text don't, its `lfSays()` returns the
+words that describe it. A widget's name is its `label` attribute, as an option
+card's, a board card's or a column's is, which names its element on every widget
+that takes it (the registry's `$attributes`), whether or not the widget draws it.
 `authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
 while the tab's title counts what waits on the user in front of it.
 
@@ -59,8 +58,7 @@ widget titles only itself. A heading after other content, or opening any other
 element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
 link preview counts a thread about any of them.
 
-`anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
-`excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
+`anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
 ### Reading declarations
 
@@ -151,16 +149,11 @@ goes on as written.
 ### Icons
 
 A press shows its action's symbol, so each action looks the same wherever it is
-offered: `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-controls.md`). The action names are the keys of `ACTIONS` in the library's
-[`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its symbol and
-the words its press says. For a symbol whose action follows its state, such as Expand
-all turning to Collapse all, `nameAction(control, action, {label, title, className})`
-swaps in the new action's symbol and says its name as the tooltip and accessible name,
-unless `label` or `title` says more.
-
-For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`.
+offered: the library's control constructors draw a press from its action's name
+(`module-controls.md`), and redraw it where the action follows the press's state, as
+Expand all turns to Collapse all. The action names are the keys of `ACTIONS` in the
+library's [`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its
+symbol and the words its press says.
 
 ## Page readings
 

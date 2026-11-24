@@ -142,9 +142,10 @@ import {
 } from "../scrolling.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
-import { afterScript, cancelRender, nextRender } from "../rendering.js";
+import { afterScript } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { spokenSubject } from "../contribution-model.js";
-import { labelWords } from "../words.js";
+import { labelWords } from "../lib/words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { slotTop } from "../geometry.js";
 import {
@@ -159,7 +160,8 @@ import {
 } from "../focus.js";
 import { focusPlace, standingAt } from "../user-place.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { closeControl, el, offerAction } from "../widget-elements.js";
+import { closeControl, el } from "../widget-elements.js";
+import { offerAction } from "../lib/controls.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../lib/keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";

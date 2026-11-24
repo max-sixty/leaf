@@ -65,11 +65,11 @@
      reader finds a message by, until they have collapsed. Where no fold plays, under
      reduced motion, before presentation or in an engine without intrinsic-size
      interpolation, it goes in the same frame. */
-import { counted } from "../words.js";
+import { counted } from "../lib/words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
 import { MessageView, arrivalTint, saidTime } from "./messages.js";
-import { offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 import { renderMarkdown } from "../lib/markdown.js";
 import { pageLinks } from "../page-markdown.js";

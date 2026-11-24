@@ -2,7 +2,8 @@
  * `talk` shows the conversations about it at its foot, where its Comment control opens
  * the box that starts one. */
 import { nothing } from "/vendor/lit.js";
-import { LeafElement, offer, offerAction, threadSurface } from "/runtime/widget-api.js";
+import { LeafElement, threadSurface } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-task",

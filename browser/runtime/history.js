@@ -108,7 +108,7 @@ import {
   stopGlide,
 } from "./scrolling.js";
 import { drawnThreadId, THREAD, THREAD_VIEW, wholeThread } from "./thread/selectors.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { aborted } from "./abort.js";
 import { reloadDocument } from "./layer-client.js";
 

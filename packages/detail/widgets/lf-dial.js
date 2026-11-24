@@ -108,17 +108,12 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  actionClass,
   addressableLabel,
   focusDestination,
-  foldDuration,
   holdPlace,
   LeafElement,
   motion,
   move,
-  nextRender,
-  offer,
-  offerAction,
   phrasing,
   onPress,
   readingAt,
@@ -126,6 +121,10 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
@@ -989,7 +988,7 @@ customElements.define(
     // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
-      const duration = foldDuration();
+      const duration = motionTime("--lf-motion-fold");
       const window = shownWindow();
       const after = this.#positions(scope);
       for (const [node, top] of after) {

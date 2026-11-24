@@ -153,7 +153,7 @@ import {
   TEXT_BLOCK,
 } from "./kernel-facts.js";
 import { textUnits } from "./lib/text-alignment.js";
-import { excerptWords } from "./words.js";
+import { excerptWords } from "./lib/words.js";
 import { union } from "./rect.js";
 
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain

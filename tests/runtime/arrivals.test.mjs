@@ -31,7 +31,7 @@ const {
   watchScrolls,
 } = await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
-const { observeQueuedWork } = await import("/runtime/queued-work.js");
+const { observeQueuedWork } = await import("/runtime/lib/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals, in
 // the tree the change is made in.

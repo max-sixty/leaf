@@ -177,7 +177,7 @@ interface HTMLScriptElement {
   lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
   lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
   lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
-  lfObserveQueuedWork?: typeof import("../runtime/queued-work.js").observeQueuedWork;
+  lfObserveQueuedWork?: typeof import("../runtime/lib/queued-work.js").observeQueuedWork;
   lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;
   lfNativeLayers?: typeof import("../runtime/keyboard/layer-stack.js").nativeLayers;
   lfFloatingSelections?: typeof import("../runtime/annotation-overlay/floating.js").floatingSelections;
@@ -329,7 +329,7 @@ interface ShadowRoot {
 
 interface Element {
   /** The word a widget's module names its kind by where it depends on the element
-   * (`addressable-names.widgetWord`); a fixed word is the element's
+   * (`lib/element-word.js`, `widgetWord`); a fixed word is the element's
    * `aria-roledescription`. */
   lfWord?(): string;
   lfSays?(): string;

@@ -7,12 +7,8 @@
    whole section, the preview names the section and On Me says where that section
    stands: the preview says what a place is, On Me where it is, and they agree wherever
    a place has no name of its own. */
-import {
-  addressableLabel,
-  addressableWord,
-  ownNaming,
-  titlingHeading,
-} from "../addressable-names.js";
+import { addressableLabel, ownNaming, titlingHeading } from "../addressable-names.js";
+import { addressableWord } from "../lib/element-word.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,

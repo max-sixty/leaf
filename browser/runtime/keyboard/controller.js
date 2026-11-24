@@ -34,7 +34,7 @@ import {
 } from "../focus.js";
 import { focusPlace } from "../user-place.js";
 import { landForKey } from "../scrolling.js";
-import { nextFrame } from "../rendering.js";
+import { nextFrame } from "../lib/frame-pass.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";

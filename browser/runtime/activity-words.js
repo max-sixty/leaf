@@ -5,7 +5,7 @@
    share changes in one place. Nothing here reads or writes the document; page-status.js
    and live-leaves.js read what these return, the floating panel draws it, and
    `tests/runtime/activity-words.test.mjs` holds each sentence. */
-import { capitalized, counted } from "./words.js";
+import { capitalized, counted } from "./lib/words.js";
 import { ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
 import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";

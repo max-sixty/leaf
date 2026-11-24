@@ -14,7 +14,7 @@
  * cluster; Max chose undo over it. Commands enter only through the
  * constructor.
  */
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./anchor-coordinate.js";
 import { sameAnchor } from "./anchor-coordinate.js";
@@ -48,7 +48,7 @@ import { readPart } from "./semantic-state.js";
 import { tokenEntry } from "./registry.js";
 import { isElement, shadowHost, upFrom } from "./lib/shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, offeredAction } from "./widget-elements.js";
+import { offer, offeredAction } from "./lib/controls.js";
 import { keeps, keepsText } from "./lib/keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";

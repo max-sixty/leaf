@@ -1,9 +1,9 @@
 /* Whether and where an element shows a box, and `measure`, which waits for one. Any
    document can load it, so a widget on a plain HTML page waits for its room as it does
-   on a Leaf page (portable-api.js); geometry.js builds its readings of what the page
-   shows on these. */
-import { skipped } from "./lib/shadow-tree.js";
-import { sizeObserver } from "./rendering.js";
+   on a Leaf page. Leaf's geometry.js builds its readings of what the page shows on the
+   boxes this module reads. */
+import { skipped } from "./shadow-tree.js";
+import { sizeObserver } from "./frame-pass.js";
 
 // What a node's contents are drawn in, read through the one range this module keeps.
 // A Range a page makes stays live until a collection reclaims it, and every change to
@@ -65,8 +65,8 @@ export function elementBox(el) {
 // zero taken there is indistinguishable from a measurement and stands for good. A pick
 // column collapsed to nothing, a grip drawn over the card's own title.
 //
-// So the module states the measurement and the runtime takes it: now, where there is
-// something to read, and otherwise the first time there is. ResizeObserver is the
+// So a widget's module states the measurement and `measure` takes it: now, where there
+// is something to read, and otherwise the first time there is. ResizeObserver is the
 // browser's own answer to "this has a box now", and the one that answers it wherever
 // the element sits — a message scrolled past the panel's own fold has been laid out
 // just the same, which is the question an IntersectionObserver would get wrong.
@@ -121,7 +121,9 @@ const unmeasured = sizeObserver((entries) => {
   // second delivery inside the round that wrote it.
   for (const take of taking) take();
 });
-/** @param {Element} el @param {() => void} take */
+/** Run `take` once `el` shows a box on screen: at once where it does, and otherwise the
+ * first time it does. A later call for the same element replaces a `take` still waiting.
+ * @param {Element} el @param {() => void} take */
 export function measure(el, take) {
   // The box it shows as, not this element's own rect: a `display: contents` wrapper
   // draws no box of its own and never will, and its contents are what the measurement

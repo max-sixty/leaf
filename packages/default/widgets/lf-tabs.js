@@ -101,7 +101,6 @@ import {
   keepView,
   listWalkPosition,
   whileConnected,
-  offer,
   openingView,
   viewMembers,
   preserveReadingRegions,
@@ -109,8 +108,6 @@ import {
   registerReadingRegion,
   replaceEntry,
   restorePlace,
-  selectableOffered,
-  sizeObserver,
   tabStore,
   focusDestination,
   fragmentTarget,
@@ -120,6 +117,8 @@ import {
   signal,
   LeafElement,
 } from "/runtime/widget-api.js";
+import { offer, selectableOffered } from "/runtime/lib/controls.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";

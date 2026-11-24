@@ -1,12 +1,12 @@
 /* The screenshot's retained client-side Lit drawing and source-coordinate geometry.
  * Images load before their sources enter the drawing; frames and controls survive
  * capture revisions. ShotView owns inspection state, retained nodes and fitting. */
+import { actionClass } from "/runtime/lib/control-faces.js";
 import {
-  actionClass,
   offerElement,
   offerActionElement,
   offeredAction,
-} from "/runtime/widget-api.js";
+} from "/runtime/lib/controls.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";

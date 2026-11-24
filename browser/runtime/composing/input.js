@@ -57,7 +57,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
-import { capitalized, counted } from "../words.js";
+import { capitalized, counted } from "../lib/words.js";
 import { describeFailure } from "../lib/exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
@@ -70,7 +70,7 @@ import {
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, keepsNotice } from "../notifications.js";
-import { selectableOffered } from "../element-markers.js";
+import { offeredAction, selectableOffered } from "../lib/controls.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -100,11 +100,11 @@ import {
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
 import { errorOver, passErrorsAt, raiseError } from "../errors.js";
-import { holdRendering, sizeObserver } from "../rendering.js";
+import { holdRendering } from "../rendering.js";
+import { sizeObserver } from "../lib/frame-pass.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { offeredAction } from "../widget-elements.js";
 import { PRESS } from "../lib/keys.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing

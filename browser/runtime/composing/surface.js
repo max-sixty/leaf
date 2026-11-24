@@ -76,8 +76,8 @@ import {
   selectionBackward,
 } from "../native-selection.js";
 import { html, render, signal } from "/runtime/framework.js";
-import { addressableWord } from "../addressable-names.js";
-import { COMMENT_HINT } from "../words.js";
+import { addressableWord } from "../lib/element-word.js";
+import { COMMENT_HINT } from "../voice.js";
 import {
   addressedFocus,
   anchoringIsReady,
@@ -94,7 +94,7 @@ import { covered, outOfWindow, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { landGlides, stopGlide } from "../scrolling.js";
 import { carriersOf } from "../scroll-containers.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,

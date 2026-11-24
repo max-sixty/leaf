@@ -326,10 +326,8 @@ ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "example": '<lf-items id="items"></lf-items>',
@@ -337,13 +335,11 @@ ITEMS_LAYER = {
     "lf-item-link": {
         "description": "A button that travels to one part of the items it refers to.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "for": {"type": "string"},
                 "key": {"type": "string", "minLength": 1},
             },
             "required": ["id", "for", "key"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "refers": {"for": {}},

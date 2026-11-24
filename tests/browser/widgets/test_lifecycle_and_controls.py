@@ -22,10 +22,8 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
     source = {
         "description": "Source that a reader draws.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "data",
     }

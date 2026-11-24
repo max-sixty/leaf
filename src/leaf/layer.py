@@ -21,13 +21,11 @@ from functools import cache, cached_property, lru_cache
 from pathlib import Path
 
 from .files import file_stamp
-from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
 from .page_memory import Stamped, memo, once
 from .refusals import Refused
 from .registry.contract import MODULES, is_element_name
-from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
     BROWSER_DIRS,
@@ -830,54 +828,6 @@ def payload_server_inputs(root: Path) -> list[Path]:
             for sheet in imported_sheets(path, root / "browser")
         ),
     ]
-
-
-def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
-    """Why this Leaf can neither serve a page nor write its log, given the page's
-    layer record (`registry.storage.LAYER`); None when it may. The record names the
-    page protocol a Leaf last initialized the page at, and this Leaf serves and
-    writes only a page at its own (`registry.kernel.kernel_protocol`).
-
-    The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
-    the protocol covers only what a page keeps across Leaf versions: its event log
-    and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
-    at a higher number is refused as `newer-layer` (`newer_layer`), as is one whose
-    layer record a newer Leaf wrote at a later shape, before this reading
-    (`registry.storage.layer_record`), since its repair is a newer Leaf: this one
-    does not take it down (`vendoring._plan_page`). The session holding a page at
-    an older number takes it to this Leaf's number (`vendoring.renew_layer` says
-    when). Every server of the page's files, the website's included
-    (`http.page_endpoint`, `leaf_website.page_binding`), the one append
-    door and the writers that ask it first (`event_contracts.write_refusal`), and
-    `page check` refuse on this one reading, each naming its repair."""
-    recorded = record.get("protocol")
-    if type(recorded) is int and recorded == kernel_protocol():
-        return None
-    if type(recorded) is int and recorded > kernel_protocol():
-        return newer_layer(page_dir)
-    return Finding(
-        "foreign-layer",
-        values={
-            "page": str(page_dir),
-            "recorded": recorded if recorded is not None else "none",
-            "leaf": str(PLUGIN_ROOT),
-            "protocol": kernel_protocol(),
-        },
-    )
-
-
-def newer_layer(page_dir: Path) -> Finding:
-    """The refusal of a page a newer Leaf initialized, at a higher page protocol or
-    a later shape of its layer record (`registry.storage.layer_record`). Its repair
-    is that newer Leaf, since this one does not take the page down."""
-    return Finding(
-        "newer-layer",
-        values={
-            "page": str(page_dir),
-            "leaf": str(PLUGIN_ROOT),
-            "protocol": kernel_protocol(),
-        },
-    )
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:

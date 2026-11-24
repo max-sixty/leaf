@@ -478,21 +478,20 @@ class Record(Generic[_RecordValue]):
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
         stored = stored_record(path)
-        if stored is None or stored.pop("format", None) != self.format:
+        if stored is None or self.since_of(stored) != self.since:
             return None
+        del stored["format"]
         return cast(_RecordValue, stored)
 
-    def newer(self, path: Path) -> bool:
-        """Whether `path` holds this kind at a later shape than this Leaf's, which
-        only a newer Leaf writes, since a kind's `since` only rises. `read` takes it
-        as absent, so a reader that must not mistake it for none asks this."""
-        stored = stored_record(path) or {}
+    def since_of(self, stored: dict) -> int | None:
+        """The `since` that `stored`, a record read whole (`stored_record`), names in
+        its `format` where it is of this kind, or None where it is of none. Every
+        shape keeps `format`, so a reader tells by this which Leaf's shape it holds
+        before it reads anything else."""
         kind, _, since = str(stored.get("format", "")).rpartition("/")
-        return (
-            kind == f"leaf-{self.kind}"
-            and since.isdecimal()
-            and int(since) > self.since
-        )
+        if kind != f"leaf-{self.kind}" or not since.isdecimal():
+            return None
+        return int(since)
 
     def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
@@ -514,8 +513,9 @@ class Record(Generic[_RecordValue]):
 
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. Only retirement (`retire_if_gone`) and `Record.newer` read a record this
-    way; every other reader goes through `Record.read`."""
+    none. A reader of a record another Leaf may have written takes from it only keys
+    every shape of its kind keeps, as `named_pages` and `Record.since_of` do; every
+    other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:

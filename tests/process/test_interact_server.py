@@ -2502,9 +2502,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
             json.dumps(
                 {
                     "lf-board": {
-                        "attributes": {
-                            "type": "object",
-                        },
+                        "attributes": {},
                     }
                 }
             ),

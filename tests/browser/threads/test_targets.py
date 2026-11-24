@@ -983,13 +983,11 @@ customElements.define('lf-quote-subject', class extends LeafElement {
             "lf-quote-subject": {
                 "description": "A named subject whose wording changes.",
                 "attributes": {
-                    "type": "object",
                     "properties": {
                         "data-words": {"type": "string"},
                         "source": {"type": "string"},
                     },
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "inputs": {

@@ -273,10 +273,8 @@ def _shadow_tree_widget(tag):
     declaration = {
         "description": "A project-supplied tree.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,

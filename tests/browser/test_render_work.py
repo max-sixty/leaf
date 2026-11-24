@@ -106,13 +106,11 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
     schema = {
         "description": "A local milestone.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "label": {"type": "string"},
                 "phase": {"enum": ["blocked", "done"]},
             },
             "required": ["id", "phase"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "owners": ["lf-test-plan"],

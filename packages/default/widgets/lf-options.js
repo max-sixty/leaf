@@ -69,7 +69,7 @@
  * preference. A module writes an attribute in the author's namespace only where the
  * registry declares it as a verb's record form — `selected` is one, so a version can
  * carry a pick and `page check` can hold the markup against the log's fold — and
- * the entry's `additionalProperties: false` is the whole of what else may stand
+ * the attributes the entry's schema names are the whole of what else may stand
  * there. Neither the answered paint nor the disclosure's state is such a record: the
  * `answer` verb declares no record form, so no version carries it, and which way this
  * tab left the disclosure is view state no version carries at all. Each is stated

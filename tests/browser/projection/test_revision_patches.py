@@ -974,10 +974,8 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
                     "lf-drawn-data": {
                         "description": "Text its module draws once, at upgrade.",
                         "attributes": {
-                            "type": "object",
                             "properties": {},
                             "required": ["id"],
-                            "additionalProperties": False,
                         },
                         "content": "data",
                     }
@@ -1030,10 +1028,8 @@ def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser,
                     "lf-gripped": {
                         "description": "Words beside a control its module draws.",
                         "attributes": {
-                            "type": "object",
                             "properties": {"id": {"type": "string"}},
                             "required": ["id"],
-                            "additionalProperties": False,
                         },
                         "content": "markup",
                         "shadow": True,

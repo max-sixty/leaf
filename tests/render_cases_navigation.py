@@ -1002,12 +1002,10 @@ def data_projection_page(serve):
     feed = {
         "description": "A project-supplied live feed.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {

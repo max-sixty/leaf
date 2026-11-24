@@ -545,10 +545,8 @@ WORKER = {
     "lf-plain-worker": {
         "description": "A worker, which says what its agent last reported.",
         "attributes": {
-            "type": "object",
             "properties": {"state": {"enum": ["idle", "working"]}},
             "required": ["id", "state"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {

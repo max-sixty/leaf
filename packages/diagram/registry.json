@@ -2,14 +2,12 @@
   "lf-diagram": {
     "description": "A Mermaid-syntax diagram rendered by Pele, with optional comment targets on its named boxes.",
     "attributes": {
-      "type": "object",
       "properties": {
         "parts": {
           "const": "all"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "data",
     "visual": {

@@ -7,8 +7,8 @@ import { TEXT_BOX } from "./control-selectors.js";
 import { DELIVERY, PAGE_ROOT } from "./context.js";
 import { servedRevision } from "./document-identity.js";
 import { focused } from "./focus.js";
-import { isNativeLayer } from "./shadow-tree.js";
-import { randomId } from "./ids.js";
+import { isNativeLayer } from "./lib/shadow-tree.js";
+import { objectIds, randomId } from "./ids.js";
 
 // A document with no declared root has no server to record to: an interactive export,
 // or a file opened on its own.
@@ -40,10 +40,8 @@ const repetitive = new Set([
   "compositionupdate",
 ]);
 const encoder = new window.TextEncoder();
-/** @type {WeakMap<Node, number>} */
-const nodeIds = new WeakMap();
+const nodeIdentity = objectIds();
 let nextSequence = 0;
-let nextNodeId = 0;
 let sending = false;
 let inFlightCount = 0;
 /** @type {ReturnType<typeof setTimeout> | null} */
@@ -64,15 +62,6 @@ function locator(node) {
   const name = node.getAttribute("name");
   const named = name ? `[name=${JSON.stringify(name)}]` : "";
   return `${node.localName}${id}${named}`;
-}
-
-/** @param {Node} node */
-function nodeIdentity(node) {
-  const previous = nodeIds.get(node);
-  if (previous !== undefined) return previous;
-  const id = ++nextNodeId;
-  nodeIds.set(node, id);
-  return id;
 }
 
 /** @param {EventTarget | undefined} target */

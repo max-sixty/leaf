@@ -2,7 +2,7 @@
  * exact values in a disclosure below. The table is the widget's authored content, slotted
  * into the disclosure, so a reader who opens it reads and comments on the page's own
  * cells. */
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { html, svg } from "/vendor/lit.js";
 
 const WIDTH = 640;
@@ -15,6 +15,7 @@ const COLORS = ["#2f6f9f", "#b5532a", "#4f7d3a", "#7a4f9a"];
 customElements.define(
   "lf-trend",
   class extends LeafElement {
+    static shadow = true;
     render() {
       const [head, ...rows] = [...this.querySelectorAll("tr")].map((row) =>
         [...row.cells].map((cell) => cell.textContent.trim()),

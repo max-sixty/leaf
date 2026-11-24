@@ -1,16 +1,17 @@
-import { inChrome, quoted } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  inChrome,
   textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,
+  commandsUnread,
   pageDocument,
   inPage,
   TEXT_BOX,
-  upFrom,
   userScrollport,
   visualPartProblems,
 } from "/runtime/check-api.js";
+import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -116,8 +117,10 @@ export const invalidVisualProviders = (declarations) =>
     .filter((instance) => instance.problems.length);
 
 // Attributes on a widget that its entry never declared. The schema is the
-// whole of the author's namespace — `additionalProperties: false` on every tag — and
-// the static lint holds an authored document to it. What no source reading can see is the
+// whole of the author's namespace, and the static lint holds an authored document to
+// it. Composition closes it with `additionalProperties: false` unless the entry gives
+// its own; an entry that opens its schema admits attributes it doesn't name, so this
+// check skips it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`selected`, `status`), which is what makes the write
@@ -157,8 +160,8 @@ export function undeclaredAttrs(declarations) {
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
-    const properties = entry.attributes.properties;
-    if (!properties) continue;
+    const { properties, additionalProperties } = entry.attributes;
+    if (!properties || additionalProperties !== false) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))
         for (const a of el.attributes)
@@ -224,7 +227,7 @@ export function retiredSlots(holders) {
   };
   for (const h of holders) {
     const el = find(h.id);
-    if (!el || inChrome(el) || quoted(el)) continue;
+    if (!el || inChrome(el) || el.matches("[data-lf-exhibit] *")) continue;
     const mark = el.getAttribute("data-lf-state");
     const at = locate(el);
     if (mark !== (h.outcome ?? null)) {
@@ -457,6 +460,20 @@ export function heldScrollers(tags) {
         });
     }
   return found;
+}
+
+// Each element that holds an `lfCommands` Leaf never read, since no `lf-commands` event
+// reached Leaf from it, as where the element said so before it was placed. Its keys
+// bind nothing and the buttons its rows name do nothing, and nothing else reports it.
+// One walk of the document and every open root.
+export function unreadCommands() {
+  return openRoots(document.documentElement)
+    .flatMap((root) => [
+      ...(root instanceof Element ? [root] : []),
+      ...root.querySelectorAll("*"),
+    ])
+    .filter(commandsUnread)
+    .map((element) => ({ code: "unread-commands", at: locate(element) }));
 }
 
 // Each command in one of `tags`' widgets that declares context keys and no

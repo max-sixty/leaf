@@ -1445,6 +1445,7 @@ def test_whatever_the_field_holds_the_row_keeps_its_line(browser, serve, touch):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-search")).to_be_hidden()
 
+    choose_threads_in_panel(page)
     rows = threads_rows(page)
     page.get_by_role("button", name="Find a thread or message").click()
     expect(page.locator("input.lf-fp-search")).to_be_visible()
@@ -3011,7 +3012,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     expect(peek).to_be_hidden()
     page.locator("body").click(position={"x": 5, "y": 5})
     page.evaluate(
-        "async text => (await window.__lfWidgetApi()).raiseError(text)",
+        "async text => (await window.__lfCheckApi()).raiseError(text)",
         "Couldn't save the draft",
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
@@ -3279,7 +3280,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     page = floating(browser, url)
     raise_error = """async ([text, onField]) => {
       const subject = onField ? document.querySelector('.lf-fp-field leaf-text') : null;
-      window.latestError = (await window.__lfWidgetApi()).raiseError(text, { subject });
+      window.latestError = (await window.__lfCheckApi()).raiseError(text, { subject });
     }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-field .lf-compose-error")
@@ -3401,7 +3402,7 @@ def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, se
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           window.raisedFrom = () => api.raiseError('That writing place is unavailable');
           window.raisedFrom();
         }"""
@@ -3494,6 +3495,39 @@ def test_a_walk_s_position_gives_the_field_back_to_the_status(browser, serve):
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^2 of 2 waiting on me")
     )
+
+
+# A widget's step saying its place on a paragraph of the long page (`lf-walk`), among
+# three stops whose first and last are the paragraphs `ends` names.
+SAY_PLACE = """([stop, position, ends]) => document.getElementById(stop).dispatchEvent(
+  new CustomEvent('lf-walk', {bubbles: true, composed: true, detail: {
+    noun: 'Stop', position, total: 3,
+    list: ends.map((end) => document.getElementById(end))}}))"""
+
+
+def test_a_widget_s_place_goes_with_its_moment_or_the_user_s_next_step(browser, serve):
+    """The field says the place a widget's step says for the step's moment, as it says
+    a walk of Leaf's own, but the widget gives no reader to keep the place true, so
+    none stands after the moment. A next step that says none, its stops all standing in
+    view, takes the last step's place with it rather than leaving it over a stop the
+    user has left."""
+    page = floating(clocked(browser), serve(LONG_PAGE))
+    walk = "async () => (await window.__lfCheckApi()).walkPosition()?.text ?? null"
+    page.evaluate(SAY_PLACE, ["p0", 1, ["p0", "p59"]])
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Stop 1 of 3"))
+    page.evaluate(SAY_PLACE, ["p1", 2, ["p0", "p1"]])
+    # Read at once: the first step's moment, which would also end its place, runs on.
+    assert page.evaluate(walk) is None
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+
+    page.evaluate(SAY_PLACE, ["p0", 1, ["p0", "p59"]])
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Stop 1 of 3"))
+    rendered(page)
+    page.clock.run_for(
+        page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
+    )
+    expect(field(page)).to_have_attribute("data-lf-says", "status")
+    assert page.evaluate(walk) is None
 
 
 def test_a_thread_s_field_says_its_reply_beside_the_walk_s_position(browser, serve):
@@ -3753,7 +3787,7 @@ def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
     browser fixture fails the test on that restated write (write_watch.js)."""
     page = floating(browser, serve(LONG_PAGE))
     page.evaluate(
-        "async () => (await window.__lfWidgetApi()).raiseError('Link not copied')"
+        "async () => (await window.__lfCheckApi()).raiseError('Link not copied')"
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
     dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
@@ -5137,9 +5171,13 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
               if (giving) v.dataset.giving = '1';
               const { watchScrollEnds } = await window.__lfCheckApi();
               window.lfEnded = false;
+              window.lfHeard = 0;
+              const heard = () => { window.lfHeard += 1; };
+              v.addEventListener('scroll', heard, {passive: true});
               const stop = watchScrollEnds((box) => {
                 if (box !== v) return;
                 stop();
+                v.removeEventListener('scroll', heard);
                 window.lfEnded = true;
               });
               return v.scrollTop; }""",
@@ -5147,6 +5185,14 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
         )
         page.mouse.wheel(0, -200)
         page.wait_for_function("() => window.lfEnded")
+        if not page.evaluate("() => window.lfHeard"):
+            # The box's sequence ended with no scroll heard in it: the quiet spell ran
+            # out before the browser applied the wheel, as a Firefox starved of CPU
+            # does, and the move the view owed, made at that end, cancelled the wheel.
+            # That loss is accepted as a corner case (arrivals.js, `SETTLE_MS`): no
+            # event says the browser won't scroll. The move this test guards against,
+            # made at the wheel, scrolls the box before its sequence ends.
+            pytest.xfail("the browser applied the wheel after the reader's wait ended")
         moved[giving] = stood - view.evaluate("v => v.scrollTop")
     assert moved[False] > 100, moved
     assert moved[True] == pytest.approx(moved[False] - 100, abs=2), moved
@@ -6106,7 +6152,9 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     # The renderer the draft is read by loads lazily, and its arrival redraws a field
     # already holding words; load it first, so the list is drawn as it is typed.
-    page.evaluate("async () => (await window.__lfWidgetApi()).loadMarkdown()")
+    page.evaluate(
+        "async () => (await import('/runtime/lib/markdown.js')).loadMarkdown()"
+    )
     field(page).click()
     # The first item wraps to two lines both in the field and in the sent message's
     # wider column, so the two hold the same lines.
@@ -6348,7 +6396,7 @@ def test_the_field_s_ring_stands_over_what_covers_its_words(browser, serve):
     )
 
     field(page).evaluate(
-        "async (subject) => (await window.__lfWidgetApi())"
+        "async (subject) => (await window.__lfCheckApi())"
         ".raiseError('That writing place is unavailable', {subject})"
     )
     expect(page.locator(".lf-fp-field .lf-compose-error")).to_be_visible()

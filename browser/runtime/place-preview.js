@@ -63,10 +63,11 @@
    upgrades every widget in it. */
 import { html, nothing } from "/runtime/framework.js";
 import { fragmentTarget } from "./anchor-resolution.js";
-import { addressableWord, leadingTitle, ownNaming } from "./addressable-names.js";
+import { leadingTitle, ownNaming } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { obligationEnding } from "./obligations/answer.js";
-import { readObligations } from "./obligations/model.js";
+import { readObligations } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";
 import {
   authoredScope,
@@ -84,10 +85,10 @@ import {
 } from "./passages.js";
 import { declarationFor, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
-import { overIn } from "./shadow-tree.js";
+import { overIn } from "./lib/shadow-tree.js";
 import { conversationsAbout, headingAfter, partOver } from "./thread/placement.js";
 import { leafSays, voiced } from "./voice.js";
-import { capitalized, counted, excerptWords, labelWords } from "./words.js";
+import { capitalized, counted, excerptWords, labelWords } from "./lib/words.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {{kind: "heading" | "text", words: string}
@@ -312,7 +313,7 @@ function drawn(element, parts) {
     figurePart(element, parts);
   else if (element.localName === "pre") {
     // Its first lines, and where the block runs on, the ellipsis cut prose ends in
-    // (words.js, `excerptWords`).
+    // (lib/words.js, `excerptWords`).
     const { text, cut } = said(element, "lines", reading.whole, {
       lines: LINES,
       upTo: CODE,
@@ -501,7 +502,7 @@ function question(element) {
   if (!element.id || !registry[element.localName]) return null;
   const item = readObligations().byId.get(`widget:${element.id}`);
   if (!hasObligationSource(item, "widget")) return null;
-  if (item.status !== "open") return { words: obligationEnding(item), settled: true };
+  if (item.state === "done") return { words: obligationEnding(item), settled: true };
   return item.next_actor === "user"
     ? { words: leafSays("Waiting on me"), settled: false }
     : null;

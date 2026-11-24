@@ -13,8 +13,8 @@ import { sampleNotice } from "../sample-child.js";
    Page Map's rung — so `declareCurrentLocation` is the one export, and the boot entry calls it
    once those owners stand. */
 import { letGo, release, focused } from "../focus.js";
-import { inChrome, pageQueryAll } from "../passages.js";
-import { inUi } from "../shadow-tree.js";
+import { pageQueryAll } from "../passages.js";
+import { inUi, inChrome } from "../ui-marks.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";
@@ -85,9 +85,9 @@ currentLocationOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     id: "disclosure.toggle",
     touch: false,
     keys: () => DISCLOSE(focused()),
-    // Read where it is painted rather than named once for both branches, the way a diff's
-    // own file rows read theirs: what the press does is whichever way the disclosure is
-    // set, and a word fixed at declaration could only ever say one of them.
+    // Read where it is painted rather than named once for both branches: what the press
+    // does is whichever way the disclosure is set, and a word fixed at declaration could
+    // only ever say one of them.
     title: () => (disclosureAt(focused())?.open ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
     // <summary>'s click is the toggle the browser was already making, and a widget's

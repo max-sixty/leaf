@@ -324,7 +324,16 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     page_dir = tmp_path / "state" / "page"
 
     init = subprocess.run(
-        [launcher, "page", "init", "--package", "diagram", page_dir],
+        [
+            launcher,
+            "page",
+            "init",
+            "--package",
+            "reading",
+            "--package",
+            "diagram",
+            page_dir,
+        ],
         cwd=elsewhere,
         capture_output=True,
         text=True,
@@ -341,7 +350,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     assert vocabulary.returncode == 0, vocabulary.stderr
     installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
-    assert installed_registry["$layer"]["packages"] == ["diagram"]
+    assert installed_registry["$layer"]["packages"] == ["reading", "diagram"]
     (page_dir / "index.html").write_text(named_source("release-notes").read_text())
     shutil.copytree(example_media(), page_dir / "media", dirs_exist_ok=True)
     stamp = subprocess.run(

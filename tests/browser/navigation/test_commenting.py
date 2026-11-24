@@ -498,7 +498,7 @@ def test_a_comment_box_s_ring_stands_over_an_error_about_it(browser, serve):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     field.evaluate(
-        "async (subject) => (await window.__lfWidgetApi())"
+        "async (subject) => (await window.__lfCheckApi())"
         ".raiseError('That writing place is unavailable', {subject})"
     )
     expect(page.locator(".lf-fab-bar .lf-compose-error")).to_be_visible()
@@ -731,7 +731,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     panel_settled(page, view="queue")
 
     def card(source):
-        return page.locator(f".lf-fp-on-item[data-lf-key*='\"widget:{source}\"']")
+        return page.locator(f".lf-fp-on-item[data-lf-key='widget:{source}']")
 
     expect(card("shape")).to_have_count(0)
     expect(card("sug-window")).to_have_count(1)

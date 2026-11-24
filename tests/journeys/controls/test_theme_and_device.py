@@ -28,14 +28,14 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
         return [id, ['paddingTop', 'paddingLeft', 'borderTopWidth', 'borderTopLeftRadius',
             'backgroundColor', 'fontFamily'].map((p) => style[p])];
     }))"""
-    plain = open_page(browser, serve(leaf_page("Retention", body), theme=False))
+    plain = open_page(browser, serve(leaf_page("Retention", body), reading=False))
     plain.evaluate(LEAF_CONTROLS)
     expected = plain.evaluate(faces)
     assert expected["press"][0] != "0px" and expected["window"][2] != "0px", expected
     reset = open_page(
         browser,
         serve(
-            leaf_page("Retention", body, head=f"<style>{RESET}</style>"), theme=False
+            leaf_page("Retention", body, head=f"<style>{RESET}</style>"), reading=False
         ),
     )
     reset.evaluate(LEAF_CONTROLS)

@@ -23,10 +23,12 @@
    The response surface (composing/surface.js) constructs the command owner with its bar's
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
-import { el, offerAction, responseAction } from "../widget-elements.js";
-import { COMMENT_HINT } from "../words.js";
+import { responseAction } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
+import { offerAction } from "../lib/controls.js";
+import { COMMENT_HINT } from "../voice.js";
 import { anchorKey } from "../anchor-coordinate.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 
 import {
   clearDraft,
@@ -48,13 +50,7 @@ import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { pageScope } from "../keyboard/register.js";
-import {
-  PRESS,
-  cycledRow,
-  hasRows,
-  rowArrows,
-  savedReadingSettled,
-} from "../keyboard/bindings.js";
+import { cycledRow, hasRows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onCurrentLocation,
   takesLetters,
@@ -65,9 +61,9 @@ import {
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { applicationState } from "../semantic-state.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 
-import { closestAcross, elementById, inChrome } from "../passages.js";
+import { elementById } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
@@ -75,7 +71,9 @@ import { DRAFT_FORMAT } from "../kernel-facts.js";
 import { commitPoint } from "../pointed-place.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
-import { isNativeLayer } from "../shadow-tree.js";
+import { isNativeLayer, closestAcross } from "../lib/shadow-tree.js";
+import { inChrome } from "../ui-marks.js";
+import { PRESS, rowArrows } from "../lib/keys.js";
 
 // The comment field keeps Send or Dictate as its primary action. Other responses
 // open in one anchored picker from a ⋯ in the field's corner, Tab, or e. The same
@@ -662,7 +660,7 @@ export function createSelectionComposer({
         syncSuggestMode();
         refreshThread();
       },
-      { input: fabInput },
+      { input: fabInput, box: () => syncComposer.composition().frame },
     );
   }
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box

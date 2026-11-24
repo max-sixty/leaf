@@ -2341,6 +2341,12 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
         window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
+    # The host gives the frame its page's height; the module that mounted it sets none.
+    wait_until_ready(page)
+    mounted = page.locator("iframe").last.content_frame
+    assert page.evaluate("practiceFrame.clientHeight") == mounted.locator(
+        "body"
+    ).evaluate("body => Math.ceil(body.getBoundingClientRect().height)")
     previous = page.evaluate(
         "new URL(practiceFrame.src).origin + new URL(practiceFrame.src).pathname"
     )

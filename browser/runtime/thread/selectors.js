@@ -1,6 +1,5 @@
 /* Stable DOM relations shared by thread views and focus recovery. */
-import { closestAcross } from "../passages.js";
-import { upFrom } from "../shadow-tree.js";
+import { upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 // A drawn thread: a thread on the page, in the margin or on a seat, or a chrome's view
 // of one thread (`data-lf-thread-view`, as the floating panel's thread view and its head
@@ -35,12 +34,15 @@ export const SAY_BOX = `:scope > ${SAY_ROW} ${TEXT_FIELD}`;
 //
 // Such a presentation also declares `whole`, the element standing for the thread as a
 // whole where its pieces stand apart, as the panel's view does for its head and its
-// field (`wholeThread`).
+// field (`wholeThread`), and `controls`, the element holding the controls it draws for
+// the thread as its own, as the panel's head holds Close, which focus's identity finds
+// by their keys (carry.js, `focusedBy`).
 /** @typedef {{
  * reply: (thread: Element) => Element | null,
  * settlement: (thread: Element) => HTMLElement | null,
  * move: (thread: Element) => HTMLElement | null,
  * whole: (thread: Element) => Element | null,
+ * controls: (thread: Element) => Element | null,
  * }} ThreadParts */
 /** @type {WeakMap<Element, ThreadParts>} */
 const declaredParts = new WeakMap();
@@ -53,9 +55,10 @@ const ownControl = (thread, selector) => {
   const controls = thread.querySelectorAll(selector);
   return [...controls].find((control) => control.closest(THREAD) === thread) ?? null;
 };
-/** @type {Pick<ThreadParts, "reply" | "settlement" | "move">} */
+/** @type {Pick<ThreadParts, "reply" | "settlement" | "move" | "controls">} */
 const ownParts = {
   reply: (thread) => thread.querySelector(SAY_BOX),
+  controls: (thread) => thread,
   settlement: (thread) => ownControl(thread, ".lf-resolve, .lf-reopen"),
   move: (thread) => ownControl(thread, ".lf-thread-move"),
 };
@@ -83,8 +86,8 @@ export function wholeThread(thread) {
   return declaredParts.get(outer)?.whole(outer) ?? outer;
 }
 /** @overload @param {Element} thread @param {"settlement" | "move"} name @returns {HTMLElement | null} */
-/** @overload @param {Element} thread @param {"reply"} name @returns {Element | null} */
-/** @param {Element} thread @param {"reply" | "settlement" | "move"} name */
+/** @overload @param {Element} thread @param {"reply" | "controls"} name @returns {Element | null} */
+/** @param {Element} thread @param {"reply" | "settlement" | "move" | "controls"} name */
 export function threadPart(thread, name) {
   for (const at of drawingsOf(thread)) {
     const part = (declaredParts.get(at) ?? ownParts)[name](at);

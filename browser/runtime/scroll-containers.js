@@ -19,7 +19,7 @@
    out as a scroll write lands, and costs a write and a write back for each box a glide
    moves, whose events fold into those the glide sends every frame. */
 import { inputs } from "./inputs.js";
-import { isElement, renderedParent } from "./shadow-tree.js";
+import { isElement, renderedParent } from "./lib/shadow-tree.js";
 import { anchorHolder, anchorNamed } from "./css-anchors.js";
 import { scrollAxes } from "./element-axes.js";
 import {

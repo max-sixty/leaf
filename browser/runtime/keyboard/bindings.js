@@ -113,9 +113,9 @@
    only when their `when` predicates make the states exclusive. `parsed` and `answers`
    share the supported modifiers `Mod`, `Alt`, and `Shift`. Unknown modifier names are
    errors rather than bindings that accidentally fire on a bare key. `spell` is the one
-   platform-aware display of a binding. `PRESS` states the native key behavior of
-   controls, and `DISCLOSE` reads the whole set a disclosure answers off the element it is
-   asked about; links retain their platform distinction from buttons.
+   platform-aware display of a binding. `PRESS` (lib/keys.js) states the native key
+   behavior of controls, and `DISCLOSE` reads the whole set a disclosure answers off the
+   element it is asked about; links retain their platform distinction from buttons.
 
    A label names this press, not the broad feature. Prefer "Resume writing" or "Hide
    comments" to "Comment" or "Toggle". Compute the word through `word` when visible state
@@ -136,7 +136,6 @@
    only once its first key is pressed, so the complete route stays in the keyboard command
    reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
-export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
 import { runtime } from "../context.js";
 
@@ -174,7 +173,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [sequenceControl]
  * @property {() => boolean} [commandReferenceWhen]
  * @property {import("../page-controls.js").PageControlGroup} [menu]
- * @property {keyof typeof import("../icon-paths.js").ACTIONS} [action]
+ * @property {keyof typeof import("../lib/icon-paths.js").ACTIONS} [action]
  * @property {Cell<readonly CommandRoute[]>} [routes]
  * @property {() => Scope | null} [opens]
  * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command
@@ -274,7 +273,9 @@ export const submitBindings = () =>
 export const advertisesKeys = () => !coarsePointer.matches;
 // Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
 // which is the keyboard's face, while a listener needs the physical press because many
-// speech configurations do not distinguish letter case.
+// speech configurations do not distinguish letter case. The maintainer chose to keep that
+// face rather than draw Shift on the keycap (⇧T), which would let the keycap's own text
+// be its spoken name and remove this function.
 /** @param {string} binding */
 export const spokenBinding = (binding) => {
   const { key, mods } = parsed(binding);

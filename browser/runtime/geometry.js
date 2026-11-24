@@ -2,21 +2,16 @@
  * window the page shows, where sticky boxes stand and how far a scroll carries what
  * they hold (`carried`), and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import {
-  excludedByInert,
-  renderedParent,
-  skipped,
-  uiInside,
-  under,
-} from "./shadow-tree.js";
+import { excludedByInert, renderedParent, skipped, under } from "./lib/shadow-tree.js";
+import { uiInside } from "./ui-marks.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
-import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
+import { isNativeLayer, nativeLayerHolding } from "./lib/shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
-import { isHTML, isElement, isSVG } from "./shadow-tree.js";
-import { elementBox } from "./shown-box.js";
+import { isHTML, isElement, isSVG } from "./lib/shadow-tree.js";
+import { elementBox } from "./lib/shown-box.js";
 import {
   carriedBox,
   elementAxes,
@@ -26,7 +21,7 @@ import {
   scrollAxes,
 } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
@@ -80,7 +75,7 @@ export const visualViewport = nativeViewport;
      and what this page shows of a sample it holds, and `watchRoom` for when any of
      those readings may have changed.
 
-   `skipped` (shadow-tree.js) is asked first by a reading that can leave out a box the
+   `skipped` (lib/shadow-tree.js) is asked first by a reading that can leave out a box the
    browser is not drawing, since reading one in skipped content forces that content's
    style and layout.
 
@@ -804,7 +799,7 @@ function scrollPadding(style) {
     left: inset("Left"),
   };
 }
-// The box an element shows as (`elementBox`, shown-box.js), and for the document's
+// The box an element shows as (`elementBox`, lib/shown-box.js), and for the document's
 // scroller the band of the window it shows.
 /** @param {Element} el @returns {DOMRect} */
 export function shownBox(el) {
@@ -840,7 +835,7 @@ export function shownBox(el) {
 // A reading of what is drawn now leaves that content out (`leaveSkipped`) rather than
 // read its boxes, which lays it out to answer: Firefox can take hundreds of milliseconds
 // to lay out a closed tab's panel holding a text document of several megabytes.
-// A mark that must stand once the content is drawn reads it, and pays (shadow-tree.js,
+// A mark that must stand once the content is drawn reads it, and pays (lib/shadow-tree.js,
 // `skipped`).
 /** @param {Element} el @param {{leaveSkipped?: boolean}} [options] @returns {Element[]} */
 export function shownParts(el, { leaveSkipped = false } = {}) {

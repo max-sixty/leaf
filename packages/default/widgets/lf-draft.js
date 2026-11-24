@@ -70,39 +70,32 @@
  */
 import { html, render, nothing } from "/vendor/lit.js";
 import {
-  addressableLabel,
-  addressableWord,
-  commandScope,
+  aimedAt,
+  nameOf,
   motion,
-  returnDuration,
-  offered,
-  offeredAction,
-  LeafElement,
-  offer,
-  TEXT_FIELD,
-  quoted,
   sendDraft,
-  raiseError,
   saveDraft,
   loadDraft,
   clearDraft,
   watchDraft,
   whileConnected,
-  pressIsKeyboardActivation,
-  reachedForWords,
-  paintMarkdown,
   dressCode,
-  markdownSourceOffset,
-  markdownWords,
   focusDestination,
-  nextRender,
   retainUserIntent,
   scrollIntoView,
-  focused,
   onPressAway,
-  worksInside,
-  commandsChanged,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
+import {
+  paintMarkdown,
+  markdownSourceOffset,
+  markdownWords,
+} from "/runtime/lib/markdown.js";
 
 // Each control's key and the action whose mark it shows.
 /** @type {[string, string][]} */
@@ -148,7 +141,7 @@ customElements.define(
     }
 
     get #savedText() {
-      const value = this.controller.read().state.edit?.value;
+      const value = this.state.edit?.value;
       if (typeof value !== "string")
         throw new Error("A draft reading must contain its Markdown text");
       return value;
@@ -164,14 +157,14 @@ customElements.define(
       if (!body) throw new Error("draft needs its prepared Markdown body");
       return (this.#preparedBody = body);
     }
-    /** @type {HTMLElementTagNameMap[typeof TEXT_FIELD] | null} */
+    /** @type {HTMLElementTagNameMap["leaf-text"] | null} */
     #editor = null;
     #sending = false;
     #failed = false;
     /** @type {HTMLDivElement | null} */
     #tools = null;
-    /** @type {ReturnType<typeof commandScope> | null} */
-    #commandScope = null;
+    /** @type {HTMLElement["lfCommands"]} */
+    #commands = null;
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
@@ -192,7 +185,7 @@ customElements.define(
       // A quoted draft is an exhibit: the same formatted text, none of the doors —
       // no controls, box press or editing shortcuts. Quoting
       // gates the action channel, not presentation.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
       // Capture only the pointer Discard's old allocation. The command still owns
@@ -203,7 +196,7 @@ customElements.define(
           this.#cancelSize = null;
           if (
             event.button !== 0 ||
-            pressIsKeyboardActivation(event) ||
+            event.detail === 0 ||
             !(
               event.target instanceof Element &&
               event.target.closest('[data-lf-draft-action="cancel"]')
@@ -218,18 +211,12 @@ customElements.define(
       );
 
       // A click opens the exact source at its rendered caret. A control or link inside
-      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // the draft and a completed word selection own their own gestures (`aimedAt`);
       // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
-        if (
-          pressIsKeyboardActivation(ev) ||
-          ev.button !== 0 ||
-          (ev.target instanceof Element && worksInside(ev.target, this))
-        )
-          return;
-        if (reachedForWords(this)) return;
+        if (ev.detail === 0 || ev.button !== 0 || aimedAt(ev, this) !== this) return;
         if (!this.#available()) return;
         ev.preventDefault();
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
@@ -244,12 +231,13 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
-        if (
-          this.#editor &&
-          !this.#resumeProjection &&
-          this.controller.read().actions.edit?.available
-        )
-          this.#resumeProjection = this.controller.defer();
+        // An editor a refused save reopened while the draft was out of the page says
+        // its keys as the draft returns.
+        this.#editor?.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
+        if (this.#editor && !this.#resumeProjection && this.#available())
+          this.#resumeProjection = this.defer();
         return () => {
           this.#returnMotion?.cancel();
           this.#stopPressAway?.();
@@ -285,7 +273,7 @@ customElements.define(
     }
 
     #watchDraft() {
-      if (quoted(this) || !this.#tools) return;
+      if (this.matches("[data-lf-exhibit] *") || !this.#tools) return;
       return watchDraft(
         ctx(this.id),
         (text) => {
@@ -308,7 +296,7 @@ customElements.define(
     }
 
     #offerControls() {
-      if (quoted(this) || this.#tools) return;
+      if (this.matches("[data-lf-exhibit] *") || this.#tools) return;
       this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
       // Its marks join into one toolbar (controls.css, `data-lf-joined`).
@@ -324,41 +312,46 @@ customElements.define(
     }
 
     #ensureCommands() {
-      if (this.#commandScope) return;
-      this.#commandScope = commandScope("On a draft", [
-        {
-          id: "draft.edit",
-          keys: [],
-          control: () => this.#control("edit"),
-          decision: true,
-          title: "Edit",
-          when: () => !this.#editor && !this.#sending && this.#available(),
-          run: () => this.#open(),
-        },
-        {
-          id: "draft.save",
-          reach: "in an open draft editor",
-          keys: ["Mod+Enter"],
-          control: () => this.#control("save"),
-          decision: true,
-          title: () => (this.#failed ? "Retry" : "Save"),
-          when: () => Boolean(this.#editor) && !this.#sending && this.#available(),
-          run: () => this.#commit(),
-        },
-        {
-          id: "draft.cancel",
-          reach: "in an open draft editor",
-          keys: ["Escape"],
-          control: () => this.#control("cancel"),
-          decision: true,
-          title: "Discard",
-          when: () => Boolean(this.#editor),
-          run: () => this.#close(true),
-          keep: () => this.#commit(),
-        },
-      ]);
-      this.lfCommands = this.#commandScope;
-      commandsChanged(this);
+      if (this.#commands) return;
+      this.#commands = {
+        title: "On a draft",
+        rows: [
+          {
+            id: "draft.edit",
+            keys: [],
+            control: () => this.#control("edit"),
+            decision: true,
+            title: "Edit",
+            when: () => !this.#editor && !this.#sending && this.#available(),
+            run: () => this.#open(),
+          },
+          {
+            id: "draft.save",
+            reach: "in an open draft editor",
+            keys: ["Mod+Enter"],
+            control: () => this.#control("save"),
+            decision: true,
+            title: () => (this.#failed ? "Retry" : "Save"),
+            when: () => Boolean(this.#editor) && !this.#sending && this.#available(),
+            run: () => this.#commit(),
+          },
+          {
+            id: "draft.cancel",
+            reach: "in an open draft editor",
+            keys: ["Escape"],
+            control: () => this.#control("cancel"),
+            decision: true,
+            title: "Discard",
+            when: () => Boolean(this.#editor),
+            run: () => this.#close(true),
+            keep: () => this.#commit(),
+          },
+        ],
+      };
+      this.lfCommands = this.#commands;
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} key @returns {HTMLButtonElement | null} */
@@ -390,28 +383,28 @@ customElements.define(
           )}`,
         this.#tools,
       );
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #available() {
-      return Boolean(this.controller.read().actions.edit?.available);
+      return Boolean(this.state?.edit?.available);
     }
 
     // The draft as the rest of the chrome names it, never by its id.
     #named() {
-      const label = addressableLabel(this);
+      const label = nameOf(this);
       return label ? `“${label}”` : `the ${addressableWord(this)}`;
     }
 
     /** @param {string} text @param {string | undefined} attempt */
     #dispatch(text, attempt) {
-      return this.controller.dispatch({
-        kind: "action",
-        verb: "edit",
-        detail: { value: text },
-        ...(attempt && { attempt }),
-        says: `Edited ${this.#named()}`,
-      });
+      return this.record(
+        "edit",
+        { value: text },
+        { says: `Edited ${this.#named()}`, attempt },
+      );
     }
 
     /** @param {string} [seed] @param {[number, number] | null} [at] @param {boolean} [arrive] */
@@ -420,11 +413,15 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish saving");
+        window.dispatchEvent(
+          new CustomEvent("lf-error", {
+            detail: "Wait for the current edit to finish saving",
+          }),
+        );
         return;
       }
-      if (this.#available()) this.#resumeProjection ??= this.controller.defer();
-      const editor = offer(TEXT_FIELD, "lf-draft-edit");
+      if (this.#available()) this.#resumeProjection ??= this.defer();
+      const editor = offer("leaf-text", "lf-draft-edit");
       editor.dataset.lfRuntime = "";
       // It stands where the prose did, so it reads in the prose's faces.
       editor.facesOf = this.#body;
@@ -444,9 +441,11 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      editor.lfCommands = this.#commandScope;
-      commandsChanged(editor);
+      editor.lfCommands = this.#commands;
       this.#body.after(editor);
+      editor.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(
         (/** @type {EventTarget[]} */ path) => !path.includes(this),
@@ -478,7 +477,7 @@ customElements.define(
         this.#returnMotion = motion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          returnDuration(),
+          motionTime("--lf-motion-return"),
         );
       if (discard) clearEdit(this.id);
       this.#stopPressAway?.();
@@ -487,7 +486,7 @@ customElements.define(
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.
-      const left = focused(document);
+      const left = document.activeElement;
       const stood = this.contains(left);
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
@@ -525,7 +524,7 @@ customElements.define(
       const ok = await sendDraft(
         ctx(this.id),
         () => true,
-        (attempt) => this.#dispatch(text, attempt)?.delivery ?? null,
+        (attempt) => this.#dispatch(text, attempt),
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
@@ -543,7 +542,7 @@ customElements.define(
           this.#failed = true;
           // A press away may have taken the user on to another place, such as the
           // next draft's editor, which keeps the focus.
-          const here = focused(document);
+          const here = document.activeElement;
           this.#open(
             stored,
             undefined,
@@ -553,8 +552,8 @@ customElements.define(
       }
     }
 
-    // The body `render` painted draws its code and formulas once it stands
-    // (module-state.md, "The widget controller").
+    // The body `render` painted draws its code and formulas once it stands, and the
+    // update waits for them (lib/leaf-element.js, `pending-task`).
     /** @param {Map<PropertyKey, unknown>} changed */
     updated(changed) {
       super.updated(changed);
@@ -568,15 +567,14 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      const { actions } = this.controller.read();
-      paintMarkdown(this.#body, this.#savedText);
-      if (quoted(this)) return nothing;
+      paintMarkdown(this.#body, this.#savedText, pageLinks);
+      if (this.matches("[data-lf-exhibit] *")) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
-      if (this.#editor && !this.#resumeProjection && actions.edit?.available)
-        this.#resumeProjection = this.controller.defer();
+      if (this.#editor && !this.#resumeProjection && this.#available())
+        this.#resumeProjection = this.defer();
       return nothing;
     }
   },

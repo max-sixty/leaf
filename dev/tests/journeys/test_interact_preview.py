@@ -344,10 +344,8 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
                 "lf-reading": {
                     "description": "A reading",
                     "attributes": {
-                        "type": "object",
                         "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "empty",
                 }

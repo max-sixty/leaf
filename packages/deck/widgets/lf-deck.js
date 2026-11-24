@@ -1,7 +1,7 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
  * through unread conversations. Each authored child is a card, the named group of a
  * question or a decision widget the user answers there with its own controls. A card waits while it
- * holds an obligation open on the user (`obligationsIn`, read from the server's
+ * holds an obligation open on the user (`readObligations(card)`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
@@ -65,40 +65,25 @@ import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
   answerWords,
-  nameAction,
-  rowArrows,
-  dragging,
   focusDestination,
-  focused,
-  currentLocationIn,
   keepView,
-  keeps,
-  keepsHidden,
-  keepsText,
-  layoutChanged,
-  LeafElement,
   motion,
   obligationActions,
-  obligationsByRegion,
-  obligationsIn,
-  offer,
-  offerAction,
   placeOf,
   openingView,
   viewMembers,
-  quoted,
-  queueTitle,
+  nameOf,
   readObligations,
   readQueues,
-  scrollBehavior,
   scrollIntoView,
-  signal,
-  tally,
-  tallyWords,
-  under,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { rowArrows } from "/runtime/lib/keys.js";
+import { under } from "/runtime/lib/shadow-tree.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
 // to leave, and the next to come up; and how long a card that came up takes no press.
@@ -114,10 +99,18 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
 // Whether a card's obligations, by the reading, wait on the user, as the tally counts
 // them.
-/** @param {ReturnType<typeof obligationsIn>} held */
+/** @param {DeckHeld} held */
 const waitsOn = (held) => tally(held).onUser > 0;
 
-/** @typedef {ReturnType<typeof obligationsIn>} DeckHeld */
+// The element focus is on, followed down through each open shadow tree, so that a
+// control inside a widget's tree is the one the deck blurs and asks about.
+const focusedElement = () => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at;
+};
+
+/** @typedef {ReturnType<typeof readObligations>["all"]} DeckHeld */
 /** @typedef {(card: HTMLElement) => DeckHeld} DeckReadings */
 
 customElements.define(
@@ -132,8 +125,8 @@ customElements.define(
     /** @type {HTMLElement[]} */
     #cards = [];
     // The open card, or null once the pass is over.
-    /** @type {import("@preact/signals-core").Signal<HTMLElement | null>} */
-    #open = signal(null);
+    /** @type {HTMLElement | null} */
+    #open = null;
     // Whether the open card waited on the user at the last reading, so the reading
     // that ends its wait is the one that can send it on.
     /** @type {boolean | null} */
@@ -145,7 +138,7 @@ customElements.define(
     // Ends the motion in flight at once, landing every element where it belongs.
     /** @type {((upcoming?: HTMLElement | null) => void) | null} */
     #landing = null;
-    /** @type {{id: number, x: number, y: number, dx: number, moving: boolean} | null} */
+    /** @type {{id: number, x: number, y: number, dx: number, moving: boolean, held?: PromiseWithResolvers<void>} | null} */
     #drag = null;
     // Whether the deck opened on its first card only because this tab kept no card
     // and the address named none, so the first reading may open the first that waits.
@@ -197,7 +190,9 @@ customElements.define(
         ],
       };
       this.lfCommands = commands;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       for (const card of this.#cards) {
         card.addEventListener("beforematch", () => this.#show(card));
       }
@@ -208,7 +203,7 @@ customElements.define(
       const opening = this.#cards.find((card) => card === selected);
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       whileConnected(this, (signal) => {
         const options = { signal };
         this.addEventListener("pointerdown", (event) => this.#press(event), options);
@@ -220,14 +215,11 @@ customElements.define(
     }
 
     // Each card's obligations, or null until the page's first reading is in: what the
-    // cards hold by the one rule every count of a region reads, filed in one pass over
-    // the inventory (`obligationsByRegion`).
+    // card holds by the one rule every count of a region reads.
     /** @returns {DeckReadings | null} */
     #readings() {
-      const items = readObligations();
-      if (items.phase !== "ready") return null;
-      const held = obligationsByRegion(this.#cards, items.all);
-      return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
+      if (readObligations().phase !== "ready") return null;
+      return (/** @type {HTMLElement} */ card) => readObligations(card).all;
     }
 
     // Show one card, or none once the pass is over, without motion.
@@ -235,18 +227,21 @@ customElements.define(
     #show(card = null) {
       // Arriving at the open card, as `m` does at the card a motion is bringing up,
       // leaves that motion to finish.
-      if (card === this.#open.value) return;
+      if (card === this.#open) return;
       this.#landing?.();
       keepView(this, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
       }
-      keepsHidden(this.#end, Boolean(card));
-      this.#open.value = card;
+      this.#end.toggleAttribute("hidden", Boolean(card));
+      this.#open = card;
+      this.requestUpdate();
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.
@@ -259,7 +254,7 @@ customElements.define(
     /** @param {HTMLElement | null} next @param {string} side @param {{from?: string, answered?: boolean}} [options] */
     #go(next = null, side, { from = "none", answered = false } = {}) {
       this.#landing?.(next);
-      const card = this.#open.value;
+      const card = this.#open;
       if (next === card) return this.#show(next);
       // Once the pass is over the forward control goes too, the end frame's step back in
       // standing for it.
@@ -347,8 +342,9 @@ customElements.define(
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
       }
-      keepsHidden(this.#end, Boolean(next));
-      this.#open.value = next;
+      this.#end.toggleAttribute("hidden", Boolean(next));
+      this.#open = next;
+      this.requestUpdate();
       // The end frame holds its words and its record of the pass before the deck
       // measures the height it grows to.
       if (!next) this.#drawEnd(this.#readings());
@@ -372,14 +368,14 @@ customElements.define(
       // that card shown and the deck in flight for it, rather than undo them only for the
       // next motion to write them back.
       let departing = moving ? card : null;
-      const putAway = (upcoming = this.#open.value) => {
+      const putAway = (upcoming = this.#open) => {
         const leaving = departing;
         if (!leaving) return;
         departing = null;
         keeps(leaving, "data-lf-deck-leaving", null);
         keeps(leaving, "inert", null);
         leaving.style.removeProperty("--lf-deck-leave-top");
-        keepView(this, this.#open.value, leaving === upcoming ? leaving : null);
+        keepView(this, this.#open, leaving === upcoming ? leaving : null);
       };
       const land = (
         /** @type {HTMLElement | null | undefined} */ upcoming = undefined,
@@ -400,11 +396,10 @@ customElements.define(
       // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
       // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
       // edges in view.
-      const behavior = scrollBehavior();
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
-        if (above || !next || this.#open.value !== next) return;
-        scrollIntoView(next, { block: "nearest", behavior });
+        if (above || !next || this.#open !== next) return;
+        scrollIntoView(next, { block: "nearest", behavior: "smooth" });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
@@ -426,9 +421,11 @@ customElements.define(
         keeps(next, "data-lf-deck-settling", "");
         setTimeout(() => keeps(next, "data-lf-deck-settling", null), SETTLE_MS);
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       carry(next, answered ? SETTLE_MS : 0);
-      if (above) scrollIntoView(this, { block: "start", behavior });
+      if (above) scrollIntoView(this, { block: "start", behavior: "smooth" });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or
@@ -446,12 +443,12 @@ customElements.define(
     // The user sends the open card toward `side`, from where a drag left it.
     /** @param {string} side @param {string} [from] */
     #onward(side, from = "none") {
-      const card = this.#open.value;
+      const card = this.#open;
       if (card) this.#go(this.#after(card, this.#readings(), true), side, { from });
     }
 
     #index() {
-      const card = this.#open.value;
+      const card = this.#open;
       return card ? this.#cards.indexOf(card) : this.#cards.length;
     }
 
@@ -465,10 +462,12 @@ customElements.define(
     // pressed twice answers one card. Read before `leaving` goes.
     /** @param {HTMLElement[]} leaving */
     #carry(leaving) {
-      const here = focused();
+      const here = focusedElement();
       const place = here && placeOf(here);
       const inside = leaving.some(
-        (each) => currentLocationIn(each) || Boolean(place && under(place, each)),
+        (each) =>
+          (here !== null && here !== document.body && under(here, each)) ||
+          Boolean(place && under(place, each)),
       );
       const keyed = inside && here !== null && here.matches(":focus-visible");
       return (/** @type {HTMLElement | null} */ next, wait = 0) => {
@@ -488,7 +487,8 @@ customElements.define(
         if (!keyed) return;
         if (!wait) return this.#arrive(next);
         setTimeout(() => {
-          if (focused() === null || focused() === document.body) this.#arrive(next);
+          const at = document.activeElement;
+          if (at === null || at === document.body) this.#arrive(next);
         }, wait);
       };
     }
@@ -496,12 +496,11 @@ customElements.define(
     /** @param {HTMLElement | null} card */
     #arrive(card) {
       if (!card) {
-        keepsHidden(this.#end, false);
+        this.#end.toggleAttribute("hidden", false);
         return void focusDestination(this.#again, "move");
       }
-      const items = readObligations();
-      const waiting =
-        items.phase === "ready" ? obligationsIn(card, items.user)[0] : undefined;
+      const items = readObligations(card);
+      const waiting = items.phase === "ready" ? items.user[0] : undefined;
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
     }
@@ -516,7 +515,7 @@ customElements.define(
     // card, Later or Next; once the pass is over, back to its start.
     #forwardWord() {
       const readings = this.#readings();
-      const card = this.#open.value;
+      const card = this.#open;
       const waits = (/** @type {HTMLElement} */ each) =>
         Boolean(readings && waitsOn(readings(each)));
       if (card) return waits(card) ? "Later" : "Next";
@@ -526,7 +525,7 @@ customElements.define(
 
     /** @param {DeckReadings | null} readings */
     #forwardPress(readings) {
-      const card = this.#open.value;
+      const card = this.#open;
       if (card)
         return this.#onward(readings && waitsOn(readings(card)) ? "left" : "right");
       const waiting = readings && this.#cards.find((each) => waitsOn(readings(each)));
@@ -536,7 +535,7 @@ customElements.define(
     // A touch drag on the open card, begun anywhere but on a control inside it.
     /** @param {PointerEvent} event */
     #press(event) {
-      const card = this.#open.value;
+      const card = this.#open;
       if (!(event.target instanceof Element) || !card?.contains(event.target)) return;
       this.#pressed = card;
       if (event.pointerType !== "touch") return;
@@ -546,6 +545,9 @@ customElements.define(
         )
       )
         return;
+      // A second finger leaves a swipe under way to the first, whose hold it would
+      // otherwise take with it unsettled.
+      if (this.#drag?.moving) return;
       this.#drag = {
         id: event.pointerId,
         x: event.clientX,
@@ -558,7 +560,7 @@ customElements.define(
     /** @param {PointerEvent} event */
     #follow(event) {
       const drag = this.#drag;
-      const card = this.#open.value;
+      const card = this.#open;
       if (drag?.id !== event.pointerId || !card) return;
       drag.dx = event.clientX - drag.x;
       if (!drag.moving) {
@@ -568,7 +570,14 @@ customElements.define(
         if (Math.abs(drag.dx) < 8) return;
         drag.moving = true;
         card.setPointerCapture(event.pointerId);
-        dragging(this, true);
+        // The user holds the card until the swipe settles, so no revision or undo
+        // replaces it under the finger.
+        drag.held = Promise.withResolvers();
+        this.dispatchEvent(
+          Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+            complete: drag.held.promise,
+          }),
+        );
       }
       card.style.translate = `${drag.dx}px`;
       card.style.rotate = `${drag.dx / 30}deg`;
@@ -580,7 +589,7 @@ customElements.define(
       if (drag?.id !== event.pointerId) return;
       if (!drag.moving) return (this.#drag = null);
       const readings = this.#readings();
-      const card = this.#open.value;
+      const card = this.#open;
       const from = `translateX(${drag.dx}px) rotate(${drag.dx / 30}deg)`;
       this.#settle();
       if (drag.dx <= -SWIPE) this.#onward("left", from);
@@ -589,8 +598,8 @@ customElements.define(
     }
 
     #settle() {
-      const card = this.#open.value;
-      if (this.#drag?.moving) dragging(this, false);
+      const card = this.#open;
+      this.#drag?.held?.resolve();
       this.#drag = null;
       if (!card?.style.translate) return;
       card.style.removeProperty("translate");
@@ -599,11 +608,10 @@ customElements.define(
 
     render() {
       if (!this.#cards.length) return nothing;
-      const items = readObligations();
       const readings = this.#readings();
-      const card = this.#open.value;
+      const card = this.#open;
       const count = readings
-        ? tallyWords(tally(obligationsIn(this, items.all)), agentName())
+        ? tallyWords(tally(readObligations(this).all), agentName())
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
@@ -626,7 +634,7 @@ customElements.define(
     // The end frame once the pass is over: how many still wait, the step back in (a
     // retained node), and the record of the pass, a row for each card that asks
     // something. A row names its question as On Me does, by the runtime's own rule
-    // (`queueTitle` on the question's row there), so the two lists never call one
+    // (`nameOf` on the question's row there), so the two lists never call one
     // question two things: a widget set among words, such as a suggestion, asks in no
     // group and so has no prompt words, and On Me names it by the words it suggests. The row
     // links to where the user answers it (`prompt.target`), so a card with no id of
@@ -652,7 +660,7 @@ customElements.define(
         if (!first) return nothing;
         const target = first.prompt.target ?? each.id;
         const item = listed.get(first.id);
-        const question = (item && queueTitle(item)) || first.prompt.text || target;
+        const question = (item && nameOf(item)) || first.prompt.text || target;
         const [words, voice] = this.#ending(held);
         return html`<li>
           <a href=${target ? `#${target}` : nothing}>${question}</a
@@ -685,7 +693,7 @@ customElements.define(
     /** @param {DeckHeld} held @returns {[string, "leaf" | null]} */
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
-      if (held.some((item) => item.status === "open"))
+      if (held.some((item) => item.state !== "done"))
         return [`Waiting on ${agentName()}`, "leaf"];
       const words = held.map(answerWords).filter(Boolean).join("; ");
       return words ? [words, null] : ["Answered", "leaf"];
@@ -694,13 +702,13 @@ customElements.define(
     updated() {
       if (!this.#cards.length) return;
       const word = this.#forwardWord();
-      nameAction(this.#forward, this.#open.value ? "next" : "start", { label: word });
+      nameAction(this.#forward, this.#open ? "next" : "start", { label: word });
       // Once the pass is over the end frame's button is the step back in.
-      keeps(this.#forward, "hidden", this.#open.value ? null : "");
+      keeps(this.#forward, "hidden", this.#open ? null : "");
       const readings = this.#readings();
-      keepsHidden(this.#end, Boolean(this.#open.value));
+      this.#end.toggleAttribute("hidden", Boolean(this.#open));
       if (!readings || this.#drag) return;
-      const card = this.#open.value;
+      const card = this.#open;
       const waiting = this.#cards.filter((each) => waitsOn(readings(each)));
       // The edges under the open card are the cards still waiting after it.
       const behind = card
@@ -727,7 +735,7 @@ customElements.define(
       // answered.
       const { open, total } = tally(readings(card));
       const closed = total > 0 && open === 0;
-      const here = focused();
+      const here = focusedElement();
       const place = here && placeOf(here);
       const onCard =
         document.hasFocus() &&

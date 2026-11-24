@@ -72,7 +72,7 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const entries = [];
           const registration = registerContribution({
@@ -80,8 +80,8 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
             read: () => ({entries, state: 'engaged'}), activate: () => {}});
           window.lfGrowThreadPeers = () => {
             const index = entries.length;
-            entries.push(contributionEntry({key: `detail-${index}`, icon: 'dot',
-              label: `Detail ${index}`, rank: 'secondary'}));
+            entries.push({key: `detail-${index}`, icon: 'dot',
+              label: `Detail ${index}`, rank: 'secondary'});
             registration.update();
           };
         }"""
@@ -210,16 +210,16 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let primaryVisible = true;
           let peers = [];
           const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'act', glyph: 'A', label: 'Act', behavior: 'action',
               visible: primaryVisible
-            }), ...peers]}), activate: () => {}
+            }, ...peers]}), activate: () => {}
           });
           window.lfThreadOwner = {
             registration,
@@ -228,7 +228,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
               registration.update({immediate: true});
             },
             addPeers() {
-              peers = [1, 2, 3].map(i => contributionEntry({
+              peers = [1, 2, 3].map(i => ({
                 key: `peer-${i}`, glyph: 'P', label: `Peer ${i}`, behavior: 'action'
               }));
               registration.update({immediate: true});
@@ -1442,9 +1442,15 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     expect(previous).to_be_enabled()
     expect(next_thread).to_be_disabled()
     expect(reply).to_be_focused()
+    # A step lands on its thread as every opening does, gliding the passage into the
+    # reading band in the task that focuses the reply; the card rides the glide, so a
+    # press before it ends falls on the page where the button stood.
+    scroll_settled(page)
     previous.click()
     expect(next_thread).to_be_visible()
     expect(preview.get_by_role("button", name="Dismiss thread view")).to_be_visible()
+    expect(reply).to_be_focused()
+    scroll_settled(page)
     next_thread.click()
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")

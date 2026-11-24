@@ -9,9 +9,11 @@ import pytest
 from interact_support import append_command, stamp
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
+from render_cases_navigation import actions
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
+    PREVIEW,
     clocked,
     consume_browser_errors,
     http_error_console,
@@ -21,8 +23,12 @@ from render_harness import (
     resized,
     scroll_settled,
     sending,
+    stamp_page,
+    tab_onto,
     told,
     undo,
+    wait_for_check_api,
+    wait_for_revision,
 )
 
 from leaf import event_log as events_model
@@ -46,6 +52,58 @@ TALL_BOARD_PAGE = leaf_page(
 </lf-board>
 """,
 )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("hand", ["pointer", "keyboard"])
+def test_a_revision_waits_for_a_held_card(engine, hand, request, serve):
+    """A revision that rewords a card replaces the board. One that arrives while the user
+    holds a card, by the pointer or by the keyboard, waits until the card is put down:
+    the board under the hand stays, the move is recorded, and the revision then arrives
+    with the card where the user put it."""
+    page = open_page(request.getfixturevalue(engine), live_url(serve(BOARD_PAGE)))
+    page.locator("#sprint").evaluate("board => { window.heldBoard = board; }")
+    grip = page.locator("#card-heater .lf-grip")
+    if hand == "pointer":
+        box = grip.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        done = page.locator("#col-done").bounding_box()
+        page.mouse.move(
+            done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
+        )
+    else:
+        grip.focus()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowRight")
+    wait_for_check_api(page, "(api) => api.dragHeld()")
+
+    stamp_page(
+        serve.page_dir,
+        BOARD_PAGE.replace(
+            "<strong>Squirrel baffle</strong>",
+            "<strong>Squirrel baffle, reworded</strong>",
+        ),
+        "reword a card",
+    )
+    told(page)
+    assert page.evaluate(
+        "() => window.heldBoard.isConnected"
+        " && document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
+        ".content === '1'"
+    ), "the revision replaced the board under the user's hand"
+
+    if hand == "pointer":
+        page.mouse.up()
+    else:
+        page.keyboard.press("Enter")
+    wait_for_revision(page, 2)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    expect(page.locator("#card-baffle")).to_contain_text("reworded")
+    moves = [e for e in actions(serve.page_dir) if e["action"] == "move"]
+    assert [(m["detail"]["unit"], m["detail"]["value"]) for m in moves] == [
+        ("card-heater", "col-done")
+    ]
 
 
 def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
@@ -177,9 +235,16 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
 
-    # Grab the second card and push it into the next column, the keyboard's path.
-    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
+    # Grab the second card and push it into the next column, the keyboard's path. The
+    # grip's own Enter and Space grab it, which its preview names, and the grab tells a
+    # listener where the card starts and which keys act on it now.
+    tab_onto(board.get_by_role("button", name="Move: Squirrel baffle — Todo"))
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(["⏎", "space"])
     page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_have_text(
+        "Squirrel baffle grabbed — Todo, position 2 of 2 — "
+        "arrows move, Enter or Space drop, Escape cancel the move"
+    )
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     page.wait_for_selector("#col-done #card-baffle")
@@ -522,11 +587,11 @@ def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route)
             page.keyboard.press(key)
         else:
             card.evaluate(
-                """(el, column) => el.closest('lf-board').controller.dispatch({
-                  kind: 'action', verb: 'move',
-                  detail: {unit: el.id, value: column, rank: '0i'},
-                  says: 'Moved card',
-                })""",
+                """(el, column) => void el.closest('lf-board').record(
+                  'move',
+                  {unit: el.id, value: column, rank: '0i'},
+                  {says: 'Moved card'},
+                )""",
                 column,
             )
         expect(page.locator(f"#{column} #card-heater")).to_have_count(1)

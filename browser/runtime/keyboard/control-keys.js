@@ -106,19 +106,19 @@ export function commandSteps(id) {
   return [];
 }
 
-/** The keys that would make a command's press now, as the dispatcher reads them, each
- * spelled as a key chip spells it, or null. They are the command's own binding where a
- * key reaches it here, else the keys of a command that would open the scope holding it
- * (`opens`), found the same way, then its own binding: `g i` makes Resume writing's
- * through Go-to, and `g V l` Open latest's through Go-to and then Versions. A row in
- * a scope that already stands is reached by its own binding or not at all, so its door
- * is passed over. A row behind a door is available by what it declares, since its
- * control is drawn only once the door opens. Null where no key would make it, as with
- * the caret in a box, where each is a letter typed.
+/** The bindings that would make a command's press now, as the dispatcher reads them, or
+ * null. They are the command's own binding where a key reaches it here, else the
+ * bindings of a command that would open the scope holding it (`opens`), found the same
+ * way, then its own binding: `g i` makes Resume writing's through Go-to, and `g V l`
+ * Open latest's through Go-to and then Versions. A row in a scope that already stands
+ * is reached by its own binding or not at all, so its door is passed over. A row behind
+ * a door is available by what it declares, since its control is drawn only once the
+ * door opens. Null where no key would make it, as with the caret in a box, where each
+ * is a letter typed.
  * @param {string} id @returns {string[] | null} */
 function pressNow(id) {
   const own = activeCommandBinding([id]);
-  if (own !== null) return [spell(own)];
+  if (own !== null) return [own];
   for (const { door, opened } of doors()) {
     if (opened.at?.()) continue;
     const row = opened.rows.find(
@@ -127,16 +127,20 @@ function pressNow(id) {
     const [binding] = row ? bindings(row) : [];
     if (binding === undefined) continue;
     const opening = pressNow(door.id);
-    if (opening) return [...opening, spell(binding)];
+    if (opening) return [...opening, binding];
   }
   return null;
 }
-/** The keys that would make a command's press now (`pressNow`), each spelled as a key
- * chip spells it, or none, as on a page that shows no keys, a touchscreen's. */
+/** The bindings that would make a command's press now (`pressNow`), for a surface that
+ * hands them on to be spelled, as a preview's `keys` (preview.js), or none, as on a
+ * page that shows no keys, a touchscreen's. */
 /** @param {string} id */
-export function commandKeysNow(id) {
+export function commandBindingsNow(id) {
   return (advertisesKeys() && pressNow(id)) || [];
 }
+/** Those bindings, each spelled as a key chip spells it. */
+/** @param {string} id */
+export const commandKeysNow = (id) => commandBindingsNow(id).map(spell);
 
 /** @typedef {{revision: number, available: ReturnType<typeof availableCommandRoutes>, controls: Map<Element, string[]>}} Reaching */
 /** @type {Reaching | null} */

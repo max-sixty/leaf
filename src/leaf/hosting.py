@@ -222,6 +222,12 @@ class LeafHTTPServer:
     samples: dict
 
     def __init__(self, address, endpoint) -> None:
+        # Requests run on a thread pool, and the first to validate imports jsonschema
+        # (`registry/schema.py`). jsonschema's submodules import their package, so one
+        # thread importing the package while another imports a submodule first
+        # deadlocks on CPython's per-module import locks, and that request answers 500.
+        # The server loads the package before any request can.
+        import jsonschema  # noqa: F401
         import uvicorn
 
         from .http import page_app
@@ -532,15 +538,12 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     A server another Leaf started keeps serving a page this Leaf cannot write, so the
     page is judged here as a fresh bind judges it (`http.page_endpoint`), before its
     URL is handed out as this Leaf's."""
-    from .findings import Rejected
-    from .layer import incompatible_layer
-    from .registry.storage import layer_record
+    from .registry.storage import layer_metadata
 
     existing = running_server(page_dir)
     if not existing:
         return None
-    if refusal := incompatible_layer(page_dir, layer_record(page_dir) or {}):
-        raise Rejected([refusal])
+    layer_metadata(page_dir)
     if host and urlsplit(existing["url"]).hostname != host.lower():
         raise Refused(
             f"already serving at {existing['url']}; "
@@ -870,9 +873,9 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
     once the page is taken, since a session service comes back only for the
     session holding it; one that can't start again leaves the service enabled and
-    down, for a revival to bring back. The prompt hook restarts the server of a
-    page its session holds by the same test, where it and that server both run an
-    installed copy (`reconnect`); a watch reviving a page restarts nothing."""
+    down, for a revival to bring back. A server from an installed copy itself moves
+    to the installed copy its session's hooks run (`server.stop_when_service_ends`);
+    a watch reviving a page restarts nothing."""
     replacing = other_serving_leaf(page_dir) is not None
     if replacing:
         check_servable(page_dir)
@@ -896,16 +899,17 @@ def check_servable(page_dir: Path) -> None:
 
 def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
     """`server _follow`: restart at its address, under this Leaf, the server
-    `server_id` names, which the installed copy this Leaf replaced at the same path
-    started, and which asked (`server.stop_when_service_ends`).
+    `server_id` names, which another installed copy started and which asked
+    (`server.stop_when_service_ends`): the copy this Leaf replaced at the same path,
+    or one the session holding the page ran before its hooks ran this Leaf.
 
     The answer through `handshake` says only that this copy runs, since only a
     failed launch is worth the server's trying again. A page at an older page
-    protocol, as the update that replaced the copy can leave it, is renewed first,
-    for the live session holding the page (`vendoring.renew_held`) or while none
-    does (`vendoring.renew_layer`), and what holds the renewal back is queued for
-    that session's next step (`clerk.queue`). This is the one renewal the update
-    makes for the page, so the successors of the session's watch and of Codex's
+    protocol, as an update can leave it, is renewed first, for the live session
+    holding the page (`vendoring.renew_held`) or while none does
+    (`vendoring.renew_layer`), and what holds the renewal back is queued for that
+    session's next step (`clerk.queue`). After an update in place, no hook runs
+    before this renewal, so the successors of the session's watch and of Codex's
     adapter read the page once it lands. The renewal restarts the server itself,
     and takes turns with a hook's renewal of the same page (`vendoring._reinit`).
 

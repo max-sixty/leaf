@@ -664,8 +664,8 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     has to be opened carefully, because the same words are the page's words: a user
     drawing across them to quote them ends that drag with a mouseup inside the box, and
     opening on it would throw the selection away at the moment it was finished. That is
-    the question `reachedForWords` answers for every other press on the page's own words,
-    asked here rather than answered again. The drag runs through the harness's own
+    the question Leaf answers for every other press on the page's own words, asked here
+    through `aimedAt` rather than answered again. The drag runs through the harness's own
     `hold_selection`, which floors the press - a fractional start point loses the
     selection outright, and an empty one would read exactly like the door swallowing it -
     and the words are read while the drag is still held, because the runtime re-seats the
@@ -795,6 +795,9 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     draft = page.locator("#first-draft")
     draft_control(page, "edit", "first-draft").click()
     write(draft.locator("leaf-text"), "Changed words.")
+    # The open editor defers the draft's own drawing, which is no hold of the user's
+    # on the page.
+    assert not page.evaluate("async () => (await window.__lfCheckApi()).dragHeld()")
     before = page.locator("#following").bounding_box()
     held = []
     page.route("**/api/event", lambda route: held.append(route))

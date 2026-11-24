@@ -63,7 +63,8 @@
    the hints just painted. */
 import { bindings, commandRun, labelOf, live, nativePress } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { createHintSession, HINT_KEYS, codedHints, renderKeys } from "./hints.js";
+import { createHintSession, HINT_KEYS, codedHints } from "./hints.js";
+import { objectIds } from "../ids.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -71,21 +72,23 @@ import {
 } from "./key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
-import { el, PRESSABLE } from "../widget-elements.js";
-import { actionClass } from "../control-faces.js";
+import { PRESSABLE } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
+import { actionClass } from "../lib/control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce } from "../notifications.js";
-import { closestAcross, inPage, pageQueryAll } from "../passages.js";
+import { inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc } from "./scopes.js";
 import { saying } from "./control-keys.js";
 import { repaint } from "../repaint.js";
 import { landGlides } from "../scrolling.js";
-import { counted } from "../words.js";
+import { counted } from "../lib/words.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -99,7 +102,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
  * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
  * @typedef {{id: string, key: string, words: [string, string], matches: (target: TargetMember) => boolean}} TargetFilter
- * `words` names one target it keeps and many, as `counted` takes them (words.js).
+ * `words` names one target it keeps and many, as `counted` takes them (lib/words.js).
  * @typedef {Object} GoToOptions
  * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "agent" | "leaves">} doors
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
@@ -378,7 +381,9 @@ export function createGoToSequence({
     ...(targetFilter ? [targetFilter.key] : []),
     ...hints.prefix(),
   ];
-  const hintRenderKey = renderKeys();
+  // Lit receives a number for each candidate's row, so an unchanged row keeps its seat,
+  // chip and keycaps across paint-only updates.
+  const hintRenderKey = objectIds();
   /** @param {ReturnType<typeof visibleCandidates>[number]} candidate @param {boolean} current @returns {GoToHintModel} */
   const goToHintModel = (candidate, current) => {
     const steps = [...candidate.code];

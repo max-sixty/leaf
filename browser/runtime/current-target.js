@@ -52,7 +52,7 @@
    panel from either keeps it, the panel holding no other page place. So a walk, Escape
    and the walk again returns to the stop the user left, and a second press goes on from
    it. Each press reads the origin afresh. `stepFrom` orders destinations by rendered
-   position (`renderedOrder`, shadow-tree.js), including positions within a widget's
+   position (`renderedOrder`, lib/shadow-tree.js), including positions within a widget's
    shadow tree rather than substituting its host. */
 import { cycledRow } from "./keyboard/bindings.js";
 import {
@@ -63,13 +63,15 @@ import {
   onUserInput,
 } from "./focus.js";
 import { seenAhead } from "./scroll-containers.js";
-import { closestAcross, inChrome } from "./passages.js";
 import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
 import { isReaction } from "./thread/model.js";
 import { threadNamed } from "./thread/state.js";
-import { readObligations } from "./obligations/model.js";
 import { keptEach } from "./kept.js";
-import { obligationPlace, obligationsIn } from "./obligations/place.js";
+import {
+  obligationPlace,
+  obligationsByRegion,
+  readObligations,
+} from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import {
   byRenderedOrder,
@@ -78,9 +80,11 @@ import {
   renderedOrder,
   renderedUnder,
   under,
-} from "./shadow-tree.js";
+  closestAcross,
+} from "./lib/shadow-tree.js";
 import { eventSource } from "./pointer.js";
 import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
+import { inChrome } from "./ui-marks.js";
 
 // Each side's reading, and whether it shows its target beside the page.
 /** @type {Map<(node: Element) => Element | null, boolean>} */
@@ -213,10 +217,10 @@ export function questionAsked(node) {
   const asked =
     (latest && thread?.obligations.filter((item) => item.message === latest.id)) || [];
   const drawn = byRenderedOrder(
-    obligationsIn(whole, asked),
+    obligationsByRegion([whole], asked).get(whole) ?? [],
     (item) => obligationPlace(item, all).source,
   );
-  return drawn.find((item) => item.status === "open") ?? null;
+  return drawn.find((item) => item.state !== "done") ?? null;
 }
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited

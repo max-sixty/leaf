@@ -176,7 +176,7 @@ function literals() {
 
 // The builders that give an element a role's face (control-faces.js, `ACTION_FACES`), and
 // the calls that make an element of the tag they are handed first.
-// `roleElement` is element-markers.js's own writer behind them, and `actionClass` the
+// `roleElement` is lib/controls.js's own writer behind them, and `actionClass` the
 // role's face a pure template writes into its `class` (control-faces.js).
 const ROLE_BUILDERS = new Set([
   "offerAction",

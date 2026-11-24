@@ -76,8 +76,8 @@ import {
   selectionBackward,
 } from "../native-selection.js";
 import { html, render, signal } from "/runtime/framework.js";
-import { addressableWord } from "../addressable-names.js";
-import { COMMENT_HINT } from "../words.js";
+import { addressableWord } from "../lib/element-word.js";
+import { COMMENT_HINT } from "../voice.js";
 import {
   addressedFocus,
   anchoringIsReady,
@@ -94,7 +94,7 @@ import { covered, outOfWindow, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { landGlides, stopGlide } from "../scrolling.js";
 import { carriersOf } from "../scroll-containers.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
@@ -112,14 +112,7 @@ import { advertisesKeys } from "../keyboard/bindings.js";
 import { commandKeysNow } from "../keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
-import {
-  elementById,
-  closestAcross,
-  inChrome,
-  pageWords,
-  passageStart,
-  rangeOf,
-} from "../passages.js";
+import { elementById, pageWords, passageStart, rangeOf } from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -143,7 +136,7 @@ import {
   pressRecords,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { under, upFrom } from "../shadow-tree.js";
+import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
 import { focusPlace } from "../user-place.js";
@@ -158,9 +151,10 @@ import { anchorLabel } from "../thread/messages.js";
 import { seatOf } from "../thread/model.js";
 
 import { livePoint } from "../pointed-place.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {{intent: ReturnType<typeof retainUserIntent>}} FabFocusHandoff */
 

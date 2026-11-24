@@ -1,12 +1,9 @@
-import {
-  generatedElement,
-  keeps,
-  titledElement,
-  viewDocument,
-} from "/runtime/widget-api.js";
-/* The contents view draws its frame and outline from the complete document.
- * The live widget supplies the canonical heading and chrome readings, and each
- * section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
+import { titledElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
+/* The contents view draws its frame and outline from the complete document, less the
+ * headings in Leaf's chrome (`.lf-chrome`). The live widget supplies the canonical
+ * heading reading, and each section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
  * where its section holds an On Me item, else `thread` where it holds an open thread.
  * While the changes view is on, `data-lf-toc-changed` marks a changed section. toc.css
  * draws both on the outline's rule or the contents spine; the start row's go on the
@@ -16,10 +13,10 @@ import {
  * and take no room; what they count, threads and On Me items alike, the row's link
  * previews (`lfPreview`) in place of its name, which its face already says, and that
  * preview describes the link to a screen reader where focus lands on it. */
-import { html, nothing, ref, repeat } from "/vendor/lit.js";
+import { html, nothing, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
-/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean}} HeadingReading */
+/** @typedef {{label: (heading: Element) => string}} HeadingReading */
 /** @typedef {{key: string | Element, heading: Element, label: string, destination: Element, depth: number}} OutlineItem */
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 /** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
@@ -53,13 +50,15 @@ const markView = (marks) =>
     ? nothing
     : html`<span class="lf-toc-mark" aria-hidden="true"></span>`;
 
-// The outline belongs to the document holding it (`viewDocument`), or for contents
-// standing beside the page's main, that main. Scope follows document ownership, not
-// visibility: closed disclosures still contribute headings that a native fragment link
-// can reveal.
+// The outline belongs to the document holding it: the view member holding it, such as
+// a tab's panel, or else the `main` holding it. For contents standing beside the page's
+// main, it is that main. Scope follows document ownership, not visibility: closed
+// disclosures still contribute headings that a native fragment link can reveal.
 /** @param {HTMLElement} host */
 const outlineDocument = (host) =>
-  viewDocument(host) ?? host.closest("body")?.querySelector(":scope > main") ?? null;
+  host.closest("[data-lf-views] > *, main") ??
+  host.closest("body")?.querySelector(":scope > main") ??
+  null;
 
 // The template keeps its native disclosure and keyed links. Geometry readers collect
 // the nodes only after it renders.
@@ -70,8 +69,6 @@ export function drawToc(host, headingReading) {
   let outline = { start: null, items: [] };
   const href = (/** @type {Element | undefined} */ destination) =>
     destination?.id ? `#${destination.id}` : nothing;
-  const generated = (/** @type {boolean} */ says) =>
-    ref((node) => node && generatedElement(node, { says }));
   /** @type {ReadonlyMap<Element | null, SectionMarks>} */
   let marks = new Map();
   // One preview for each row's link, kept as long as its heading, which reads the row's
@@ -160,10 +157,11 @@ export function drawToc(host, headingReading) {
       const { start, items } = outline;
       const first = marks.get(start?.heading ?? null);
       return html`
-        <nav class="lf-toc-nav lf-ui" aria-label="On this page" ${generated(false)}>
+        <nav class="lf-toc-nav lf-ui" aria-label="On this page" data-lf-gen="1">
           <p
             class="lf-toc-heading lf-label"
-            ${generated(true)}
+            data-lf-gen="1"
+            data-lf-said
             ?data-lf-toc-changed=${Boolean(first?.changes)}
             data-lf-toc-mark=${markKind(first)}
             .lfPreview=${beforeFirst}
@@ -173,7 +171,8 @@ export function drawToc(host, headingReading) {
           <details class="lf-toc-disclosure" ?open=${open}>
             <summary
               class="lf-toc-toggle lf-label lf-disclosure-marker"
-              ${generated(true)}
+              data-lf-gen="1"
+              data-lf-said
               ?data-lf-toc-changed=${Boolean(first?.changes)}
               data-lf-toc-mark=${markKind(first)}
               .lfPreview=${beforeFirst}
@@ -304,10 +303,12 @@ const level = (heading) => Number(heading.localName.slice(1));
 
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
 /** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
-function readOutline(host, { label, chrome }) {
+function readOutline(host, { label }) {
   const main = outlineDocument(host);
   if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
+  /** @param {Element} heading */
+  const chrome = (heading) => closestAcross(heading, ".lf-chrome") !== null;
   const headings = [...main.querySelectorAll(HEADING_SELECTOR)]
     .filter(
       (heading) =>

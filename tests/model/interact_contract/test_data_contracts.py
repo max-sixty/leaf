@@ -527,16 +527,12 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
 
     registry = {
         "lf-producer": {
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "empty",
             "outputs": {"rows": {"contract": "rows"}},
         },
         "lf-consumer": {
             "attributes": {
-                "type": "object",
                 "properties": {
                     name: {"type": "string"} for name in ("id", "source", "for")
                 },

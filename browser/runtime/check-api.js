@@ -2,7 +2,6 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { exceptionText } from "./exception.js";
 export { startNearWork } from "./presentation.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
@@ -41,16 +40,12 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export {
-  drawnElements,
-  skipped,
-  renderedParent,
-  uiInside,
-  upFrom,
-} from "./shadow-tree.js";
+export { inChrome, uiInside } from "./ui-marks.js";
+export { anchoringIsReady } from "./anchor-resolution.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { NOTICE_MS, notice } from "./notifications.js";
+export { raiseError } from "./errors.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -71,7 +66,6 @@ export {
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
-  closestAcross,
   pageText,
   fencePassageParts,
   findQuote,
@@ -81,7 +75,11 @@ export {
   textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
-export { commandDeclarationsWithin, paintKeys } from "./keyboard/scopes.js";
+export {
+  commandDeclarationsWithin,
+  commandsUnread,
+  paintKeys,
+} from "./keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,
@@ -92,6 +90,8 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  focused,
+  handBack,
   onCurrentLocation,
   releaseFocus,
   ringBox,
@@ -111,13 +111,23 @@ export {
   placeNode,
 } from "./reading-place.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
-export { walkPosition } from "./walk-position.js";
+export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
-export { nativeLayers } from "./keyboard/layer-stack.js";
+export {
+  closeNativeLayer,
+  nativeLayers,
+  showNativeLayer,
+} from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
+export {
+  browserScrolls,
+  holdScroll,
+  scrolling,
+  setScroll,
+  watchScrollEnds,
+} from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -133,14 +143,11 @@ export {
   onFrameVisibility,
   readSampleVisibility,
 } from "./frame-visibility.js";
-export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
-export { flashDuration, agentArrivalDuration } from "./motion.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
-export { alignInlineText, alignText, sentenceUnits } from "./text-alignment.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";

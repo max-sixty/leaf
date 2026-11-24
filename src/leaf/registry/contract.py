@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from leaf.files import read_json
-from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
+from leaf.schema import (
+    DATA_CONTRACT_NAME,
+    DATA_SOURCE_NAME,
+    ELEMENT_ID,
+    RECORD_BINDING,
+    WIDGET_NAME,
+)
 
 from ..findings import Finding, Rejected, element_at
 from .kernel import kernel_marks, verb_writers
@@ -114,11 +120,43 @@ MODULES = "$modules"
 def complete_declarations(registry: dict) -> dict:
     """Write into a merged vocabulary's element declarations the default each may
     leave unsaid, so every reader reads a complete entry: an element's content is its
-    author's markup (`content`) unless it declares another."""
+    author's markup (`content`) unless it declares another, and its attribute schema
+    (`attributes`) and each verb's `detail` schema admit only what they name unless
+    they say otherwise (`_closed_by_default`); validation refuses a `detail` that
+    does. An element that declares no `attributes` takes none of its own, so its
+    schema is the one that names nothing.
+
+    It runs before validation, so it completes only an entry of the shape it reads
+    and leaves any other for validation to refuse."""
     for entry in element_declarations(registry).values():
-        if isinstance(entry, dict):
-            entry.setdefault("content", "markup")
+        if not isinstance(entry, dict):
+            continue
+        if isinstance(attributes := entry.setdefault("attributes", {}), dict):
+            entry["attributes"] = _closed_by_default(attributes)
+        entry.setdefault("content", "markup")
+        verbs = entry.get("verbs")
+        for spec in verbs.values() if isinstance(verbs, dict) else ():
+            if isinstance(spec, dict) and isinstance(
+                detail := spec.get("detail"), dict
+            ):
+                spec["detail"] = _closed_by_default(detail)
     return registry
+
+
+def _closed_by_default(schema: dict) -> dict:
+    """`schema` with `"type": "object"` and `"additionalProperties": false` written in,
+    each where it doesn't write that keyword. `type` stands first and
+    `additionalProperties` last, where a declaration that writes both puts them, so the
+    vocabulary reads the same either way."""
+    closed = {"type": "object", **schema}
+    closed.setdefault("additionalProperties", False)
+    return closed
+
+
+def body_is_data(entry: Mapping) -> bool:
+    """Whether the element's content is one `<pre>` holding text (`content`): in the
+    notation its module reads (`data`), or in Markdown, which Leaf reads (`markdown`)."""
+    return entry.get("content") in ("data", "markdown")
 
 
 def upgraded(registry: dict, tag: str) -> bool:
@@ -217,7 +255,7 @@ class VisualParts:
 
     def __str__(self) -> str:
         if self.all:
-            return "the registered visual inventory"
+            return "the parts the visual draws"
         if self.prefixes:
             return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
         return "no visual parts"
@@ -329,7 +367,7 @@ def declares_string(field_schema) -> bool:
 
 # A position record's rank: a base-36 fraction written as its digits after the point,
 # never ending in 0, so string order is numeric order. The runtime's
-# `projection/model.js` owns the reasoning and computes the keys between neighbours;
+# `lib/rank.js` owns the reasoning and computes the keys between neighbours;
 # this rule is the one both runtimes must read the same way, and
 # `tests/rank_cases.json` holds both runtimes to the same cases.
 RANK = "[0-9a-z]*[1-9a-z]"
@@ -460,6 +498,19 @@ def state_specs(entry: dict, *, writer: str | None = None):
             yield verb, spec
 
 
+def recorded(spec: dict) -> dict | None:
+    """Where a verb's state reads in markup: its `record` without the members that
+    bind it to the element in the browser (`schema.RECORD_BINDING`), or None for a
+    verb with no record. An admitted event stores this, so a declaration that names
+    another property or event keeps every decision recorded before it, and a state
+    in `leaf page state` shows it as its construction. The browser's `sameRecord`
+    (`runtime/registry.js`) compares two records the same way."""
+    record = spec.get("record")
+    return record and {
+        key: value for key, value in record.items() if key not in RECORD_BINDING
+    }
+
+
 def _semantic_schema(schema):
     """Strip JSON Schema annotations without changing literal values or names."""
     if not isinstance(schema, dict):
@@ -538,7 +589,7 @@ def state_definition(
         {
             "origin": origin,
             "unit": spec["unit"],
-            "record": spec.get("record"),
+            "record": recorded(spec),
             "creates": spec.get("creates"),
             "decides": decides(spec),
             "detail": _semantic_schema(

@@ -34,7 +34,7 @@
  * scrolls sideways (base.css) and `page check --render` refuses the page
  * (`page-scrolls`), so its author fixes the overflow in the page's own CSS.
  */
-/* Markup Leaf renders from Markdown, a message's or a widget's body (`markdown.js`,
+/* Markup Leaf renders from Markdown, a message's or a widget's body (`lib/markdown.js`,
    `.lf-markdown-body`), is Leaf's reading of it, so it wears the face whatever theme the
    page takes. */
 :where(.lf-thread-transcript),
@@ -835,7 +835,7 @@ leaf-text.lf-fab-input,
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching
    where it left none, as a list typed under its first line or an item under the
-   last. The renderer counts those lines (markdown.js, `data-lf-gap`); HTML an agent
+   last. The renderer counts those lines (lib/markdown.js, `data-lf-gap`); HTML an agent
    wrote carries none (below). A fence's count stands
    on its code. A line is the message's, computed where the text starts, since code
    sets a shorter one of its own. */

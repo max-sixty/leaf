@@ -169,7 +169,8 @@ def registry_keys() -> dict[str, str]:
 KEY_SECTIONS = {
     "attributes": (
         "Element",
-        "What every declaration holds beside its description.",
+        "The element's attributes and its content, each of which a declaration may "
+        "leave to its default.",
     ),
     "verbs": (
         "State",

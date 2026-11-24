@@ -2,7 +2,7 @@
 
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
-   differently. A `LeafElement` reads a bound input through `dataReader`, which yields
+   differently. An element's bound input is read through `dataReader`, which yields
    one copy a delivery of `{source, contract, revision, run, updated, value, origin}`,
    or `null` while the bound source has no readable value, and hands the widget only its
    `value` (element-data.js, "Bound values"). A widget-output binding yields
@@ -20,9 +20,10 @@
    reader that arrives late, or before its producer's module has loaded, reads what the
    element holds then. Outputs stay outside the application state: no reading of the log
    depends on one, so a change runs no fold and no selection, and only the readers of
-   that producer hear it. The proof that a reader has drawn is the one every
-   `LeafElement` has: its region is claimed in the stack that moved its reading
-   (`requestUpdate`, leaf-element.js), so the page reads as presented only after the draw.
+   that producer hear it. The proof that a reader has drawn is the one every element
+   Leaf delivers to has: its region is claimed in the stack that moved its reading
+   (`host` in element-integration.js), so the page reads as presented only after the
+   draw.
 
    What a source shows moves only as state application delivers, and each element that
    draws data holds the data version until its region has drawn the delivery
@@ -258,9 +259,9 @@ export const bindsInput = (element, { source, reference }) =>
 // Whether `element` binds a page data source while the page has read no data yet.
 // Until the first state answer is accepted, a source has no reading because none has
 // been read, not because it holds none, so an element drawing it then would draw "no
-// data" and move its contents when the data came (leaf-element.js, `shouldUpdate`). An
-// input bound to another widget's output, or a declared source the element doesn't
-// name, waits for nothing. The acceptance draws the element with the accepted reading,
+// data" and move its contents when the data came (lib/leaf-element.js,
+// `shouldUpdate`). An input bound to another widget's output, or a declared source the
+// element doesn't name, waits for nothing. The acceptance draws the element with the accepted reading,
 // as any element's first read takes it. A page whose first read brought no state
 // settles offline, and its elements draw then, saying their sources hold nothing,
 // since no answer is coming to fill them.

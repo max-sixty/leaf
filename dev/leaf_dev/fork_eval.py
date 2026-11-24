@@ -126,7 +126,7 @@ from leaf_dev.arms import (
     trace_result,
 )
 from leaf_dev.eval_cases import definition
-from leaf_dev.page_fixtures import ADMIT, fixture_environment
+from leaf_dev.page_fixtures import ADMIT
 from leaf_dev.reply_phases import transcript_records
 
 DEFINITION = definition("fork_eval")
@@ -279,7 +279,7 @@ def execute_scenario(
     source = work / "source" / "index.html"
     source.parent.mkdir()
     shutil.copy(ROOT / "evals" / scenario["page"], source)
-    (source.parent / "layer.json").write_text("[]")
+    (source.parent / "layer.json").write_text('["reading"]')
     build_source(payload, work / "state", source, page)
     # After the build, whose closing `page open` writes a status event that would
     # end a start in the log (`todos.item_starts`).
@@ -350,12 +350,10 @@ class Leaf:
 
     def __init__(self, payload: Path, state: Path, session: str):
         self.payload, self.session = payload, session
-        self.env = fixture_environment(
-            environment(
-                XDG_STATE_HOME=str(state),
-                CLAUDE_CODE_SESSION_ID=session,
-                CLAUDE_PID=str(os.getpid()),
-            )
+        self.env = environment(
+            XDG_STATE_HOME=str(state),
+            CLAUDE_CODE_SESSION_ID=session,
+            CLAUDE_PID=str(os.getpid()),
         )
 
     def run(self, *args: str, stdin: dict | None = None, check: bool = True):

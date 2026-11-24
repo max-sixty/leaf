@@ -622,7 +622,7 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     page.wait_for_function("copies.length")
     assert page.evaluate("copies") == ["HierarchyRequestError"], (
         "Firefox now clones the range alone: drop `inWindowDocument` from "
-        "widget-upgrade.js and leaf-element.js, and this test"
+        "lib/once.js and lib/leaf-element.js, and this test"
     )
     rendered(page)
 

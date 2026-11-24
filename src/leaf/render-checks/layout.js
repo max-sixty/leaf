@@ -9,11 +9,12 @@ import {
   regionScrollBehavior,
   shownBand,
   shownRegionBounds,
-  skipped,
   TEXT_BOX,
   uiInside,
   userScrollport,
 } from "/runtime/check-api.js";
+import { skipped } from "/runtime/lib/shadow-tree.js";
+import { says } from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { drawnPage, openRoots } from "./open-roots.js";
@@ -125,7 +126,7 @@ function containedSpace() {
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
-// browser style and lay out each such subtree first (runtime/shadow-tree.js, `skipped`).
+// browser style and lay out each such subtree first (runtime/lib/shadow-tree.js, `skipped`).
 /** @param {string[]} open */
 export function arrangedBoxes(open, { shown = false } = {}) {
   const page = pageDocument();
@@ -775,7 +776,7 @@ export function misplacedBoxes() {
 // left edge, in the table's reading direction, and named by the first column heading
 // standing on it, a head's outranking a foot's; a heading's name is what it says, so
 // a comment badge the mark pass put in it stays out, through the runtime's own
-// `uiInside`. A cell that says `colspan`, whatever the number, belongs to no column,
+// `says`. A cell that says `colspan`, whatever the number, belongs to no column,
 // and the sheet leaves it wrapping — one predicate for both, since a `colspan="1"`
 // read as a column by one and left wrapping by the other would go unreported: a note
 // across the whole table wraps because it is long, says nothing about a squeeze, and
@@ -804,15 +805,6 @@ export function misplacedBoxes() {
 export function squeezedTables() {
   const page = pageDocument();
   if (!page) return [];
-  // What a heading says, for the column's name.
-  /** @param {Element} cell */
-  const says = (cell) => {
-    let text = "";
-    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    for (let node; (node = walker.nextNode());)
-      if (!uiInside(node.parentElement, cell)) text += node.textContent;
-    return text.trim().replace(/\s+/g, " ");
-  };
   // The element whose visible words stand outside the table's inner box, or null. Every
   // character counts: spaces a cell keeps hold its column open and wrap the prose beside
   // it, which is the squeeze this reports.
@@ -932,15 +924,6 @@ export function squeezedTables() {
 export function brokenNames() {
   const page = pageDocument();
   if (!page) return [];
-  // A cell's words, leaving out what Leaf drew in it, such as a comment's badge.
-  /** @param {Element} cell */
-  const cellWords = (cell) => {
-    let text = "";
-    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    for (let node; (node = walker.nextNode());)
-      if (!uiInside(node.parentElement, cell)) text += node.textContent;
-    return text.trim();
-  };
   const found = [];
   const range = document.createRange();
   for (const table of page.querySelectorAll("table")) {
@@ -953,7 +936,7 @@ export function brokenNames() {
       const cell = code.closest("td, th");
       if (!cell || cell.closest("table") !== table) continue;
       const name = code.textContent?.trim() ?? "";
-      if (!name || /\s/.test(name) || cellWords(cell) !== name) continue;
+      if (!name || /\s/.test(name) || says(cell) !== name) continue;
       if (!code.checkVisibility()) continue;
       range.selectNodeContents(code);
       const drawn = [...range.getClientRects()].filter((rect) => rect.width > 1);

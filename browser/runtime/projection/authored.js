@@ -6,8 +6,8 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { dataBody } from "../widget-upgrade.js";
-import { authoredRank } from "./model.js";
+import { dataBody } from "../lib/data-body.js";
+import { authoredRank } from "../lib/rank.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
@@ -28,14 +28,18 @@ import { authoredRank } from "./model.js";
 
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
-   - `position`: ordered id lists per container and each listed unit's authored rank
-     (projection/model.js);
+   - `position`: ordered id lists for each container the widget orders, itself
+     included where `within` names its own tag, and each listed unit's authored
+     rank (lib/rank.js);
    - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 
    Ownership of record members stops at the nearest ancestor recording the same
-   physical slot: an attribute set's attribute, or a position. Other attributes
-   and record kinds coexist, including scalar state on a member or container. */
+   physical slot: an attribute set's attribute, or a position. A position's
+   container belongs to the nearest element at or above it recording positions, so a
+   container and its members have one owner (Python's `projection.container_owner`).
+   Other attributes and record kinds coexist, including scalar state on a member or
+   container. */
 export const authoredStates = readPart((root) => root.document.authored);
 export const authoredParents = new WeakMap();
 
@@ -100,8 +104,13 @@ function initialState(widget, spec) {
     if (record?.kind !== "position") return { value, units: {} };
     /** @type {Record<string, string>} */
     const ranks = {};
-    for (const container of widget.querySelectorAll(record.within))
-      if (container.id && recordedOwner(container, record) === widget) {
+    const containers = [...widget.querySelectorAll(record.within)];
+    if (widget.matches(record.within)) containers.unshift(widget);
+    for (const container of containers)
+      if (
+        container.id &&
+        container.closest(recordedWidgetSelector(record)) === widget
+      ) {
         const ids = [...container.children]
           .filter((part) => part.id)
           .map((part) => part.id);

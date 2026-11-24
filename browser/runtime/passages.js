@@ -64,16 +64,16 @@
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
    chrome-looking structure is still one of the page's words. This lets a tab label or
    draft heading remain quotable while runtime controls stay outside the passage.
-   `generatedElement` writes the said marker; `offer` writes the control marker. They
-   are independent facts and neither clears the other.
+   A module writes the said marker on its words; `offer` writes the control marker.
+   They are independent facts and neither clears the other.
 
    A label copied off another element on the page is a route to those words rather
    than a second place the page says them. Say it once: a contents link, a roster row
    naming a worker, any generated index entry stays chrome, and the passage lives where
    the page speaks it. Two copies of one label carry the same text and, being fenced,
    the same empty context, so neither can be told from the other and a drag across
-   either detaches. (The third answer of `says`, `"echo"`, is what such a route
-   declares; widget-elements.js says how.)
+   either detaches. (`data-lf-echo` is what such a route declares; control-labels.js
+   says how.)
 
    Use `inChrome` when the question is whether an element belongs to the runtime's
    document layer. Use `.lf-ui` when the question is whether words or styling are
@@ -93,7 +93,7 @@
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow-tree.js),
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -114,19 +114,14 @@
 import {
   isNode,
   closestAcross,
-  inChrome,
-  SAID,
-  UI_MARKS,
-  inUi,
   overIn,
   shadowHost,
-  uiInside,
   under,
   upFrom,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
+import { inChrome, SAID, UI_MARKS, inUi, uiInside } from "./ui-marks.js";
 import { keptEach, unkept, version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
-export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   declaredRoot,
   refuseShadowRoot,
@@ -144,7 +139,7 @@ import {
   isHTML,
   renderedParent,
   skipper,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
@@ -153,12 +148,13 @@ import {
   CLOSING,
   COLLAPSE,
   COLLAPSE_CHARS,
+  CONTEXT,
   OPENING,
   PHRASING,
   TEXT_BLOCK,
 } from "./kernel-facts.js";
-import { textUnits } from "./text-alignment.js";
-import { excerptWords } from "./words.js";
+import { textUnits } from "./lib/text-alignment.js";
+import { excerptWords } from "./lib/words.js";
 import { union } from "./rect.js";
 
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain
@@ -321,7 +317,7 @@ export function settledAway(el) {
 export const GENERATED = ".lf-ui, [data-lf-gen]";
 // A message's body: what the runtime renders from its writer's Markdown, any HTML an
 // agent wrote in it included.
-const MESSAGE_BODY = ".lf-msg-body";
+export const MESSAGE_BODY = ".lf-msg-body";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
 // What a heading in it heads, as a page's title in its header heads the page (`headed`).
@@ -519,7 +515,7 @@ const NO_CONTEXT = Object.freeze({
   cells: null,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
-// (shadow-tree.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// (ui-marks.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
 // the walk asks each of one element with `matches`, so a marker added to a selector
 // reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
 // only a class or an id is settled by one match.
@@ -960,7 +956,10 @@ export function textNodesUnder(
 // registry declares after it, so the walk sees what the capture saw.
 //
 // `root` narrows the search to one authored document (`authoredScope`), with the roots
-// declared inside it.
+// declared inside it. The first element with the id in `root`'s tree answers where it
+// stands under `root` and is accepted, so a lookup costs a walk of `root`'s elements
+// only where another element with the id stands before the answer, as a message's copy
+// of a page id can.
 /** @param {string | null | undefined} id @param {Document | Element | null} [root] */
 export const elementById = (id, root = document) => {
   pageVersion.read();
@@ -969,9 +968,15 @@ export const elementById = (id, root = document) => {
   /** @param {Element | null | undefined} node */
   const accepts = (node) =>
     node && (!page || (!leafSurface(node) && authoredScope(node) === root));
+  const tree = /** @type {Document | DocumentFragment | Element} */ (
+    root.getRootNode()
+  );
+  const first = "getElementById" in tree ? tree.getElementById(id) : undefined;
   const found =
-    root === document
-      ? document.getElementById(id)
+    root === document ||
+    first === null ||
+    (first && root.contains(first) && accepts(first))
+      ? first
       : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
   if (found && accepts(found)) return found;
   for (const shadow of shadowRootsIn(root)) {
@@ -1271,7 +1276,7 @@ export const readingFrom = (segments) => readSegments(segments, true);
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 /** @param {string} text @param {number} from @param {number} to */
-export const cut = (text, from, to) => [...text].slice(from, to).join("");
+const cut = (text, from, to) => [...text].slice(from, to).join("");
 
 // Copyable words use the same segments as prose, with the walk's computed line
 // boundaries and whitespace. They need no DOM-coordinate map; quote readings above
@@ -1368,7 +1373,7 @@ const drawnHere = () => {
  * closed disclosure's body are), and, with `visibility`, `element` inherits
  * `visibility: visible`. What a `content-visibility: auto` box skips off screen is drawn
  * once scrolled to, by the same rules, so it is asked as it is, which styles what is
- * asked; what `hidden` skips is answered without styling it (shadow-tree.js, `skipper`).
+ * asked; what `hidden` skips is answered without styling it (lib/shadow-tree.js, `skipper`).
  * @param {Element} element @param {boolean} [visibility] */
 export function drawsWithin(element, visibility = true) {
   for (
@@ -2342,6 +2347,71 @@ export function runReading(first, last) {
     segments,
     segments.map(() => null),
   );
+}
+// The words of a message's body (`authoredScope`), a document of its own, read by the
+// page's rules for words (`textNodesUnder`) as one passage cell: the reading a passage
+// in the message is told apart from its other copies in (`passageIn`, `findQuote`). It
+// is read afresh each time it is asked.
+/** @param {Element} body @returns {PageReading} */
+export function messageReading(body) {
+  const segments = textNodesUnder(body);
+  return indexed(
+    segments,
+    segments.map(() => null),
+  );
+}
+// The words on each side of the passage `segments` that tell it apart in `reading`:
+// the context a short unique quote keeps, widened until `find`, given it, finds this
+// very passage, or until the reading's edges are reached, where the passage is
+// `detached`. The quote discards boundary whitespace, so the passage found is this one
+// where its first character is the passage's first (`units`, `readingFrom`) and its
+// last the passage's last, whatever cosmetic spaces the selection held. Anchor capture
+// asks it of the page's reading (anchor-resolution.js, `anchorForPassage`), and a
+// selection in a message of the message's (`passageIn`).
+/** @param {PageReading} reading @param {readonly Segment[]} segments
+ * @param {readonly TextUnit[]} units
+ * @param {(context: {prefix?: string, suffix?: string}) => readonly Segment[]} find
+ * @returns {{prefix?: string, suffix?: string, detached?: true}} */
+export function passageContext(reading, segments, units, find) {
+  const [start, stop] = spanIn(reading, segments);
+  const from = units[0]?.start;
+  const to = units.at(-1)?.end;
+  for (let width = CONTEXT; ; width *= 2) {
+    const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
+    const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
+    const context = { ...(prefix && { prefix }), ...(suffix && { suffix }) };
+    const found = find(context);
+    const first = found[0];
+    const last = found.at(-1);
+    if (
+      first &&
+      last &&
+      from &&
+      to &&
+      first.node === from.node &&
+      first.start === from.offset &&
+      last.node === to.node &&
+      last.end === to.offset
+    )
+      return context;
+    if ([...prefix].length < width && [...suffix].length < width)
+      return { ...context, detached: true };
+  }
+}
+// The words from `from` to `to` in `reading` as a passage no anchor names, as words
+// selected in a message: their quote, with the context that tells them apart there
+// (`passageContext`), and where the quote starts (`at`); null where none does, so the
+// passage is found again by the quote rules alone (`findQuote`), never by an offset
+// among copies.
+/** @param {PageReading} reading @param {number} from @param {number} to */
+export function passageIn(reading, from, to) {
+  const segments = spanOf(reading, from, to);
+  const { text: quote, units } = readingFrom(segments);
+  if (!quote) return null;
+  /** @param {{prefix?: string, suffix?: string}} context */
+  const find = (context) => findQuote(reading, quote, context);
+  const { detached, ...context } = passageContext(reading, segments, units, find);
+  return detached ? null : { quote, ...context, at: spanIn(reading, find(context))[0] };
 }
 // The roots of the page's parts, in reading order.
 export function readingParts() {

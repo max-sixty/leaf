@@ -38,7 +38,7 @@
  * second tab converges rather than drifting. A click the whole option takes is one
  * nothing in the option wanted: a drag that ended here is that selection's, and a press
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
- * to follow — belongs to what it landed on (`worksInside`).
+ * to follow — belongs to what it landed on (`aimedAt`).
  *
  * The last cell of a page's group is the option the user writes. Submitting it
  * sends an `add` naming the new option and its words, then selects it through the same
@@ -69,7 +69,7 @@
  * preference. A module writes an attribute in the author's namespace only where the
  * registry declares it as a verb's record form — `selected` is one, so a version can
  * carry a pick and `page check` can hold the markup against the log's fold — and
- * the entry's `additionalProperties: false` is the whole of what else may stand
+ * the attributes the entry's schema names are the whole of what else may stand
  * there. Neither the answered paint nor the disclosure's state is such a record: the
  * `answer` verb declares no record form, so no version carries it, and which way this
  * tab left the disclosure is view state no version carries at all. Each is stated
@@ -113,30 +113,23 @@ import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  addressableLabel,
-  addressableWord,
-  authoredScope,
+  aimedAt,
+  nameOf,
   elementById,
   threadInput,
-  inChrome,
-  keeps,
-  keepsText,
-  LeafElement,
   landInThread,
-  markdownWords,
-  offer,
-  offerAction,
   placePreview,
-  pressIsKeyboardActivation,
-  quoted,
-  reachedForWords,
   rowWalk,
-  worksInside,
   named,
   focusDestination,
   scrollIntoView,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
+import { markdownWords } from "/runtime/lib/markdown.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
 // own words, which are all it has. `named` rather than `says`, because a picked option's
@@ -208,9 +201,7 @@ customElements.define(
     /** @param {unknown} value @param {Element} group */
     static answerWords(value, group) {
       const picked = new Set(choiceIds(value));
-      const added = additions(
-        group instanceof LeafElement ? group.reading?.state : null,
-      );
+      const added = additions(group instanceof LeafElement ? group.state : null);
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) =>
           picked.has(option.id) && !added.some((record) => record.id === option.id),
@@ -241,7 +232,10 @@ customElements.define(
     get #addition() {
       return (this.#additionOwner ??= new OptionAddition(this, {
         // `closed` answers only from the listed options.
-        offered: this.#choosable && !inChrome(this) && !this.hasAttribute("closed"),
+        offered:
+          this.#choosable &&
+          !closestAcross(this, ".lf-chrome") &&
+          !this.hasAttribute("closed"),
         available: () => this.#available("choose"),
         commit: (added, choice, attempt) => {
           if (!this.#available("add") || !this.#available("choose")) return null;
@@ -251,7 +245,7 @@ customElements.define(
           // A refused `add` answers the draft at once: its words go back to the box
           // while the pick behind it is still in the wire, and the door refuses that
           // pick too, since it names no option the group holds.
-          return add.delivery.then((added) => (added && pick ? pick.delivery : added));
+          return add.then((added) => (added && pick ? pick : added));
         },
       }));
     }
@@ -260,7 +254,7 @@ customElements.define(
     // alternatives, but owns no selection, so it has no reading. Only a live or
     // settled decision has one.
     setup() {
-      this.#wire(quoted(this));
+      this.#wire(this.matches("[data-lf-exhibit] *"));
     }
 
     connectedCallback() {
@@ -308,15 +302,14 @@ customElements.define(
         if (!(target instanceof Element)) return;
         const option = target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
-        // rather than choosing between the options. `worksInside` is the whole of that
+        // rather than choosing between the options. `aimedAt` is the whole of that
         // question, and what it cannot answer is which of the controls in here this
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
-        const inner = worksInside(target, option);
-        if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
+        const at = aimedAt(e, option);
+        if (at !== option && !at?.matches(".lf-pick, .lf-key-badge")) return;
         if (!this.#available("choose")) return;
         e.preventDefault();
         const was = this.#picked();
@@ -339,19 +332,12 @@ customElements.define(
 
     /** @param {string} verb */
     #available(verb) {
-      return Boolean(this.reading?.actions[verb]?.available);
+      return Boolean(this.state?.[verb]?.available);
     }
 
     /** @param {string} verb @param {Record<string, unknown>} detail @param {string | null} [attempt] @param {string} [says] */
     #dispatch(verb, detail, attempt = null, says = "") {
-      if (!this.reading) return null;
-      return this.controller.dispatch({
-        kind: "action",
-        verb,
-        detail,
-        ...(attempt && { attempt }),
-        ...(says && { says }),
-      });
+      return this.record(verb, detail, { says, attempt });
     }
 
     /** @returns {NodeListOf<HTMLElement>} */
@@ -361,9 +347,7 @@ customElements.define(
 
     #picked() {
       const ids = new Set(
-        choiceIds(
-          this.reading?.state.choose?.detail?.value ?? this.#authoredChoice().value,
-        ),
+        choiceIds(this.state?.choose?.detail?.value ?? this.#authoredChoice().value),
       );
       return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
@@ -402,15 +386,10 @@ customElements.define(
       this.#done = { host, control: button, bindingBadge };
     }
 
-    #doneUndo() {
-      const answer = this.reading?.actions.answer;
-      const inForce = answer?.inForce[0]?.event;
-      return answer?.undo.find((event) => event.id === inForce?.id) ?? null;
-    }
-
     #doneAvailable() {
-      return isAnswered(this.reading?.state)
-        ? Boolean(this.#doneUndo())
+      const answer = this.state?.answer;
+      return isAnswered(this.state)
+        ? Boolean(answer && "undoable" in answer && answer.undoable)
         : this.#available("answer");
     }
 
@@ -418,19 +397,14 @@ customElements.define(
     // that result, so a second press does what the button then says.
     #answer() {
       if (!this.#doneAvailable()) return;
-      const undo = this.#doneUndo();
-      if (undo)
-        this.controller.dispatch({
-          kind: "undo",
-          target: ("attempt" in undo ? undo.attempt : null) ?? undo.id,
-        });
+      if (isAnswered(this.state)) this.takeBack("answer");
       else this.#dispatch("answer", {}, null, "Marked answered");
       this.#syncDone();
     }
 
     #syncDone() {
       if (!this.#done) return;
-      const answered = Boolean(isAnswered(this.reading?.state));
+      const answered = Boolean(isAnswered(this.state));
       keeps(
         this.#done.control,
         "aria-label",
@@ -531,7 +505,9 @@ customElements.define(
             },
           ],
         };
-        commandsChanged(mark);
+        mark.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
       }
       const input = this.#addition.input;
       if (input)
@@ -559,19 +535,21 @@ customElements.define(
           bindingBadge: done.bindingBadge,
           title: "Done",
           description: () =>
-            isAnswered(this.reading?.state)
+            isAnswered(this.state)
               ? "Take back Done and keep choosing"
               : "Finish choosing options",
           when: () => this.#doneAvailable(),
           run: () => this.#answer(),
         });
       this.lfCommands = { title: SECTION, rows: answerRows };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the
-    // name the chrome gives it (`addressableLabel`), else by its word, and by the id
-    // only where no block in the option's document answers to it. After § a kind word
+    // name the chrome gives it (`nameOf`), else by its word, and by the id only where no
+    // block in the option's message or on the page answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone, and pointing at it
     // previews the block, as a link into the page does (`placePreview`). It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
@@ -579,18 +557,18 @@ customElements.define(
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, authoredScope(this));
-      const label = `§ ${addressableLabel(block) || addressableWord(block) || target}`;
+      const block = elementById(target, this);
+      const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
       ref.lfPreview = () => {
-        const named = elementById(target, authoredScope(this));
+        const named = elementById(target, this);
         return named ? placePreview(named) : null;
       };
       option.append(ref);
     }
 
-    // Generated controls are retained DOM. The controller paints them synchronously
+    // Generated controls are retained DOM. `render()` paints them synchronously
     // while authored options keep their identities, words, and nested evidence.
     /** @param {HTMLElement} option @param {boolean} pressable */
     #control(option, pressable) {
@@ -659,11 +637,11 @@ customElements.define(
     }
 
     render() {
-      if (!this.reading) {
+      const { state } = this;
+      if (!state) {
         this.#syncChoice(this.#authoredChoice());
         return nothing;
       }
-      const { state } = this.reading;
       // A settled group may have no choose projection, so its authored attributes
       // supply the selection. A live group's complete choice is authoritative,
       // including accepted replay.

@@ -22,6 +22,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    stored_drafts,
     told,
     write,
 )
@@ -34,11 +35,14 @@ from browser.threads import (
     SEAT_WORDS,
     THIRTY_LINES,
     append_agent_reply,
+    append_user_reply,
+    choose_threads_in_panel,
     clear_of_the_panel,
     long_diff_thread,
     open_panel_thread,
     paste,
     seated_page,
+    summarize_thread,
     to_window_foot,
 )
 from leaf import data as data_model
@@ -919,6 +923,98 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
     expect(box).to_have_js_property("value", "Half a thought")
 
 
+def test_a_rewrite_written_in_a_diff_seat_comes_back_there_with_the_panel_chosen(
+    browser, serve
+):
+    """A rewrite of the user's message, written in the seat a diff line gives its
+    thread, comes back in that seat after a reload though the user chose the panel for
+    threads: the seat shows the thread, so the rewrite's return fills its editor there
+    rather than opening the thread where the choice says."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    choose_threads_in_panel(page)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+    words = inline.locator(".lf-msg .lf-msg-text").first
+    words.scroll_into_view_if_needed()
+    words.dblclick()
+    editor = inline.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.type(" Twice.")
+    written = editor.evaluate("editor => editor.value")
+    assert written.endswith(" Twice.")
+    page.wait_for_function("navigation.transition === null")
+    page.reload()
+    wait_until_ready(page)
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", written)
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+
+def test_a_rewrite_of_a_folded_message_in_a_diff_seat_comes_back_there(browser, serve):
+    """A rewrite of the user's message, written in a diff line's seat after they opened
+    the summary folding it, comes back in that seat after a reload though the user
+    chose the panel for threads and the seat draws the summary folded again: the seat
+    shows the thread, so the rewrite opens its fold rather than moving to the panel."""
+    url, root = seated_thread(serve, "diff", 1)
+    asked = append_agent_reply(serve.page_dir, root, "Which file goes first?")
+    mine = append_user_reply(serve.page_dir, root, "The config, then.")
+    last = append_agent_reply(serve.page_dir, root, "The config goes first.")
+    append_user_reply(serve.page_dir, root, "Keep the latest in view.")
+    summarize_thread(serve.page_dir, asked["id"], last["id"], "The config first.")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    choose_threads_in_panel(page)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+    toggle = inline.locator(".lf-summary-expand")
+    toggle.scroll_into_view_if_needed()
+    toggle.click()
+    words = inline.locator(f'.lf-msg[data-lf-event="{mine["id"]}"] .lf-msg-text')
+    words.dblclick()
+    editor = inline.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.type(" Twice.")
+    written = editor.evaluate("editor => editor.value")
+    assert written.endswith(" Twice.")
+    page.wait_for_function("navigation.transition === null")
+    page.reload()
+    wait_until_ready(page)
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", written)
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+
+def test_resume_writing_a_reply_its_seat_still_draws_leaves_a_way_back(browser, serve):
+    """Resume writing takes the user from where they read to the reply they left in a
+    diff line's seat, though the seat stayed drawn all the while, and Back takes them
+    back to where they read, as every trip Resume writing makes does (drafts.js,
+    `createWritingResume`)."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.evaluate("location.hash = '#title'")
+    page.wait_for_function("navigation.transition === null")
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+    box = inline.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    end = page.locator("p", has_text="Filler paragraph 39").last
+    end.scroll_into_view_if_needed()
+    end.click()
+    expect(box).not_to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    expect(end).not_to_be_in_viewport()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(end).to_be_in_viewport()
+    expect(box).not_to_be_focused()
+
+
 @pytest.mark.parametrize("focus_route", ["close", "marker"])
 def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
     browser, serve, focus_route
@@ -997,14 +1093,20 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     if finish == "reload":
         page.reload()
         wait_until_ready(page)
-        # A resolved thread the page draws nowhere opens in the panel.
+        # The entry names the card's thread, so the reload opens it again, in the panel,
+        # since the page draws a resolved thread nowhere.
         open_panel_thread(page, root)
         settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
         expect(settle).to_have_accessible_name("✓ Resolved by Codex · Reopen")
         with sending(page, "reopen the thread with the saved reply"):
             settle.click()
         round_trip(page)
-        expect(page.locator(PANEL_REPLY)).to_have_js_property("value", "Half a thought")
+        # Reopened, the thread goes back beside its passage, its reply with it.
+        card_reply = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+            " > .lf-thread-reply leaf-text"
+        )
+        expect(card_reply).to_have_js_property("value", "Half a thought")
         return
     if finish == "clear":
         page.keyboard.press("ControlOrMeta+a")
@@ -1387,3 +1489,101 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     expect(seated).to_be_focused()
     page.keyboard.type(" more")
     expect(seated).to_have_js_property("value", "Half a thought more")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_on_a_diff_line_follows_its_file_to_the_margin_and_back(
+    request, serve, engine
+):
+    """A diff seats a thread on a line only while the line's file is open. Folding the
+    file changes no data, so the diff says that what it holds moved (`lf-layout`) and
+    Leaf asks it for its seats again: the thread goes to the margin, where the user
+    still reaches it, and takes its seat on the line again as the file opens. A thread
+    left seated would stand inside the closed file, with no entry in the margin."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+    entry = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    expect(inline).to_be_visible()
+    expect(entry).to_have_count(0)
+    summary = page.locator("lf-diff .lf-diff-file > details > summary").first
+    summary.click()
+    expect(inline).to_have_count(0)
+    expect(entry).to_have_count(1)
+    summary.click()
+    expect(inline).to_be_visible()
+    expect(entry).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("written", ["comment", "reply"])
+def test_a_box_written_in_a_widget_taken_off_the_page_keeps_its_words_and_the_user(
+    request, serve, engine, written
+):
+    """A script takes the whole diff off the page while the user writes in a box seated
+    in it: the comment box on one of its lines, or the reply box of a thread seated
+    there. A widget releases a node it removes itself (`threadSurface(…).release`), but
+    nothing tells a widget it is about to go, so Leaf returns the editor as it sees the
+    widget leave: the comment box to the page's own place for it, the reply to its
+    thread's view in the panel. Either way the user goes on typing in it at the same
+    caret, the task after the removal already finds them there rather than on the
+    page, where the next letters would run page commands, and the server holds the
+    words as the draft another tab or a reload finds."""
+    if written == "comment":
+        url = serve(
+            leaf_page(
+                "diff",
+                f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
+                f'source="review-patch"></lf-diff>{SEAT_FILLER}',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page = open_page(request.getfixturevalue(engine), url)
+        resized(page, 1440, 900)
+        line = page.locator(
+            'lf-diff [data-line-type="change-addition"][data-lf-datum=\''
+            '["app.py","new",1]\']'
+        )
+        line.scroll_into_view_if_needed()
+        line.hover()
+        page.get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        box = page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")
+        returned = page.locator(".lf-fab-input")
+    else:
+        url, root = seated_thread(serve, "diff", 2)
+        page = open_page(request.getfixturevalue(engine), url)
+        resized(page, 1440, 900)
+        box = page.locator(
+            f'lf-diff .lf-page-thread[data-lf-thread="{root}"] '
+            "> .lf-thread-reply leaf-text"
+        )
+        box.scroll_into_view_if_needed()
+        returned = page.locator(PANEL_REPLY)
+    write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
+    expect(box).to_be_focused()
+    # The removal takes the editor out of the document, and focus with it. The next
+    # task is the first in which a key could arrive.
+    left = page.evaluate(
+        """() => {
+          document.querySelector('#patch').remove();
+          const onThePage = () => document.activeElement === document.body;
+          const dropped = onThePage();
+          return new Promise((resolve) =>
+            setTimeout(() => resolve({dropped, stranded: onThePage()})));
+        }"""
+    )
+    assert left == {"dropped": True, "stranded": False}
+    expect(page.locator("lf-diff")).to_have_count(0)
+    expect(returned).to_be_focused()
+    expect(returned).to_have_js_property("value", "Half a thought")
+    assert returned.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    page.keyboard.type(" tr")
+    expect(returned).to_have_js_property("value", "Half tr a thought")
+    expect(returned).to_be_focused()
+    assert [draft["text"] for draft in stored_drafts(page).values()] == [
+        "Half tr a thought"
+    ]

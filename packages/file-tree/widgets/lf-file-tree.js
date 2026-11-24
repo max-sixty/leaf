@@ -19,21 +19,17 @@
  */
 import { render } from "/vendor/lit.js";
 import {
-  PRESS,
-  commandScope,
-  focused,
   focusDestination,
-  keeps,
   navigateToDatum,
-  offer,
-  LeafElement,
   onCurrentLocation,
-  plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offer } from "/runtime/lib/controls.js";
+import { PRESS } from "/runtime/lib/keys.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 let library;
 const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
@@ -125,7 +121,9 @@ class FileTreeWidget extends LeafElement {
     // reads no rows: what it costs doesn't grow with the tree.
     const modelChanged = () => {
       paintEmpty();
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     };
     const mount = () => {
       if (!tree || mounted || !files.length) return;
@@ -145,12 +143,7 @@ class FileTreeWidget extends LeafElement {
       stopModel = tree.subscribe(modelChanged);
       mounted = true;
     };
-    const focusedRow = () => {
-      const element = focused();
-      return Boolean(
-        element?.getAttribute("role") === "treeitem" && root.contains(element),
-      );
-    };
+    const focusedRow = () => root.activeElement?.getAttribute("role") === "treeitem";
     /** @param {import("@pierre/trees").FileTree} tree @param {string} path */
     const selectOnly = (tree, path) => {
       for (const selected of tree.getSelectedPaths())
@@ -175,23 +168,29 @@ class FileTreeWidget extends LeafElement {
           missing: `${file.path} is no longer available.`,
         });
     };
-    const fileActions = commandScope("In files", [
-      {
-        id: "files.open",
-        title: "Open file or toggle folder",
-        keys: PRESS,
-        when: focusedRow,
-        run: () => activate(true),
-      },
-      {
-        id: "files.walk",
-        title: "Move among files and folders",
-        keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
-        when: focusedRow,
-      },
-    ]);
+    /** @type {HTMLElement["lfCommands"]} */
+    const fileActions = {
+      title: "In files",
+      rows: [
+        {
+          id: "files.open",
+          title: "Open file or toggle folder",
+          keys: PRESS,
+          when: focusedRow,
+          run: () => activate(true),
+        },
+        {
+          id: "files.walk",
+          title: "Move among files and folders",
+          keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
+          when: focusedRow,
+        },
+      ],
+    };
     this.lfCommands = fileActions;
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     whileConnected(this, (signal) => {
       mount();
       // Trees scrolls its virtualized list and focuses with preventScroll. The
@@ -201,7 +200,25 @@ class FileTreeWidget extends LeafElement {
       // press's mousedown, and a reveal there would move the row from under the
       // pointer before the mouseup, which would fall on another row and open neither.
       const stopCurrentLocation = onCurrentLocation(
-        (/** @type {Element | null} */ row, cause) => {
+        (
+          /** @type {Element | null} */ row,
+          cause,
+          /** @type {Element | null} */ left,
+        ) => {
+          // Only the focused row carries the rows' scope. Its `when` reads focus
+          // anywhere in this tree, and Leaf reads a scope's rows again only as focus
+          // moves into, out of or within that scope, so a row focus has left would
+          // go on naming its keys as they stood when focus left it.
+          if (
+            left !== row &&
+            left?.getAttribute("role") === "treeitem" &&
+            left.lfCommands === fileActions
+          ) {
+            left.lfCommands = null;
+            left.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
+          }
           // A route to this navigator lands on its usable entry control.
           if (row === this) {
             const input = root.querySelector("input");
@@ -211,7 +228,9 @@ class FileTreeWidget extends LeafElement {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.
             row.lfCommands = fileActions;
-            commandsChanged(row);
+            row.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
             if (cause !== "press") scrollIntoView(row, { block: "nearest" });
           }
         },
@@ -219,8 +238,12 @@ class FileTreeWidget extends LeafElement {
       this.addEventListener(
         "click",
         (event) => {
+          // A modified click keeps its usual meaning.
+          const plain =
+            event.button === 0 &&
+            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
           if (
-            plainPress(event) &&
+            plain &&
             event
               .composedPath()
               .some(

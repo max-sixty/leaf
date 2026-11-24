@@ -43,7 +43,7 @@ import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor } from "../reading-regions.js";
 import { edgeAt, returnTo } from "../scroll-containers.js";
-import { under } from "../shadow-tree.js";
+import { under } from "../lib/shadow-tree.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { standsAt } from "../user-place.js";
@@ -132,6 +132,61 @@ const returnTurn = (transcript, unread) => {
   return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
+// Where a box scrolling a transcript starts showing its turns: where their heads stick,
+// below the focus-ring room the box keeps over them. A turn landed in that room would
+// start where read tracking sees nothing of it (geometry.js, `seenRect`), and never read.
+/** @param {Element} scroller */
+const headLine = (scroller) =>
+  scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
+
+// Where the user has read a thread's view to: the turn standing at the top of the box
+// scrolling its transcript (`headLine`), a message by the message it draws or a
+// summary's fold by its summary, of the turns the transcript shows, and how far below
+// that line it starts. A message a closed fold holds is no turn the user read to.
+// `showReading` stands that turn there again in a new drawing of the thread, so its
+// lines come back where they stood though turns above them grew, folded or arrived
+// since. History keeps it for each entry (history.js), the panel's
+// hold of where the user stepped in from, and a revision's handoff of the panel's view
+// (floating-panel.js, `captureCurrentLocation`). A card holding its transcript through
+// one placement keeps the offset it reads and writes within that fit instead
+// (thread-preview.js), since the drawing it measures stays the same.
+/** @typedef {{offset: number} & ({message: string} | {summary: string})} ThreadReading */
+/** @param {Element} held @returns {ThreadReading | null} */
+export function readingIn(held) {
+  const transcript = held.querySelector(".lf-thread-transcript");
+  if (!transcript) return null;
+  const line = headLine(scrollerFor(transcript));
+  const turns = transcript.querySelectorAll(
+    ":scope > :is(.lf-msg[data-lf-message], .lf-thread-checkpoint[data-lf-summary-id])",
+  );
+  for (const turn of turns) {
+    if (!showsContents(turn)) continue;
+    const { top, bottom } = turn.getBoundingClientRect();
+    if (bottom <= line) continue;
+    const message = turn.getAttribute("data-lf-message");
+    const summary = turn.getAttribute("data-lf-summary-id");
+    if (message) return { message, offset: top - line };
+    if (summary) return { summary, offset: top - line };
+  }
+  return null;
+}
+/** @param {Element} held @param {ThreadReading} reading */
+export function showReading(held, reading) {
+  const transcript = held.querySelector(".lf-thread-transcript");
+  const turn = transcript?.querySelector(
+    "message" in reading
+      ? `:scope > .lf-msg[data-lf-message="${CSS.escape(reading.message)}"]`
+      : `:scope > .lf-thread-checkpoint[data-lf-summary-id="${CSS.escape(reading.summary)}"]`,
+  );
+  const { offset } = reading;
+  if (!transcript || !turn || !showsContents(turn)) return;
+  const scroller = scrollerFor(transcript);
+  moveScrollerBy(
+    scroller,
+    turn.getBoundingClientRect().top - headLine(scroller) - offset,
+  );
+}
+
 // A thread opened for reading shows the turn the user comes back for: the end of the
 // box scrolling its transcript where that turn is still in view there, or else that
 // turn's head at the box's top. The box is the transcript itself on a card and the
@@ -145,14 +200,7 @@ export function showReturnTurn(transcript, thread) {
   const start = thread?.msgs.find((message) => message.id === unread)?.key;
   const turn = returnTurn(transcript, start ?? null);
   if (!turn) return;
-  // Measured from where the heads stick, below the focus-ring room the box keeps over
-  // them: a turn landed in that room would start where read tracking sees nothing of it
-  // (geometry.js, `seenRect`), and never read.
-  const over =
-    scroller.getBoundingClientRect().top +
-    scroller.clientTop +
-    slotTop(scroller) -
-    turn.getBoundingClientRect().top;
+  const over = headLine(scroller) - turn.getBoundingClientRect().top;
   // A turn only a little taller than its room still shows its head at the end.
   // Keep its trailing reference and metadata there; align to the head only when
   // scrolling to the end would hide that head altogether.

@@ -12,7 +12,9 @@ from copy import deepcopy
 
 import model_folds as model
 import pytest
-from interact_support import page_packages, served_obligations
+from interact_support import page_packages, served_obligations, served_todos
+
+from leaf import standing as standing_model
 
 HUB = model.leaf_page(
     "command hub",
@@ -34,7 +36,10 @@ HELD_REQUEST = (
 )
 
 
-def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+def test_summaries_replace_overlaps_and_stand_through_the_users_rewrite():
+    """A summary replaces the one it overlaps whole, and the user's rewrite of a
+    message it folds leaves it standing, for the agent to judge whether it still
+    holds."""
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "one"},
@@ -67,48 +72,15 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     )
 
     thread = model.threads(state)["e1"]
-    assert thread["summaries"] == []
+    assert [summary["text"] for summary in thread["summaries"]] == [
+        "Extended exchange."
+    ]
     assert [message["text"] for message in thread["msgs"]] == [
         "one",
         "two, revised",
         "three",
         "four",
     ]
-
-
-def test_a_reaction_taken_back_retires_the_summaries_written_after_it():
-    """A summary in words may report what a reaction said, wherever the reaction
-    stood, so taking back one its thread held when the summary was written retires
-    the summary, as rewriting a message in its range does, and taking back what it
-    stood on later doesn't restore it. A reaction made after the summary leaves it
-    standing when taken back."""
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
-    log = (
-        {"kind": "comment", "text": "Ship it?"},
-        {"kind": "reply", "parent": "e1", "token": "keep"},
-        {"kind": "reply", **identity, "parent": "e1", "text": "Ready when you are."},
-        {"kind": "reply", "parent": "e2", "token": "keep"},
-        {"kind": "reply", **identity, "parent": "e1", "text": "Shipping."},
-        {
-            "kind": "summary",
-            **identity,
-            "thread": "e1",
-            "from": "e3",
-            "through": "e5",
-            "text": "The user approved shipping.",
-        },
-        {"kind": "reply", "parent": "e5", "token": "keep"},
-    )
-
-    def summaries(*undone):
-        tail = tuple({"kind": "undo", "undoes": event} for event in undone)
-        state = model.reading(HUB, (*log, *tail))
-        return [summary["id"] for summary in model.threads(state)["e1"]["summaries"]]
-
-    assert summaries() == ["e6"]
-    assert summaries("e7") == ["e6"]
-    assert summaries("e2") == []
-    assert summaries("e4", "e2") == []
 
 
 AGENT = {"author": "agent", "agent": "Agent", "session": "session-1"}
@@ -350,51 +322,6 @@ def test_summary_leaves_messages_after_its_range_visible():
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
     assert thread["msgs"][-1]["text"] == "new message"
-
-
-def test_the_users_rewrite_retires_any_fold_and_the_agents_leaves_it():
-    """A summary the agent wrote can't account for the user's rewrite, whether it
-    reports the range in words or names it with a label, so the rewrite retires it;
-    the agent's own edit leaves its summary standing."""
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
-    state = model.reading(
-        HUB,
-        (
-            {"kind": "comment", "text": "one"},
-            {"kind": "reply", **identity, "parent": "e1", "text": "two"},
-            {"kind": "reply", "parent": "e1", "text": "three"},
-            {"kind": "reply", **identity, "parent": "e1", "text": "four"},
-            {
-                "kind": "summary",
-                **identity,
-                "thread": "e1",
-                "from": "e1",
-                "through": "e2",
-                "label": "Previous progress messages",
-                "text": "",
-            },
-            {
-                "kind": "summary",
-                **identity,
-                "thread": "e1",
-                "from": "e3",
-                "through": "e4",
-                "text": "The later exchange.",
-            },
-            {"kind": "edit", "author": "user", "message": "e1", "text": "one, revised"},
-            {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
-        ),
-    )
-
-    thread = model.threads(state)["e1"]
-    [summary] = thread["summaries"]
-    assert (summary["covers"], summary["text"]) == (["e3", "e4"], "The later exchange.")
-    assert [message["text"] for message in thread["msgs"]] == [
-        "one, revised",
-        "two",
-        "three",
-        "four, revised",
-    ]
 
 
 def progress_ends(thread: dict) -> dict:
@@ -721,16 +648,8 @@ def test_a_thread_move_that_owes_nothing_stands_in_its_thread_without_holding_it
         for workflow in state["workflows"]
     ] == [("e4", "e4", "update:e4"), ("e3", "e1", None)]
     threads = model.threads(state)
-    assert threads["e1"]["attention"] == {
-        "kind": "needs_user",
-        "reason": "obligation",
-        "workflow": None,
-    }
-    assert threads["e4"]["attention"] == {
-        "kind": "waiting",
-        "reason": "workflow",
-        "workflow": "e4",
-    }
+    assert threads["e1"]["attention"] == "message:e2"
+    assert threads["e4"]["attention"] == "update:e4"
 
 
 def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
@@ -789,7 +708,7 @@ def test_questions_settle_one_by_one():
     add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
     state = add("reply", "second", parent="first", text="Hue?", obligation=True)
-    assert state["todos"] == []
+    assert served_todos(state) == []
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:first",
         "message:second",
@@ -801,19 +720,15 @@ def test_questions_settle_one_by_one():
     assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add("reply", "answer", "user", parent="first", text="Route A")
     first, second = served_obligations(state)["all"]
-    assert (first["status"], first["answer"]["value"]) == (
-        "answered",
-        {"text": "Route A"},
-    )
-    assert (second["status"], second["answer"]["event"]["id"]) == (
-        "answered",
-        "reaction",
-    )
+    assert standing_model.answered(first)
+    assert first["answer"]["value"] == {"text": "Route A"}
+    assert standing_model.answered(second)
+    assert second["answer"]["event"]["id"] == "reaction"
     # A resolve ends the questions asked before it, and a reopening brings back
     # none of them; taking the resolve back does.
     state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
-    assert state["todos"] == []
+    assert served_todos(state) == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
     assert served_obligations(state)["user"] == []
@@ -845,12 +760,8 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]
-    assert thread["attention"] == {
-        "kind": "needs_user",
-        "reason": "obligation",
-        "workflow": None,
-    }
-    assert state["todos"] == []
+    assert thread["attention"] == "widget:routes"
+    assert served_todos(state) == []
     [item] = served_obligations(state)["all"]
     assert item["id"] == "widget:routes"
     assert item["next_actor"] == "user"
@@ -863,12 +774,10 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
         }
     )
     state = model.reading(HUB, events)
-    assert state["todos"] == []
+    assert served_todos(state) == []
     [item] = served_obligations(state)["all"]
-    assert (item["status"], item["answer"]["value"]) == (
-        "answered",
-        ["route-a"],
-    )
+    assert standing_model.answered(item)
+    assert item["answer"]["value"] == ["route-a"]
 
 
 def test_a_summary_leaves_the_question_it_folds_on_the_users_list():

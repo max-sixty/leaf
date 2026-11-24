@@ -635,9 +635,10 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     """A package reader drawing each message on its own, as the feature gallery's Feed
     mode does, has no thread card to open a rewrite in, so it could offer the user's own
     words no rewrite, and Resume writing could take a kept rewrite to the Threads panel.
-    The Edit control opens it there, Save sends it, and words kept through a reload come
-    back under Resume writing on the message where Feed draws it, the reader staying in
-    Feed."""
+    The Edit control opens it there, Save sends it, and words kept through the page's
+    going come back under Resume writing on the next visit, on the message where Feed
+    draws it, the reader staying in Feed. (A reload returns the user to the rewrite
+    itself: tests/browser/navigation/test_arrival_record.py.)"""
     page, workspace, message = _rewrite_surface(browser, serve, "feed")
     mine = message.get_attribute("data-lf-event")
     feed = workspace.get_by_role("button", name="Feed", exact=True)
@@ -664,7 +665,7 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     message.locator(".lf-msg-text").dblclick()
     expect(editor).to_be_focused()
     page.keyboard.type(" Or the east.")
-    page.reload()
+    page.goto(page.url)
     wait_until_ready(page)
     feed.click()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")

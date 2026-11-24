@@ -74,11 +74,11 @@
 
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
-import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
+import { keeps, layoutPx as px, atLayoutPrecision } from "../lib/keeps.js";
 import { focused, onCurrentLocation } from "../focus.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
-import { renderedParent } from "../shadow-tree.js";
+import { renderedParent } from "../lib/shadow-tree.js";
 
 /** @typedef {import("@floating-ui/dom").MiddlewareState} MiddlewareState */
 /** @typedef {import("@floating-ui/dom").ComputePositionReturn} Position */

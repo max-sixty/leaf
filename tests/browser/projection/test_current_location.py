@@ -865,7 +865,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
-    card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
+    card = page.locator(".lf-fp-on-item[data-lf-key='widget:store']")
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")

@@ -54,7 +54,6 @@ from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
-from leaf.themes import DEFAULT_THEME
 from leaf.thread_context import logged_fragment, thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
@@ -1023,7 +1022,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
-    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert (working["state"], working["detail"]) == ("running", "Checking the camera.")
     assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
@@ -1363,7 +1362,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         },
     )
     [thread] = state_json(page_dir)["threads"]
-    assert thread["attention"]["kind"] == "needs_user", thread["attention"]
+    assert thread["attention"] == f"message:{json.loads(asking.output)['id']}"
     assert [item[0] for item in owed_answers()] == [typo["id"]]
 
     # No words at all delete the message. It keeps its place, beneath the answers
@@ -1815,9 +1814,7 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert sorted(packages) == sorted(
         entry.name
         for entry in schema_model.BUNDLED_PACKAGES.iterdir()
-        if entry.is_dir()
-        and entry != schema_model.DEFAULT_PACKAGE
-        and entry.name != DEFAULT_THEME
+        if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
     )
     resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]

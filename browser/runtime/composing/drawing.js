@@ -42,7 +42,7 @@ import { elementFrame } from "../element-frame.js";
 import { clippedContents } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../kernel-facts.js";
-import { excerptWords } from "../words.js";
+import { excerptWords } from "../lib/words.js";
 import {
   elementFromPointAcross,
   elementOver,
@@ -54,7 +54,7 @@ import { mayShow } from "../reading-place.js";
 import { anchoringIsReady, sectionOf } from "../anchor-resolution.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
 import { pressHolds, pressRecords } from "../focus.js";
-import { under } from "../shadow-tree.js";
+import { under } from "../lib/shadow-tree.js";
 import { shownScheme } from "../color-scheme.js";
 import { BACK_OUT, pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import { saying } from "../keyboard/control-keys.js";
@@ -472,25 +472,29 @@ export function createDrawingController({
     rememberPoint(event.clientX, event.clientY);
   }
 
+  // The stroke a pointer event moves, ends or cancels, or null. The stroke's own events,
+  // and those of a press Draw mode still claims, stop here, so the page under the
+  // pointer doesn't act on them.
+  /** @param {PointerEvent} event */
+  function strokeOf(event) {
+    if (stroke && event.pointerId === stroke.pointerId) {
+      claim(event);
+      return stroke;
+    }
+    if (claimsPointer(event)) claim(event);
+    return null;
+  }
+
   /** @param {PointerEvent} event */
   function move(event) {
-    if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (claimsPointer(event)) claim(event);
-      return;
-    }
-    claim(event);
-    rememberPoint(event.clientX, event.clientY);
+    if (strokeOf(event)) rememberPoint(event.clientX, event.clientY);
   }
 
   /** @param {PointerEvent} event */
   function finish(event) {
-    if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (claimsPointer(event)) claim(event);
-      return;
-    }
-    claim(event);
+    const completed = strokeOf(event);
+    if (!completed) return;
     rememberPoint(event.clientX, event.clientY);
-    const completed = stroke;
     stroke = null;
     if (completed.invalid) {
       shiftDrawingPaint();
@@ -574,12 +578,7 @@ export function createDrawingController({
 
   /** @param {PointerEvent} event */
   function cancel(event) {
-    if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (claimsPointer(event)) claim(event);
-      return;
-    }
-    claim(event);
-    dropStroke();
+    if (strokeOf(event)) dropStroke();
   }
 
   // The presses a claimed pointer's own sequence still owes the page, swallowed so a

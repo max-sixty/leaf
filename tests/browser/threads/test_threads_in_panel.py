@@ -16,10 +16,11 @@ from render_harness import (
     scroll_settled,
     sending,
     undo,
+    write,
 )
 
 from browser.navigation.test_reading_place import ITEMS_LAYER, ITEMS_WIDGETS
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import PANEL_REPLY, choose_threads_in_panel, open_panel_thread
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL, PANEL_THREAD, panel_view
 
@@ -106,6 +107,10 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
 
     page.reload()
     wait_until_ready(page)
+    # The reload returns the user to the reply the row's press put them in (history.js),
+    # which Escape leaves for its thread, where `t` walks on.
+    expect(page.locator(PANEL_REPLY)).to_be_focused()
+    page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(page.locator(PANEL_THREAD)).to_be_focused()
     expect(cards).to_be_hidden()
@@ -162,6 +167,36 @@ def test_a_narrow_window_puts_threads_in_the_panel_and_keeps_the_choice(browser,
     resized(page, 1440, 900)
     expect(view("mid")).to_be_visible()
     expect(cards).to_be_hidden()
+
+
+def test_resuming_a_reply_the_panel_holds_for_a_narrow_window_leaves_it_owed_back(
+    browser, serve
+):
+    """Resume writing a reply in a thread the panel holds only because the window is
+    too narrow for its card goes on in the panel, where the thread stands, and leaves
+    the reason Leaf put it there: the window widening gives the thread back to its card,
+    the reply with it."""
+    url, roots = threads_page(serve)
+    page = open_page(browser, url)
+    resized(page, 700, 900)
+    page.keyboard.press("t")
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["near"]}"]')
+    expect(view).to_be_focused()
+    reply = page.locator(PANEL_REPLY)
+    write(reply, "Half a thought")
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(reply).to_be_focused()
+    resized(page, 1440, 900)
+    card = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots["near"]}"]'
+    )
+    expect(card.locator(".lf-thread-reply leaf-text")).to_have_js_property(
+        "value", "Half a thought"
+    )
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 def test_a_walk_into_the_panel_draws_the_widget_part_its_thread_is_on(browser, serve):
@@ -323,10 +358,11 @@ def test_a_move_while_writing_keeps_the_caret_in_the_reply(browser, serve):
     assert field.evaluate("f => [f.selectionStart, f.selectionEnd]") == [20, 23]
 
 
-def test_reopening_a_thread_on_the_element_read_adds_no_back_step(browser, serve):
+def test_reopening_a_thread_on_the_element_read_moves_nothing(browser, serve):
     """With the panel chosen, reopening from Threads the thread on an element taller
-    than the window, while reading inside it, moves nothing, so it adds no Back step:
-    history judges the landing the travel makes."""
+    than the window, while reading inside it, moves nothing, since the landing of its
+    passage finds it already shown. The press is one Back step, as every Threads row's
+    is, since it lands the user in a thread they weren't in."""
     paragraphs = "".join(
         f"<p>Tall paragraph {n}. " + "Words. " * 40 + "</p>" for n in range(30)
     )
@@ -344,9 +380,10 @@ def test_reopening_a_thread_on_the_element_read_adds_no_back_step(browser, serve
         "p => p.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
     scroll_settled(page)
-    before = page.evaluate("[scrollY, history.length]")
+    top, entries = page.evaluate("[scrollY, history.length]")
     open_threads(page)
     page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{root}"]').click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
     scroll_settled(page)
-    assert page.evaluate("[scrollY, history.length]") == before
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("[scrollY, history.length]") == [top, entries + 1]

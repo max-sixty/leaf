@@ -38,7 +38,6 @@ const {
   openerOf,
   pressing,
   pressRecords,
-  rove,
   takesLetters,
   typesText,
 } = await import("/runtime/focus.js");
@@ -617,16 +616,6 @@ test("closing a layer tells the readers only where the user ends up", () => {
     () => focusDestination(document.body.querySelector("button"), "return"),
   );
   assert.deepEqual(heard, [[other, "return"]]);
-});
-
-test("a roving group offers one Tab stop", () => {
-  scene();
-  const items = [0, 1, 2].map(() => document.createElement("button"));
-  rove(items, items[1]);
-  assert.deepEqual(
-    items.map((item) => item.getAttribute("tabindex")),
-    ["-1", "0", "-1"],
-  );
 });
 
 test("a keyed hold reads its rows in the shadow tree they stand in, and lands on the like control", async () => {

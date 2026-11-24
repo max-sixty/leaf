@@ -1,6 +1,13 @@
 /* Every export of widget-api.js is a supported package capability. These checks
-   keep that surface and its authoring references together. The module loader,
-   exercised by browser tests, owns whether a package's imports actually exist. */
+   keep that surface and its authoring references together: module-authoring.md lists
+   every export under the section that describes it ("Functions"), and the checks hold
+   that list to the exports and each entry to its section. The module loader, exercised
+   by browser tests, owns whether a package's imports actually exist.
+
+   The library of shared web code (browser/runtime/lib/) is not part of that surface:
+   each module documents itself, and the references name only its directory. The one
+   check here holds the list that admits a package's import of a library module to
+   the directory. */
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -38,19 +45,24 @@ function surface(module = "widget-api.js") {
   return exports;
 }
 
-// The reference's code: inline spans outside code blocks, and the code blocks.
-function referenceCode() {
-  const references = join(SKILL, "references");
-  const text = readdirSync(references)
-    .filter((name) => /^module-.*\.md$/.test(name))
-    .map((name) => read(join(references, name)))
-    .join("\n");
+const REFERENCES = join(SKILL, "references");
+
+// A text's code: inline spans outside code blocks, and the code blocks.
+function codeOf(text) {
   const blocks = text.match(/^```.*?^```/gms) ?? [];
   const prose = blocks.reduce((rest, block) => rest.replace(block, ""), text);
   const spans = (prose.match(/`[^`]+`/g) ?? []).map((span) =>
     span.slice(1, -1).replace(/\s+/g, " "),
   );
-  const code = [...spans, ...blocks].join("\n");
+  return { blocks, spans, code: [...spans, ...blocks].join("\n") };
+}
+
+function referenceCode() {
+  const text = readdirSync(REFERENCES)
+    .filter((name) => /^module-.*\.md$/.test(name))
+    .map((name) => read(join(REFERENCES, name)))
+    .join("\n");
+  const { blocks, spans, code } = codeOf(text);
   const imported = new Set(
     blocks.flatMap((block) =>
       [...block.matchAll(/import\s*\{([^}]*)\}\s*from\s*"([^"]+)"/g)]
@@ -77,13 +89,44 @@ function referenceCode() {
   return { spans, code, imported, members };
 }
 
-const leading = (span) => span.match(/^[A-Za-z_$][\w$]*/)?.[0];
-const documented = ({ spans, code, imported }) => {
-  const names = new Set([...spans.map(leading).filter(Boolean), ...imported]);
-  for (const call of code.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g))
-    names.add(call[1]);
-  return names;
-};
+// The index of functions in module-authoring.md, "Functions": each list item names a
+// section and the exports that section describes, under a line naming the file that
+// holds the section.
+function functionIndex() {
+  const text = read(join(REFERENCES, "module-authoring.md"));
+  const start = text.indexOf("\n### Functions\n");
+  const index = text.slice(start, text.indexOf("\n### ", start + 1));
+  const entries = [];
+  let file = "module-authoring.md";
+  for (const part of index.split(/\n\n+/)) {
+    if (part.startsWith("In this file")) file = "module-authoring.md";
+    file = part.match(/^In \[(module-[a-z-]+\.md)\]/)?.[1] ?? file;
+    // An item's lines join, so a title or a list of names that wraps reads whole.
+    for (const item of part.split(/\n(?=- )/)) {
+      const entry = item.replace(/\s+/g, " ").match(/^- "([^"]+)": (.*)$/);
+      if (!entry) continue;
+      const names = [...entry[2].matchAll(/`([A-Za-z_$][\w$]*)`/g)];
+      entries.push({ file, heading: entry[1], names: names.map((name) => name[1]) });
+    }
+  }
+  return entries;
+}
+
+// A section of a reference: from its heading to the next heading of its level or
+// above, outside code blocks.
+function sectionOf(file, heading) {
+  const section = [];
+  let level = 0;
+  let fenced = false;
+  for (const line of read(join(REFERENCES, file)).split("\n")) {
+    if (line.startsWith("```")) fenced = !fenced;
+    const depth = fenced ? 0 : (line.match(/^(#+) /)?.[1].length ?? 0);
+    if (level && depth && depth <= level) break;
+    if (!level && depth && line.slice(depth + 1) === heading) level = depth;
+    if (level) section.push(line);
+  }
+  return level ? section.join("\n") : null;
+}
 
 // The names runtime modules export, and every name the runtime reads or defines as a
 // member, method, object key or parameter.
@@ -120,12 +163,48 @@ function runtimeNames() {
   return { exports, members };
 }
 
-test("every public export is documented in the module references", () => {
-  const names = documented(referenceCode());
+test("a page or package may import every module of the library", () => {
+  const kernel = JSON.parse(read(join(ROOT, "browser/runtime/kernel-registry.json")));
+  const library = "/runtime/lib/";
   assert.deepEqual(
-    [...surface()].filter((name) => !names.has(name)),
+    kernel["$public-modules"].paths
+      .filter((path) => path.startsWith(library))
+      .toSorted(),
+    readdirSync(join(ROOT, "browser/runtime/lib"))
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => library + name)
+      .toSorted(),
+    "`$public-modules` in kernel-registry.json lists exactly the modules of browser/runtime/lib/",
+  );
+});
+
+test("the function index lists every public export once", () => {
+  assert.deepEqual(
+    functionIndex()
+      .flatMap((entry) => entry.names)
+      .toSorted(),
+    [...surface()].toSorted(),
+    'module-authoring.md, "Functions", lists exactly the exports of widget-api.js',
+  );
+});
+
+test("each indexed function is described in the section its entry names", () => {
+  const missing = [];
+  for (const { file, heading, names } of functionIndex()) {
+    const section = sectionOf(file, heading);
+    if (section === null) {
+      missing.push(`${file} has no section "${heading}"`);
+      continue;
+    }
+    const words = new Set(codeOf(section).code.match(/[A-Za-z_$][\w$]*/g));
+    for (const name of names)
+      if (!words.has(name))
+        missing.push(`${file}, "${heading}", names no ${name} in its code`);
+  }
+  assert.deepEqual(
+    missing,
     [],
-    "document every package capability in a module-*.md reference",
+    "each index entry points at the section that describes its functions",
   );
 });
 

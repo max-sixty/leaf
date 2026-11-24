@@ -1,11 +1,6 @@
-import {
-  agePreview,
-  offerActionElement,
-  fragmentTarget,
-  generatedElement,
-  keeps,
-  tabStore,
-} from "/runtime/widget-api.js";
+import { agePreview, elementById, tabStore } from "/runtime/widget-api.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
+import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
@@ -17,12 +12,12 @@ export const ACTIVITY_VIEW = "activity-reading:";
 
 /** @typedef {{id: string, ts: string, actor: string, what: string, label?: string | null | undefined, widget?: string | null | undefined, thread?: string | undefined, excerpt?: string | null, undone: boolean}} ActivityRow */
 /** @typedef {{open: boolean, shown: string, label: string, news: boolean}} ActivityReading */
-/** @typedef {(fragment: string, document: Document) => Element | null} ActivityTarget */
+/** @typedef {(fragment: string) => Element | null} ActivityTarget */
 /** @typedef {{printing?: boolean, names?: ActivityTarget, age?: (ts: string) => string, openThread?: (id: string) => void}} ActivityCapabilities */
 /** @param {Element} link @param {string} widget @param {typeof keeps} write @param {ActivityTarget} names */
 function refreshTarget(link, widget, write, names) {
   const fragment = `#${encodeURIComponent(widget)}`;
-  const href = names(fragment, link.ownerDocument) ? fragment : null;
+  const href = names(fragment) ? fragment : null;
   // Preserve the focused node as a link becomes historical text, and back again.
   // Give it a programmatic stop before removing href; restore href before removing
   // that stop. The unavailable target is never a Tab offer.
@@ -62,13 +57,10 @@ export function createActivity(host) {
     if (thread)
       return html`<button
         ${ref(
-          (node) =>
-            node &&
-            generatedElement(offerActionElement(node, "inline", "lf-activity-target"), {
-              says: "echo",
-            }),
+          (node) => node && offerActionElement(node, "inline", "lf-activity-target"),
         )}
         type="button"
+        data-lf-echo
         data-lf-carry=${`row-${row.id}`}
         @click=${openThread ? () => openThread(thread) : null}
       >
@@ -82,8 +74,7 @@ export function createActivity(host) {
       data-lf-carry=${`row-${row.id}`}
       ${ref(
         (node) =>
-          node &&
-          refreshTarget(node, widget, keeps, capabilities.names ?? fragmentTarget),
+          node && refreshTarget(node, widget, keeps, capabilities.names ?? elementById),
       )}
       >${row.label}</a
     >`;
@@ -118,18 +109,20 @@ export function createActivity(host) {
       <ol
         class="lf-activity-list"
         data-lf-scroll
+        data-lf-gen="1"
         ?hidden=${hidden}
         ${ref((node) => {
-          if (node) drawing.list = generatedElement(node, { says: false });
+          if (node) drawing.list = node;
         })}
       >
         ${repeat(rows, (row) => row.id, rowTemplate)}
       </ol>
       <p
         class="lf-activity-empty"
+        data-lf-gen="1"
         ?hidden=${hidden || rows.length > 0}
         ${ref((node) => {
-          if (node) drawing.empty = generatedElement(node, { says: false });
+          if (node) drawing.empty = node;
         })}
       >
         Nothing shown yet.

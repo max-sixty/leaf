@@ -3713,7 +3713,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         },
         layer_widgets={
             "lf-decoration.js": """
-                import {once} from '/runtime/widget-api.js';
+                import {once} from '/runtime/lib/once.js';
                 customElements.define('lf-decoration', class extends HTMLElement {
                   connectedCallback() {
                     if (!once(this)) return;

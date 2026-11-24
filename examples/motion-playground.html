@@ -259,7 +259,8 @@
       </details>
     </main>
     <script type="module">
-      import { once, whileConnected } from "/runtime/widget-api.js";
+      import { whileConnected } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
       function initialize() {
         const root = document.querySelector("#panel-candidates");
         if (!root || !once(root)) return;

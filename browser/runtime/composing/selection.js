@@ -60,7 +60,7 @@ import {
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { applicationState } from "../semantic-state.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 
 import { elementById } from "../passages.js";
 

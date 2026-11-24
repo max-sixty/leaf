@@ -49,7 +49,6 @@ import {
   growthIsSeen,
   whileConnected,
   mountSample,
-  once,
   widgetController,
   focusDestination,
   heldGrowth,
@@ -57,6 +56,7 @@ import {
   whenNone,
 } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 

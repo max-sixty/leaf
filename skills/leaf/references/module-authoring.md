@@ -104,9 +104,9 @@ through events and element declarations that a plain host can ignore:
 This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
 script", lists.
 
-- Build once, in a widget's `setup()` or behind `once()` in any other element, and
-  hold each connection's listeners, observers and registrations in `whileConnected`
-  ("Upgrade", "Connection lifetimes").
+- Build once, in a widget's `setup()` or behind a first-connection guard in any other
+  element, and hold each connection's listeners, observers and registrations in
+  `whileConnected` ("Upgrade", "Connection lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
@@ -116,8 +116,9 @@ script", lists.
   "Words it writes").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
-- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value
-  only where it changes ("Scheduling paints", "Writes that change nothing").
+- Schedule paints with `frameFor`, observe size through the library's frame pass, and
+  write a value only where it changes ("Scheduling paints", "Writes that change
+  nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes through the widget controller, and keep how they
   look at the widget in `tabStore`.
@@ -131,11 +132,12 @@ script", lists.
 ## Upgrade
 
 A `LeafElement` builds itself in `setup()` ("Drawing what a widget reads"). Any other
-custom element starts `connectedCallback` with
-`if (!once(this)) return;`, since `once(this)` is true only on the element's first
-connection, or with a guard of its own where it imports nothing. Use `disconnectedCallback` only for teardown that must happen at once, such
-as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
-callback calls the `super` method.
+custom element builds behind a guard that passes only on its first connection, since
+`connectedCallback` runs again each time a revision or a thread puts the element back.
+The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, and an
+element that imports nothing keeps one of its own. Use `disconnectedCallback` only for
+teardown that must happen at once, such as cancelling a grab or removing hoisted UI. A
+`LeafElement` that overrides either callback calls the `super` method.
 
 A widget inside an element whose `exhibit` declaration applies (including its optional
 `when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
@@ -160,8 +162,8 @@ the `error` event itself (`module-plain-elements.md`, "`error`"), which only rep
 ## Connection lifetimes
 
 A revision or a thread can take a widget out of the page and put it back. In
-`setup()`, or after `once(this)`, register `whileConnected(element, start)` once for
-what a connection holds:
+`setup()`, or behind the element's first-connection guard, register
+`whileConnected(element, start)` once for what a connection holds:
 
 ```js
 schedulePaint = frameFor(this, () => this.measure());
@@ -169,9 +171,9 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
-    const sizes = sizeObserver(this.schedulePaint);
-    sizes.observe(this);
-    return () => sizes.disconnect();
+    // For a widget that scrolls a box of its own (module-scroll-and-motion.md,
+    // "Reading regions"): the registration's function is this connection's cleanup.
+    return registerReadingRegion({ id: this.id, host: this, body: this.body });
   });
 }
 ```
@@ -383,15 +385,16 @@ page's own stylesheet.
 next render, however often it is called. It does nothing while the element is out of the
 page, and leaving cancels a scheduled paint, so schedule it again from `start`.
 
-`nextRender(callback)` runs in the rendering pass under way, or the next frame's, and
-`nextFrame(callback)` always waits a frame; cancel either with `cancelRender(id)`. The
-page doesn't count as settled until this work runs, so motion that may run until the
-user stops it, such as playback, calls the browser's `requestAnimationFrame` instead.
+Schedule a widget's other rendering work, and observe size, through the library's
+[`frame-pass.js`](../../../browser/runtime/lib/frame-pass.js), in place of
+`requestAnimationFrame` and `new ResizeObserver`. That module holds the one pass per
+frame that every rendering callback on the page runs in, which `frameFor` schedules on,
+and the size observer that goes with it. The page doesn't count as settled until that
+work runs, nor while sizes change, so motion that may run until the user stops it, such
+as playback, calls the browser's `requestAnimationFrame` instead.
 
-Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
-unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
-the page plays. Have its callback schedule a paint from `frameFor` rather than draw:
-a drawing that settles inside a size delivery lets Leaf present the page there, which
+Have a size observer's callback schedule a paint from `frameFor` rather than draw: a
+drawing that settles inside a size delivery lets Leaf present the page there, which
 moves boxes the browser has just measured, and the browser reports a ResizeObserver
 loop that `page check` counts as a fault.
 

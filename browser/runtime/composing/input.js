@@ -100,7 +100,8 @@ import {
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
 import { errorOver, passErrorsAt, raiseError } from "../errors.js";
-import { holdRendering, sizeObserver } from "../rendering.js";
+import { holdRendering } from "../rendering.js";
+import { sizeObserver } from "../lib/frame-pass.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";

@@ -7,11 +7,11 @@ import { uiInside } from "./ui-marks.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer, nativeLayerHolding } from "./lib/shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
 import { isHTML, isElement, isSVG } from "./lib/shadow-tree.js";
-import { elementBox } from "./shown-box.js";
+import { elementBox } from "./lib/shown-box.js";
 import {
   carriedBox,
   elementAxes,
@@ -799,7 +799,7 @@ function scrollPadding(style) {
     left: inset("Left"),
   };
 }
-// The box an element shows as (`elementBox`, shown-box.js), and for the document's
+// The box an element shows as (`elementBox`, lib/shown-box.js), and for the document's
 // scroller the band of the window it shows.
 /** @param {Element} el @returns {DOMRect} */
 export function shownBox(el) {

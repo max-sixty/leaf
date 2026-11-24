@@ -9,7 +9,7 @@
  * aim marks, stands in Leaf's chrome beside the box (`labelAim`). Persistent
  * annotations mark their boxes through their own optional painter. */
 
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { move } from "./dom-move.js";
 import { keeps } from "./lib/keeps.js";
 import { inkedBox, markedBox, readMarkerSides, shownParts } from "./geometry.js";

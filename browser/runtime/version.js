@@ -84,13 +84,11 @@
  */
 import {
   afterSettling,
-  cancelRender,
   nextAnimation,
-  nextRender,
   observePreparations,
   renderingState,
-  sizeObserver,
 } from "./rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { frameFor, watchScrollEnds } from "./arrivals.js";
 import {
   LIVE_ROOT,

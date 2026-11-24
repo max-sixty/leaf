@@ -11,7 +11,7 @@
 import { describeFailure } from "../lib/exception.js";
 import { canvas2D } from "../lib/canvas.js";
 import { LEAF_SURFACE } from "../passages.js";
-import { nextRender } from "../rendering.js";
+import { nextRender } from "../lib/frame-pass.js";
 import { drawingGeometry } from "./drawing-geometry.js";
 import { pageImage, pageRenderer } from "./page-image.js";
 

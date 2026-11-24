@@ -115,7 +115,6 @@ import {
   LeafElement,
   motion,
   move,
-  nextRender,
   phrasing,
   onPress,
   readingAt,
@@ -125,6 +124,7 @@ import {
 } from "/runtime/widget-api.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";

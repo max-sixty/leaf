@@ -10,7 +10,7 @@ import {
 import { coarsePointer } from "../pointer.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { nextRender } from "../rendering.js";
+import { nextRender } from "../lib/frame-pass.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { threadNamed } from "./state.js";

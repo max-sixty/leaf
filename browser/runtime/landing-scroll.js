@@ -120,7 +120,7 @@ import {
   whereGlidesLand,
 } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { renderedParent, renderedUnder } from "./lib/shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 

@@ -99,12 +99,9 @@
       }
     </style>
     <script type="module">
-      import {
-        once,
-        setChildren,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
+      import { setChildren, whileInterfaceConnected } from "/runtime/widget-api.js";
       import { offer, offerAction } from "/runtime/lib/controls.js";
+      import { once } from "/runtime/lib/once.js";
       import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const RELEASES = [

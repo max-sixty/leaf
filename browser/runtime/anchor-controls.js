@@ -14,7 +14,7 @@
  * cluster; Max chose undo over it. Commands enter only through the
  * constructor.
  */
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./anchor-coordinate.js";
 import { sameAnchor } from "./anchor-coordinate.js";

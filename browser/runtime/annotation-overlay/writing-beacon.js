@@ -44,7 +44,7 @@ import {
 import { KINDS } from "../contribution-model.js";
 import { onCurrentLocation, standsFor, typesText } from "../focus.js";
 import { floatingBox, bringBackSurfaceOf } from "../off-flow.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { keeps, layoutPx, inlineStyle } from "../lib/keeps.js";
 import { offerActionElement } from "../lib/controls.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "../geometry.js";

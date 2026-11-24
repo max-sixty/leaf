@@ -40,7 +40,6 @@ import {
   langForPath,
   listWalkPosition,
   move,
-  nextRender,
   LeafElement,
   PendingTaskEvent,
   threadSurface,
@@ -49,11 +48,11 @@ import {
   searchField,
   setChildren,
   shadowStage,
-  sizeObserver,
   whileConnected,
   scrollIntoView,
 } from "/runtime/portable-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";

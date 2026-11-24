@@ -29,7 +29,7 @@
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { notice } from "../notifications.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { quotedWords } from "../words.js";

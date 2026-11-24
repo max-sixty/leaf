@@ -80,8 +80,9 @@
    target has no rendered part to offer. */
 import { LENT_REACH_STOP, TAB_STOP } from "../control-selectors.js";
 import { blockControlBoxes } from "../block-controls.js";
-import { contentsRects } from "../shown-box.js";
-import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
+import { contentsRects } from "../lib/shown-box.js";
+import { afterScript } from "../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
 import {
   clippedContents,
   clippedRect,

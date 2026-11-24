@@ -86,7 +86,6 @@ import {
   reachedForWords,
   dressCode,
   focusDestination,
-  nextRender,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
@@ -94,6 +93,7 @@ import {
   pageLinks,
 } from "/runtime/widget-api.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import {
   paintMarkdown,
   markdownSourceOffset,

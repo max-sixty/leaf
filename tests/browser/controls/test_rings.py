@@ -304,8 +304,8 @@ def _button_pairs(serve):
         },
         layer_widgets={
             "lf-button-pairs.js": """
-import {once} from '/runtime/widget-api.js';
 import {offerAction} from '/runtime/lib/controls.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-button-pairs', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

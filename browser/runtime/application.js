@@ -37,7 +37,7 @@ import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { createReadTracking } from "./thread/read.js";
 import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";

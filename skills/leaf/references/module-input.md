@@ -245,8 +245,8 @@ obligation; a module asks it whether the user is on its content from either.
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
-of controls the user moves through with arrow keys offers one Tab stop: the control
-the arrows last reached has `tabindex="0"` and the others `-1`.
+of controls the user moves through with arrow keys offers one Tab stop with
+`rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
 events. `begin(pointerdown, path)`, a passive listener, may return

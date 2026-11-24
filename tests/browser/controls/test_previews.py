@@ -3216,8 +3216,7 @@ def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
         ),
     )
     page.evaluate(
-        """async () => {
-          window.lfApi = await window.__lfWidgetApi();
+        """() => {
           window.lfSays = true;
           document.getElementById('focused').lfPreview = () => ({name: 'Focus reads'});
           document.getElementById('pointed').lfPreview = () =>
@@ -3470,8 +3469,7 @@ def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serv
     )
     page.set_viewport_size({"width": 900, "height": 700})
     page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
+        """() => {
           const drawing = document.getElementById('drawing');
           window.at = 280;
           drawing.lfPreview = () => ({name: 'Point', about: document.getElementById('drawn'),

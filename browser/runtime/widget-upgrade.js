@@ -100,11 +100,6 @@ export const layoutChanged = (el) => {
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
 
-// That an element's `lfCommands`, or anything its rows read, changed. An element out of
-// the document, such as a control built before it is placed, has no way out to the
-// window, so its event is dispatched there directly, carrying the element, as a failure's
-// is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
-// it, since a listener's exception never reaches the dispatcher.
 // That what pointing at an element reads, its `lfPreview`, changed: a composed
 // CustomEvent the widget dispatches at the element. `detail.aim` true says the user
 // aimed at something new inside the element, as a chart's pointer or key reaching
@@ -120,6 +115,11 @@ export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");
 /** @typedef {Event & {[CHANGED]: Element, [REFUSED]?: unknown}} CommandsChangedEvent */
+// That an element's `lfCommands`, or anything its rows read, changed. An element out of
+// the document, such as a control built before it is placed, has no way out to the
+// window, so its event is dispatched there directly, carrying the element, as a failure's
+// is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
+// it, since a listener's exception never reaches the dispatcher.
 /** @param {Element} el */
 export function commandsChanged(el) {
   /** @type {CommandsChangedEvent} */

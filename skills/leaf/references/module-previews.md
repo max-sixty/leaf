@@ -58,12 +58,16 @@ come back the same leave the preview as it is. It returns:
 
 What it throws is reported, and nothing shows. Where what an element previews changes
 while the user's aim stays on it, as a chart's pointer, key or finger reaches another
-point, or a grip's words stop being true once its card is grabbed, the widget
-dispatches a composed `lf-preview` event at the element,
-`element.dispatchEvent(new CustomEvent("lf-preview", { bubbles: true, composed: true }))`:
-Leaf calls `lfPreview` again and redraws a standing preview where it stands, or shows
-the new one to a pointer resting on the element or a finger holding it, and off Leaf
-nothing hears it. It never brings back a preview the user put away, nor opens one on
+point, or a grip's words stop being true once its card is grabbed, the widget says so
+with an `lf-preview` event at the element:
+
+```js
+element.dispatchEvent(new CustomEvent("lf-preview", { bubbles: true, composed: true }));
+```
+
+Leaf then calls `lfPreview` again and redraws a standing preview where it stands, or
+shows the new one to a pointer resting on the element or a finger holding it. Off
+Leaf, nothing hears the event. It never brings back a preview the user put away, nor opens one on
 focus: only the user aiming again does. Where the user aimed at something new inside the
 element, as a chart's pointer or arrow key reaching another point, the widget says so
 with `detail: { aim: true }` on the event, and the new target shows its preview whatever

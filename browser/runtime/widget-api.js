@@ -56,11 +56,11 @@ export { registerRootHeader } from "./root-headers.js";
 export { holdPlace, readingAt } from "./user-place.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; hearing each move of their current location with its cause; and running
-// something once they move off an element, or once a press lands away from it
-// (`onPressAway`). TEXT_FIELD is the tag of the box a widget offers for the user to write
-// Markdown in.
-export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
+// list; hearing each move of their current location with its cause; running something
+// once they move off an element, or once a press lands away from it (`onPressAway`); and
+// a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the
+// user to write Markdown in.
+export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
 export { readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them

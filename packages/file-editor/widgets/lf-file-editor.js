@@ -87,13 +87,13 @@ import {
   offered,
   offeredAction,
   onCurrentLocation,
+  rove,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { describeFailure } from "/runtime/lib/exception.js";
-import { keeps } from "/runtime/lib/keeps.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
@@ -255,11 +255,6 @@ customElements.define(
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
-      // The menu's one Tab stop is `stop`; the arrows reach the other rows.
-      /** @param {Element | null | undefined} stop */
-      const roveTo = (stop) => {
-        for (const row of choiceRows()) keeps(row, "tabindex", row === stop ? 0 : -1);
-      };
       const putChoicesAway = () => {
         choices().hidePopover();
         focusDestination(conflictControl(), "return");
@@ -277,7 +272,7 @@ customElements.define(
       /** @param {ToggleEvent} event */
       const choiceOpened = (event) => {
         if (event.newState !== "open") return;
-        roveTo(controls.first);
+        rove(choiceRows(), controls.first);
         focusDestination(controls.first, "move");
       };
       const choiceKeys = [
@@ -288,7 +283,7 @@ customElements.define(
           rows: choiceRows,
           // A menu names its rows' places to a screen reader itself.
           position: () => null,
-          landed: roveTo,
+          landed: (row) => rove(choiceRows(), row),
         }),
         {
           id: "file.choice.close",

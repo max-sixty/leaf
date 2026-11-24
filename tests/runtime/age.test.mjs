@@ -16,7 +16,12 @@ const drawn = (markup) => {
   holder.innerHTML = markup;
   document.body.append(holder);
   const age = holder.querySelector("lf-age");
-  return { holder, age, shows: () => age.shadowRoot.textContent };
+  // The words it draws, without the word joiner that leads them.
+  return {
+    holder,
+    age,
+    shows: () => age.shadowRoot.textContent.replaceAll("\u2060", ""),
+  };
 };
 
 test("an age stands in place of its author's words and follows the clock", async (t) => {

@@ -22,19 +22,24 @@
      where a quote of the age would lose it at the next tick. An age pays what a
      formula pays for that: a thread's mark stands on the words round it and not on
      it, and Leaf's page search finds the written time and not the age. A page
-     without Leaf draws the words, as this one does until the element is defined.
+     without Leaf draws the words, and so does a served page until the runtime has
+     defined the element.
    - It follows the clock with one effect of its own and writes one text node. A
      `LeafElement` would make each age a stage Leaf dresses and watches
      (shadow-stage.js), which a list of ages pays once for each.
-   - It is an inline block, so an age never breaks across two lines and a width the
-     page's CSS gives it holds. Firefox needs the block too: where the drawn words
-     stand flush against the host's start, a double-click on the first of them
-     selects nothing, and a comment made from it has no passage. */
+   - It stays inline, and never breaks across two lines. A word joiner leads the
+     words it draws: Firefox selects nothing on a double-click of the first word of
+     a shadow tree that stands flush against its host's start, and a comment made
+     from that has no passage. A zero-width space cures that too, but Chromium then
+     drops the space a line break in the source leaves before the tag. So does an
+     inline block, but it takes no underline or strike from a link or an `<s>` round
+     it, parts from an opening bracket before it, lets a comma after it start the
+     next line, and is undone by a page that restyles the element. */
 import { effect, signal } from "/runtime/framework.js";
 import { agePreview, ago } from "./presence.js";
 
-const block = new CSSStyleSheet();
-block.replaceSync(":host { display: inline-block; }");
+const unbroken = new CSSStyleSheet();
+unbroken.replaceSync(":host { white-space: nowrap; }");
 
 customElements.define(
   "lf-age",
@@ -51,8 +56,8 @@ customElements.define(
     constructor() {
       super();
       const root = this.attachShadow({ mode: "open" });
-      root.adoptedStyleSheets = [block];
-      root.append(this.#words);
+      root.adoptedStyleSheets = [unbroken];
+      root.append("\u2060", this.#words);
     }
 
     /** @param {string} _name @param {string | null} _was @param {string | null} moment */

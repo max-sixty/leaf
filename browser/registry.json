@@ -60,7 +60,7 @@
       "required": ["datetime"]
     },
     "inline": true,
-    "instructions": "Set `datetime` to the moment, with its seconds and its zone. Inside, write the time itself, which is what a reader sees where no script runs, as in an export or the file opened without Leaf. On the page Leaf shows the age in place of those words, and pointing at it reads the clock time in the reader's zone. An age changes width as it grows, and whatever follows it on its line, or takes its width from it as a table's column does, moves then: end the line with the age, or reserve its room in the page's CSS (`page-layout.md`, \"Space for changing text\").",
+    "instructions": "Set `datetime` to the moment, with its seconds and its zone. Inside, write the time itself, which is what a reader sees where no script runs, as in an export or the file opened without Leaf. On the page Leaf shows the age in place of those words, and pointing at it reads the clock time in the reader's zone. An age changes width as it grows, and whatever follows it on its line, or takes its width from it as a table's column does, moves then: end the line with the age, or reserve its room in the page's CSS, where it takes a width as an inline block (`page-layout.md`, \"Space for changing text\").",
     "example": "<p>Last nightly import: <lf-age datetime=\"2026-11-24T02:10:00Z\">24 Nov, 02:10 UTC</lf-age></p>"
   },
   "$languages": {

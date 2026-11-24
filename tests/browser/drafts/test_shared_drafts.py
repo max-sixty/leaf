@@ -171,6 +171,9 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
         "value", text
     )
+    # The generation holds that selection now, so the tab's own goes back to its
+    # state's: neither tab shows the forged option chosen when it sends.
+    first.locator("#job-mounts").evaluate("el => el.removeAttribute('selected')")
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -190,8 +193,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     for route in held:
         route.continue_()
     round_trip(first)
-    # The forged selection is not the state's, so the `add` renders it away and the pick
-    # that follows in the same task puts it back.
+    # Both picks carry the option only the generation recorded.
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)

@@ -940,11 +940,14 @@ function joinChangeRuns(file) {
   return file;
 }
 
-// The box takes the place of the file's lines, whose outlets core's composer has left
-// (`release`). Focus left inside the file moves to its header.
-/** @param {TextPresentation} view @param {unknown} error */
-function fileError(view, error) {
+// The box takes the place of the file's lines, so core's composer leaves their outlets
+// first: a user writing about one of them stays in it. Focus left inside the file
+// moves to its header.
+/** @param {TextPresentation} view @param {unknown} error
+ * @param {ReturnType<typeof threadSurface>} surface the diff's own */
+function fileError(view, error, surface) {
   const { details, header } = view;
+  surface.release(details);
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -1617,9 +1620,7 @@ customElements.define(
         );
         entry.rendered = null;
         entry.renderKey = null;
-        // A user writing about one of the file's lines stays in their comment box.
-        threadSurface(this).release(entry.details);
-        fileError(entry, prepared.error);
+        fileError(entry, prepared.error, threadSurface(this));
         return null;
       }
       const { file, renderKey, rendered } = prepared;

@@ -1432,9 +1432,9 @@ def test_a_box_written_in_a_widget_taken_off_the_page_keeps_its_words_and_the_us
     nothing tells a widget it is about to go, so Leaf returns the editor as it sees the
     widget leave: the comment box to the page's own place for it, the reply to its
     thread's view in the panel. Either way the user goes on typing in it at the same
-    caret, no task finds them on the page, where the next letters would run page
-    commands, and the server holds the words as the draft another tab or a reload
-    finds."""
+    caret, the task after the removal already finds them there rather than on the
+    page, where the next letters would run page commands, and the server holds the
+    words as the draft another tab or a reload finds."""
     if written == "comment":
         url = serve(
             leaf_page(
@@ -1470,21 +1470,22 @@ def test_a_box_written_in_a_widget_taken_off_the_page_keeps_its_words_and_the_us
     write(box, "Half a thought")
     box.evaluate("box => box.setSelectionRange(4, 4)")
     expect(box).to_be_focused()
-    page.evaluate(
+    # The removal takes the editor out of the document, and focus with it. The next
+    # task is the first in which a key could arrive.
+    left = page.evaluate(
         """() => {
-          window.__strandedAt = [];
-          document.addEventListener('focusout', () => setTimeout(() => {
-            if (document.activeElement === document.body)
-              window.__strandedAt.push(performance.now());
-          }), true);
           document.querySelector('#patch').remove();
+          const onThePage = () => document.activeElement === document.body;
+          const dropped = onThePage();
+          return new Promise((resolve) =>
+            setTimeout(() => resolve({dropped, stranded: onThePage()})));
         }"""
     )
+    assert left == {"dropped": True, "stranded": False}
     expect(page.locator("lf-diff")).to_have_count(0)
     expect(returned).to_be_focused()
     expect(returned).to_have_js_property("value", "Half a thought")
     assert returned.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
-    assert page.evaluate("() => window.__strandedAt") == []
     page.keyboard.type(" tr")
     expect(returned).to_have_js_property("value", "Half tr a thought")
     expect(returned).to_be_focused()

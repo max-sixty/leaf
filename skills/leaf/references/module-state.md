@@ -47,9 +47,12 @@ declaration alone decides, such as hiding a suggestion's `lf-old` once it is acc
 (`retired-when`).
 
 `widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read`, `dispatch` and `present`. If the widget's id has
-changed since upgrade, `read()` reports every action unavailable and `dispatch()`
-returns `null`. `read()` returns an immutable `{authored, state, memberships, thread,
+own or another's, through `read`, `dispatch` and `present`. `read()` is a page
+reading (`module-authoring.md`, "Drawing what a widget reads"), so a `LeafElement`
+whose `render()` calls it draws again when it changes. Another element's `state`
+property is not a page reading, and nothing tells a widget that read it when Leaf
+sets it again. If the widget's id has changed since upgrade, `read()` reports every
+action unavailable and `dispatch()` returns `null`. `read()` returns an immutable `{authored, state, memberships, thread,
 provenance, actions}`. `authored` is the state the page's markup sets, and `state` that with every
 recorded action applied, including the user's latest gestures before the server admits
 them. `memberships` maps each attribute an `attribute` record marks to the ids of the
@@ -143,9 +146,10 @@ shape of its `unit`:
 
 For a verb with a record, `detail` is the payload
 [package-data.md, "User state"](package-data.md#user-state) gives for its record kind. A
-move's `rank` is `rankAt(state.<verb>, container, index, unit)`, which takes the
-container's and the unit's ids, places the unit at `index` among the container's others
-and keeps it there however other units move. A verb with no record sends what its
+move's `rank` comes from the library's
+[`rank.js`](../../../browser/runtime/lib/rank.js), which gives the key for the index
+the unit was dropped at among the container's other units. That key keeps the unit's
+place whichever other moves are in force. A verb with no record sends what its
 `detail` schema declares.
 
 A widget that puts an obligation on On Me can give its class
@@ -253,10 +257,14 @@ beside it; keep no clock of your own. Return the answer rather than the time, as
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `label` is the file's path below the deepest folder holding every
 file the page binds, or `null` until the page's state names it. `read()` returns
-`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws a `RequestError` whose `current` holds the newer file.
-`RequestError` also carries the HTTP `status` and response `body`; distinguish it
-with `instanceof` when handling a server refusal. `watch(callback)` calls
+`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})`
+writes only if the file is still at `revision`, and resolves the saved
+`{label, text, revision}`. Where the server refuses the save, which then wrote nothing,
+it resolves `{refused, current}` instead: `refused` is the server's reason, and
+`current` the newer file where the file was no longer at `revision`, else `null`. It
+rejects where the page isn't `writable`, and where no reason from the server came, as
+when the request went unanswered or a proxy answered in the server's place; then the
+save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`

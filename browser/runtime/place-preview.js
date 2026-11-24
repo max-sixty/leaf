@@ -67,7 +67,7 @@ import { leadingTitle, ownNaming } from "./addressable-names.js";
 import { addressableWord } from "./lib/element-word.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { obligationEnding } from "./obligations/answer.js";
-import { readObligations } from "./obligations/model.js";
+import { readObligations } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";
 import {
   authoredScope,

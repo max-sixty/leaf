@@ -2,8 +2,8 @@ import { render as tallyTemplate } from "./tally-view.js";
 /* lf-tally: how many of a region's obligations are still open, whose turn each is, and the
  * way to the next one waiting on the user.
  *
- * The region is the element `for` names, and which obligations it holds is `obligationsIn`
- * (runtime/obligations/place.js), the rule a side list's rows read too, so the total
+ * The region is the element `for` names, and which obligations it holds is
+ * `readObligations(region)`, the rule a side list's rows read too, so the total
  * counts the obligations whose marks the queue shows. An obligation stays open until the
  * page adopts the reading that admits its answer, never on a guess. The count splits the
  * open ones by the server's next actor, in the words `tally` and `tallyWords`
@@ -25,7 +25,6 @@ import { render as tallyTemplate } from "./tally-view.js";
  * beside them or what follows. A longer count or agent name widens the room once. */
 import {
   agentName,
-  obligationsIn,
   elementById,
   LeafElement,
   obligationActions,
@@ -47,11 +46,11 @@ customElements.define(
     }
 
     render() {
-      const items = readObligations();
       const region = this.#region();
-      const ready = items.phase === "ready" && Boolean(region);
-      const held =
-        items.phase === "ready" && region ? obligationsIn(region, items.all) : [];
+      // The page's reading is read with no region yet too, so the reading that brings
+      // the region draws the tally again.
+      const ready = readObligations().phase === "ready" && Boolean(region);
+      const held = ready && region ? readObligations(region).all : [];
       const count = tally(held);
       // The drawing's two rooms hold the widest words, one calling the agent "the
       // agent" and one by its name; a longer count widens them once.

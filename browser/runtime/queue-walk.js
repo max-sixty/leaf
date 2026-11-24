@@ -61,7 +61,7 @@
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next On Me presses it): its stops are then the obligations waiting on the user
-   that the region holds (`obligationsIn`, obligations/place.js), stepped by the same current location and
+   that the region holds (`readObligations(region)`, obligations/place.js), stepped by the same current location and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
@@ -94,9 +94,9 @@ import { byRenderedOrder, under, closestAcross } from "./lib/shadow-tree.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { obligationEnding, obligationWord } from "./obligations/answer.js";
-import { answeredInWords, readObligations } from "./obligations/model.js";
-import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
-import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
+import { answeredInWords } from "./obligations/model.js";
+import { obligationPlace, readObligations, subjectPlace } from "./obligations/place.js";
+import { readPlan, readQueues } from "./queue-api.js";
 import { carriesObligation, emptyOnList, itemNoun } from "./queues.js";
 import { threadIn } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
@@ -297,7 +297,7 @@ export function createQueueWalk({
   function onMeGroups(items, by = grouping(), carried = new Set()) {
     const keyed = new Map(
       [...heldOnMe().filter((item) => !carried.has(item.id)), ...items].map((item) => [
-        queueItemKey(item),
+        item.id,
         item,
       ]),
     );
@@ -349,11 +349,11 @@ export function createQueueWalk({
       if (previous) previous.items.push(item);
       else stops.set(key, { at, items: [item] });
     });
-    const shown = new Set(items.map(queueItemKey));
+    const shown = new Set(items.map((item) => item.id));
     /** @type {Set<QueueItem>} */
     const leads = new Set();
     for (const stop of stops.values()) {
-      const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
+      const listed = stop.items.filter((item) => shown.has(item.id));
       const lead = listed[0];
       if (!lead) continue;
       leads.add(lead);
@@ -412,7 +412,7 @@ export function createQueueWalk({
   // in page order whatever On Me's grouping, as the region is read on the page.
   /** @param {Element} region */
   function stopsWithin(region) {
-    const held = new Set(obligationsIn(region).map((item) => item.id));
+    const held = new Set(readObligations(region).all.map((item) => item.id));
     return pageStops().filter(
       (stop) => stop.kind === "obligation" && held.has(stop.id),
     );
@@ -451,7 +451,7 @@ export function createQueueWalk({
   function cardItem(origin) {
     const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-lf-key");
     if (card == null) return undefined;
-    return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
+    return readQueues().on_user.find((item) => item.id === card) ?? null;
   }
 
   // A list's obligation stops and their records, read once for each list (kept.js), so
@@ -680,7 +680,7 @@ export function createQueueWalk({
     if (!(within instanceof Element))
       throw new TypeError("leaf: obligationActions.next needs an element `within`");
     const here = walkOrigin();
-    const items = obligationsIn(within);
+    const items = readObligations(within).all;
     const kept = items.find((item) => item.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
     if (under(here.place, within)) return walk(toward, within, here);

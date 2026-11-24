@@ -47,7 +47,7 @@ import {
 import { CONTROLS, LINKS, PLAIN_PRESSES, RADIOS } from "./control-selectors.js";
 import { inputs } from "./inputs.js";
 import { reducedMotion } from "./motion.js";
-import { skipped } from "./shadow-tree.js";
+import { skipped } from "./lib/shadow-tree.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI

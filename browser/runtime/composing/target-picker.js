@@ -22,7 +22,7 @@ import {
   segmentsBox,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
-import { skipped } from "../shadow-tree.js";
+import { skipped } from "../lib/shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { holds, intersect, union } from "../rect.js";

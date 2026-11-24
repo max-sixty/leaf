@@ -9,6 +9,7 @@
       "/runtime/lib/canvas.js",
       "/runtime/lib/exception.js",
       "/runtime/lib/keeps.js",
+      "/runtime/lib/shadow-tree.js",
       "/runtime/lib/text-width.js",
       "/runtime/lib/time-axis.js"
     ]

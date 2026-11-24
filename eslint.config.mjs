@@ -23,7 +23,6 @@ const runtimePrimitives = [
   "control-selectors.js",
   "inputs.js",
   "document-inputs.js",
-  "shadow-tree.js",
   "pointer.js",
   "rendering.js",
   "frame-visibility.js",
@@ -668,7 +667,7 @@ export const currentLocationReadsRule = {
   },
 };
 
-// Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
+// Whether a node is an open native layer, or stands in one, is asked of lib/shadow-tree.js
 // (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
 // (`nativeLayers`). A selector naming the open state answers it again, and the copies
 // drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
@@ -711,7 +710,7 @@ export const openLayersRule = {
           context.report({
             node,
             message:
-              "Ask shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
+              "Ask lib/shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
           });
       },
     };
@@ -1757,7 +1756,7 @@ export default [
         "error",
         [
           // The owner.
-          "browser/runtime/shadow-tree.js",
+          "browser/runtime/lib/shadow-tree.js",
         ],
       ],
       "architecture/scroll-ends": [

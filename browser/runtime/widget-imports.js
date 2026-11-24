@@ -5,7 +5,7 @@
  * Declared creations also need shared shadow rules before their first connection;
  * their constructors remain imports of the creating module.
  */
-import { isElement } from "./shadow-tree.js";
+import { isElement } from "./lib/shadow-tree.js";
 
 import { isElementName } from "./registry-contract.js";
 

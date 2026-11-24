@@ -339,7 +339,7 @@ def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, ser
     a closed disclosure and a box out of view under `content-visibility: auto`, it asks
     no more than each child whether it is drawn. Asking about what they hold would make
     the browser style it first, and a page of long documents in tabs is almost all such
-    content (`drawnElements` in runtime/shadow-tree.js)."""
+    content (`drawnElements` in runtime/lib/shadow-tree.js)."""
     held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
     source = leaf_page(
         "Skipped content",

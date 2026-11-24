@@ -96,7 +96,6 @@ import {
   regionsAwaiting,
   answerWords,
   tally,
-  under,
   backgroundFlash,
   beginWalk,
   capturePlace,
@@ -130,6 +129,7 @@ import {
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 const PLACE_KEY = "lf-tabs-place:";

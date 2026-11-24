@@ -90,7 +90,7 @@ import {
 } from "../focus.js";
 import { closeControl, offeredAction, searchField } from "../widget-elements.js";
 import { keeps } from "../lib/keeps.js";
-import { renderedOrder } from "../shadow-tree.js";
+import { renderedOrder } from "../lib/shadow-tree.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
 import { doorSteps } from "./control-keys.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";

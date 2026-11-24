@@ -95,7 +95,8 @@ import {
 
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
-import { closestAcross, inChrome, upFrom } from "./shadow-tree.js";
+import { closestAcross, upFrom } from "./lib/shadow-tree.js";
+import { inChrome } from "./ui-marks.js";
 import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { readingBlock } from "./reading-place.js";

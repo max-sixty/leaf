@@ -90,8 +90,8 @@ import {
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
-import { closestAcross, inChrome } from "./passages.js";
-import { byRenderedOrder, under } from "./shadow-tree.js";
+import { inChrome } from "./passages.js";
+import { byRenderedOrder, under, closestAcross } from "./lib/shadow-tree.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { obligationEnding, obligationWord } from "./obligations/answer.js";

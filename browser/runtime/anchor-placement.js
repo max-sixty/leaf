@@ -63,7 +63,7 @@ import {
   segmentBounds,
   trackQuotes,
 } from "./passages.js";
-import { under } from "./shadow-tree.js";
+import { under } from "./lib/shadow-tree.js";
 import { afterScript } from "./rendering.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";

@@ -89,10 +89,10 @@ import {
   signal,
   tally,
   tallyWords,
-  under,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes

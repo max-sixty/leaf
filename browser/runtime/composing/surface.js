@@ -114,7 +114,6 @@ import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
 import {
   elementById,
-  closestAcross,
   inChrome,
   pageWords,
   passageStart,
@@ -143,7 +142,7 @@ import {
   pressRecords,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { under, upFrom } from "../shadow-tree.js";
+import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
 import { focusPlace } from "../user-place.js";

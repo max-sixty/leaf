@@ -62,7 +62,7 @@ import {
   under,
   renderedUnder,
   renderedParent,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { holdReach, reachReadingScroller } from "./reach.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";

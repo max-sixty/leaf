@@ -57,7 +57,7 @@ import { inlineStyle, keeps, keepsHidden, layoutPx } from "./lib/keeps.js";
 import { pageScope } from "./keyboard/register.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, inChrome, pageQueryAll } from "./passages.js";
-import { upFrom } from "./shadow-tree.js";
+import { upFrom } from "./lib/shadow-tree.js";
 import { contentsRects } from "./shown-box.js";
 
 /** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */

@@ -144,13 +144,13 @@ import { focusThread } from "./focus.js";
 import { isReaction, messageKey } from "./model.js";
 import { threadIdNamed, threadNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
-import { closestAcross } from "../passages.js";
 import { runtime } from "../context.js";
 import { onCurrentLocation, focused } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
 import { holdUserPlace } from "../user-place.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */

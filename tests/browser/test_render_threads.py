@@ -280,8 +280,11 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     wait_until_ready(page)
     open_panel_thread(page, mine["id"])
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    # The thread opens with the caret in its reply; Escape stands on the thread.
+    # The address names the thread, so the arrival opens it standing on its view; with
+    # the caret in its reply, Escape stands on the thread, which stays open in the panel.
+    panel_field(page).focus()
     page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(editor).to_be_focused()

@@ -131,9 +131,10 @@ it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
-inside a live sample. Use it only for a deliberate move; focusing a visible control or
-redrawing keeps the scroll.
+it is, pass that box as `within`: the item comes in at the nearest edge of each box,
+at once, whatever `block` and `behavior` say. Unlike native `Element.scrollIntoView`,
+it stays inside a live sample. Use it only for a deliberate move; focusing a visible
+control or redrawing keeps the scroll.
 
 `scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
 to the page's `document.scrollingElement`. A widget that keeps something in view as

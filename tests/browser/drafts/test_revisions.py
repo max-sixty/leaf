@@ -344,6 +344,46 @@ def test_a_field_a_fresh_revision_makes_a_file_input_leaves_its_words_behind(
     expect(page.locator("#where")).to_have_value("Rome")
 
 
+def test_a_reload_after_staying_at_a_revision_s_reload_keeps_the_words_typed_since(
+    browser, serve
+):
+    """Words typed after the user stays at a page's own leave prompt that a revision's
+    reload raised, and steps Back to an earlier entry of the page, come back after
+    they reload the page."""
+    body = (
+        '<h1 id="subject">Form</h1>'
+        '<p><input id="who" aria-label="Name" autocomplete="off"></p>'
+        '<p id="later">Later.</p>'
+    )
+    page = open_page(browser, live_url(serve(editing_revision_source("before", body))))
+    page.locator("#who").click()
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#later'")
+    page.wait_for_function("navigation.transition === null")
+    page.on("dialog", lambda dialog: dialog.dismiss())
+    page.evaluate(
+        """() => {
+          window.ownPrompt = (event) => { event.preventDefault(); event.returnValue = ""; };
+          addEventListener("beforeunload", window.ownPrompt);
+        }"""
+    )
+    with page.expect_event("dialog"):
+        stamp_page(
+            serve.page_dir,
+            editing_revision_source("after", body),
+            "Change the page's module",
+        )
+    page.evaluate("history.back()")
+    page.wait_for_function("location.hash === ''")
+    page.locator("#who").fill("Grace")
+    page.evaluate('() => removeEventListener("beforeunload", window.ownPrompt)')
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
 def test_executable_revision_preserves_non_editor_thread_current_location(
     browser, serve
 ):

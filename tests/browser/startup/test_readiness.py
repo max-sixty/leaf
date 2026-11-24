@@ -37,6 +37,7 @@ from render_harness import (
     reported_browser_errors,
     selection_field,
     sending,
+    take_browser_errors,
     wait_for_check_api,
     watched,
     write,
@@ -888,8 +889,8 @@ def test_a_reload_before_leaf_starts_carries_on_the_values_the_user_left(
 ):
     """Values a reload Leaf asks for carries come back after a second such reload,
     taken before Leaf has started in the document between, as when its layer moved on
-    while it loaded, where the user changed one of them: the others come back, and the
-    one they changed doesn't come back as it was before their change."""
+    while it loaded, where the user changed one of them: the others come back as they
+    were, and the one they changed comes back as they changed it."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -953,7 +954,224 @@ def test_a_reload_before_leaf_starts_carries_on_the_values_the_user_left(
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
     expect(page.locator("#town")).to_have_value("Paris")
-    expect(page.locator("#who")).not_to_have_value("Ada")
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
+# A form of two fields that keep no value of the browser's own across a reload, and
+# a paragraph to put a second entry of the page at.
+NAME_AND_TOWN = (
+    '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off"></label></p>'
+    '<p><label>Town <input id="town" autocomplete="off"></label></p>'
+    '<p id="later">Later.</p>'
+)
+
+# The handoff the tab holds for the page, if any (prepaint.js).
+STORED_HANDOFF = """() => {
+  const key = Object.keys(sessionStorage).find((key) => key.endsWith("lf-revision-handoff"));
+  return key ? JSON.parse(sessionStorage.getItem(key)) : null;
+}"""
+
+# The page going hidden, as when the user switches tabs; a hidden tab the browser
+# discards goes with no `pagehide`, so what the tab holds then is what its next load
+# finds.
+SHOW_AS = """(state) => {
+  Object.defineProperty(document, "visibilityState", {value: state, configurable: true});
+  document.dispatchEvent(new Event("visibilitychange"));
+}"""
+
+
+def carried_values(page):
+    """The values the tab's stored handoff carries, by control id."""
+    stored = page.evaluate(STORED_HANDOFF) or {}
+    return {record["id"]: record.get("value") for record in stored.get("carry", [])}
+
+
+def test_a_reload_after_back_before_leaf_starts_brings_back_the_carried_value(
+    browser, serve
+):
+    """A value a reload Leaf asks for carries comes back after the user steps Back to
+    an earlier entry of the page before Leaf has started and then reloads it: the value
+    is the document's, wherever in it the user stands."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#later'")
+    page.wait_for_function("navigation.transition === null")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.evaluate("history.back()")
+        page.wait_for_function("location.hash === ''")
+        page.reload(wait_until="commit")
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            try:
+                route.continue_()
+            except Exception:
+                pass
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
+def test_a_page_hidden_before_leaf_starts_keeps_what_its_reload_carried(browser, serve):
+    """A page hidden before Leaf has started, after the user clicked in its prose, keeps
+    in the tab the values the reload Leaf asked for carried, which haven't reached the
+    page yet, for a tab the browser discards while hidden; shown again, it keeps
+    none."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.locator("#town").fill("Paris")
+    page.evaluate("document.activeElement.blur()")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.locator("h1").click()
+        page.evaluate(SHOW_AS, "hidden")
+        hidden = carried_values(page)
+        page.evaluate(SHOW_AS, "visible")
+        shown = page.evaluate(STORED_HANDOFF)
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    assert hidden == {"who": "Ada", "town": "Paris"}
+    assert shown is None
+
+
+def test_startup_recovery_s_reload_carries_on_the_values_a_reload_brought(
+    browser, serve
+):
+    """Values a reload Leaf asks for carries come back after startup recovery reloads
+    the document it brought, whose module failed on its way, where the user changed one
+    of them meanwhile: the others as they were, and theirs as they changed it."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.locator("#town").fill("Paris")
+    page.evaluate("document.activeElement.blur()")
+    documents = {"count": 0}
+    held, failed = [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def lose(route):
+        if documents["count"] == 1 and not failed:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    def another(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    # The live document hears from a server restarted under another Leaf and reloads;
+    # the document that brings loses a module on its way, and recovery's probe of the
+    # source, the registry at the server's root, waits while the user types.
+    def answer(route):
+        if documents["count"] == 0:
+            another(route)
+        elif documents["count"] == 1 and urlsplit(route.request.url).path == (
+            "/registry.json"
+        ):
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/runtime/rendering.js", lose)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "startup recovery's probe")
+    page.locator("#who").fill("Grace")
+    with page.expect_navigation(wait_until="commit"):
+        held.pop().continue_()
+    wait_until_ready(page)
+    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    assert len(failed) == 1, failed
+    take_browser_errors(page)
+    expect(page.locator("#town")).to_have_value("Paris")
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
+def test_a_reload_s_arrival_leaves_no_handoff_in_the_tab(browser, serve):
+    """Once the document a reload Leaf asked for brought has put back what it carried,
+    the tab holds no handoff, so no later load can bring those values back over the
+    user's newer ones."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+    assert page.evaluate(STORED_HANDOFF) is None
+
+
+def test_a_page_hidden_after_its_own_prompt_kept_it_hands_on_the_newer_value(
+    browser, serve
+):
+    """A page whose own leave prompt kept it from a reload Leaf asked for, and which
+    is then hidden, hands on the value the user typed after the earlier reload's
+    values came back, not the one that reload carried."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+    page.locator("#who").click()
+    page.locator("#who").fill("Grace")
+    page.evaluate("document.activeElement.blur()")
+    page.on("dialog", lambda dialog: dialog.dismiss())
+    page.evaluate(
+        """() => addEventListener("beforeunload", (event) => {
+          event.preventDefault();
+          event.returnValue = "";
+        })"""
+    )
+    answer_as_another_runtime(page)
+    with page.expect_event("dialog"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Again."},
+        )
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.evaluate(SHOW_AS, "hidden")
+    assert carried_values(page).get("who") == "Grace"
 
 
 def test_an_option_chosen_before_leaf_starts_outlasts_the_one_the_reload_carries(

@@ -672,14 +672,14 @@ let draftReturn = null;
 // restoration begins once the document handles its traversals (`mountHistory`), so a
 // later step is a navigation, which aborts it, and an earlier one brought the user to
 // the entry it returns to. Nor is leaving the window, from which the user comes back
-// to the same place. Until it settles, a
-// departure, the hidden page's checkpoint or the handoff of a reload Leaf asked for
-// writes the record it owes, rather than a reading of the page it is still putting
-// back (`owes`, `readRecord`), the step that leaves the entry among them, and the tab
-// keeps the handoff such a reload brought (version.js, `installArrival`). It settles once
-// every piece of work it runs has (`run`), its fresh thread arrival and last fragment
-// landing among them (leaf.js), so a navigation finds it to abort until the last has
-// run, and keys held for it wait until then (`settled`, version.js `installArrival`).
+// to the same place. Until it settles, a departure, the hidden page's checkpoint or the
+// handoff of a reload Leaf asked for writes the record it owes, rather than a reading
+// of the page it is still putting back (`owes`, `readRecord`), the step that leaves the
+// entry among them, and the document hands on the handoff such a reload brought as it
+// came (version.js, `installArrival`). It settles once every piece of work it runs has
+// (`run`), its fresh thread arrival and last fragment landing among them (leaf.js), so
+// a navigation finds it to abort until the last has run, and keys held for it wait
+// until then (`settled`, version.js `installArrival`).
 /** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
  * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
  * owes: () => boolean, settled: Promise<void>}} Restoration */

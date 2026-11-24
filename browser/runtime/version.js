@@ -54,27 +54,22 @@
  * is gone (thread/address.js, `claim`), the panel's list, focus, and the selection. A
  * reload Leaf asks for (layer-client.js, `reloadDocument`), as a fresh-document install
  * does and as a delivery that moved on does, such as a server restarted under another
- * Leaf (`reloadNow`), also stores a page-scoped, one-use handoff as the document goes
- * (`handOff`) of what the record doesn't hold: each reading region's place, the values
- * typed into authored controls, but for one the user has changed since the document
- * started, with focus and its caret where it was in one, back in the replacement turn
- * so typing goes on before the page presents, the words being written with their native
- * editing session, the comparison and the pointer. The document that reload loads, at
- * that revision or a newer one, puts back what it carries, and the tab keeps it whole
- * only while that arrival still owes the user its place (prepaint.js), so one that
- * goes before then, as by a second reload Leaf asks for, leaves it to the next. One
- * that goes later, once its arrival has returned the user or their own input has ended
- * it, hands a reload Leaf asks for what it holds then, with its place only where the
- * page's words are anchored, and leaves nothing to any other reload (`installArrival`).
- * Where the user was belongs to the entry they left, so an arrival at another, as after
- * Back taken before Leaf starts, takes from the handoff only what it carries of the
- * document: the values, disclosures, comparison and pointer, which a Back within one
- * document keeps too. Since it describes the moment the document went, a reload that
- * ends the document later, as after the user stays at a page's own leave prompt, hands
- * over the place they then left; any other reload or history travel finds none. Until
- * the arriving document has returned the user to the entry, printed keys wait
- * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back, as
- * text in the reply box they were writing in. Waiting keys are no input
+ * Leaf (`reloadNow`), also hands the document it loads a page-scoped, one-use handoff
+ * (`captureHandoff`) of what the record doesn't hold: each reading region's place, the
+ * values typed into authored controls, but for one the user has changed since the
+ * document started, with focus and its caret where it was in one, back in the
+ * replacement turn so typing goes on before the page presents, the words being written
+ * with their native editing session, the comparison and the pointer. The document that
+ * reload loads, at that revision or a newer one, puts back what it carries; prepaint.js
+ * says which departures hand a handoff on, and what. Where the user was belongs to the
+ * entry they left, so an arrival at another, as after Back taken before Leaf starts,
+ * takes from the handoff only what it carries of the document: the values, disclosures,
+ * comparison and pointer, which a Back within one document keeps too. Since the handoff
+ * describes the moment the document went, a reload that ends the document later, as
+ * after the user stays at a page's own leave prompt, hands over the place they then
+ * left. Until the arriving document has returned the user to the entry, printed keys
+ * wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back,
+ * as text in the reply box they were writing in. Waiting keys are no input
  * (document-inputs.js, `holdKeys`), so they don't end the return; any other input does,
  * and drops them. The keys not yet pressed when the document goes carry to the next
  * reload Leaf asks for of the address (bootstrap.js, `holdEarlyKeys`). An in-place
@@ -197,7 +192,12 @@ import { keeps } from "./lib/keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
-import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
+import {
+  LayerRefused,
+  admitReading,
+  leafReloads,
+  reportPageError,
+} from "./layer-client.js";
 import { projectDocument, readApplication, readPart } from "./semantic-state.js";
 import {
   AsyncDirective,
@@ -2451,16 +2451,16 @@ export function createVersionController({
     };
   }
 
-  // The continuity handoff to the fresh document a reload Leaf asked for loads, written
-  // as this document goes (`installArrival`), so it holds the place the user left, keys
-  // typed while the reload loaded included. The reload lands at `revision` or a newer
-  // one, at `url`, and its arrival puts back what the handoff carries
-  // (`installArrival`). It holds only what the entry's record doesn't (the header).
-  // Where the page's words can't be anchored yet, the document has no place to read,
-  // so the handoff carries what the document holds alone: the values, ticks and
-  // disclosures, the comparison and the pointer.
-  /** @param {{revision: number, url: string}} landing */
-  function handOff({ revision, url }) {
+  // The continuity handoff to the fresh document a reload Leaf asked for loads, read as
+  // this document goes or goes hidden (prepaint.js; `installArrival`), so it holds the
+  // place the user left, keys typed while the reload loaded included. The reload lands
+  // at its `revision` or a newer one. The handoff holds only what the entry's record
+  // doesn't (the header). Where the page's words can't be anchored yet, the document
+  // has no place to read, so the handoff carries what the document holds alone: the
+  // values, ticks and disclosures, the comparison and the pointer.
+  function captureHandoff() {
+    const revision = reloadRevision ?? runtime.currentRevision;
+    if (revision === null) return null;
     const live = pageDocument();
     const source = authoredSource;
     if (!live || !source)
@@ -2471,17 +2471,11 @@ export function createVersionController({
       comparison: selectedBase(),
       pointer: pointerAt(),
       revision,
-      url,
     };
-    if (!anchoringIsReady()) {
-      window.lfStorage.handOff({ ...content, carry: documentState(records) });
-      return;
-    }
-    const view = captureView();
-    tabStore.set(VIEW_KEY, JSON.stringify(view));
-    window.lfStorage.handOff({
+    if (!anchoringIsReady()) return { ...content, carry: documentState(records) };
+    return {
       ...content,
-      view: { ...view, page: null },
+      view: { ...captureView(), page: null },
       ...captureEditingContinuity(),
       carry: records,
       // Whether the user was writing in a box, which comes back: the arriving
@@ -2490,18 +2484,18 @@ export function createVersionController({
       typing: typesText(focused()),
       // The entry the user left, where the handoff's place belongs (`installArrival`).
       entry: window.navigation?.currentEntry?.key ?? null,
-    });
+    };
   }
-  // Where a revision's reload lands, at the address the user sees once the arriving
-  // document takes its mark off; a reload into another runtime lands this one's.
-  /** @type {{revision: number, url: string} | null} */
-  let reloadLanding = null;
+  // The revision a revision's reload lands at; a reload into another runtime lands this
+  // one's.
+  /** @type {number | null} */
+  let reloadRevision = null;
 
   // Changed executable identity requires a fresh document.
   const reloadInto =
     (/** @type {import("../types/contract.js").ServedRevision} */ target) => () => {
       forceActivation = false;
-      reloadLanding = { revision: target.revision, url: location.href };
+      reloadRevision = target.revision;
       const marked = new URL(location.href);
       marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
       reloadAt(marked);
@@ -3241,18 +3235,17 @@ export function createVersionController({
   function installArrival(arrival) {
     installReadingContinuity();
     // A reload and Back or Forward from another document return to the entry's record
-    // (history.js); a reload Leaf asked for adds its handoff (`handOff`). Two arrivals
-    // hold no record: a fresh URL aimed at a target a widget generates, hides, or moves
-    // (`aimArrival`), and a new navigation in this tab to a page that shows another
-    // revision since the tab last left it, whose new entry the view saved at `pagehide`
-    // places (`savedView`), a passage being a better landmark there than the old
-    // document's pixels.
+    // (history.js); a reload Leaf asked for adds its handoff (`captureHandoff`). Two
+    // arrivals hold no record: a fresh URL aimed at a target a widget generates, hides,
+    // or moves (`aimArrival`), and a new navigation in this tab to a page that shows
+    // another revision since the tab last left it, whose new entry the view saved at
+    // `pagehide` places (`savedView`), a passage being a better landmark there than the
+    // old document's pixels.
     const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
-    // The handoff prepaint read for a reload of its address, which the tab keeps while
-    // this arrival owes it the place it carries (prepaint.js; `owes`, below).
+    // The handoff the reload that loaded this document handed it (prepaint.js).
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
       return currentRevision !== null &&
@@ -3282,41 +3275,37 @@ export function createVersionController({
         return null;
       }
     })();
-    // Once the arrival no longer owes the handoff's place, a reload Leaf asks for takes a
-    // fresh one of what the document holds as it goes, over what prepaint kept of the
-    // old: what the arrival put back and the user's newer changes.
     addEventListener("pagehide", () => {
-      if (owes()) return;
-      const revision = runtime.currentRevision;
-      if (window.lfStorage.leafReload && revision !== null)
-        handOff(reloadLanding ?? { revision, url: location.href });
-      else if (anchoringIsReady() && !pendingRestoration()?.owes())
+      if (anchoringIsReady() && !pendingRestoration()?.owes())
         tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     // The handoff is part of the document's arrival (history.js, `beginArrival`), whose
-    // one intent its every step runs under, the early focus of an authored control among
-    // them, so that focus doesn't end the record's return. Its place, the reading
+    // one intent its every step runs under, the early focus of an authored control
+    // among them, so that focus doesn't end the record's return. Its place, the reading
     // regions, focus, caret and the reply being written, belongs to the entry it was
-    // written on (`handOff`), so an arrival at another, as after Back taken before Leaf
-    // started, leaves where the user is to that entry's record. What it carries of the
-    // document comes back wherever the document arrives, as a Back within one document
-    // keeps it: the values typed into the page's form, its disclosures and the
-    // comparison shown. A control the user has changed here since the document started,
-    // or one in an exclusive group they changed, keeps their change, which is newer than
-    // anything the records carry, and is owed nothing of where they were in it either,
-    // since their input ended the arrival's claim on the place (document-inputs.js,
-    // `edited`); so its record goes unrestored.
+    // written on (`captureHandoff`), so an arrival at another, as after Back taken
+    // before Leaf started, leaves where the user is to that entry's record. What it
+    // carries of the document comes back wherever the document arrives, as a Back
+    // within one document keeps it: the values typed into the page's form, its
+    // disclosures and the comparison shown. A control the user has changed here since
+    // the document started, or one in an exclusive group they changed, keeps their
+    // change, which is newer than anything the records carry, and is owed nothing of
+    // where they were in it either, since their input ended the arrival's claim on the
+    // place (document-inputs.js, `edited`); so its record goes unrestored.
     const currentIntent = arrival.intent;
     const placed =
       Number.isInteger(handoff?.view?.revision) &&
       handoff.entry === window.navigation?.currentEntry?.key
         ? handoff
         : null;
-    // The handoff owes this entry its place until the arrival has put it back or the
-    // user has acted within the entry (history.js, `owes`); what an unplaced one
-    // carries went into the document as it arrived, and the document holds it now.
-    const owes = () => Boolean(placed) && arrival.owes();
-    window.lfStorage.oweHandoffWhile(owes);
+    // What the document hands on as it goes (prepaint.js): the handoff as it came,
+    // while it still owes this entry its place, until the arrival has put it back or
+    // the user has acted within the entry (history.js, `owes`). Its values went into
+    // the document as it arrived, so after then a reload Leaf asks for takes a fresh
+    // handoff of what the document holds, and any other departure hands on nothing.
+    window.lfStorage.handOnWith(() =>
+      placed && arrival.owes() ? handoff : leafReloads() ? captureHandoff() : null,
+    );
     /** @param {readonly import("./carry.js").CarryRecord[] | null | undefined} records */
     const unchanged = (records) =>
       (records ?? []).filter(({ id }) => {

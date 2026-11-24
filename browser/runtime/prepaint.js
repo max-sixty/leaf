@@ -325,92 +325,90 @@
       for (const node of record.addedNodes) if (node instanceof Element) visit(node);
   });
   earlyContent.observe(document, { childList: true, subtree: true });
-  // The place a reload Leaf asked for hands the document it loads (version.js,
-  // `handOff`), read from the tab once, so the bootstrap's key hold and the version
-  // controller read the one value: a reload of the address it was written for. The
-  // first reader asks after the bootstrap has taken Leaf's marks off the address.
+  // The handoff a reload hands the document it loads (version.js, `captureHandoff`):
+  // what the document carried, the values typed into the page's form, its disclosures,
+  // the comparison and the pointer, and where the user was, which belongs to the entry
+  // it was read on (`entry`). Prepaint alone writes it to the tab and reads it back.
+  // The tab holds it only from a document's departure, or its page going hidden, since
+  // a tab the browser discards while hidden goes with no `pagehide`, to the next
+  // document's first script, which takes it on a reload and removes it on any
+  // navigation. A page shown again removes it too, so a live, visible document leaves
+  // none in the tab. A reload loads the entry the departing document showed, so a
+  // stored handoff is that document's.
   //
-  // The tab keeps it whole while the user is still owed the place it holds (`owed`), so
-  // a document that goes before then, as by a second reload Leaf asks for, leaves the
-  // next one the same handoff. Until the runtime's arrival says what it owes
-  // (`oweHandoffWhile`; version.js, `installArrival`), that is while the user hasn't
-  // acted within the entry, steps Back or Forward and leaving the window aside
-  // (document-inputs.js, `away`). An input of the user's ends a handoff's claim on where
-  // they were, never on what they wrote. So once the place is no longer owed, a reload
-  // Leaf asks for (`leafReload`) takes on to the address it loads what the handoff
-  // carries of the document, without the place (its `entry`) or the record of a control
-  // the user has changed since; a runtime that has started writes over that a fresh
-  // handoff from the document as it goes (version.js, `handOff`), in a listener that
-  // runs after this one, the first. Any other departure drops the handoff, and so does
-  // the page going hidden: a tab the browser discards while hidden goes with no
-  // `pagehide`, and its next load is a reload that would find it. A document's own
-  // departure fires its `pagehide` before the hide that follows it, and has handed on
-  // what it hands on; a page put into the back/forward cache may come back, so its
-  // later hide still drops.
+  // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
+  // that is the handoff it was handed, none of whose values has reached the page yet,
+  // with the state of each control the user has changed since (document-inputs.js,
+  // `edited`), and without where they were once they have acted within the entry, steps
+  // Back or Forward and leaving the window aside (`away`). From then on it is what the
+  // arrival says (`handOnWith`; version.js, `installArrival`). A document's own
+  // departure fires its `pagehide` before the hide that follows it, which writes
+  // nothing over it; one put into the back/forward cache may come back, so its hide
+  // writes, and its return removes what it wrote.
   const HANDOFF_KEY = "lf-revision-handoff";
-  let owed = () => inputs.count === inputs.away;
-  let gone = false;
-  const leave = () => {
-    if (owed()) return;
-    const kept = window.lfStorage.leafReload
-      ? /** @type {{carry?: {id: string}[]} | null} */ (window.lfStorage.handoff)
-      : null;
-    tabStore.set(
-      HANDOFF_KEY,
-      kept &&
-        JSON.stringify({
-          ...kept,
-          url: location.href,
-          entry: null,
-          typing: false,
-          carry: (kept.carry ?? []).filter(({ id }) => {
-            const node = document.getElementById(id);
-            return !node || !inputs.edited(node);
-          }),
-        }),
-    );
-  };
-  addEventListener("pagehide", (event) => {
-    gone = !event.persisted;
-    leave();
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (!gone && document.visibilityState === "hidden") leave();
-  });
-  /** @type {{url?: unknown, typing?: unknown} | null} */
-  let handoff = null;
-  let handoffRead = false;
-  const readHandoff = () => {
-    const navigation = /** @type {PerformanceNavigationTiming | undefined} */ (
-      performance.getEntriesByType("navigation")[0]
-    );
-    if (navigation?.type !== "reload") return null;
+  const reloaded =
+    /** @type {PerformanceNavigationTiming | undefined} */
+    (performance.getEntriesByType("navigation")[0])?.type === "reload";
+  /** @type {{carry?: {id: string}[], typing?: unknown} | null} */
+  const handoff = (() => {
+    const stored = tabStore.get(HANDOFF_KEY);
+    tabStore.set(HANDOFF_KEY, null);
     try {
-      const value = JSON.parse(tabStore.get(HANDOFF_KEY) || "null");
-      return value?.url === location.href ? value : null;
+      return reloaded ? JSON.parse(stored || "null") : null;
     } catch {
       return null;
     }
-  };
+  })();
+  // A changed control's state as a carry record holds it (carry.js, `captureCarry`).
+  /** @param {Element} node */
+  const changedState = (node) => ({
+    id: node.id,
+    name: node.localName,
+    ...(node instanceof HTMLDetailsElement
+      ? { open: node.open }
+      : node instanceof HTMLInputElement &&
+          (node.type === "checkbox" || node.type === "radio")
+        ? { checked: node.checked }
+        : "value" in node && { value: node.value }),
+  });
+  /** @type {() => unknown} */
+  let handingOn = () =>
+    handoff && {
+      ...handoff,
+      carry: [
+        ...(handoff.carry ?? []).filter(({ id }) => {
+          const node = document.getElementById(id);
+          return !node || !inputs.edited(node);
+        }),
+        ...[...document.querySelectorAll("[id]")]
+          .filter((node) => inputs.edited(node))
+          .map(changedState),
+      ],
+      ...(inputs.count !== inputs.away && { entry: null, typing: false }),
+    };
+  /** @param {unknown} value */
+  const handOn = (value) =>
+    tabStore.set(HANDOFF_KEY, value ? JSON.stringify(value) : null);
+  let gone = false;
+  addEventListener("pagehide", (event) => {
+    gone = !event.persisted;
+    handOn(handingOn());
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") handOn(null);
+    else if (!gone) handOn(handingOn());
+  });
+  addEventListener("pageshow", (event) => {
+    if (event.persisted) handOn(null);
+  });
   window.lfStorage = {
     stored,
     tabStore,
     userStore,
-    get handoff() {
-      if (!handoffRead) {
-        handoffRead = true;
-        handoff = readHandoff();
-      }
-      return handoff;
+    handoff,
+    handOnWith: (next) => {
+      handingOn = next;
     },
-    /** @param {unknown} value */
-    handOff: (value) => tabStore.set(HANDOFF_KEY, JSON.stringify(value)),
-    oweHandoffWhile: (predicate) => {
-      owed = predicate;
-    },
-    // Whether the document is going by a reload Leaf asked for (layer-client.js,
-    // `reloadDocument`).
-    leafReload: false,
     keepDisclosure,
     finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.
@@ -432,9 +430,6 @@
           (child) => !child.hasAttribute("data-lf-gen") && child.matches(selector),
         )
       : [];
-  const reloaded =
-    /** @type {PerformanceNavigationTiming | undefined} */
-    (performance.getEntriesByType("navigation")[0])?.type === "reload";
   /** @param {string} raw */
   const decoded = (raw) => {
     try {

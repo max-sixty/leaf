@@ -115,16 +115,10 @@ interface Window {
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
-    /** The place handed to this document by the reload that loaded it (version.js). */
-    readonly handoff: {
-      readonly url?: unknown;
-      readonly typing?: unknown;
-    } | null;
-    handOff(value: unknown): boolean;
-    /** Keeps the stored handoff while `owed()` says it is still owed (prepaint.js). */
-    oweHandoffWhile(owed: () => boolean): void;
-    /** Whether the document is going by a reload Leaf asked for (layer-client.js). */
-    leafReload: boolean;
+    /** The handoff the reload that loaded this document handed it (prepaint.js). */
+    readonly handoff: { readonly typing?: unknown } | null;
+    /** What this document hands on as it goes from now on (prepaint.js). */
+    handOnWith(handingOn: () => unknown): void;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };

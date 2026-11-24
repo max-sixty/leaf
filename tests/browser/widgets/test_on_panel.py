@@ -59,7 +59,7 @@ def open_on_me(page):
 
 def on_card(page, at):
     """The On Me card for the obligation `at` names, such as `widget:sug-refill`."""
-    return page.locator(f'{ON_ME} .lf-fp-on-item[data-lf-key=\'["widget","{at}"]\']')
+    return page.locator(f"{ON_ME} .lf-fp-on-item[data-lf-key='{at}']")
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
@@ -93,7 +93,6 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
         ("widget:honored", "done"),
     ]
     for card in cards:
-        assert card["kind"] == "widget", card
         if card["list"] == "you":
             assert card["w"] > 100 and card["h"] > 20, (
                 f"{card['id']}'s card has no size"
@@ -239,11 +238,11 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
     expect(cards).to_have_count(len(ALL_OBLIGATIONS_IN_ORDER))
     order = [
-        '["widget","widget:live-question"]',
-        '["widget","widget:sug-refill"]',
-        '["widget","widget:t-baffles-review"]',
-        '["widget","widget:t-bath-choice"]',
-        '["widget","widget:honored"]',
+        "widget:live-question",
+        "widget:sug-refill",
+        "widget:t-baffles-review",
+        "widget:t-bath-choice",
+        "widget:honored",
     ]
 
     page.evaluate(
@@ -257,7 +256,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
           window.__lfObligationCards = new Map(cards.map(card => [card.dataset.lfKey, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfObligationCards.get('["widget","widget:sug-refill"]').focus();
+          window.__lfObligationCards.get('widget:sug-refill').focus();
           await presentDocument();
         }"""
     )
@@ -293,7 +292,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
         ).locator(":scope > .lf-rows-head .lf-row-main")
     ).to_have_text("The whole page")
     assert cards.evaluate_all(
-        """items => items.every(item => item.dataset.lfKey === '["widget","widget:sug-refill"]'
+        """items => items.every(item => item.dataset.lfKey === 'widget:sug-refill'
           || window.__lfObligationCards.get(item.dataset.lfKey) === item)"""
     )
 
@@ -730,7 +729,7 @@ def test_on_me_follows_a_name_or_an_id_the_page_changes(browser, serve):
     page.wait_for_function(
         """() => [...document.querySelectorAll(
           '.lf-fp-view[data-lf-route="queue"] .lf-fp-on-item')].map(card => card.dataset.lfKey)
-          .join() === '["widget","widget:c"],["widget","widget:b"],["widget","widget:a"]'"""
+          .join() === 'widget:c,widget:b,widget:a'"""
     )
 
 
@@ -1149,7 +1148,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     page.keyboard.press("Escape")
     view = open_on_me(page)
     expect(
-        view.locator(f'.lf-fp-on-item[data-lf-key=\'["message","message:{reply}"]\']')
+        view.locator(f".lf-fp-on-item[data-lf-key='message:{reply}']")
     ).to_be_visible()
 
 

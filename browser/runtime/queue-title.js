@@ -4,8 +4,7 @@
 import { addressableLabel } from "./addressable-names.js";
 import { elementById } from "./passages.js";
 import { obligationHolding } from "./current-target.js";
-import { obligationPlace } from "./obligations/place.js";
-import { readObligations } from "./obligations/model.js";
+import { obligationPlace, readObligations } from "./obligations/place.js";
 import { threadNamed } from "./thread/state.js";
 import { discussed } from "./thread/model.js";
 import { threadName } from "./thread/messages.js";

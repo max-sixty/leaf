@@ -841,7 +841,7 @@ block names what a package answers with the browser's own call instead.
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                                   |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                            |
 | Which message drafts hold words or a drawing, for every view of drafts                                | `drafts.js` `draftsReading`                                                            |
-| Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                                 |
+| Which obligations a region of the page holds                                                          | `obligations/place.js` `readObligations`                                               |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                       |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                                 |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                              |

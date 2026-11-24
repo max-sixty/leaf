@@ -895,8 +895,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         f'.lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-leaves'
     )
     expect(word).to_have_accessible_name("Still to do, Open in On Codex")
-    key = json.dumps(["todo", promise["id"]], separators=(",", ":"))
-    item = page.locator(f".lf-fp-view .lf-fp-on-item[data-lf-key='{key}']")
+    item = page.locator(f".lf-fp-view .lf-fp-on-item[data-lf-key='{promise['id']}']")
     word.focus()
     page.keyboard.press("Enter")
     expect(item).to_have_attribute("data-lf-open", "")

@@ -30,14 +30,14 @@
    "Edit kept", and the message's head says "unsaved edit" until the user opens the
    rewrite again, which finds them, or Resume writing does. Back lands on the message's
    Edit control rather than the reply box, whose caret would raise a phone's keyboard.
-   So an accidental Escape loses nothing for good: ⌘Z, or Restore discarded edit
-   (`g D`), puts the discarded words back in the rewrite's draft and opens its message
-   on them (undo.js, `takeDiscard`). Escape lands the caret in the reply box, up ↑'s
-   rung (below), and the box keeps ⌘Z and `g` for its own words, so both reach the
-   discard once the user leaves the box, and the discard's notice shows ⌘Z's press
-   then. The notice answers the user's own gesture with a press, so it stays past its
-   time until the first input after it (notifications.js, `showNotice`), and the Escape
-   that leaves the box within that time shows the press.
+   So an accidental Escape loses nothing for good: ⌘Z puts the discarded words back in
+   the rewrite's draft and opens its message on them (undo.js, `takeDiscard`). Escape
+   hands the user to the thread's reply box where the thread shows one, up ↑'s rung
+   (below), and the box keeps ⌘Z for its own words, so ⌘Z reaches the discard once the
+   user leaves the box, and the discard's notice shows its Undo then. The notice
+   answers the user's own gesture with a press, so it stays past its time until the
+   first input after it (notifications.js, `showNotice`), and the Escape that leaves the
+   box within that time shows its Undo.
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Typed words survive"): a comment box over the message's body, every line of its words
@@ -399,7 +399,7 @@ export class MessageEditor {
       sync?.load((opened = said()));
     };
     // What the message already says, exactly, and nothing at all, leave no rewrite to
-    // keep, restore or walk past. Leading and trailing space is part of what a rewrite
+    // keep, take back or walk past. Leading and trailing space is part of what a rewrite
     // sends, as a suggestion's newline is.
     const emptied = () => !whole().trim();
     const unchanged = () => emptied() || whole() === said();

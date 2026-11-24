@@ -108,22 +108,18 @@
    latest only, until the document reloads (`keepDiscard`). ⌘Z takes it back while it
    is the user's newest gesture: while every other gesture the page can take back was
    logged by the reading the page held when it was made, or was on its way from this
-   page then. So a newer gesture, in this tab or another, takes ⌘Z from it, one taken
-   back by another route leaves it the newest, a list that arrives after it, as one
-   does between versions, is ordered the same way, and no clock decides.
+   page then. So a newer gesture, in this tab or another, takes ⌘Z from it until that
+   gesture is taken back, a list that arrives after it, as one does between versions,
+   is ordered the same way, and no clock decides.
    Taking it back gives its words back to their draft, as taking a message back does,
    and puts the user in its box where Resume writing opens it, which is tinted
    (`takeDiscard`). Its notice, "Edit discarded", offers ⌘Z's press by the rule above
-   (`offerUndo`), and under a finger the menu's Undo row takes it. Restore discarded
-   edit (`g D`), a keyboard's convenience as Resume writing is, takes it back whether
-   or not it is the newest, so it reaches the discard after a newer gesture has taken
-   ⌘Z from it. Rejected, by the user, while only a rewrite's Escape discarded: a timed
-   Undo chip after the discard, a target the user cannot learn (notifications.js), and a
-   row of every page's menu for Restore discarded edit, which put a command on each page
-   for a mishap of one keyboard gesture. A draft's pointer Discard is such a mishap too.
-   ⌘Z adds no row for it, since its row already stands on the menu. Restore discarded
-   edit keeps the row under Navigate it had for a rewrite's discard, now beside that
-   Undo row while a discard stands, until the user decides on it. */
+   (`offerUndo`), and under a finger the menu's Undo row takes it. Those are the one
+   way back: after a newer gesture, the user takes that one back first (the user's
+   decision). Rejected, by the user: Restore discarded edit (`g D`), which took the
+   discard back past any newer gesture, a second route to one result with a row of its
+   own under a phone's Navigate; and, while only a rewrite's Escape discarded, a timed
+   Undo chip after the discard, a target the user cannot learn (notifications.js). */
 import { notice } from "./notifications.js";
 import {
   applicationState,
@@ -590,11 +586,10 @@ export function createUndo({
       .catch(() => {});
     return answer;
   }
-  // Take a discard back, as ⌘Z or Restore discarded edit does: its words go back to
-  // their draft as a withdrawn message's do (drafts.js, `giveBackWords`), and the user
-  // is put in their box where Resume writing opens it, which is tinted once they stand
-  // in it. The box is the discard's place, so the route travels where it stood out of
-  // view, as for any undo.
+  // Take a discard back: its words go back to their draft as a withdrawn message's do
+  // (drafts.js, `giveBackWords`), and the user is put in their box where Resume writing
+  // opens it, which is tinted once they stand in it. The box is the discard's place, so
+  // the route travels where it stood out of view, as for any undo.
   /** @param {Discard} held */
   async function takeDiscard(held) {
     const intent = retainUserIntent();
@@ -710,26 +705,8 @@ export function createUndo({
     run: (/** @type {Parameters<typeof undoLast>} */ ...args) => undoLast(...args),
   });
 
-  // Restore discarded edit: the discard taken back whether or not it is the newest
-  // (the header).
-  /** @type {import("./keyboard/bindings.js").Command} */
-  const restore = {
-    id: "writing.restore",
-    keys: ["Shift+d"],
-    title: "Restore discarded edit",
-    touch: "Restore discarded edit",
-    menu: "keys",
-    travels: true,
-    when: () => discard.value !== null,
-    run: () => {
-      const held = discard.peek();
-      return held ? takeDiscard(held) : undefined;
-    },
-  };
-
   return {
     offerUndo,
-    restore,
     returnToThread,
     retainGesture,
     undoable,

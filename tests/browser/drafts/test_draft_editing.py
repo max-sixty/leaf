@@ -29,6 +29,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    undo,
     write,
 )
 
@@ -926,8 +927,8 @@ def test_a_discarded_draft_edit_comes_back(browser, serve):
     it loses nothing for good: ⌘Z takes it back as it takes back any gesture of the
     user's, opening the draft again on the discarded words and sending nothing. The
     discard's notice offers that Undo at the panel field's end, and leaves once the
-    words are back. Once a newer gesture has taken ⌘Z, `g D` still restores them.
-    Discarding words the draft already says leaves nothing to restore."""
+    words are back. After a newer gesture, ⌘Z takes that one back first, then the
+    discard. Discarding words the draft already says leaves nothing to take back."""
     url = serve(
         leaf_page(
             "Discarded draft",
@@ -974,25 +975,27 @@ def test_a_discarded_draft_edit_comes_back(browser, serve):
     expect(editor).to_have_js_property("value", typed)
     assert edits() == []
 
-    # A newer gesture takes ⌘Z; Restore discarded edit still reaches the discard.
+    # A newer gesture takes ⌘Z, so ⌘Z takes that one back first, then the discard.
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
     other = page.locator("#other leaf-text")
     draft_control(page, "edit", "other").click()
     write(other, "Other words, saved.")
-    press_draft_control(page, "save", "other")
-    round_trip(page)
-    assert edits() == ["Other words, saved."]
+    with sending(page, "the save"):
+        press_draft_control(page, "save", "other")
+    expect(page.locator("#other .lf-draft-body")).to_have_text("Other words, saved.")
     edit.focus()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
+    undo(page)
+    expect(page.locator("#other .lf-draft-body")).to_have_text("Other words.")
+    expect(editor).to_have_count(0)
+    page.keyboard.press("ControlOrMeta+z")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", typed)
 
     write(editor, "Saved words.")
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
-    assert "writing.restore" not in available_commands(page)
+    assert "history.undo" not in available_commands(page)
 
 
 def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):

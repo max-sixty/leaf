@@ -683,7 +683,6 @@ function createApplication(dependencies) {
 
   const mounted = {
     withdraw: undo.withdraw,
-    restoreDiscarded: undo.restore,
     midComposition: engagement.midComposition,
     hasPending,
     invalidateDom,

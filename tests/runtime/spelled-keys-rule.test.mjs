@@ -20,7 +20,7 @@ test("words that spell a key for a step are refused", () => {
     // The notices and the refusal's sentence before they offered presses.
     'notice("Annotations hidden — o shows them");',
     "notice(`${counted(n, 'change')} since v${since.version} — v shows them`);",
-    'notice("Edit discarded; g D restores it");',
+    'notice("Draft kept; g i resumes it");',
     'const said = [hidden.length && "Draft kept — g i resumes writing"];',
     // An announcement says its keys through the register (`saying`), not in its words.
     "announce(`${title} — g t opens it`);",

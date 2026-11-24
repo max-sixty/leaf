@@ -1,5 +1,5 @@
 /* A discarded rewrite is a gesture of the user's that ⌘Z takes back while it is their
-   newest, and Restore discarded edit takes back by name after that. */
+   newest: after a newer gesture, once that one is taken back. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as editing from "/runtime/thread/message-edit.js";
@@ -8,8 +8,6 @@ import { clearDraft, loadDraft, rewriteContext, saveDraft } from "/runtime/draft
 import { applicationState } from "/runtime/semantic-state.js";
 import { noticeReading } from "/runtime/notifications.js";
 import { createUndo } from "/runtime/undo.js";
-import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
-import { dispatchKey } from "/runtime/keyboard/dispatch.js";
 import { servedState } from "../served.mjs";
 import "/runtime/thread/landing.js";
 
@@ -89,11 +87,11 @@ function discard(id, text, said = "Original words") {
   assert.equal(loadDraft(rewriteContext(id)), null);
 }
 
-test("⌘Z takes the newest discard back, and Restore discarded edit takes it by name", async (t) => {
+test("⌘Z takes a discard back while it is the newest gesture", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   applicationState.adopt(reading(["older"]));
   discard("unchanged", "Original words");
-  assert.equal(undo.restore.when(), false);
+  assert.notEqual(takes().message, "Edit discarded");
 
   discard("last", "  The last discarded rewrite\nwith its spacing.  ");
   const ctx = rewriteContext("last");
@@ -104,61 +102,35 @@ test("⌘Z takes the newest discard back, and Restore discarded edit takes it by
   applicationState.adopt(reading([]));
   assert.equal(takes().press?.command, "history.undo");
 
-  // A newer gesture, here another tab's, takes ⌘Z from it; the notice keeps its
-  // words without a press, and Restore discarded edit still reaches it.
+  // A newer gesture, here another tab's, takes ⌘Z from it, and the notice keeps its
+  // words without a press. Once that gesture is taken back, the discard is the newest
+  // again.
   applicationState.adopt(reading(["newer"]));
   assert.equal(takes().message, "Edit discarded");
   assert.equal(takes().press?.command, null);
-  assert.equal(undo.restore.when(), true);
+  applicationState.adopt(reading([]));
+  assert.equal(takes().press?.command, "history.undo");
 
   // Words written since stay, after the ones coming back.
   saveDraft(ctx, "A newer draft");
-  await undo.restore.run();
+  await undo.undoLast();
   assert.equal(
     loadDraft(ctx)?.text,
     "  The last discarded rewrite\nwith its spacing.  \n\nA newer draft",
   );
   assert.deepEqual(visits, [ctx]);
   assert.match(String(takes().message), /^Undone: discarded an edit of a message /);
-  assert.equal(undo.restore.when(), false);
   clearDraft(ctx);
 
-  discard("again", "Taken back by ⌘Z");
+  discard("again", "Taken back with its revision");
   await undo.undoLast();
-  assert.equal(loadDraft(rewriteContext("again"))?.text, "Taken back by ⌘Z");
+  assert.equal(
+    loadDraft(rewriteContext("again"))?.text,
+    "Taken back with its revision",
+  );
   assert.deepEqual(loadDraft(rewriteContext("again"))?.payload, { over: "revision-1" });
   assert.deepEqual(visits, [ctx, rewriteContext("again")]);
   clearDraft(rewriteContext("again"));
-});
-
-test("g D restores the discarded rewrite", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  visits.length = 0;
-  const door = { shows: () => false, press: () => {} };
-  const goTo = createGoToSequence({
-    doors: {
-      threads: door,
-      queue: door,
-      agent: { ...door, name: () => "On Agent" },
-      leaves: door,
-    },
-    hintChrome: { barriers: () => [] },
-    directDestinations: () => [undo.restore],
-    openPageMap: () => {},
-    scrollToElement: () => {},
-    leavesOffered: () => false,
-    placeThreadEdge: () => {},
-  });
-  const press = (key, shiftKey = false) =>
-    dispatchKey(
-      new window.KeyboardEvent("keydown", { key, shiftKey, cancelable: true }),
-    );
-  discard("keyboard", "Recover by keyboard");
-  assert.equal(press("g"), true);
-  assert.equal(press("D", true), true);
-  assert.equal(goTo.goToSequenceActive(), false);
-  assert.equal(loadDraft(rewriteContext("keyboard"))?.text, "Recover by keyboard");
-  assert.deepEqual(visits, [rewriteContext("keyboard")]);
 });
 
 test("a discard made while no undo list is held is ordered once the list arrives", (t) => {

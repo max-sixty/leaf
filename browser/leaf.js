@@ -691,7 +691,6 @@ async function boot() {
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
       writingResume.command,
-      app.restoreDiscarded,
       passageSelection.command,
       navigation.alignTop,
       app.read.firstUnreadCommand,

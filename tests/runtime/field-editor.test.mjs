@@ -405,10 +405,9 @@ async function savedWords(source) {
   );
 }
 
-// What a draft's body shows: its blocks, apart from the blank lines counted before each.
+// What a draft's body shows.
 /** @param {string} source */
-const shown = (source) =>
-  renderMarkdown(source, {}, false).replace(/ data-lf-gap="\d+"/g, "");
+const shown = (source) => renderMarkdown(source, {}, false);
 
 test("a draft saves each run of blank lines between blocks as one", async () => {
   assert.equal(await loadMarkdown(), true);
@@ -431,6 +430,7 @@ test("a draft saves each run of blank lines between blocks as one", async () => 
     "A\n\n>\n\nB",
     "A\n\n \n\nB",
     "> ```\n> foo\n>\n>\n\nNext",
+    '[ref]: /u "a\n    >\n    >\nb"\n\nUse [ref].',
     "\n\n\nA",
     "A\n\n\n\n",
   ])
@@ -464,22 +464,38 @@ test("what a draft saves shows as its words did, and saves again unchanged", asy
   }
 });
 
-test("Return beside a bold paragraph's words keeps its markup with them", async () => {
+/** Press Return in `field`, as the draft's Enter binding takes it. */
+const pressReturn = (field) =>
+  field.view.state
+    .facet(keymap)
+    .flat()
+    .filter((binding) => binding.key === "Enter")
+    .some((binding) => binding.run?.(field.view));
+
+test("Return beside a formatted paragraph's words keeps its markup with them", async () => {
   assert.equal(await loadMarkdown(), true);
-  for (const [source, caret, expected] of [
+  for (const [source, caret, typed] of [
     // Before the first word, a paragraph opens above, the caret in it.
-    ["Alpha\n\n**Bravo**", 9, "Alpha\n\n\n\n**Bravo**"],
-    ["Alpha\n\n[Bravo](/b)", 8, "Alpha\n\n\n\n[Bravo](/b)"],
+    ["Alpha\n\n**Bravo**", 9, "Alpha\n\nX\n\n**Bravo**"],
+    ["Alpha\n\n[Bravo](/b)", 8, "Alpha\n\nX\n\n[Bravo](/b)"],
+    ["Alpha\n\n`Bravo`", 8, "Alpha\n\nX\n\n`Bravo`"],
     // After the last word, one opens below.
-    ["**Alpha**\n\nBravo", 7, "**Alpha**\n\n\n\nBravo"],
+    ["**Alpha**\n\nBravo", 7, "**Alpha**\n\nX\n\nBravo"],
+    // A link with no words has no side to act past.
+    ["[](/url)", 0, "X\n\n[](/url)"],
   ]) {
     const field = await draftField(source, caret, false);
-    const enter = field.view.state
-      .facet(keymap)
-      .flat()
-      .filter((binding) => binding.key === "Enter")
-      .some((binding) => binding.run?.(field.view));
-    assert.ok(enter, source);
-    assert.equal(field.type("X"), expected.replace("\n\n\n\n", "\n\nX\n\n"), source);
+    assert.ok(pressReturn(field), source);
+    assert.equal(field.type("X"), typed, source);
+    // Undo puts the caret back where it stood, inside the markup.
+    const undone = await draftField(source, caret, false);
+    pressReturn(undone);
+    assert.equal(undone.type("↶"), source, source);
+    assert.equal(undone.view.state.selection.main.head, caret, source);
   }
+  // A selection's words go, and the markup around them stays whole across the break.
+  const field = await draftField("[abcdef](/x)", 7, false);
+  field.view.dispatch({ selection: { anchor: 4, head: 7 } });
+  assert.ok(pressReturn(field));
+  assert.equal(field.type("X"), "[abc\\\nX](/x)");
 });

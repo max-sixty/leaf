@@ -539,8 +539,11 @@ customElements.define(
       if (!this.#available()) return;
       // Saved as the prose reads it, with one blank line for each gap. Opening and
       // leaving a draft written with more saves nothing.
-      const text = this.#editor.valueToSave;
-      if (this.#editor.value === this.#savedText || text === this.#savedText) {
+      const text =
+        this.#editor.value === this.#savedText
+          ? this.#savedText
+          : this.#editor.valueToSave;
+      if (text === this.#savedText) {
         this.#close(true);
         return;
       }

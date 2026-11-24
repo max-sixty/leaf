@@ -28,6 +28,7 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
 /** @typedef {import("@codemirror/state").EditorState} EditorState
  * @typedef {import("@codemirror/view").EditorView} EditorView
  * @typedef {import("@codemirror/view").Decoration} Decoration
+ * @typedef {{state: EditorState, dispatch: (tr: import("@codemirror/state").Transaction) => void}} StateTarget
  * @typedef {ReturnType<typeof placedMarkdownTokens>} PlacedTokens
  * @typedef {{type: string, start: number, end: number, padStart: number, padEnd: number, inset: string, indent: string}} BlockFace
  * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
@@ -479,16 +480,26 @@ const CONTAINER = /^(blockquote|bullet_list|ordered_list|list_item)_open$/;
 function blankLines(doc, placed) {
   /** @type {Set<number>} */
   const taken = new Set();
+  /** @type {Map<number, number>} */
+  const quotes = new Map();
   for (const { token, from, to } of placed) {
     if (!token.block) continue;
     const first = doc.lineAt(from).number;
-    taken.add(first);
-    if (CONTAINER.test(token.type)) continue;
     const last = doc.lineAt(Math.max(from, to - 1)).number;
+    taken.add(first);
+    if (token.type === "blockquote_open")
+      for (let n = first; n <= last; n++) quotes.set(n, (quotes.get(n) ?? 0) + 1);
+    if (CONTAINER.test(token.type)) continue;
     for (let n = first + 1; n <= last; n++) taken.add(n);
   }
   /** @param {number} n */
-  return (n) => !taken.has(n) && /^[ \t>]*$/.test(doc.line(n).text);
+  return (n) => {
+    if (taken.has(n)) return false;
+    let text = doc.line(n).text;
+    for (let quote = quotes.get(n) ?? 0; quote > 0; quote--)
+      text = text.replace(/^[ \t]*>/, "");
+    return /^[ \t]*$/.test(text);
+  };
 }
 /** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line */
 function standBlocks(state, blocks, out, line) {
@@ -1268,9 +1279,11 @@ function fieldEditor(
   // container it continues the container as Shift+Enter does, leaving it on a bare line,
   // and elsewhere, as after a heading, it is a plain line. Shift+Enter does the same
   // here, since a line it continued in a container would join the paragraph above.
-  // A paragraph's words are what it shows. With none of them on one side of the caret,
-  // Return acts past that side's markup, so a bold first word keeps its `**`.
-  /** @param {EditorView} view */
+  // A paragraph's words are what it shows. Where the caret has them on one side only,
+  // with markup between, as after a bold first word's `**`, Return acts past that
+  // markup, so the markup stays with its words, and Undo puts the caret back where it
+  // stood.
+  /** @param {StateTarget} view */
   function newLine(view) {
     const { state } = view;
     if (state.readOnly) return false;
@@ -1290,28 +1303,41 @@ function fieldEditor(
             b <= paragraph.to,
         )
       : [];
-    // A delimiter the parser kept as text, as each `*` of `**`, holds no words.
-    const words = inline.filter(
-      ({ token }) =>
-        token.nesting === 0 &&
-        token.type !== "hardbreak" &&
-        (token.content !== "" || token.type === "image"),
-    );
-    const before = words.some(({ from: a }) => a < from);
-    const after = words.some(({ to: b }) => b > to);
-    const start = Math.min(...inline.map(({ from: a }) => a));
-    const end = Math.max(...inline.map(({ to: b }) => b));
-    const edge =
-      from !== to
-        ? from
-        : !before && from > start
-          ? start
-          : !after && from < end
-            ? end
+    const before = inline.some(({ from: a }) => a < from);
+    const after = inline.some(({ to: b }) => b > to);
+    if (from === to && (before || after)) {
+      // A delimiter the parser kept as text, as each `*` of `**`, shows nothing, and
+      // code shows what stands between its backticks.
+      const words = inline.flatMap(({ token, from: a, to: b }) =>
+        token.nesting !== 0 ||
+        token.type === "hardbreak" ||
+        (token.content === "" && token.type !== "image")
+          ? []
+          : token.type === "code_inline"
+            ? [{ a: a + token.markup.length, b: b - token.markup.length }]
+            : [{ a, b }],
+      );
+      const shownBefore = words.some(({ a }) => a < from);
+      const shownAfter = words.some(({ b }) => b > to);
+      const edge =
+        before && !shownBefore && shownAfter
+          ? Math.min(...inline.map(({ from: a }) => a))
+          : after && shownBefore && !shownAfter
+            ? Math.max(...inline.map(({ to: b }) => b))
             : from;
-    if (edge !== from) {
-      view.dispatch({ selection: { anchor: edge } });
-      return newLine(view);
+      if (edge !== from)
+        return newLine({
+          state: state.update({ selection: { anchor: edge } }).state,
+          dispatch: (tr) =>
+            view.dispatch(
+              state.update({
+                changes: tr.changes,
+                selection: tr.newSelection,
+                scrollIntoView: true,
+                userEvent: "input",
+              }),
+            ),
+        });
     }
     const line = state.doc.lineAt(from);
     const holds = holding(placed, line);
@@ -1457,7 +1483,7 @@ function fieldEditor(
   // beside the renderer's, read the whole draft again on every key, ended a quote or
   // item at a fence inside it, and took three presses to leave a list.
   const CHECKBOX = "[ ] ";
-  /** @param {EditorView} view @param {boolean} [nextItem] */
+  /** @param {StateTarget} view @param {boolean} [nextItem] */
   function continueBlocks(view, nextItem = false) {
     const { state } = view;
     const { placed } = state.field(reading);
@@ -1907,40 +1933,37 @@ function fieldEditor(
   // lines at the start or end, and those code holds, stay. So does a run without whose
   // lines the display would draw the words otherwise, as it starts a second list after
   // an empty item and two blank lines. Only the renderer knows each such rule, so saving
-  // draws the words both ways and compares them.
+  // draws the words both ways and compares them, run by run where dropping every run at
+  // once draws them otherwise.
   /** @param {EditorState} state */
   const oneLinePerGap = (state) => {
     const { doc } = state;
     const reading = state.facet(message);
-    // A message counts the blank lines before each block, which a body ignores.
-    /** @param {string} words */
-    const drawn = (words) =>
-      renderMarkdown(words, {}, reading).replace(/ data-lf-gap="\d+"/g, "");
-    const shown = drawn(doc.toString());
-    const blank = blankLines(doc, placedMarkdownTokens(doc.toString(), reading));
+    const source = doc.toString();
+    const blank = blankLines(doc, placedMarkdownTokens(source, reading));
     /** @type {{from: number, to: number}[]} */
-    const spare = [];
+    const runs = [];
     let run = 0;
     for (let n = 1; n <= doc.lines; n++) {
       if (blank(n)) {
         run ||= n;
         continue;
       }
-      if (run > 1 && n - run > 1) {
-        const drop = { from: doc.line(run).from, to: doc.line(n - 1).from };
-        if (
-          drawn(
-            state
-              .changes([...spare, drop])
-              .apply(doc)
-              .toString(),
-          ) === shown
-        )
-          spare.push(drop);
-      }
+      if (run > 1 && n - run > 1)
+        runs.push({ from: doc.line(run).from, to: doc.line(n - 1).from });
       run = 0;
     }
-    return state.changes(spare).apply(doc).toString();
+    if (!runs.length) return source;
+    const shown = renderMarkdown(source, {}, reading);
+    /** @param {{from: number, to: number}[]} dropped */
+    const saved = (dropped) => state.changes(dropped).apply(doc).toString();
+    if (renderMarkdown(saved(runs), {}, reading) === shown) return saved(runs);
+    /** @type {{from: number, to: number}[]} */
+    const spare = [];
+    for (const drop of runs)
+      if (renderMarkdown(saved([...spare, drop]), {}, reading) === shown)
+        spare.push(drop);
+    return saved(spare);
   };
 
   /** @param {boolean} on */

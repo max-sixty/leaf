@@ -30,7 +30,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
  * pressed?: boolean | null, workflowReceipt?: import("./framework/application.js").Workflow | null | undefined,
  * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
- * scope?: import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
+ * scope?: NonNullable<Element["lfCommands"]> | import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry

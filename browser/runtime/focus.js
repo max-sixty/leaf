@@ -53,8 +53,8 @@
    or a flag held until the next press, and a flag a stopped release left standing.
 
    And it owns the primitives built on these: closing a layer and handing the user
-   on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
-   and a group's one Tab stop (`rove`).
+   on as one act (`closeLayer`), and holding a place in a keyed list (`holdFocus` with
+   `key`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
    In a framed document, a sample's or any other, only the document already holding
@@ -1611,13 +1611,6 @@ export const currentLocationIn = (scope) => {
   const at = focused();
   return Boolean(at) && at !== document.body && renderedUnder(at, scope);
 };
-
-// The roving stop of a group: `stop` is the one item Tab reaches, and every other item
-// is reached by the group's own arrows. Null leaves the group no stop.
-/** @param {Iterable<Element>} items @param {Element | null | undefined} stop */
-export function rove(items, stop) {
-  for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
-}
 
 // Where a layer hands the user back when it closes: the control they had focused as it
 // opened, or the one its opener names, as a menu row's door. Recorded once at the opening

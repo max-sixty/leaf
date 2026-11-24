@@ -19,7 +19,7 @@
 
    A press on the grip takes no focus, so the comment being written keeps its caret. The
    move is presentation, not a decision, so nothing reaches the log. */
-import { el } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
 import { translateAxes } from "../element-axes.js";
 import { clamp } from "../rect.js";
 import { cancelAnimation, nextAnimation } from "../rendering.js";

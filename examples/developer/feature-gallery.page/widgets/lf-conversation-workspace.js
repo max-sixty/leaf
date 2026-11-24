@@ -2,7 +2,6 @@
    Local selection and ordering never change the log or decide obligation membership. */
 import { noChange } from "/vendor/lit.js";
 import {
-  compoundReadingRegionId,
   HeldReading,
   LeafElement,
   obligationActions,
@@ -12,11 +11,9 @@ import {
   readQueues,
   readThreads,
   registerThreadPresentation,
-  registerReadingRegion,
   setChildren,
   shadowStage,
   threadActions,
-  threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -28,13 +25,6 @@ customElements.define(
     setup() {
       this.build();
       whileConnected(this, () => {
-        const stopRegions = this.regionBodies.map(([name, body]) =>
-          registerReadingRegion({
-            id: compoundReadingRegionId(this, name),
-            host: body,
-            body,
-          }),
-        );
         this.presentation = registerThreadPresentation(this, {
           render: (collection, parts) => this.present(collection, parts),
           // A layout that already draws the part asked for keeps it: Shelf draws every
@@ -47,10 +37,7 @@ customElements.define(
             if (!drawn) this.mode = "Conversation";
           },
         });
-        return () => {
-          for (const stop of stopRegions) stop();
-          this.presentation.unregister();
-        };
+        return () => this.presentation.unregister();
       });
     }
     render() {
@@ -129,15 +116,14 @@ customElements.define(
       index.prepend(conversations);
       this.reader = offer("section", "reader");
       this.reader.setAttribute("aria-label", "Conversation reader");
-      this.regionBodies = [
+      // Each box that may scroll is a reading region, named on the box.
+      for (const [name, box] of [
         ["reader", this.reader],
         ["index", index],
         ["conversations", this.list],
-        ...Object.entries(this.queues).map(([name, body]) => [
-          name.replaceAll("_", "-"),
-          body,
-        ]),
-      ];
+        ...Object.entries(this.queues),
+      ])
+        keeps(box, "data-lf-scroll", name.replaceAll("_", "-"));
       body.append(index, this.reader);
       const compose = offer("form", "compose");
       this.input = offer("input");
@@ -219,7 +205,7 @@ customElements.define(
       const nominations = [];
       if (this.mode === "Feed") {
         for (const thread of collection.threads)
-          for (const message of threadTurns(thread)) {
+          for (const message of thread.turns) {
             const outlet = this.outlet(JSON.stringify([thread.key, message.key]));
             nominations.push(["message", thread.key, message.key, outlet]);
           }

@@ -20,10 +20,8 @@
 // the step its button's value names.
 
 import {
-  compoundReadingRegionId,
   holdFocus,
   preserveReadingRegions,
-  registerReadingRegion,
   scrollIntoView,
   shownWindow,
   whileConnected,
@@ -71,17 +69,11 @@ customElements.define(
       if (!once(this)) return;
       this.#build();
       whileConnected(this, () => {
-        const stopTerminalReading = registerReadingRegion({
-          id: compoundReadingRegionId(this, "terminal"),
-          host: this.phonePainter.terminal,
-          body: this.phonePainter.log,
-        });
         const sizing = sizeObserver(() => this.#paint());
         sizing.observe(this.stage);
         this.#paint();
         return () => {
           sizing.disconnect();
-          stopTerminalReading();
           this.#pause();
         };
       });

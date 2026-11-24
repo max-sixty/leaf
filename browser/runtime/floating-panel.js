@@ -211,7 +211,8 @@ import {
   repeat,
   signal,
 } from "/runtime/framework.js";
-import { el, reveal } from "./widget-elements.js";
+import { reveal } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
 import { offeredAction } from "./lib/controls.js";
 import { actionTemplate, iconTemplate } from "./lib/icons.js";
 import { actionName } from "./lib/icon-paths.js";
@@ -369,9 +370,9 @@ import {
   pressHolds,
   pressLed,
   pressRecords,
-  rove,
   currentLocationIn,
 } from "./focus.js";
+import { rove } from "./lib/roving.js";
 import { rowWalk, walkWords } from "./walk-position.js";
 import { capitalized, counted, excerptWords } from "./lib/words.js";
 import { coarsePointer } from "./pointer.js";

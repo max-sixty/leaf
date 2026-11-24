@@ -452,7 +452,7 @@ body {
     overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
-   * height (lf-sample.js). So the body keeps to its content rather than filling the
+   * height (runtime/sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The frame is the sample's window, and it holds the sample's
@@ -585,8 +585,8 @@ main {
  * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
  * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
- * runtime's and modules' `data-lf-scroll`, which a reading region's body takes when it
- * registers (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * runtime's and modules' `data-lf-scroll`, which every reading region's body wears
+ * (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
  * state.css). Each value it changes is one everything in the box inherits, so a box
  * that holds thousands of elements states the whole restart beside its overflow and
  * the mark changes nothing there (a text document's listing). The runtime reads no

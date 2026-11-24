@@ -51,7 +51,7 @@ from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { LeafElement, nameOf, readThreads, threadTurns } from '/runtime/widget-api.js';
+import { LeafElement, nameOf, readThreads } from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
@@ -59,7 +59,7 @@ customElements.define('lf-thread-reader', class extends LeafElement {
     this.sameReading = collection === readThreads();
     this.topic = collection.threads[0] && nameOf(collection.threads[0]);
     return html`<pre>${collection.threads.map(thread =>
-      threadTurns(thread).map(message => message.body.text).join('\n')
+      thread.turns.map(message => message.body.text).join('\n')
     ).join('\n')}</pre>`;
   }
 });
@@ -79,19 +79,19 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { LeafElement, nameOf, signal, threadActions, readThreads } from '/runtime/widget-api.js';
+import { LeafElement, nameOf, threadActions, readThreads } from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
-  query = signal('');
-  setup() { this.query.value = this.getAttribute('filter') ?? ''; }
+  static properties = { query: { state: true } };
+  setup() { this.query = this.getAttribute('filter') ?? ''; }
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
     this.updates = (this.updates ?? 0) + 1;
     const shown = collection.threads.filter(thread =>
-      nameOf(thread).toLowerCase().includes(this.query.value.toLowerCase()));
-    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
-      @input=${event => { this.query.value = event.target.value; }}>
+      nameOf(thread).toLowerCase().includes(this.query.toLowerCase()));
+    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query}
+      @input=${event => { this.query = event.target.value; }}>
       <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
         @click=${() => threadActions.open(thread.key)}>${nameOf(thread)}</button></li>`)}</ul>`;
   }
@@ -1314,7 +1314,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
 ):
     """A message-only primary materializes the widget's turn, though it draws another."""
     module = """
-    import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
+    import {registerThreadPresentation} from '/runtime/widget-api.js';
     customElements.define('lf-message-reader', class extends HTMLElement {
       connectedCallback() {
         this.outlet = document.createElement('section');
@@ -1323,7 +1323,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
           render: (collection, parts) => {
             const thread = collection.threads[0];
             if (!thread) return;
-            const message = threadTurns(thread).find(message =>
+            const message = thread.turns.find(message =>
               message.key === (this.message ?? thread.root.key));
             parts.message(thread.key, message.key, this.outlet);
           },
@@ -2093,7 +2093,7 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
       const workspace = document.querySelector('#workspace');
       const present = (collection, parts) => {
         const messages = collection.threads.flatMap(thread =>
-          api.threadTurns(thread).map(message => [thread, message]));
+          thread.turns.map(message => [thread, message]));
         if (workspace.reversed) messages.reverse();
         for (const [thread, message] of messages)
           parts.message(thread.key, message.key, workspace.reader);

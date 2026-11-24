@@ -24,7 +24,7 @@ export { tabStore } from "./tab-store.js";
 export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
 
-export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
+export { threadSurface } from "./thread/surface-handles.js";
 
 export { searchField } from "./control-labels.js";
 

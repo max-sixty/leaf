@@ -497,6 +497,8 @@ test("a draw reads again the keys of what it drew and around it, not of the page
       render() {
         return html`<button>Open</button><button>Close</button>`;
       }
+      // A subclass that leaves `super.updated()` out still has its keys read.
+      updated() {}
     },
   );
   const element = document.createElement(tag);

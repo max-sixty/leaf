@@ -44,7 +44,8 @@ import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
-import { el, responseAction } from "./widget-elements.js";
+import { responseAction } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
 import { offerAction } from "./lib/controls.js";
 import { keeps } from "./lib/keeps.js";
 

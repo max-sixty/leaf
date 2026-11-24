@@ -9,12 +9,12 @@
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
 import {
-  el,
   keepView,
   openingView,
   viewMembers,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { el } from "/runtime/lib/elements.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer } from "/runtime/lib/controls.js";
 import { cancelRender, nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";

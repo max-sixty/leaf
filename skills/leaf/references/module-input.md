@@ -21,8 +21,9 @@ widget that also runs off Leaf") binds no key. Declare at upgrade.
 
 Assigning a new object to `lfCommands` and dispatching the event replaces the
 scope, and Leaf checks the new rows then, reporting a malformed one as the element's
-failure. `null` withdraws the scope. Dispatching the event with the same object
-standing only has Leaf read its rows' titles and availability again, so a row or title
+failure. `null` withdraws the scope. Leaf checks an object once, the first time it is
+given. Dispatching the event with that object again, standing or given back after
+`null`, only has Leaf read its rows' titles and availability again, so a row or title
 edited in place goes unchecked; assign a new object to change them.
 
 ```javascript
@@ -33,35 +34,37 @@ this.lfCommands = {
 this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 ```
 
-For controls Leaf draws, such as margin entries, build the scope as a value with
-`commandScope(title, rows, options)` and put it on the entry's `scope`
-(`module-annotations.md`, "Margin contributions"). Where the same commands also apply to
-the widget's own elements, that value is their `lfCommands`:
+One object is one scope wherever it is given. Where the same commands apply in several
+elements, such as a widget and the editor it opens, set the one object as the
+`lfCommands` of each and dispatch the event on each, and Leaf lists and runs the
+commands once. For a control Leaf draws, such as a margin entry, put the same object on
+the entry's `scope` (`module-annotations.md`, "Margin contributions"):
 
 ```javascript
-const actions = commandScope("In a classifier", [
-  {
-    id: "classify.pass",
-    title: "Pass",
-    keys: ["ArrowLeft"],
-    contextKeys: ["1"],
-    decision: true,
-    control: passButton,
-    bindingBadge: passHint,
-    when: canClassify,
-    run: () => classify("pass"),
-  },
-]);
+const actions = {
+  title: "In a classifier",
+  rows: [
+    {
+      id: "classify.pass",
+      title: "Pass",
+      keys: ["ArrowLeft"],
+      contextKeys: ["1"],
+      decision: true,
+      control: passButton,
+      bindingBadge: passHint,
+      when: canClassify,
+      run: () => classify("pass"),
+    },
+  ],
+};
 classifier.lfCommands = actions;
 classifier.dispatchEvent(
   new CustomEvent("lf-commands", { bubbles: true, composed: true }),
 );
 ```
 
-In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
-bound on, takes the current rows on each render, and detaches when the element goes.
-Where the rows need the element, pass a function of it, such as
-`commandsOn(title, (row) => [{ …, run: () => select(row) }])`.
+An element a template draws takes its scope the same way after the render that places
+it, as in a `LeafElement`'s `updated()`.
 
 ### Command rows
 
@@ -109,10 +112,10 @@ away from the editor saves them, `keep` saves them too, as `lf-draft` does; othe
 keeps them where reopening finds them and shows that the widget holds them.
 
 Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
-such as the threads, and, for the scopes a `LeafElement` drew or declared on itself,
-after each of its draws, so their rows may read `this.state`. For any other state a row
-reads, hold the value in a `signal` or dispatch `lf-commands` on the element after
-changing it.
+such as the threads. For the scopes a `LeafElement` drew or declared on itself, it does
+so after each of the element's draws too, so their rows may read `this.state`, a
+reactive property, or a field the widget calls `requestUpdate()` after changing. For
+any other state a row reads, dispatch `lf-commands` on the element after changing it.
 
 ### How scopes compose
 
@@ -254,8 +257,8 @@ obligation; a module asks it whether the user is on its content from either.
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
-of controls the user moves through with arrow keys offers one Tab stop with
-`rove(items, stop)`.
+of controls the user moves through with arrow keys offers one Tab stop, which the
+library's [`roving.js`](../../../browser/runtime/lib/roving.js) sets.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
 events. `begin(pointerdown, path)`, a passive listener, may return
@@ -323,13 +326,14 @@ itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 A handler that takes over a click, such as a link that opens a source line, acts only on
 the primary button with no modifier held, so a modified click keeps its usual meaning.
 
-A control labelled with the page's own words skips a click where
-`reachedForWords(control)` is true, since the user was selecting the words, but lets a
-click made with Enter or Space through, checking `event.detail === 0` first, which
-only a keyboard or script click has. A container that takes a click anywhere on it,
-as an option card does, asks
-`worksInside(event.target, container)` for the control the click was aimed at, inside
-the container or around it, and leaves the click to that control.
+A container that takes a click anywhere on it, as an option card does, asks
+`aimedAt(event, container)` what the click was for. The answer is the container itself;
+or what the click landed on that has a use of its own, such as a control or a widget
+inside the container or a link around it; or null where the click belongs to a
+selection of the container's words, one a drag across them ends or one the press
+landed in. The container acts where the answer is itself or a control its own module
+put inside it, such as an option's pick mark, and leaves the click to anything else
+the answer names. A click made with Enter or Space never belongs to a selection.
 
 A click on words a thread marks opens that thread, unless the click landed on a control
 or a handler took it. So a handler that acts on a click on anything but a control, such
@@ -353,7 +357,7 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 
 A widget's own text box is Leaf's Markdown editor, which behaves like a textarea and
 fires `input` only for the user's edits. Build it as a generated control
-(`module-controls.md`) whose tag is `TEXT_FIELD`. The field matches `:state(ready)` once
+(`module-controls.md`) whose tag is `leaf-text`. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 

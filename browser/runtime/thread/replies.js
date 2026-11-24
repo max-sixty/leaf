@@ -64,7 +64,7 @@ import {
 import { threadKey } from "./model.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
-import { el } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
 import { offer } from "../lib/controls.js";
 import { signal } from "/runtime/framework.js";
 import { move } from "../dom-move.js";

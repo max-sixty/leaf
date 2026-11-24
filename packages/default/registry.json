@@ -178,6 +178,7 @@
     },
     "content": "empty",
     "bound": "start",
+    "history": true,
     "instructions": "Write it empty with a stable id.",
     "example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },

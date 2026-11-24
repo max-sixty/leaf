@@ -551,12 +551,9 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab that reads the page's history asks for it with `Leaf-History`. What a
-        tab is sent of it is `sent`'s to say.
+        What a tab is sent of it is `sent`'s to say.
         """
-        return self._state_service().page_state(
-            view_revision, asks_history=self.headers.get("Leaf-History") is not None
-        )
+        return self._state_service().page_state(view_revision)
 
     def sent(self, state: dict) -> dict:
         """What a tab is sent of `state`, addressed at this page's root
@@ -1243,7 +1240,7 @@ class PageEndpoint:
             # What the answer holds turns on the reading, data and revision the tab
             # names (`CACHE_CONTROL`).
             answer.headers["Vary"] = (
-                "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision, Leaf-History"
+                "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
             )
             return answer
         if path == "/api/view":

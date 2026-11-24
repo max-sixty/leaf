@@ -303,6 +303,7 @@ role on the page:
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
 | `bound`        | `lf-activity`                                                                        |
 | `height`       | `lf-chart`                                                                           |
+| `history`      | `lf-activity`                                                                        |
 | `views`        | `lf-tabs`                                                                            |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module

@@ -6,7 +6,7 @@ from ..activity import turn_runs
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..gesture_words import GestureWords, RevisionReader
-from ..history import history
+from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import (
     ThreadMarkupReading,
@@ -68,7 +68,6 @@ def browser_state(
     *,
     work: WorkState | None = None,
     revision_ids: set[int] | frozenset[int] | None = None,
-    with_history: bool = False,
 ) -> tuple[dict, BrowserReading]:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -77,8 +76,7 @@ def browser_state(
     ephemeral transport projection of the exact log sequence and revisions from
     which it was read; the page server names what it serves (`tail.answer`). `revisions`
     reads a revision a gesture names that is not among `readings`; without it every
-    such revision must be there. `with_history` adds the page's history
-    (`history.py`).
+    such revision must be there.
     """
     through_seq = events[-1]["seq"] if events else 0
 
@@ -164,7 +162,7 @@ def browser_state(
             "published_at": published_at,
             "queues": queues(workflows, items, threads, reading.within),
         }
-    if with_history:
+    if wants_history(readings[revision] for revision in view_revisions):
         page_history = {
             "history": history(
                 events,
@@ -201,11 +199,11 @@ def browser_state(
 
 
 def project_browser_state(
-    context: PageRead, view_revision: int | None = None, *, with_history: bool = False
+    context: PageRead, view_revision: int | None = None
 ) -> tuple[dict, BrowserReading] | None:
     """Project only the documents one browser reading can consume: the shown and
-    active revisions, and the page's history `with_history`. Historical gesture words
-    use the same context at the requested log boundary."""
+    active revisions. Historical gesture words use the same context at the requested
+    log boundary."""
     active = context.active
     if active is None:
         return None
@@ -226,5 +224,4 @@ def project_browser_state(
         context.revision,
         work=context.work,
         revision_ids=context.revisions,
-        with_history=with_history,
     )

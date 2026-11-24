@@ -334,6 +334,7 @@ FACTS: dict[str, dict] = {
     "awaits": AWAITS_SCHEMA,
     "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "exhibit": _conditional({"const": True}),
+    "history": {"const": True},
     "owners": _TAGS,
     "refers": REFERENCE_SCHEMA,
     "reading-role": {"enum": ["pane", "group"]},

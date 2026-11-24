@@ -174,22 +174,6 @@ export function layerHeaders(headers) {
  * state: CompletedState | null
  * }} Held */
 
-// The page's history (`readHistory`, reports.js) reaches only a tab that asks for it,
-// so a page that shows none pays nothing for it (`history.py`). Once a reader asks,
-// every state request carries the ask, a gesture's included, and the state feed reads
-// again whenever the reading in hand lacks the rows (`lf-history-asked`, and its
-// clock for an answer to a request sent before the ask).
-let historyAsked = false;
-export function askHistory() {
-  if (historyAsked) return;
-  historyAsked = true;
-  document.dispatchEvent(new Event("lf-history-asked"));
-}
-// Whether `state` lacks the history a reader asked for.
-/** @param {import("../types/contract.js").ServedState | null} state */
-export const lacksAskedHistory = (state) =>
-  historyAsked && !!state?.browser && !state.browser.history;
-
 // A state request names what the tab holds, and the answer leaves that out for its
 // reader to restore from the same holding (http.py, `sent`). An answer to a request
 // naming the reading the tab adopted, by its `browser.basis.key`, may carry only the
@@ -204,7 +188,6 @@ export const heldReading = () => ({ data: runtime.data, state: runtime.state });
 export const heldHeaders = ({ data, state }) => ({
   ...(data.version !== null && { "Leaf-Data-Version": data.version }),
   ...(state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }),
-  ...(historyAsked && { "Leaf-History": "1" }),
 });
 
 /** @typedef {import("../types/contract.js").ServedChange} Change */

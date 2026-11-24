@@ -33,7 +33,6 @@ import {
   completeState,
   heldHeaders,
   heldReading,
-  lacksAskedHistory,
   layerHeaders,
   admitResponse,
   reportCarried,
@@ -416,14 +415,6 @@ export function createStateFeed({
       listen();
     });
     document.addEventListener("lf-session-active", listen);
-    // A reader that asks for the page's history (`askHistory`) while the reading in
-    // hand lacks it has the page read again at once. An ask made before the feed
-    // starts is checked against the first answer as the feed starts, below, and an
-    // answer to a request sent before the ask, which can take the rows back, on the
-    // clock.
-    document.addEventListener("lf-history-asked", () => {
-      if (feedStarted && lacksAskedHistory(stateInHand())) item();
-    });
     // The ear opens after the first answer or startup fault. A successful read holds
     // a freshness token, so an unchanged page is not asked for twice; a failed read
     // releases its slot for recovery on the shared clock.
@@ -431,7 +422,6 @@ export function createStateFeed({
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
       feedStarted = true;
-      if (lacksAskedHistory(stateInHand())) item();
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
         if (!pageIsVisible()) return;
@@ -439,13 +429,11 @@ export function createStateFeed({
         // activity has come due, or when the last look heard the news name a
         // reading other than the one the page still has in hand: a state read
         // crossed a short-lived process lease the news never named, or the page
-        // dropped an answer it could not adopt. Ask again too when the reading in
-        // hand lacks the history a reader asked for. Repair each on this clock rather
+        // dropped an answer it could not adopt. Repair each on this clock rather
         // than repeating state at every look. A read in flight, or an answer handed
         // in since that look, settles it instead, and if it fails the next tick asks.
         const asks =
           !readAnswered ||
-          lacksAskedHistory(stateInHand()) ||
           (sessionIsActive() &&
             (activityTransitionDue(stateInHand()) ||
               (crossed !== null && crossed.held === readingInHand())));

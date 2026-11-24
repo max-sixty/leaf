@@ -767,6 +767,7 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
             "verbs",
             "verbatim",
             "shadow",
+            "history",
         )
         if entry.get(key)
     ] + (["visual"] if isinstance(entry.get("visual"), dict) else [])

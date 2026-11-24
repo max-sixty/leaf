@@ -410,6 +410,20 @@ def _drawn_height(at: str, v: dict) -> str:
     )
 
 
+def _scroll_mark(v: dict) -> str:
+    """What scrolls a box sideways, for whoever wrote the box: the page's markup names
+    its own boxes `class="lf-scroll"`, and a module marks a box it builds
+    `data-lf-scroll`, with the overflow in its package's CSS
+    (`module-scroll-and-motion.md`). `built` says the page's source didn't write it."""
+    if v.get("built"):
+        return (
+            "with data-lf-scroll on it in the widget's module and overflow-x: auto in"
+            " its package's CSS, since the page's markup can't reach a box the module"
+            " builds"
+        )
+    return 'with overflow-x: auto and class="lf-scroll"'
+
+
 def _clipped_content(at: str, v: dict) -> str:
     cuts = []
     if v["down"]:
@@ -420,7 +434,7 @@ def _clipped_content(at: str, v: dict) -> str:
     if v["across"]:
         cuts.append(
             f"{v['across']}px of it past its width — let it wrap, or scroll it"
-            ' sideways with overflow-x: auto and class="lf-scroll"'
+            f" sideways {_scroll_mark(v)}"
         )
     return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
 
@@ -864,8 +878,8 @@ _TEXT = {
             else ""
         )
         + 'to give it more room, mark it data-width="wide" or "available" rather than'
-        " sizing it past the column, or scroll it sideways in a box of its own with"
-        ' overflow-x: auto and class="lf-scroll"'
+        " sizing it past the column, or scroll it sideways in a box of its own"
+        f" {_scroll_mark(v)}"
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — to widen"

@@ -26,7 +26,9 @@ A module that builds its own panes, such as a playground's controls beside its p
 marks each generated box `data-lf-reading-role="pane"` and `data-lf-generated`, with a
 header, a body and a footer, and draws the frame around them itself. Keep the package
 theme to placement within the pane, such as track sizes, and don't copy the Layout's
-full-height rules. Generate plain boxes rather than `lf-pane` elements, which the render
+full-height rules. A rule that sets a pane body's padding also states the top
+padding as `--lf-pane-top`, which the workspace Layout reads to stick a header at the
+body's edge where the body scrolls on its own. Generate plain boxes rather than `lf-pane` elements, which the render
 gate expects to find in the page's file.
 
 A module can generate a track beside its main content, such as a playground's controls
@@ -195,7 +197,9 @@ revealed control lands exactly there. Put the stacked value on a box that doesn'
 itself.
 
 A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
-inside it sticks at its top from the first paint. Leaf also restarts `--lf-top` on a box
+inside it sticks at its top from the first paint. It sets `--lf-top-covered` to the
+same value with it: the part of `--lf-top` the box's own `scroll-padding` already
+clears, so a landing inside the box keeps clear only the headers stuck inside it. Leaf also restarts `--lf-top` on a box
 marked as a scroll surface, such as a registered reading region's body, once it finds
 the box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other
 box's overflow, so in a box that scrolls without that declaration or the mark, a header
@@ -206,6 +210,10 @@ on the scroller's edge, set `--lf-top-start` to minus that padding and
 with its own `scroll-padding` states it as `--lf-landing-room-start`. A box that only
 clips, such as a card with rounded corners, uses `overflow: clip`, since a header inside
 an `overflow: hidden` box scrolls away with the page.
+
+Leaf leaves `--lf-landing-room` over a landing for its focus ring. A box a package
+sticks beside the content it lists, as a side list does, sets its `top` that far below
+`--lf-top`.
 
 ### Headers over the document
 
@@ -309,7 +317,8 @@ has not taken, such as a value the server refused (`module-plain-elements.md`,
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and
-takes them away with it. Set the whole quiet word each time. Leaf writes
+takes them away with it. The words stand in a first child of class `lf-quiet`, which
+takes no room. Set the whole quiet word each time. Leaf writes
 quiet words for elements it marks as rewritten, changed or reported, so declare them only
 on parts the module builds or owns, such as a code line or a suggestion's slot. A page
 without Leaf, whose theme would leave them on screen, writes none. Where a control's

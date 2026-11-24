@@ -144,6 +144,12 @@ elements and text while tokens are added inside them; use literal newlines rathe
 `<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
 reading face as other content with its own design does.
 
+A widget that draws each line of source in a box of its own, as an editor does, marks
+the box `data-lf-pre-line`. Leaf then indents the rows a long line wraps onto two
+columns past the line's own indent and draws a mark before each. The box states the
+line's indent, a count of its leading columns, as `--lf-code-indent`, and its own
+inline padding as `--lf-pre-line-inset`.
+
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
@@ -151,7 +157,8 @@ returns the text to copy. Leaf stands the button right after the block while bot
 the page, and a page without Leaf shows none. A widget that draws marks of its own over
 the block, as `lf-code` draws its notes mark and a draft its editing marks, sets the
 block's `lfBar` to the `.lf-mark-bar` it places and shows over the block, and Leaf
-stands Copy last in it. A copy that stands among a widget's own controls rather than
+stands Copy last in it. Place the bar in the seat a lone Copy has: inside the block's
+top-right corner, `--lf-block-control-inset` from both of the block's outer edges. A copy that stands among a widget's own controls rather than
 over a block, such as in a popover's header, is `copyControl(className, {label,
 success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol; to
 copy through a press of your own built by its role, pass it as `trigger` instead. Set

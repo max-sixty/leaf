@@ -178,7 +178,8 @@ nearby button.
 To show a command's key on the page, set `bindingBadge` on its row or route: an empty
 element the widget positions in or beside its control, or `null` for a badge at the
 control's corner. Leaf gives the element the class `lf-binding-seat`, which positions it
-absolutely, and writes the key into it while the key works. `leaf package check
+absolutely, and writes the key into it while the key works; the widget gives it the
+class `lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check
 --render` reports a command with `contextKeys` and no badge (`shows-context-keys`,
 [packages.md, "Seeing it"](packages.md#seeing-it)).
 
@@ -312,6 +313,11 @@ the focused control that matches it `data-lf-control-focus`, and
 own attributes. Don't ask with `:has()` where focus is, by a mark or by `:focus`: in
 Chromium that makes every focus move restyle the page.
 
+Leaf rings the obligation the user is in. A widget whose own control shows where
+the user is, as an option group's row does, declares `--lf-obligation-ring: none` on
+the control while it holds visible focus, and Leaf then draws no ring round the
+obligation.
+
 ### Layers
 
 A widget's own layer, such as a list over its contents, is a native popover or dialog,
@@ -383,7 +389,10 @@ A widget's own text box is Leaf's Markdown editor, which behaves like a textarea
 fires `input` only for the user's edits. Build it as a generated control
 (`module-controls.md`) whose tag is `leaf-text`. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
-place until then, so the scroller doesn't shrink.
+place until then, so the scroller doesn't shrink. Under a finger Leaf sets a field's
+type no smaller than `--lf-entry-floor`, so a widget that shows words and then opens a
+field on them sets those words' `font-size` to `max(var(--lf-entry-floor), 1em)`, and
+the two sizes agree.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
@@ -399,6 +408,14 @@ before wiring it.
 `wireInput` returns `sync`, which reads or sets the whole draft, a pasted image
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
 after the box's state changes. `sync.button` is the generated send control.
+
+`wireInput` stands the box in a frame, `.lf-compose-field`, with its send control and,
+while a send is refused, the reason, `.lf-compose-error`. The box's hint is
+`.lf-compose-placeholder`. A widget that seats the box in a row of its own places
+those parts from its sheet, and sets the frame's padding on `.lf-compose-field` as
+`--lf-compose-pad-block` and `--lf-compose-pad-inline-start`. Leaf sets
+`--lf-field-end-room` on the box, the room its words leave at their end for the send
+control, and a widget that moves the control sets it again.
 
 Drafts survive a reload, a new version and a closed tab, and every tab and device
 showing the page shares them, since the page's server keeps them. Keep each under a

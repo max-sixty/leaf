@@ -552,8 +552,8 @@ customElements.define(
       }
     }
 
-    // The body `render` painted draws its code and formulas once it stands
-    // (module-state.md, "The widget controller").
+    // The body `render` painted draws its code and formulas once it stands, and the
+    // update waits for them (lib/leaf-element.js, `pending-task`).
     /** @param {Map<PropertyKey, unknown>} changed */
     updated(changed) {
       super.updated(changed);

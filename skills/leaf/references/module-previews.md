@@ -1,7 +1,6 @@
 # Previews
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
 pointer rests on it, when Tab brings the keyboard to it or something inside it, and when

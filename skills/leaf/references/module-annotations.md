@@ -1,7 +1,6 @@
 # Threads and annotations in a module
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 ## Margin contributions
 
@@ -11,35 +10,30 @@ A widget puts its actions and statuses in the page's margin with
 `t` reach them, and inserts nothing into the page's content. `target` is an element, or
 a function returning the one the actions currently sit beside. Set `source` to the
 widget that owns them when the controls have to sit beside an ancestor that outlives
-it. For example, inside a widget whose `save()` method does the work:
+it. For example, behind the first-connection guard of a widget whose `save()` method
+does the work:
 
 ```js
 import { registerContribution, whileConnected } from "/runtime/widget-api.js";
 
-setup() {
-  whileConnected(this, () => {
-    this.actions = registerContribution({
-      key: this.id,
-      target: this,
-      read: () => ({
-        kind: "action",
-        subject: this.getAttribute("aria-label"),
-        entries: [
-          { key: "save", glyph: "✓", label: "Save", disabled: this.disabled },
-        ],
-      }),
-      activate: () => this.save(),
-    });
-    return () => this.actions.unregister();
+whileConnected(this, () => {
+  this.actions = registerContribution({
+    key: this.id,
+    target: this,
+    read: () => ({
+      kind: "action",
+      subject: this.getAttribute("aria-label"),
+      entries: [{ key: "save", glyph: "✓", label: "Save", disabled: this.disabled }],
+    }),
+    activate: () => this.save(),
   });
-}
-
-syncActions() { this.actions.update(); }
+  return () => this.actions.unregister();
+});
 ```
 
 `read()` returns data, never controls: the actions available in the widget's current
-state, each a plain object. Call `update()` whenever that state changes, and
-every surface redraws from the new entries. Each entry needs a `key`, a `label`, and one
+state, each a plain object. Call the registration's `update()` whenever that state
+changes, and every surface redraws from the new entries. Each entry needs a `key`, a `label`, and one
 of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
 holds rather than what it does). `behavior`, `tone`, `rank` and
@@ -85,8 +79,8 @@ a name, and the `visual` declaration admits the id, a nonempty string with no
 whitespace. A mark inside a shadow root is not read.
 
 Where marks can't say it, the element states its parts as its `lfParts` property, an
-object Leaf reads each time it needs the parts. Set it where the widget builds itself
-(`setup()`, or behind its first-connection guard). Its `read()` returns the parts drawn
+object Leaf reads each time it needs the parts. Set it where the widget builds itself,
+behind its first-connection guard. Its `read()` returns the parts drawn
 now as `{id, element, label}`, in place of the marks, and may name an element in the
 visual's shadow root. `reveal(id)` shows a part when someone follows its thread, even if it is
 visible already, so cancel work that would hide it. `label(id)` names a part in
@@ -305,9 +299,9 @@ threadOutlets(targets, { onCommit }) {
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
 stays in the margin; a widget that seats only its data returns `null` for itself too.
-After a change that only shows or hides data, as a fold or a filter does, dispatch a
-bubbling, composed `lf-layout` event on the widget (`module-plain-elements.md`,
-"`lf-layout`"), and Leaf calls `threadOutlets` again. A change that also resizes the
+After a change that only shows or hides data, as a fold or a filter does, dispatch an
+`lf-layout` event on the widget (`module-plain-elements.md`, "`lf-layout`"), and Leaf
+calls `threadOutlets` again. A change that also resizes the
 widget still needs the event: after a resize alone, Leaf measures the widget again and
 does not call `threadOutlets`.
 

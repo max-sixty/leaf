@@ -221,7 +221,6 @@ import {
   advertisesKeys,
   cycledRow,
   parsed,
-  rowArrows,
   spell,
   titleOf as rowTitle,
 } from "./keyboard/bindings.js";
@@ -407,6 +406,7 @@ import {
   pressCommand,
   standingStances,
 } from "./keyboard/dispatch.js";
+import { rowArrows } from "./lib/keys.js";
 
 const prefs = () => window.lfChrome;
 // What the status says before the page has one (page-status.js, `statusReading`).

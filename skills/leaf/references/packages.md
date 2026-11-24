@@ -134,8 +134,8 @@ state of its own.
 
 Leaf's chrome and comment marks are unlayered, so change their colours and type
 through the theme inputs below, and restyle the chrome's surfaces by part in
-`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
-`inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
+`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in
+`@layer lf-base { … }` (`module-authoring.md`, "Shadow stages and styles").
 
 Leaf places each sheet in its tier and changes none of its rules but `chrome.css`'s,
 which it nests in the chrome, so a sheet names

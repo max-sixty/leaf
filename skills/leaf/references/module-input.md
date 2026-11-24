@@ -141,9 +141,10 @@ their own activation and editing.
 
 Leaf already answers Enter, Space and the opening arrow on a `details > summary` or a
 button with `aria-expanded`; a row that names the same press uses `DISCLOSE(element)` as
-its `keys`. `rowArrows(node)` returns `[back, ahead]` arrow keys for the text direction,
-and `PRESS` is Enter and Space. `labelOf(row)` is a row's key text for a tooltip;
-`saying(rows)` names, for an announcement, the keys that would run the rows now.
+its `keys`. The library names the keys that press a button and the arrows along a row
+in its text direction (`module-authoring.md`, "Shared web code"). `labelOf(row)` is a
+row's key text for a tooltip; `saying(rows)` names, for an announcement, the keys that
+would run the rows now.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
 the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
@@ -330,7 +331,6 @@ Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;
 meanwhile the page applies no revision or undo. A widget whose drag moves its own nodes
 holds its drawing with `defer()` (`module-state.md`, "The widget controller").
-`motionPreview(label)` makes the image that follows the pointer.
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each

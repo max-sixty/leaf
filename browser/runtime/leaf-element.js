@@ -31,7 +31,7 @@
      what the keys declared in what it drew read from those nodes. A draw leaves what
      the page wrote beside a part it draws into as it was, such as a tab set's panels,
      so their keys aren't read again.
-   - `lf-hold`, as `defer()` starts, with a promise that settles as the hold ends.
+   - `lf-defer`, as `defer()` starts, with a promise that settles as the hold ends.
      A set Leaf makes meanwhile is not drawn, so the page counts it as presented only
      once the hold has ended and the release has drawn; and the gesture rewrote the
      element's nodes outside any draw, so Leaf reads the document again then.
@@ -59,7 +59,7 @@ import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import {
   COMMANDS,
   CONNECT,
-  HoldEvent,
+  DeferEvent,
   PendingTaskEvent,
   failSoft,
   placesFailure,
@@ -274,7 +274,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     if (this.#hold) throw new Error("Widget presentation is already deferred");
     /** @type {PromiseWithResolvers<void>} */
     const hold = (this.#hold = Promise.withResolvers());
-    this.dispatchEvent(new HoldEvent(hold.promise));
+    this.dispatchEvent(new DeferEvent(hold.promise));
     return () => {
       if (this.#hold !== hold) return;
       this.#hold = null;

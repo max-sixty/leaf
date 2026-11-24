@@ -78,7 +78,8 @@ const documentCommits = new Map();
 // the pass that follows the publication. A draw a widget makes on its own schedule,
 // its first included, is ordered against no pass; the two this file hears of present
 // the document again as they end: the drawing of an arriving widget's first sets
-// (element-integration.js) and a gesture's hold (`lf-hold`, widget-controller.js).
+// (element-integration.js) and an element's hold on its drawing (`lf-defer`,
+// widget-controller.js).
 // Imperative Lit render commits in its call;
 // what the thread pass decides later, where it places and seats each thread, reaches
 // the margin as readings its paint follows (anchor-placement.js `placedAt`,

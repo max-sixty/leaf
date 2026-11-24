@@ -29,15 +29,16 @@ assert:
       current Edit or Save/Cancel reading from one producer, gives each action one
       route to its effect, updates that registration after the editing or disabled
       state changes, and unregisters on disconnect, in `disconnectedCallback` or in
-      the cleanup of `whileConnected`, which the same module exports. Either route
-      to an effect passes. One is the registration's `activate` callback. The other
-      is a command the widget declares: an entry names it by setting `scope` to the
-      object the widget holds as `lfCommands` and `activation` to the command's id,
-      and Leaf then runs the command's own `run` and disables the entry with the
-      command. It leaves editing state and words with the existing widget. It must
-      not create a second Page Map action directory, manually place page-edge
-      controls, import a private runtime owner, send events to the server itself, or
-      dispatch synthetic clicks or key events.
+      the cleanup of `whileConnected`, which the same module exports. An action's
+      route to its effect is one of two, and both pass. The first is the
+      registration's `activate` callback. The second is a command the widget
+      declares: an entry names it by setting `scope` to the object the widget holds
+      as `lfCommands` and `activation` to the command's id, and Leaf then runs the
+      command's own `run` and disables the entry with the command. It leaves editing
+      state and words with the existing widget. It must not create a second Page Map
+      action directory, manually place page-edge controls, import a private runtime
+      owner, send events to the server itself, or dispatch synthetic clicks or key
+      events.
       Judge the JavaScript integration, including explicit instructions to call
       its update method from existing state setters. The task supplies the editor
       and effect methods; they need not be reimplemented. Its environment cannot
@@ -57,11 +58,14 @@ assert:
       even when the ownership architecture otherwise looks correct. Do not
       reward an agent for admitting such assumptions. A native keyboard route
       through Leaf controls and Page Map is sufficient, and keys of the widget's own
-      are optional. A widget states its keys by setting a plain object it writes as
-      the element's `lfCommands`, since /runtime/widget-api.js exports nothing that
-      builds one, and dispatching an `lf-commands` event on the element, and again
-      after the state its rows read changes. That event is Leaf's public interface,
-      and this case grades no field of a command scope or of its rows. Where the
-      answer declares keys, a key and a press on the entry must run the same code:
-      the entry names the command as above, or the command's `run` calls the
-      registration's `activate` with the entry's key.
+      are optional. An answer that declares commands, for keys or for entries to
+      name, must set a plain object it writes as the element's `lfCommands`, dispatch
+      an `lf-commands` event on the element, and dispatch it again after a state its
+      rows read, such as editing or disabled, changes. That event is Leaf's public
+      interface, and dispatching it is not a failure. Importing a function that
+      builds the scope is a failure, since /runtime/widget-api.js exports none. This
+      case grades no other field of a command scope or of its rows. A key and a press
+      on an entry must take the same route to the effect: the entry names the key's
+      command as above, or the command's `run` calls the registration's `activate`
+      with the entry's key. A command's `run` and the `activate` callback that each
+      call the effect method themselves are two routes, and fail.

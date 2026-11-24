@@ -57,7 +57,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
-import { capitalized, counted } from "../words.js";
+import { capitalized, counted } from "../lib/words.js";
 import { describeFailure } from "../lib/exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";

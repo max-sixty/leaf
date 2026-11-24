@@ -14,7 +14,7 @@
  * margin row. The note is a proxy for its block (control-faces.js, `proxy`): focus on it
  * rings the block and brings it into view (details-shelf.js).
  */
-import { counted } from "./words.js";
+import { counted } from "./lib/words.js";
 import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./contribution-model.js";

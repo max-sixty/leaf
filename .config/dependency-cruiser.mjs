@@ -39,19 +39,11 @@ const library = `^${runtime}lib/`;
 const exactClosures = {
   "ui-marks.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
-  "contribution-model.js": ["words.js", "kernel-facts.js"],
-  "margin-model.js": [
-    "contribution-model.js",
-    "words.js",
-    "kernel-facts.js",
-    "thread/workflow.js",
-    "voice.js",
-  ],
+  "contribution-model.js": [],
+  "margin-model.js": ["contribution-model.js", "thread/workflow.js", "voice.js"],
   "margin-map-model.js": [
     "margin-model.js",
     "contribution-model.js",
-    "words.js",
-    "kernel-facts.js",
     "thread/workflow.js",
     "voice.js",
   ],

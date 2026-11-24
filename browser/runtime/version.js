@@ -127,7 +127,7 @@ import { letHeldKeysGo } from "./keyboard/controller.js";
 import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { gesture, notice } from "./notifications.js";
-import { counted } from "./words.js";
+import { counted } from "./lib/words.js";
 import { backgroundFlash } from "./motion.js";
 import {
   authored,
@@ -173,7 +173,7 @@ import {
 import { tabStore } from "./tab-store.js";
 import { alignInlineText } from "./lib/text-alignment.js";
 import { reveal } from "./widget-elements.js";
-import { addressableWord } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { settleDocumentLayout } from "./content-layout.js";
 import { keeps } from "./lib/keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
@@ -748,7 +748,7 @@ const diffPendingBase = signal(/** @type {ComparisonBase | null} */ (null));
 const diffMarked = new Set();
 // The marked blocks grouped into changes (`changeRuns`), in the page's rendered order.
 /** A block a hunk took out of the base: the words it said, its element's name and its
- * word for the reader (addressable-names.js), and the id it had, which pairs it with the
+ * word for the reader (lib/element-word.js), and the id it had, which pairs it with the
  * block that kept that id.
  * @typedef {Readonly<{id: string, tag: string, word: string, words: string}>} Removed */
 /** A change: one hunk of the block diff as the page shows it. `blocks` are its changed

@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { excerptWords, labelWords, lastWords } from "./words.js";
+import { excerptWords, labelWords, lastWords } from "./lib/words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -67,10 +67,10 @@ import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   accessibleName,
   addressableLabel,
-  addressableWord,
   LABEL_WORDS,
   ownName,
 } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor */
 

@@ -27,23 +27,24 @@
    outgrow the room below its top, and the window's foot lifts it, so an answer
    arriving stays in view with the turn it answers, and its top stays where it stood,
    so a shorter thread brings it back down. While the user writes words in its reply
-   box (user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
-   as one above it does: the line being typed stays still as the conversation grows
-   above it. A send leaves the box for the thread (thread/landing.js, `landSent`), so
-   the card holds its top through the send and grows down past the box, keeping still
-   the transcript the user was reading; so does the empty box a click's opening leaves
-   the caret in (thread/focus.js, `openingPart`). A refusal gives back what the send took: its turn goes, and its words
-   return under the refusal's cover (errors.js), which shows no line being typed either,
-   so the card holds its top through the refusal too, and its foot once the user comes
-   back to the words. The user chose this over letting the card drop, which moves both
-   its edges and slides it out from under the pointer. A user who
-   empties the box themselves, as Select All and Backspace do, sees it rise to where
-   the empty box stands, a rare path SOUL.md lets move, since to the card that looks
-   the same as the empty box an opening leaves. A message's rewrite, whose field stands in the transcript, holds
-   the top as well, so the rewrite grows down. Below its subject the card keeps its top
-   even while the user writes, so it never grows up over the words it is about.
-   Nothing else chooses the edge, whatever the user pressed, and the card remembers no
-   press or send (`heldEdge`). News at the thread's end shows at once where that edge
+   box (user-place.js, `focusPlace`), a card beside its subject holds the top of that
+   box instead (`underReply`; comment-placement.js, `under`): the conversation grows
+   above that line, as above its subject, and the words typed grow the card down from
+   it, as a field in the page grows, so neither moves the line the draft starts on or
+   the turn it answers. A send leaves the box for the thread (thread/landing.js,
+   `landSent`), so the card holds its top through the send and grows down past the
+   box, keeping still the transcript the user was reading; so does the empty box a
+   click's opening leaves the caret in (thread/focus.js, `openingPart`), and the box
+   a user empties themselves. A refusal gives back what the send took: its turn goes,
+   and its words return under the refusal's cover (errors.js), which shows no line
+   being typed either, so the card holds its top through the refusal too, and the
+   box's top once the user comes back to the words. The user chose this over letting
+   the card drop, which moves both its edges and slides it out from under the
+   pointer. A message's rewrite, whose field stands in the transcript, holds the top
+   as well, so the rewrite grows down. Below its subject the card keeps its top even
+   while the user writes, so it never grows up over the words it is about.
+   Nothing else chooses the line, whatever the user pressed, and the card remembers no
+   press or send (`heldEdge`). News at the thread's end shows at once where that line
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
    thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
    not where the user is, so that news may carry the control from under it, as the
@@ -51,16 +52,21 @@
 
    The user chose this rule as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and
-   neither it nor Floating UI holds a pressed control. They asked for a
-   send to grow the card down: holding the foot whenever the caret is in the box
+   neither it nor Floating UI holds a pressed control. Anchoring keeps that node's
+   start, so what grows above the field moves the content above it and the field's
+   own growth moves what follows it, which is the line the card holds. They asked for
+   a send to grow the card down: holding the foot whenever the caret is in the box
    lifts the whole transcript at each send, and an empty box has no typed line to keep
    still. Rejected: keeping a pressed
    control under the pointer, by remembering each press until
    the change it caused has fitted, and each send until the next words arrive, which
    ties the card's layout to every gesture's lifetime; the attached edge with no
    exception for typing, under which an answer arriving while the user types in a card
-   beside its words waits behind the thread's notice; and the card rising beside its
-   subject as the user writes. The rule
+   beside its words waits behind the thread's notice, or moves the line they type
+   down; and holding the card's foot while the user writes, under which each line the
+   draft gains lifts the head and every turn, and a card whose head meets the
+   window's scrolls the turn being answered out of its transcript while room shows
+   below it. The rule
    keeps two other choices: the foot above the subject, over keeping a
    written card's top there, which grows the draft down over its subject; and rising
    beside it for an answer, over keeping a read card's top, which scrolls
@@ -662,9 +668,11 @@ export function createThreadPreview({
 
   // The edge a card on `side` holds now (the header's rule): the one it is attached by,
   // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (user-place.js, `focusPlace`), and no error covers them (errors.js). Also
-  // where they are, if in the card, whether they type there, and whether they write
-  // words in its reply box.
+  // they are (user-place.js, `focusPlace`), and no error covers them (errors.js); the
+  // placement then holds the reply box's top, the line that far above the foot
+  // (`underReply`). Also where they are, if in the card, whether they type there,
+  // whether they write words in its reply box, and whether the card stands beside its
+  // subject.
   /** @param {import("./comment-placement.js").Side} side */
   function heldEdge(side) {
     const place = focusPlace();
@@ -676,18 +684,26 @@ export function createThreadPreview({
     const beside = side === "left" || side === "right";
     /** @type {"top" | "foot"} */
     const edge = writing && beside ? "foot" : attachedEdge(side);
-    return { edge, typing, writing, at };
+    return { edge, typing, writing, at, beside };
   }
+
+  // How much of the card stands under the line a card beside its subject holds while
+  // the user writes (the header's rule): the height of its reply row, which runs to
+  // the card's foot (annotation-chrome.css), in client pixels. A row its motion is
+  // carrying (box-motion.js) keeps its height, where its edges are drawn off its
+  // layout.
+  const underReply = () =>
+    previewList.querySelector(".lf-thread-reply")?.getBoundingClientRect().height ?? 0;
 
   // Whether news at the thread's end, which grows the card at the edge it does not
   // hold, would move what the user is on (thread-card.js, `newsMoves`). Held by its top,
   // the card grows down past its reply row, which the user is on while they write a
   // reply there (replies.js, `replyIsEditing`), not while the caret only rests in the
   // empty box an opening left, so the answer they wait for shows. Held by its
-  // foot, it grows up under the head and transcript, which the user is on unless they
-  // stand at the reply row: in it, or on the thread itself, as a send leaves them,
-  // which waits at its reply box unless a click left the caret in its words
-  // (user-place.js, `standingAt`).
+  // foot, or by its reply box's top, it grows up under the head and transcript, which
+  // the user is on unless they stand at the reply row: in it, or on the thread
+  // itself, as a send leaves them, which waits at its reply box unless a click left
+  // the caret in its words (user-place.js, `standingAt`).
   /** @param {Session} session */
   function endNewsMoves(session) {
     const { side } = session.side.capture();
@@ -886,14 +902,15 @@ export function createThreadPreview({
         if (!stillCurrent()) return null;
         // Adoption keeps the editor's attachment, so the card Send grows out of the
         // box stands where it stood. Otherwise the card holds the edge the header's rule
-        // names, rising beside its subject where that is its top.
+        // names, rising beside its subject where that is its top. Beside its subject
+        // it says at every placement how much of it the reply box and what follows
+        // take (`under`), so the first line a draft gains already grows it down.
         const held = heldEdge(side);
         const edge = seat.adopted ? attachedEdge(side) : held.edge;
-        const rises =
-          !seat.adopted && edge === "top" && (side === "left" || side === "right");
-        // Held by its foot, or rising, the card's growth lifts its head, which news
-        // may do here as in the floating panel's thread view (tests/shift_watch.js,
-        // `appendGrowth`).
+        const rises = !seat.adopted && edge === "top" && held.beside;
+        // Held by its foot or its reply box's top, or rising, the card's growth lifts
+        // its head, which news may do here as in the floating panel's thread view
+        // (tests/shift_watch.js, `appendGrowth`).
         keeps(preview, "data-lf-rises", edge === "foot" || rises ? "" : null);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
@@ -999,6 +1016,7 @@ export function createThreadPreview({
             }
           },
           edge,
+          under: held.beside ? underReply : null,
           rises,
         });
         watch(ui);
@@ -1526,6 +1544,7 @@ export function createThreadPreview({
       }
     });
     declareOffFlowSurface(preview, {
+      resizing: () => placementDriver.resized(),
       bringBack: (behavior) =>
         scrollToElement(
           entryPlace(previewSession?.entry) ?? previewSession?.control ?? null,

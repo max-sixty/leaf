@@ -1846,7 +1846,7 @@ RESOLVE_ON_CARD = (
     + SECONDARY
 )
 RESOLVE_OVER_WORDS = (
-    "the card holds its foot under the words in its reply box, grows up for the reply "
+    "the card holds its reply box's top under the words in it, grows up for the reply "
     "and carries Resolve 284-284.5px up from under the pointer resting on it"
     + SECONDARY
 )

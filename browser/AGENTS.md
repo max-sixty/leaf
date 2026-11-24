@@ -63,7 +63,7 @@ rule draws at once is drawn.
   whose header lists what it credits.
 - **A box's controls stand on an edge the box holds as its content changes**, or the
   box holds its size while they act. A thread card holds the edge it is attached by,
-  and beside its subject its foot while the user writes words in its reply box; the
+  and beside its subject the top of its reply box while the user writes words in it; the
   floating panel, standing on the window's foot, holds a list's foot, and a thread's
   height while a press on its head line acts. Each box's header says how (`floating-panel.js`,
   **Opened**; `annotation-overlay/thread-preview.js`).

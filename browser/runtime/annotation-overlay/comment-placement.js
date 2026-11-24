@@ -95,7 +95,14 @@
    A surface may choose which edge of its last rectangle to hold (`edge`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
-   still that way while a turn joins the transcript above it.
+   still that way while a turn joins the transcript above it. A surface beside its
+   subject that holds its foot may say how much of it stands under a line of its own
+   (`under`), and then holds that line: what stands over the line grows it up and what
+   stands under it grows it down, so the card's reply box keeps its top as a turn
+   joins above it and as the words typed in it wrap. The room above its foot still
+   caps it, so what stands over the line scrolls once the surface's top meets the
+   boundary's, and the boundary's foot lifts it, line and all, once what stands under
+   the line passes it.
 
    A held surface grows no taller than the room from its held edge, or than the tallest
    it has stood since its line last moved (`fit`'s `stood`), whichever is more
@@ -183,13 +190,13 @@ import { floatingGeometry, positioningScale } from "./floating.js";
  * cut: Box | null, scroller: Element, key: BoundaryKey}} Boundary */
 /** @typedef {{side: Side | null, boundary: BoundaryKey | null, moved: boolean}} CapturedPlacement */
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
-/** @typedef {{top: number, foot: number}} HeldBox */
+/** @typedef {{top: number, foot: number, under: number | null}} HeldBox */
 /** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
  * stood: number, stationary: boolean, widens: boolean,
  * scale: {x: number, y: number}}) => void,
- * edge?: "top" | "foot", rises?: boolean}} PlacementRequest */
+ * edge?: "top" | "foot", under?: (() => number) | null, rises?: boolean}} PlacementRequest */
 /** @typedef {{reference: DOMRect,
  * placement: import("@floating-ui/dom").Placement,
  * middleware: import("@floating-ui/dom").Middleware[],
@@ -573,7 +580,10 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    line when quoted, else the initial side's clearance edge. Without an explicit
    edge, the landed seat holds its growing surface by its foot above and top elsewhere,
    so an editor needs no transcript reading to keep its attachment while typing; before
-   that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
+   that landing, an adopted frame's offsets are the ones held. `under` reads, at each
+   placement and landing, how far above its foot the line a surface beside its subject
+   holds stands, in client pixels; a surface holds that line only while its `edge` is
+   its foot. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
    `fit({ side, width, height, room, stood, scale, stationary, widens })` sizes the surface for the room its
@@ -616,6 +626,10 @@ export function commentPlacement() {
   // The tallest the surface has stood since its line last moved, and that line.
   /** @type {{height: number, line: number} | null} */
   let tallest = null;
+  // How much of the surface stands under the line it may hold, as the last request
+  // reads it (`under`), which each landing records.
+  /** @type {(() => number) | null} */
+  let underLine = null;
   // The input that opened the surface, and how many moves Leaf had started in its
   // scroller when it opened or last made room, until that input's landing reopens it.
   /** @type {{input: number, starts: number} | null} */
@@ -635,6 +649,7 @@ export function commentPlacement() {
     moved = false;
     held = null;
     tallest = null;
+    underLine = null;
   };
   /** @param {Side} side @param {typeof import("/vendor/floating-ui.esm.js")} ui
    * @param {PlacementRequest} request @returns {PlacementOptions} */
@@ -651,9 +666,11 @@ export function commentPlacement() {
       boundary,
       fit,
       edge = attachedEdge(side),
+      under = null,
       rises = false,
     },
   ) {
+    underLine = under;
     const minimumWidth = cardMinimum();
     const across = vertical(side);
     const unanchored = !clear;
@@ -790,8 +807,24 @@ export function commentPlacement() {
     /** @type {{foot: number} | {top: number} | null} */
     const heldEdge =
       spot && (edge === "foot" ? { foot: spot.foot } : { top: spot.top });
+    // How far a surface beside its subject that holds a line (`under`) stands its foot
+    // below where it landed: as far as what stands under the line has grown since. A
+    // solve for a size the surface does not stand at is floating.js's, for where it
+    // would stand had it kept its size (`position`), and there it holds the spot as it
+    // landed.
+    /** @param {MiddlewareState} state @param {{y: number}} scale */
+    const grown = (state, scale) => {
+      const stoodUnder = spot?.under ?? null;
+      if (across || edge !== "foot" || !under || stoodUnder === null) return 0;
+      const solved = state.rects.floating.height * scale.y;
+      const stands = state.elements.floating.getBoundingClientRect().height;
+      return Math.abs(stands - solved) < 0.5 ? under() - stoodUnder : 0;
+    };
     // It also names the block edge it keeps still, which floating.js stands the
-    // surface by, so growth moves the other edge in the layout that grows it.
+    // surface by, so growth moves the other edge in the layout that grows it. A surface
+    // holding a line stands by its foot too: what grows over the line then grows it up
+    // in that layout, and what grows under the line waits for the placement, which
+    // lands before the frame paints.
     const holding = (heldEdge || carriedInline !== null) && {
       name: "hold",
       /** @param {MiddlewareState} state */
@@ -811,7 +844,9 @@ export function commentPlacement() {
         if (edge)
           position.y =
             "foot" in edge
-              ? line + edge.foot / scale.y - state.rects.floating.height
+              ? line +
+                (edge.foot + grown(state, scale)) / scale.y -
+                state.rects.floating.height
               : line + edge.top / scale.y;
         // Where the rule stands it before the boundary shifts it in, which a carried
         // surface's attachment limit takes in.
@@ -1017,7 +1052,7 @@ export function commentPlacement() {
                 ? (clear?.top ?? row)
                 : row;
         const top = frame.box.top - line;
-        initialHold = { top, foot: top + frame.box.height };
+        initialHold = { top, foot: top + frame.box.height, under: null };
       } else if (
         input &&
         (key.unanchored !== input.unanchored ||
@@ -1088,7 +1123,7 @@ export function commentPlacement() {
             : height,
         line,
       };
-      held = { top, foot: top + height };
+      held = { top, foot: top + height, under: underLine?.() ?? null };
       return { scale };
     },
   };

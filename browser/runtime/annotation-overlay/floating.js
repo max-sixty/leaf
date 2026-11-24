@@ -595,6 +595,18 @@ export function floatingPlacement({ floating, update }) {
     // What holds the box where its last placement stood it, as box-motion.js reads it:
     // the edges its spot is written from; null while no placement stands it.
     held: () => holding,
+    // Whether the box has changed size since its last placement stood it. Until the
+    // placement that follows the change lands, its rectangle is where the layout that
+    // resized it left it, which can reach past the room the placement keeps it in.
+    resized() {
+      const selection = stood.get(floating);
+      if (!selection) return false;
+      const { width, height } = floating.getBoundingClientRect();
+      return (
+        Math.abs(width - selection.size.width) >= 0.5 ||
+        Math.abs(height - selection.size.height) >= 0.5
+      );
+    },
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;

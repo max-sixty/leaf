@@ -4,6 +4,7 @@ reply editor's growth, and what a sent or arriving turn leaves in view."""
 import base64
 from datetime import datetime
 from io import BytesIO
+from itertools import pairwise
 
 import pytest
 from interact_support import append_carried_log_record
@@ -922,8 +923,7 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     outline and head row are drawn where they were, and at rest the card has moved
     down. Read by the edge holding the card after the press, its placement's move
     would read as the page carrying it, which draws it part of a line lower for a frame
-    before it travels back (in Firefox, for a line a key took from the reply, which
-    beside its passage holds the card's foot instead: thread-preview.js, `heldEdge`)."""
+    before it travels back."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LOW_PASSAGE_PAGE, events=FOLDED_THREAD),
@@ -1773,9 +1773,9 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
     assert not overflow, overflow
 
 
-def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve):
-    """A draft opened below its target keeps its reply's foot once the rail widens and
-    the card stands beside it: a new line grows the card up from the line typed."""
+def test_open_reply_keeps_its_first_line_after_card_moves_to_right_rail(browser, serve):
+    """A draft opened below its target keeps its reply's first line once the rail
+    widens and the card stands beside it: a new line grows the card down from it."""
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
@@ -1802,13 +1802,78 @@ def test_open_reply_keeps_its_foot_after_card_moves_to_right_rail(browser, serve
     expect(editor).to_have_js_property("value", "First line\n")
     rendered(page)
     after = page.evaluate(CARD_AND_REPLY)
-    assert after["editorTop"] < before["editorTop"] - 10, (before, after)
-    for edge in ("cardBottom", "editorBottom"):
+    assert after["editorBottom"] > before["editorBottom"] + 10, (before, after)
+    for edge in ("cardTop", "turn", "editorTop"):
         assert after[edge] == pytest.approx(before[edge], abs=0.5), (
             edge,
             before,
             after,
         )
+
+
+def test_a_growing_draft_beside_its_words_holds_the_editor_s_top(browser, serve):
+    """Beside its words, a card being written in keeps its reply's first line: each new
+    line grows the card down, leaving its head, the turn being answered and the page
+    where they stood, and the send after it leaves them there too. The card stands
+    with its head near the window's, where a card growing up from its foot instead
+    would meet the window's head within two lines and scroll that turn away. Its
+    words are a section taller than the window: the send's turn is laid out from the
+    card's foot until the card's placement lands, which stands its head past the
+    window's for that moment, and a landing that read the card there would scroll the
+    page to bring the section back."""
+    source = leaf_page(
+        "Room for a conversation",
+        '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
+        '<section id="open"><h2>The question</h2><p>What should this cost?</p>'
+        '<div style="height: 150vh"></div></section>'
+        '<div style="height: 200vh"></div>',
+    )
+    page = open_page(browser, serve(source, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 864)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 60)")
+    rendered(page)
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", "right")
+    editor = preview.locator(".lf-thread-reply leaf-text")
+    expect(editor).to_be_focused()
+    editor.type("words")
+    rendered(page)
+
+    def read():
+        return {
+            **page.evaluate(CARD_AND_REPLY),
+            "pageScroll": page.evaluate("scrollY"),
+            "transcript": preview.locator(".lf-thread-transcript").evaluate(
+                "list => list.scrollTop"
+            ),
+        }
+
+    held = read()
+    assert held["cardTop"] - held["head"] < 60, held
+    still = ("cardTop", "turn", "editorTop", "pageScroll", "transcript")
+    readings = [held]
+    for _ in range(6):
+        editor.press("Shift+Enter")
+        editor.type("more")
+        rendered(page)
+        readings.append(read())
+    for earlier, now in pairwise(readings):
+        assert now["placement"] == "right", now
+        for edge in still:
+            assert now[edge] == pytest.approx(held[edge], abs=0.5), (edge, held, now)
+        for edge in ("cardBottom", "editorBottom"):
+            assert now[edge] > earlier[edge] + 10, (edge, earlier, now)
+    assert readings[-1]["cardBottom"] < readings[-1]["foot"], readings[-1]
+
+    editor.press("Enter")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    rendered(page)
+    sent = read()
+    for edge in ("cardTop", "turn", "pageScroll", "transcript"):
+        assert sent[edge] == pytest.approx(held[edge], abs=0.5), (edge, held, sent)
 
 
 def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve):

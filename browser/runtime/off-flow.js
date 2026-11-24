@@ -28,9 +28,14 @@
    Each asks what the browser asks of an ordinary control: whether the user sees all of
    it (geometry.js, `seenRect`), clear of the room the floating panel takes. A surface
    waiting hidden for room to stand says so (`away`), since its hidden box measures
-   wherever it was left. A surface half under the panel is as unseen there as one
-   scrolled off altogether. What a scroller inside the surface hides is the browser's
-   to reveal, so the control is measured within the surface's own box. A surface the
+   wherever it was left. A surface whose size has changed since its placement stood it
+   says so too (`resizing`): its box measures where the layout that resized it left it,
+   which can reach past the window, as a card held by its foot does when a send adds a
+   turn near the window's head. It is left to the placement about to stand it, after
+   which its owner lands in it again (thread/reply-landing.js, `keepThreadLanding`). A
+   surface half under the panel is as unseen there as one scrolled off altogether. What
+   a scroller inside the surface hides is the browser's to reveal, so the control is
+   measured within the surface's own box. A surface the
    user doesn't see is left to a glide that will bring it into the window
    (scroll-containers.js, `glideGap`), as though it had landed, and one that stops short
    of the window or carries it past is brought back: a `c` pressed while
@@ -49,7 +54,8 @@ import { onCurrentLocation } from "./focus.js";
 import { isElement, under } from "./lib/shadow-tree.js";
 
 /** @typedef {{surface: Element, floats: () => boolean, away: () => boolean,
- * box: () => Element, bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */
+ * resizing: () => boolean, box: () => Element,
+ * bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */
 /** @type {Map<Element, OffFlowSurface>} */
 const surfaces = new Map();
 
@@ -68,18 +74,25 @@ const unseen = (node, surface) => {
 };
 
 /** @param {OffFlowSurface} reading @param {Element} node @param {ScrollBehavior} behavior */
-function follow({ surface, floats, away, bringBack }, node, behavior) {
-  if (floats() && (away() || unseen(node, surface))) bringBack(behavior);
+function follow({ surface, floats, away, resizing, bringBack }, node, behavior) {
+  if (floats() && (away() || (!resizing() && unseen(node, surface))))
+    bringBack(behavior);
 }
 
 /** @param {Element} surface @param {Omit<OffFlowSurface, "surface" | "floats" |
- * "away" | "box"> & {floats?: () => boolean, away?: () => boolean, box?: () => Element}}
- * reading */
+ * "away" | "resizing" | "box"> & {floats?: () => boolean, away?: () => boolean,
+ * resizing?: () => boolean, box?: () => Element}} reading */
 export function declareOffFlowSurface(
   surface,
-  { floats = () => true, away = () => false, box = () => surface, bringBack },
+  {
+    floats = () => true,
+    away = () => false,
+    resizing = () => false,
+    box = () => surface,
+    bringBack,
+  },
 ) {
-  const reading = { surface, floats, away, box, bringBack };
+  const reading = { surface, floats, away, resizing, box, bringBack };
   surfaces.set(surface, reading);
   surface.addEventListener(
     "lf-before-edit",

@@ -339,18 +339,15 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             consume_moves_below_the_reply(other)
         return
 
-    # A margin card beside its passage holds its reply's foot while the user types in
-    # it, so the line being edited stays and the first line comes down to it; a seat
-    # holds the first line.
-    def held(box):
-        return box["y"] + box["height"] if place == "margin" else box["y"]
-
+    # A seat holds the reply's first line, and so does a margin card beside its
+    # passage while the user types in it: the lines taken away shorten the box from
+    # its foot.
     before = editor.bounding_box()
     for _ in range(4):
         page.keyboard.press("Backspace")
         rendered(page)
         now = editor.bounding_box()
-        assert held(now) == pytest.approx(held(before), abs=0.5), (before, now)
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
     assert now["height"] < before["height"] - 50, (before, now)
     expect(editor).to_have_js_property("value", "First line")
     expect(editor).to_be_focused()

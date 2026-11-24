@@ -812,6 +812,27 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     > lf-option[data-lf-control-focus-visible] {
     outline: var(--lf-focus-ring);
   }
+  /* A row is a positioned table (below), and Firefox paints a positioned table's own
+   * ground over its outline wherever the outline stands inside its edge, which a joined
+   * row's does, so a row draws the ring on a box laid over it, its ::after, at its
+   * corners, as a ring overlay does (surfaces.css). Rejected: a row that isn't a table,
+   * or isn't positioned, which would move its words, mark and digit; a stacking context
+   * on the row, which Firefox still paints the ground over. */
+  lf-options:not([settled]):not(:where([data-lf-exhibit]) *):not(
+      :has(> lf-option:where([label]))
+    )
+    > lf-option[data-lf-control-focus-visible] {
+    outline: none;
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      outline: var(--lf-focus-ring);
+      outline-offset: var(--lf-focus-ring-inset);
+    }
+  }
   lf-options:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option[data-lf-control-focus] {
     --lf-wears-ring: 1;

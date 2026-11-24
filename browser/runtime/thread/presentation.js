@@ -31,7 +31,13 @@ import { draftAnchor, draftsReading } from "../drafts.js";
 import { inChrome } from "../ui-marks.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
-// an element that stays held is not cleared and marked again.
+// an element that stays held is not cleared and marked again. The pass clears the
+// elements the last pass marked rather than reading the page for the mark, so a pass
+// costs the threads, not the page's elements (root AGENTS.md, "Responsiveness"). That
+// finds every mark because this is the mark's one writer, and page check refuses an
+// authored `data-lf-*`.
+/** @type {Map<Element, string>} */
+let marked = new Map();
 /** @param {ReturnType<typeof threadState>["all"]} threads */
 function renderHolds(threads) {
   /** @type {Map<Element, string>} */
@@ -41,9 +47,10 @@ function renderHolds(threads) {
     const target = elementById(thread.root.holds);
     if (target && !inChrome(target)) held.set(target, thread.id);
   }
-  for (const node of document.querySelectorAll("[data-lf-held]"))
+  for (const node of marked.keys())
     if (!held.has(node)) node.removeAttribute("data-lf-held");
   for (const [target, id] of held) keeps(target, "data-lf-held", id);
+  marked = held;
 }
 
 /** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */

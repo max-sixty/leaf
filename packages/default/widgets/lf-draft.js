@@ -75,7 +75,6 @@ import {
   commandScope,
   motion,
   LeafElement,
-  TEXT_FIELD,
   sendDraft,
   saveDraft,
   loadDraft,
@@ -159,7 +158,7 @@ customElements.define(
       if (!body) throw new Error("draft needs its prepared Markdown body");
       return (this.#preparedBody = body);
     }
-    /** @type {HTMLElementTagNameMap[typeof TEXT_FIELD] | null} */
+    /** @type {HTMLElementTagNameMap["leaf-text"] | null} */
     #editor = null;
     #sending = false;
     #failed = false;
@@ -420,7 +419,7 @@ customElements.define(
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.defer();
-      const editor = offer(TEXT_FIELD, "lf-draft-edit");
+      const editor = offer("leaf-text", "lf-draft-edit");
       editor.dataset.lfRuntime = "";
       // It stands where the prose did, so it reads in the prose's faces.
       editor.facesOf = this.#body;

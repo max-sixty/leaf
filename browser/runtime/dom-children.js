@@ -1,4 +1,9 @@
-/* Retained DOM child reconciliation. */
+/* Retained DOM child reconciliation.
+
+   Every placement here goes through `move` (dom-move.js), which keeps the user's focus
+   and selection in a node it moves through hooks Leaf installs at boot. So this module
+   stays in the runtime rather than the library (browser/AGENTS.md, "The library of
+   shared web code"). */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { holdSelection, move } from "./dom-move.js";
 

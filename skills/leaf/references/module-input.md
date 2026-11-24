@@ -254,8 +254,8 @@ obligation; a module asks it whether the user is on its content from either.
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A set
-of controls the user moves through with arrow keys offers one Tab stop with
-`rove(items, stop)`.
+of controls the user moves through with arrow keys offers one Tab stop, which the
+library's [`roving.js`](../../../browser/runtime/lib/roving.js) sets.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
 events. `begin(pointerdown, path)`, a passive listener, may return
@@ -354,7 +354,7 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 
 A widget's own text box is Leaf's Markdown editor, which behaves like a textarea and
 fires `input` only for the user's edits. Build it as a generated control
-(`module-controls.md`) whose tag is `TEXT_FIELD`. The field matches `:state(ready)` once
+(`module-controls.md`) whose tag is `leaf-text`. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 

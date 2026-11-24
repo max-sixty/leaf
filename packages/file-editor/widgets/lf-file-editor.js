@@ -78,16 +78,16 @@ import {
   afterPresentation,
   boundFile,
   commandsOn,
-  el,
   focusDestination,
   LeafElement,
   onCurrentLocation,
-  rove,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { rove } from "/runtime/lib/roving.js";
+import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";

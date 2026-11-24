@@ -88,7 +88,6 @@ import {
   alreadyShown,
   compoundReadingRegionId,
   registerReadingRegion,
-  el,
   focusDestination,
   holdFocus,
   LeafElement,
@@ -102,6 +101,7 @@ import {
   showReadingSubject,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { actionClass } from "/runtime/lib/control-faces.js";

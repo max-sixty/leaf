@@ -16,7 +16,8 @@ import { compareContributions, spokenSubject } from "./contribution-model.js";
 import { addressableWord } from "./lib/element-word.js";
 import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
-import { el, generatedElement } from "./widget-elements.js";
+import { generatedElement } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
 import { keeps } from "./lib/keeps.js";
 import { inChrome } from "./ui-marks.js";
 

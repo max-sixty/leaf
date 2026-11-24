@@ -178,8 +178,9 @@ nearby button.
 To show a command's key on the page, set `bindingBadge` on its row or route: an empty
 element the widget positions in or beside its control, or `null` for a badge at the
 control's corner. Leaf gives the element the class `lf-binding-seat`, which positions it
-absolutely, and writes the key into it while the key works; the widget gives it the
-class `lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check
+absolutely and has it take no pointer, so a press where it stands lands on what is under
+it. Leaf writes the key into it while the key works, and the widget gives it the class
+`lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check
 --render` reports a command with `contextKeys` and no badge (`shows-context-keys`,
 [packages.md, "Seeing it"](packages.md#seeing-it)).
 

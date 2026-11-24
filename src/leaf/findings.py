@@ -1529,16 +1529,16 @@ _TEXT = {
         lambda v: f"`example` is invalid: {Finding.loads(v['finding']).said}",
         keeps=None,
     ),
-    "markdown-needs-data": _declared(lambda v: "block Markdown requires content: data"),
     "data-input": _declared(
         lambda v: (
             "its <pre> is the text of its `value` input when the markup binds"
-            " none, so content: data takes "
+            " none, so "
             + {
-                "inputs": "at most one `value` input",
-                "words": "no `value` input with `text-format`: markdown, whose <pre>"
+                "inputs": "content: data takes at most one `value` input",
+                "words": "content: markdown takes no `value` input, since its <pre>"
                 " is its words",
-                "state": "no `value` input with a body record, whose <pre> is its state",
+                "state": "content: data takes no `value` input with a body record,"
+                " whose <pre> is its state",
             }[v["reason"]]
         )
     ),
@@ -1737,7 +1737,7 @@ _TEXT = {
     "body-content": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records its body, so content must be"
-            " data; projection states text rather than a prose subtree"
+            " data or markdown; projection states text rather than a prose subtree"
         )
     ),
     "body-nested": _declared(

@@ -410,7 +410,7 @@ def mark_declared(
     neither is marked.
 
     A mark is declared by the element's tag, so a selector idiom declares none. An
-    element whose written `<pre>` is Markdown, as `text-format` or
+    element whose written `<pre>` is Markdown, as `content` or
     `prepaint` declares, is painted with its rendering, so the page first paints
     the words, at the size, its module will show.
     """
@@ -467,7 +467,7 @@ def mark_declared(
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names
         # (`prepaint`), first paint as the rendering their module will draw.
-        words = declaration.get("text-format") == "markdown"
+        words = declaration.get("content") == "markdown"
         prepaint = declaration.get("prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
         text = pre_body(element) if words or file else None

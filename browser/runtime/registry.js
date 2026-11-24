@@ -159,6 +159,13 @@ export const tagsDeclaring = (holds) =>
 /** @param {string} tag @returns {boolean} */
 export const upgrades = (tag) => Object.hasOwn(registry.$modules ?? {}, tag);
 
+// Whether an element's content is one `<pre>` holding text (`content`): in the
+// notation its module reads (`data`), or in Markdown, which Leaf reads (`markdown`).
+// Python asks `registry.contract.body_is_data`.
+/** @param {WidgetDeclaration | undefined} entry */
+export const bodyIsData = (entry) =>
+  entry?.content === "data" || entry?.content === "markdown";
+
 // Every declared attribute holds one of the admitted values. A boolean asks whether a
 // flag is present; other values compare with the attribute's text. The lint holds each
 // value to the attribute's schema.

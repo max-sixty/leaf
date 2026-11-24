@@ -55,7 +55,7 @@ export {
 import { pageRange, selectionBackward } from "./native-selection.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
@@ -235,8 +235,8 @@ export function worksInside(node, container) {
  *   shows, as a link, a titled button or an option's mark;
  * - an element that declares its own preview (`lfPreview`), as a card that says what
  *   it holds, or a gloss;
- * - a registered widget that draws its content itself (`content` `data` or `empty`),
- *   as code, a diff or a draft does, with all it draws.
+ * - a registered widget that draws its content itself (`content` `data`, `markdown`
+ *   or `empty`), as code, a diff or a draft does, with all it draws.
  * A plain tab stop or scrolling box takes nothing, and neither does what a widget
  * holds of the author's markup, as a pane's words, an option's beside its mark, a
  * suggestion's old and new words or a playground's preview: the verbs a widget
@@ -262,8 +262,7 @@ export function aimableAt(node) {
 }
 // Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
-const drawsItsContent = (entry) =>
-  entry?.content === "data" || entry?.content === "empty";
+const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empty";
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which

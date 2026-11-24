@@ -30,9 +30,10 @@ written.
 Pass the element that holds the address as `from`, as in
 `elementById(this.getAttribute("for"), this)`. An agent's message can repeat ids the
 page holds, so an address written in a message names that message's element first and
-the page's after it. With no `from`, an address names an element of the page. The
-lookup reaches into widgets' shadow trees, which `getElementById` misses, and names
-nothing inside a member a decision has retired (`retired-when`, `package-data.md`).
+the page's after it. An id neither holds can still name an element Leaf draws, such as
+a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
+which `getElementById` misses, and names nothing inside a member a decision has
+retired (`retired-when`, `package-data.md`).
 
 Leaf's floating panel, its dialogs and the margin's rows stand inside an element of
 class `lf-chrome`, and so does a widget in a reply the panel shows. The library's

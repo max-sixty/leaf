@@ -1141,9 +1141,11 @@ export function fragmentTarget(fragment) {
 // an id, or a widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
 // it) or bare, as `fragmentTarget` reads it. Each id is looked up as `from` gives it
 // (references.js, `authoredElement`), in `from`'s own message first and then the page,
-// and with no `from` on the page alone, so neither Leaf's own surfaces nor another
-// message answer for the page. Content a revision settled away names nothing, as for a
-// fragment.
+// so a copy of a page id that Leaf draws in a reply never answers for the page's own.
+// An id neither holds names what the whole document holds, as a fragment's arrival
+// reads it: a widget in a reply Leaf draws, which every count of a region's
+// obligations places where the reply stands (obligations/place.js). Content a
+// revision settled away names nothing, as for a fragment.
 /** @param {string | null | undefined} address @param {Node | null} [from] */
 export function elementNamed(address, from = null) {
   if (!address) return null;
@@ -1152,7 +1154,7 @@ export function elementNamed(address, from = null) {
     ? address
     : `#${address.replaceAll("%", "%25")}`;
   const found = fragmentAddress(fragment, (id) => {
-    const element = authoredElement(id, from ?? pageDocument());
+    const element = authoredElement(id, from ?? pageDocument()) ?? elementById(id);
     return element && !settledAway(element) ? element : null;
   });
   return found ? (found.place ?? found.element) : null;

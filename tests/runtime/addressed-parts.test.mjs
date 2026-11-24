@@ -216,8 +216,8 @@ test("an address in an agent's message names its message's element before the pa
   assert.equal(elementNamed("twice", page), page);
   assert.equal(elementNamed("#twice", from), message);
   assert.equal(elementNamed("twice", from), message);
-  // From the page, a message answers for nothing.
-  assert.equal(elementNamed("only-said"), null);
+  // An id the page lacks names what a reply Leaf draws holds.
+  assert.equal(elementNamed("only-said"), from);
   // What the message doesn't hold, the page does, a widget's key included.
   assert.equal(elementNamed("film:frame:two", from), source);
   // A bare address keeps each `%` it spells; a fragment spells one encoded.

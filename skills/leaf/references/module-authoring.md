@@ -417,7 +417,7 @@ The host gives a block's frame its child's height, so leave the frame's height t
 window's frame keeps the height its styles give it. A resize the user did not ask for
 waits while it would move what they are reading. They asked for a child's resizes
 where they saw the frame as the host mounted it, where `reset()` started the child,
-and once they click or type in it. A frame the user sees as it mounts also holds what
+and once they click, press a key or type in it. A frame the user sees as it mounts also holds what
 showed it to them, the page's presentation or their gesture, until it fits its child.
 
 The host's `ready` promise belongs to its current child, and changes when loading

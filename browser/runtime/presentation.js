@@ -59,7 +59,7 @@ import { whileConnected } from "./arrivals.js";
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
-import { holdRendering, renderingState } from "./rendering.js";
+import { renderingState } from "./rendering.js";
 import { nearObserver } from "./geometry.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
@@ -118,14 +118,15 @@ let allNear = false;
 const askingAllNear = new Set();
 
 /** Run `start` once, when `node` comes near the window as `nearObserver` reads it
- * (geometry.js). What `start` returns, if anything, is the landing of work that moves
- * what the reader sees: the page counts it as an arrival and as a finite preparation
- * (rendering.js, `holdRendering`) until it settles, so a gesture whose rendering
- * brought the node near owns what the landing moves (tests/shift_watch.js). The wait
- * counts too, until the browser's first reading, which it takes at its next rendering
- * even in a frame off screen, has said whether `start` runs, so work that reading
- * starts is counted before the wait lands. Returns the step that stops waiting.
- * @param {Element} node @param {() => PromiseLike<unknown> | void} start */
+ * (geometry.js). The page counts the wait until the browser's first reading, which it
+ * takes at its next rendering even in a frame off screen, has said whether `start`
+ * runs, so work that reading starts is counted before the wait lands. Work `start`
+ * begins that will move what the reader sees says so as any drawing under way does
+ * (lib/pending-task.js), in `start`'s own stack, so a gesture whose rendering brought
+ * the node near owns what its landing moves (tests/shift_watch.js), as a live sample's
+ * host does for its frame's fit (widget-api.js, `mountSample`). Returns the step that
+ * stops waiting.
+ * @param {Element} node @param {() => void} start */
 export function whenNear(node, start) {
   /** @type {PromiseWithResolvers<void>} */
   const { promise: read, resolve: land } = Promise.withResolvers();
@@ -142,14 +143,7 @@ export function whenNear(node, start) {
   const run = () => {
     nearing.delete(run);
     observer.disconnect();
-    const landing = start();
-    if (landing) {
-      const release = holdRendering();
-      deferredArrival(Promise.resolve(landing)).then(
-        () => release(),
-        () => release(),
-      );
-    }
+    start();
     land();
   };
   nearing.add(run);

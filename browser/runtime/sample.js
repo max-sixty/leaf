@@ -325,7 +325,9 @@ export function mountSample(
     frame.style.height = `${height}px`;
   };
   const fitNextRender = frameFor(frame, fit);
-  // A notice's resize joins the page's next rendering; `immediate` applies one now.
+  // Take `reading` as the frame's height: at the page's next rendering, or now where
+  // `immediate`. A resize the reader `asked` for applies whoever asked for the
+  // document. A window's frame keeps its height, and its readings go unrecorded.
   /** @param {number} reading */
   function resize(reading, { immediate = false, asked = false } = {}) {
     if (asWindow) return;
@@ -590,8 +592,9 @@ export function mountSample(
           const completion = pendingInterface;
           pendingInterface = null;
           completion?.resolve(data.detail);
-          // A document standing as a window, where a block was asked of it meanwhile,
-          // reports its block height as it answers that (`setWindow`).
+          // The frame takes the height its document upgraded at in the turn the host
+          // learns of it. One that upgraded as a window gives its block height as it
+          // answers `setWindow`.
           if (data.detail.block) resize(data.detail.height, { immediate: true });
           visibility();
           nearWork();

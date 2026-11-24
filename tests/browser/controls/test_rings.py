@@ -1208,7 +1208,6 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
     else:
         pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
-    expect(page.locator("[data-lf-traced]")).to_have_count(0)
     expect(decision).to_have_attribute("data-lf-projected-location", "")
     drawn = rings_drawn(page)
     assert any(ring["who"] == decision.evaluate(NAMED) for ring in drawn), drawn

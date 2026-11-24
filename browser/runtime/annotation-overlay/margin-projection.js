@@ -161,7 +161,7 @@ import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { drawnThreadId } from "../thread/selectors.js";
 import { standsIn, visualAt } from "../anchor-resolution.js";
-import { locationStandsDown, paintTrace } from "../target-paint.js";
+import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
@@ -209,7 +209,6 @@ import { rowArrows } from "../lib/keys.js";
  * leavePageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["leavePageMap"],
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
- * currentLocationObligation: () => Element | null,
  * marksFor: ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
@@ -226,7 +225,6 @@ export function createMarginProjection({
   renderMarginThread,
   placedAt,
   marksFor,
-  currentLocationObligation,
   scrollToElement,
   openInPanel,
 }) {
@@ -1582,12 +1580,6 @@ export function createMarginProjection({
     // the box its marker stands by.
     const part = entryPart(entry);
     const face = faceOf(entry);
-    // An obligation's location ring already identifies this target, including when
-    // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
-    // A focus ring inside the obligation stands the ring down (target-paint.js), and
-    // the brackets then mark it.
-    const obligationShown =
-      target && target === currentLocationObligation() && !locationStandsDown(target);
     // A Change entry under the pointer or focus outlines its whole change, every block
     // and its gap, in place of the brackets round its first block (margin-bars.js), until
     // its card stands open over the change. A reading names its own change, as each of
@@ -1605,12 +1597,7 @@ export function createMarginProjection({
         ? changeSource.change
         : null,
     );
-    const marked = !(
-      changeSource ||
-      drawingOnly ||
-      currentLocationShown ||
-      obligationShown
-    );
+    const marked = !(changeSource || drawingOnly || currentLocationShown);
     highlight(
       marked ? (face ?? part?.element ?? target) : null,
       marked && !face ? (part?.surface ?? null) : null,

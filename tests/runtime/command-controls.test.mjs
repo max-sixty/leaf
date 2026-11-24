@@ -2175,14 +2175,17 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 
 test("a template scope's rows read the element the template renders", async () => {
   const { html, render } = await import("/runtime/framework.js");
-  const { DISCLOSE } = await import("../../browser/runtime/keyboard/disclosure.js");
   const root = document.createElement("section");
   document.body.append(root);
   render(
     html`<details>
       <summary
-        ${commandsOn("Disclosure", (summary) => [
-          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ${commandsOn("Section", (summary) => [
+          {
+            id: "probe.step",
+            keys: () => [summary.parentElement.open ? "ArrowLeft" : "ArrowRight"],
+            title: "step",
+          },
         ])}
       ></summary>
     </details>`,

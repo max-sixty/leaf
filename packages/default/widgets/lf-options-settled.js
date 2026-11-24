@@ -4,12 +4,7 @@
  * page-authored layout selectors read. A native details wrapper would reparent them,
  * so this disclosure owns their hidden state without changing that boundary. */
 import { html, nothing, render } from "/vendor/lit.js";
-import {
-  DISCLOSE,
-  comparisonChanges,
-  selectableOffer,
-  tabStore,
-} from "/runtime/widget-api.js";
+import { comparisonChanges, selectableOffer, tabStore } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 const SETTLED_KEY = "lf-settled:";
@@ -38,26 +33,10 @@ export class SettledOptions {
 
   #build() {
     this.#row.setAttribute("aria-expanded", "false");
+    // The row wears a button's role and `aria-expanded`, so Leaf answers its keys as it
+    // does every disclosure's (module-input.md, "How scopes compose").
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    // The command row runs nothing: it names the settled row's keys in the group's
-    // words, as a diff's file row does. On a page the disclosure scope's `disclosure.toggle`
-    // (keyboard/page.js) answers Enter, Space and the arrows; in a message, where that
-    // scope does not reach, Enter and Space press the span as a button
-    // (role-button-press.js).
-    this.#row.lfCommands = {
-      title: "In settled options",
-      rows: [
-        {
-          id: "option.toggle-settled",
-          keys: () => DISCLOSE(this.#row),
-          title: () => (this.#isOpen ? "close" : "open"),
-        },
-      ],
-    };
     this.#host.prepend(this.#row);
-    this.#row.dispatchEvent(
-      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-    );
     this.#host.addEventListener("beforematch", () => this.#open(true, true), true);
     this.#host.classList.toggle("lf-rendered", true);
     this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);

@@ -32,7 +32,6 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
-  DISCLOSE,
   beginWalk,
   failSoft,
   focusDestination,
@@ -446,16 +445,6 @@ function summaryNode(record, open, verified = true) {
   /** @type {TextPresentation} */
   const view = { kind: "text", row: details, details, header: summary };
   paintSummary(view, record, verified);
-  summary.lfCommands = {
-    title: "On a diff",
-    rows: [
-      {
-        id: "diff.toggle",
-        keys: () => DISCLOSE(summary),
-        title: () => `${details.open ? "hide" : "show"} this file`,
-      },
-    ],
-  };
   paintFileDetails(view, verified ? record : {});
   return view;
 }
@@ -1331,12 +1320,6 @@ customElements.define(
           ]);
           this.markRuns();
           this.stageFiles();
-          // A file row's keys (`summaryNode`) are read once the row stands in the page.
-          for (const entry of entries)
-            if (entry.kind === "text")
-              entry.header.dispatchEvent(
-                new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-              );
           this.markFiles(source);
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools?.search.value ?? "");

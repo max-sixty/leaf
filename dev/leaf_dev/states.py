@@ -2277,6 +2277,18 @@ def gloss_open(page: Page) -> None:
     expect(gloss.locator(".lf-gloss-popover")).to_be_visible()
 
 
+def gallery_age(page: Page) -> None:
+    """An age the page's markup writes, drawn in place of the time its author wrote."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    page.locator("#bg-age").scroll_into_view_if_needed()
+
+
+def brief_observed(page: Page) -> None:
+    """The captured pull request's last line, the age a page's own widget draws of when
+    its facts were observed."""
+    page.locator("#pr-reviewed-request .pr-observed").scroll_into_view_if_needed()
+
+
 def settled_option(page: Page) -> None:
     """A settled decision collapsed to its one line."""
     page.locator("#bg-outcome").scroll_into_view_if_needed()
@@ -3622,6 +3634,13 @@ STATES = (
         "feature-gallery",
         gloss_open,
         region="#bg-gloss .lf-gloss-popover",
+    ),
+    State("gallery-age", "feature-gallery", gallery_age, region="#bg-age"),
+    State(
+        "walkthrough-observed",
+        "pr-walkthrough",
+        brief_observed,
+        region="#pr-reviewed-request .pr-observed",
     ),
     State(
         "settled-option",

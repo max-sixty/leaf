@@ -58,6 +58,7 @@ from leaf.registry.contract import (
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
+    asked_again,
     close_render_page,
     evaluate_probe,
     install_driver,
@@ -195,24 +196,30 @@ def _readings(
         # while released modules are fetching can strand their requests.
         page.route("**/leaf.js", hold_entry)
         with page.expect_request("**/leaf.js"):
-            page.goto(url, wait_until="commit")
+            page.goto(asked_again(url), wait_until="commit")
         page.wait_for_function("document.readyState !== 'loading'")
         page.wait_for_function(
             "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
         )
         page.evaluate("window.__leafRenderDriver.captureFirstBoxes()")
         held[0].fallback()
-        wait_until_ready(page, served(page, url, "/api/state").json())
+        wait_until_ready(
+            page, served(page, url, "/api/state").json(), fixed_server=True
+        )
         wait_for_probe(page, "pageSettled")
         if errors:
-            raise UnreadablePage("; ".join(map(str, errors)))
+            raise UnreadablePage("; ".join(found.said for found in errors))
         changed = evaluate_probe(page, "changedBoxes")
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         held = evaluate_probe(page, "heldScrollers", tags)
         return changed, unshown, held, output_values(page)
     except (PlaywrightTimeout, TimeoutError) as error:
-        # A wait the page never answered, as the render gate's `no-runtime` reads one.
-        raise UnreadablePage(str(error).strip()) from error
+        # The page never answered a wait. The wait's error names what never arrived,
+        # and the errors the page reported say why, as in the render gate's
+        # `no-runtime` finding.
+        raise UnreadablePage(
+            "; ".join([str(error).strip(), *(found.said for found in errors)])
+        ) from error
     finally:
         close_render_page(page)
 

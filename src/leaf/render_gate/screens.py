@@ -30,6 +30,8 @@ import tempfile
 from pathlib import Path
 
 from leaf.render_checks import (
+    PageNotReady,
+    asked_again,
     open_render_context,
     open_render_page,
     rendered,
@@ -46,6 +48,10 @@ MOST_SCREENS = 8
 
 
 def _open(browser, url: str, viewport: dict, phone: bool):
+    """A context and its page, ready at `viewport`, opened as a phone where `phone`.
+    A page that is not ready there raises `PageNotReady`, whose words say which
+    screens it was opened for. The render reading found the page ready at the desktop
+    window, so its author needs to know where it was not."""
     context = open_render_context(
         browser,
         viewport=viewport,
@@ -56,9 +62,16 @@ def _open(browser, url: str, viewport: dict, phone: bool):
     )
     stand_in_other_leaves(context)
     page = open_render_page(context)
-    page.goto(url)
-    wait_until_ready(page)
-    start_near_work(page)
+    page.goto(asked_again(url))
+    try:
+        wait_until_ready(page, fixed_server=True)
+        start_near_work(page, fixed_server=True)
+    except PageNotReady as error:
+        context.close()
+        which = "phone" if phone else "desktop"
+        raise PageNotReady(
+            error.stage, f"opened for the {which} screens, {error}"
+        ) from error
     rendered(page)
     return context, page
 
@@ -140,59 +153,65 @@ def save_screens(
 ) -> tuple[Path, list[tuple[Path, str]]]:
     """Save the screens for `reading`'s page, replacing the last check's, with the
     desktop and wide screens at the `desktop` window's height; return their directory
-    and each file with what it shows."""
+    and each file with what it shows. Raises `PageNotReady` where the page is not
+    ready when opened for a screen (`_open`)."""
     final = screens_dir(page_dir)
     final.parent.mkdir(exist_ok=True)
-    into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
-    saved = []
+    # A raise while taking the screens removes this directory as the block ends.
+    # After the rename below, the block finds no directory here and removes nothing.
+    with tempfile.TemporaryDirectory(
+        dir=final.parent, prefix=f".{final.name}-"
+    ) as fresh:
+        into = Path(fresh)
+        saved = []
 
-    def whole(page, name, label):
-        width = page.viewport_size["width"]
-        shots, total = _down_the_page(page, into, f"{name}-{width}px")
-        if total > len(shots):
-            label = f"{label}, the first {len(shots)} of the page's {total} screens"
-        saved.extend((shot, label) for shot in shots)
+        def whole(page, name, label):
+            width = page.viewport_size["width"]
+            shots, total = _down_the_page(page, into, f"{name}-{width}px")
+            if total > len(shots):
+                label = f"{label}, the first {len(shots)} of the page's {total} screens"
+            saved.extend((shot, label) for shot in shots)
 
-    context, page = _open(browser, url, desktop, False)
-    try:
-        obligation_shots, more = _obligations_in_turn(page, into)
-        obligation_label = (
-            "desktop, each press of `m` from the top, at the next open obligation"
-        )
-        if more:
+        context, page = _open(browser, url, desktop, False)
+        try:
+            obligation_shots, more = _obligations_in_turn(page, into)
             obligation_label = (
-                f"{obligation_label}, the first {len(obligation_shots)}"
-                " of the page's open obligations"
+                "desktop, each press of `m` from the top, at the next open obligation"
             )
-    finally:
-        context.close()
-    context, page = _open(browser, url, desktop, False)
-    try:
-        whole(page, "desktop", "desktop")
-        saved.extend((shot, obligation_label) for shot in obligation_shots)
-        # A desktop already at the widest window has those screens; a second pass
-        # would only repeat them.
-        if desktop["width"] != max(SWEEP_WIDTHS):
-            settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
-            whole(page, "widest", "resized desktop, the widest window")
-        for width, selector, said in reading.arrangement:
-            settle_at(page, width, desktop["height"])
-            page.evaluate(
-                "(s) => document.querySelector(s)?.scrollIntoView({block: 'start'})",
-                selector,
-            )
-            rendered(page)
-            shot = into / f"{width}px-arrangement.png"
-            page.screenshot(path=shot)
-            saved.append((shot, f"resized desktop, the tightest before {said}"))
-    finally:
-        context.close()
-    context, page = _open(browser, url, PHONE, True)
-    try:
-        whole(page, "phone", "phone")
-    finally:
-        context.close()
-    if final.exists():
-        shutil.rmtree(final)
-    into.rename(final)
+            if more:
+                obligation_label = (
+                    f"{obligation_label}, the first {len(obligation_shots)}"
+                    " of the page's open obligations"
+                )
+        finally:
+            context.close()
+        context, page = _open(browser, url, desktop, False)
+        try:
+            whole(page, "desktop", "desktop")
+            saved.extend((shot, obligation_label) for shot in obligation_shots)
+            # A desktop already at the widest window has those screens; a second pass
+            # would only repeat them.
+            if desktop["width"] != max(SWEEP_WIDTHS):
+                settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
+                whole(page, "widest", "resized desktop, the widest window")
+            for width, selector, said in reading.arrangement:
+                settle_at(page, width, desktop["height"])
+                page.evaluate(
+                    "(s) => document.querySelector(s)?.scrollIntoView({block: 'start'})",
+                    selector,
+                )
+                rendered(page)
+                shot = into / f"{width}px-arrangement.png"
+                page.screenshot(path=shot)
+                saved.append((shot, f"resized desktop, the tightest before {said}"))
+        finally:
+            context.close()
+        context, page = _open(browser, url, PHONE, True)
+        try:
+            whole(page, "phone", "phone")
+        finally:
+            context.close()
+        if final.exists():
+            shutil.rmtree(final)
+        into.rename(final)
     return final, [(final / shot.name, label) for shot, label in saved]

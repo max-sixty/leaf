@@ -120,7 +120,11 @@ LIBRARY = "browser/runtime/lib/"
 THEME = "browser/styles/tokens.css"
 # The calls whose first argument names an event: listening for one, or making one, as
 # an `Event` subclass's constructor does through `super`.
-EVENT_CALLS = {"addEventListener", "Event", "CustomEvent", "ErrorEvent", "super"}
+EVENT_CLASSES = {"Event", "CustomEvent", "ErrorEvent"}
+EVENT_CALLS = {"addEventListener", "super", *EVENT_CLASSES}
+# A run of class names, or of the template substitutions between them, that a
+# string or a `class` attribute holds.
+CLASS_RUN = r"(?:[\w\s-]|\$\{[^}]*\})*"
 # The functions whose first parameter a call's first argument stands in for.
 FUNCTIONS = {
     "method_definition",
@@ -188,10 +192,25 @@ def properties(file: Path) -> frozenset[str]:
     )
 
 
-def called(callee: Node) -> str:
-    """The name of the function a call calls: `send` for `this.#send(…)`."""
+def called(callee: Node) -> tuple[str, bool]:
+    """The name of the function a call calls, and whether the call is to the script's
+    own function: a bare name, or a method of `this` (`#send` for `this.#send(…)`)."""
+    receiver = callee.child_by_field_name("object")
     name = callee.child_by_field_name("property") or callee
-    return said(name).lstrip("#")
+    return said(name), receiver is None or receiver.type == "this"
+
+
+def makes_events(node: Node) -> bool:
+    """Whether a `super(…)` call stands in an `Event` subclass, whose constructor makes
+    the event its first argument names."""
+    around = node.parent
+    while around is not None and around.type not in {"class_declaration", "class"}:
+        around = around.parent
+    heritage = around and next(
+        (child for child in around.named_children if child.type == "class_heritage"),
+        None,
+    )
+    return bool(heritage) and said(heritage).split()[-1] in EVENT_CLASSES
 
 
 def enclosing(node: Node) -> Node | None:
@@ -218,7 +237,7 @@ def defined(function: Node) -> str:
         and function.parent.type == "variable_declarator"
     ):
         name = function.parent.child_by_field_name("name")
-    return said(name).lstrip("#") if name else ""
+    return said(name) if name else ""
 
 
 cached_code = cache(code)
@@ -336,9 +355,11 @@ class Tree:
         for script in self.scripts(path):
             wrappers, handed = set(), []
             for _, match in QueryCursor(CALLS).matches(script):
-                callee = called(match["callee"][0])
+                callee, own = called(node := match["callee"][0])
+                if callee == "super" and not makes_events(node):
+                    continue
                 if "string" in match:
-                    handed.append((callee, said(match["string"][0])))
+                    handed.append((callee, own, said(match["string"][0])))
                 elif callee in EVENT_CALLS:
                     named = said(match["named"][0])
                     if named in self.constants:
@@ -349,7 +370,9 @@ class Tree:
                         wrappers.add(defined(function))
             wrappers.discard("")
             found |= {
-                each for callee, each in handed if callee in EVENT_CALLS | wrappers
+                each
+                for callee, own, each in handed
+                if callee in EVENT_CALLS or (own and callee in wrappers)
             }
         return found
 
@@ -553,7 +576,7 @@ def styling(tree: Tree) -> dict[str, Name]:
         else:
             continue
         # A whole string naming an event the script makes, hears or exports is the
-        # event, not a class.
+        # event, not a class: a quote stands on each side of it.
         events = tree.events(path) | (set(tree.exported(path).values()) & tree.heard)
         text = tree.code(path)
         for pattern in (NAME, CLASS):
@@ -570,14 +593,21 @@ def styling(tree: Tree) -> dict[str, Name]:
                             and not re.search(r"style\(\s*$", before)
                         )
                     )
-                elif (
+                elif before.endswith("."):
+                    sets = False
+                # A class is set where a string or `class` attribute lists it, and
+                # a word in a sentence is no use of it.
+                elif not (
+                    re.search(rf"[\"'`]{CLASS_RUN}$", before[-200:])
+                    and re.match(rf"{CLASS_RUN}[\"'`]", after)
+                ) or (
                     name in events
                     and before[-1:] in {'"', "'", "`"}
                     and after[:1] == before[-1:]
                 ):
                     continue
                 else:
-                    sets = not before.endswith(".")
+                    sets = True
                 (row.sets if sets else row.reads).add(side)
                 if path in tree.users:
                     row.used(tree.users[path], path)

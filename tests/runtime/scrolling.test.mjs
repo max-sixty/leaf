@@ -85,6 +85,33 @@ test("the browser scrolls for a wheel, and for a scroll key a control leaves it"
   [button, field, link, radio, prose].forEach((node) => node.remove());
 });
 
+test("a role overrides its tag's, so a tree's button row takes its own arrows", () => {
+  const tree = document.createElement("div");
+  tree.setAttribute("role", "tree");
+  const row = document.createElement("button");
+  row.setAttribute("role", "treeitem");
+  const tabs = document.createElement("div");
+  tabs.setAttribute("role", "tablist");
+  const tab = Object.assign(document.createElement("a"), { href: "#there" });
+  tab.setAttribute("role", "tab");
+  tree.append(row);
+  tabs.append(tab);
+  document.body.append(tree, tabs);
+  /** @param {Element} at @param {string} key */
+  const scrolls = (at, key) => {
+    let asked = null;
+    at.addEventListener("keydown", (heard) => (asked = scrollsFor(heard)), {
+      once: true,
+    });
+    at.dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true }));
+    return asked;
+  };
+  assert.equal(scrolls(row, "ArrowDown"), false);
+  assert.equal(scrolls(row, "PageDown"), false);
+  assert.equal(scrolls(tab, "ArrowRight"), false);
+  [tree, tabs].forEach((node) => node.remove());
+});
+
 test("a scroll heads its box the furthest way any of its inputs does, until it ends", () => {
   const box = document.createElement("div");
   document.body.append(box);

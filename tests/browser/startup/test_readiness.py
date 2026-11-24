@@ -763,9 +763,10 @@ def scroll_away(page):
     page.wait_for_function('Reflect.get(window, Symbol.for("leaf.inputs")).count > 0')
 
 
-def writing_a_reply(browser, serve, form=""):
+def writing_a_reply(browser, serve, form="", filled=None):
     """A page with `form` above a paragraph a thread is about, open at the user's reply
-    to the thread in its card, which holds the words "Hold" and has focus."""
+    to the thread in its card, which holds the words "Hold" and has focus. `filled`
+    maps the fields of `form` to the values the user typed there first."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -785,6 +786,8 @@ def writing_a_reply(browser, serve, form=""):
         },
     )
     page = open_page(browser, live_url(url))
+    for field, value in (filled or {}).items():
+        page.locator(field).fill(value)
     page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
     reply = page.locator(
         '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
@@ -901,12 +904,20 @@ def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
 def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
     browser, serve
 ):
-    """A reload Leaf asks for hands back the reply the user was writing. Scrolling
-    away while the server is slow to answer ends that return, so a reload the user
-    then asks for comes back to where they went, as the entry's record says, rather
-    than into the reply: the tab keeps the handoff only while its arrival owes it. The
-    thread the address names opens again, as on any reload."""
-    page, reply = writing_a_reply(browser, serve)
+    """A reload Leaf asks for hands back the reply the user was writing and a value
+    they typed into the page's form. Scrolling away while the server is slow to answer
+    ends that return, so a reload the user then asks for comes back to where they
+    went, as the entry's record says, rather than into the reply, and the value the
+    handoff carried doesn't come back over the one they typed after the scroll: the
+    tab keeps the handoff only while its arrival owes it. The thread the address names
+    opens again, as on any reload."""
+    page, reply = writing_a_reply(
+        browser,
+        serve,
+        '<p><input id="who" aria-label="Name"></p>',
+        filled={"#who": "Ada"},
+    )
+    who = page.locator("#who")
     # The first document a reload brings waits on its answers, as a slow server's; the
     # documents before and after it are answered, the one before as by a server
     # restarted under another Leaf, which asks for the reload.
@@ -941,6 +952,7 @@ def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
     # The panel mounts in the task that begins the document's arrival (leaf.js).
     page.wait_for_function("document.querySelector('.lf-floating-panel') !== null")
     scroll_away(page)
+    who.fill("Grace")
     page.reload(wait_until="commit")
     for route in held:
         try:
@@ -951,6 +963,9 @@ def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
+    # A carried value lands as the parser adds its field, long before readiness, so
+    # it would stand by now. The browser keeps no value of its own on this reload.
+    expect(who).not_to_have_value("Ada")
     expect(reply).to_have_js_property("value", "Hold")
     expect(reply).not_to_be_focused()
 

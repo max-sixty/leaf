@@ -171,7 +171,7 @@ export const bodyIsData = (entry) => DATA_CONTENT.includes(entry?.content);
 // flag is present; other values compare with the attribute's text. The lint holds each
 // value to the attribute's schema.
 /** @param {Element} el @param {Record<string, readonly (string | boolean)[]> | null | undefined} when */
-const matchesWhen = (el, when) =>
+export const matchesWhen = (el, when) =>
   Object.entries(when ?? {}).every(([attr, values]) =>
     values.some((value) =>
       typeof value === "boolean"

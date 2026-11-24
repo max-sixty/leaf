@@ -23,7 +23,7 @@ def test_rows_follow_a_pane_and_a_shadow_scroller_in_every_engine(
     pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+          const {registerContribution} = await window.__lfWidgetApi();
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
           root.innerHTML = '<div id="inner" style="height: 100px; overflow: auto">'
@@ -32,8 +32,8 @@ def test_rows_follow_a_pane_and_a_shadow_scroller_in_every_engine(
           document.querySelector('#other-pane > div').prepend(host);
           const target = root.getElementById('deep');
           const margin = registerContribution({key: 'deep', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'deep', glyph: '!', label: 'deep controls'})]}),
+            read: () => ({entries: [{
+              key: 'deep', glyph: '!', label: 'deep controls'}]}),
             activate: () => {}});
           window.__deep = {target, margin, inner: root.getElementById('inner')};
         }"""

@@ -1682,12 +1682,12 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     open_panel_thread(page, about_obligation)
     page.evaluate(
         """async (thread) => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'reply-capture',
         target: document.querySelector(`${thread} lf-shot`),
-        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
-          label: 'Review reply capture'})]}), activate: () => {},
+        read: () => ({entries: [{key: 'review', glyph: 'R',
+          label: 'Review reply capture'}]}), activate: () => {},
       });
     }""",
         PANEL_THREAD,

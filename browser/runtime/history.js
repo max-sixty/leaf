@@ -180,7 +180,7 @@ import {
 } from "./passages.js";
 import { focusByKey, focusKey } from "./carry.js";
 import { draftFocus } from "./drafts.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { afterPresentation } from "./presentation.js";
 import { pagePresented } from "./page-paint.js";
 import { aborted } from "./abort.js";

@@ -73,10 +73,11 @@ through events and element declarations that a plain host can ignore:
   Components Community Group's `pending-task` protocol. Leaf holds the page's
   presentation until `promise` settles, as it does for `present(promise)`
   (`module-state.md`, "The widget controller").
-- A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
-  which Leaf reports to the author as the page's error.
-- Keys: an element's `lfCommands` and `commandsChanged` (`module-input.md`, "Commands
-  and keyboard routes"). A plain page binds none and advertises none. A button that must
+- A failure: an `error` event, which `failSoft` dispatches ("Upgrade") and a widget
+  that shows a failure its own way dispatches itself. Leaf reports it to the author as
+  the page's error.
+- Keys: an element's `lfCommands` and its `lf-commands` event (`module-input.md`,
+  "Commands and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
   can't act, which is the availability Leaf reads. Where a key takes the user is the
@@ -88,7 +89,7 @@ through events and element declarations that a plain host can ignore:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
-- Comment targets: `data-lf-part` marks or `registerVisualParts`
+- Comment targets: `data-lf-part` marks or an element's `lfParts`
   (`module-annotations.md`, "Visual parts"), which only Leaf reads.
 - Words for a listener: an `lf-announce` event (`module-scroll-and-motion.md`,
   "Notices and spoken words"), which only Leaf says.
@@ -103,19 +104,21 @@ through events and element declarations that a plain host can ignore:
 This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
 script", lists.
 
-- Build once, in a widget's `setup()` or behind `once()` in any other element, and
-  hold each connection's listeners, observers and registrations in `whileConnected`
-  ("Upgrade", "Connection lifetimes").
-- Check `quoted()` before wiring anything that sends input back ("Upgrade").
+- Build once, in a widget's `setup()` or behind a first-connection guard in any other
+  element, and hold each connection's listeners, observers and registrations in
+  `whileConnected` ("Upgrade", "Connection lifetimes").
+- Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
-  mark the words they write with `generatedElement()` (`module-controls.md`).
+- Build injected controls, and a press that looks like Leaf's controls by its role,
+  with the library's control constructors (`module-controls.md`). Mark words the
+  widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
+  "Words it writes").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
-- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value
-  only where it changes ("Scheduling paints", "Writes that change nothing").
+- Schedule paints with `frameFor`, observe size through the library's frame pass, and
+  write a value only where it changes ("Scheduling paints", "Writes that change
+  nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes through the widget controller, and keep how they
   look at the widget in `tabStore`.
@@ -129,16 +132,19 @@ script", lists.
 ## Upgrade
 
 A `LeafElement` builds itself in `setup()` ("Drawing what a widget reads"). Any other
-custom element starts `connectedCallback` with
-`if (!once(this)) return;`, since `once(this)` is true only on the element's first
-connection, or with a guard of its own where it imports nothing. Use `disconnectedCallback` only for teardown that must happen at once, such
-as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
-callback calls the `super` method.
+custom element builds behind a guard that passes only on its first connection, since
+`connectedCallback` runs again each time a revision or a thread puts the element back.
+The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, and an
+element that imports nothing keeps one of its own. Use `disconnectedCallback` only for
+teardown that must happen at once, such as cancelling a grab or removing hoisted UI. A
+`LeafElement` that overrides either callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one whose `exhibit` declaration
-applies (including its optional `when` condition), such as `lf-sample`. A quoted widget
-never takes the user's edits, so check `quoted` before wiring a choice, a drag grip or
-anything else that sends input back. Its presentation and view state still work.
+A widget inside an element whose `exhibit` declaration applies (including its optional
+`when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
+`data-lf-exhibit`. A quoted widget never takes the user's edits. Its verbs are never
+`available`, and before wiring a drag grip, a command or anything else that sends
+input back, it asks `this.matches("[data-lf-exhibit] *")`. Its presentation and view
+state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and
@@ -150,14 +156,14 @@ A native renderer that retains its nodes can register `placesFailure(element, pl
 to place the box beside them: `place(box)` returns true when it handles the box, and
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
-failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports.
+failed part its own way, as `lf-diff` does for a patch it cannot draw, it dispatches
+the `error` event itself (`module-plain-elements.md`, "`error`"), which only reports.
 
 ## Connection lifetimes
 
 A revision or a thread can take a widget out of the page and put it back. In
-`setup()`, or after `once(this)`, register `whileConnected(element, start)` once for
-what a connection holds:
+`setup()`, or behind the element's first-connection guard, register
+`whileConnected(element, start)` once for what a connection holds:
 
 ```js
 schedulePaint = frameFor(this, () => this.measure());
@@ -165,9 +171,9 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
-    const sizes = sizeObserver(this.schedulePaint);
-    sizes.observe(this);
-    return () => sizes.disconnect();
+    // For a widget that scrolls a box of its own (module-scroll-and-motion.md,
+    // "Reading regions"): the registration's function is this connection's cleanup.
+    return registerReadingRegion({ id: this.id, host: this, body: this.body });
   });
 }
 ```
@@ -234,16 +240,16 @@ loading declares `ready()` on its scope, row or route, the most specific winning
 it returns false, that key and every later one keep waiting. A row with
 `decision: true` waits until the page's saved state has loaded.
 
-A module can listen on `document` for two startup events. `PRESENTATION` fires once,
+A module can listen on `document` for two startup events. `lf-presentation` fires once,
 when the page's complete layout is first in place; UI drawn from element geometry takes
-its first measurements there. `PAGE_INTERFACE` fires at startup and again when a new
+its first measurements there. `lf-page-interface` fires at startup and again when a new
 revision is applied in place; UI built from the authored structure rebuilds there and
 passes any asynchronous preparation to `detail.present(promise)`.
 
 A page script reaches a widget's methods only once the widget has upgraded.
 `whileInterfaceConnected(element, {declare, connect})` runs `declare()` once, for what
 the widget accepts once per lifetime, then `connect(signal)` at the first
-`PAGE_INTERFACE`, holding presentation until it returns, and again at once on each
+`lf-page-interface`, holding presentation until it returns, and again at once on each
 reconnection; the cleanup `connect` returns runs as the element leaves. A playground's
 page script is the worked example (the playground package's author instructions,
 "Stateful previews").
@@ -299,28 +305,33 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-`LeafElement` is a `LitElement` that draws everything in one `render()`.
-A `shadow` widget uses an ordinary shadow root; other widgets draw into
+`LeafElement` is a `LitElement` that draws everything in one `render()`, on the
+protocol `module-plain-elements.md` describes. A widget whose class says
+`static shadow = true` draws into an open shadow root; other widgets draw into
 themselves or a generated part `createRenderRoot()` returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the
 rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
 the widget draws nothing after it.
 
-`render()` reads through Leaf's readers: `this.reading` and `this.state`, the
-property a bound source sets (module-state.md, "Bound data and projections"), and page
-readings such as `readObligations`,
-`reportSequence` or `ago`. The element redraws whenever anything it read synchronously
-changes, parents before children; DOM reads and reads after an `await` are not
-tracked. Return a template, `nothing` when the render places retained nodes itself, or
-`noChange`. Work that reads what the render drew goes in `updated()`, and drawing that
-finishes later starts there and extends `getUpdateComplete` (`module-state.md`, "The
-widget controller"). Call `requestUpdate()` after a change Leaf can't see, such as
-revealing held news, and `performUpdate()` to draw at once.
+`render()` reads `this.state` (`module-plain-elements.md`, "`state`"), each property a
+bound source sets, which the class declares as a Lit reactive property
+(`static properties = { value: { attribute: false } }`; `module-state.md`, "Bound data
+and projections"), and page readings such as `readObligations`, `reportSequence` or
+`ago`. The element redraws when Leaf sets its `state` or a bound property, and whenever
+a page reading it read synchronously changes; DOM reads and reads after an `await` are
+not tracked. A new `state` is drawn before Leaf's set returns, a parent's before a
+child's; every other redraw runs on Lit's schedule, in no promised order. Return a
+template, `nothing` when the render places retained nodes itself, or `noChange`. Work
+that reads what the render drew goes in `updated()`, and drawing that finishes later
+starts there and extends `getUpdateComplete` (`module-state.md`, "The widget
+controller"). Call `requestUpdate()` after a change Leaf can't see, such as revealing
+held news, and `performUpdate()` to draw at once.
 
 `LeafElement` is portable: a plain host supplies reactive properties and chooses
-`createRenderRoot()`. Leaf adds page readings, controllers, presentation and
-bound-data delivery. `this.defer()` holds drawing through a synchronous rewrite; its
-idempotent release draws current properties.
+`createRenderRoot()`, and `this.state` stays undefined. Leaf adds `state`, page
+readings, presentation and bound-data delivery. `this.defer()` holds drawing through a
+gesture that rewrites the widget's nodes; its idempotent release draws current
+properties.
 
 Portable focus, scrolling and controls use the document's native behavior; Leaf
 adds reading regions and chrome styling. `langForPath` reads shipped defaults on
@@ -348,10 +359,12 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 Declare `shadow` where the user should quote and comment on the words a widget's
 shadow root shows; a root attached any other way is opaque to comments.
 
-For `shadow`, `LeafElement` creates the root, applies the shared stylesheet and
-annotation support, and owns its Lit render. Return the template from `render()` and
-use native slots for authored children. Read presentation inputs from the host and its
-authored children; read decisions through `this.reading` and `this.state`.
+A `LeafElement` whose class says `static shadow = true` creates an open shadow root
+and owns its Lit render there, and Leaf applies the shared stylesheet. The class says
+where the widget draws and the tag's `shadow` says the user may quote what it draws,
+so a widget that wants both states both. Return the template from `render()` and use
+native slots for authored children. Read presentation inputs from the host and its
+authored children; read decisions through `this.state`.
 
 An imperative renderer overrides `createRenderRoot()` to keep Lit out of its stage
 and uses `shadowStage(host, nodes)`, never `attachShadow`; it applies
@@ -372,15 +385,16 @@ page's own stylesheet.
 next render, however often it is called. It does nothing while the element is out of the
 page, and leaving cancels a scheduled paint, so schedule it again from `start`.
 
-`nextRender(callback)` runs in the rendering pass under way, or the next frame's, and
-`nextFrame(callback)` always waits a frame; cancel either with `cancelRender(id)`. The
-page doesn't count as settled until this work runs, so motion that may run until the
-user stops it, such as playback, calls the browser's `requestAnimationFrame` instead.
+Schedule a widget's other rendering work, and observe size, through the library's
+[`frame-pass.js`](../../../browser/runtime/lib/frame-pass.js), in place of
+`requestAnimationFrame` and `new ResizeObserver`. That module holds the one pass per
+frame that every rendering callback on the page runs in, which `frameFor` schedules on,
+and the size observer that goes with it. The page doesn't count as settled until that
+work runs, nor while sizes change, so motion that may run until the user stops it, such
+as playback, calls the browser's `requestAnimationFrame` instead.
 
-Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
-unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
-the page plays. Have its callback schedule a paint from `frameFor` rather than draw:
-a drawing that settles inside a size delivery lets Leaf present the page there, which
+Have a size observer's callback schedule a paint from `frameFor` rather than draw: a
+drawing that settles inside a size delivery lets Leaf present the page there, which
 moves boxes the browser has just measured, and the browser reports a ResizeObserver
 loop that `page check` counts as a fault.
 

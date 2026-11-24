@@ -74,9 +74,8 @@
  * says a stance's name, where the user stands and the words quoted, since the
  * interface's upright face would read as the agent's (the user's choice). A draft hides
  * whatever the field says, and the live region still hears what passes. */
-import { leafSays, wordsText } from "./voice.js";
+import { leafSays, wordsText, COMMENT_HINT, REPLY_HINT } from "./voice.js";
 import { noticeWords } from "./notifications.js";
-import { COMMENT_HINT, REPLY_HINT } from "./words.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./voice.js").Said} Said

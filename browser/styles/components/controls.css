@@ -1274,7 +1274,7 @@ wa-copy-button.lf-icon-action {
   -webkit-user-select: none;
 }
 /* The entry face (control-faces.js, `ACTION_FACES`): the pluggable RHS margin entry.
-   Contributors choose glyph, label, tone, and behavior through contributionEntry(),
+   Contributors choose glyph, label, tone, and behavior in each entry they offer,
    whose host is built by the `entry` role; this declaration owns every visual and
    interactive constant that makes unlike verbs read as one family. The margin's
    modules find an entry by `.lf-margin-entry` and never by this face's class.

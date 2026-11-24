@@ -150,7 +150,7 @@ contribution. Inherited values cross every widget boundary. Adjust another widge
 internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet through `LeafElement` for `shadow`, or through
+the composed shared stylesheet through a `LeafElement` that says `static shadow`, or through
 `shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
@@ -258,7 +258,7 @@ The merged registry's `$keys` entry defines each fact by its name; `$verbs` defi
 obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
 widget's markup that no declared fact states: the module checks it as it draws and
-reports a breach with `reportFailure`
+reports a breach with an `error` event
 ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
 card whose `shows` names a widget with no answer. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
@@ -281,8 +281,9 @@ declares `content: members`.
 nested widgets in authored order, so users can quote those words; the render check
 refuses a page where they changed. Declare it on a wrapper round authored content, and
 leave it off a widget whose module rewrites or reorders what it holds. Whatever the
-module adds to a verbatim widget stands inside a box it built with `offer`, with no
-words marked `says: true`, which would make them the page's (`module-controls.md`).
+module adds to a verbatim widget stands inside a box of controls the library built
+(`module-controls.md`), with no words marked `data-lf-said`, which would make them the
+page's (`module-plain-elements.md`, "Words it writes").
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

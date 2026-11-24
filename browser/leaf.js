@@ -28,8 +28,9 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { pagePresented } from "./runtime/page-paint.js";
-import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
-import { observeQueuedWork } from "./runtime/queued-work.js";
+import { renderingState, observePreparations } from "./runtime/rendering.js";
+import { nextFrame } from "./runtime/lib/frame-pass.js";
+import { observeQueuedWork } from "./runtime/lib/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {

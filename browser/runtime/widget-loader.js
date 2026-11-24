@@ -9,6 +9,7 @@ import {
 } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
 import { watchHeadingLinks } from "./heading-links.js";
+import { watchRootHeaders } from "./root-headers.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring, upgrades } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
@@ -28,11 +29,7 @@ import {
   verbatimOwnerIdentity,
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
-import {
-  loadDeclaredMarkdown,
-  formatDeclaredMarkdown,
-  prepaintDeclaredFiles,
-} from "./markdown.js";
+import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./page-markdown.js";
 import { widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
@@ -181,7 +178,6 @@ export async function preloadWidgets(scope) {
 export async function importWidgets(scope) {
   await loadWidgetDependencies(scope);
   formatDeclaredMarkdown(scope);
-  prepaintDeclaredFiles(scope);
   await importWidgetModules(scope);
 }
 
@@ -195,6 +191,7 @@ async function installDocument(scope) {
     watchQuietWords();
     watchCodeBlocks();
     watchHeadingLinks();
+    watchRootHeaders();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {

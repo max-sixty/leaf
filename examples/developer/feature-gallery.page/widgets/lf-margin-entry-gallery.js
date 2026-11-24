@@ -2,13 +2,12 @@
 import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
 import {
-  contributionEntry,
-  once,
   presentContributionEntry,
   presentContributionReceipts,
   registerContribution,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 function wireSample({ sample, key, control, disclosure }) {
   const behavior = sample.behavior ?? "action";
@@ -16,7 +15,7 @@ function wireSample({ sample, key, control, disclosure }) {
   const paint = () => {
     presentContributionEntry(
       control,
-      contributionEntry({
+      {
         key,
         label: sample.name,
         ...(sample.icon ? { icon: sample.icon } : { glyph: sample.glyph }),
@@ -28,7 +27,7 @@ function wireSample({ sample, key, control, disclosure }) {
         count: sample.count ?? 1,
         disabled: !sample.interactive,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
-      }),
+      },
       { selected: sample.selected ?? false, unread: sample.unread ?? false },
     );
     presentContributionReceipts(

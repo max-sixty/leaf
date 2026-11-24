@@ -211,7 +211,8 @@ import {
   repeat,
   signal,
 } from "/runtime/framework.js";
-import { el, offeredAction, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { offeredAction } from "./lib/controls.js";
 import { actionTemplate, iconTemplate } from "./lib/icons.js";
 import { actionName } from "./lib/icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
@@ -252,7 +253,17 @@ import {
   workflowStep,
   workflowWord,
 } from "./thread/workflow.js";
-import { agentSays, leafSays, saidBy, voiceOf, voiced, wordsText } from "./voice.js";
+import {
+  agentSays,
+  leafSays,
+  saidBy,
+  voiceOf,
+  voiced,
+  wordsText,
+  COMMENT_HINT,
+  REOPEN_HINT,
+  REPLY_HINT,
+} from "./voice.js";
 import {
   anchorLabel,
   draftPreview,
@@ -341,7 +352,8 @@ import {
 } from "./errors.js";
 import { stanceWords, statusContextReading } from "./keyboard/status-context.js";
 import { passingWords, readField } from "./field-readings.js";
-import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
+import { motionPlays, playMotion } from "./motion.js";
+import { motionEasing, motionTime } from "./lib/motion-timing.js";
 import { pagePresented } from "./page-paint.js";
 import {
   claimReleaseClick,
@@ -361,22 +373,10 @@ import {
   currentLocationIn,
 } from "./focus.js";
 import { rowWalk, walkWords } from "./walk-position.js";
-import {
-  capitalized,
-  COMMENT_HINT,
-  counted,
-  excerptWords,
-  REOPEN_HINT,
-  REPLY_HINT,
-} from "./words.js";
+import { capitalized, counted, excerptWords } from "./lib/words.js";
 import { coarsePointer } from "./pointer.js";
-import {
-  afterScript,
-  afterSettling,
-  holdRendering,
-  nextRender,
-  sizeObserver,
-} from "./rendering.js";
+import { afterScript, afterSettling, holdRendering } from "./rendering.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";

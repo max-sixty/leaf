@@ -1183,7 +1183,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
 # A suggestion whose losing slot holds a widget. lf-old takes prose, and prose takes
 # widgets, so a generated label can sit inside the half a decision removes.
 # `settled`, because that is the shape that bites: the summary a retired group collapses
-# to is written by the module and declares its words the page's (`says: true`), which is
+# to is written by the module and declares its words the page's (`data-lf-said`), which is
 # what lets a quote land on them. A pick mark is not that shape — it names the option for
 # a listening user and says nothing the page speaks — so a group offering a live pick
 # would leave this case unexercised.

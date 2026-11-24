@@ -2,8 +2,9 @@
    (element-integration.js).
 
    These hold what the host and `widgetState` decide on their own: the `state` a
-   reading becomes, when a plain element's bound data is set on it, what the page
-   waits for, and what becomes of a setter that throws. The elements here are no
+   reading becomes, when a plain element's bound data is set on it, what an element
+   that asks as it connects is given, what the page waits for, and what becomes of a
+   setter that throws. The elements here are no
    declared widgets, so each owns a region of its own; a widget's recorded state, its
    `lf-action` and its comment targets cross the page's reading, and are the browser
    suite's (tests/browser/test_plain_elements.py). */
@@ -14,6 +15,7 @@ import { widgetState } from "/runtime/widget-controller.js";
 import { failureOf, placesFailure } from "/runtime/widget-upgrade.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+import { readApplicationPresentation } from "/runtime/semantic-state.js";
 
 let tags = 0;
 
@@ -271,4 +273,101 @@ test("the failure box stands in the tree that shows the element, or where the el
   assert.equal(placing.querySelector(".lf-error"), null, "its own placer took the box");
   shadowed.remove();
   placing.remove();
+});
+
+test("an element that says lf-connect has its sets before the event returns", async () => {
+  const { tag, accept, element: make } = bound();
+  await accept("c1", { builds: "asked" });
+  const seen = [];
+  customElements.define(
+    tag,
+    class extends HTMLElement {
+      connectedCallback() {
+        const answered = !this.dispatchEvent(
+          new Event("lf-connect", { bubbles: true, composed: true, cancelable: true }),
+        );
+        seen.push([answered, revision(this.value), this.state]);
+      }
+    },
+  );
+  const element = make();
+  document.body.append(element);
+  // It reads data only, so the `state` Leaf told it to wait for is an empty one.
+  assert.deepEqual(seen, [[true, "asked", {}]]);
+  element.remove();
+});
+
+test("a drawing an element announces by itself holds its region until it is in", async () => {
+  const { tag, accept, element: make } = bound();
+  await accept("d1", { builds: "drawn" });
+  customElements.define(tag, class extends HTMLElement {});
+  const element = make();
+  document.body.append(element);
+  await settled();
+  const pending = () =>
+    readApplicationPresentation().pending.filter((region) =>
+      region.startsWith(`element:${tag}:`),
+    );
+  assert.deepEqual(pending(), []);
+  const drawing = Promise.withResolvers();
+  element.dispatchEvent(
+    Object.assign(new Event("pending-task", { bubbles: true, composed: true }), {
+      complete: drawing.promise,
+    }),
+  );
+  assert.equal(pending().length, 1, "its own region, and no preparation beside it");
+  // A second drawing claims the region again, and the claim keeps the first.
+  const later = Promise.withResolvers();
+  element.dispatchEvent(
+    Object.assign(new Event("pending-task", { bubbles: true, composed: true }), {
+      complete: later.promise,
+    }),
+  );
+  later.resolve();
+  await settled();
+  assert.equal(pending().length, 1, "the earlier drawing is still waited for");
+  drawing.resolve();
+  await settled();
+  assert.deepEqual(pending(), []);
+  element.remove();
+});
+
+test("an element says its failure with `error`, and `lf-error` on the window tells the user", async () => {
+  const { errorsReading, dismissErrors } = await import("/runtime/errors.js");
+  const host = document.body.appendChild(document.createElement("section"));
+  const part = host
+    .attachShadow({ mode: "open" })
+    .appendChild(document.createElement("div"));
+  const failures = [];
+  const report = (event) => failures.push(failureOf(event));
+  window.addEventListener("error", report);
+  try {
+    // The failure is the element's the event began at, and its reason the event's
+    // error, or its message where it carries none.
+    const reason = new Error("cannot draw this file");
+    part.dispatchEvent(
+      new ErrorEvent("error", { error: reason, bubbles: true, composed: true }),
+    );
+    host.dispatchEvent(
+      new ErrorEvent("error", { message: "no rows", bubbles: true, composed: true }),
+    );
+    assert.deepEqual(failures, [
+      { element: part, reason },
+      { element: host, reason: "no rows" },
+    ]);
+    dismissErrors();
+    window.dispatchEvent(
+      new CustomEvent("lf-error", {
+        detail: "Wait for the current edit to finish saving",
+      }),
+    );
+    assert.deepEqual(
+      errorsReading().map(({ message, subject }) => [message, subject]),
+      [["Wait for the current edit to finish saving", null]],
+    );
+  } finally {
+    window.removeEventListener("error", report);
+    dismissErrors();
+    host.remove();
+  }
 });

@@ -75,7 +75,6 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
-  allButCommandReference,
   boundFile,
   RequestError,
   commandsOn,
@@ -83,8 +82,7 @@ import {
   el,
   focusDestination,
   LeafElement,
-  offered,
-  offeredAction,
+  PendingTaskEvent,
   onCurrentLocation,
   rove,
   rowWalk,
@@ -92,6 +90,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
@@ -513,9 +512,7 @@ customElements.define(
             role="menu"
             aria-label="The file changed on disk"
             @toggle=${choiceOpened}
-            ${commandsOn("In the file's conflict menu", choiceKeys, {
-              claims: allButCommandReference,
-            })}
+            ${commandsOn("In the file's conflict menu", choiceKeys)}
           >
             <button
               ${offeredAction("word")}
@@ -833,7 +830,9 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(Promise.race([opening, waited.promise]));
+          this.dispatchEvent(
+            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+          );
           deferredArrival(opening);
           initial = false;
         }

@@ -108,27 +108,23 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  actionClass,
   addressableLabel,
   focusDestination,
-  foldDuration,
   holdPlace,
   LeafElement,
   motion,
   move,
-  nextRender,
-  offer,
-  offerAction,
-  PAGE_INTERFACE,
   phrasing,
   onPress,
-  PREVIEW_ENDED,
   readingAt,
-  registerRootHeader,
   shownWindow,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
@@ -417,7 +413,7 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
-        depth.addEventListener(PREVIEW_ENDED, this.#ended);
+        depth.addEventListener("lf-preview-ended", this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -437,12 +433,15 @@ customElements.define(
       // as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
-      this.addEventListener(PREVIEW_ENDED, this.#ended);
+      this.addEventListener("lf-preview-ended", this.#ended);
+      // The dial sticks at the window's top while the reader scrolls the page under it,
+      // so landings arrive below it.
+      this.toggleAttribute("data-lf-root-header", true);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
         this.ownerDocument.addEventListener(
-          PAGE_INTERFACE,
+          "lf-page-interface",
           () => {
             this.#sizes = null;
             this.#apply(this.#depth, { moving: false });
@@ -480,13 +479,7 @@ customElements.define(
         );
         const stored = tabStore.get(this.#key);
         if (stored) this.#apply(stored, { moving: false });
-        // The dial sticks at the window's top while the reader scrolls the page under
-        // it, so landings arrive below it.
-        const stopHeader = registerRootHeader(this);
-        return () => {
-          stopHeader();
-          this.#restore();
-        };
+        return () => this.#restore();
       });
     }
 
@@ -995,7 +988,7 @@ customElements.define(
     // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
-      const duration = foldDuration();
+      const duration = motionTime("--lf-motion-fold");
       const window = shownWindow();
       const after = this.#positions(scope);
       for (const [node, top] of after) {

@@ -30,7 +30,7 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
-import { capitalized } from "../words.js";
+import { capitalized } from "../lib/words.js";
 import { landingRoom } from "../landing-scroll.js";
 import { offFlow } from "../off-flow.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
@@ -59,7 +59,7 @@ import { ownedObligationControl } from "./answer.js";
 import { obligationIn } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { showHeld } from "../thread/held-news.js";

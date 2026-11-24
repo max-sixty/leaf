@@ -5,7 +5,6 @@ import {
   LeafElement,
   generate,
   dressCode,
-  quoted,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -64,7 +63,7 @@ customElements.define(
       const overall = host.querySelector("#widget-status");
       field.value = tabStore.get("dynamic-widgets:request") ?? field.value;
 
-      if (!quoted(host))
+      if (!host.matches("[data-lf-exhibit] *"))
         whileConnected(host, (signal) => {
           let busy = false;
           const lanes = Object.entries(approaches).map(([name, approach]) => {

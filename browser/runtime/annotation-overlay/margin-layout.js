@@ -80,8 +80,9 @@
    target has no rendered part to offer. */
 import { LENT_REACH_STOP, TAB_STOP } from "../control-selectors.js";
 import { blockControlBoxes } from "../block-controls.js";
-import { contentsRects } from "../shown-box.js";
-import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
+import { contentsRects } from "../lib/shown-box.js";
+import { afterScript } from "../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
 import {
   clippedContents,
   clippedRect,
@@ -130,7 +131,7 @@ import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { layoutPx, inlineStyle } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { objectIds } from "../ids.js";
-import { offerActionElement } from "../widget-elements.js";
+import { offerActionElement } from "../lib/controls.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { registry } from "../registry.js";
 import { visibleTargetParts } from "../visible-target-parts.js";

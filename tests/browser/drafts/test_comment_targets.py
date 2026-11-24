@@ -572,7 +572,7 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     expect(page.locator("#local leaf-text")).to_be_focused()
     rendered(page)
     page.evaluate("""async()=>{
-      const {observeQueuedWork}=await window.__lfCheckApi();
+      const {observeQueuedWork}=await window.__lfLibImport('queued-work.js');
       window.closeJobs=new Set();window.captureClose=true;
       window.stopCloseObserver=observeQueuedWork((phase,job)=>{
         if(phase==='enqueue'&&captureClose)closeJobs.add(job);

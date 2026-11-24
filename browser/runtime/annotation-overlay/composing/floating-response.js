@@ -41,7 +41,7 @@
    among them, and the next press there would open it (browser/AGENTS.md, "Controls
    stay where the user aims"), so there it waits for `c`. */
 import { pageRange } from "../../native-selection.js";
-import { cancelRender, nextRender, sizeObserver } from "../../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../../lib/frame-pass.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";

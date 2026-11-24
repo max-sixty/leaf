@@ -1,12 +1,7 @@
 /* The timeline has one browser view. Labels pack by their measured extents in the
  * actual ruler column; stepping changes states and the playhead, never geometry. */
 import { html, nothing, repeat } from "/vendor/lit.js";
-import {
-  offered,
-  offeredAction,
-  selectableOffered,
-  generated,
-} from "/runtime/portable-api.js";
+import { offered, offeredAction, selectableOffered } from "/runtime/lib/controls.js";
 import { textWidth } from "/runtime/lib/text-width.js";
 import {
   assignRows,
@@ -235,7 +230,7 @@ export function render(host, current, model, layout) {
   const position = model.steps.length
     ? `Step ${current + 1} of ${model.steps.length} · ${seconds(now)}`
     : "No events";
-  return html`<div class="lf-timeline-view" ${generated({ says: false })}>
+  return html`<div class="lf-timeline-view" data-lf-gen="1">
     <div
       ${offered("lf-timeline-controls")}
       role="group"
@@ -248,7 +243,8 @@ export function render(host, current, model, layout) {
     <div
       class="lf-timeline-chart"
       aria-hidden="true"
-      ${generated({ says: "echo" })}
+      data-lf-gen="1"
+      data-lf-echo
       style="--lf-timeline-bands: ${model.bands}; --lf-axis-edge: ${EDGE}px"
     >
       ${model.runs.map(
@@ -341,7 +337,8 @@ export function render(host, current, model, layout) {
     </div>
     <ol
       class="lf-timeline-steps lf-rows"
-      ${generated({ says: true })}
+      data-lf-gen="1"
+      data-lf-said
       style="--lf-timeline-columns: ${columns.length}"
     >
       ${
@@ -366,7 +363,7 @@ export function render(host, current, model, layout) {
           html`<li>
             <span
               ${selectableOffered("button", "lf-timeline-step", "row")}
-              ${generated({ says: true })}
+              data-lf-said
               tabindex="0"
               data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}

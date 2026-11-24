@@ -79,7 +79,7 @@ def requested_documents(page):
 
 OFFLINE_WIDGET = """\
 import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement, widgetController } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -89,15 +89,14 @@ customElements.define("lf-offline-test", class extends LeafElement {
   }
 
   choose() {
-    return this.controller.dispatch({
-      kind: "action", verb: "choose", detail: {value: "chosen"},
-    });
+    return this.record("choose", {value: "chosen"});
   }
 
   render() {
-    const {state, actions} = this.reading;
-    const action = actions.choose;
-    const unavailable = action.unavailable;
+    const {state} = this;
+    const action = state.choose;
+    // `state` says whether the user may choose; the controller's reading says why not.
+    const unavailable = widgetController(this).read().actions.choose.unavailable;
     return html`
       <style>#local { color: rgb(12, 34, 56); }</style>
       <button id="local" @click=${() => { this.#local += 1; this.requestUpdate(); }}>

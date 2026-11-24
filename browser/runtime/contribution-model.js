@@ -3,7 +3,7 @@
    command-scope capabilities outside the normalized records. */
 
 import { actionIcon } from "./lib/icon-paths.js";
-import { excerptWords } from "./words.js";
+import { excerptWords } from "./lib/words.js";
 
 const TONES = Object.freeze({ neutral: true, positive: true, negative: true });
 const BEHAVIORS = Object.freeze({ action: true, disclosure: true, status: true });

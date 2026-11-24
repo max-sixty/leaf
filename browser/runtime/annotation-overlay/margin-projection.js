@@ -66,7 +66,8 @@ import { threadsInPanel } from "../thread/threads-in-panel.js";
 
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
-import { afterScript, cancelRender, nextRender } from "../rendering.js";
+import { afterScript } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { spokenSubject } from "../contribution-model.js";
 import {
   closedFaceOver,
@@ -132,12 +133,8 @@ import {
 } from "../focus.js";
 import { focusByKey, focusKey } from "../carry.js";
 
-import {
-  el,
-  generatedElement,
-  offerActionElement,
-  reveal as openFolds,
-} from "../widget-elements.js";
+import { el, generatedElement, reveal as openFolds } from "../widget-elements.js";
+import { offerActionElement } from "../lib/controls.js";
 import { readingPlace } from "../resolved-target.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 
@@ -247,7 +244,7 @@ export function createMarginProjection({
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
-  generatedElement(nav, { says: false });
+  generatedElement(nav);
   nav.setAttribute("aria-label", "Page Map");
   // A group, not a toolbar: a toolbar is one tab stop walked across, while each entry
   // an open cluster shows takes Tab of its own and the markers walk up and down.

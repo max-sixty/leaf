@@ -182,7 +182,6 @@ def _layout_passes_batch_without_refolding_controls(page):
         before = metrics()
         page.evaluate(
             """async () => {
-              const {layoutChanged} = await window.__lfWidgetApi();
               const rows = [...document.querySelectorAll('.lf-margin-cluster')];
               const boxes = () => rows.map(row => {
                 const {x, y, width, height} = row.getBoundingClientRect();
@@ -205,7 +204,7 @@ def _layout_passes_batch_without_refolding_controls(page):
               };
               for (let i = 0; i < 5; i++) await new Promise(done => {
                 document.addEventListener('lf-margin-layout', done, {once: true});
-                layoutChanged(document.body);
+                document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
               });
             }"""
         )
@@ -1088,7 +1087,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/widget-api.js";\n'
+            'import { once } from "/runtime/lib/once.js";\n'
             f'customElements.define("{tag}", class extends HTMLElement {{\n'
             + body
             + "});\n"

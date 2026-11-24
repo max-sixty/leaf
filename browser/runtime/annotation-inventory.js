@@ -15,7 +15,7 @@
 import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
-import { excerptWords, labelWords } from "./words.js";
+import { excerptWords, labelWords } from "./lib/words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginEntry, threadMarks } from "./margin-model.js";
 import { agentName, readPart } from "./semantic-state.js";
@@ -31,7 +31,8 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { keptEach } from "./kept.js";
-import { addressableLabel, addressableWord } from "./addressable-names.js";
+import { addressableLabel } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import {

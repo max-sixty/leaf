@@ -37,19 +37,18 @@ document around it, as a contents list does, reads it with
 To name an element elsewhere, such as in a feed row, use `addressableLabel(element)`,
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
-named element around it. A registered widget with no name gets an empty label, and
-`addressableWord(element)` gives the word for its kind instead. That word is the
-element's `aria-roledescription`, which the module that builds the element writes along
-with a role for it, since ARIA ignores the attribute on an element with no role, as
-`lf-playground` makes each preset a `group` it calls "preset".
-Without one, it is what the element answers from an `lfWord()` method, for a word that
-depends on the element, as `lf-suggestion` says "insertion" or "rewrite"; else its tag
-without `lf-`. Where a widget's words alone
-don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
-returns the words that describe it. A
-widget's name is its `label` attribute, as an option card's, a board card's or a
-column's is, which names its element on every widget that takes it (the registry's
-`$attributes`), whether or not the widget draws it.
+named element around it. A registered widget with no name gets an empty label: say the
+word for its kind instead, which the library gives (`module-authoring.md`, "Shared web
+code"). That word is the element's `aria-roledescription`, which the module that
+builds the element writes along with a role for it, since ARIA ignores the attribute
+on an element with no role, as `lf-playground` makes each preset a `group` it calls
+"preset". Without one, it is what the element answers from an `lfWord()`
+method, for a word that depends on the element, as `lf-suggestion` says "insertion"
+or "rewrite"; else its tag without `lf-`. Where a widget's words alone don't convey
+its structure, as a rewrite's old and new text don't, its `lfSays()` returns the
+words that describe it. A widget's name is its `label` attribute, as an option
+card's, a board card's or a column's is, which names its element on every widget
+that takes it (the registry's `$attributes`), whether or not the widget draws it.
 `authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
 while the tab's title counts what waits on the user in front of it.
 
@@ -59,8 +58,7 @@ widget titles only itself. A heading after other content, or opening any other
 element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
 link preview counts a thread about any of them.
 
-`anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
-`excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
+`anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
 ### Reading declarations
 
@@ -104,29 +102,16 @@ to its parts.
 
 ### Markdown
 
+Leaf reads Markdown in one dialect, the library's
+[`markdown.js`](../../../browser/runtime/lib/markdown.js), whose header says how it
+reads a message a person typed and a Markdown file. A widget that renders Markdown on
+the page passes `pageLinks` to the dialect's renderers, so a picture of the page's
+media answers at the page's address and opens in Leaf's viewer, and a link that leaves
+the page opens in a new tab.
+
 A widget whose entry declares `content: markdown` has its data body arrive
-rendered as block Markdown while the recorded body stays the source. It reads as a
-Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
-`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
-`markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
-source.
-
-An entry declaring `prepaint` names the attribute that gives the notation of the
-widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
-its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
-page first paints at that rendering's size. The module still reads the `<pre>`, and
-replaces both when it draws.
-
-`inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
-string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
-read text as a message a person typed: each line break stays a line, a line's leading
-spaces are dropped rather than starting code, and `---` under a line is a rule.
-`renderMarkdown(text, false)` and `markdownWords(text, false)` read a Markdown file as
-CommonMark does: its soft line breaks are spaces, so its paragraphs wrap to the box, a
-block indented four spaces is code, and a line of `=` or `-` underlines a heading.
-Until the renderer has loaded, they return the escaped source; `loadMarkdown()`
-resolves once it has, and `markdownReady()` says whether it has, so a widget showing
-changing prose repaints then.
+rendered as block Markdown, read as a Markdown file, while the recorded body stays the
+source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into it.
 
 ### Code
 
@@ -155,12 +140,6 @@ copy through a press of your own built by its role, pass it as `trigger` instead
 its `value` before it copies, and it reports `success` or `error` as a code block's
 does.
 
-### Text alignment
-
-A widget that walks its own units with jsdiff, such as a document's lines, gives up
-after `MAX_EDIT_LENGTH` edits and treats the whole text as replaced, as Leaf's own
-alignment does.
-
 ### Media URLs
 
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it
@@ -170,16 +149,11 @@ goes on as written.
 ### Icons
 
 A press shows its action's symbol, so each action looks the same wherever it is
-offered: `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-controls.md`). The action names are the keys of `ACTIONS` in the library's
-[`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its symbol and
-the words its press says. For a symbol whose action follows its state, such as Expand
-all turning to Collapse all, `nameAction(control, action, {label, title, className})`
-swaps in the new action's symbol and says its name as the tooltip and accessible name,
-unless `label` or `title` says more.
-
-For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`.
+offered: the library's control constructors draw a press from its action's name
+(`module-controls.md`), and redraw it where the action follows the press's state, as
+Expand all turns to Collapse all. The action names are the keys of `ACTIONS` in the
+library's [`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its
+symbol and the words its press says.
 
 ## Page readings
 

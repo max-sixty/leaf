@@ -28,7 +28,7 @@
 import { announces, moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { counted, excerptWords } from "./words.js";
+import { counted, excerptWords } from "./lib/words.js";
 import { NOTHING_ON_ME } from "./queues.js";
 
 /** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading

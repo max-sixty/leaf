@@ -3,18 +3,21 @@
 import { guard, html, render, repeat } from "/vendor/lit.js";
 import {
   loadDraft,
-  inlineMarkdownFragment,
-  loadMarkdown,
-  markdownReady,
   move,
-  offer,
   saveDraft,
   sendDraft,
   TEXT_FIELD,
   watchDraft,
   whileConnected,
   wireInput,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import {
+  inlineMarkdownFragment,
+  loadMarkdown,
+  markdownReady,
+} from "/runtime/lib/markdown.js";
 
 const ANOTHER = "Another option";
 
@@ -193,7 +196,7 @@ export class OptionAddition {
         options,
         ([id]) => id,
         ([id, text]) => {
-          const words = inlineMarkdownFragment(text);
+          const words = inlineMarkdownFragment(text, pageLinks);
           const typed = !words.firstElementChild && words.textContent === text;
           return html`<lf-option id=${id} data-lf-added>
             <span class="lf-option-words" data-lf-markdown-words

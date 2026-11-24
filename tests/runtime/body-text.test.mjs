@@ -23,7 +23,7 @@ test("a data body's text drops its <pre>'s layout and the browser's whitespace a
 
 test("an agent's message holding HTML places each tag where Python checked it", async () => {
   const { loadMarkdown, renderAuthoredMarkdown, renderedWords } =
-    await import("/runtime/markdown.js");
+    await import("/runtime/lib/markdown.js");
   assert.equal(await loadMarkdown(), true);
   const cases = JSON.parse(
     readFileSync(new URL("../message_html_cases.json", import.meta.url)),
@@ -51,7 +51,7 @@ test("an agent's message holding HTML places each tag where Python checked it", 
 
 test("a rendered Markdown caret keeps its exact source position in long and structured bodies", async () => {
   const { loadMarkdown, paintMarkdown, markdownSourceOffset } =
-    await import("/runtime/markdown.js");
+    await import("/runtime/lib/markdown.js");
   await loadMarkdown();
   for (const source of [
     Array.from({ length: 600 }, (_, i) => `**word${i}**`).join(" "),
@@ -109,14 +109,14 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
 
 test("Markdown body readings share file dialect, safe destinations and native structure", async () => {
   const { loadMarkdown, renderMarkdown, renderInlineMarkdown, renderedWords } =
-    await import("/runtime/markdown.js");
+    await import("/runtime/lib/markdown.js");
   assert.equal(await loadMarkdown(), true);
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
   for (const { source, words, blocks, links } of cases) {
     const body = document.createElement("div");
-    body.innerHTML = renderMarkdown(source, false);
+    body.innerHTML = renderMarkdown(source, {}, false);
     assert.deepEqual(
       [...body.children].map((block) => block.localName),
       blocks,
@@ -182,7 +182,7 @@ test("Markdown body readings share file dialect, safe destinations and native st
       words,
       source,
     );
-  assert.equal(renderInlineMarkdown("first\nsecond", false), "first\nsecond");
+  assert.equal(renderInlineMarkdown("first\nsecond", {}, false), "first\nsecond");
   // Formatting whitespace must not add a second line in space-preserving messages;
   // excerpts still read the semantic break as separation between the words.
   for (const source of ["first\nsecond", "first  \nsecond"]) {
@@ -192,7 +192,7 @@ test("Markdown body readings share file dialect, safe destinations and native st
 });
 
 test("a draft's answer reads its words as its body draws them, as a file", async () => {
-  const { loadMarkdown, paintMarkdown } = await import("/runtime/markdown.js");
+  const { loadMarkdown, paintMarkdown } = await import("/runtime/lib/markdown.js");
   assert.equal(await loadMarkdown(), true);
   await import("../../packages/default/widgets/lf-draft.js");
   const source = "Title\n=====\n\nRun:\n\n    make";
@@ -208,7 +208,7 @@ test("a draft's answer reads its words as its body draws them, as a file", async
 
 test("bare file names in Markdown stay text while explicit links remain links", async () => {
   const { loadMarkdown, renderMarkdown, renderInlineMarkdown } =
-    await import("/runtime/markdown.js");
+    await import("/runtime/lib/markdown.js");
   await loadMarkdown();
   const source =
     "Edit setup.py and notes.md, then run install.sh. Visit https://example.com, <https://example.org>, or [docs](https://docs.example.com).";
@@ -230,7 +230,8 @@ test("bare file names in Markdown stay text while explicit links remain links", 
 });
 
 test("editor tokens retain native constructs and exact source syntax after parser joining", async () => {
-  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
+  const { loadMarkdown, placedMarkdownTokens } =
+    await import("/runtime/lib/markdown.js");
   await loadMarkdown();
   const source =
     "***nested*** and `code` [**label**](https://example.com) ~~gone~~ H~2~O \\*";
@@ -330,11 +331,11 @@ test("editor tokens retain native constructs and exact source syntax after parse
 });
 
 test("a message's fence shows the words on its opening line, and a file's reads them as its info", async () => {
-  const { loadMarkdown, renderMarkdown } = await import("/runtime/markdown.js");
+  const { loadMarkdown, renderMarkdown } = await import("/runtime/lib/markdown.js");
   await loadMarkdown();
   const code = (source, message) => {
     const body = document.createElement("div");
-    body.innerHTML = renderMarkdown(source, message);
+    body.innerHTML = renderMarkdown(source, {}, message);
     const block = body.querySelector("pre code");
     return [block.className, block.textContent];
   };
@@ -355,7 +356,8 @@ test("a message's fence shows the words on its opening line, and a file's reads 
 });
 
 test("block markers retain native source spans inside containers and fences", async () => {
-  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
+  const { loadMarkdown, placedMarkdownTokens } =
+    await import("/runtime/lib/markdown.js");
   await loadMarkdown();
   for (const [source, expected] of [
     [
@@ -400,7 +402,8 @@ test("block markers retain native source spans inside containers and fences", as
 });
 
 test("a list item records the indent its later lines stand at past its container's", async () => {
-  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
+  const { loadMarkdown, placedMarkdownTokens } =
+    await import("/runtime/lib/markdown.js");
   await loadMarkdown();
   for (const [source, expected] of [
     ["- a", [2]],
@@ -425,7 +428,7 @@ test("a list item records the indent its later lines stand at past its container
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
   const { registry } = await import("/runtime/registry.js");
   const { preloadWidgets } = await import("/runtime/widget-loader.js");
-  const { formatDeclaredMarkdown } = await import("/runtime/markdown.js");
+  const { formatDeclaredMarkdown } = await import("/runtime/page-markdown.js");
   const { dataBody } = await import("/runtime/widget-upgrade.js");
   registry["lf-source-contract"] = {
     content: "markdown",
@@ -458,45 +461,10 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   }
 });
 
-test("an arriving written Markdown file first paints its rendering beside its exact source", async () => {
-  const { registry } = await import("/runtime/registry.js");
-  const { importWidgets } = await import("/runtime/widget-loader.js");
-  const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
-  registry["lf-file-contract"] = {
-    prepaint: "notation",
-  };
-  try {
-    const scope = new DOMParser()
-      .parseFromString(
-        '<main><lf-file-contract notation="markdown"><pre>**Fixed** words\nwrap on.</pre></lf-file-contract>' +
-          '<lf-file-contract notation="html"><pre>&lt;b&gt;bold&lt;/b&gt;</pre></lf-file-contract></main>',
-        "text/html",
-      )
-      .querySelector("main");
-    // A message's markup takes this path; a revision's arrivals call the prepaint alone.
-    await importWidgets(scope);
-    const [file, frame] = scope.children;
-    const rendering = ":scope > .lf-markdown-body[data-lf-prepaint]";
-    assert.equal(file.querySelectorAll(rendering).length, 1);
-    prepaintDeclaredFiles(scope);
-    const bodies = file.querySelectorAll(rendering);
-    assert.equal(bodies.length, 1, "one rendering, however often arrival paints");
-    assert.equal(bodies[0].querySelector("strong")?.textContent, "Fixed");
-    assert.equal(bodies[0].querySelector("br"), null, "a file's soft break is a space");
-    assert.equal(
-      file.querySelector(":scope > pre")?.textContent,
-      "**Fixed** words\nwrap on.",
-    );
-    assert.equal(frame.querySelector("[data-lf-prepaint]"), null);
-  } finally {
-    delete registry["lf-file-contract"];
-  }
-});
-
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
   const { registry } = await import("/runtime/registry.js");
   const { loadDeclaredMarkdown, formatDeclaredMarkdown } =
-    await import("/runtime/markdown.js");
+    await import("/runtime/page-markdown.js");
   const { annotationAt } = await import("/runtime/anchor-resolution.js");
   const { blockAt, elementReading } = await import("/runtime/passages.js");
   registry["lf-seat-contract"] = {

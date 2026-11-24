@@ -6,31 +6,31 @@ module owes.
 ## Commands and keyboard routes
 
 A widget declares its commands as data on the element they apply in: set the element's
-`lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
+`lfCommands` to the scope and dispatch an `lf-commands` event on the element
+(`module-plain-elements.md`, "`lf-commands`"). The scope holds `title`,
 the heading the command reference lists it under, and `rows` ("Command rows"). It may
 also hold `when`, whether the page has the scope at all, which gates the reference as a
 row's own `when` gates its press; `ready` (`module-authoring.md`, "Startup and
-presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a scope
-whose own Escape step comes before every step outside it.
+presentation"); and `escape: "inner"`, for a scope whose own Escape step comes before
+every step outside it.
 
-Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
+Leaf reads the declaration when it hears the event, binds its keys, lists them in
 the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
-widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
-exists; it may still be out of the page.
+widget that also runs off Leaf") binds no key. Declare at upgrade.
 
-Assigning a new object to `lfCommands` and calling `commandsChanged` replaces the
-scope, and Leaf checks the new rows then: `commandsChanged` throws where one is
-malformed. `null` withdraws the scope. Calling `commandsChanged` with the same object
-only has Leaf read its rows' titles and availability again, so a row or title edited in
-place goes unchecked; assign a new object to change them.
+Assigning a new object to `lfCommands` and dispatching the event replaces the
+scope, and Leaf checks the new rows then, reporting a malformed one as the element's
+failure. `null` withdraws the scope. Dispatching the event with the same object
+standing only has Leaf read its rows' titles and availability again, so a row or title
+edited in place goes unchecked; assign a new object to change them.
 
 ```javascript
 this.lfCommands = {
   title: "On a code block",
   rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
 };
-commandsChanged(this);
+this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 ```
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
@@ -53,13 +53,15 @@ const actions = commandScope("In a classifier", [
   },
 ]);
 classifier.lfCommands = actions;
-commandsChanged(classifier);
+classifier.dispatchEvent(
+  new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+);
 ```
 
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
 bound on, takes the current rows on each render, and detaches when the element goes.
 Where the rows need the element, pass a function of it, such as
-`commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`.
+`commandsOn(title, (row) => [{ …, run: () => select(row) }])`.
 
 ### Command rows
 
@@ -106,9 +108,11 @@ back runs instead: it closes the editor without losing the changed words. Where 
 away from the editor saves them, `keep` saves them too, as `lf-draft` does; otherwise it
 keeps them where reopening finds them and shows that the widget holds them.
 
-Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
-a widget's state or the threads. For any other state it reads, hold the value in a
-`signal` or call `commandsChanged(element)` after changing it.
+Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
+such as the threads, and, for the scopes a `LeafElement` drew or declared on itself,
+after each of its draws, so their rows may read `this.state`. For any other state a row
+reads, hold the value in a `signal` or dispatch `lf-commands` on the element after
+changing it.
 
 ### How scopes compose
 
@@ -129,9 +133,11 @@ its key while unavailable, so the key never falls through to a different meaning
 out; an unavailable Escape, though, passes on to the next Escape. Text fields keep their
 editing keys ahead of every widget scope.
 
-A menu or other scope that covers the page gives `allButCommandReference` as its
-declaration's `claims`, so the page's keys wait while the user is in it and only the
-command reference still opens.
+Leaf holds some keys for a widget's own layer with nothing declared. While focus is in
+a menu, or another widget whose ARIA pattern types ahead (`page-behavior.md` names the
+roles), letters and digits reach no scope around it. Escape pressed in an open popover
+goes no further than the popover. In a modal dialog no key but the command reference's
+reaches the page.
 
 Give a native button's row both `control` and `run`, and Leaf runs `run` for its click
 and its key alike. Don't add a click listener, and don't call the button's own `click()`
@@ -139,12 +145,14 @@ from `run`. Put every condition in `when`: Leaf shows the button disabled with
 `aria-disabled` and refuses the press while keeping focus there. Native inputs keep
 their own activation and editing.
 
-Leaf already answers Enter, Space and the opening arrow on a `details > summary` or a
-button with `aria-expanded`; a row that names the same press uses `DISCLOSE(element)` as
-its `keys`. The library names the keys that press a button and the arrows along a row
-in its text direction (`module-authoring.md`, "Shared web code"). `labelOf(row)` is a
-row's key text for a tooltip; `saying(rows)` names, for an announcement, the keys that
-would run the rows now.
+A disclosure needs no row. On every `details > summary` and every button with
+`aria-expanded` on the page, a widget's included, Leaf answers Enter, Space and the
+arrow that opens or closes it, and lists the press in the command reference as open or
+close. In a thread's message only Enter and Space work one. The library names the keys
+that press a button and the arrows along a row in its text direction
+(`module-authoring.md`, "Shared web code"). `labelOf(row)` is a row's key text for a
+tooltip; `saying(rows)` names, for an announcement, the keys that would run the rows
+now.
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
 the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
@@ -193,9 +201,9 @@ where the step landed.
 
 ### Go-to targets
 
-Every visible button, checkbox, radio or selectable control a widget builds with
-`offer()` or `selectableOffer()` is a target the `g` key reaches, with nothing more to
-declare.
+Every visible button, checkbox, radio or selectable control a widget builds with the
+library's control constructors (`module-controls.md`) is a target the `g` key reaches,
+with nothing more to declare.
 
 ## Focus and layers
 
@@ -343,9 +351,9 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 
 ## Text entry and drafts
 
-A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which behaves
-like a textarea and fires `input` only for the user's edits. `TEXT_FIELD` is its
-tag. The field matches `:state(ready)` once
+A widget's own text box is Leaf's Markdown editor, which behaves like a textarea and
+fires `input` only for the user's edits. Build it as a generated control
+(`module-controls.md`) whose tag is `TEXT_FIELD`. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 

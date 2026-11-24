@@ -5,10 +5,10 @@
    Leaf page the same widget gets Leaf's features through what Leaf reads from outside
    it, rather than through calls into Leaf: the events it dispatches (widget-upgrade.js),
    the keys it declares as `lfCommands`, what pointing at an element reads
-   (`lfPreview`, preview.js, `lf-preview` as that changes, and `PREVIEW_ENDED` as
+   (`lfPreview`, preview.js, `lf-preview` as that changes, and `lf-preview-ended` as
    the preview goes), the words it asks a
-   listener to hear (`lf-announce`), the inventory of Comment targets it registers
-   (`registerVisualParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
+   listener to hear (`lf-announce`), the inventory of Comment targets it states
+   (`data-lf-part` marks or `lfParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
    code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, shows no
    preview, says nothing aloud, offers no Comment target and shows no Leaf control.
@@ -18,45 +18,21 @@
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
    tests/smoke/test_plain_page.py holds the portable widgets to that. A portable widget
    also imports the library's modules (lib/), each of which loads in any document. */
-export { whileConnected, frameFor, setScroll } from "./arrivals.js";
-export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
+export { whileConnected, frameFor } from "./arrivals.js";
 export {
-  LAYOUT,
   PendingTaskEvent,
   bodyText,
-  commandsChanged,
   failSoft,
-  layoutChanged,
-  once,
   placesFailure,
-  PREVIEW_ENDED,
-  reportFailure,
 } from "./widget-upgrade.js";
-export { measure } from "./shown-box.js";
-export { registerVisualParts } from "./visual-parts.js";
 export { tabStore } from "./tab-store.js";
-
-export { actionClass } from "./control-faces.js";
-
-export {
-  offerElement,
-  generatedElement,
-  offer,
-  offerAction,
-  offerActionElement,
-  selectableOffer,
-  offered,
-  offeredAction,
-  selectableOffered,
-  generated,
-} from "./element-markers.js";
 
 export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
 
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 
-export { nameAction, searchField } from "./control-labels.js";
+export { searchField } from "./control-labels.js";
 
 export { focusDestination, holdFocus, onUserInput } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
@@ -66,5 +42,4 @@ export { inChrome } from "./ui-marks.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { DISCLOSE } from "./control-keys.js";
 export { langForPath } from "./language-paths.js";

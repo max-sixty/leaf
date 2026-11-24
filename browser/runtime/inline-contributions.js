@@ -13,7 +13,7 @@ import {
   presentContributionReceipts,
 } from "./contribution-controls.js";
 import { compareContributions, spokenSubject } from "./contribution-model.js";
-import { addressableWord } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
 import { el, generatedElement } from "./widget-elements.js";
@@ -55,7 +55,7 @@ export function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host = el("div", "lf-ui lf-margin-inline");
-        generatedElement(host, { says: false });
+        generatedElement(host);
         host.setAttribute("role", "group");
         seat = { host, offers: [] };
         hosts.set(target, seat);

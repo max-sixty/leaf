@@ -24,14 +24,16 @@ import {
   render,
 } from "/runtime/framework.js";
 import { setRenderedChildren } from "../dom-children.js";
-import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
+import { generatedElement, worksInside } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import {
   loadMarkdown,
   markdownReady,
   renderAuthoredMarkdown,
   renderMarkdown,
   renderedWords,
-} from "../markdown.js";
+} from "../lib/markdown.js";
+import { pageLinks } from "../page-markdown.js";
 import { reportPageError } from "../layer-client.js";
 import {
   deleted,
@@ -41,7 +43,7 @@ import {
   messageKey,
   turns,
 } from "./model.js";
-import { counted, excerptWords, labelWords } from "../words.js";
+import { counted, excerptWords, labelWords } from "../lib/words.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -79,14 +81,16 @@ import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById, says } from "../passages.js";
 import { designName } from "../design-readings.js";
-import { addressableWord, sectionLabel } from "../addressable-names.js";
+import { sectionLabel } from "../addressable-names.js";
+import { addressableWord } from "../lib/element-word.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
-import { flashDuration, motion } from "../motion.js";
+import { motion } from "../motion.js";
+import { motionTime } from "../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
 
@@ -144,8 +148,8 @@ function proseReading(message) {
     reading.markdown !== markdown
   ) {
     const pasted = readAttachedMedia(text);
-    const html = renderMarkdown(pasted.text);
-    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
+    const html = renderMarkdown(pasted.text, pageLinks);
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths), pageLinks);
     reading = Object.freeze({
       id: message.id,
       edited,
@@ -498,11 +502,11 @@ export function prepareAuthoredMessage(message, thread) {
     // stands in with until it loads.
     if (!markdownReady())
       throw new Error("leaf: an authored message needs its loaded Markdown renderer");
-    const markup = renderAuthoredMarkdown(source);
+    const markup = renderAuthoredMarkdown(source, pageLinks);
     const template = document.createElement("template");
     template.innerHTML = markup;
     // A page's media at the address the page answers at, as the message's Markdown
-    // images take it (markdown.js, `scopedMediaUrl`): any attribute naming it.
+    // images take it (page-markdown.js, `pageLinks`): any attribute naming it.
     for (const element of template.content.querySelectorAll("*"))
       for (const { name, value } of element.attributes)
         if (isCanonicalMediaUrl(value))
@@ -741,7 +745,7 @@ export function messageReading(
 // answers for restoration and reduced motion.
 /** @param {Element} node */
 export const arrivalTint = (node) =>
-  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], flashDuration());
+  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], motionTime("--lf-motion-flash"));
 
 export class MessageView {
   #commands;
@@ -793,7 +797,7 @@ export class MessageView {
       // thread to another, as the floating panel does to a page's own reader.
       this.node.dataset.lfMessage = model.key;
       this.node.classList.add("lf-ui");
-      generatedElement(this.node, { says: false });
+      generatedElement(this.node);
       this.node.dataset.lfOffer = "";
       // A message the keyboard stands on previews when it was said, as its time does to
       // a pointer or a finger (`agePreview`), beside that time in its head. Its words

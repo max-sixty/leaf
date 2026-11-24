@@ -58,7 +58,7 @@ import { pageScope } from "./keyboard/register.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, pageQueryAll } from "./passages.js";
 import { upFrom } from "./lib/shadow-tree.js";
-import { contentsRects } from "./shown-box.js";
+import { contentsRects } from "./lib/shown-box.js";
 import { inChrome } from "./ui-marks.js";
 
 /** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */

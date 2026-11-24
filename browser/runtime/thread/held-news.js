@@ -134,9 +134,9 @@
    exception: it draws its lists at first paint, with "Lists current" as the control.
    A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
    it is scrolled, so nothing tells the reader a row is cut off. */
-import { counted } from "../words.js";
+import { counted } from "../lib/words.js";
 import { growthIsSeen, whenNone } from "../geometry.js";
-import { offerAction } from "../widget-elements.js";
+import { offerAction } from "../lib/controls.js";
 import { keeps, keepsText } from "../lib/keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { focusThread } from "./focus.js";

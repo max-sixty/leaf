@@ -133,8 +133,7 @@ moving a card again replaces that card's position while other cards keep theirs.
 new version may change the authored markup freely; the user's decisions still apply
 over it until a `restated` event takes one back. A version takes a decision back by
 setting the boolean `restated` attribute on the element it rests on, and stamping that
-version records the retraction (the registry's `$restated`). A widget with a user verb
-whose `unit` is `"widget"` declares that attribute. The `$keys` entries in
+version records the retraction (the registry's `$restated`). The `$keys` entries in
 `browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
@@ -186,7 +185,7 @@ does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail
 holding the new child's id, which must be one no page or Thread markup holds, created
 members included, and `words` the field holding its text; its detail schema has just
 those two fields. Leaf reads that text as inline Markdown the user typed, so the parent
-draws it with `inlineMarkdownFragment(text)` (`module-reading.md`, "Markdown"). Each
+draws it in that reading (`module-reading.md`, "Markdown"). Each
 added child is its own key, so undoing the add removes it. The child's tag lists the
 widget in `owners`, requires only an `id`, and has `content: markup`.
 

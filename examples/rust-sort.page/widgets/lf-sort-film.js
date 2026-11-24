@@ -6,17 +6,11 @@
 // whose `for` names the film marks those lines where it quotes them, so one value lights
 // only the block that holds them.
 
-import {
-  frameFor,
-  generatedElement,
-  inlineMarkdownFragment,
-  loadMarkdown,
-  offer,
-  once,
-  registerVisualParts,
-  sizeObserver,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { frameFor, whileConnected, pageLinks } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
   INPUTS,
@@ -103,7 +97,9 @@ customElements.define(
     #relayout = frameFor(this, () => {
       this.#layout();
       this.#paint();
-      this.parts?.update();
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     });
 
     connectedCallback() {
@@ -168,9 +164,8 @@ customElements.define(
       // Each slot of v, the scratch lane, the run stack and each collapse() clause is a
       // visual part: Leaf's Alt-click targets that part, and the click pauses the sort
       // so the part holds still under the comment.
-      this.parts = registerVisualParts(
-        this,
-        () => [
+      this.lfParts = {
+        read: () => [
           ...this.painter.parts(),
           {
             id: this.momentEl.dataset.part,
@@ -178,8 +173,9 @@ customElements.define(
             label: momentLabel(this.momentEl.dataset.part),
           },
         ],
-        { reveal: (id) => this.#revealMoment(id), label: momentLabel },
-      );
+        reveal: (id) => this.#revealMoment(id),
+        label: momentLabel,
+      };
       stage.addEventListener("click", (e) => {
         if (e.target.closest?.("[data-part]")) this.#pause();
       });
@@ -274,9 +270,11 @@ customElements.define(
       this.addEventListener("keydown", (e) => this.#key(e));
       // The drawing, the narration and the count are the film's words, which a reader
       // can point at; the timeline is a press with none.
-      for (const words of [stage, this.narration, this.stats])
-        generatedElement(words, { says: true });
-      generatedElement(this.timeline, { says: false });
+      for (const words of [stage, this.narration, this.stats]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
+      keeps(this.timeline, "data-lf-gen", "1");
       const controls = document.createElement("div");
       controls.className = "sort-controls";
       controls.append(this.narration, this.timeline, bar, inputs, this.stats);
@@ -307,7 +305,9 @@ customElements.define(
     // its words, or how Markdown renders them, changed.
     #renderNote() {
       const note = document.createElement("span");
-      note.append(inlineMarkdownFragment(this.#film.steps[this.#step].note, false));
+      note.append(
+        inlineMarkdownFragment(this.#film.steps[this.#step].note, pageLinks, false),
+      );
       if (note.innerHTML !== this.noteEl.innerHTML)
         this.noteEl.replaceChildren(...note.childNodes);
     }
@@ -369,7 +369,9 @@ customElements.define(
           this.dispatchEvent(new Event("change"));
         }
         // The stack and the clauses move as runs push and merge; re-read their geometry.
-        this.parts?.update();
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       }
     }
 

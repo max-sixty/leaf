@@ -555,7 +555,7 @@ ITEMS_LAYER = {
 }
 ITEMS_WIDGETS = {
     "lf-items.js": """
-import {once} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-items', class extends HTMLElement {
   #item = null;
   connectedCallback() {
@@ -584,7 +584,8 @@ customElements.define('lf-items', class extends HTMLElement {
 });
 """,
     "lf-item-link.js": """
-import {navigateToDatum, once} from '/runtime/widget-api.js';
+import {navigateToDatum} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-item-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -1202,7 +1203,7 @@ def test_a_reading_after_a_disclosure_opens_reads_what_it_shows(browser, serve):
 
 def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser, serve):
     """A rearrangement that changes no size, such as a view swap moving words in from far
-    below, is said with `layoutChanged`, and the next reading of the screen finds the
+    below, is said with an `lf-layout` event, and the next reading of the screen finds the
     words it brought, after each such notice from the box."""
     source = leaf_page(
         "A rearranged page",
@@ -1226,14 +1227,14 @@ def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser,
         """async () => {
           const area = document.getElementById("area");
           document.getElementById("incoming").style.transform = "translateY(-1700px)";
-          (await window.__lfWidgetApi()).layoutChanged(area);
+          area.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
         }"""
     )
     assert page.evaluate(reading) == "incoming"
     on_screen = """async () => {
       const area = document.getElementById("area");
       document.getElementById("later").style.transform = "translateY(-2300px)";
-      (await window.__lfWidgetApi()).layoutChanged(area);
+      area.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
       return [...(await window.__lfCheckApi()).blocksOnScreen()].map(([block]) => block.id);
     }"""
     assert "later" in page.evaluate(on_screen)

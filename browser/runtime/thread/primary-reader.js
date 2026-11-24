@@ -441,7 +441,7 @@ export function createPrimaryReader(
           node.dataset.lfKind = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
-          generatedElement(node, { says: false });
+          generatedElement(node);
           node.dataset.lfOffer = "";
           const notice = newsNotice();
           notice.node.classList.add("lf-primary-news");

@@ -964,12 +964,12 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     # Exercise the generic contribution trace with a real public registration;
     # the screenshot's own endpoint actions live in its native control rail.
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'review-capture',
         target: document.querySelector('#rn-console-shot'),
-        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
-          label: 'Review capture'})]}), activate: () => {},
+        read: () => ({entries: [{key: 'review', glyph: 'R',
+          label: 'Review capture'}]}), activate: () => {},
       });
     }""")
     margins_laid_out(page)
@@ -3382,7 +3382,7 @@ def test_the_write_gate_rejects_unchanged_authored_style_writes(
 # The type of a word press Leaf builds by role, as a widget builds one
 # (`offerAction`), which the page's own controls are held to.
 LEAF_PRESS_TYPE = """async () => {
-  const {offerAction} = await window.__lfWidgetApi();
+  const {offerAction} = await import("/runtime/lib/controls.js");
   const press = document.querySelector('main').appendChild(
     offerAction('word', '', 'Leaf'));
   const s = getComputedStyle(press);
@@ -3440,7 +3440,8 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`@layer lf-base {
   @layer library { .library { font: 18px Georgia; } }

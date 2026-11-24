@@ -657,7 +657,7 @@ import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-trial", class extends LeafElement {
   #presented;
   render() {
-    if (!this.reading.state) return;
+    if (!this.state) return;
     if (document.body.dataset.lfPresented === "1") {
       keeps(this, "data-lf-state", "shelve");
       return;

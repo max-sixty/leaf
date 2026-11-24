@@ -33,7 +33,7 @@
  * new aim (`lf-preview` with `aim`), so a point the pointer or a key reaches after
  * Escape put the preview away shows its own. The ring goes when the aim leaves, the
  * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
- * page puts the preview away (`PREVIEW_ENDED`), as Escape and a press do and as the
+ * page puts the preview away (`lf-preview-ended`), as Escape and a press do and as the
  * next touch does after a held finger lifts. A finger slides across the drawing to read
  * along it, and scrolls the page up and down it.
  *
@@ -55,7 +55,7 @@
  * the chart draws round a dot or a line's vertex, and travels to it. The chart is where
  * Leaf puts the reader for a point, its reading moved to that point (`focus`), as
  * travel to a comment on it and the hand back from one do. So Leaf learns of only
- * those points (`registerVisualParts`, with `find` and `at`), and the cost grows with
+ * those points (`lfParts`, with `find` and `at`), and the cost grows with
  * the comments rather than the data: a drawing holds no element for each dot, a line
  * none at all, and a list of every point would cost Leaf's picker a hint for each and
  * offer the reader nothing they could aim at, so the chart lists none. A comment whose
@@ -74,21 +74,17 @@
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
 import {
-  PREVIEW_ENDED,
   PendingTaskEvent,
   beginWalk,
   bodyText,
-  commandsChanged,
   listWalkPosition,
   whileConnected,
   failSoft,
   frameFor,
-  measure,
-  nextRender,
-  once,
-  registerVisualParts,
-  sizeObserver,
 } from "/runtime/portable-api.js";
+import { measure } from "/runtime/lib/shown-box.js";
+import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import {
   cross,
@@ -216,7 +212,7 @@ customElements.define(
     /** @type {Point | null} */
     #away = null;
     // What the page's preview last read of the chart, while it stands, which names the
-    // reading a preview that ends had (`PREVIEW_ENDED`), and how many times a finger
+    // reading a preview that ends had (`lf-preview-ended`), and how many times a finger
     // has pressed on the chart.
     /** @type {object | null} */
     #declared = null;
@@ -228,8 +224,6 @@ customElements.define(
     /** @type {Map<string, {point: Point, part: Part} | null>} */
     #marks = new Map();
     #asked = false;
-    /** @type {{update: () => void} | null} */
-    #parts = null;
     #telling = false;
 
     // What the point the reader is on says, standing above its ring, on every route,
@@ -251,13 +245,14 @@ customElements.define(
       if (!once(this)) return;
       // The chart lists no point for a reader to pick from a list: its own aim and keys
       // reach each point, and Leaf finds a comment's point by its id.
-      this.#parts = registerVisualParts(this, () => [], {
-        find: (id) => this.#find(id),
-        at: (node) => this.#partAt(node),
-        focus: (id) => this.#focusOn(id),
-        label: (id) =>
+      this.lfParts = {
+        read: () => [],
+        find: (/** @type {string} */ id) => this.#find(id),
+        at: (/** @type {Element} */ node) => this.#partAt(node),
+        focus: (/** @type {string} */ id) => this.#focusOn(id),
+        label: (/** @type {string} */ id) =>
           id.startsWith(POINT) ? datumWords(id.slice(POINT.length)) : null,
-      });
+      };
       whileConnected(this, (signal) => {
         // The pointer and a finger read the point nearest them on the drawing, by
         // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
@@ -336,7 +331,7 @@ customElements.define(
         // finger presses that point again. A press is an aim, not a reading: a tap that
         // ends without a hold leaves the ring to go with the finger (`#leave`).
         this.addEventListener(
-          PREVIEW_ENDED,
+          "lf-preview-ended",
           (event) => {
             const { declared } = /** @type {CustomEvent} */ (event).detail;
             if (!declared || declared !== this.#declared) return;
@@ -505,7 +500,9 @@ customElements.define(
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       if (reading && at) this.#choose(again(at), this.#by);
       else if (at)
         this.dispatchEvent(
@@ -610,7 +607,9 @@ customElements.define(
       this.#telling = true;
       nextRender(() => {
         this.#telling = false;
-        this.#parts?.update();
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       });
     }
 
@@ -738,7 +737,7 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does one whose preview stands, which the page puts away, and the ring with it
-    // (`PREVIEW_ENDED`), once the pointer is on neither the drawing nor the preview, or
+    // (`lf-preview-ended`), once the pointer is on neither the drawing nor the preview, or
     // at the next touch after a held finger lifts (preview.js); back on the drawing, it
     // reads from where it comes. A point no preview has shown yet goes with the pointer.
     #leave() {

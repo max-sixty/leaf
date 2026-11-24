@@ -191,6 +191,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
 import { nothing } from '/vendor/lit.js';
 import { LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     setChildren(this, (this.value?.rows ?? []).map(row => {
       const node = document.createElement('p');
@@ -462,7 +463,8 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
 import { nothing } from '/vendor/lit.js';
-import { LeafElement, offer, setChildren } from '/runtime/widget-api.js';
+import { LeafElement, setChildren } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 customElements.define('lf-derived', class extends LeafElement {
   render() { return nothing; }
   firstUpdated() {
@@ -970,6 +972,7 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         return """import { nothing } from '/vendor/lit.js';
         import { LeafElement } from '/runtime/widget-api.js';
 customElements.define(TAG, class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     window.dataDeliveries ??= [];
     window.dataDeliveries.push({id: this.id, value: this.value});

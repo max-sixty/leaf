@@ -4,6 +4,7 @@ import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
+  commandsUnread,
   commandsWithin,
   projectCommandScope,
   keys,
@@ -32,12 +33,11 @@ import {
 } from "../../browser/runtime/keyboard/dispatch.js";
 import { coarsePointer } from "../../browser/runtime/pointer.js";
 import { applicationState } from "../../browser/runtime/semantic-state.js";
-import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 import { focused } from "../../browser/runtime/focus.js";
 import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
 import { watchOwner } from "../../browser/runtime/arrivals.js";
 import { mountRepaint } from "../../browser/runtime/repaint.js";
-import { nextRender } from "../../browser/runtime/rendering.js";
+import { nextRender } from "../../browser/runtime/lib/frame-pass.js";
 import { signal } from "/runtime/framework.js";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
@@ -428,13 +428,17 @@ test("a withdrawn command leaves its button even when a full paint follows", () 
       { id: "probe.withdrawn", title: "Act", keys: ["x"], control, run: () => count++ },
     ],
   };
-  commandsChanged(owner);
+  owner.dispatchEvent(
+    new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+  );
   reflectFirstScopes();
   try {
     control.click();
     assert.equal(count, 1);
     owner.lfCommands = null;
-    commandsChanged(owner);
+    owner.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     paintKeys();
     reflectKeys();
     control.click();
@@ -1183,17 +1187,13 @@ test("a painter projecting an equal command every frame asks for no next frame",
     control.remove();
   }
 });
-test("a button a widget declared before it was placed answers once it is", async () => {
+test("a button declared before its scope was placed answers once it is", async () => {
   const owner = document.createElement("section");
   const control = document.createElement("button");
   owner.append(control);
-  owner.lfCommands = {
-    title: "Early",
-    rows: [
-      { id: "probe.early", title: "Act", control, when: () => false, run: () => {} },
-    ],
-  };
-  commandsChanged(owner);
+  keys(owner, "Early", [
+    { id: "probe.early", title: "Act", control, when: () => false, run: () => {} },
+  ]);
   reflectFirstScopes();
   reflectKeys();
   document.body.append(owner);
@@ -1229,13 +1229,17 @@ test("a widget saying its commands changed reads only its own", () => {
         },
       ],
     };
-    commandsChanged(owner);
+    owner.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
   reflectFirstScopes();
   reflectKeys();
   try {
     reads = 0;
-    commandsChanged(sources[0]);
+    sources[0].dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     reflectFirstScopes();
     reflectKeys();
     assert.equal(reads, 0);
@@ -2172,14 +2176,17 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 
 test("a template scope's rows read the element the template renders", async () => {
   const { html, render } = await import("/runtime/framework.js");
-  const { DISCLOSE } = await import("../../browser/runtime/keyboard/disclosure.js");
   const root = document.createElement("section");
   document.body.append(root);
   render(
     html`<details>
       <summary
-        ${commandsOn("Disclosure", (summary) => [
-          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ${commandsOn("Section", (summary) => [
+          {
+            id: "probe.step",
+            keys: () => [summary.parentElement.open ? "ArrowLeft" : "ArrowRight"],
+            title: "step",
+          },
         ])}
       ></summary>
     </details>`,
@@ -2475,29 +2482,65 @@ test("an announced scope says no key on a touchscreen", (t) => {
   assert.equal(saying([{ id: "fixture.top", keys: ["g"], title: "top" }]), "");
 });
 
-test("a widget's declared commands stand from before it is placed until it withdraws them", () => {
+test("a widget's commands stand from when it says them until it withdraws them", () => {
   const owner = document.createElement("section");
-  const declared = () => commandsWithin(owner).map(({ row }) => row.id);
-  // Declared while the element is out of the page, as a control built before it is
-  // placed is.
-  owner.lfCommands = {
-    title: "Declared",
-    rows: [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }],
-  };
-  commandsChanged(owner);
+  const inner = owner.attachShadow({ mode: "open" });
+  const part = inner.appendChild(document.createElement("div"));
+  const declared = (/** @type {Element} */ at) =>
+    commandsWithin(at).map(({ row }) => row.id);
+  const say = (/** @type {Element} */ at) =>
+    at.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+  const rows = [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }];
+  // Nothing hears an element out of the page, so its keys are read once it says them
+  // from inside it.
+  owner.lfCommands = { title: "Declared", rows };
+  say(owner);
   document.body.append(owner);
   try {
-    assert.deepEqual(declared(), ["declared.run"]);
+    assert.deepEqual(declared(owner), []);
+    assert.equal(commandsUnread(owner), true);
+    say(owner);
+    assert.deepEqual(declared(owner), ["declared.run"]);
+    assert.equal(commandsUnread(owner), false);
+    assert.equal(commandsUnread(part), false);
     owner.lfCommands = null;
-    commandsChanged(owner);
-    assert.deepEqual(declared(), []);
-    // A malformed declaration is refused where the widget made it.
+    say(owner);
+    assert.deepEqual(declared(owner), []);
+    // The element read is the one the event began at, inside a shadow root too.
+    part.lfCommands = { title: "Declared", rows };
+    say(part);
+    assert.deepEqual(
+      commandsWithin(owner).map(({ source }) => source),
+      [part],
+    );
+    part.lfCommands = null;
+    say(part);
+    assert.deepEqual(declared(owner), []);
+    // A malformed declaration is refused, and reported as the element's failure.
+    /** @type {unknown[]} */
+    const failures = [];
+    const hear = (/** @type {ErrorEvent} */ event) => {
+      failures.push([event.composedPath()[0], event.error.message]);
+      event.stopPropagation();
+    };
+    owner.addEventListener("error", hear);
     owner.lfCommands = {
       title: "Declared",
       rows: [{ id: "Not an id", title: "run", keys: ["Alt+1"], run: () => {} }],
     };
-    assert.throws(() => commandsChanged(owner), /not a stable command id/);
-    assert.deepEqual(declared(), []);
+    say(owner);
+    owner.removeEventListener("error", hear);
+    assert.equal(failures.length, 1);
+    // A declaration Leaf refused is one it read: the failure says what is wrong.
+    const fresh = inner.appendChild(document.createElement("div"));
+    fresh.lfCommands = owner.lfCommands;
+    fresh.addEventListener("error", hear);
+    say(fresh);
+    assert.equal(failures.length, 2);
+    assert.equal(commandsUnread(fresh), false);
+    assert.equal(failures[0][0], owner);
+    assert.match(failures[0][1], /not a stable command id/);
+    assert.deepEqual(declared(owner), []);
   } finally {
     owner.remove();
   }

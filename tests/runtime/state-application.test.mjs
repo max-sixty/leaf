@@ -21,7 +21,7 @@ async function frame() {
 }
 
 const { applicationState } = await import("/runtime/semantic-state.js");
-const { nextRender } = await import("/runtime/rendering.js");
+const { nextRender } = await import("/runtime/lib/frame-pass.js");
 const { createStateApplication } = await import("/runtime/state-application.js");
 
 applicationState.identify(1);

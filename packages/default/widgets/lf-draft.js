@@ -71,36 +71,34 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
-  addressableWord,
   commandScope,
   motion,
-  returnDuration,
-  offered,
-  offeredAction,
   LeafElement,
-  offer,
   TEXT_FIELD,
-  quoted,
   sendDraft,
-  raiseError,
   saveDraft,
   loadDraft,
   clearDraft,
   watchDraft,
   whileConnected,
   reachedForWords,
-  paintMarkdown,
   dressCode,
-  markdownSourceOffset,
-  markdownWords,
   focusDestination,
-  nextRender,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
   worksInside,
-  commandsChanged,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
+import {
+  paintMarkdown,
+  markdownSourceOffset,
+  markdownWords,
+} from "/runtime/lib/markdown.js";
 
 // Each control's key and the action whose mark it shows.
 /** @type {[string, string][]} */
@@ -146,7 +144,7 @@ customElements.define(
     }
 
     get #savedText() {
-      const value = this.controller.read().state.edit?.value;
+      const value = this.state.edit?.value;
       if (typeof value !== "string")
         throw new Error("A draft reading must contain its Markdown text");
       return value;
@@ -190,7 +188,7 @@ customElements.define(
       // A quoted draft is an exhibit: the same formatted text, none of the doors —
       // no controls, box press or editing shortcuts. Quoting
       // gates the action channel, not presentation.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
       // Capture only the pointer Discard's old allocation. The command still owns
@@ -242,12 +240,13 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
-        if (
-          this.#editor &&
-          !this.#resumeProjection &&
-          this.controller.read().actions.edit?.available
-        )
-          this.#resumeProjection = this.controller.defer();
+        // An editor a refused save reopened while the draft was out of the page says
+        // its keys as the draft returns.
+        this.#editor?.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
+        if (this.#editor && !this.#resumeProjection && this.#available())
+          this.#resumeProjection = this.defer();
         return () => {
           this.#returnMotion?.cancel();
           this.#stopPressAway?.();
@@ -283,7 +282,7 @@ customElements.define(
     }
 
     #watchDraft() {
-      if (quoted(this) || !this.#tools) return;
+      if (this.matches("[data-lf-exhibit] *") || !this.#tools) return;
       return watchDraft(
         ctx(this.id),
         (text) => {
@@ -306,7 +305,7 @@ customElements.define(
     }
 
     #offerControls() {
-      if (quoted(this) || this.#tools) return;
+      if (this.matches("[data-lf-exhibit] *") || this.#tools) return;
       this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
       // Its marks join into one toolbar (controls.css, `data-lf-joined`).
@@ -356,7 +355,9 @@ customElements.define(
         },
       ]);
       this.lfCommands = this.#commandScope;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} key @returns {HTMLButtonElement | null} */
@@ -388,11 +389,13 @@ customElements.define(
           )}`,
         this.#tools,
       );
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #available() {
-      return Boolean(this.controller.read().actions.edit?.available);
+      return Boolean(this.state?.edit?.available);
     }
 
     // The draft as the rest of the chrome names it, never by its id.
@@ -403,13 +406,11 @@ customElements.define(
 
     /** @param {string} text @param {string | undefined} attempt */
     #dispatch(text, attempt) {
-      return this.controller.dispatch({
-        kind: "action",
-        verb: "edit",
-        detail: { value: text },
-        ...(attempt && { attempt }),
-        says: `Edited ${this.#named()}`,
-      });
+      return this.record(
+        "edit",
+        { value: text },
+        { says: `Edited ${this.#named()}`, attempt },
+      );
     }
 
     /** @param {string} [seed] @param {[number, number] | null} [at] @param {boolean} [arrive] */
@@ -418,10 +419,14 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish saving");
+        window.dispatchEvent(
+          new CustomEvent("lf-error", {
+            detail: "Wait for the current edit to finish saving",
+          }),
+        );
         return;
       }
-      if (this.#available()) this.#resumeProjection ??= this.controller.defer();
+      if (this.#available()) this.#resumeProjection ??= this.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
       editor.dataset.lfRuntime = "";
       // It stands where the prose did, so it reads in the prose's faces.
@@ -443,8 +448,10 @@ customElements.define(
       // behind it and closing a panel too.
       this.#editor = editor;
       editor.lfCommands = this.#commandScope;
-      commandsChanged(editor);
       this.#body.after(editor);
+      editor.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(
         (/** @type {EventTarget[]} */ path) => !path.includes(this),
@@ -476,7 +483,7 @@ customElements.define(
         this.#returnMotion = motion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          returnDuration(),
+          motionTime("--lf-motion-return"),
         );
       if (discard) clearEdit(this.id);
       this.#stopPressAway?.();
@@ -523,7 +530,7 @@ customElements.define(
       const ok = await sendDraft(
         ctx(this.id),
         () => true,
-        (attempt) => this.#dispatch(text, attempt)?.delivery ?? null,
+        (attempt) => this.#dispatch(text, attempt),
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
@@ -566,15 +573,14 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     render() {
-      const { actions } = this.controller.read();
-      paintMarkdown(this.#body, this.#savedText);
-      if (quoted(this)) return nothing;
+      paintMarkdown(this.#body, this.#savedText, pageLinks);
+      if (this.matches("[data-lf-exhibit] *")) return nothing;
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Discard, without briefly publishing the resting Edit control.
       this.#recoverEdit();
       this.#paintTools();
-      if (this.#editor && !this.#resumeProjection && actions.edit?.available)
-        this.#resumeProjection = this.controller.defer();
+      if (this.#editor && !this.#resumeProjection && this.#available())
+        this.#resumeProjection = this.defer();
       return nothing;
     }
   },

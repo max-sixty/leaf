@@ -50,7 +50,11 @@
 
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
-import { applicationRegionsPresented, readPart } from "./semantic-state.js";
+import {
+  applicationRegionsPresented,
+  readPart,
+  watchPresentation,
+} from "./semantic-state.js";
 import { closestAcross } from "./lib/shadow-tree.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
@@ -121,16 +125,35 @@ export const readHistory = readPart((root) => ({
 
 // A report can speak only once the renderer of its widget and coordinate chrome have
 // committed, and any required asynchronous preparation, the same coordinator region
-// startup and pending release use. A widget that narrates its reports in the update
-// that draws its state (a `LeafElement`, leaf-element.js) is its own render, so only
-// its preparation and the coordinate chrome must have committed: a report names its
-// widget by id, so the reports on a widget name no other. Read in a render, the answer
-// is followed as the time a render shows is.
-/** @param {import("./leaf-element.js").LeafElement} target */
-export const reportsReady = (target) =>
-  target.whenReady(() =>
-    applicationRegionsPresented([
-      "projection:chrome",
-      `widget:${target.id}:preparation`,
-    ]),
-  );
+// startup and pending release use: a report names its widget by id, so the reports
+// on a widget name no other. A widget asks in the update that draws its state, which
+// is its own render, so only its preparation and the coordinate chrome must have
+// committed. An update told no is asked to draw again once they have, and that update
+// is told yes: where the widget's own update holds its preparation region, as one
+// Leaf sets nothing on does, asking again would never find the region free.
+/** @type {WeakSet<Element>} */
+const proven = new WeakSet();
+/** @type {WeakSet<Element>} */
+const waiting = new WeakSet();
+/** @param {Element} target */
+const committed = (target) =>
+  applicationRegionsPresented(["projection:chrome", `widget:${target.id}:preparation`]);
+/** @param {Element & {requestUpdate(): void}} target */
+export const reportsReady = (target) => {
+  if (proven.delete(target) || committed(target)) return true;
+  if (waiting.has(target)) return false;
+  waiting.add(target);
+  // The watch's first call comes before it has returned its stop.
+  const watch = { stop: /** @type {(() => void) | null} */ (null), done: false };
+  watch.stop = watchPresentation(() => {
+    if (watch.done || (target.isConnected && !committed(target))) return;
+    watch.done = true;
+    watch.stop?.();
+    waiting.delete(target);
+    if (!target.isConnected) return;
+    proven.add(target);
+    target.requestUpdate();
+  });
+  if (watch.done) watch.stop();
+  return false;
+};

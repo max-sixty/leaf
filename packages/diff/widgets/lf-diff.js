@@ -32,36 +32,27 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
-  DISCLOSE,
   beginWalk,
   failSoft,
   focusDestination,
-  generated,
-  generatedElement,
   holdFocus,
   inChrome,
-  nameAction,
   langForPath,
-  layoutChanged,
   listWalkPosition,
   move,
-  nextRender,
-  offer,
-  offerAction,
   LeafElement,
   PendingTaskEvent,
   threadSurface,
   releaseOutlets,
-  reportFailure,
   retainUserIntent,
   searchField,
   setChildren,
   shadowStage,
-  sizeObserver,
   whileConnected,
   scrollIntoView,
-  commandsChanged,
 } from "/runtime/portable-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
@@ -240,7 +231,7 @@ function lineNumber(line, canComment) {
   // Two cells, the old file's number and the new file's, as a unified diff reads: one
   // column holding whichever number a row has would mix the two files' counts, which
   // drift apart once a hunk adds or removes lines.
-  generatedElement(number, { says: "echo" });
+  number.toggleAttribute("data-lf-echo", true);
   number.replaceChildren(
     ...[
       line.side === "new" ? "" : line.oldLine,
@@ -417,7 +408,7 @@ function paintSummary(view, record, verified = true) {
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
-        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
             ><span class="lf-diff-additions">+${additions}</span>${" "}<span
               class="lf-diff-deletions"
               >−${deletions}</span
@@ -451,17 +442,6 @@ function summaryNode(record, open, verified = true) {
   /** @type {TextPresentation} */
   const view = { kind: "text", row: details, details, header: summary };
   paintSummary(view, record, verified);
-  summary.lfCommands = {
-    title: "On a diff",
-    rows: [
-      {
-        id: "diff.toggle",
-        keys: () => DISCLOSE(summary),
-        title: () => `${details.open ? "hide" : "show"} this file`,
-      },
-    ],
-  };
-  commandsChanged(summary);
   paintFileDetails(view, verified ? record : {});
   return view;
 }
@@ -650,7 +630,7 @@ function diffTools(host) {
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
-  generatedElement(progress, { says: false });
+  keeps(progress, "data-lf-gen", "1");
   progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
@@ -713,7 +693,7 @@ function paintFileDetails(view, record) {
   if (!evidence) {
     evidence = document.createElement("div");
     evidence.className = "lf-diff-evidence";
-    generatedElement(evidence, { says: false });
+    keeps(evidence, "data-lf-gen", "1");
     header.after(evidence);
   }
   keepsText(evidence, words);
@@ -723,7 +703,7 @@ function paintFileDetails(view, record) {
 function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
-  generatedElement(row, { says: false });
+  keeps(row, "data-lf-gen", "1");
   render(
     html`${filePathTemplate(record)}<span class="lf-diff-stat"
         >${metadataWords(record)}</span
@@ -971,7 +951,7 @@ function fileError(view, error) {
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
-  generatedElement(box, { says: false });
+  keeps(box, "data-lf-gen", "1");
   box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
   restore?.(header);
@@ -1136,7 +1116,9 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
       whileConnected(this, () => {
@@ -1300,7 +1282,7 @@ customElements.define(
               refused: false,
               loading: null,
             });
-            generatedElement(entry.node, { says: false });
+            keeps(entry.node, "data-lf-gen", "1");
             if (entry.kind === "metadata") {
               entry.rendered = null;
               entry.renderKey = null;
@@ -1529,7 +1511,7 @@ customElements.define(
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
         }`;
-        generatedElement(outlet, { says: false });
+        keeps(outlet, "data-lf-gen", "1");
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
@@ -1629,7 +1611,13 @@ customElements.define(
         paintFileDetails(entry, {});
         if (!entry.details.open) entry.details.open = true;
         if (entry.disclosure) entry.disclosure.open = true;
-        reportFailure(this, prepared.error);
+        this.dispatchEvent(
+          new ErrorEvent("error", {
+            error: prepared.error,
+            bubbles: true,
+            composed: true,
+          }),
+        );
         entry.rendered = null;
         entry.renderKey = null;
         fileError(entry, prepared.error);
@@ -1814,7 +1802,9 @@ customElements.define(
       }
       this.markRuns();
       this.refreshDiffTools();
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       threadSurface(this).update();
     }
 
@@ -1860,7 +1850,9 @@ customElements.define(
       keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The files the filter shows: all opened while any is closed, and all closed once

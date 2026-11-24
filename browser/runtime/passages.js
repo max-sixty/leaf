@@ -64,16 +64,16 @@
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
    chrome-looking structure is still one of the page's words. This lets a tab label or
    draft heading remain quotable while runtime controls stay outside the passage.
-   `generatedElement` writes the said marker; `offer` writes the control marker. They
-   are independent facts and neither clears the other.
+   A module writes the said marker on its words; `offer` writes the control marker.
+   They are independent facts and neither clears the other.
 
    A label copied off another element on the page is a route to those words rather
    than a second place the page says them. Say it once: a contents link, a roster row
    naming a worker, any generated index entry stays chrome, and the passage lives where
    the page speaks it. Two copies of one label carry the same text and, being fenced,
    the same empty context, so neither can be told from the other and a drag across
-   either detaches. (The third answer of `says`, `"echo"`, is what such a route
-   declares; widget-elements.js says how.)
+   either detaches. (`data-lf-echo` is what such a route declares; control-labels.js
+   says how.)
 
    Use `inChrome` when the question is whether an element belongs to the runtime's
    document layer. Use `.lf-ui` when the question is whether words or styling are
@@ -153,8 +153,8 @@ import {
   PHRASING,
   TEXT_BLOCK,
 } from "./kernel-facts.js";
-import { textUnits } from "./text-alignment.js";
-import { excerptWords } from "./words.js";
+import { textUnits } from "./lib/text-alignment.js";
+import { excerptWords } from "./lib/words.js";
 import { union } from "./rect.js";
 
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain

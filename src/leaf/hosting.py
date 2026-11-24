@@ -222,6 +222,12 @@ class LeafHTTPServer:
     samples: dict
 
     def __init__(self, address, endpoint) -> None:
+        # Requests run on a thread pool, and the first to validate imports jsonschema
+        # (`registry/schema.py`). jsonschema's submodules import their package, so one
+        # thread importing the package while another imports a submodule first
+        # deadlocks on CPython's per-module import locks, and that request answers 500.
+        # The server loads the package before any request can.
+        import jsonschema  # noqa: F401
         import uvicorn
 
         from .http import page_app

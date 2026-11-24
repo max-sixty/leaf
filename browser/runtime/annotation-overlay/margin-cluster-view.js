@@ -16,12 +16,8 @@ import {
   presentContributionEntry,
   presentContributionReceipts,
 } from "../contribution-controls.js";
-import {
-  el,
-  generatedElement,
-  offerAction,
-  offerActionElement,
-} from "../widget-elements.js";
+import { el, generatedElement } from "../widget-elements.js";
+import { offerAction, offerActionElement } from "../lib/controls.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 import { holdFocus } from "../focus.js";
 
@@ -279,7 +275,7 @@ export function createMarginClusterViews(dependencies) {
   const create = (className, options) => {
     const view = document.createElement(TAG);
     view.className = className;
-    generatedElement(view, { says: false });
+    generatedElement(view);
     view.setAttribute("role", "group");
     view.configure({ owner, ...options });
     return view;

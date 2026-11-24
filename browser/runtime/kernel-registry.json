@@ -7,17 +7,30 @@
       "/runtime/portable-api.js",
       "/vendor/floating-ui.esm.js",
       "/runtime/lib/canvas.js",
+      "/runtime/lib/control-faces.js",
+      "/runtime/lib/controls.js",
+      "/runtime/lib/element-word.js",
       "/runtime/lib/exception.js",
+      "/runtime/lib/frame-pass.js",
       "/runtime/lib/icon-paths.js",
       "/runtime/lib/icons.js",
       "/runtime/lib/keeps.js",
       "/runtime/lib/keys.js",
+      "/runtime/lib/markdown.js",
+      "/runtime/lib/motion-timing.js",
       "/runtime/lib/obligation-tally.js",
+      "/runtime/lib/once.js",
+      "/runtime/lib/queued-work.js",
+      "/runtime/lib/role-button-press.js",
+      "/runtime/lib/scroll-range.js",
       "/runtime/lib/shadow-tree.js",
+      "/runtime/lib/shown-box.js",
       "/runtime/lib/syntax-languages.js",
       "/runtime/lib/syntax-tokens.js",
+      "/runtime/lib/text-alignment.js",
       "/runtime/lib/text-width.js",
-      "/runtime/lib/time-axis.js"
+      "/runtime/lib/time-axis.js",
+      "/runtime/lib/words.js"
     ]
   },
   "$authored": {
@@ -379,6 +392,18 @@
         {
           "when": { "properties": { "text": { "maxLength": 0 } } },
           "text": "The user deleted their message `message`: `was` is what it said, and the thread now shows it as deleted. Treat what it said as withdrawn. If your earlier answer or work depended on it, say what that changes and undo or redo the work; if nothing did, acknowledge the deletion in a line."
+        },
+        {
+          "when": {
+            "required": ["thread"],
+            "properties": {
+              "thread": {
+                "required": ["summaries"],
+                "properties": { "summaries": { "minItems": 1 } }
+              }
+            }
+          },
+          "text": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it."
         },
         {
           "when": {

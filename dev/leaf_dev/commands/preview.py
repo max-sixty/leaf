@@ -42,7 +42,9 @@ because detached watchers still need its files. Foreground previews end together
 The preview serves the selected checkout in place, with its runtime's source modules,
 so a runtime edit reaches the page with no build. A `--user` preview's session hears
 the page through the copy of Leaf the session loaded (`session-lifetime.md`, "Which
-Leaf runs a session"), which reads it only at that copy's page protocol.
+Leaf runs a session"), which reads it only at that copy's page protocol, so a
+runtime at another protocol refuses the claim and the preview with it
+(`service.refuse_unheard`).
 
 While it runs, a native subscription (`leaf.file_changes`) reports edits.
 Initialization decides whether the layer actually changed; identical saves leave the

@@ -286,6 +286,18 @@ def hooks_launcher(session_id: str) -> Path | None:
     return launcher if os.access(launcher, os.X_OK) else None
 
 
+def protocol_at(root: Path = PLUGIN_ROOT) -> int:
+    """The page protocol of the Leaf at `root`, this one by default, as its kernel
+    registry on disk states it now (`KERNEL_REGISTRY`). In this one it moves past
+    the protocol the process loaded (`registry.kernel.kernel_protocol`) when the
+    checkout a long-running process loaded moves on under it, as a worktree's does
+    when its branch is updated: the process still speaks the protocol it loaded, and
+    the newer Leaf the session's hooks now run reads that process's leases as no
+    one's (`leases.lease_speaks_here`)."""
+    registry = root / KERNEL_REGISTRY.relative_to(PLUGIN_ROOT)
+    return json.loads(registry.read_text(encoding="utf-8"))["$events"]["protocol"]
+
+
 class LoadedCopy:
     """The installed copy of Leaf this process loaded, held so that a process that
     outlives the hooks that start it can tell once another copy should run it: a

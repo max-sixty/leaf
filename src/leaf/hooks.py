@@ -454,17 +454,17 @@ def cmd_pages(payload: dict) -> None:
 
 def _moved_on() -> bool:
     """Whether the tree this process runs from has moved on under it: a checkout
-    moved to another page protocol (`registry.kernel.installed_protocol`), or the
-    tree removed, as Claude Code may remove a copy it replaced. The module then
-    starts the follower again from the same launcher; where the tree is gone, none
-    starts until `/reload-plugins`. A registry read mid-write reads as unmoved until
-    it settles."""
-    from .registry.kernel import installed_protocol, kernel_protocol
+    moved to another page protocol (`state.protocol_at`), or the tree removed, as
+    Claude Code may remove a copy it replaced. The module then starts the follower
+    again from the same launcher; where the tree is gone, none starts until
+    `/reload-plugins`. A registry read mid-write reads as unmoved until it settles."""
+    from .registry.kernel import kernel_protocol
+    from .state import protocol_at
 
     if not os.access(PLUGIN_ROOT / "bin" / "leaf", os.X_OK):
         return True
     try:
-        return installed_protocol() != kernel_protocol()
+        return protocol_at() != kernel_protocol()
     except (OSError, ValueError, KeyError):
         return False
 

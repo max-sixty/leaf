@@ -38,12 +38,14 @@ from leaf.event_log import (
     session_context,
 )
 from leaf.files import read_json, unfinished_publications
+from leaf.findings import Finding, Rejected
 from leaf.interaction_log import append_interactions
 from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STREAM_FILE
 from leaf.state import (
     EVENTS_FILE,
+    PLUGIN_ROOT,
     STRING,
     TIME,
     Record,
@@ -56,10 +58,12 @@ from leaf.state import (
     flocked,
     fsync_parents,
     held_claims,
+    hooks_root,
     now_iso,
     object_schema,
     page_key,
     page_stands,
+    protocol_at,
     remove_claim,
     session_claims,
     session_live,
@@ -755,12 +759,57 @@ def _held_by(reservation: dict | None, session_id: str, attempt: str) -> bool:
     )
 
 
+def refuse_unheard(session_id: str, page_dir: Path) -> None:
+    """Refuse to take `page_dir` for session `session_id`, or to take a page it holds
+    to this Leaf's page protocol, where the session's hooks run another Leaf at
+    another protocol (`state.hooks_root`, `protocol_at`), as a checkout's `bin/leaf`
+    is when its branch is behind or ahead of the plugin the session loaded.
+
+    Those hooks read a page only at their own protocol. One at an earlier protocol
+    they take up to theirs, restarting its server under their own Leaf, so the user
+    would review that Leaf's runtime in place of this one's, and nothing would say
+    so. One at a later protocol they refuse, saying so only at the session's next
+    prompt, and a held page taken there no Leaf takes back down. A session no hook
+    has run for, or whose hooks' Leaf is gone, takes the page.
+
+    Every claim prepares through here (`prepare_claim`), as does a renewal or `page
+    init` that takes a held page from an older protocol (`vendoring._plan_page`).
+    Both protocols are read from their trees as they stand, which for a command's
+    own tree is the protocol it runs."""
+    root = hooks_root(session_id)
+    if root is None or root == PLUGIN_ROOT:
+        return
+    try:
+        heard = protocol_at(root)
+    except (OSError, ValueError, KeyError):
+        return
+    if heard == (protocol := protocol_at()):
+        return
+    raise Rejected(
+        [
+            Finding(
+                "unheard-protocol",
+                values={
+                    "page": str(page_dir),
+                    "session": session_id,
+                    "hooks": str(root),
+                    "heard": heard,
+                    "leaf": str(PLUGIN_ROOT),
+                    "protocol": protocol,
+                },
+            )
+        ]
+    )
+
+
 def prepare_claim(harness: Harness, page_dir: Path) -> dict:
-    """Capture an unpublished acquisition in the claimant's process.
+    """Capture an unpublished acquisition in the claimant's process, for a session
+    whose hooks read this Leaf's page protocol (`refuse_unheard`).
 
     Lifetime and cwd come from the launching harness, not a detached child. Preparing
     the canonical session is independent of any page ownership publication.
     """
+    refuse_unheard(harness.session, page_dir)
     session = ensure_session(harness.session, harness.lifetime())
     return {
         "page": str(page_dir),

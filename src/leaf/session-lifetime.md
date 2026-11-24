@@ -298,11 +298,12 @@ session's hooks run. Where the two keep a record in different shapes
 (`state.Record`), each reads the other's as absent and replaces it, so a claim one
 makes can lapse at the other's next write. Where they agree and speak one page
 protocol, it serves, claims and initializes the session's pages as the session's
-Leaf would. A Leaf at a later protocol doesn't take a page a live session holds to
-its own (`vendoring._refuse_unheard`): the session's hooks would refuse the page
-from then on, and no Leaf takes a page back down. The session's hooks refuse a page
-such a Leaf claims, which stands at that Leaf's protocol already, and say so
-(`registry.storage.layer_record`); that Leaf's own `leaf wait` hears it.
+Leaf would. At another protocol it neither claims a page for the session nor takes
+a page the session holds to its own protocol (`service.refuse_unheard`), since the
+session's hooks read a page only at theirs. They would take a page at an earlier
+protocol up to theirs and serve it with their own Leaf, and refuse one at a later
+protocol, which no Leaf takes back down. It still serves a page without claiming
+it, which its own `leaf wait` hears.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):

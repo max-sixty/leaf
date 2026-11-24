@@ -46,10 +46,11 @@ instructions.
 A page runs the runtime of the Leaf serving it, so serve a page with the checkout
 launcher to show it with this checkout's runtime. The session's hooks, its pages
 follower and the hooks module run the installed plugin whichever launcher you use, and
-read a page the session holds only at that plugin's page protocol. Where this
-checkout's protocol differs from the plugin's, serve a page the session doesn't hold,
-with `leaf-dev preview` without `--user` or `server start --lifetime persistent`, and
-hear it with the checkout's `bin/leaf wait PAGE`. To try a change to the hooks or the
+read a page the session holds only at that plugin's page protocol, so the checkout
+won't claim a page for the session at another protocol. A checkout behind the
+plugin's protocol needs main merged in first. From one ahead, serve the page
+unclaimed, with `leaf-dev preview` without `--user` or `server start --lifetime
+persistent`, and hear it with the checkout's `bin/leaf wait PAGE`. To try a change to the hooks or the
 hooks module, run the agent journey ("Run the agent journey") or `uv run leaf-dev
 journey session`, whose Claude Code loads this checkout as its plugin. A page built
 in another checkout, such as a subagent's worktree, was checked against that

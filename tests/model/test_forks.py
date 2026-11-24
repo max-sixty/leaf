@@ -709,8 +709,8 @@ def test_the_follower_ends_once_its_tree_moves_on_under_it(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     if moved == "protocol":
         monkeypatch.setattr(
-            kernel_model,
-            "installed_protocol",
+            state_model,
+            "protocol_at",
             lambda root=None: kernel_model.kernel_protocol() + len(waited),
         )
     else:

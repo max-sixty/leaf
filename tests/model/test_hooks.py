@@ -2298,7 +2298,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     """Have session s1's hooks last run another Leaf, one at `protocol`, and return
-    its root (`leases.mark_skill`, `registry.kernel.installed_protocol`)."""
+    its root (`leases.mark_skill`, `state.protocol_at`)."""
     root = tmp_path / f"leaf at {protocol}"
     registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
         cleanup_model.PLUGIN_ROOT
@@ -2340,6 +2340,35 @@ def test_a_leaf_ahead_of_its_sessions_hooks_leaves_a_page_they_read_alone(
 
     hooks_run_leaf_at(tmp_path, older)
     assert vendoring_model.cmd_init(claimed, ())["packages"] == []
+
+
+def refused_claim(page_dir) -> str:
+    """The words of the refusal of `leaf page claim` of `page_dir` for session s1."""
+    with pytest.raises(Rejected) as refused:
+        service_model.cmd_claim(page_dir, manual_delivery=True)
+    assert [finding.code for finding in refused.value.findings] == ["unheard-protocol"]
+    return str(refused.value)
+
+
+def test_a_leaf_claims_for_its_session_only_at_the_protocol_its_hooks_run(
+    claimed, tmp_path
+):
+    """A claim for a session whose hooks run another Leaf at another page protocol,
+    as from a checkout's `bin/leaf` or a `leaf-dev preview --user` on a branch
+    behind or ahead of the plugin, is refused at the command. Behind, the hooks
+    would take the page up to theirs and serve it with their own Leaf, so the
+    refusal says to merge main. Ahead, the hooks couldn't read it, so it says to
+    serve the page unclaimed and hear it with this Leaf's `leaf wait`. At the hooks'
+    protocol the claim proceeds."""
+    hooks_run_leaf_at(tmp_path, LAYER.since + 1)
+    assert "Merge main into this checkout" in refused_claim(claimed)
+
+    hooks_run_leaf_at(tmp_path, LAYER.since - 1)
+    words = refused_claim(claimed)
+    assert f"`{cleanup_model.PLUGIN_ROOT}/bin/leaf wait {claimed}`" in words
+
+    hooks_run_leaf_at(tmp_path, LAYER.since)
+    assert service_model.cmd_claim(claimed, manual_delivery=True) == {"session": "s1"}
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(

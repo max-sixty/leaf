@@ -1561,10 +1561,10 @@ sequenceDiagram
               delivery adapter stay on the copy the session loaded. A checkout that
               speaks that copy's page protocol and keeps the session's records in the
               same shapes serves, claims and initializes the session's pages as the copy
-              would. A checkout at a later protocol doesn't take a page the session
-              holds to its own, since the session's hooks could no longer read it and no
-              Leaf takes a page back down; it serves pages the session doesn't hold, and
-              its own <code>leaf wait</code> hears them. Only a server from an installed
+              would. A checkout at another protocol neither claims a page for the
+              session nor takes a page the session holds to its own, since the session's
+              hooks read pages only at theirs; it serves a page without claiming it, and
+              its own <code>leaf wait</code> hears it. Only a server from an installed
               copy moves, and only to an installed copy, so a checkout's servers stay as
               they are, and no server moves onto a checkout.
             </p>

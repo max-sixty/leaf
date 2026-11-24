@@ -8,7 +8,7 @@
     <title>How Leaf works</title>
     <meta
       name="description"
-      content="Leaf's mechanism: how pages, packages, the event log, revisions, threads, progress and status, keys, agent sessions, the forks that take up thread messages in Claude Code and the browser runtime work together."
+      content="Leaf's mechanism: how pages, packages, the event log, revisions, threads, progress and status, keys, agent sessions, the forks that take up thread messages in Claude Code, the browser runtime and the package interface work together."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -160,6 +160,10 @@
         max-width: 30rem;
         margin-inline: auto;
       }
+      /* Each kind of need is named in a phrase, so its column keeps room for one. */
+      #interface-forms-table :is(th, td):first-child {
+        width: 36%;
+      }
     </style>
   </head>
   <body class="site-page">
@@ -230,6 +234,8 @@ flowchart TD
               Python, and the browser a shared description of its elements and
               capabilities. It declares valid markup and the meaning of widget actions;
               widget modules implement their behavior and presentation.
+              <a href="#package-interface">Package interface</a> draws everything a
+              package leans on Leaf for and walks through a whole widget.
             </p>
           </section>
           <section id="architecture-parts">
@@ -374,15 +380,17 @@ flowchart TD
                     <a href="#revisions">revisions</a>,
                     <a href="#progress">progress and status</a>,
                     <a href="#threads">threads</a>, the <a href="#forks">forks</a> that
-                    take them up in Claude Code, <a href="#keys">keys</a>, and
-                    <a href="#runtime">the browser runtime</a>.
+                    take them up in Claude Code, <a href="#keys">keys</a>,
+                    <a href="#runtime">the browser runtime</a>, and the
+                    <a href="#package-interface">package interface</a> between a widget
+                    and Leaf.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row"><a href="/extending/">Extending</a></th>
                   <td>
                     Whoever builds on Leaf: a page's contents, themes and layouts, then
-                    who owns what, the package interfaces, a worked package, CSS
+                    who owns what, how packages share data, a worked package, CSS
                     contracts, the bundled packages and the registry keys.
                   </td>
                 </tr>
@@ -5554,18 +5562,20 @@ flowchart LR
           </details>
           <p id="package-interface-lede">
             A package adds widgets to Leaf. The <strong>package interface</strong> is
-            every name of Leaf’s that a package uses, so it is what a package’s author
-            learns beyond HTML, CSS and JavaScript.
+            every name of Leaf’s that a package uses: each declaration key, property,
+            event, element, function, custom property and class that Leaf defines. It is
+            what a package’s author learns beyond HTML, CSS and JavaScript.
           </p>
           <section id="widgets">
             <h2>Widgets</h2>
             <p id="widget-definition">
               A widget is a <strong>custom element</strong>: a tag the package names,
               such as <code>&lt;lf-verdict&gt;</code>, with a JavaScript class that the
-              browser runs for each occurrence of the tag on a page. Leaf drives that
-              element from outside, as a script drives any element on a web page. It
-              sets <strong>properties</strong> on the element, which are values assigned
-              to the element object, as in <code>element.state = …</code>. It hears the
+              browser runs for each occurrence of the tag on a page. Every widget’s tag
+              starts with <code>lf-</code>. Leaf drives that element from outside, as a
+              script drives any element on a web page. It sets
+              <strong>properties</strong> on the element, which are values assigned to
+              the element object, as in <code>element.state = …</code>. It hears the
               <strong>events</strong> the element dispatches, which are named messages
               that travel up the page to whoever listens. The element draws itself and
               says what the user did, and needs no base class and no function of Leaf’s
@@ -5576,7 +5586,7 @@ flowchart LR
                 class="lf-drawing"
                 viewBox="0 0 360 412"
                 role="img"
-                aria-label="The widget's element stands in the middle. Above it, Leaf's runtime sets properties on the element, and the element dispatches events to the runtime. Below it are the package's three files: the declaration describes the element, the module defines it and the stylesheet styles it. Leaf's server reads the declaration and runs no module. The module calls Leaf's functions, and the stylesheet uses Leaf's custom properties and classes."
+                aria-label="The widget's element stands in the middle. Above it, Leaf's runtime sets properties on the element, and the element dispatches events to the runtime. Below it are the package's three files: the declaration describes the element, the module defines it and the stylesheet styles it. Leaf's server reads the declaration and runs no module. The module may use Leaf's functions and Leaf's elements, and the stylesheet uses Leaf's custom properties and classes."
               >
                 <defs>
                   <marker
@@ -5602,8 +5612,9 @@ flowchart LR
                 </g>
                 <g id="drawing-sets">
                   <path class="arrow" d="M30 48V126" marker-end="url(#interface-tip)" />
-                  <text class="strong" x="40" y="80">sets properties</text>
-                  <text class="mono" x="40" y="95">state · bound data</text>
+                  <text class="strong" x="40" y="78">sets properties</text>
+                  <text class="mono" x="40" y="93">state</text>
+                  <text x="40" y="108">what to draw</text>
                 </g>
                 <g id="drawing-hears">
                   <path
@@ -5611,21 +5622,25 @@ flowchart LR
                     d="M196 128V50"
                     marker-end="url(#interface-tip)"
                   />
-                  <text class="strong" x="206" y="80">dispatches events</text>
-                  <text class="mono" x="206" y="95">lf-action · lf-undo</text>
-                  <text class="mono" x="206" y="109">error · pending-task</text>
+                  <text class="strong" x="206" y="78">dispatches events</text>
+                  <text class="mono" x="206" y="93">lf-action</text>
+                  <text x="206" y="108">what the user did</text>
                 </g>
                 <g id="drawing-element">
                   <rect class="box hot" x="8" y="128" width="344" height="42" rx="4" />
                   <text class="strong" x="180" y="146" text-anchor="middle">
-                    &lt;lf-verdict&gt;, the widget’s element
+                    The widget’s element
                   </text>
                   <text x="180" y="161" text-anchor="middle">
-                    a custom element that draws itself
+                    a custom element, such as &lt;lf-verdict&gt;
                   </text>
                 </g>
                 <g id="drawing-declaration">
-                  <path class="arrow" d="M42 220V172" marker-end="url(#interface-tip)" />
+                  <path
+                    class="arrow"
+                    d="M42 220V172"
+                    marker-end="url(#interface-tip)"
+                  />
                   <text x="50" y="200">describes</text>
                   <rect class="box" x="8" y="220" width="108" height="42" rx="4" />
                   <text class="strong" x="62" y="238" text-anchor="middle">
@@ -5643,7 +5658,9 @@ flowchart LR
                   />
                   <text x="168" y="200">defines</text>
                   <rect class="box" x="126" y="220" width="108" height="42" rx="4" />
-                  <text class="strong" x="180" y="238" text-anchor="middle">Module</text>
+                  <text class="strong" x="180" y="238" text-anchor="middle">
+                    Module
+                  </text>
                   <text class="mono" x="180" y="253" text-anchor="middle">
                     lf-verdict.js
                   </text>
@@ -5664,7 +5681,11 @@ flowchart LR
                   </text>
                 </g>
                 <g id="drawing-server">
-                  <path class="arrow" d="M42 314V264" marker-end="url(#interface-tip)" />
+                  <path
+                    class="arrow"
+                    d="M42 314V264"
+                    marker-end="url(#interface-tip)"
+                  />
                   <text x="50" y="293">reads</text>
                   <rect class="box" x="8" y="314" width="108" height="90" rx="4" />
                   <text class="strong" x="62" y="332" text-anchor="middle">
@@ -5672,7 +5693,7 @@ flowchart LR
                   </text>
                   <text x="62" y="349" text-anchor="middle">checks pages,</text>
                   <text x="62" y="363" text-anchor="middle">records actions,</text>
-                  <text x="62" y="377" text-anchor="middle">lists On Me,</text>
+                  <text x="62" y="377" text-anchor="middle">lists questions,</text>
                   <text x="62" y="391" text-anchor="middle">runs no module</text>
                 </g>
                 <g id="drawing-functions">
@@ -5681,16 +5702,22 @@ flowchart LR
                     d="M160 262V312"
                     marker-end="url(#interface-tip)"
                   />
-                  <text x="168" y="293">calls</text>
-                  <rect class="box" x="126" y="314" width="108" height="90" rx="4" />
+                  <text x="168" y="293">may use</text>
+                  <rect class="box" x="126" y="314" width="108" height="42" rx="4" />
                   <text class="strong" x="180" y="332" text-anchor="middle">
                     Functions
                   </text>
-                  <text x="180" y="349" text-anchor="middle">for what only</text>
-                  <text x="180" y="363" text-anchor="middle">Leaf can do</text>
-                  <text x="180" y="377" text-anchor="middle">or know</text>
-                  <text class="mono" x="180" y="393" text-anchor="middle">
+                  <text class="mono" x="180" y="347" text-anchor="middle">
                     readObligations
+                  </text>
+                </g>
+                <g id="drawing-elements">
+                  <rect class="box" x="126" y="362" width="108" height="42" rx="4" />
+                  <text class="strong" x="180" y="380" text-anchor="middle">
+                    Leaf’s elements
+                  </text>
+                  <text class="mono" x="180" y="395" text-anchor="middle">
+                    &lt;lf-age&gt;
                   </text>
                 </g>
                 <g id="drawing-styling">
@@ -5709,12 +5736,17 @@ flowchart LR
                   <text class="mono" x="298" y="379" text-anchor="middle">
                     --lf-accent
                   </text>
-                  <text class="mono" x="298" y="393" text-anchor="middle">.lf-rows</text>
+                  <text class="mono" x="298" y="393" text-anchor="middle">
+                    .lf-rows
+                  </text>
                 </g>
               </svg>
               <figcaption id="interface-drawing-caption">
-                The middle row is the package’s three files, and every other box is
-                Leaf. Each arrow starts at whoever acts.
+                The element and the three files under it are the package’s. The top box
+                and the bottom row are Leaf’s. Each arrow starts at whoever acts, so
+                Leaf’s server reads the declaration. A module calls a function, or
+                writes one of Leaf’s elements in what it draws, only where it needs one,
+                and <code>lf-verdict</code>, below, needs neither.
               </figcaption>
             </figure>
           </section>
@@ -5726,8 +5758,22 @@ flowchart LR
               <a href="https://github.com/max-sixty/leaf/tree/main/docs/verdict"
                 >Its package</a
               >
-              is the three files below. A page’s author writes the tag in a group whose
-              label asks the question:
+              is a directory of three files:
+            </p>
+            <pre id="verdict-files">
+verdict/
+  registry.json
+  defaults.css
+  widgets/lf-verdict.js
+</pre>
+            <p id="verdict-use">
+              Leaf finds each file by its name, and loads the module on a page that uses
+              the tag. <code>leaf package init DIR --widget lf-verdict</code>
+              writes a starter of this shape, and
+              <code>leaf page init --package DIR PAGE</code> adds the package to a page
+              (<a href="/extending/#start">Build a package</a>). The agent that writes
+              the page puts the tag inside an <code>lf-group</code>, Leaf’s element for
+              a named part of a page, whose label asks the question:
             </p>
             <pre
               id="verdict-markup"
@@ -5740,7 +5786,7 @@ flowchart LR
               and never runs the module, so the file states everything the server acts
               on.
             </p>
-            <lf-code id="verdict-declaration" data-width="wide">
+            <lf-code id="verdict-declaration">
               <pre><code class="language-json">
 {
   "lf-verdict": {
@@ -5759,25 +5805,40 @@ flowchart LR
 }
 </code></pre>
               <lf-note at="3"
-                >An authoring agent reads <code>description</code> and
+                >The agent that writes a page reads <code>description</code> and
                 <code>example</code> to choose the tag and write it.</lf-note
               >
-              <lf-note at="4"
-                >The attributes the tag may carry, as a JSON Schema. An attribute is a
-                <code>name="value"</code> pair in a tag’s markup, and
-                <code>leaf page check</code> refuses one this schema doesn’t
-                name.</lf-note
+              <lf-note at="7"
+                >The attributes the tag may carry in a page’s markup, as a JSON Schema.
+                An attribute is a <code>name="value"</code> pair in a tag, and
+                <code>leaf page check</code> refuses one this schema doesn’t name.
+                <code>enum</code> lists the answers the server accepts, which the module
+                offers as buttons. Any tag may carry an <code>id</code>, and
+                <code>required</code> makes this one carry it.</lf-note
               >
-              <lf-note at="10"
-                >The server checks a <code>decide</code> action’s value against the
-                <code>verdict</code> schema, appends the action to the event log and
-                computes the widget’s state from the log. In the page’s next version
-                the agent writes the answer into the <code>verdict</code> attribute,
-                which <code>record</code> names.</lf-note
+              <lf-note at="8"
+                >The tag holds nothing the page’s author writes. The module draws all of
+                it.</lf-note
+              >
+              <lf-note at="11"
+                >A verb is one kind of action the user takes on the widget, under a name
+                the package chooses, and the server refuses an action whose verb the
+                declaration lacks. <code>unit</code> keeps one answer for the whole
+                widget, so a later press replaces an earlier one.
+                <code>record</code> ties the answer to the
+                <code>verdict</code> attribute: the server checks an action’s value
+                against that attribute’s schema before it appends the action to the
+                <a href="#event-log">event log</a>. When the agent next revises the
+                page, it writes the answer into that attribute, so the markup shows the
+                decision.</lf-note
               >
               <lf-note at="12"
-                >The group’s question waits on the user’s On Me list until a
-                <code>decide</code> action answers it.</lf-note
+                >The widget asks the user something, where one that only records would
+                leave <code>awaits</code> out. The question is the label of the group
+                around the widget, and it stays on On Me, the user’s list of everything
+                waiting on them, until it is answered. <code>value</code> names the verb
+                whose state is the answer, and <code>answered</code> says the question
+                is settled once any <code>decide</code> action is recorded.</lf-note
               >
             </lf-code>
             <h3 id="verdict-module-heading">Module</h3>
@@ -5785,7 +5846,7 @@ flowchart LR
               <code>widgets/lf-verdict.js</code> defines the element, with one property
               for Leaf to set and one event for Leaf to hear.
             </p>
-            <lf-code id="verdict-module" data-width="wide">
+            <lf-code id="verdict-module">
               <pre><code class="language-js">
 import { html, render } from "/vendor/lit.js";
 
@@ -5820,33 +5881,44 @@ customElements.define(
 );
 </code></pre>
               <lf-note at="1"
-                >Lit, a templating library Leaf serves, draws the buttons. The module
-                imports nothing of Leaf’s.</lf-note
+                >Lit, a third-party templating library, draws the buttons. Leaf serves a
+                copy at this path, and the module imports no code of Leaf’s
+                own.</lf-note
               >
               <lf-note at="8"
                 >Leaf sets <code>state</code> when the page loads and again after every
                 change to it, whether this tab, another tab, Undo or a new version made
-                the change. The setter draws the whole state each time.</lf-note
+                the change. It holds each declared verb by name, and the setter draws
+                the whole of it each time.</lf-note
               >
-              <lf-note at="12"
-                ><code>decide.value</code> is the recorded answer, and
-                <code>decide.available</code> says whether the user may act now. The
-                button says both in HTML’s own attributes, which the theme styles and a
-                screen reader announces.</lf-note
+              <lf-note at="17"
+                >The button carries the state in HTML’s own attributes.
+                <code>aria-pressed</code> marks the recorded answer, which is
+                <code>decide.value</code>, or <code>null</code> before there is one. The
+                page’s theme, the package that gives it its look, draws the pressed
+                button, and a screen reader announces it.
+                <code>aria-disabled</code> marks a button the user may not press now, as
+                when the page has no server to record the action.</lf-note
               >
-              <lf-note at="22"
-                >A press dispatches <code>lf-action</code> with the verb and the value.
-                Leaf has set the new <code>state</code> by the time
-                <code>dispatchEvent</code> returns, so the press shows at once. If the
-                server then refuses the action, Leaf sets the server’s state
-                again.</lf-note
+              <lf-note at="21"
+                >A press dispatches an <code>lf-action</code> event. Leaf has set the
+                new <code>state</code> by the time <code>dispatchEvent</code> returns,
+                so the press shows at once. If the server then refuses the action, Leaf
+                sets <code>state</code> back to what the server holds.</lf-note
+              >
+              <lf-note at="28"
+                >The event’s <code>detail</code> names the verb and carries the action’s
+                own detail, which here is the value. <code>bubbles</code> and
+                <code>composed</code> let the event reach Leaf from wherever the element
+                stands.</lf-note
               >
             </lf-code>
             <h3 id="verdict-stylesheet-heading">Stylesheet</h3>
             <p id="verdict-stylesheet-lede">
-              <code>defaults.css</code> gives the tag its box. It reads the theme’s
-              choices as <strong>custom properties</strong>, which are named values that
-              CSS passes down the page and a rule reads with <code>var()</code>.
+              <code>defaults.css</code> gives the tag its box, the rectangle the browser
+              lays it out in. It reads choices the page’s theme makes, such as its
+              spacing, as <strong>custom properties</strong>: named values that CSS
+              passes down the page and a rule reads with <code>var()</code>.
             </p>
             <lf-code id="verdict-stylesheet">
               <pre><code class="language-css">
@@ -5868,12 +5940,14 @@ lf-verdict {
             </lf-code>
             <h3 id="verdict-live-heading">Live widget</h3>
             <p id="verdict-live-steps">
-              Press <strong>Ship</strong>, then open <strong>Show activity</strong> to
-              read the action Leaf recorded. Press <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a
-              Mac) to take it back: Leaf sets <code>state</code> again, so neither
-              button is pressed, and <strong>Activity changed</strong> in the feed
-              shows the action marked undone. A sample asks nothing of the user, so
-              this question stays off On Me.
+              Press <strong>Ship</strong>. Then open <strong>Show activity</strong>, the
+              page’s feed of recorded actions, to read the action Leaf recorded. Take it
+              back with <strong>Undo</strong> in the leaf’s menu, or with
+              <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac): Leaf sets
+              <code>state</code> again, so neither button is pressed, and pressing
+              <strong>Activity changed</strong> in the feed shows the action marked
+              undone. On this page the widget only demonstrates, so its question stays
+              off On Me.
             </p>
             <lf-sample id="verdict-sample" label="Example: ship or hold" interactive>
               <lf-group id="release" label="Ship 4.2 today?">
@@ -5887,7 +5961,8 @@ lf-verdict {
             <h2>Needs and their forms</h2>
             <p id="interface-forms-lede">
               Whatever a package needs of Leaf is one of the kinds below, and each kind
-              takes one form. <code>lf-verdict</code> uses the first two and the fourth.
+              has its own form. <code>lf-verdict</code> needs three of them: the first
+              two, and a theme’s choice.
             </p>
             <table id="interface-forms-table">
               <thead>
@@ -5899,44 +5974,91 @@ lf-verdict {
               <tbody>
                 <tr id="form-declaration">
                   <th scope="row">What Leaf must know before any module runs</th>
-                  <td>A key in the widget’s declaration, such as <code class="nowrap">awaits</code>, the question the widget puts to the user.</td>
+                  <td>
+                    A key in the widget’s declaration, such as
+                    <code class="nowrap">awaits</code>.
+                  </td>
                 </tr>
                 <tr id="form-protocol">
                   <th scope="row">What changes while the page runs</th>
-                  <td>The widget protocol: a property Leaf sets on the element, such as <code class="nowrap">state</code>; an event the element dispatches, such as <code class="nowrap">lf-action</code>; or an attribute, property or method of the element that Leaf reads.</td>
+                  <td>
+                    The widget protocol, which has three parts: properties Leaf sets on
+                    the element, such as <code class="nowrap">state</code>; events the
+                    element dispatches, such as <code class="nowrap">lf-action</code>;
+                    and attributes, properties and methods of the element that Leaf
+                    reads, such as <code class="nowrap">data-lf-part</code>, which marks
+                    a part of the widget that a user can comment on.
+                  </td>
+                </tr>
+                <tr id="form-element">
+                  <th scope="row">What a widget and a page’s author both need</th>
+                  <td>
+                    An element that Leaf defines on every page. A widget’s template
+                    writes it as a page’s markup does.
+                    <code class="nowrap">&lt;lf-age&gt;</code> is one: it shows how long
+                    ago a moment was and keeps that current.
+                  </td>
                 </tr>
                 <tr id="form-function">
                   <th scope="row">What only Leaf can do or know</th>
-                  <td>A function the module imports, such as <code class="nowrap">readObligations()</code>, which reads what waits on the user or the agent.</td>
+                  <td>
+                    A function the module imports, such as
+                    <code class="nowrap">readObligations()</code>, which reads what
+                    waits on the user or the agent.
+                  </td>
                 </tr>
                 <tr id="form-theme">
                   <th scope="row">A theme’s choice</th>
-                  <td>A custom property the stylesheet reads, such as <code class="nowrap">var(--lf-accent)</code>, the theme’s accent colour.</td>
+                  <td>
+                    A custom property the stylesheet reads, such as
+                    <code class="nowrap">var(--lf-accent)</code>, the theme’s accent
+                    colour.
+                  </td>
                 </tr>
                 <tr id="form-fact">
                   <th scope="row">A fact about where the widget’s box stands</th>
-                  <td>A custom property that Leaf or the page’s layout sets and the stylesheet reads, such as <code class="nowrap">--lf-full-height</code>, set where the box has a height to fill.</td>
+                  <td>
+                    A custom property that Leaf or the page’s layout sets and the
+                    stylesheet reads, such as
+                    <code class="nowrap">--lf-full-height</code>, which a layout filling
+                    the window sets on the boxes that must fill their share of it.
+                  </td>
                 </tr>
                 <tr id="form-box-declaration">
-                  <th scope="row">A declaration the box makes to Leaf</th>
-                  <td>A custom property the stylesheet sets, such as <code class="nowrap">--lf-ring-at</code>, which says where the box’s focus ring belongs.</td>
+                  <th scope="row">What the widget’s box tells Leaf</th>
+                  <td>
+                    A custom property the stylesheet sets, such as
+                    <code class="nowrap">--lf-ring-at</code>, which says where the box’s
+                    focus ring belongs.
+                  </td>
                 </tr>
                 <tr id="form-look">
                   <th scope="row">Leaf’s look for a part the widget draws</th>
-                  <td>A control the library builds by its role, or a class the module writes on the part, such as <code class="nowrap">.lf-rows</code> for a list whose rows share their columns.</td>
+                  <td>
+                    A class the module writes on the part, such as
+                    <code class="nowrap">.lf-rows</code> for a list whose rows share
+                    their columns. A control takes Leaf’s look from the function in
+                    Leaf’s library that builds it.
+                  </td>
                 </tr>
                 <tr id="form-part">
-                  <th scope="row">A part of an element Leaf builds inside the widget</th>
-                  <td>A class on that part, which the stylesheet selects, such as <code class="nowrap">.lf-compose-field</code>, the frame of a comment box.</td>
+                  <th scope="row">
+                    A part of an element Leaf builds inside the widget
+                  </th>
+                  <td>
+                    A class on that part, which the stylesheet selects, such as
+                    <code class="nowrap">.lf-compose-field</code>, the frame of a
+                    comment box that one of Leaf’s functions builds.
+                  </td>
                 </tr>
               </tbody>
             </table>
             <p id="interface-forms-outside">
               A widget uses HTML, CSS and the browser’s own APIs as any web page does,
-              and none of that is Leaf’s. Web code that packages share and that keeps
-              none of the page’s state, such as the ticks of a time axis, is a library
-              that a module imports like any other. The library is no part of the
-              interface.
+              and none of that is Leaf’s. Leaf also ships a library of shared web code,
+              such as the functions that build its controls and the ticks of a time
+              axis. That code keeps none of the page’s state, a module imports it as it
+              imports any library, and it is outside the interface too.
             </p>
             <p id="interface-forms-reference">
               The author’s reference
@@ -5959,16 +6081,17 @@ lf-verdict {
               <tbody>
                 <tr id="principle-outside">
                   <th scope="row">
-                    Leaf drives a widget from outside. It sets properties, hears events
-                    and reads what the element and its stylesheet state, as it would for
-                    any custom element.
+                    Leaf drives a widget from outside. It sets properties, hears events,
+                    and reads the element’s attributes and the custom properties its
+                    stylesheet sets, as it could for any custom element.
                   </th>
                   <td>
-                    A widget can import nothing of Leaf’s, so the same widget also runs
-                    on a page without Leaf. Another library’s component becomes a widget
-                    with a declaration and a wrapper of a few lines: the declaration’s
-                    <code>record</code> names the property that holds the component’s
-                    value, and Leaf sets and reads that property (<a
+                    A widget need not import any code of Leaf’s, so the same widget also
+                    runs on a page without Leaf. A component from another UI library
+                    becomes a widget with a declaration and a wrapper of a few lines:
+                    the declaration’s <code>record</code> gains a
+                    <code>property</code> key that names the component’s property
+                    holding its value, and Leaf sets and reads that property (<a
                       href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-plain-elements.md"
                       >the widget protocol</a
                     >, “A third-party component”).
@@ -5976,44 +6099,48 @@ lf-verdict {
                 </tr>
                 <tr id="principle-server">
                   <th scope="row">
-                    Leaf’s server runs no module. What it must know is in the
-                    declaration, and only that is.
+                    Leaf’s server runs no module. The declaration holds what the server
+                    must know, and nothing a module can answer for itself.
                   </th>
                   <td>
-                    Leaf validates a page’s markup, admits an action and lists a
-                    question on On Me from the declaration alone. So a page with a
+                    Leaf checks a page’s markup, checks an action and lists a question
+                    on On Me from the declaration alone. So an edit of a page with a
                     mistake in its markup
                     <a href="#gate">never goes live</a>, an action enters the log only
-                    after the server has checked it, and an agent learns a widget by
-                    reading its declaration.
+                    after the server has checked it, and the agent that writes a page
+                    learns a widget by reading its declaration.
                   </td>
                 </tr>
                 <tr id="principle-platform">
                   <th scope="row">
                     A function exists only for what Leaf alone can do or know. What
-                    HTML, CSS or the browser already does is written as that.
+                    HTML, CSS or the browser already does is written as that, and what a
+                    page’s author needs too is an element.
                   </th>
                   <td>
-                    Authors and agents already write HTML and CSS well, and the browser
+                    People and agents already write HTML and CSS well, and the browser
                     keeps a native control’s focus, activation and accessibility. A
-                    wrapper round any of them would be one more name to learn.
+                    function of Leaf’s wrapping HTML or a native control would only add
+                    a name to learn. An age that stays current is the element
+                    <code>&lt;lf-age&gt;</code>: a page’s author writes it too, and a
+                    widget’s template needs no import for it.
                   </td>
                 </tr>
                 <tr id="principle-form">
-                  <th scope="row">Each kind of need has one form.</th>
+                  <th scope="row">Each kind of need has its own form.</th>
                   <td>
-                    An author knows where to look for a name, and a new need takes the
-                    form its kind already has.
+                    A package’s author knows where to look for a name, and a new need
+                    takes the form its kind already has.
                   </td>
                 </tr>
                 <tr id="principle-same">
                   <th scope="row">
-                    Leaf’s bundled widgets use the same interface, with no private
-                    route into Leaf.
+                    The widgets Leaf ships use the same interface, with no private route
+                    into Leaf.
                   </th>
                   <td>
-                    Another author’s package can do whatever a bundled widget does, and
-                    Leaf’s own widgets exercise every name an author relies on.
+                    Another author’s package can do whatever one of Leaf’s widgets does,
+                    and each of Leaf’s widgets is a worked example of the names it uses.
                   </td>
                 </tr>
               </tbody>
@@ -6022,21 +6149,22 @@ lf-verdict {
           <section id="interface-growth">
             <h2>Adding a name</h2>
             <p id="interface-growth-cost">
-              Every name in the interface is one more thing each author learns and each
-              later change to Leaf keeps working. Leaf’s bundled widgets are written
-              beside its runtime, where exporting one more function is the quickest way
-              to finish a change. So a change that finds a widget needing something of
-              Leaf asks, before it adds a name:
+              Each name in the interface is one more thing every author has to learn,
+              and one more thing every later change to Leaf has to keep working. Leaf’s
+              own widgets are written beside its runtime, where exporting one more
+              function is the quickest way to finish a change. So whoever changes Leaf
+              and finds a widget needing something of it asks these questions before
+              adding a name:
             </p>
             <ol id="interface-growth-questions">
               <li id="growth-need">
                 <strong>Does the widget need Leaf for this?</strong> HTML, CSS, the
-                browser’s APIs and the library add nothing to the interface.
+                browser’s APIs and Leaf’s library add nothing to the interface.
               </li>
               <li id="growth-outside">
                 <strong>Can Leaf do it from outside?</strong> What Leaf does by setting
-                a property, hearing an event or reading what the element states also
-                works for a widget that imports nothing.
+                a property, hearing an event or reading an attribute also works for a
+                widget that imports nothing.
               </li>
               <li id="growth-kind">
                 <strong>Which kind of need is it?</strong> It takes that kind’s form. A
@@ -6044,9 +6172,11 @@ lf-verdict {
                 settles first.
               </li>
               <li id="growth-users">
-                <strong>Who else would use it?</strong> A name that one bundled widget
-                uses usually belongs inside Leaf, done for every element, or inside that
-                widget.
+                <strong>Who else would use it?</strong> A name that only one of Leaf’s
+                widgets would use usually shouldn’t exist: either Leaf does the work for
+                every element, or that widget does it alone. Where a page’s author, who
+                writes no module, has the same need, the answer is an element that both
+                can write.
               </li>
             </ol>
             <p id="interface-growth-instructions">
@@ -6054,8 +6184,11 @@ lf-verdict {
               questions (<a
                 href="https://github.com/max-sixty/leaf/blob/main/packages/AGENTS.md"
                 ><code>packages/AGENTS.md</code></a
-              >, “A widget’s need of Leaf”), and its regular maintenance looks for names
-              the interface could lose.
+              >, “A widget’s need of Leaf”), and a regular maintenance pass looks for
+              names the interface can lose. The author of a package outside Leaf asks
+              the first question the same way, and reports a need that only a new name
+              would meet as an
+              <a href="https://github.com/max-sixty/leaf/issues">issue</a>.
             </p>
           </section></lf-tab
         ></lf-tabs

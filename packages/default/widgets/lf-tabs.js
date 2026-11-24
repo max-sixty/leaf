@@ -103,7 +103,6 @@ import {
   comparisonChanges,
   claimTraversals,
   compoundReadingRegionId,
-  cycledRow,
   keepView,
   keeps,
   layoutChanged,
@@ -129,8 +128,6 @@ import {
   focused,
   fitsWhole,
   landingInsets,
-  layoutPx,
-  pressIsKeyboardActivation,
   signal,
   LeafElement,
   commandsChanged,
@@ -259,9 +256,8 @@ export class TabSet extends LeafElement {
     // tracked render; its unchanged Lit parts retain these exact nodes.
     render(this.render(), strip);
     // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
-    // at the ends as every cyclic walk does (`cycledRow`). The strip takes no tab stop
-    // of its own, so focus inside it, which is the whole of when this scope holds, is
-    // always one of these buttons.
+    // at the ends. The strip takes no tab stop of its own, so focus inside it, which is
+    // the whole of when this scope holds, is always one of these buttons.
     const tabs = () => [...this.#buttons.values()];
     const focusedTab = () => tabs().find((button) => button === focused());
     /** @param {HTMLElement | undefined} next */
@@ -321,7 +317,9 @@ export class TabSet extends LeafElement {
           travels: true,
           runKey: (binding) => {
             const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-            walk(cycledRow(tabs(), focusedTab(), step));
+            const all = tabs();
+            const at = all.findIndex((button) => button === focusedTab());
+            walk(all[(at + step + all.length) % all.length]);
           },
         },
         {
@@ -506,7 +504,7 @@ export class TabSet extends LeafElement {
       aria-description=${description || nothing}
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
-        this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
+        this.#activate(panel, "ordinary", event.detail !== 0)}
       ><span class="lf-tab-name" ${generated({ says: true })}
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
@@ -753,7 +751,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
+      run.style.setProperty("--lf-tab-group-size", `${Math.round(size * 64) / 64}px`);
       scrollIntoView(btn, { block: "nearest", within });
       return;
     }

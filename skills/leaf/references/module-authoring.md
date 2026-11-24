@@ -378,9 +378,11 @@ loop that `page check` counts as a fault.
 Writing a value a node already has still reaches screen readers and can repaint the
 whole document. `keeps(node, name, value)` writes an attribute only when it would read
 back differently; pass booleans and counts as they are, and `null` to remove it.
-`keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
-`hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
-layout's 1/64px.
+`keepsText(node, text)` does the same for words. For a flag such as `hidden`,
+`toggleAttribute(name, force)` writes only when the flag changes, where the `hidden`
+setter rewrites the attribute on every set. Round a measured length to layout's 1/64px,
+as `Math.round(length * 64) / 64`, before writing it into a style, so a measure that
+jitters below that writes nothing new.
 
 ## Contained examples and scoped appearance
 

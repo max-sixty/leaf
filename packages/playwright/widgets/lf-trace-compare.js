@@ -16,7 +16,6 @@ import {
   keepView,
   keeps,
   layoutChanged,
-  layoutPx,
   nextRender,
   once,
   offer,
@@ -105,7 +104,10 @@ customElements.define(
       this.prepend(header);
       whileConnected(this, () => {
         const paintHeight = (/** @type {number} */ height) =>
-          this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
+          this.style.setProperty(
+            "--lf-trace-compare-head-h",
+            `${Math.round(height * 64) / 64}px`,
+          );
         paintHeight(header.getBoundingClientRect().height);
         let paint = 0;
         const size = sizeObserver((entries) => {

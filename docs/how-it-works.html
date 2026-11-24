@@ -5895,7 +5895,8 @@ customElements.define(
                 page’s theme, the package that gives it its look, draws the pressed
                 button, and a screen reader announces it.
                 <code>aria-disabled</code> marks a button the user may not press now, as
-                when the page has no server to record the action.</lf-note
+                when the page has no server to record the action. Leaf records nothing
+                for a press then, so the module needs no check of its own.</lf-note
               >
               <lf-note at="22"
                 >An action names its verb and carries its own <code>detail</code>. For a
@@ -5904,10 +5905,12 @@ customElements.define(
                 <code>decide.value</code>.</lf-note
               >
               <lf-note at="23"
-                >The element dispatches the action on itself, as the
-                <code>detail</code> of an <code>lf-action</code> event. Leaf listens on
-                the element it sets <code>state</code> on, so the event needs no other
-                option. Leaf has set the new <code>state</code> by the time
+                >The element dispatches the action on itself in an
+                <code>lf-action</code> event. A custom event carries its payload as its
+                <code>detail</code>, so the action’s own <code>detail</code> sits one
+                level inside the event’s. Leaf listens on the element it sets
+                <code>state</code> on, so the event needs no other option. Leaf has set
+                the new <code>state</code> by the time
                 <code>dispatchEvent</code> returns, so the press shows at once. If the
                 server then refuses the action, Leaf sets <code>state</code> back to
                 what the server holds.</lf-note

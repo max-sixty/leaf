@@ -332,13 +332,9 @@ face reaches it: the `reading` theme turns it on, and a page with no theme sets
 theme"). Format example code with the language's usual indentation and line breaks,
 even where it reached you with several statements or fields packed onto a line, and keep
 it working when you reformat it. Quote source verbatim when quoting it.
-Data in a language Leaf colours, such as a JSON object a tool returned, goes in a code
-block wherever it came from, even when the page's other samples are plain: name its
-language and keep its values exact, each `…` included. Lay it out so the reader can pick
-out each field, and so the values they compare line up, whatever layout it reached you
-in. A nested object usually reads best with one field per line, and records the reader
-compares field by field read best one record per line, with their fields in the same
-order and lined up.
+Data in a language Leaf colours, such as JSON a tool returned, goes in a code block
+named for its language, even beside plain samples, with its values exact, `…` included,
+and laid out so the reader can pick out each field and compare values down a column.
 Text in no such language, such as a log or a message as an agent receives it, stays
 literal and uncoloured.
 

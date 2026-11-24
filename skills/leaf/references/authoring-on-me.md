@@ -73,12 +73,9 @@ Each widget that asks puts one question on On Me and records its answer. A choic
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
 
-Ask each question when it costs the user least. Asking now a question that an open
-answer may make moot, or whose options would differ with that answer, has the user
-read a branch they may not take; waiting for that answer costs them another round. So
-a question they can answer at a glance beside the one it depends on, as in “Merge the
-upload retry fix? If so, delete its branch?”, usually goes with it, and one that needs
-its options written out for each answer usually waits.
+Ask each question when it costs the user least. One they can answer at a glance beside
+the one it depends on, as in “Merge the retry fix? If so, delete its branch?”, usually
+goes with it; one whose options would differ with an open answer usually waits for it.
 
 When the user decides several proposals independently, give each its own options to
 accept or reject it, beside that proposal's case. One choice can accept a batch

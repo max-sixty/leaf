@@ -118,7 +118,8 @@ export const invalidVisualProviders = (declarations) =>
 
 // Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — composition closes it with
-// `additionalProperties: false` unless the entry gives its own — and
+// `additionalProperties: false` unless the entry gives its own, and an entry that
+// opens its schema is passed by, since it admits attributes it doesn't name — and
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
@@ -159,8 +160,8 @@ export function undeclaredAttrs(declarations) {
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
-    const properties = entry.attributes.properties;
-    if (!properties) continue;
+    const { properties, additionalProperties } = entry.attributes;
+    if (!properties || additionalProperties !== false) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))
         for (const a of el.attributes)

@@ -44,7 +44,6 @@
       "pick": {
         "unit": "candidate",
         "detail": {
-          "type": "object",
           "properties": {
             "candidate": {
               "type": "string",
@@ -54,8 +53,7 @@
               "type": "boolean"
             }
           },
-          "required": ["candidate", "picked"],
-          "additionalProperties": false
+          "required": ["candidate", "picked"]
         }
       }
     },

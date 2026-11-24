@@ -1493,10 +1493,8 @@ def deciding_verb(outcomes):
     return {
         "decides": True,
         "detail": {
-            "type": "object",
             "properties": {"outcome": {"enum": outcomes}},
             "required": ["outcome"],
-            "additionalProperties": False,
         },
         "unit": "widget",
     }

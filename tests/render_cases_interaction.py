@@ -1313,10 +1313,8 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "verbs": {
         "settle": {
             "detail": {
-                "type": "object",
                 "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
                 "required": ["answer"],
-                "additionalProperties": False,
             },
             "unit": "widget",
         }

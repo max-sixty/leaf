@@ -2158,14 +2158,14 @@ flowchart TD
     "record": {"kind": "attribute", "attr": "selected"}
   },
   "add": {
-    "detail": {"type": "object",
-               "properties": {"option": {"type": "string"},
-                              "text": {"type": "string", "minLength": 1}},
-               "required": ["option", "text"], "additionalProperties": false},
+    "detail": {
+      "properties": {"option": {"type": "string"},
+                     "text": {"type": "string", "minLength": 1}},
+      "required": ["option", "text"]},
     "unit": "option",
     "creates": {"child": "lf-option", "words": "text"}
   },
-  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+  "answer": {"detail": {}, "unit": "widget"}
 },
 "awaits": {
   "value": "choose",

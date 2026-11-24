@@ -6,10 +6,8 @@
       "review": {
         "unit": "widget",
         "detail": {
-          "type": "object",
           "properties": { "outcome": { "enum": ["pass", "fail"] } },
-          "required": ["outcome"],
-          "additionalProperties": false
+          "required": ["outcome"]
         }
       }
     },

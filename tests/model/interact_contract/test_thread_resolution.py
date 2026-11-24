@@ -440,10 +440,8 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     registry = vocabulary(page_dir)
     registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {
-            "type": "object",
             "properties": {"text": {"type": "string"}},
             "required": ["text"],
-            "additionalProperties": False,
         },
         "unit": "widget",
     }

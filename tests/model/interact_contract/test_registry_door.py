@@ -79,8 +79,8 @@ def test_a_recorded_body_accepts_empty_text_but_not_a_missing_value():
             "attributes-schema",
             {},
         ),
-        # Every declaration says which attributes its element takes.
-        ({"description": "d"}, "invalid-declaration", {"keyword": "required"}),
+        # Every declaration says what its element is for.
+        ({"attributes": {}}, "invalid-declaration", {"keyword": "required"}),
     ],
 )
 def test_check_refuses_a_malformed_widget_schema(page_dir, entry, code, values):
@@ -92,25 +92,26 @@ def test_check_refuses_a_malformed_widget_schema(page_dir, entry, code, values):
     assert found(findings, code, **values), findings
 
 
-@pytest.mark.parametrize("closed", [None, True])
-def test_the_registry_door_refuses_an_open_detail_schema(page_dir, closed):
+def test_the_registry_door_refuses_an_open_detail_schema(page_dir):
     """A verb carries only the detail keys it declares, so every reader of a detail
-    field reads a declaration rather than whatever a client chose to send."""
+    field reads a declaration rather than whatever a client chose to send. A detail
+    that opens itself is refused, where an attribute schema that does is admitted."""
     registry = vocabulary(page_dir)
-    detail = registry["lf-suggestion"]["verbs"]["decide"]["detail"]
-    if closed is None:
-        del detail["additionalProperties"]
-    else:
-        detail["additionalProperties"] = closed
+    registry["lf-suggestion"]["verbs"]["decide"]["detail"]["additionalProperties"] = (
+        True
+    )
     declare_vocabulary(page_dir, registry)
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(
-        findings,
-        "invalid-declaration",
-        "<lf-suggestion>",
-        keyword="required" if closed is None else "const",
+    [refused] = found(
+        findings, "invalid-declaration", "<lf-suggestion>", keyword="const"
     )
+    assert refused.values["path"] == [
+        "verbs",
+        "decide",
+        "detail",
+        "additionalProperties",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -166,10 +167,7 @@ def test_composition_gives_a_whole_widget_verb_the_attribute_that_takes_it_back(
         registry[tag] = element_declaration(tag, upgrade=True)
         registry[tag]["attributes"]["properties"]["reading"] = {"type": "string"}
         registry[tag]["verbs"] = {
-            "set": {
-                "unit": "widget",
-                "detail": {"type": "object", "additionalProperties": False},
-            },
+            "set": {"unit": "widget", "detail": {}},
             "measure": {
                 "unit": "widget",
                 "writer": "agent",
@@ -415,10 +413,8 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
             "unit": "widget",
             "contract": {"field": "values", "attribute": "shape"},
             "detail": {
-                "type": "object",
                 "properties": {"values": {"type": "object"}},
                 "required": ["values"],
-                "additionalProperties": False,
             },
         }
     }
@@ -453,7 +449,8 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
     (`registry.contract.complete_declarations`), each where the declaration doesn't
     write it, so `page check` refuses an attribute the schema doesn't name, such as a
     misspelt one, in the words it gives where a declaration writes both itself. A
-    schema that gives one of its own keeps it, as one that admits any attribute does."""
+    schema that gives one of its own keeps it, as one that admits any attribute does.
+    A declaration with no `attributes` composes to the schema that names none."""
     registry = vocabulary(page_dir)
     named = {"properties": {"tone": {"type": "string"}}}
     written = {"type": "object", **named, "additionalProperties": False}
@@ -464,6 +461,7 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
         ("lf-open", {**named, "additionalProperties": True}),
     ):
         registry[tag] = {"description": "A block.", "attributes": attributes}
+    registry["lf-bare"] = {"description": "A block."}
     declare_vocabulary(page_dir, registry)
 
     composed = read_page_registry(page_dir).registry
@@ -471,6 +469,9 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
         assert composed[tag]["attributes"] == composed["lf-written"]["attributes"]
         assert list(composed[tag]["attributes"]) == list(written)
     assert composed["lf-open"]["attributes"]["additionalProperties"] is True
+    bare = composed["lf-bare"]["attributes"]
+    assert (bare["type"], bare["additionalProperties"]) == ("object", False)
+    assert list(bare["properties"]) == ["id"]
 
     source = page_dir / "index.html"
     source.write_text(
@@ -478,7 +479,7 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
             "</main>",
             "".join(
                 f'<{tag} id="{tag}" tonne="warm">Words.</{tag}>'
-                for tag in ("lf-unsaid", "lf-written", "lf-open")
+                for tag in ("lf-unsaid", "lf-written", "lf-open", "lf-bare")
             )
             + "</main>",
         )
@@ -488,7 +489,7 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
     refused = {
         finding.at: finding.values for finding in found(findings, "attribute-schema")
     }
-    assert refused.keys() == {"<lf-unsaid>", "<lf-written>"}
+    assert refused.keys() == {"<lf-unsaid>", "<lf-written>", "<lf-bare>"}
     assert refused["<lf-unsaid>"]["keyword"] == "additionalProperties"
     assert (
         refused["<lf-unsaid>"]["reason"]
@@ -497,24 +498,47 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
     )
 
 
-@pytest.mark.parametrize("kind", [None, "string"])
-def test_action_detail_schemas_match_the_post_object_contract(page_dir, kind):
+def test_composition_closes_a_verb_detail_that_does_not_say(page_dir):
+    """A verb's `detail` schema names its fields and leaves `type` and
+    `additionalProperties` out, as an attribute schema does. The composed vocabulary
+    carries both (`registry.contract.complete_declarations`), so the operation an
+    admitted event records is the one a declaration writing both gives, and a detail
+    holding a field the schema doesn't name is refused."""
     registry = vocabulary(page_dir)
-    detail = registry["lf-suggestion"]["verbs"]["decide"]["detail"]
-    if kind is None:
-        del detail["type"]
-    else:
-        detail["type"] = kind
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True, exist_ok=True)
+    named = {"properties": {"note": {"type": "string"}}, "required": ["note"]}
+    written = {"type": "object", **named, "additionalProperties": False}
+    for tag, detail in (("lf-unsaid", named), ("lf-written", written)):
+        (widgets / f"{tag}.js").write_text("export function upgrade() {}\n")
+        registry[tag] = {
+            "description": "A block.",
+            "verbs": {"note": {"unit": "widget", "detail": detail}},
+        }
+    declare_vocabulary(page_dir, registry)
+
+    composed = read_page_registry(page_dir).registry
+    unsaid, said = composed["lf-unsaid"], composed["lf-written"]
+    assert unsaid["verbs"] == said["verbs"]
+    assert list(unsaid["verbs"]["note"]["detail"]) == list(written)
+    recorded = [
+        composed["$states"][tag]["note"]["definition"] | {"origin": None}
+        for tag in ("lf-unsaid", "lf-written")
+    ]
+    assert recorded[0] == recorded[1]
+    schema = registry_contract.detail_schema(unsaid, unsaid["verbs"]["note"])
+    assert registry_schema.schema_error(schema, {"note": "kept"}) is None
+    assert registry_schema.schema_error(schema, {"note": "kept", "stray": "x"})
+
+
+def test_action_detail_schemas_match_the_post_object_contract(page_dir):
+    registry = vocabulary(page_dir)
+    registry["lf-suggestion"]["verbs"]["decide"]["detail"]["type"] = "string"
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(
-        findings,
-        "invalid-declaration",
-        "<lf-suggestion>",
-        keyword="required" if kind is None else "const",
-    )
+    assert found(findings, "invalid-declaration", "<lf-suggestion>", keyword="const")
 
 
 @pytest.mark.parametrize(
@@ -871,12 +895,7 @@ def test_an_asking_instance_needs_the_id_its_declaration_leaves_optional(page_di
             "value": "answer",
             "answered": {"answer": {}},
         },
-        "verbs": {
-            "answer": {
-                "detail": {"type": "object", "additionalProperties": False},
-                "unit": "widget",
-            }
-        },
+        "verbs": {"answer": {"detail": {}, "unit": "widget"}},
     }
     declare_vocabulary(page_dir, registry)
     source = page_dir / "index.html"

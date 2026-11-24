@@ -85,7 +85,6 @@ import {
   deferredArrival,
   el,
   focusDestination,
-  focused,
   handBack,
   iconTemplate,
   LeafElement,
@@ -322,6 +321,12 @@ customElements.define(
         focusDestination(editor.contentDOM, "return");
         editor.revealCaret();
       };
+      // Whether the user is still on a control: its tree's active element, as it stays
+      // while the window is in the background and a request settles.
+      /** @param {HTMLElement} control */
+      const stillOn = (control) =>
+        /** @type {Document | ShadowRoot} */ (control.getRootNode()).activeElement ===
+        control;
       // A file's text: the editor's while it is open, else what the editor kept of it
       // or, where it kept nothing, the version last read.
       const text = (/** @type {OpenFile} */ of) =>
@@ -654,7 +659,7 @@ customElements.define(
             if (of.slowTimer !== null) clearTimeout(of.slowTimer);
             of.slowTimer = null;
           }
-          const returning = connected && returnFrom && focused() === returnFrom;
+          const returning = connected && returnFrom && stillOn(returnFrom);
           if (of === file) {
             paint();
             if (returning && returnFrom.hidden) returnToEditor();
@@ -724,7 +729,7 @@ customElements.define(
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);
-          const returning = connected && returnFrom && focused() === returnFrom;
+          const returning = connected && returnFrom && stillOn(returnFrom);
           if (of === file) {
             paint();
             if (returning && returnFrom.hidden) returnToEditor();

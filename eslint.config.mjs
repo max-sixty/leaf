@@ -592,7 +592,7 @@ const placementsRule = {
 // other at exactly those edges. A frame's `contentDocument.activeElement` is the frame
 // page's own question. The option names the files that may still read it.
 const CURRENT_LOCATION_READ_MESSAGE =
-  "Read the user’s current location with focused() (runtime/focus.js; widget-api.js in a package), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
+  "Read the user’s current location with focused() (runtime/focus.js), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
 export const currentLocationReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -630,7 +630,7 @@ export const currentLocationReadsRule = {
           context.report({
             node,
             message:
-              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
+              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js): contains() stops at a shadow root.",
           });
       },
     };
@@ -1906,10 +1906,12 @@ export default [
     // Where a package writes the browser's own call, because the runtime's function
     // adds nothing to it. Motion that may run until the user stops it, such as
     // playback, calls the browser's frame, which the settled reading doesn't count; a
-    // size observer stays counted. The open-layers rule holds the runtime to one
-    // reading of every node, and a package asks its own popover or dialog whether it
-    // is open, so the rule is off here whole. Each other rule repeats what it keeps of
-    // the layer's, since a file takes a rule's options from the last block matching it.
+    // size observer stays counted. The open-layers and current-location-reads rules hold
+    // the runtime to one reading of every node and of where the user is, and a package
+    // asks its own popover or dialog whether it is open, and its own tree's
+    // `activeElement` what is focused there, so both rules are off here whole. Each
+    // other rule repeats what it keeps of the layer's, since a file takes a rule's
+    // options from the last block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
       "no-restricted-globals": [
@@ -1926,6 +1928,7 @@ export default [
         ...ID_PROPERTIES,
       ],
       "architecture/open-layers": "off",
+      "architecture/current-location-reads": "off",
     },
   },
   {

@@ -104,7 +104,6 @@ import {
   focusDestination,
   scrollIntoView,
   whileConnected,
-  focused,
   declarationFor,
   authoredScope,
   widgetController,
@@ -586,11 +585,14 @@ customElements.define(
       grip.setAttribute("data-lf-carry", "grip");
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
-      // focus, so only a real departure still lacks focus when this settles.
+      // focus, so only a real departure still lacks focus when this settles. The window
+      // losing system focus blurs the grip but leaves it its tree's active element, so
+      // that is no departure.
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
-          if (this.#grabbed?.grip === grip && focused() !== grip)
+          const root = /** @type {Document | ShadowRoot} */ (grip.getRootNode());
+          if (this.#grabbed?.grip === grip && root.activeElement !== grip)
             this.#cancel(this.#grabbed);
         });
       });

@@ -79,7 +79,6 @@ import {
   sizeObserver,
   wear,
   whileConnected,
-  focused,
   under,
   worksInside,
   commandsChanged,
@@ -482,7 +481,7 @@ customElements.define(
         );
       }
       return (/** @type {Event} */ _end, /** @type {boolean} */ completed) => {
-        if (completed) restore(focused());
+        if (completed) restore(document.activeElement);
         else close();
         return close;
       };
@@ -499,7 +498,7 @@ customElements.define(
     // can demonstrate any focused element, including an input, so its element type
     // cannot tell an editor from a candidate whose focus is being compared.
     #previewLocation() {
-      let at = focused(document);
+      let at = document.activeElement;
       if (
         !under(at, this.#preview) ||
         this.#view.isField(at) ||

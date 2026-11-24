@@ -833,7 +833,7 @@ block names what a package answers with the browser's own call instead.
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |
 | The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                                |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                                  |
-| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`nameOf(thread)` for packages)                      |
+| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName`                                                      |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                       |
 | The open conversations about an element or the part a heading heads, and whose turn                   | `thread/placement.js` `conversationsAbout`                                             |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                            |

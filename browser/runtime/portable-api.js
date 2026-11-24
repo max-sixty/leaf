@@ -29,6 +29,7 @@ export { threadSurface } from "./thread/surface-handles.js";
 export { searchField } from "./control-labels.js";
 
 export { focusDestination, holdFocus, onUserInput } from "./focus.js";
+export { holdUser } from "./user-place.js";
 export { retainUserIntent } from "./user-intent.js";
 export { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export { scrollersOf } from "./scroll-containers.js";

@@ -85,11 +85,12 @@ import {
   scrollersOf,
   seenAhead,
 } from "./scroll-containers.js";
-import { renderedParent, under } from "./lib/shadow-tree.js";
+import { renderedParent, renderedUnder, under } from "./lib/shadow-tree.js";
 import { inChrome } from "./ui-marks.js";
 import {
   declareFocusPlace,
   focused,
+  holdFocus,
   onUserInput,
   recentPlaceInput,
   typesText,
@@ -274,6 +275,45 @@ export function holdPlace(node, standIn = () => null) {
     // A place the reader had, not one they chose (scrolling.js, `placeKept`).
     placeKept(...moved.map(({ box }) => box));
     return moved.length > 0;
+  };
+}
+
+// What the reader reads inside `scope`: the block holding what stands at the reading
+// line in the scope's column, where that block's top shows, since a change that hides
+// a block puts its stand-in where the block began, line for line; else the words
+// themselves, since a block that began above the window would take its stand-in out of
+// sight with its top. Null where the line stands outside `scope`.
+/** @param {Element} scope @returns {Element | Range | null} */
+const readIn = (scope) => {
+  const reading = readingAt(scope);
+  const holder = reading && holderOf(reading);
+  if (!holder || holder === scope || !renderedUnder(holder, scope)) return null;
+  /** @type {Element | null} */
+  let block = holder;
+  while (block && block !== scope && getComputedStyle(block).display.startsWith("inline"))
+    block = renderedParent(block);
+  return block &&
+    block !== scope &&
+    block.getBoundingClientRect().top >= shownWindow().top
+    ? block
+    : reading;
+};
+
+// One hold for a change a module makes under the user, a redraw, a removal or a fold:
+// their focus inside `scope` (focus.js, `holdFocus`, which `key` and the restore's
+// stand-ins go to), and what they read there (`readIn`, `holdPlace`, which `standIn`
+// goes to). The step it returns puts both back once the change has drawn, and answers
+// as the focus restore does.
+/** @param {Element} scope
+ * @param {{key?: string | null, standIn?: (node: Element) => Element | null | undefined}} [options] */
+export function holdUser(scope, { key = null, standIn } = {}) {
+  const restore = holdFocus(scope, { key });
+  const hold = holdPlace(readIn(scope), standIn);
+  /** @param {Parameters<NonNullable<typeof restore>>} standIns */
+  return (...standIns) => {
+    const landed = restore ? restore(...standIns) : false;
+    hold();
+    return landed;
   };
 }
 

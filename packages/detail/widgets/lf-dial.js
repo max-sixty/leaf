@@ -110,13 +110,12 @@
 import {
   nameOf,
   focusDestination,
-  holdPlace,
+  holdUser,
   LeafElement,
   motion,
   move,
   phrasing,
   onPress,
-  readingAt,
   shownWindow,
   tabStore,
   whileConnected,
@@ -948,18 +947,11 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      // The block holding the words at the line, since a fold replaces whole blocks:
-      // its gist lands where the block's top stood, line for line. A block that began
-      // above the window would take its gist out of sight with its top, 978px up for a
-      // paragraph of 2,700px, so its gist lands where the words read stood.
-      const words = readingAt(scope);
-      const at = words instanceof Range ? words.startContainer : words;
-      const block =
-        at && [...this.#blocks(scope, scope)].find((each) => each.contains(at));
-      const begun = block && block.getBoundingClientRect().top < shownWindow().top;
-      const hold = holdPlace(block && !begun ? block : words, (node) => {
-        const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
-        return folded && owner.get(folded);
+      const hold = holdUser(scope, {
+        standIn: (node) => {
+          const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
+          return folded && owner.get(folded);
+        },
       });
       change();
       hold();

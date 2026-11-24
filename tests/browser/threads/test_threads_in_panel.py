@@ -19,7 +19,7 @@ from render_harness import (
 )
 
 from browser.navigation.test_reading_place import ITEMS_LAYER, ITEMS_WIDGETS
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import PANEL_REPLY, choose_threads_in_panel, open_panel_thread
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL, PANEL_THREAD, panel_view
 
@@ -106,6 +106,10 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
 
     page.reload()
     wait_until_ready(page)
+    # The reload returns the user to the reply the row's press put them in (history.js),
+    # which Escape leaves for its thread, where `t` walks on.
+    expect(page.locator(PANEL_REPLY)).to_be_focused()
+    page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(page.locator(PANEL_THREAD)).to_be_focused()
     expect(cards).to_be_hidden()

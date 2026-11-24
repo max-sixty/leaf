@@ -61,11 +61,14 @@ def instruction_selection(
                 if any(node.matches(selector) for node in nodes)
             )
         # A contract's instructions reach whoever writes either side of it: the widget
-        # that reads a value and the one that holds it for others.
+        # that reads a value and the one that holds it for others. An input that only
+        # reads another widget's output may name a contract no selected package
+        # declares, and the page then has no instructions for it.
         selected_contracts.update(
             spec["contract"]
             for side in ("inputs", "outputs")
             for spec in entry.get(side, {}).values()
+            if spec["contract"] in data_contracts
         )
     for contract in sorted(selected_contracts):
         if contract not in data_contracts:

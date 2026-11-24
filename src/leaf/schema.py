@@ -281,6 +281,16 @@ INSTRUCTIONS_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": {"type": "string", "pattern": r"\S"},
 }
+_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
+# The keys of an input (`inputs`) that bind it. Each names the attribute whose value
+# binds the input on an element: `source` names the attribute holding a page source's
+# id, and `reference` the `refers` attribute naming a widget, whose one output of the
+# input's contract the input reads. An input declares at least one of them, and
+# composition writes each attribute it names into the element's attribute schema
+# (`registry.contract.complete_declarations`). The browser's copy is `bindingAttributes`
+# (runtime/registry.js), and the input type the build generates from this schema checks
+# the key names it reads.
+INPUT_BINDINGS = ("source", "reference")
 DATA_INPUTS_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -292,10 +302,7 @@ DATA_INPUTS_SCHEMA = {
                 "type": "string",
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
-            "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            # The `refers` attribute naming a widget, whose one output of this
-            # input's contract the input reads.
-            "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            **dict.fromkeys(INPUT_BINDINGS, _ATTRIBUTE_NAME),
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
@@ -304,12 +311,11 @@ DATA_INPUTS_SCHEMA = {
             "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "required": ["contract"],
-        "anyOf": [{"required": ["source"]}, {"required": ["reference"]}],
+        "anyOf": [{"required": [key]} for key in INPUT_BINDINGS],
         "additionalProperties": False,
     },
 }
 
-_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 _TAGS = {
     "type": "array",
     "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},

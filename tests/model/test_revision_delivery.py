@@ -44,7 +44,7 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
         source,
         {
             "lf-editable": {
-                "text-format": "markdown",
+                "content": "markdown",
             }
         },
         {},
@@ -102,7 +102,7 @@ def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads
         source,
         {
             "lf-editable": {
-                "text-format": "markdown",
+                "content": "markdown",
             }
         },
         {},
@@ -849,7 +849,7 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         f"<lf-editable><pre>{escape(source)}</pre></lf-editable>",
         {
             "lf-editable": {
-                "text-format": "markdown",
+                "content": "markdown",
             }
         },
         {},

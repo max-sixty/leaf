@@ -756,7 +756,7 @@ block names what a package answers with the browser's own call instead.
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                               |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
-| Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                     |
+| Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                        |
 | Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                            |
 | What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                         |

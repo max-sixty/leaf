@@ -66,7 +66,6 @@ import {
   agentName,
   answerWords,
   nameAction,
-  rowArrows,
   dragging,
   focusDestination,
   keepView,
@@ -90,6 +89,7 @@ import {
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";

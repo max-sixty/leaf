@@ -1737,28 +1737,20 @@ _TEXT = {
     "record-within": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records a position within"
-            f" <{v['within']}>, but a position's container is a declared element"
-            " inside the widget, whose children are the units it orders"
+            f" <{v['within']}>, which no package in the layer declares"
         )
     ),
     "position-container": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records positions within <{v['within']}>,"
             " but no declaration places an element of that tag, holding members of"
-            " its own, inside this widget, so a drop of the widget's own members is"
-            " refused; "
+            " its own, at or inside this widget, so a drop of the widget's own"
+            f" members is refused; set `verbs.{v['verb']}.record.within` to "
             + (
-                f"set `verbs.{v['verb']}.record.within` to "
-                + " or ".join(f"<{tag}>" for tag in v["containers"])
+                " or ".join(f"<{tag}>" for tag in v["containers"])
                 if v["containers"]
-                else "declare a container tag of your own whose `owners` names this"
-                " widget, name that tag in place of this widget in the `owners` of "
-                + (
-                    " and ".join(f"<{tag}>" for tag in v["members"])
-                    if v["members"]
-                    else "the elements the verb reorders"
-                )
-                + f", and set `verbs.{v['verb']}.record.within` to it"
+                else "this widget's own tag, and give the elements it reorders"
+                " `owners` naming this widget"
             )
         ),
         keeps=None,

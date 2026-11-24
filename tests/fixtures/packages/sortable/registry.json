@@ -1,0 +1,29 @@
+{
+  "lf-test-list": {
+    "description": "A list the user reorders by dragging an entry or by Alt+ArrowUp and Alt+ArrowDown on the focused one. It is its own position container: its entries stand directly in it.",
+    "attributes": {
+      "type": "object",
+      "properties": {},
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "content": "members",
+    "verbs": {
+      "move": {
+        "unit": "unit",
+        "record": { "kind": "position", "within": "lf-test-list" }
+      }
+    },
+    "example": "<lf-test-list id=\"steps\"><lf-test-entry id=\"step-a\">Alpha</lf-test-entry><lf-test-entry id=\"step-b\">Beta</lf-test-entry></lf-test-list>"
+  },
+  "lf-test-entry": {
+    "description": "One entry of a list the user reorders.",
+    "attributes": {
+      "type": "object",
+      "properties": {},
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "owners": ["lf-test-list"]
+  }
+}

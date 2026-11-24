@@ -537,6 +537,27 @@ def recorded_owner(
     return None
 
 
+def container_owner(
+    container: str, byid: dict, registry: dict, *, holders: dict | None = None
+):
+    """The widget whose position record places units in `container`: the nearest
+    element at or above it whose record names the container's tag in `within`, so a
+    widget that orders its own members is its own container's owner. The browser
+    reads containers by the same rule (`projection/authored.js`)."""
+    holders = holders or {}
+    node = byid.get(container)
+    tag = node and node["tag"]
+    while node is not None:
+        if any(
+            (spec.get("record") or {}).get("kind") == "position"
+            and spec["record"]["within"] == tag
+            for _, spec in state_specs(registry.get(node["tag"], {}))
+        ):
+            return node["attrs"].get("id")
+        node = holders.get(node["attrs"].get("id"), node.get("holder"))
+    return None
+
+
 def attribute_marks(byid: dict, spk: dict, registry: dict) -> dict[str, dict]:
     """What one version's markup shows for every attribute record at once: attribute
     → owner id → the ids inside the owner that carry the attribute and whose nearest
@@ -590,17 +611,13 @@ def markup_value(unit: str, spec: dict, byid: dict, marks: dict):
     return rec["body"] if rec else ""  # "body"
 
 
-_POSITION = {"kind": "position"}
-
-
 class AuthoredOrders:
     """Where one version's markup puts every position owner's units, read in one
     pass over the document, so a reading that asks about many owners, such as a page
     of boards, reads the page once rather than once per owner.
 
-    A container belongs to its nearest ancestor recording positions
-    (`recorded_owner`). Every caller reads the lists `of` returns and none changes
-    them."""
+    A container belongs to the widget `container_owner` names. Every caller reads
+    the lists `of` returns and none changes them."""
 
     def __init__(self, byid: dict, registry: dict):
         within = {
@@ -612,9 +629,7 @@ class AuthoredOrders:
         }
         containers = {}
         for cid, rec in byid.items():
-            if rec["tag"] in within and (
-                owner := recorded_owner(cid, _POSITION, byid, registry)
-            ):
+            if rec["tag"] in within and (owner := container_owner(cid, byid, registry)):
                 containers[cid] = (rec, owner)
         self._orders: dict[tuple[str, str], dict[str, list[str]]] = {}
         for cid, (rec, owner) in containers.items():

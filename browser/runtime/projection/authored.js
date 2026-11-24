@@ -3,7 +3,7 @@
  * authored initial condition once from validated source markup, before content modules
  * upgrade or render it. Those values are inputs to the complete widget projection; no
  * cloned DOM, inverse action, or restoration statement is retained. */
-import { recordedWidgetSelector, stateSpecs } from "../registry.js";
+import { containerOwner, recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
 import { readPart } from "../semantic-state.js";
 import { dataBody } from "../lib/data-body.js";
@@ -28,8 +28,8 @@ import { authoredRank } from "../lib/rank.js";
 
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
-   - `position`: ordered id lists per container and each listed unit's authored rank
-     (lib/rank.js);
+   - `position`: ordered id lists per container at or inside the widget that it
+     orders (`containerOwner`), and each listed unit's authored rank (lib/rank.js);
    - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 
@@ -100,8 +100,10 @@ function initialState(widget, spec) {
     if (record?.kind !== "position") return { value, units: {} };
     /** @type {Record<string, string>} */
     const ranks = {};
-    for (const container of widget.querySelectorAll(record.within))
-      if (container.id && recordedOwner(container, record) === widget) {
+    const containers = [...widget.querySelectorAll(record.within)];
+    if (widget.matches(record.within)) containers.unshift(widget);
+    for (const container of containers)
+      if (container.id && containerOwner(container) === widget) {
         const ids = [...container.children]
           .filter((part) => part.id)
           .map((part) => part.id);

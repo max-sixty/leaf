@@ -148,7 +148,6 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
                     verb=verb,
                     within=record["within"],
                     containers=containers,
-                    members=sorted(members.get(tag, ())),
                 )
             )
     for input_name, spec in entry.get("inputs", {}).items():
@@ -192,10 +191,10 @@ def _members(registry: dict) -> dict[str, set[str]]:
 
 
 def _containers(tag: str, registry: dict, members: dict) -> list[str]:
-    """The tags the declarations place inside `tag` through `owners`, at any depth,
-    that hold members of their own: where a position record of `tag` can put its
-    units. A member that records positions itself is the nearer owner of every place
-    beneath it (`projection.recorded_owner`), so the search neither counts nor
+    """`tag` and the tags the declarations place inside it through `owners`, at any
+    depth, that hold members of their own: where a position record of `tag` can put
+    its units. A member that records positions itself is the nearer owner of every
+    place beneath it (`projection.recorded_owner`), so the search neither counts nor
     passes it."""
     inside, frontier = set(), [tag]
     while frontier:
@@ -209,7 +208,7 @@ def _containers(tag: str, registry: dict, members: dict) -> list[str]:
                 continue
             inside.add(member)
             frontier.append(member)
-    return sorted(name for name in inside if name in members)
+    return sorted(name for name in inside | {tag} if name in members)
 
 
 def _validate_widget_structure(

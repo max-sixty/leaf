@@ -1,5 +1,5 @@
-"""Threads a page or package places itself: page annotation views, thread surfaces and
-their required readers, and the fallback when a surface fails."""
+"""Threads a page or package places itself: thread surfaces and their required readers,
+and the fallback when a surface fails."""
 
 import pytest
 from interact_support import append_carried_log_record, wait_for
@@ -10,7 +10,6 @@ from render_harness import (
     comment_note,
     consume_browser_errors,
     expect_preview_words,
-    holding,
     leaf_page,
     open_page,
     panel_field,
@@ -18,7 +17,6 @@ from render_harness import (
     round_trip,
     stored_draft_text,
     told,
-    undo,
     write,
 )
 
@@ -418,82 +416,6 @@ customElements.define('lf-test-card', class extends LeafElement {
     named = page.locator("#named")
     named.locator(":scope > .lf-test-comment").click()
     expect(named.locator(":scope > .lf-test-threads .lf-fab-input")).to_be_focused()
-
-
-def test_page_annotation_view_seats_obligations_and_contributed_controls(
-    browser, serve
-):
-    """A page that owns its annotations shows its obligations and contributed actions in its
-    own box: Leaf hands the consumer each entry's items and native controls, and the
-    page only arranges them. Activating an obligation reaches its obligation, and a seated
-    control still runs its contribution's action. The view follows the log: an answered
-    obligation leaves once the server holds the answer, and Undo brings it back."""
-    url = serve(
-        leaf_page(
-            "Page annotation view",
-            """
-      <h1 id="title">Review</h1>
-      <lf-group id="choice-question" label="Which route?"><h2 id="choice-question-h">Which route?</h2>
-        <lf-options id="routes"><lf-option id="route-a">Route A</lf-option>
-        <lf-option id="route-b">Route B</lf-option></lf-options>
-      </lf-group>
-      <p id="subject">The export keeps one file per tenant.</p>
-      <aside id="review" aria-label="Review"></aside>
-    """,
-        ).replace("<body>", '<body data-annotations="page">')
-    )
-    page = open_page(browser, url)
-    page.evaluate("""async () => {
-      const {registerContribution} =
-        await window.__lfWidgetApi();
-      registerContribution({key: 'review', target: document.getElementById('subject'),
-        read: () => ({entries: [{key: 'reviewed', behavior: 'action',
-          icon: 'dot', label: 'Mark reviewed'}]}),
-        activate: (key) => { window.activated = key; }});
-      const {consumeAnnotations} = await window.__lfWidgetApi();
-      const box = document.querySelector('#review');
-      consumeAnnotations(box, (entries, view) => {
-        box.replaceChildren();
-        for (const entry of entries) {
-          const row = document.createElement('div');
-          row.dataset.lfGen = '1';
-          box.append(row);
-          for (const item of view.items(entry)) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = [item.label, item.text].filter(Boolean).join(' · ');
-            button.addEventListener('click', () => view.activate(item));
-            row.append(button);
-          }
-          row.append(...view.controls(entry));
-          view.place(entry, row);
-        }
-      });
-    }""")
-    review = page.locator("#review")
-    question = review.get_by_role(
-        "button", name="Which route? · Waiting on me", exact=True
-    )
-    expect(question).to_be_visible()
-    question.click()
-    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
-    contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
-    expect(contributed).to_be_visible()
-    contributed.click()
-    page.wait_for_function("window.activated === 'reviewed'")
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.locator("#route-a .lf-pick").click()
-    expect(page.locator("#route-a")).to_have_attribute("selected", "")
-    expect(question).to_be_visible()
-    holding(page, held, 1, "the optimistic choice")
-    held[0].continue_()
-    page.unroute("**/api/event")
-    expect(question).to_have_count(0)
-    undo(page)
-    expect(page.locator("#route-a")).not_to_have_attribute("selected", "")
-    expect(question).to_be_visible()
 
 
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):

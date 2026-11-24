@@ -57,7 +57,6 @@ export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
 export {
   placePageThreads,
-  consumeAnnotations,
   registerThreadPresentation,
   threadActions,
 } from "./application.js";

@@ -363,47 +363,17 @@ Only a target on a passage has `placement.ranges`, an array of live `Range`s in 
 order, one over its words in each text node they run through, to measure where the
 words are drawn.
 
-The same element, or another, can show obligations, updates, status and margin actions
-by registering `consumeAnnotations(owner, render)`. `render(entries, view)` runs after
-the threads are placed. It draws synchronously, and Leaf refuses a `render` that
-returns a promise. `entries` is an array of the page's annotations in page order,
-grouped into one entry for each thing they are about, such as an element or a passage a
-thread quotes. An entry has a `key` to key its row by and a `title` that names what it
-is about, and the view reads the rest:
+The registration throws on other pages, and returns a handle with `read()`, `update()`,
+`unregister()`, `open(node)` and `reveal(key)`; register it in `whileConnected`.
+`read()` returns what `readThreads()` returns. `update()` asks for `render` again and
+returns nothing to await, so do what must follow a placement in the `onCommit` its
+`render` is handed, which runs once Leaf has filled the outlets. `open(node)` opens the
+comment box on the visual part or datum that holds `node`, or else on the nearest
+element with an `id`, `node` itself included, and throws where there is none.
+`reveal(key)` takes the user to that Thread, in the outlet that holds it or else in
+Leaf's panel.
 
-- `view.target(entry)` returns the element the entry is about, which for a passage is
-  the element holding it.
-- `view.items(entry)` returns the entry's items, less any that one of its controls
-  already stands for, and `view.activate(item)` runs one. An item has a `kind`, one of
-  the margin's kinds ("Margin contributions"), a `text` to show for it, and for some a
-  `label` naming its subject, as an obligation's `label` is its question. An open
-  thread about the same thing that no outlet holds is among the items, with kind
-  `comment` and the Thread as its `thread`. Key an item's row by its `owner` and `id`
-  together: `owner` is the key of the contribution that offered it, absent on an item
-  Leaf made, and `id` is unique only within it.
-- `view.controls(entry)` returns the real controls that margin contributions offer for
-  it. Place those nodes, not copies of their markup, so they keep their behavior.
-  `view.controlKey(control)` and `view.controlRecord(control)` name and describe one.
-- `view.arriving` is true while focus is on its way to an entry here; release held
-  layout so its control can be reached.
-- `view.place(entry, row)` ties a row to its source for commenting and Escape. Put the
-  row inside `owner` first, since `place` throws for a row outside it.
-
-Both registrations throw on other pages, and return handles with `read()`, `update()`
-and `unregister()`; register them in `whileConnected`. `update()` asks for `render`
-again. `read()` returns the current entries from the handle of `consumeAnnotations`, and
-what `readThreads()` returns from the handle of `placePageThreads`.
-
-The `update()` of the `placePageThreads` handle returns nothing to await, so do what
-must follow a placement in the `onCommit` its `render` is handed, which runs once Leaf
-has filled the outlets. That handle also has `open(node)` and `reveal(key)`.
-`open(node)` opens the comment box on the visual part or datum that holds `node`, or
-else on the nearest element with an `id`, `node` itself included, and throws where
-there is none. `reveal(key)` takes the user to that Thread, in the outlet that holds it
-or else in Leaf's panel.
-
-Keep rows keyed, and hold size changes back with `HeldReading`
-(`module-scroll-and-motion.md`, "Holding the reader's place") while updating surviving
-controls at once. An owner that scrolls inside its own box registers it as a reading
-region. Whatever the owner doesn't show stays in Threads and the On lists of Leaf's
-panel.
+Keep outlets keyed by thread, and hold size changes back with `HeldReading`
+(`module-scroll-and-motion.md`, "Holding the reader's place"). An owner that scrolls
+inside its own box registers it as a reading region. Whatever the owner doesn't show
+stays in Threads and the On lists of Leaf's panel.

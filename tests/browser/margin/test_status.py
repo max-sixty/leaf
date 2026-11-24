@@ -453,25 +453,19 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect_preview_words(workflow, f"On it · {detail}")
 
 
-@pytest.mark.parametrize("annotations", ["margin", "page"])
-def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
-    browser, serve, annotations
-):
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(browser, serve):
     """A package control's receipt reads the same wherever its target's controls sit.
 
     The target's agent work rides on its primary control, and every other control shows
     the receipt its contribution gave it. The contrast is a control that gives up the
     primary seat: it goes back to its own receipt, and the new primary takes the work,
-    in the margin or a page's own annotation view as in the Page Map.
+    in the margin as in the Page Map.
     """
-    source = OBLIGATION_PAGE
-    if annotations == "page":
-        source = source.replace("<body>", '<body data-annotations="page">')
     page = open_page(
         browser,
         live_url(
             serve(
-                source,
+                OBLIGATION_PAGE,
                 events=[
                     {**COMMENT_ON_OBLIGATION, "id": "1" * 32},
                     {
@@ -505,30 +499,10 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    if annotations == "margin":
-        seat = page.locator('[data-lf-margin-for="bracket"]')
-        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
-            "data-lf-agent-workflow", "working"
-        )
-    else:
-        seat = page.locator("#receipt-view")
-        page.evaluate("""async () => {
-          const {consumeAnnotations} =
-            await window.__lfWidgetApi();
-          const box = document.createElement('aside');
-          box.id = 'receipt-view';
-          document.querySelector('#bracket').after(box);
-          consumeAnnotations(box, (entries, view) => {
-            box.replaceChildren();
-            for (const entry of entries) {
-              const row = document.createElement('div');
-              row.dataset.lfGen = '1';
-              box.append(row);
-              row.append(...view.controls(entry));
-              view.place(entry, row);
-            }
-          });
-        }""")
+    seat = page.locator('[data-lf-margin-for="bracket"]')
+    expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
     page.evaluate("""async () => {
       const {registerContribution} =
         await window.__lfWidgetApi();

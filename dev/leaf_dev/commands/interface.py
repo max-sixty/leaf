@@ -13,14 +13,15 @@ Each part is read from the list that defines it, as the check that guards it rea
   other keys there are selector idioms, whose classes are styling names. An element's
   form is the facts its declaration states.
 - The widget protocol: what Leaf sets on an element, hears from it and reads off it.
-  No list in code holds it; `module-plain-elements.md`, "The widget protocol", is its
-  index. Its names are each entry's lead name, and each name the section gives in code
-  of a member of the element or its class (`lf` then a capital, `static name`, or
-  `name()` where that is no function's), a mark (`data-lf-…`), or an event Leaf's
-  runtime listens for or makes (`EVENT_CALLS`' first argument, or a string the
-  library exports). A lead named by a registry field, as `record.property` is,
-  belongs to the manifest's `verbs`. Other references give protocol names this index
-  doesn't, which the census doesn't read.
+  Code keeps only its events: those Leaf's runtime listens for or makes (the first
+  argument of an `EVENT_CALLS` call) that the library exports by name, as
+  `lib/widget-events.js` does. The rest is read from the protocol's index,
+  `module-plain-elements.md`, "The widget protocol": each entry's lead name, and each
+  name the section gives in code of a member of the element or its class (`lf` then
+  a capital, `static name`, or `name()` where no function has that name), a mark
+  (`data-lf-…`), or an event Leaf's runtime listens for or makes. A lead named by a
+  registry field, as `record.property` is, belongs to the manifest's `verbs`. Names
+  that other references give and the index doesn't, such as `lfCopy`, are left out.
 - Functions: `widget-api.js`'s exports, `export *` followed, as
   `tests/runtime/widget-api.test.mjs` reads them. A function's form is the section the
   references' index (`module-authoring.md`, "Functions") files it under, and whether it
@@ -28,37 +29,45 @@ Each part is read from the list that defines it, as the check that guards it rea
 - Styling names: the custom properties the references name, and the classes Leaf's
   sheets style that the references or a kernel idiom name (`leaf_dev.styling_names`,
   which `tests/model/test_theme_tokens.py` reads). A name's form is the side of the
-  package boundary that sets it, where the tree settles it: the theme
-  (`browser/styles/tokens.css`), Leaf (its other sheets and code), or a package or
-  page (the library, which runs inside a package's module, counts with the
-  packages). A name a package sets and only Leaf reads is the package's even where
-  Leaf's own boxes set it too, as a declaration a box makes to Leaf is. A name both
-  sides set and a package reads, or that nothing sets, is `unsorted`. A property is
-  set by a declaration, `@property` or `setProperty`, and read by anything else, such
-  as `var()` or a style query; a class is read where a `.` leads it and set, as by a
-  `class` attribute, elsewhere. A name a script sets through a constant, as
-  `--lf-root-headers` is, reads as set by nothing.
+  package boundary that sets it, where the tree settles it. A name the theme's tokens
+  (`browser/styles/tokens.css`) set is the theme's, whoever else sets it, since a
+  theme or page restates such a name. Otherwise a name only Leaf's other sheets and
+  code set is Leaf's, and a name a package or page sets is the package's, even where
+  Leaf's own boxes set it too, unless a package also reads it. The library runs inside
+  a package's module, so it counts with the packages. A name that both sides set and
+  a package reads, or that nothing sets, is `unsorted`. A property is set by a
+  declaration, `@property` or `setProperty`, and read anywhere else, as by `var()`, a
+  style query or a helper handed its name: `root-headers.js` hands
+  `--lf-root-headers` to `setRuntimeRootStyle`, so nothing reads as setting it. A
+  class is read where a `.` leads it and set, as by a `class` attribute, elsewhere,
+  and a string a script makes, hears or exports as an event is no class.
 
 A name's users are counted in three groups: the bundled packages (`packages/*`), the
 library's modules (`browser/runtime/lib/`), and the example pages (`examples/`, a page
-being its HTML file and its `.page` directory). A use is a key in a registry's element
-declaration, a function imported from `widget-api.js` or `portable-api.js`, an
-element's start tag, an event's name in quotes or the library constant holding it, and
-otherwise the name as a word in a file's code, less its comments (a mark also as its
-`dataset` property). A package that reaches a name through the library, as a
-`LeafElement` subclass reaches `lf-action` through `record()`, counts under the
-library. Each part lists the names with the fewest users first.
+being its HTML file, its `.page` directory and its earlier versions). A use is:
+
+- for a key, an element declaration in a registry that carries it;
+- for an element, its start tag;
+- for a function, its import from `widget-api.js` or `portable-api.js`;
+- for a protocol member, a script's property of its name; for an event, a script's
+  string of its name or name of the library constant holding it, or, where the event
+  shares its name with a class, as `lf-error` does, an event call; for a mark, its
+  name, or its `dataset` property, in a file's code less its comments;
+- for a styling name, its name in a file's code less its comments.
+
+A script also uses each name that a library module it imports uses, as a `LeafElement`
+subclass dispatches `lf-action` through `record()`; its use names the module. Each part
+lists the names with the fewest users first.
 
 `--base [REF]` prints instead the names this tree adds and removes against REF, the
 merge base with `main` without one, part by part, for a pull request to carry.
-`--json` prints the same facts as one document. The command reports; no test or job
-reads its counts.
+`--json` prints the same facts as one document, with the commit the working tree
+stands on. The command reports; no test or job reads its counts.
 """
 
 import json
 import os
 import re
-import subprocess
 import tempfile
 from collections import defaultdict
 from collections.abc import Iterator
@@ -73,7 +82,13 @@ from tree_sitter import Language, Node, Parser, Query, QueryCursor
 
 from leaf.registry.contract import is_element_name
 from leaf_dev import ROOT
-from leaf_dev.arms import arm_commit, base_option, copy_committed, merge_base
+from leaf_dev.arms import (
+    arm_commit,
+    base_option,
+    copy_committed,
+    merge_base,
+    working_files,
+)
 from leaf_dev.styling_names import (
     CLASS,
     NAME,
@@ -98,31 +113,42 @@ GROUPS = ("packages", "library", "examples")
 SCRIPTS = (".js", ".mjs", ".html")
 CODE = {".css", ".py", *SCRIPTS}
 API = ("/runtime/widget-api.js", "/runtime/portable-api.js")
+LIBRARY = "browser/runtime/lib/"
 THEME = "browser/styles/tokens.css"
 # The calls whose first argument names an event: listening for one, or making one.
 EVENT_CALLS = {"addEventListener", "Event", "CustomEvent", "ErrorEvent"}
-
-
-@cache
-def _javascript() -> tuple[Parser, Query]:
-    language = Language(tree_sitter_javascript.language())
-    query = Query(
-        language,
-        """
-        (call_expression
-          function: [(identifier) @callee
-                     (member_expression property: (property_identifier) @callee)]
-          arguments: (arguments . [(string (string_fragment) @event) (identifier) @named]))
-        (new_expression
-          constructor: (identifier) @callee
-          arguments: (arguments . [(string (string_fragment) @event) (identifier) @named]))
-        (export_statement
-          declaration: (lexical_declaration
-            (variable_declarator
-              name: (identifier) @name value: (string (string_fragment) @value))))
-        """,
-    )
-    return Parser(language), query
+LANGUAGE = Language(tree_sitter_javascript.language())
+# What the readings take from a script: each event call's first argument, a string
+# or a name; each exported string constant; and every string, name and property.
+EVENTS = Query(
+    LANGUAGE,
+    """
+    (call_expression
+      function: [(identifier) @callee
+                 (member_expression property: (property_identifier) @callee)]
+      arguments: (arguments . [(string (string_fragment) @event) (identifier) @named]))
+    (new_expression
+      constructor: (identifier) @callee
+      arguments: (arguments . [(string (string_fragment) @event) (identifier) @named]))
+    """,
+)
+CONSTANTS = Query(
+    LANGUAGE,
+    """
+    (export_statement
+      declaration: (lexical_declaration
+        (variable_declarator
+          name: (identifier) @name value: (string (string_fragment) @value))))
+    """,
+)
+WORDS = Query(
+    LANGUAGE,
+    """
+    (string_fragment) @string
+    (identifier) @name
+    [(property_identifier) (shorthand_property_identifier)] @property
+    """,
+)
 
 
 def said(node: Node | None) -> str:
@@ -140,15 +166,28 @@ def scripts(file: Path) -> tuple[Node, ...]:
         if file.suffix != ".html"
         else [each.text for each in turbohtml.parse(text).select("script")]
     )
-    return tuple(_javascript()[0].parse(each.encode()).root_node for each in sources)
+    parser = Parser(LANGUAGE)
+    return tuple(parser.parse(each.encode()).root_node for each in sources)
+
+
+@cache
+def words(file: Path) -> dict[str, frozenset[str]]:
+    """Every string, name and property a file's scripts hold."""
+    found = defaultdict(set)
+    for script in scripts(file):
+        for capture, nodes in QueryCursor(WORDS).captures(script).items():
+            found[capture] |= {said(node) for node in nodes}
+    return {
+        capture: frozenset(found[capture]) for capture in ("string", "name", "property")
+    }
 
 
 cached_code = cache(code)
 
 
-def matches(script: Node) -> Iterator[dict[str, str]]:
-    """The query's matches in a script, each capture's text by its name."""
-    for _, match in QueryCursor(_javascript()[1]).matches(script):
+def matches(query: Query, script: Node) -> Iterator[dict[str, str]]:
+    """A query's matches in a script, each capture's text by its name."""
+    for _, match in QueryCursor(query).matches(script):
         yield {capture: said(nodes[0]) for capture, nodes in match.items()}
 
 
@@ -157,6 +196,13 @@ def descendants(node: Node, kind: str) -> Iterator[Node]:
         if child.type == kind:
             yield child
         yield from descendants(child, kind)
+
+
+def imports(script: Node) -> Iterator[tuple[str, Node]]:
+    """Each import's specifier and statement."""
+    for node in script.named_children:
+        if node.type == "import_statement":
+            yield said(node.child_by_field_name("source"))[1:-1], node
 
 
 @dataclass
@@ -190,14 +236,7 @@ class Tree:
 
     @classmethod
     def working(cls) -> "Tree":
-        listed = subprocess.run(
-            ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
-            + ["--exclude-standard", "--", *PATHS],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.split("\0")
-        return cls(ROOT, [name for name in set(listed) if (ROOT / name).is_file()])
+        return cls(ROOT, working_files(PATHS))
 
     @classmethod
     def at(cls, ref: str, scratch: Path) -> "Tree":
@@ -217,16 +256,26 @@ class Tree:
     def scripts(self, path: str) -> tuple[Node, ...]:
         return scripts(self.root / path)
 
+    def words(self, path: str) -> dict[str, frozenset[str]]:
+        return words(self.root / path)
+
+    def exported(self, path: str) -> dict[str, str]:
+        """The string constants a file's scripts export, by name."""
+        return {
+            match["name"]: match["value"]
+            for script in self.scripts(path)
+            for match in matches(CONSTANTS, script)
+        }
+
     @cached_property
     def constants(self) -> dict[str, str]:
         """The strings the library's modules export, by name, among them the events a
         widget dispatches (`lib/widget-events.js`)."""
         return {
-            match["name"]: match["value"]
+            name: value
             for path in self.files
-            if path.startswith("browser/runtime/lib/") and path.endswith(".js")
-            for match in matches(self.scripts(path)[0])
-            if "value" in match
+            if path.startswith(LIBRARY) and path.endswith(".js")
+            for name, value in self.exported(path).items()
         }
 
     def events(self, path: str) -> set[str]:
@@ -235,14 +284,27 @@ class Tree:
         return {
             match["event"] if "event" in match else self.constants[match["named"]]
             for script in self.scripts(path)
-            for match in matches(script)
-            if match.get("callee") in EVENT_CALLS
+            for match in matches(EVENTS, script)
+            if match["callee"] in EVENT_CALLS
             and ("event" in match or match["named"] in self.constants)
         }
 
     @cached_property
+    def heard(self) -> set[str]:
+        """The events Leaf's runtime listens for or makes."""
+        return set().union(
+            *(
+                self.events(path)
+                for path in self.files
+                if path.startswith("browser/runtime/") and path.endswith(".js")
+            )
+        )
+
+    @cached_property
     def users(self) -> dict[str, tuple[str, str]]:
-        """Each file a use is read in, with the group and the user it counts for."""
+        """Each file a use is read in, with the group and the user it counts for: a
+        bundled package, a library module, or an example page, whose earlier versions
+        (`versions/<stem>.vN.html`) are the page's too."""
         found = {}
         for path in self.files:
             parts = path.split("/")
@@ -250,12 +312,13 @@ class Tree:
                 continue
             if parts[0] == "packages" and len(parts) > 2:
                 found[path] = ("packages", parts[1])
-            elif path.startswith("browser/runtime/lib/"):
+            elif path.startswith(LIBRARY):
                 found[path] = ("library", parts[-1])
-            elif parts[0] == "examples" and (
-                page := re.match(r"examples/(.+?)\.(?:html|page)(?:/|$)", path)
+            elif page := re.match(
+                r"examples/(.*?)(?:versions/)?([^/]+?)(?:\.v\d+)?\.(?:html|page)(?:/|$)",
+                path,
             ):
-                found[path] = ("examples", page[1])
+                found[path] = ("examples", page[1] + page[2])
         return found
 
     def code_users(self) -> Iterator[tuple[str, tuple[str, str]]]:
@@ -263,6 +326,15 @@ class Tree:
         for path, user in self.users.items():
             if Path(path).suffix in CODE:
                 yield path, user
+
+    def imported_modules(self, path: str) -> set[str]:
+        """The library modules a script imports, by file name."""
+        return {
+            os.path.basename(specifier)
+            for script in self.scripts(path)
+            for specifier, _ in imports(script)
+            if specifier.startswith("/runtime/lib/")
+        }
 
 
 def keys(tree: Tree) -> dict[str, Name]:
@@ -294,27 +366,20 @@ def elements(tree: Tree) -> dict[str, Name]:
     return rows
 
 
-def protocol(tree: Tree, functions: dict[str, Name]) -> dict[str, Name]:
+def protocol(tree: Tree, functions: dict, classes: set[str]) -> dict[str, Name]:
     text = tree.text(f"{REFERENCES}/module-plain-elements.md")
     prose = re.sub(r"^```.*?^```", "", text.split("\n## ", 1)[0], flags=re.M | re.S)
     leads = set(re.findall(r"^- \*\*`([^`]+)`", prose, re.M))
-    # The events Leaf's runtime listens for or makes, and the strings the library
-    # exports, which name the events a widget dispatches.
-    events = set(tree.constants.values()).union(
-        *(
-            tree.events(path)
-            for path in tree.files
-            if path.startswith("browser/runtime/") and path.endswith(".js")
-        )
-    )
-    rows = {}
+    # The events Leaf hears or makes that the library exports by name are the
+    # protocol's whether or not the index names them.
+    rows = {name: Name("event") for name in tree.heard & set(tree.constants.values())}
     for span in (" ".join(found.split()) for found in re.findall(r"`([^`]+)`", prose)):
         name = re.sub(r"^static |\(\)$|=.*$", "", span)
         if "." in name:
             continue
         if re.fullmatch(r"data-lf-[a-z-]+", name):
             rows[name] = Name("mark")
-        elif name in events:
+        elif name in tree.heard:
             rows[name] = Name("event")
         elif (
             span in leads
@@ -323,27 +388,28 @@ def protocol(tree: Tree, functions: dict[str, Name]) -> dict[str, Name]:
             or re.fullmatch(r"lf[A-Z]\w*", name)
         ):
             rows[name] = Name("member")
-    # An event is used by its name in quotes or by the library constant that holds
-    # it, since its name is a common word; a mark also by its `dataset` property.
-    word = r"(?<![\w$-]){}(?![\w$-])"
-    spelled = {}
+    marks = {}
     for name, row in rows.items():
-        spellings = [word.format(re.escape(name))]
-        if row.form == "event":
-            spellings = [rf"(?<=[\"'`]){re.escape(name)}(?=[\"'`])"] + [
-                word.format(constant)
-                for constant, value in tree.constants.items()
-                if value == name
-            ]
         if row.form == "mark":
             first, *rest = name.removeprefix("data-").split("-")
-            spellings.append(
-                word.format(f"dataset\\.{first}{''.join(map(str.title, rest))}")
+            dataset = f"dataset\\.{first}{''.join(map(str.title, rest))}"
+            marks[name] = re.compile(
+                rf"(?<![\w$-])(?:{re.escape(name)}|{dataset})(?![\w$-])"
             )
-        spelled[name] = re.compile("|".join(spellings))
     for path, user in tree.code_users():
+        held = tree.words(path) if path.endswith(SCRIPTS) else {}
         for name, row in rows.items():
-            if spelled[name].search(tree.code(path)):
+            if row.form == "mark":
+                used = bool(marks[name].search(tree.code(path)))
+            elif row.form == "event" and name in classes:
+                used = bool(held) and name in tree.events(path)
+            elif row.form == "event":
+                used = name in held.get("string", ()) or any(
+                    tree.constants.get(each) == name for each in held.get("name", ())
+                )
+            else:
+                used = name in held.get("property", ())
+            if used:
                 row.used(user, path)
     return rows
 
@@ -402,9 +468,8 @@ def functions(tree: Tree) -> dict[str, Name]:
         imported = {
             said(specifier.child_by_field_name("name"))
             for script in tree.scripts(path)
-            for node in script.named_children
-            if node.type == "import_statement"
-            and said(node.child_by_field_name("source"))[1:-1].endswith(API)
+            for specifier_path, node in imports(script)
+            if specifier_path.endswith(API)
             for specifier in descendants(node, "import_specifier")
         }
         for name in imported & rows.keys():
@@ -429,10 +494,16 @@ def styling(tree: Tree) -> dict[str, Name]:
             side = "Leaf"
         else:
             continue
+        # A string a script makes, hears or exports as an event names no class there.
+        events = (
+            tree.events(path) | (set(tree.exported(path).values()) & tree.heard)
+            if path.endswith(SCRIPTS)
+            else set()
+        )
         text = tree.code(path)
         for pattern in (NAME, CLASS):
             for found in pattern.finditer(text):
-                if (row := rows.get(found[0])) is None:
+                if (row := rows.get(name := found[0])) is None:
                     continue
                 before, after = text[: found.start()], text[found.end() :]
                 if pattern is NAME:
@@ -444,6 +515,8 @@ def styling(tree: Tree) -> dict[str, Name]:
                             and not re.search(r"style\(\s*$", before)
                         )
                     )
+                elif name in events:
+                    continue
                 else:
                     sets = not before.endswith(".")
                 (row.sets if sets else row.reads).add(side)
@@ -467,11 +540,23 @@ def styling(tree: Tree) -> dict[str, Name]:
 
 
 def census(tree: Tree) -> dict[str, dict[str, Name]]:
-    """Every part's names, each with its form and users, fewest users first."""
+    """Every part's names, each with its form and users, fewest users first. A script
+    that imports a library module uses the names that module uses."""
     read = {"keys": keys(tree), "elements": elements(tree)}
     read["functions"] = functions(tree)
-    read["protocol"] = protocol(tree, read["functions"])
     read["styling"] = styling(tree)
+    classes = {name for name in read["styling"] if not name.startswith("--")}
+    read["protocol"] = protocol(tree, read["functions"], classes)
+    imported = {
+        path: (user, tree.imported_modules(path))
+        for path, user in tree.code_users()
+        if user[0] != "library" and path.endswith(SCRIPTS)
+    }
+    for rows in read.values():
+        for row in rows.values():
+            for path, (user, modules) in imported.items():
+                if via := modules & row.users["library"].keys():
+                    row.used(user, f"{path} through {', '.join(sorted(via))}")
     return {
         part: dict(
             sorted(
@@ -505,7 +590,7 @@ def document(parts: dict[str, dict[str, Name]]) -> dict:
 def printed(parts: dict[str, dict[str, Name]]) -> str:
     lines = []
     for part, rows in parts.items():
-        width = max(map(len, rows))
+        width = max(map(len, rows), default=0)
         lines += [f"{PARTS[part]}: {len(rows)}", f"  {'':{width}}  pkgs  lib  ex  form"]
         for name, row in rows.items():
             packages, library, examples = map(row.count, GROUPS)
@@ -532,7 +617,7 @@ def interface(as_json: bool, base: str | None) -> None:
     head = census(Tree.working())
     if base is None:
         click.echo(
-            json.dumps({"commit": arm_commit(None), "parts": document(head)}, indent=1)
+            json.dumps({"head": arm_commit(None), "parts": document(head)}, indent=1)
             if as_json
             else printed(head)
         )

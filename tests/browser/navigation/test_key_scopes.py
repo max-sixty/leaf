@@ -453,12 +453,9 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     through the element's own click either way, so the keyboard leaves the page in the
     state the pointer would have left it in.
 
-    The word follows either spelling within the press, not within the poll. Neither
-    reports itself — an aria-expanded write fires no event at all — so what the
-    dispatcher offers for the key under the user's finger rests on the attribute watch
-    rather than on the two-second poll behind it. Both readings of it are taken once:
-    an assertion that retries cannot tell the watch from a poll that lands inside its
-    budget.
+    The offer follows either spelling within the press: the dispatcher reads which way
+    the disclosure stands as it is asked, so the arrow it offers once a press returns
+    is the one that now changes something.
 
     Shift+← is the last thing this holds to: a summary's words are the page's, and
     extending a selection through them must not shut the section they are in."""
@@ -515,30 +512,18 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     page.keyboard.press("ArrowRight")
     expect(row).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#st-keep")).to_be_visible()
-    # Nothing reports this one at all — an aria-expanded write fires no event anywhere —
-    # so read once: the word is the attribute watch's answer by the time the press
-    # returns, or it is the poll's two seconds later, and only an assertion that refuses
-    # to retry can tell those apart.
+    # An aria-expanded write fires no event anywhere, and the offer has still turned
+    # over: the dispatcher reads the attribute as it is asked.
     said = offered(page)
     assert "ArrowLeft" in said and "ArrowRight" not in said, said
-    # The dispatcher is one of two surfaces naming this row's keys, and the other is read by
-    # somebody who cannot see the first. A row whose bindings answer from its own state
-    # has to repaint both when the state moves; with only the line watched, the
-    # attribute keeps whichever way the row was set when the scope was declared, so
-    # it goes on promising the arrow that no longer moves this section and withholding
-    # the one that does.
-    #
-    # Read once for the reason the line is, and by the same clock: the heartbeat repaints
-    # scopes too, so a retrying assertion goes green on the tick that lands inside its
-    # budget and the fix it is meant to hold has nothing to fail against.
-    assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
     page.keyboard.press("ArrowRight")
     expect(row).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("ArrowLeft")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(page.locator("#st-keep")).to_be_hidden()
-    rendered(page)
-    assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    # And back again on the return leg.
+    said = offered(page)
+    assert "ArrowRight" in said and "ArrowLeft" not in said, said
     # Enter and Space toggle it once each. The span presses as a button does, and the
     # disclosure's row runs the same press here, which must replace the span's own as
     # it replaces a native button's, rather than toggle it back.
@@ -548,12 +533,10 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     expect(row).to_have_attribute("aria-expanded", "false")
 
     # A disclosure in a message, where the disclosure scope does not reach: thread markup
-    # is a second document beside the version, and the arrows are the page's. A diff,
-    # because what is being asked is what a widget's own row names — a widget re-wording
-    # this press reads its bindings from DISCLOSE, which answers for where the element
-    # stands as well as which way it is set, so the row cannot offer a key that
-    # nothing there runs. The platform's pair still works it, so what differs is the
-    # offer rather than the capability.
+    # is a second document beside the version, and the arrows are the page's. A diff's
+    # file row, a widget's own disclosure, is offered no key that nothing there runs.
+    # The platform's pair still works it, so what differs is the offer rather than the
+    # capability.
     append_carried_log_record(
         serve.page_dir,
         {

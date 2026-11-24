@@ -1168,8 +1168,7 @@ EXHIBITS = json.loads(
 @pytest.mark.parametrize("case", EXHIBITS["cases"], ids=lambda case: case["id"])
 def test_a_widget_is_quoted_where_the_browser_fences_it(case):
     """A widget strictly inside an `exhibit` is a mention, read off the holder chain by
-    the rule the browser's `quoted` and its descriptors' `quoted` flag read off the
-    page."""
+    the rule the browser's descriptors' `quoted` flag reads off the page."""
     document = SourceDocument(model.leaf_page("Exhibits", case["markup"]))
     assert {
         rec["attrs"]["id"]: obligations_model.quoted_in(rec, EXHIBITS["registry"])

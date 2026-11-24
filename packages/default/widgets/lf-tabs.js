@@ -88,7 +88,6 @@ import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   authoredTitle,
-  setScroll,
   agentName,
   obligationsByRegion,
   regionsAwaiting,
@@ -104,13 +103,11 @@ import {
   listWalkPosition,
   whileConnected,
   offer,
-  generated,
   openingView,
   viewMembers,
   preserveReadingRegions,
   pushEntry,
   registerReadingRegion,
-  registerRootHeader,
   replaceEntry,
   restorePlace,
   selectableOffered,
@@ -130,6 +127,7 @@ import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
 const PLACE_KEY = "lf-tabs-place:";
 // The document's own scroller, which scrolls a page-flow set's views.
@@ -189,8 +187,6 @@ export class TabSet extends LeafElement {
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
   #strip = offer("div", "lf-tabstrip");
-  /** @type {(() => void) | null} */
-  #stopHeader = null;
   #side = false;
   #pageFlow = false;
   /** @type {(ReturnType<typeof backgroundFlash>) | null} */
@@ -376,8 +372,6 @@ export class TabSet extends LeafElement {
         stripSize.disconnect();
         this.#contextObserver?.disconnect();
         this.#contextObserver = null;
-        this.#stopHeader?.();
-        this.#stopHeader = null;
       };
     });
   }
@@ -431,7 +425,8 @@ export class TabSet extends LeafElement {
                       ? html`<span
                           class="lf-tab-group lf-rows-head"
                           aria-hidden="true"
-                          ${generated({ says: true })}
+                          data-lf-gen="1"
+                          data-lf-said
                           >${run.group}</span
                         >`
                       : nothing
@@ -506,11 +501,11 @@ export class TabSet extends LeafElement {
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", event.detail !== 0)}
-      ><span class="lf-tab-name" ${generated({ says: true })}
+      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
         this.#down && !face(panel) && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
+          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
               >${panel.getAttribute("summary")}</span
             >`
           : nothing
@@ -670,7 +665,7 @@ export class TabSet extends LeafElement {
 
   // A page-flow strip sticks at the window's top over the whole document, so it is a
   // sticky header of the root: its border-box height joins the root landing inset
-  // through registerRootHeader, and every landing arrives
+  // through its `data-lf-root-header` mark, and every landing arrives
   // below it. What the strip stands over inside its panels stacks through `--lf-top`
   // (the package theme). A set that stops being the page's strip withdraws it only
   // where no other set has become that strip. A page's list of parts is that header
@@ -681,9 +676,7 @@ export class TabSet extends LeafElement {
     const over =
       !this.#parts || Boolean(this.#active.value && this.#listOver(this.#active.value));
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
-    if (header === Boolean(this.#stopHeader)) return;
-    this.#stopHeader?.();
-    this.#stopHeader = header ? registerRootHeader(this.#strip) : null;
+    this.#strip.toggleAttribute("data-lf-root-header", header);
   }
 
   // Whether a page's list of parts stands over the open part rather than beside it.
@@ -703,10 +696,8 @@ export class TabSet extends LeafElement {
         @click=${() => {
           const strip = this.#strip;
           const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
-          setScroll(strip, {
-            left:
-              strip.scrollLeft +
-              ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
+          strip.scrollBy({
+            left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
             behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
               ? "instant"
               : "smooth",
@@ -876,10 +867,10 @@ export class TabSet extends LeafElement {
     } catch {
       // An unreadable place is no place.
     }
-    setScroll(pageScroller, {
-      top: place ? start : Math.min(from, start),
-      behavior: "instant",
-    });
+    // A view that keeps the header where the user has it mostly finds the page there.
+    const top = place ? start : Math.min(from, start);
+    if (scrollMoves(pageScroller, { top }))
+      pageScroller.scrollTo({ top, behavior: "instant" });
     if (place) restorePlace(place);
   }
 

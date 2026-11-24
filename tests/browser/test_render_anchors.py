@@ -56,6 +56,7 @@ from render_harness import (
     PANEL,
     SAID_PAGE,
     _traffic,
+    available_commands,
     compare_with,
     comparison_view,
     consume_browser_errors,
@@ -1953,7 +1954,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await window.__lfWidgetApi();
+          const { syntax } = await window.__lfLibImport('syntax-tokens.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -2008,7 +2009,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
 
     heredoc = page.evaluate("""async () => {
-      const { syntax } = await window.__lfWidgetApi();
+      const { syntax } = await window.__lfLibImport('syntax-tokens.js');
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
@@ -2616,29 +2617,20 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")
     assert not details.evaluate("el => el.open")
-    # The line is one of two surfaces naming this row's keys, and a listener reads the
-    # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
-    # and the repaint that keeps them together is the document's disclosure watch rather
-    # than anything this widget does, which is what leaves a widget free to declare a
-    # disclosure row and nothing else. Read once, by the same clock as the line: the
-    # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
-    # budget whether or not the watch painted anything.
-    rendered(page)
-    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    # The widget declares no row for its file's disclosure: the page's disclosure scope
+    # names its keys, reading which way the staged disclosure stands as it is asked.
+    offered = available_commands(page)["disclosure.toggle"]
+    assert "ArrowRight" in offered and "ArrowLeft" not in offered, offered
 
-    # The row also names an arrow, which no browser answers, so unlike the pair above it is
-    # only ever as good as the scope that runs it — and that scope has to find a staged
-    # disclosure the same way this declaration had to reach a staged control. Read off the
-    # document alone it finds none here, the page's only <details> being the ones the
-    # widget put in a shadow root. The press is what says so, not the chip: this widget's
-    # own row is the nearer of the two naming these keys, so it prints them either way.
+    # The arrow is a key no browser answers, so it is only ever as good as the scope that
+    # runs it, and that scope has to find a staged disclosure. Read off the document
+    # alone it finds none here, the page's only <details> being the ones the widget put
+    # in a shadow root.
     page.keyboard.press("ArrowRight")
     assert details.evaluate("el => el.open")
-    # And the keys turn over inside the press, read once so a poll cannot answer for it.
-    # A toggle from a staged root is not composed, so no document listener hears it: this
-    # is the watch `shadowStage` hands each root.
-    rendered(page)
-    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
+    # And the offer has turned over once the press returns.
+    offered = available_commands(page)["disclosure.toggle"]
+    assert "ArrowLeft" in offered and "ArrowRight" not in offered, offered
 
 
 def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_location(

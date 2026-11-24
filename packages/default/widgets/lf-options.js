@@ -121,11 +121,9 @@ import {
   inChrome,
   LeafElement,
   landInThread,
-  markdownWords,
   offer,
   offerAction,
   placePreview,
-  quoted,
   reachedForWords,
   rowWalk,
   worksInside,
@@ -134,6 +132,7 @@ import {
   scrollIntoView,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
@@ -256,7 +255,7 @@ customElements.define(
     // alternatives, but owns no selection, so it has no reading. Only a live or
     // settled decision has one.
     setup() {
-      this.#wire(quoted(this));
+      this.#wire(this.matches("[data-lf-exhibit] *"));
     }
 
     connectedCallback() {

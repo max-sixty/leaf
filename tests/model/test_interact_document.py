@@ -4691,7 +4691,7 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
-    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # A <br> parts the words around it, as Leaf reads them (lib/markdown.js,
     # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):

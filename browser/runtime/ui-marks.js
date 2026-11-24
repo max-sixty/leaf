@@ -17,8 +17,8 @@ import { closestAcross, isElement, overIn } from "./lib/shadow-tree.js";
 /** @param {Node | null} node */
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 
-// A label a widget declared as the page speaking (generatedElement), which the anchor
-// pass reads over the chrome it sits in.
+// A label a widget declared as the page speaking, which the anchor pass reads over the
+// chrome it sits in.
 export const SAID = "[data-lf-said]";
 // The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
 // element at a time on its way down (passages.js, `chromeMark`).

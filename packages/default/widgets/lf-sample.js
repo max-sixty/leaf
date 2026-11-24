@@ -53,7 +53,6 @@ import {
   once,
   offer,
   offerAction,
-  generatedElement,
   widgetController,
   focusDestination,
   heldGrowth,
@@ -319,7 +318,7 @@ export class Sample extends HTMLElement {
     });
 
     this.#view.className = "lf-sample-view";
-    generatedElement(this.#view, { says: false });
+    keeps(this.#view, "data-lf-gen", "1");
     this.#view.setAttribute("open", "");
     this.#view.setAttribute("role", "presentation");
     this.#view.addEventListener("cancel", (event) => {
@@ -329,7 +328,7 @@ export class Sample extends HTMLElement {
 
     const controls = document.createElement("div");
     controls.className = "lf-sample-controls lf-ui";
-    generatedElement(controls, { says: false });
+    keeps(controls, "data-lf-gen", "1");
     const actions = document.createElement("div");
     this.#reset.addEventListener("click", () => {
       if (this.#reset.ariaDisabled === "true") return;

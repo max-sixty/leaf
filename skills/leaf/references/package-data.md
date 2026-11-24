@@ -186,7 +186,7 @@ does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail
 holding the new child's id, which must be one no page or Thread markup holds, created
 members included, and `words` the field holding its text; its detail schema has just
 those two fields. Leaf reads that text as inline Markdown the user typed, so the parent
-draws it with `inlineMarkdownFragment(text)` (`module-reading.md`, "Markdown"). Each
+draws it in that reading (`module-reading.md`, "Markdown"). Each
 added child is its own key, so undoing the add removes it. The child's tag lists the
 widget in `owners`, requires only an `id`, and has `content: markup`.
 

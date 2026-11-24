@@ -18,6 +18,28 @@ nothing. One that draws with Lit usually extends `LeafElement`, the Lit element 
 protocol, and one that draws from a page reading must (`module-plain-elements.md`,
 "`LeafElement`").
 
+Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
+form. Find a need's kind, then read the section that describes its form:
+
+| A package leans on Leaf for                    | The form it takes                       | Described in                               |
+| ---------------------------------------------- | --------------------------------------- | ------------------------------------------ |
+| What Leaf must know before any module runs     | A key of the tag's declaration          | `packages.md`, "A widget"                  |
+| What changes while the page runs               | The widget protocol                     | `module-plain-elements.md`                 |
+| What a widget and a page's author both need    | An element Leaf defines on every page   | `module-state.md`, "Time readings"         |
+| What only Leaf can do or know                  | A function from `widget-api.js`         | "Functions", below                         |
+| A theme's choice                               | A custom property the sheet reads       | `package-themes.md`, "Theme tokens"        |
+| A fact about where the widget's box stands     | A custom property Leaf or a Layout sets | `packages.md`, "Styles and composition"    |
+| What the widget's box tells Leaf               | A custom property the sheet sets        | `package-themes.md`, "A theme change"      |
+| Leaf's look for a part the widget draws        | A control built by its role, or a class | `module-controls.md`                       |
+| A part of an element Leaf builds in the widget | A class on that part                    | `module-input.md`, "Text entry and drafts" |
+
+An element Leaf defines has an entry in the page's vocabulary, as any tag does. A custom
+property about scrolling or a sticky header is described with that subject, in
+`module-scroll-and-motion.md`, and the parts of a widget's resolved threads in
+`module-annotations.md`. What HTML, CSS and the browser's own APIs already do, a widget
+writes as any web page does. That is no part of Leaf's interface, and nor is the
+library ("Shared web code").
+
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a
 function it imports from `/runtime/widget-api.js`, as a page script does; "Functions"

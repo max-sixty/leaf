@@ -20,13 +20,14 @@ from interact_support import (
     fetch,
     wait_for,
 )
+from model_folds import leaf_page
 
 from leaf import cli as cli_model
 from leaf import server, service
 from leaf.interaction_log import read_interactions
 from leaf.layer import stylesheet
 from leaf.media import media_name
-from leaf.registry.storage import layer_record, load_registry, selected
+from leaf.registry.storage import layer_packages, layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
@@ -583,6 +584,53 @@ def test_a_page_directory_source_takes_its_layer_records_packages(tmp_path):
     assert result.exit_code == 0, result.output
 
     assert preview.source_packages(page / "index.html") == ["diagram"]
+
+
+@pytest.fixture(name="held_copy_source")
+def held_copy_source_fixture(tmp_path, monkeypatch):
+    """The `index.html` of a page directory that selects a package by path, so its
+    layer record names the copy the page directory holds, `./packages/shortlist`."""
+    monkeypatch.chdir(ROOT)
+    page = tmp_path / "page"
+    selection = ["--package", "./tests/fixtures/packages/shortlist"]
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", *selection, str(page)])
+    assert result.exit_code == 0, result.output
+    source = page / "index.html"
+    source.write_text(leaf_page("Shortlist", "<h1>Shortlist</h1>"))
+    return source
+
+
+def test_a_page_directory_source_builds_with_the_package_copy_it_holds(
+    tmp_path, held_copy_source
+):
+    """A path in a page's layer record names the copy inside that page directory,
+    which a build reaches from the checkout's root, where it runs `page init`."""
+    source, page = held_copy_source, held_copy_source.parent
+    built = tmp_path / "built"
+    prepare_page(built, read_fixture(source), leaf_in_process, final_status=None)
+
+    assert layer_packages(built) == ["./packages/shortlist"]
+    assert load_registry(built)["lf-shortlist"] == load_registry(page)["lf-shortlist"]
+
+
+def test_a_preview_reaches_a_held_package_copy_from_its_runtime(
+    tmp_path, monkeypatch, capsys, held_copy_source
+):
+    """A preview runs `page init` in the runtime it was given (`preview.leaf`), so it
+    states the page's package copy from there: it watches the copy and builds with it.
+    """
+    # A directory deeper than this checkout, for the launcher to run in. From one no
+    # deeper, a path stated from the checkout's root still reaches the page, since its
+    # `..` segments stop at the filesystem root.
+    runtime = tmp_path.joinpath(*ROOT.parts[1:])
+    runtime.mkdir(parents=True)
+    monkeypatch.setattr(preview, "TMP", tmp_path)
+    source = held_copy_source
+
+    held = source.parent / "packages" / "shortlist"
+    assert preview.source_roots(source, runtime)[-1].resolve() == held
+    preview.export_preview(runtime, ROOT / "bin/leaf", source, None)
+    assert Path(capsys.readouterr().out.splitlines()[-1]).is_file()
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):

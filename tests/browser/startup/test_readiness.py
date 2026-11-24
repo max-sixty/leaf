@@ -37,6 +37,7 @@ from render_harness import (
     reported_browser_errors,
     selection_field,
     sending,
+    wait_for_check_api,
     watched,
     write,
 )
@@ -845,6 +846,74 @@ def scroll_away(page):
     page.wait_for_function('Reflect.get(window, Symbol.for("leaf.inputs")).count > 0')
 
 
+def reload_with_its_answers_held(page, serve):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, whose
+    document then waits on the server's answers, as on a slow server, with its runtime
+    started and the page's words anchored, so the document records where the user is as
+    it goes. Returns `release(again, then)`: `then()` runs, as a reload the user asks
+    for, say, and the document's waiting requests are answered, as another Leaf would
+    answer them where `again`, which has it reload once more as Leaf asks; it returns
+    once the document then standing is ready."""
+    documents = {"count": 0, "again": False}
+    held = []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def another(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+
+    def answer(route):
+        url = route.request.url
+        asked = "/api/" in url or urlsplit(url).path == "/registry.json"
+        if documents["count"] == 0 or (
+            documents["count"] == 1 and documents["again"] and asked
+        ):
+            another(route)
+        elif documents["count"] == 1 and "/api/" in url:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "the arriving document's first answer")
+    wait_for_check_api(page, "(api) => api.anchoringIsReady()")
+
+    def answer_held(again):
+        for route in held:
+            try:
+                another(route) if again else route.continue_()
+            except Exception:
+                pass
+
+    def release(again, then=lambda: None):
+        documents["again"] = again
+        then()
+        if again:
+            with page.expect_navigation(wait_until="commit"):
+                answer_held(True)
+        else:
+            answer_held(False)
+        wait_until_ready(page)
+        page.unroute("**/api/**")
+        page.unroute("**/registry.json")
+        page.remove_listener("request", navigated)
+
+    return release
+
+
 def writing_a_reply(browser, serve, form="", filled=None):
     """A page with `form` above a paragraph a thread is about, open at the user's reply
     to the thread in its card, which holds the words "Hold" and has focus. `filled`
@@ -954,12 +1023,12 @@ def test_a_key_held_through_a_reload_goes_with_a_scroll_across_another(browser, 
         browser, serve, '<p><input id="who" aria-label="Name" autocomplete="off"></p>'
     )
 
-    def type_then_scroll():
-        page.keyboard.type("x")
-        scroll_away(page)
-        page.focus("#who")
+    release = reload_with_its_answers_held(page, serve)
+    page.keyboard.type("x")
+    scroll_away(page)
+    page.focus("#who")
 
-    reload_in_a_row(page, serve, [type_then_scroll])
+    release(True)
     who = page.locator("#who")
     expect(who).to_be_focused()
     page.keyboard.type("y")
@@ -1000,51 +1069,10 @@ def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
         filled={"#who": "Ada"},
     )
     who = page.locator("#who")
-    # The first document a reload brings waits on its answers, as a slow server's; the
-    # documents before and after it are answered, the one before as by a server
-    # restarted under another Leaf, which asks for the reload.
-    documents = {"count": 0}
-    held = []
-
-    def navigated(request):
-        if request.is_navigation_request() and request.frame == page.main_frame:
-            documents["count"] += 1
-
-    def answer(route):
-        if documents["count"] == 0:
-            response = route.fetch()
-            route.fulfill(
-                response=response,
-                headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
-            )
-        elif documents["count"] == 1 and "/api/" in route.request.url:
-            held.append(route)
-        else:
-            route.continue_()
-
-    page.on("request", navigated)
-    page.route("**/api/**", answer)
-    page.route("**/registry.json", answer)
-    with page.expect_navigation(wait_until="commit"):
-        append_carried_log_record(
-            serve.page_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
-        )
-    holding(page, held, 1, "the arriving document's first answer")
-    # The panel mounts in the task that begins the document's arrival (leaf.js).
-    page.wait_for_function("document.querySelector('.lf-floating-panel') !== null")
+    release = reload_with_its_answers_held(page, serve)
     scroll_away(page)
     who.fill("Grace")
-    page.reload(wait_until="commit")
-    for route in held:
-        try:
-            route.continue_()
-        except Exception:
-            pass
-    wait_until_ready(page)
-    page.unroute("**/api/**")
-    page.unroute("**/registry.json")
-    page.remove_listener("request", navigated)
+    release(False, lambda: page.reload(wait_until="commit"))
     # A carried value lands as the parser adds its field, long before readiness, so
     # it would stand by now. The browser keeps no value of its own on this reload.
     expect(who).not_to_have_value("Ada")

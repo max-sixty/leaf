@@ -69,8 +69,8 @@
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
  * around the reader or opening out from them. Leaf's one hold keeps the place
- * (`holdPlace`, given the line's words by `readingAt`), since the browser's scroll
- * anchoring can't: Skim hides the block it anchors.
+ * (`holdPlace`), since the browser's scroll anchoring can't: Skim hides the block it
+ * anchors.
  *
  * The dial is a radio group of the three depths, Web Awesome's, the control every
  * choice among a few views takes, as a recording's scopes and an image pair's views
@@ -110,7 +110,7 @@
 import {
   nameOf,
   focusDestination,
-  holdUser,
+  holdPlace,
   LeafElement,
   motion,
   move,
@@ -947,11 +947,9 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      const hold = holdUser(scope, {
-        standIn: (node) => {
-          const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
-          return folded && owner.get(folded);
-        },
+      const hold = holdPlace(scope, (node) => {
+        const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
+        return folded && owner.get(folded);
       });
       change();
       hold();

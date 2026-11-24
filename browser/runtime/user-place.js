@@ -16,8 +16,8 @@
    also returns them where a patch moved what they read between scrollers or into a
    closed disclosure.
 
-   Anchoring can't hold three places the user relies on, and `holdPlace` holds them,
-   once, after the change has drawn:
+   Anchoring can't hold three places the user relies on, and `holdPlaceOf` holds
+   them, once, after the change has drawn:
    - a control under the user's hands below growth on screen, as an agent's turn
      arriving just above the reply box they type in, or an action joining Page Map
      just above the row they are on, which anchoring keeps still only where its anchor
@@ -30,7 +30,8 @@
      (`holdUserPlace`, `readingAt`);
    - a place the change hides, as Skim folds the paragraph being read, where the node
      standing for it takes its place: the paragraph's top, or the words read where
-     the paragraph began above the window (lf-dial.js).
+     the paragraph began above the window (`holdPlace`, which a module takes around
+     such a change, as lf-dial.js does).
    A reader who focused nothing is anchoring's to keep, by the first block in view.
    Rejected: holding the reading line for every reader, which kept a diff's line still
    as five rows joined above it but moved what it left alone: words
@@ -39,7 +40,7 @@
    column made that column's line the place and moved the first column's words; and a
    press inside an embedded frame, which the page hears nothing
    of, left the keep to move what it opened.
-   `holdPlace(node, standIn)` reads where `node` stands and returns the step that,
+   `holdPlaceOf(node, standIn)` reads where `node` stands and returns the step that,
    once the change has drawn, scrolls it, or what `standIn(node)` names once the change
    hid or removed it, back there. The change itself scrolls nothing. A forced layout
    applies anchoring's correction first, so the hold pays only for what anchoring left.
@@ -47,10 +48,14 @@
    nothing once a scroll was chosen since. Rejected: the hold inside every surface's
    focus hold, which had to guess whether each re-render answered the user's own input
    and whether each box followed its scroller's flow, and guessed wrong for a widget's
-   own landing in a shadow tree and for Send in its editor. A revision
-   takes no hold: after its landmark restore, the hold put back what it read where it
-   stood and undid the restore, and before it,
-   the restore undid the hold.
+   own landing in a shadow tree and for Send in its editor. Rejected: one hold a
+   module takes for the user's focus and their place both. A redraw holds focus once
+   for each node it replaces and leaves the reader to anchoring, and a fold holds the
+   place once: the one hold kept a diff's line at the reading line still for a reader
+   who focused nothing and took the line read above it up by the rows that joined
+   between them, and it read layout for every row whose control a redraw swapped. A
+   revision takes no hold: after its landmark restore, the hold put back what it read
+   where it stood and undid the restore, and before it, the restore undid the hold.
 
    The user chose this over a keeper wrapped around every re-render,
    accepting that a re-render that replaces the very element they read can move them
@@ -85,12 +90,11 @@ import {
   scrollersOf,
   seenAhead,
 } from "./scroll-containers.js";
-import { renderedParent, renderedUnder, under } from "./lib/shadow-tree.js";
+import { renderedParent, under } from "./lib/shadow-tree.js";
 import { inChrome } from "./ui-marks.js";
 import {
   declareFocusPlace,
   focused,
-  holdFocus,
   onUserInput,
   recentPlaceInput,
   typesText,
@@ -255,7 +259,7 @@ export function readingAt(column) {
 // whether it moved anything.
 /** @param {Element | Range | null | undefined} node
  * @param {(node: Element) => Element | null | undefined} [standIn] */
-export function holdPlace(node, standIn = () => null) {
+export function holdPlaceOf(node, standIn = () => null) {
   const holder = node && holderOf(node);
   if (!node || !holder) return () => false;
   const words = node instanceof Range ? node.startContainer : null;
@@ -278,43 +282,24 @@ export function holdPlace(node, standIn = () => null) {
   };
 }
 
-// What the reader reads inside `scope`: the block holding what stands at the reading
-// line in the scope's column, where that block's top shows, since a change that hides
-// a block puts its stand-in where the block began, line for line; else the words
-// themselves, since a block that began above the window would take its stand-in out of
-// sight with its top. Null where the line stands outside `scope`.
-/** @param {Element} scope @returns {Element | Range | null} */
-const readIn = (scope) => {
-  const reading = readingAt(scope);
-  const holder = reading && holderOf(reading);
-  if (!holder || holder === scope || !renderedUnder(holder, scope)) return null;
+// The hold a module takes around a change of its own that hides what the reader reads,
+// as a fold does: `holdPlaceOf` on what stands at the reading line in `column`
+// (`readingAt`), with `standIn` naming the node that stands for one the change hid. It
+// holds the block holding those words where that block's top shows, since a change that
+// hides a block puts its stand-in where the block began, line for line, and the words
+// themselves where the block began above the window, which would take the stand-in out
+// of sight with its top, 978px up for a paragraph of 2,700px. The block is the nearest
+// box around the words that is no part of a line.
+/** @param {Element} column
+ * @param {(node: Element) => Element | null | undefined} [standIn] */
+export function holdPlace(column, standIn) {
+  const reading = readingAt(column);
   /** @type {Element | null} */
-  let block = holder;
-  while (block && block !== scope && getComputedStyle(block).display.startsWith("inline"))
+  let block = reading && holderOf(reading);
+  while (block && /^(inline|contents)/.test(getComputedStyle(block).display))
     block = renderedParent(block);
-  return block &&
-    block !== scope &&
-    block.getBoundingClientRect().top >= shownWindow().top
-    ? block
-    : reading;
-};
-
-// One hold for a change a module makes under the user, a redraw, a removal or a fold:
-// their focus inside `scope` (focus.js, `holdFocus`, which `key` and the restore's
-// stand-ins go to), and what they read there (`readIn`, `holdPlace`, which `standIn`
-// goes to). The step it returns puts both back once the change has drawn, and answers
-// as the focus restore does.
-/** @param {Element} scope
- * @param {{key?: string | null, standIn?: (node: Element) => Element | null | undefined}} [options] */
-export function holdUser(scope, { key = null, standIn } = {}) {
-  const restore = holdFocus(scope, { key });
-  const hold = holdPlace(readIn(scope), standIn);
-  /** @param {Parameters<NonNullable<typeof restore>>} standIns */
-  return (...standIns) => {
-    const landed = restore ? restore(...standIns) : false;
-    hold();
-    return landed;
-  };
+  const whole = block && block.getBoundingClientRect().top >= shownWindow().top;
+  return holdPlaceOf(whole ? block : reading, standIn);
 }
 
 // The user's place across a change that arrives from outside the tab, a reading the
@@ -454,7 +439,7 @@ export function holdUserPlace() {
   const holds = places.map(({ place, focus }) => ({
     place,
     focus,
-    hold: holdPlace(place),
+    hold: holdPlaceOf(place),
   }));
   return () => {
     unwatch();

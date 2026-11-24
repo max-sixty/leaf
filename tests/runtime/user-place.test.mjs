@@ -16,7 +16,7 @@ import test from "node:test";
 import { recentPlaceInput } from "/runtime/focus.js";
 import { pointerAt } from "/runtime/pointer.js";
 import { glideTo, startScroll, stopGlide } from "/runtime/scrolling.js";
-import { focusPlace, holdPlace, holdUserPlace } from "/runtime/user-place.js";
+import { focusPlace, holdPlaceOf, holdUserPlace } from "/runtime/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
@@ -186,7 +186,7 @@ test("a hold pays for the growth above its node that anchoring left", () => {
   const [above, read] = [item("a", 1000), item("b", 1150)];
   scroller.append(above, read);
   scrollTo(1100);
-  const hold = holdPlace(read);
+  const hold = holdPlaceOf(read);
   // The edit grows the block above by 126px, and the browser's anchoring, holding that
   // block's top, paid for none of it.
   at.set(read, 1276);
@@ -194,7 +194,7 @@ test("a hold pays for the growth above its node that anchoring left", () => {
   assert.equal(scrolled(), 1226);
   assert.equal(read.getBoundingClientRect().top, 50);
   // Where anchoring already paid, the hold has nothing left to pay.
-  const again = holdPlace(read);
+  const again = holdPlaceOf(read);
   at.set(read, 1300);
   scrollTo(1250);
   again();
@@ -207,7 +207,7 @@ test("a change that hides the held node puts its stand-in where it stood", () =>
   const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
   scroller.append(gist, folded);
   scrollTo(1080);
-  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
+  const hold = holdPlaceOf(folded, (node) => (node === folded ? gist : null));
   // The fold hides the block being read, and the gist it runs under stays put above.
   // happy-dom applies no user-agent sheet, so the block states what `[hidden]` computes.
   folded.hidden = true;
@@ -217,7 +217,7 @@ test("a change that hides the held node puts its stand-in where it stood", () =>
   assert.equal(gist.getBoundingClientRect().top, 20);
   // With no stand-in, a hidden or removed node holds nothing.
   at.set(gist, 1000);
-  const lost = holdPlace(gist);
+  const lost = holdPlaceOf(gist);
   gist.remove();
   scrollTo(900);
   lost();
@@ -390,7 +390,7 @@ test("a block folded until found holds its stand-in, though it keeps a box", () 
   const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
   scroller.append(gist, folded);
   scrollTo(1080);
-  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
+  const hold = holdPlaceOf(folded, (node) => (node === folded ? gist : null));
   // `hidden="until-found"` keeps the block's box and hides its contents.
   folded.setAttribute("hidden", "until-found");
   folded.style.display = "block";

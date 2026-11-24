@@ -302,7 +302,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput, writesIn } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
-import { focusPlace, holdPlace, standsAt } from "./user-place.js";
+import { focusPlace, holdPlaceOf, standsAt } from "./user-place.js";
 import { onUserCount, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
@@ -2456,7 +2456,7 @@ export function createFloatingPanel({
   host.addEventListener("click", runOfClicks, { capture: true });
   // The press being judged: the control pressed, where it stood in the view's content,
   // how tall the view and what it holds stood, and its hold on screen (user-place.js,
-  // `holdPlace`). Once what the press changed has drawn, after the press's own
+  // `holdPlaceOf`). Once what the press changed has drawn, after the press's own
   // handlers, and before the frame shows it, the press is put back where it stood on
   // screen. A change below it would carry it as the view
   // grows or shrinks from its top edge, so the view holds the height it stood at. A
@@ -2490,7 +2490,7 @@ export function createFloatingPanel({
       at: contentTop(node, view),
       height: view.offsetHeight,
       holds: holding(view),
-      keep: holdPlace(node),
+      keep: holdPlaceOf(node),
     };
   }
   function judgePress() {

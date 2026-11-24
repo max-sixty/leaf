@@ -34,7 +34,7 @@ import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   beginWalk,
   focusDestination,
-  holdUser,
+  holdFocus,
   inChrome,
   langForPath,
   listWalkPosition,
@@ -511,7 +511,7 @@ function diffBody(nodes) {
 // what stands in it and retires it (`retireThreadOutlets`). The user writing in one
 // keeps their place natively, and no hold of this file's stands in for theirs.
 /** @param {FileEntry} entry */
-const holdFileFocus = (entry) => holdUser(entry.node, { key: LINE_KEY });
+const holdFileFocus = (entry) => holdFocus(entry.node, { key: LINE_KEY });
 
 /** @param {FileEntry} entry @param {FilePresentation} view */
 function replaceFileRendering(entry, view) {
@@ -948,7 +948,7 @@ function joinChangeRuns(file) {
 function fileError(view, error, surface) {
   const { details, header } = view;
   surface.release(details);
-  const restore = holdUser(details);
+  const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
   keeps(box, "data-lf-gen", "1");
@@ -1755,7 +1755,7 @@ customElements.define(
           ),
         );
       } else if (!opener && fileComment) {
-        const restore = holdUser(fileComment);
+        const restore = holdFocus(fileComment);
         fileComment.remove();
         restore?.(entry.header);
       }
@@ -1763,7 +1763,7 @@ customElements.define(
         const previous = line.row.firstElementChild;
         if (!previous || (previous.localName === "button") === Boolean(opener))
           continue;
-        const restore = holdUser(previous);
+        const restore = holdFocus(previous);
         const number = lineNumber(line, Boolean(opener));
         previous.replaceWith(number);
         restore?.(number);

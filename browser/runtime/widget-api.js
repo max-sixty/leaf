@@ -24,10 +24,9 @@ export { widgetController } from "./widget-controller.js";
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
-export { addressableLabel } from "./addressable-names.js";
-// `authoredTitle()`: the page's own `<title>`, without the count the tab's title
-// shows in front of it.
-export { authoredTitle } from "./tab-title.js";
+// `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
+// row, in words.
+export { nameOf } from "./names.js";
 // `titledElement(heading)`: the element a heading titles, its hgroup and the section or
 // article that opens with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";
@@ -64,7 +63,6 @@ export { answerWords } from "./obligations/answer.js";
 export { readWork } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
-export { queueTitle } from "./queue-title.js";
 export {
   placePageThreads,
   consumeAnnotations,
@@ -73,7 +71,6 @@ export {
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { turns as threadTurns } from "./thread/model.js";
-export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";

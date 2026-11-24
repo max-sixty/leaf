@@ -86,8 +86,7 @@
  * there is no failSoft. */
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
-  addressableLabel,
-  authoredTitle,
+  nameOf,
   agentName,
   answerWords,
   backgroundFlash,
@@ -631,7 +630,7 @@ export class TabSet extends LeafElement {
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
     this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
-    // The strip is named as the chrome names the set (`addressableLabel`): its author's
+    // The strip is named as the chrome names the set (`nameOf`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
     // section. The page's navigation stands in no section, and the page's `<title>`
     // names it: `main` has no name of its own, so its label would be its words run
@@ -639,7 +638,7 @@ export class TabSet extends LeafElement {
     keeps(
       this.#strip,
       "aria-label",
-      addressableLabel(this) || (this.#root ? authoredTitle() : "") || null,
+      nameOf(this) || (this.#root ? nameOf(document) : "") || null,
     );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.

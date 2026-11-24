@@ -69,9 +69,7 @@ class ResolvedThreads {
   present(threads, nodes) {
     // A name that is a sentence keeps its words but not its full stop, which a list
     // of names would read as two marks in a row.
-    const names = threads
-      .map((thread) => thread.summary.topic.replace(/\.$/, ""))
-      .join(", ");
+    const names = threads.map((thread) => thread.name.replace(/\.$/, "")).join(", ");
     const count = threads.length > 1 ? `${threads.length} · ` : "";
     render(html`Resolved · ${count}${names}`, this.summary);
     setChildren(this.node, [this.summary, ...nodes]);

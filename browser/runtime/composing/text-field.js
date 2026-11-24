@@ -272,6 +272,7 @@ sheet.replaceSync(`
      stays the words', because the caret can stand at the end of unseen text, as just
      past a new item's marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--lf-muted); }
+  .lf-md-dropped { color: var(--lf-quiet); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
     background: var(--lf-code-bg); border-radius: var(--lf-code-inline-r);
@@ -734,6 +735,10 @@ class LeafText extends HTMLElement {
       oneLine: () => this.#oneLine,
       // Words edited where a Markdown body shows them read as that body does.
       message: () => this.facesOf === null,
+      // EXPLORATION: the candidate a draft tries for its extra blank lines.
+      blankLines: () =>
+        this.facesOf?.closest("[data-try-blanks]")?.getAttribute("data-try-blanks") ??
+        "",
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),

@@ -32,7 +32,7 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
  * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
  * @typedef {{typed: (native: boolean, insert: () => void) => void, returned: () => boolean,
  * oneLine: () => boolean, message: () => boolean, revealed: (view: EditorView, pos: number) => void,
- * focused: () => void, readOnly: boolean, attributes: Record<string, string>}} FieldConfiguration
+ * focused: () => void, readOnly: boolean, attributes: Record<string, string>, blankLines?: () => string}} FieldConfiguration
  */
 
 /** @param {string} text */
@@ -470,18 +470,41 @@ function eachLine(doc, from, to, each) {
 // leaves none there, but a list's first and last items keep theirs.
 /** @param {import("markdown-it").Token} token */
 const blockTag = (token) => (isCode(token) ? "pre" : token.tag);
-/** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line */
-function standBlocks(state, blocks, out, line) {
+/** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line
+ * @param {{lines: string, mark: Decoration | null}} blanks EXPLORATION: how a run's extra blank lines stand */
+function standBlocks(state, blocks, out, line, blanks) {
   /** @param {number} from @param {string} cls */
   const named = (from, cls) => out.push(line(cls).range(from));
+  const caret = state.selection.main;
+  /** @param {import("@codemirror/state").Line} each */
+  const holdsCaret = (each) =>
+    caret.empty && each.from <= caret.head && caret.head <= each.to;
   // A run of blank lines stands as one gap, shared among them.
   /** @param {number} from @param {number} to @param {string} gap */
   const gapLines = (from, to, gap) => {
-    const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
+    /** @type {import("@codemirror/state").Line[]} */
+    const lines = [];
+    eachLine(state.doc, from, to, (each) => lines.push(each));
+    const lined =
+      lines.length > 1 &&
+      (blanks.lines === "always" ||
+        (blanks.lines === "caret" && lines.some(holdsCaret)));
+    if (lined) {
+      // The first line is the gap the prose leaves; in a run of three or more the last
+      // is too, so a paragraph typed on a line between them stands where it will stand.
+      lines.forEach((each, at) => {
+        if (at === 0 || (lines.length > 2 && at === lines.length - 1))
+          named(each.from, `lf-face-gap ${gap}`);
+        else {
+          named(each.from, "lf-face-p");
+          if (blanks.mark && !holdsCaret(each)) out.push(blanks.mark.range(each.from));
+        }
+      });
+      return;
+    }
+    const runs = lines.length;
     const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
-    eachLine(state.doc, from, to, (each) =>
-      named(each.from, `lf-face-gap${share} ${gap}`),
-    );
+    for (const each of lines) named(each.from, `lf-face-gap${share} ${gap}`);
   };
   // The block before the one being read in each container still open, by level: the
   // draft itself and each quote. A list's items stand apart by their own gap.
@@ -585,6 +608,32 @@ function fieldEditor(
 
   const hide = Decoration.replace({});
   const dim = Decoration.mark({ class: "lf-md-mark" });
+  // EXPLORATION: the mark on a blank line the prose drops.
+  class Dropped extends WidgetType {
+    /** @param {string} glyph */
+    constructor(glyph) {
+      super();
+      this.glyph = glyph;
+    }
+    /** @param {Dropped} other */
+    eq(other) {
+      return other.glyph === this.glyph;
+    }
+    toDOM() {
+      const mark = document.createElement("span");
+      mark.className = "lf-md-dropped";
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = this.glyph;
+      return mark;
+    }
+    ignoreEvent() {
+      return false;
+    }
+  }
+  const dropped = {
+    pilcrow: Decoration.widget({ widget: new Dropped("\u00b6"), side: 1 }),
+    return: Decoration.widget({ widget: new Dropped("\u21b5"), side: 1 }),
+  };
   const link = Decoration.mark({ class: "lf-md-link" });
   const unseen = Decoration.mark({
     class: "lf-md-unseen",
@@ -1025,7 +1074,19 @@ function fieldEditor(
         if (outside) out.push(insets[container.kind].range(outside.to));
       }
     }
-    standBlocks(state, placed, out, line);
+    const tried = state.facet(blankLines);
+    standBlocks(state, placed, out, line, {
+      lines: tried.includes("always")
+        ? "always"
+        : tried.includes("caret")
+          ? "caret"
+          : "",
+      mark: tried.includes("pilcrow")
+        ? dropped.pilcrow
+        : tried.includes("return")
+          ? dropped.return
+          : null,
+    });
     return {
       decorations: Decoration.set(out, true),
       runs: Decoration.set(runs),
@@ -1092,6 +1153,10 @@ function fieldEditor(
   // Whether the field's words read as a message (`field.message()`), or as the Markdown
   // file a field editing a body in place shows (text-field.js, `facesOf`).
   const message = Facet.define({ combine: (values) => values.every(Boolean) });
+  // EXPLORATION: the candidate a draft tries for its extra blank lines (data-try-blanks).
+  const blankLines = Facet.define({
+    combine: (/** @type {readonly string[]} */ values) => values[0] ?? "",
+  });
   // The words as the renderer that will draw them reads them (`read`), in the field's
   // reading. Taken again when the words change or the renderer arrives. The preview,
   // Shift+Enter and the joints below read it from the state, where CodeMirror takes a
@@ -1749,6 +1814,7 @@ function fieldEditor(
         ]),
         reading,
         message.of(field.message()),
+        blankLines.of(field.blankLines?.() ?? ""),
         joints,
         afterChange,
         livePreview,

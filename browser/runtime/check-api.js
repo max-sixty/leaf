@@ -109,7 +109,9 @@ export {
   blocksOnScreen,
   capturePlace,
   placeNode,
+  restorePlace,
 } from "./reading-place.js";
+export { replaceEntry } from "./history.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";

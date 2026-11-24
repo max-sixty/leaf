@@ -519,3 +519,16 @@ def test_the_address_marks_are_the_ones_the_bootstrap_takes_off():
     marks = re.search(r"const marks = \[([^\]]*)\]", bootstrap)
     assert marks, "bootstrap.js no longer lists its marks as `const marks = [...]`"
     assert set(json.loads(f"[{marks.group(1)}]")) == render_checks.ADDRESS_MARKS
+
+
+@pytest.mark.parametrize("code", ["clipped-content", "past-column"])
+def test_a_box_a_module_built_is_told_to_scroll_by_its_package(code):
+    """The page's own box scrolls sideways with the page's `lf-scroll` class; a box a
+    module built (`built`) can't take the page's markup, so its finding names the
+    module's mark and the package's CSS instead."""
+    values = {"across": 900, "down": 0, "past": 900}
+    page = str(Finding(code, "<div id=own>", values))
+    built = str(Finding(code, "<div> in <lf-stages id=s>", values | {"built": True}))
+    assert 'class="lf-scroll"' in page and "data-lf-scroll" not in page
+    assert 'class="lf-scroll"' not in built
+    assert "data-lf-scroll" in built and "package's CSS" in built

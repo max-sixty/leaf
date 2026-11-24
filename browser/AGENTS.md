@@ -401,9 +401,10 @@ and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, stands the floating panel's row from
 the first paint, holds keys pressed before upgrade and shows a startup failure.
 
-Content modules import only `runtime/widget-api.js`, the public helper surface, or a
-widget that also runs off Leaf only its part any document loads,
-`runtime/portable-api.js`;
+Of the runtime, content modules import only `runtime/widget-api.js`, the public helper
+surface, and the modules of the library ("The library of shared web code"). A widget
+that also runs off Leaf imports, in place of `widget-api.js`, only the part of it any
+document loads, `runtime/portable-api.js`.
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
@@ -461,6 +462,35 @@ name the widgets they style, so a rule several packages need belongs in the kern
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
+
+### The library of shared web code
+
+Web code that packages share with one another or with the runtime has one home that
+any of them can import, so that no package copies it and it adds nothing to Leaf's
+interface. `runtime/lib/` is that home. It holds code that keeps none of the page's
+state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
+thrown value. A function that reads the page's state, the registry or anything else
+Leaf composes into a page is not library code, and stays in its owner behind
+`widget-api.js`.
+
+- A library module imports only `/vendor/` bundles and the modules beside it, so it
+  loads in a document Leaf didn't compose (lint, the library's block in
+  `../eslint.config.mjs`). Where it needs a stateless helper of the runtime's, the
+  helper's module joins the library, and the runtime imports the helper from there.
+- The runtime imports a library module by relative path. A package, a page and a
+  render check import it by its served path, `/runtime/lib/<module>.js`.
+  `$public-modules` in `runtime/kernel-registry.json` admits a package's or a page's
+  import, and lists every module of the directory
+  (`../tests/runtime/widget-api.test.mjs`).
+- A module holds one concern, and each importer names the module that holds what it
+  needs. Nothing in the runtime re-exports a library module, so neither `widget-api.js`
+  nor `check-api.js` passes the library on (lint, the same block and
+  `ownerRuntimeSyntax`).
+- A prepared installation compiles the whole library into the chunk every page loads
+  (`portableHomes` in `../build/runtime-bundle.mjs`). So a library module imports
+  lazily any `/vendor/` bundle the page's boot doesn't already load.
+- A module's header and JSDoc are its whole documentation. The package references say
+  where the library is and describe none of its functions.
 
 ### What a style rule costs
 

@@ -95,6 +95,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
@@ -652,9 +653,7 @@ customElements.define(
             } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
-            const message =
-              fault instanceof Error ? fault.message || fault.name : String(fault);
-            of.failure = { kind: "save", message, replace };
+            of.failure = { kind: "save", message: describeFailure(fault), replace };
             of.owed ||= owedBefore;
           }
         } finally {
@@ -720,9 +719,7 @@ customElements.define(
           of.sent = null;
           of.failure = null;
         } catch (fault) {
-          const message =
-            fault instanceof Error ? fault.message || fault.name : String(fault);
-          of.failure = { kind: "read", message };
+          of.failure = { kind: "read", message: describeFailure(fault) };
         } finally {
           clearTimeout(slow);
           of.loading = false;

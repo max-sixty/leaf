@@ -6,7 +6,12 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-import { kernelOutputs } from "./runtime-bundle.mjs";
+import { kernelOutputs, runtimeEntries } from "./runtime-bundle.mjs";
+
+// The library's modules, each an entry of the kernel's. A stub stands for each one
+// the bundler lists, so a module that joins the library changes nothing here.
+const library = runtimeEntries.filter((path) => path.startsWith("runtime/lib/"));
+const besideLibrary = (paths) => paths.filter((path) => !library.includes(path));
 
 /** The runtime a Leaf serves with the kernel: the source minus what it replaces. */
 async function vendor(layer, kernel, output) {
@@ -50,6 +55,9 @@ test("the kernel preserves native packages and shared state", async () => {
     "runtime/framework.js": 'export { rendered } from "./framework/render.js";\n',
     "runtime/framework/render.js":
       'import { html } from "/vendor/lit.js";\nimport { signal } from "/vendor/signals-core.js";\nimport { state } from "../state.js";\n\nexport const rendered = () => html([signal(state).value]);\n',
+    ...Object.fromEntries(
+      library.map((path) => [path, `export const home = ${JSON.stringify(path)};\n`]),
+    ),
   };
   try {
     for (const [path, source] of Object.entries(sources)) {
@@ -95,8 +103,10 @@ test("the kernel preserves native packages and shared state", async () => {
     // The kernel is runtime modules and chunks named after their modules, but for
     // the one holding what the portable helpers reach, the shared state here; it
     // absorbs the framework and its signals and leaves widgets, upstream vendor
-    // modules, and the classic scripts nothing imports native.
-    assert.deepEqual([...kernel.keys()].sort(), [
+    // modules, and the classic scripts nothing imports native. Each library module
+    // keeps its own path, for the package that imports it there.
+    for (const path of library) assert(kernel.has(path), path);
+    assert.deepEqual(besideLibrary([...kernel.keys()].sort()), [
       "kernel.json",
       "leaf.js",
       "runtime/annotation-overlay/check-api.js",
@@ -110,7 +120,7 @@ test("the kernel preserves native packages and shared state", async () => {
       "runtime/widget-api.js",
     ]);
     assert.deepEqual(Object.keys(record.inputs), Object.keys(sources).sort());
-    assert.deepEqual(record.replaces, [
+    assert.deepEqual(besideLibrary(record.replaces), [
       "leaf.js",
       "runtime/annotation-overlay/check-api.js",
       "runtime/annotation-overlay/index.js",

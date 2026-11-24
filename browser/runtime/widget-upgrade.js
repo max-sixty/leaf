@@ -25,7 +25,7 @@
    one of a chart's points to the next, or a grip's words stop being true once its card
    is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
-import { describeFailure, exceptionError } from "./exception.js";
+import { describeFailure, exceptionError } from "./lib/exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { version } from "./kept.js";
 

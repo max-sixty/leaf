@@ -105,6 +105,10 @@ def test_the_page_scrolls_from_the_start_of_its_principal_flow(
         assert len(unmoved) == open_axes, unmoved
 
 
+# The last thing `box` holds, which stands past its scrollport's end: the page holds it
+# in `main`.
+HELD = "(box.matches('html') ? document.querySelector('main') : box).lastElementChild"
+
 # Each of the browser's own scroll writes, made on `box` from its start, with whether
 # it moves the box at once (`placed`), later (`glides`) or not at all (`unmoved`).
 WRITES = {
@@ -116,6 +120,11 @@ WRITES = {
     "window.scrollTo": ("window.scrollTo(0, 120)", "placed"),
     "window.scroll": ("window.scroll({top: 120, behavior: 'instant'})", "placed"),
     "window.scrollBy": ("scrollBy(0, 120)", "placed"),
+    # A reveal of what the box holds, which moves the box and may move those around it.
+    "scrollIntoView": (
+        f"{HELD}.scrollIntoView({{block: 'end', behavior: 'instant'}})",
+        "placed",
+    ),
     "restated": ("box.scrollTo({top: 0, behavior: 'instant'})", "unmoved"),
     "smooth": ("box.scrollTo({top: 120, behavior: 'smooth'})", "glides"),
 }
@@ -136,8 +145,8 @@ FOREIGN = f"""() => {{
 # roots: whether a scroll is under way there as the write returns (`heard`), and, where
 # the write moves the box, whether the box is the browser's to move at the `scroll`
 # event the write sends (`browser`). Each write starts from a box standing still at
-# its start: the write that puts it back there is a scroll of its own, which ends
-# first.
+# its start, in a page standing at its own, where the box is in sight: the writes that
+# put them back there are scrolls of their own, which end first.
 HEARD = """async ([selector, write, moves, deadline]) => {
   const {browserScrolls, scrolling, watchScrollEnds} = await window.__lfCheckApi();
   const box = selector.reduce(
@@ -150,8 +159,9 @@ HEARD = """async ([selector, write, moves, deadline]) => {
       () => reject(new Error(`no ${what} after ${write} in ${selector.join(' ')}`)),
       deadline)),
   ]);
-  if (box.scrollTop || box.scrollLeft)
-    box.scrollTo({top: 0, left: 0, behavior: 'instant'});
+  for (const moved of [box, document.scrollingElement])
+    if (moved.scrollTop || moved.scrollLeft)
+      moved.scrollTo({top: 0, left: 0, behavior: 'instant'});
   await within('end of the scrolls before it', new Promise((resolve) => {
     if (!scrolling()) return resolve();
     const stop = watchScrollEnds(() => {

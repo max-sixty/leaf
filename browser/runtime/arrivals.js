@@ -50,8 +50,9 @@
 
    A script's write of a box's scroll offset is heard as it is made, whichever script
    makes it: this module wraps the browser's own entry points for one, `scrollTo`,
-   `scroll` and `scrollBy` on an element and on the window, and the `scrollTop` and
-   `scrollLeft` setters (`heardWrite`). The platform tells a page of a write only by a
+   `scroll` and `scrollBy` on an element and on the window, the `scrollTop` and
+   `scrollLeft` setters, and `scrollIntoView`, which writes the offset of every box that
+   scrolls its target (`heardWrite`). The platform tells a page of a write only by a
    `scroll` event at the next rendering update, which for a write made in a frame
    callback or a resize delivery comes after that frame has painted, and the event says
    a box moved, never that a script moved it. Heard only there, a write is nobody's
@@ -63,15 +64,15 @@
    only for the code that imports it, which a page's script and another vendor's
    component never do. The wrap changes nothing a call does; it records the move the
    call made (`wrote`). Every other scroll is still heard by its events alone: a smooth
-   write, which moves the box later, and a reveal the browser makes, as for
-   `scrollIntoView` or a focus. So in a shadow tree nobody enrolled, whose events this
+   write, which moves the box later, and a reveal the browser makes of its own accord,
+   as for a focus or a fragment. So in a shadow tree nobody enrolled, whose events this
    module doesn't hear, a write's scroll ends after the quiet spell and a smooth one
    goes unheard.
 
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, shadowHost, under } from "./lib/shadow-tree.js";
+import { isElement, renderedParent, shadowHost, under } from "./lib/shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { scrollMoves } from "./lib/scroll-range.js";
 
@@ -429,14 +430,20 @@ function hearsWrite(native, page = false) {
     } finally {
       writing = false;
     }
-    try {
-      wrote(box, scrollTop, scrollLeft, !browser);
-    } catch (error) {
-      queueMicrotask(() => {
-        throw error;
-      });
-    }
+    heard(box, scrollTop, scrollLeft, !browser);
   };
+}
+// `wrote`, for a write the hearing heard: what fails there is reported once the call has
+// returned.
+/** @param {Element} box @param {number} top @param {number} left @param {boolean} places */
+function heard(box, top, left, places) {
+  try {
+    wrote(box, top, left, places);
+  } catch (error) {
+    queueMicrotask(() => {
+      throw error;
+    });
+  }
 }
 for (const method of /** @type {const} */ (["scrollTo", "scroll", "scrollBy"])) {
   Element.prototype[method] = hearsWrite(Element.prototype[method]);
@@ -450,6 +457,31 @@ for (const offset of ["scrollTop", "scrollLeft"]) {
       set: hearsWrite(native.set),
     });
 }
+// A reveal writes the offset of every box that scrolls its target, the page's included,
+// so each box the target is drawn in is read before the call and after it. The call
+// reveals in the documents around this one too, as a live sample's host page, whose own
+// runtime hears that scroll by its events.
+/** @type {(this: any, ...args: any[]) => void} */
+const reveal = Element.prototype.scrollIntoView;
+/** @this {unknown} @param {any[]} args */
+Element.prototype.scrollIntoView = function heardWrite(...args) {
+  if (writing || !isElement(this)) return reveal.apply(this, args);
+  const stood = [];
+  for (let box = renderedParent(this); box; box = renderedParent(box))
+    stood.push({
+      box,
+      top: box.scrollTop,
+      left: box.scrollLeft,
+      browser: browserScrolls(box),
+    });
+  writing = true;
+  try {
+    reveal.apply(this, args);
+  } finally {
+    writing = false;
+  }
+  for (const { box, top, left, browser } of stood) heard(box, top, left, !browser);
+};
 /** @param {Element} box @param {ScrollToOptions} options */
 function unheardWrite(box, options) {
   writing = true;

@@ -2,7 +2,7 @@
 /* Leaf's settled reading of the page's rendering, as structured renderingState for
    chrome and geometry.
    updatesSettled says no queued update is waiting and the last update produced no
-   size change a Leaf observer heard. preparationsSettled says no registered finite
+   size change a counted observer heard. preparationsSettled says no registered finite
    preparation is waiting. Full rendering readiness requires both; an observer of
    intermediate paint can read updatesSettled while preparation remains pending.
    Each field is true when that axis is settled. Hidden documents read true on
@@ -13,8 +13,9 @@
    The reading counts the page's one pass per frame and its size observers, which are
    the library's (lib/frame-pass.js): `nextRender`, `nextFrame` and `cancelRender` for
    settling work, and `sizeObserver` in place of `new ResizeObserver`. The pass tells
-   this module of each callback and each counted delivery as it is asked for
-   (`observeRenderingWork`), whoever asks: the runtime, a package or a page's script.
+   this module of each callback as it is asked for and of each counted observer's
+   delivery as it arrives (`observeRenderingWork`), whoever the callback or the observer
+   belongs to: the runtime, a package or a page's script.
    The lint gate refuses the browser's own in the runtime, so the pass and the reading
    answer for every owner there without a list of them. In the bundled packages it
    refuses `ResizeObserver` alone: a package's settling work comes through `nextRender`
@@ -86,7 +87,12 @@
    scroll away the frame it is loading; that is why `data-lf-presented`, which such a
    host waits on before showing the frame, never waits on this reading. */
 
-import { callbacksPending, nextFrame, observeRenderingWork } from "./lib/frame-pass.js";
+import {
+  callbacksPending,
+  nextFrame,
+  nextRender,
+  observeRenderingWork,
+} from "./lib/frame-pass.js";
 import { enqueueWork, runWork } from "./lib/queued-work.js";
 import { frameVisibility, onFrameVisibility } from "./frame-visibility.js";
 
@@ -163,10 +169,11 @@ function paintedOwed() {
  * @returns {Promise<void>} */
 export function afterOwedFrame() {
   if (!callbacksPending() || !rendered()) return Promise.resolve();
-  // The pass has asked for the frame its waiting callbacks run in, so this callback
-  // runs in that frame too, and a task queued from a frame's callbacks runs once the
-  // frame has painted.
-  if (!owedFrame.length) requestAnimationFrame(() => setTimeout(paintedOwed));
+  // A callback asked for now joins the pass the waiting callbacks run in, and a task
+  // queued from a frame's callbacks runs once the frame has painted. A page at rest
+  // asks for the pass's frame before the check's (`unsettle`), so that task runs before
+  // the check, and the work a waiter then starts keeps the page unsettled.
+  if (!owedFrame.length) nextRender(() => setTimeout(paintedOwed));
   return new Promise((painted) => owedFrame.push(painted));
 }
 document.addEventListener("visibilitychange", () => {

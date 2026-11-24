@@ -1,7 +1,7 @@
 /* Whether and where an element shows a box, and `measure`, which waits for one. Any
    document can load it, so a widget on a plain HTML page waits for its room as it does
-   on a Leaf page, where the runtime's geometry.js builds its readings of what the page
-   shows on these. */
+   on a Leaf page. Leaf's geometry.js builds its readings of what the page shows on the
+   boxes this module reads. */
 import { skipped } from "./shadow-tree.js";
 import { sizeObserver } from "./frame-pass.js";
 

@@ -170,9 +170,7 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
-    // The widget's size observer ("Scheduling paints"), which calls schedulePaint.
-    this.sizes.observe(this);
-    return () => this.sizes.disconnect();
+    return registerReadingRegion({ id: this.id, host: this, body: this.body });
   });
 }
 ```
@@ -384,13 +382,13 @@ page's own stylesheet.
 next render, however often it is called. It does nothing while the element is out of the
 page, and leaving cancels a scheduled paint, so schedule it again from `start`.
 
-Every rendering callback on a page runs in one pass per frame, which the library's
-[`frame-pass.js`](../../../browser/runtime/lib/frame-pass.js) holds with the size
-observer that goes with it, and `frameFor` schedules on that pass. Schedule a widget's
-other rendering work and observe size through that module, in place of
-`requestAnimationFrame` and `new ResizeObserver`. The page doesn't count as settled
-until that work runs, nor while sizes change, so motion that may run until the user
-stops it, such as playback, calls the browser's `requestAnimationFrame` instead.
+Schedule a widget's other rendering work, and observe size, through the library's
+[`frame-pass.js`](../../../browser/runtime/lib/frame-pass.js), in place of
+`requestAnimationFrame` and `new ResizeObserver`. That module holds the one pass per
+frame that every rendering callback on the page runs in, which `frameFor` schedules on,
+and the size observer that goes with it. The page doesn't count as settled until that
+work runs, nor while sizes change, so motion that may run until the user stops it, such
+as playback, calls the browser's `requestAnimationFrame` instead.
 
 Have a size observer's callback schedule a paint from `frameFor` rather than draw: a
 drawing that settles inside a size delivery lets Leaf present the page there, which

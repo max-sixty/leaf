@@ -413,12 +413,13 @@ child and its listeners; call it when the owning widget is disposed. A sample ke
 its own state and theme scope. Declare its template in the authored document, following
 [live-samples.md](live-samples.md).
 
-The host gives a block's frame its child's height, so leave the frame's height to it; a
-window's frame keeps the height its styles give it. A resize the user did not ask for
-waits while it would move what they are reading. They asked for a child's resizes
-where they saw the frame as the host mounted it, where `reset()` started the child,
-and once they click, press a key or type in it. A frame the user sees as it mounts also holds what
-showed it to them, the page's presentation or their gesture, until it fits its child.
+The host gives a block's frame its child's height, as the frame's content height, so
+set none yourself; a window's frame keeps the height its styles give it. A resize the
+user did not ask for waits while it would move what they are reading. They asked for
+a child's resizes where they saw the frame as the host mounted it, where `reset()`
+started the child, and once they click, press a key or type in it. Where they saw the
+frame as it mounted, the page's presentation also waits for the child to be ready or
+to fail, or for the user to look away.
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are

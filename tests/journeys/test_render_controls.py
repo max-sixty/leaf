@@ -2342,6 +2342,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
         await practiceHost.ready;
     }""")
     # The host gives the frame its page's height; the module that mounted it sets none.
+    wait_until_ready(page)
     mounted = page.locator("iframe").last.content_frame
     assert page.evaluate("practiceFrame.clientHeight") == mounted.locator(
         "body"

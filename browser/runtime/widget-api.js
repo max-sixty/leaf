@@ -105,9 +105,9 @@ export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
-// `whenNear` for the reader to near a node, then each runs its callback. A callback
-// may return work the widget has already started, which `afterPresentation` counts
-// from its call.
+// `whenNear` for the reader to near a node, then each runs its callback.
+// `afterPresentation`'s callback may return work the widget has already started, which
+// it counts from its call.
 export {
   afterPresentation,
   whenNear,
@@ -126,10 +126,10 @@ export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, the frame's height, Reset and disposal
-// (live-samples.md). A block's frame the reader sees as it mounts is part of what they
-// are being shown, the page arriving or a view a gesture of theirs opened or brought
-// near: that showing waits, as on any drawing under way (lib/pending-task.js), until
-// the host says the frame's fit to its page need hold it no longer (sample.js).
+// (live-samples.md). A block's frame the reader sees as it mounts is drawing under way
+// (lib/pending-task.js), read here in the caller's stack: the page's presentation
+// waits for it, or the gesture whose rendering showed the frame owns its fit. The host
+// says when that drawing is in (sample.js, `landed`).
 /** @param {Parameters<typeof import("./sample.js").mountSample>[0]} frame
  * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
  * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */

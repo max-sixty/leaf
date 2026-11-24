@@ -23,9 +23,10 @@
  * when that opens. Until then nothing loads, the frame keeps its placeholder height
  * and the status line stays empty, so starting moves nothing; `ready` waits, and
  * Reset starts the child. The browser's Find searches only the children that have
- * started. A frame the reader sees as it mounts starts at once, so the host holds
- * what is showing it to them, the page arriving or a view they opened, until it fits
- * its child. The sample's arrival is its child's,
+ * started. A frame the reader sees as it mounts starts at once, in the task that
+ * shows it to them, the page arriving or a view they opened: the host makes that
+ * showing wait for the frame's fit to its child only where it starts in that task.
+ * The sample's arrival is its child's,
  * which the host counts; a frame waiting to start counts until the
  * browser's first reading of it has said whether it starts (`whenNear`). The status line
  * keeps its room through loading, ready and failure, so the frame below it stays put; a

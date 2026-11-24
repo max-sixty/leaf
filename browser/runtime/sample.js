@@ -31,14 +31,14 @@
  * not ask for. The resize as a window becomes a block again is theirs too. The user
  * chose to fit a frame they bring into view to its page as soon as the page draws, over
  * keeping its placeholder height until they look away or click into it, which left a
- * short page standing in a blank frame. Whatever showed the reader a frame they saw as
- * it mounted, the page's presentation or the gesture whose rendering brought it into
- * view, waits for the first document to be usable or to fail (`landed`), or for the
- * reader to look away first: once they do, the fit moves nothing they see, and in
- * Chromium a document whose arrival waits on a rendering gets none while its frame is
- * off screen (notes/browser-support.md, "A sample's page out of view in Chromium"), so
- * a reader who scrolled past the frame as it loaded would otherwise hold the page until
- * they came back.
+ * short page standing in a blank frame. Where the reader saw the frame as it
+ * mounted, something showed it to them: the page's presentation, or a gesture whose
+ * rendering brought it into view. That showing waits (`landed`) until the first
+ * document is usable or has failed, or until the reader looks away. Once they look
+ * away the fit moves nothing they see, and in Chromium a document whose arrival waits
+ * on a rendering gets none while its frame is off screen (notes/browser-support.md, "A
+ * sample's page out of view in Chromium"), so without that end a reader who scrolled
+ * past the frame as it loaded would hold the page until they came back.
  * A reading step the child's scroll chain spent goes on from the frame here, as the
  * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
  * Removing a frame retires its realm before releasing the allocation, including on
@@ -102,7 +102,6 @@ import {
   whenNone,
 } from "./geometry.js";
 import { heldGrowth } from "./thread/held-news.js";
-import { frameFor } from "./arrivals.js";
 import {
   frameVisibility,
   onFrameVisibility,
@@ -112,7 +111,7 @@ import {
 import { keeps } from "./lib/keeps.js";
 import { inputInFrame } from "./focus.js";
 import { move } from "./dom-move.js";
-import { nextRender, sizeObserver } from "./lib/frame-pass.js";
+import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { recordInteraction } from "./interaction-log.js";
 import { exceptionRecord } from "./lib/exception.js";
 import { aborted } from "./abort.js";
@@ -324,7 +323,13 @@ export function mountSample(
   const fit = () => {
     frame.style.height = `${height}px`;
   };
-  const fitNextRender = frameFor(frame, fit);
+  let fitting = 0;
+  const fitNextRender = () => {
+    fitting ||= nextRender(() => {
+      fitting = 0;
+      fit();
+    });
+  };
   // Take `reading` as the frame's height: at the page's next rendering, or now where
   // `immediate`. A resize the reader `asked` for applies whoever asked for the
   // document. A window's frame keeps its height, and its readings go unrecorded.
@@ -824,6 +829,7 @@ export function mountSample(
       destroyed = true;
       arrive(null);
       dropHeld?.();
+      cancelRender(fitting);
       land();
       record("destroyed");
       lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));

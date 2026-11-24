@@ -452,7 +452,7 @@ body {
     overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
-   * height (lf-sample.js). So the body keeps to its content rather than filling the
+   * height (runtime/sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The frame is the sample's window, and it holds the sample's

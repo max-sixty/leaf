@@ -65,7 +65,7 @@ import { marginMapGroups } from "./margin-map-model.js";
 import { loadDraft } from "./drafts.js";
 import { excerptWords } from "./words.js";
 import { threadHeading } from "./thread/messages.js";
-import { isHTML } from "./shadow-tree.js";
+import { isHTML } from "./lib/shadow-tree.js";
 import { voiced, wordsText } from "./voice.js";
 
 /** @typedef {import("./annotation-inventory.js").InventoryEntry} Entry

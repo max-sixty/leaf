@@ -33,7 +33,7 @@
    obligation, and also falls back to an obligation's unique context. */
 import { elementById } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { composedParentNode } from "../shadow-tree.js";
+import { composedParentNode } from "../lib/shadow-tree.js";
 import { readObligations } from "./model.js";
 import { keptEach } from "../kept.js";
 

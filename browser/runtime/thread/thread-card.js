@@ -120,7 +120,7 @@ import {
 import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { scrollAxes } from "../element-axes.js";
-import { renderedOrder } from "../shadow-tree.js";
+import { renderedOrder } from "../lib/shadow-tree.js";
 import { iconTemplate } from "../lib/icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";

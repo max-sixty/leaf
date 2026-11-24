@@ -18,7 +18,7 @@
  * has moved. Continuity keeps no sideways place, so a region's sideways offset crosses
  * here like any other box's. A box in skipped content (a tab not chosen, a closed
  * disclosure) carries no offset at all: reading one would make the browser style and
- * lay out all of that content first (`skipped`, shadow-tree.js), a pass per hidden panel
+ * lay out all of that content first (`skipped`, lib/shadow-tree.js), a pass per hidden panel
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
@@ -31,7 +31,7 @@
 import { setScroll } from "./arrivals.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { closestAcross, hostIn, isHTML, skipped, upFrom } from "./shadow-tree.js";
+import { closestAcross, hostIn, isHTML, skipped, upFrom } from "./lib/shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
 import { elementById, inPage, pageDocument } from "./passages.js";
 

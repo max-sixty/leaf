@@ -86,17 +86,16 @@ import {
   isHTML,
   skipped,
   skipper,
-  inUi,
   renderedOrder,
   renderedParent,
   under,
   upFrom,
-} from "./shadow-tree.js";
+  closestAcross,
+} from "./lib/shadow-tree.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   blockAt,
-  closestAcross,
   HEADING,
-  inChrome,
   pageDocument,
   readsDocument,
   pageRuns,

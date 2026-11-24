@@ -113,21 +113,27 @@ export const PRESSES = PRESS_SELECTORS.join(",");
 // press takes no key but Enter and Space, so an arrow, PageUp, PageDown, Home or End;
 // and a radio takes the arrows that move its group's choice, so PageUp, PageDown, Home
 // or End. Every other control takes those keys itself, as a select, a range or a
-// composite widget moves within itself and a field moves its caret.
-export const LINKS = "a[href], [role='link']";
-export const RADIOS = "input[type='radio'], [role='radio']";
+// composite widget moves within itself and a field moves its caret. An element's
+// `role` overrides its tag's, so a native tag counts by its tag only without one: a
+// `<button role="treeitem">` is a tree's row, whose arrows the tree takes.
+/** @param {string[]} tags */
+const unroled = (tags) => tags.map((tag) => `${tag}:not([role])`);
+export const LINKS = [...unroled(["a[href]"]), "[role='link']"].join(",");
+export const RADIOS = [...unroled(["input[type='radio']"]), "[role='radio']"].join(",");
 export const PLAIN_PRESSES = [
   LINKS,
-  "button",
-  "summary",
-  "label",
-  "input[type='button']",
-  "input[type='checkbox']",
-  "input[type='color']",
-  "input[type='file']",
-  "input[type='image']",
-  "input[type='reset']",
-  "input[type='submit']",
+  ...unroled([
+    "button",
+    "summary",
+    "label",
+    "input[type='button']",
+    "input[type='checkbox']",
+    "input[type='color']",
+    "input[type='file']",
+    "input[type='image']",
+    "input[type='reset']",
+    "input[type='submit']",
+  ]),
   "[role='button']",
   "[role='checkbox']",
   "[role='switch']",

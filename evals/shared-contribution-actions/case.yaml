@@ -25,22 +25,29 @@ assert:
     metric: judgment
     value: |
       Pass only if the integration registers through `registerContribution`, imported
-      from /runtime/widget-api.js (its earlier name `registerMarginContribution` also
-      passes), writes its entries as plain objects (entries built with the earlier
-      `contributionEntry` or `marginEntry` also pass), returns the current
-      Edit or Save/Cancel reading from one producer, routes effects through its sole
-      activation callback, updates that registration after editing state changes,
-      and unregisters on disconnect. It leaves editing state and words with the existing widget. It
-      must not create a second Page Map action directory, manually place page-edge
-      controls, import a private runtime owner, or post raw events.
+      from /runtime/widget-api.js, writes its entries as plain objects, returns the
+      current Edit or Save/Cancel reading from one producer, gives each action one
+      route to its effect, updates that registration after the editing or disabled
+      state changes, and unregisters on disconnect, in `disconnectedCallback` or in
+      the cleanup of `whileConnected`, which the same module exports. Either route
+      to an effect passes. One is the registration's `activate` callback. The other
+      is a command the widget declares: an entry names it by setting `scope` to the
+      object the widget holds as `lfCommands` and `activation` to the command's id,
+      and Leaf then runs the command's own `run` and disables the entry with the
+      command. It leaves editing state and words with the existing widget. It must
+      not create a second Page Map action directory, manually place page-edge
+      controls, import a private runtime owner, send events to the server itself, or
+      dispatch synthetic clicks or key events.
       Judge the JavaScript integration, including explicit instructions to call
       its update method from existing state setters. The task supplies the editor
       and effect methods; they need not be reimplemented. Its environment cannot
       execute runtime checks, so saying it could not run them is not a failure.
-      Every constructed entry must have a nonempty key and label and exactly one
-      nonempty glyph or icon. Check spread objects too: the Edit entry needs its
-      own glyph or icon. Entry options do not accept kind; that field belongs to
-      the whole reading. The accepted entry options are key, glyph, action, icon,
+      Every entry must have a nonempty key and label and exactly one of a nonempty
+      glyph, an action or an icon. An action names one of Leaf's actions, such as
+      edit, save, cancel and discard; Leaf has others, so do not fail an answer for
+      an action this list leaves out. Check spread objects too: the Edit entry needs
+      its own glyph, action or icon. Entry options do not accept kind; that field
+      belongs to the whole reading. The accepted entry options are key, glyph, action, icon,
       label, voice, accessibleLabel, context, description, behavior, tone, rank,
       state, visible, disabled, count, pressed, workflowReceipt, relation,
       activation, title and scope. The accepted entry behaviors are action, disclosure,
@@ -49,5 +56,12 @@ assert:
       required field, an unknown option, or a guessed enum value is a failure,
       even when the ownership architecture otherwise looks correct. Do not
       reward an agent for admitting such assumptions. A native keyboard route
-      through Leaf controls and Page Map is sufficient; custom bindings are
-      optional, and if supplied they must invoke the same registration.
+      through Leaf controls and Page Map is sufficient, and keys of the widget's own
+      are optional. A widget states its keys by setting a plain object it writes as
+      the element's `lfCommands`, since /runtime/widget-api.js exports nothing that
+      builds one, and dispatching an `lf-commands` event on the element, and again
+      after the state its rows read changes. That event is Leaf's public interface,
+      and this case grades no field of a command scope or of its rows. Where the
+      answer declares keys, a key and a press on the entry must run the same code:
+      the entry names the command as above, or the command's `run` calls the
+      registration's `activate` with the entry's key.

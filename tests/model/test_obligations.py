@@ -1181,3 +1181,93 @@ def test_a_detail_condition_names_a_declared_value_of_its_verb():
     entry["awaits"]["answered"]["decide"] = {"detail": {"outcome": "maybe"}}
     with pytest.raises(RegistryError, match="detail condition"):
         validate_registry(registry, "test")
+
+
+def signoff_registry(condition: dict | None = None):
+    """A checklist the user decides one step at a time, answered once every step
+    holds a decision (`every`), or one that meets `condition`'s `detail`."""
+    registry = deepcopy(model.model_layer())
+    registry["lf-signoff"] = {
+        "attributes": {"required": ["id"]},
+        "content": "members",
+        "verbs": {
+            "decide": {
+                "unit": "step",
+                "detail": {
+                    "type": "object",
+                    "properties": {
+                        "step": {"type": "string"},
+                        "outcome": {"enum": ["signed", "returned"]},
+                    },
+                    "required": ["step", "outcome"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "awaits": {
+            "value": "decide",
+            "answered": {
+                "decide": {"every": {"member": "lf-signoff-step"}, **(condition or {})}
+            },
+        },
+    }
+    registry["lf-signoff-step"] = {
+        "attributes": {"required": ["id"]},
+        "content": "markup",
+        "owners": ["lf-signoff"],
+    }
+    return registry
+
+
+def signoff(*steps: str) -> str:
+    return model.leaf_page(
+        "Release",
+        '<lf-signoff id="release">'
+        + "".join(
+            f'<lf-signoff-step id="{step}">{step}</lf-signoff-step>' for step in steps
+        )
+        + "</lf-signoff>",
+    )
+
+
+def decided(step: str, outcome: str = "signed") -> dict:
+    return {
+        "kind": "action",
+        "widget": "release",
+        "action": "decide",
+        "detail": {"step": step, "outcome": outcome},
+    }
+
+
+def test_a_member_condition_asks_until_every_member_is_decided():
+    """A decision on one step leaves the checklist on the user's list, the last one
+    answers it, and a version that adds a step asks again until that step is
+    decided. Undoing a step's decision reopens it."""
+    registry = signoff_registry()
+    two = signoff("notes", "rollback")
+
+    def standing(documents, events, revision=1):
+        [item] = page_obligations(
+            model.reading(documents, events, registry=registry), revision
+        )["all"]
+        return standing_model.answered(item)
+
+    assert not standing(two, [decided("notes")])
+    assert standing(two, [decided("notes"), decided("rollback", "returned")])
+    grown = {1: two, 2: signoff("notes", "rollback", "canary")}
+    both = [decided("notes"), decided("rollback")]
+    assert not standing(grown, both, 2)
+    assert standing(grown, [*both, {**decided("canary"), "revision": 2}], 2)
+    undone = [*both, {"kind": "undo", "undoes": "e2"}]
+    assert not standing(two, undone)
+
+
+def test_a_member_condition_with_detail_asks_each_member_for_it():
+    registry = signoff_registry({"detail": {"outcome": "signed"}})
+    two = signoff("notes", "rollback")
+    for events, answered in (
+        ([decided("notes"), decided("rollback", "returned")], False),
+        ([decided("notes"), decided("rollback")], True),
+    ):
+        [item] = page_obligations(model.reading(two, events, registry=registry))["all"]
+        assert standing_model.answered(item) is answered

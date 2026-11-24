@@ -1835,7 +1835,17 @@ _TEXT = {
     ),
     "answering-part": _declared(
         lambda v: _answering(
-            v, "folds on a part rather than the widget, so its condition needs `empty`"
+            v,
+            "folds on a part rather than the widget, so its condition needs"
+            " `empty` or `every`",
+        )
+    ),
+    "answering-every": _declared(
+        lambda v: _answering(
+            v,
+            f"requires every <{v['member']}>, but `every` needs a verb kept per"
+            " member with no position record and no `empty` beside it, and a"
+            " member that lists this widget in `owners` and requires `id`",
         )
     ),
     "answering-position": _declared(

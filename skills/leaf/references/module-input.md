@@ -215,14 +215,16 @@ hunk.dispatchEvent(
 `Hunk 3 of 7`, for a few seconds after the step. `list` gives the elements of the
 list's first and last stops. At a step taken while both stand in view the panel says
 nothing, since the focus ring shows where the step landed among stops the user sees;
-without `list` it says every step. The place goes sooner if the element it was said on
-leaves the page, as when a redraw replaces it, so a widget whose stops are not elements
-of their own dispatches on the part of its drawing that holds the stop. Leaf hears an
-element leave the page or a shadow stage it builds (`shadowStage`), not a shadow root
-the widget attaches itself, where the place stays its few seconds. A widget whose user
-can leave a stop without stepping, as a chart's pointer takes its reader to another
-point, dispatches `lf-walk` with no `detail` on the element the place was said on as
-they leave it, and the place goes at once. The panel shows the
+without `list` it says every step. The place goes sooner if focus leaves the stop, once
+the stop or something inside it has held focus. It also goes if the element it was said
+on leaves the page, as when a redraw replaces it, so a widget whose stops are not
+elements of their own dispatches on the part of its drawing that holds the stop. Leaf
+hears an element leave the page or a shadow stage it builds (`shadowStage`), not a
+shadow root the widget attaches itself, where the place stays its few seconds. A widget
+whose stops take no focus, as a chart's points take none, tells Leaf when its user
+leaves a stop without stepping, as when the chart's pointer takes its reader to another
+point. It dispatches `lf-walk` with no `detail` on the element the place was said on,
+and the place goes at once. The panel shows the
 place and says nothing aloud: the widget announces it, with what else a listener
 should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken words").
 Off Leaf, nothing hears the event.

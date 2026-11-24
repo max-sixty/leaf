@@ -768,7 +768,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -788,7 +787,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               run: () => { inspect.dataset.activated = '1'; },
             },
           ] };
-          commandsChanged(source);
+          source.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -840,7 +839,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
           inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -848,7 +846,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
           }] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     rendered(page)
@@ -880,7 +878,6 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -897,7 +894,7 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               run: () => { inspect.dataset.localThree = '1'; },
             },
           ] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -931,7 +928,6 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -947,13 +943,13 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
           }] };
-          commandsChanged(control);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
           }] };
-          commandsChanged(inside);
+          inside.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -1064,7 +1060,6 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -1085,7 +1080,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
             }] };
-            commandsChanged(control);
+            control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));

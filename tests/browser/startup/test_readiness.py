@@ -1856,6 +1856,69 @@ def test_words_typed_through_a_reload_for_a_field_of_the_page_stay_in_it(
         expect(who).to_have_value("abcde")
 
 
+@pytest.mark.parametrize(
+    ("engine", "kind", "value", "key"),
+    [
+        ("browser", "date", "2026-11-24", "1"),
+        ("firefox_browser", "date", "2026-11-24", "1"),
+        ("browser", "number", "12", "x"),
+    ],
+    ids=["date-browser", "date-firefox_browser", "number-browser"],
+)
+def test_a_key_typed_through_a_reload_leaves_a_field_with_no_caret_as_it_takes_it(
+    request, serve, engine, kind, value, key
+):
+    """A date or number field of the page's own holds no caret to type at, so a key
+    the user types through a reload Leaf asks for, while writing in it, waits to run
+    in the field once the reload puts them back, which takes it as it takes any key,
+    and the value the reload carries comes back whole rather than emptied by a
+    character the field can't hold. Firefox's number field takes a letter as it takes
+    a typed one, so only Chromium's, which refuses it, shows the difference."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            f'<h1>Form</h1><p><input id="when" type="{kind}" aria-label="When"'
+            ' autocomplete="off"></p>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    field = page.locator("#when")
+    field.fill(value)
+    expect(field).to_be_focused()
+    documents = {"count": 0}
+    module = []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def hold(route):
+        if documents["count"] == 1 and not module:
+            module.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/leaf.js", hold)
+    answer_as_another_runtime(page)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, module, 1, "the arriving document's entry module")
+    page.wait_for_function("document.readyState !== 'loading'")
+    page.keyboard.type(key)
+    module.pop().continue_()
+    wait_until_ready(page)
+    page.unroute("**/leaf.js")
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    expect(field).to_be_focused()
+    expect(field).to_have_value(value)
+
+
 def test_words_let_go_into_a_field_of_the_page_are_its_input(browser, serve):
     """Words the user types on as a reload Leaf asked for comes, into a field of the
     page's own, before Leaf has started and after it has put the user back in the field

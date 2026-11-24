@@ -412,9 +412,11 @@
     const typingBack = () => placesUser() && handoff?.typing === true && !moved;
     // The box the reload hands back: a draft's editor, named by its draft's context
     // (version.js, `captureHandoff`), or a field of the page's own (prepaint.js,
-    // `handedFocus`).
+    // `handedFocus`) that holds a caret, which typing into it needs. A date, time or
+    // number field holds none, so a key typed for it waits in the run, and the field
+    // takes it as it takes any key once the reload puts the user back (`queue`).
     const draft = handoff?.draftEditing?.context ?? null;
-    const field = draft ? null : handedFocus;
+    const field = draft || !handedFocus?.caret ? null : handedFocus;
     /** @param {string} key */
     const read = (key) => {
       try {
@@ -560,17 +562,13 @@
           ? element
           : null;
       const value = field.value ?? control?.defaultValue ?? "";
-      const [start, end] = field.caret ?? [value.length, value.length];
+      const [start, end] = /** @type {[number, number]} */ (field.caret);
       const at = start + key.length;
       field.value = value.slice(0, start) + key + value.slice(end);
       field.caret = [at, at];
       if (!control) return;
       control.value = field.value;
-      try {
-        control.setSelectionRange(at, at);
-      } catch {
-        // An input of a type with no caret, as a number's, keeps the words alone.
-      }
+      control.setSelectionRange(at, at);
       echo = new InputEvent("input", {
         bubbles: true,
         inputType: "insertText",

@@ -374,8 +374,8 @@
   // The control of the page's own the handoff puts focus back in, where it holds one:
   // its carried record with focus that names no generated part (carry.js,
   // `captureCarry`). The key hold types the words the user types through the reload
-  // into it, and the arrival leaves its focus and caret to the handoff (bootstrap.js,
-  // `typeIntoField`; version.js, `installArrival`).
+  // into it where it holds a caret, and the arrival leaves its focus, and its caret, to
+  // the handoff (bootstrap.js, `typeIntoField`; version.js, `installArrival`).
   const handedFocus =
     handoff?.carry?.find((record) => record.focus && record.part === undefined) ?? null;
   // A changed control's state as a carry record holds it (carry.js, `captureCarry`).

@@ -138,7 +138,8 @@ interface Window {
       readonly draftEditing?: { readonly context: string } | null;
     } | null;
     /** The carried record of the control of the page's own the handoff puts focus back
-     * in, which the key hold types the user's words into (prepaint.js). */
+     * in, which the key hold types the user's words into where it holds a caret
+     * (prepaint.js). */
     readonly handedFocus: {
       id: string;
       value?: string;

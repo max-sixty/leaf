@@ -1599,12 +1599,6 @@ _TEXT = {
     "unknown-output-contract": _declared(
         lambda v: f"`outputs` `{v['output']}` names unknown contract {v['contract']!r}"
     ),
-    "data-reference": _declared(
-        lambda v: (
-            f"input `{v['input']}` (`inputs`) reference `{v['attr']}` must name an"
-            " element relation in `refers`"
-        )
-    ),
     "data-source": _declared(
         lambda v: (
             f"input `{v['input']}` (`inputs`) source attribute `{v['attr']}` is"

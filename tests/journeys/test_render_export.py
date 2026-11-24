@@ -106,6 +106,7 @@ customElements.define("lf-offline-test", class extends LeafElement {
         Choose on host
       </button>
       <output id="choice">${state.choose.value}</output>
+      <lf-age id="chosen-at" datetime="2026-11-20T02:10:00Z"></lf-age>
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
     `;
   }

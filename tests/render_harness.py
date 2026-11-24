@@ -165,7 +165,7 @@ def shift_watch_source():
     source = (
         'import { clippingAxes } from "./browser/runtime/rect.js";\n'
         'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
-        'import { renderedParent, skipped } from "./browser/runtime/shadow-tree.js";\n'
+        'import { renderedParent, skipped } from "./browser/runtime/lib/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"

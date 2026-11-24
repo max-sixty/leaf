@@ -78,11 +78,11 @@ import {
   sizeObserver,
   wear,
   whileConnected,
-  under,
   worksInside,
   commandsChanged,
   widgetController,
 } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
 
 /** @typedef {null | string | number | boolean | readonly JSONSnapshot[] | {readonly [name: string]: JSONSnapshot}} JSONSnapshot */

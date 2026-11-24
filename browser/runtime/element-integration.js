@@ -72,7 +72,7 @@ import {
   reportFailure,
 } from "./widget-upgrade.js";
 import { adoptShadowStage } from "./shadow-stage.js";
-import { byRenderedOrder } from "./shadow-tree.js";
+import { byRenderedOrder } from "./lib/shadow-tree.js";
 import { tick } from "./version-signal.js";
 
 let regions = 0;

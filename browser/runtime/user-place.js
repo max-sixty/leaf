@@ -85,7 +85,8 @@ import {
   scrollersOf,
   seenAhead,
 } from "./scroll-containers.js";
-import { inChrome, renderedParent, under } from "./shadow-tree.js";
+import { renderedParent, under } from "./lib/shadow-tree.js";
+import { inChrome } from "./ui-marks.js";
 import {
   declareFocusPlace,
   focused,

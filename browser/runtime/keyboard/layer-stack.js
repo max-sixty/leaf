@@ -57,7 +57,7 @@
    back from them.
 
    Whether a node is one of these layers, or stands in one as rendered, is asked of
-   `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
+   `lib/shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
    modules it imports, so focus and inertness ask it too. Every reader that treats the top
    layer differently asks there: an anchor cannot reach out of it, it paints over every
    page level, and a cluster keeps its options open while the user visits one.
@@ -87,13 +87,13 @@ import {
   canPlaceFocus,
 } from "../focus.js";
 import { move } from "../dom-move.js";
-import { renderedUnder } from "../shadow-tree.js";
+import { renderedUnder } from "../lib/shadow-tree.js";
 import {
   isHTML,
   isNativeLayer,
   nativeLayerHolding,
   nativeLayerKind,
-} from "../shadow-tree.js";
+} from "../lib/shadow-tree.js";
 import { watchOwner } from "../arrivals.js";
 import { keeps } from "../lib/keeps.js";
 

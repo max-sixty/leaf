@@ -18,8 +18,9 @@ import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsOnOne, keepsText } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { closestAcross, elementFromPointAcross, leafSurface } from "./passages.js";
+import { elementFromPointAcross, leafSurface } from "./passages.js";
 import { WORKS } from "./control-selectors.js";
+import { closestAcross } from "./lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
 /** @param {{refreshAnchorHover?: (() => unknown) | undefined,

@@ -9,7 +9,7 @@ import {
   setChildren,
   setRenderedChildren,
 } from "/runtime/dom-children.js";
-import { under } from "/runtime/shadow-tree.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { failSoftUnreported, placesFailure } from "/runtime/widget-upgrade.js";
 import { createRef, html, ref, render } from "/runtime/framework.js";

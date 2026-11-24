@@ -1,10 +1,11 @@
-/* Composed ancestry without runtime dependencies. Focus and shadow rendering share
-   this walk, including slots and roots from another window, and with it the one reading
-   of whether a node is an open native layer or stands in one: keyboard/layer-stack.js
-   keeps the order layers opened in, and imports focus and inertness, which ask this
-   too. It also holds the one reading of whether a node stands in content the browser
-   skips (`skipper`), which the suite's shift watch bundles into an init script and so
-   takes from a module that imports nothing. */
+/* Composed ancestry, read from the tree the browser builds and nothing else. Focus and
+   shadow rendering share this walk, including slots and roots from another window, and
+   with it the one reading of whether a node is an open native layer or stands in one:
+   the runtime's keyboard/layer-stack.js keeps the order layers opened in, and imports
+   focus and inertness, which ask this too. It also holds the one reading of whether a
+   node stands in content the browser skips (`skipper`), which Leaf's suite bundles into
+   an init script and so takes from a module that imports nothing. Whether a node stands
+   in Leaf's own chrome is the runtime's question (ui-marks.js). */
 // The host of `root` when it is a shadow root, else null: the one test of whether a climb
 // crosses to a host. It asks the root's kind, since other roots answer `host` too — a
 // document names its `<form name="host">` there, and a detached subtree's root is an
@@ -87,18 +88,6 @@ export function closestAcross(node, selector) {
   }
   return null;
 }
-
-// Which document an element is in is not a question about looks at all, so the class
-// `.lf-ui` doesn't answer it. The runtime's layer is one container, so a
-// widget inside a reply — markup the log carries, and no version — is exactly
-// what that container holds, and the reading position is a place in the page rather than
-// in the panel over it. `.lf-ui` reaches those elements and a widget's own controls out
-// on the page besides, which would make the look stand in for the place.
-// Across the boundary as closestAcross does: the marker lives out in
-// the document, so a node inside a widget's shadow tree can only reach it by leaving the
-// tree, and a widget staged inside a reply would otherwise read as page content.
-/** @param {Node | null} node */
-export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
@@ -260,50 +249,14 @@ export const renderedOrder = rendered.order;
 export const renderedOrdering = rendered.ordering;
 export const renderedUnder = rendered.under;
 
-// Which layer a node stands in — the runtime's chrome, a declared label, or the
-// document — is asked by every reading that climbs out of a widget, so it is answered
-// here, beside the climb, where geometry.js and widget-elements.js can ask it without
-// importing the passage readings back.
-// The chrome over a node, read within one frame: above the frame it is nobody's, and with
-// no frame at all it is the document's own reading, unchanged.
+// The nearest element at or over `el` that matches `selector`, read within one frame:
+// above the frame it is nobody's, and with no frame at all it is the document's own
+// reading, unchanged.
 /** @param {Element} el @param {string} selector @param {Element | null | undefined} frame */
 export const overIn = (el, selector, frame) => {
   const near = el.closest(selector);
   return near && (!frame || under(near, frame)) ? near : null;
 };
-// A label a widget declared as the page speaking (generatedElement), which the anchor
-// pass reads over the chrome it sits in.
-export const SAID = "[data-lf-said]";
-// The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
-// element at a time on its way down (passages.js, `chromeMark`).
-export const UI_MARKS = `.lf-ui, ${SAID}`;
-// The same question one node at a time: is this the runtime's own chrome rather than the
-// document? Every affordance asks it before acting on where the pointer or the caret is.
-// The nearest element that answers wins: a declared label is the page's words inside the
-// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone is
-// no answer, since it is a look: taken as one, it leaves a user reading a heading they
-// cannot point at.
-//
-// Bounded or not, by the second argument, and that is the whole difference between the
-// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
-// control is the runtime's apparatus wherever it stands, which is what a pointer or a
-// caret needs to know. Bounded at an element, the answer is about that element's own
-// insides, which is what a reading of one widget needs: the panel holding a widget an
-// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
-// such a widget answers yes, and the widget reads as having nothing of its own left.
-// The text readings took the same seam (quotable, shownParts, settledAway, authored);
-// it is stated once here so
-// that what a mark may hang on, what a settlement has emptied, and what a quote may
-// name cannot come apart.
-/** @param {Element | null | undefined} el @param {Element | null | undefined} within */
-export const uiInside = (el, within) => {
-  const near = el && overIn(el, UI_MARKS, within);
-  return !!near && !near.matches(SAID);
-};
-/** @param {Node | null | undefined} node */
-export const inUi = (node) =>
-  uiInside(isElement(node) ? node : node?.parentElement, null);
-
 // `items` in the page's rendered order of their places (`placeOfItem`), those with no
 // place after every placed one; items at one place, and the unplaced, keep their given
 // order.

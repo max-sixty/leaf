@@ -7,7 +7,7 @@
  * across. A motion path's turn is not read, nor a perspective's foreshortening: a box
  * on a path reads as though it stood unturned, and one under a perspective as though
  * seen square on. */
-import { isElement, isHTML, isSVG, renderedParent } from "./shadow-tree.js";
+import { isElement, isHTML, isSVG, renderedParent } from "./lib/shadow-tree.js";
 import { union } from "./rect.js";
 
 const IDENTITY = new window.DOMMatrixReadOnly();

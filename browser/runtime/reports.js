@@ -55,7 +55,7 @@ import {
   readPart,
   watchPresentation,
 } from "./semantic-state.js";
-import { closestAcross } from "./passages.js";
+import { closestAcross } from "./lib/shadow-tree.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
 /** @param {unknown} target @returns {ReportTarget | null} */

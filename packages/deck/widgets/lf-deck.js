@@ -87,10 +87,10 @@ import {
   readQueues,
   scrollIntoView,
   signal,
-  under,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 

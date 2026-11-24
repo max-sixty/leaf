@@ -1,4 +1,4 @@
-import { isHTML } from "../shadow-tree.js";
+import { isHTML } from "../lib/shadow-tree.js";
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus.
    The strip below a reply's words holds its reactions; its trigger stands with the

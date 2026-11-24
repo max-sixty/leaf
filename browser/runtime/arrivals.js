@@ -50,7 +50,7 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, shadowHost, under } from "./shadow-tree.js";
+import { isElement, shadowHost, under } from "./lib/shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 
 /** The elements a watch holds: whether `is` one, and every one `within` a tree.

@@ -82,7 +82,6 @@ import {
   alreadyShown,
   setScroll,
   bodyText,
-  codeLanguage,
   commandsChanged,
   failSoft,
   keeps,
@@ -93,11 +92,14 @@ import {
   onUserInput,
   scrollersOf,
   scrollIntoView,
+  tabStore,
+} from "/runtime/portable-api.js";
+import {
+  codeLanguage,
   synNodes,
   syntax,
-  tabStore,
   tokenLines,
-} from "/runtime/portable-api.js";
+} from "/runtime/lib/syntax-tokens.js";
 
 // How long a playhead stands on a line before the block counts it as resting there
 // (see the header): longer than a playing animation's one-step visits, shorter than a

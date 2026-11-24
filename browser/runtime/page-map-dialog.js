@@ -40,7 +40,7 @@ import {
   openerOf,
 } from "./focus.js";
 import { guard, html, nothing, render, repeat } from "/runtime/framework.js";
-import { iconTemplate } from "./icons.js";
+import { iconTemplate } from "./lib/icons.js";
 import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";

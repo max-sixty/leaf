@@ -89,13 +89,11 @@ import {
   addressableLabel,
   authoredTitle,
   setScroll,
-  actionTemplate,
   agentName,
   PRESS,
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
-  tally,
   under,
   backgroundFlash,
   beginWalk,
@@ -132,6 +130,8 @@ import {
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { actionTemplate } from "/runtime/lib/icons.js";
+import { tally } from "/runtime/lib/obligation-tally.js";
 
 const PLACE_KEY = "lf-tabs-place:";
 // The document's own scroller, which scrolls a page-flow set's views.

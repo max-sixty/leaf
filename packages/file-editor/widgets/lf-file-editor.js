@@ -84,7 +84,6 @@ import {
   el,
   focusDestination,
   focused,
-  iconTemplate,
   LeafElement,
   offered,
   offeredAction,
@@ -95,6 +94,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 

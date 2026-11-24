@@ -2,7 +2,7 @@
    to the page. Portable language-paths.js owns a filename's language reading. */
 import { reportPageError } from "./layer-client.js";
 import { marks } from "./kernel-facts.js";
-import { codeLanguage, synNodes, syntax } from "./syntax-tokens.js";
+import { codeLanguage, synNodes, syntax } from "./lib/syntax-tokens.js";
 
 // The page's own code blocks: <pre><code class="language-python">, in the language
 // syntax-tokens.js reads off the class (`codeLanguage`). A widget whose body is data,

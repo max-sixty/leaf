@@ -59,7 +59,7 @@ import { registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { actionTemplate } from "./icons.js";
+import { actionTemplate } from "./lib/icons.js";
 import {
   closestAcross,
   isElement,

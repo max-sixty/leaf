@@ -174,7 +174,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [sequenceControl]
  * @property {() => boolean} [commandReferenceWhen]
  * @property {import("../page-controls.js").PageControlGroup} [menu]
- * @property {keyof typeof import("../icon-paths.js").ACTIONS} [action]
+ * @property {keyof typeof import("../lib/icon-paths.js").ACTIONS} [action]
  * @property {Cell<readonly CommandRoute[]>} [routes]
  * @property {() => Scope | null} [opens]
  * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command

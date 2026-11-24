@@ -93,8 +93,6 @@ import {
   el,
   focusDestination,
   holdFocus,
-  actionTemplate,
-  iconTemplate,
   inBaseLayer,
   offered,
   offeredAction,
@@ -117,6 +115,7 @@ import {
   commandsChanged,
   actionClass,
 } from "/runtime/widget-api.js";
+import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
 import { seconds } from "/runtime/lib/time-axis.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";

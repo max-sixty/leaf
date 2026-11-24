@@ -29,7 +29,7 @@ ACTIONS = json.loads(
             "-e",
             "const { ACTIONS } = await import(process.argv[1]);"
             " console.log(JSON.stringify(ACTIONS));",
-            str((HERE / "../../browser/runtime/icon-paths.js").resolve()),
+            str((HERE / "../../browser/runtime/lib/icon-paths.js").resolve()),
         ],
         check=True,
         capture_output=True,

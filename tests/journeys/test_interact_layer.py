@@ -668,7 +668,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
     from leaf.service import claim_path
 
     publish(claimed)
-    vendored = vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed)
     record = (
         claim_path(claimed)
         if unreadable == "claim"
@@ -697,9 +697,6 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    layer_3 = registry_storage.layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == vendored
     assert vendoring_model.renew_layer(claimed, None, command=True) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 

@@ -1421,7 +1421,7 @@ def receive_held(
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
-    (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
+    (`event_contracts.write_refusal`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
     recorded, and the hook hands only those over (`hook_transport.carry_turn`)."""
     recorded = []

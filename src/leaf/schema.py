@@ -416,7 +416,9 @@ DECLARATION_SCHEMA = {
         "description": {"type": "string", "pattern": r"\S"},
         # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The two
         # keywords Leaf's readers take an attribute's own schema and presence from are
-        # named, so the browser's types know them.
+        # named, so the browser's types know them. A declaration may leave out `type`
+        # and `additionalProperties`, which composition writes in
+        # (`registry.contract.complete_declarations`).
         "attributes": {
             "type": "object",
             "properties": {

@@ -116,12 +116,10 @@ OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "choice": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {

@@ -147,12 +147,10 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     feed = {
         "description": "A live deployment feed.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -444,12 +442,10 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     entry = {
         "description": "A project-supplied derived feed.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -952,12 +948,10 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         return {
             "description": "An instrumented data reader.",
             "attributes": {
-                "type": "object",
                 "properties": {
                     "source": {"type": "string"},
                 },
                 "required": ["id", "source"],
-                "additionalProperties": False,
             },
             "content": "empty",
             "inputs": {

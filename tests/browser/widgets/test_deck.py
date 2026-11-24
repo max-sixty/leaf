@@ -411,7 +411,6 @@ def test_a_swipe_stays_held_until_the_fingers_lift(browser, serve):
         page.evaluate("() => document.querySelector('#store-ask').style.translate")
         == ""
     )
-    context.close()
 
 
 # The height each motion of the deck's own box ends at, recorded as it starts.

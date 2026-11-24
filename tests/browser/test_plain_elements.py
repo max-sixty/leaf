@@ -18,7 +18,8 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import NESTED_OBLIGATION_PAGE, live_url
+from render_cases_navigation import actions
 from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
@@ -68,10 +69,10 @@ HIRES = """
 # What a module does to record or take back. It answers what the module knows as
 # `dispatchEvent` returns: whether Leaf took the event, and the decision the element's
 # state then holds. The outcome of a taken event lands on `window.sent`.
-SEND = """([id, type, detail]) => {
+SEND = """([id, type, detail, inside]) => {
   const element = document.getElementById(id);
-  const event = new CustomEvent(type, {bubbles: true, composed: true, detail});
-  element.dispatchEvent(event);
+  const event = new CustomEvent(type, {detail, bubbles: Boolean(inside)});
+  (inside ? element.querySelector(inside) : element).dispatchEvent(event);
   window.sent = {taken: Boolean(event.delivery), settled: false};
   event.delivery?.then((admitted) =>
     Object.assign(window.sent, {settled: true, admitted}));
@@ -79,11 +80,11 @@ SEND = """([id, type, detail]) => {
 }"""
 
 
-def send(page, widget, kind, detail):
-    """Dispatch one event from `widget` as its module would. Answers what `SEND` read
-    as `dispatchEvent` returned and, for an event Leaf took, what its `delivery`
-    resolved to as `admitted`."""
-    sent = page.evaluate(SEND, [widget, kind, detail])
+def send(page, widget, kind, detail, inside=None):
+    """Dispatch one event from `widget` as its module would, or a bubbling one from
+    the node `inside` it. Answers what `SEND` read as `dispatchEvent` returned and, for
+    an event Leaf took, what its `delivery` resolved to as `admitted`."""
+    sent = page.evaluate(SEND, [widget, kind, detail, inside])
     if sent["taken"]:
         page.wait_for_function("() => window.sent.settled")
         sent["admitted"] = page.evaluate("() => window.sent.admitted")
@@ -177,7 +178,9 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
     """The state holds an action's result as `dispatchEvent` returns. `delivery`
     resolves to the event the server admitted, or to null where the server refuses it
     and the state returns. `lf-undo` takes back the action in force, on the unit it
-    names where the verb has a state for each. A quoted element's event is never sent."""
+    names where the verb has a state for each, and one that bubbles to the element
+    from a node inside it is the element's too. A quoted element's event is never sent,
+    and neither is one from an element that has left the page."""
     url = live_url(
         serve(
             leaf_page("Release 4.2", QUESTION + QUOTED + HIRES),
@@ -200,7 +203,7 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
     expect(choice(page, "verdict", "ship")).to_have_attribute("aria-pressed", "true")
 
     with sending(page, "the withdrawal"):
-        withdrawn = send(page, "verdict", "lf-undo", {"verb": "decide"})
+        withdrawn = send(page, "verdict", "lf-undo", {"verb": "decide"}, "button")
     assert withdrawn["decided"] is None
     assert withdrawn["admitted"]["undoes"] == admitted["id"]
     assert not send(page, "verdict", "lf-undo", {"verb": "decide"})["taken"]
@@ -226,6 +229,37 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
         send(page, "hires", "lf-undo", {"verb": "pick", "unit": "grace"})
     expect(grace).to_have_attribute("aria-pressed", "false")
     expect(ada).to_have_attribute("aria-pressed", "true")
+
+    # The page's last element, so its leaving moves nothing.
+    gone = """detail => {
+      const element = document.getElementById("hires");
+      element.remove();
+      const event = new CustomEvent("lf-action", {detail});
+      element.dispatchEvent(event);
+      return Boolean(event.delivery);
+    }"""
+    drop = {"verb": "pick", "detail": {"candidate": "ada", "picked": False}}
+    assert not page.evaluate(gone, drop)
+
+
+def test_a_record_that_bubbles_belongs_to_the_nearest_widget(browser, serve):
+    """A widget standing inside another may dispatch a bubbling `lf-action`, as a
+    module written for a document listener does. The outer widget hears it too, and
+    records nothing for it: the action is the inner widget's alone."""
+    page = open_page(browser, live_url(serve(NESTED_OBLIGATION_PAGE)))
+    pick = """() => document.getElementById("inner").dispatchEvent(
+      new CustomEvent("lf-action", {
+        bubbles: true,
+        composed: true,
+        detail: {verb: "choose", detail: {value: ["in-now"]}},
+      }),
+    )"""
+    with sending(page, "the pick"):
+        page.evaluate(pick)
+    expect(page.locator("#in-now")).to_have_attribute("selected", "")
+    assert [
+        (event["widget"], event["detail"]) for event in actions(serve.page_dir)
+    ] == [("inner", {"value": ["in-now"]})]
 
 
 def test_the_starter_package_init_writes_draws_and_records(browser, serve, tmp_path):

@@ -15,6 +15,11 @@
    - the property each bound input names, and a written data body as its `value`
      (element-data.js, "Bound values").
 
+   On a widget whose tag declares `verbs`, Leaf also listens for the `lf-action` and
+   `lf-undo` the element records with (`hearRecords`, widget-controller.js). So the
+   element Leaf sets `state` on is the one it hears, and the events need no options
+   to reach it.
+
    Recorded properties. An element that knows nothing of Leaf keeps a value in a
    property and says the user changed it with an event, as a form control does with
    `value` and `change`. Where a verb's record names that property, Leaf sets it to
@@ -93,6 +98,7 @@ import {
   announceDrawing,
   controllerOf,
   drawingOf,
+  hearRecords,
   holdsOn,
   isDrawing,
   takeDrawing,
@@ -166,6 +172,7 @@ function host(element) {
   // the return's sets are drawn, and a draw that asks whether that preparation is in
   // (reports.js) finds it.
   const controller = verbs.length ? controllerOf(element) : null;
+  if (controller) hearRecords(element);
   // The verbs whose value the element keeps in a property ("Recorded properties").
   const properties = Object.entries(descriptor?.declaration.verbs ?? {}).flatMap(
     ([verb, { record }]) =>

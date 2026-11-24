@@ -5,7 +5,6 @@
     "content": "members",
     "verbs": {
       "move": {
-        "unit": "unit",
         "record": { "kind": "position", "within": "lf-test-list" }
       }
     },

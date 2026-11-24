@@ -126,13 +126,11 @@ def starter_element_declaration(tag: str) -> dict:
     return {
         "description": "A yes-or-no choice the user makes with a press.",
         "attributes": {
-            "properties": {"choice": {"type": "string", "enum": ["yes", "no"]}},
+            "properties": {"choice": {"enum": ["yes", "no"]}},
             "required": ["id"],
         },
         "content": "empty",
-        "verbs": {
-            "choose": {"unit": "widget", "record": {"kind": "value", "attr": "choice"}}
-        },
+        "verbs": {"choose": {"record": {"attr": "choice"}}},
         "example": f'<{tag} id="{tag.removeprefix("lf-")}"></{tag}>',
     }
 
@@ -161,13 +159,8 @@ customElements.define(
     }}
 
     press(value) {{
-      this.dispatchEvent(
-        new CustomEvent("lf-action", {{
-          bubbles: true,
-          composed: true,
-          detail: {{ verb: "choose", detail: {{ value }} }},
-        }}),
-      );
+      const action = {{ verb: "choose", detail: {{ value }} }};
+      this.dispatchEvent(new CustomEvent("lf-action", {{ detail: action }}));
     }}
   }},
 );

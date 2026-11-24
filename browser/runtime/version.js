@@ -3297,8 +3297,6 @@ export function createVersionController({
     })();
     let gone = false;
     addEventListener("pagehide", (event) => {
-      // A page the back/forward cache keeps may come back, and its later hide still
-      // counts.
       gone = !event.persisted;
       // The arrival still owes the user the handoff's place, so the tab keeps that
       // handoff for the next document.
@@ -3315,7 +3313,8 @@ export function createVersionController({
     // A page hidden once the arrival no longer owes the handoff keeps none either: a tab
     // the browser discards while hidden goes with no `pagehide`, and its next load is a
     // reload that would find the old one. A document's own departure fires its
-    // `pagehide` before the hide that follows it, and has handed on what it hands on.
+    // `pagehide` before the hide that follows it, and has handed on what it hands on; a
+    // page put into the back/forward cache may come back, so its later hide still drops.
     document.addEventListener("visibilitychange", () => {
       if (gone || document.visibilityState !== "hidden") return;
       if (handoff && !arrival.owes()) window.lfStorage.handOff(null);

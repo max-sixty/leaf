@@ -113,10 +113,8 @@ def test_what_leaf_teaches_reads_only_the_tokens_its_references_name():
         declare, which its own instructions may name as its inputs."""
         names = declared(text)
         if where.parts[0] == "packages":
-            package = PLUGIN_ROOT / where.parts[0] / where.parts[1]
-            for path in package.rglob("*"):
-                if path.suffix in {".css", ".js"} and "vendor" not in path.parts:
-                    names |= set(NAME.findall(path.read_text()))
+            for path in sources(PLUGIN_ROOT / where.parts[0] / where.parts[1]):
+                names |= set(NAME.findall(path.read_text()))
         return names
 
     private = sorted(

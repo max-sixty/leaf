@@ -219,7 +219,10 @@ without `list` it says every step. The place goes sooner if the element it was s
 leaves the page, as when a redraw replaces it, so a widget whose stops are not elements
 of their own dispatches on the part of its drawing that holds the stop. Leaf hears an
 element leave the page or a shadow stage it builds (`shadowStage`), not a shadow root
-the widget attaches itself, where the place stays its few seconds. The panel shows the
+the widget attaches itself, where the place stays its few seconds. A widget whose user
+can leave a stop without stepping, as a chart's pointer takes its reader to another
+point, dispatches `lf-walk` with no `detail` on the element the place was said on as
+they leave it, and the place goes at once. The panel shows the
 place and says nothing aloud: the widget announces it, with what else a listener
 should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken words").
 Off Leaf, nothing hears the event.
@@ -409,9 +412,10 @@ after the box's state changes. `sync.button` is the generated send control.
 `wireInput` stands the box in a frame, `.lf-compose-field`, with its send control and,
 while a send is refused, the reason, `.lf-compose-error`. The box's hint is
 `.lf-compose-placeholder`. A widget that seats the box in a row of its own places
-those parts from its sheet. The frame's padding is `--lf-compose-pad-block` and
-`--lf-compose-pad-inline-start`, and `--lf-field-end-room`, set on the box, is the
-room its words leave at their end for the send control.
+those parts from its sheet, and sets the frame's padding on `.lf-compose-field` as
+`--lf-compose-pad-block` and `--lf-compose-pad-inline-start`. Leaf sets
+`--lf-field-end-room` on the box, the room its words leave at their end for the send
+control, and a widget that moves the control sets it again.
 
 Drafts survive a reload, a new version and a closed tab, and every tab and device
 showing the page shares them, since the page's server keeps them. Keep each under a

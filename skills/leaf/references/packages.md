@@ -83,7 +83,8 @@ Keep a widget simple: show the evidence and actions the reader needs, since ever
 control competes with them. Add an optional control when a caller needs it, and let
 the page's author turn it on. Use the theme's tokens and shared control styles before
 writing widget CSS, build each press by its role so it wears Leaf's face
-(`module-controls.md`), and reuse Leaf's thread symbol, comment
+(`module-controls.md`), give its other parts Leaf's faces by their classes
+(`module-controls.md`, "Faces for a widget's parts"), and reuse Leaf's thread symbol, comment
 box and keyboard hints (`module-input.md`, "Commands and keyboard routes", and
 `module-annotations.md`, "Widget-local Thread placement").
 
@@ -173,19 +174,19 @@ Custom properties come in four kinds:
 | Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                           |
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
 
-A Layout declares further facts on the boxes it arranges. A theme's or a widget's
-rule reads one with `var()`, or with a style query on a container of the element it
-styles:
+A Layout declares further facts about the boxes it arranges. A rule reads one with a
+style query on a container of the element it styles, or with `var()` where it is a
+length. `--lf-layout-box` doesn't inherit, so a module reads it off the box itself.
 
-| Declaration            | The Layout declares it on            | It says                                                                   |
-| ---------------------- | ------------------------------------ | ------------------------------------------------------------------------- |
-| `--lf-layout-box: 1`   | the box it arranges                  | the box carries a Layout; a `main` without it holds a page's parts        |
-| `--lf-wide-page: 1`    | a sidebar page                       | the page is as wide as the window                                         |
-| `--lf-parts-list`      | the `main` of a page of parts        | the width of the column that holds the page's title and its list of parts |
-| `--lf-parts-title: 1`  | the title of a page of parts         | the title heads that column                                               |
-| `--lf-track-beside: 1` | a sidebar's `layout-track`           | the track stands beside the body; `0` once it has wrapped                 |
-| `--lf-track-spine: 1`  | a track it narrowed to a spine       | the track's content may show its words over the body                      |
-| `--lf-track-room`      | a sidebar, and the parent of a track | the height a track that sticks may take                                   |
+| Declaration            | The Layout declares it on                                             | It says                                                                |
+| ---------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `--lf-layout-box: 1`   | the box it arranges                                                   | the box carries a Layout                                               |
+| `--lf-wide-page: 1`    | a sidebar page, with `0` on a reading column inside it                | the box is as wide as the window                                       |
+| `--lf-parts-list`      | the `main` of a page of parts                                         | the width of the column holding the page's title and its list of parts |
+| `--lf-parts-title: 1`  | the title of a page of parts, whose anchor name it also is            | the title heads that column                                            |
+| `--lf-track-beside: 1` | a sidebar's `layout-track`                                            | the track stands beside the body; `0` once it has wrapped              |
+| `--lf-track-spine: 1`  | a track it narrowed for the one element in it, which declares `spine` | that element may show its words over the body                          |
+| `--lf-track-room`      | a sidebar, and the parent of a track, in a window 480px tall or more  | the height a track that sticks may take                                |
 
 Leaf's interface sets its words in a closed set of fonts derived from those tokens,
 each a whole value for the `font` shorthand, declared together in
@@ -194,8 +195,9 @@ its controls, statuses, counts, labels and readouts, and the sentences it holds,
 as a card's, name the font for their kind (`font: var(--lf-font-small)`,
 `font: var(--lf-font-widget)`) rather than a size, line height or family of their own. They then match Leaf's at
 every density and under every theme, and a page doesn't collect faces a pixel or a
-weight apart from the ones Leaf already draws. A box that keeps room for a line of
-those words reads the line height most of the fonts share, `--lf-ui-lh`.
+weight apart from the ones Leaf already draws. The fonts for one line of words, such as
+`--lf-font-ui`, `--lf-font-compact` and `--lf-font-small`, share one line height, the
+number `--lf-ui-lh`, which a box multiplies by the font's size to keep room for a line.
 
 Every custom property Leaf declares starts with `--lf-`, so none meets a name a page
 or its framework coins. A page, theme or package may rely on those these references

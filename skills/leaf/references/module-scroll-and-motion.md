@@ -197,10 +197,9 @@ revealed control lands exactly there. Put the stacked value on a box that doesn'
 itself.
 
 A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
-inside it sticks at its top from the first paint, and `--lf-top-covered: 0px`, since
-no header stacked over the box covers a landing inside it. `--lf-landing-room` is the
-room Leaf leaves over a landing for its focus ring, and a box that sticks beside the
-content it lists, as a side list does, sticks that far below `--lf-top`. Leaf also restarts `--lf-top` on a box
+inside it sticks at its top from the first paint. It sets `--lf-top-covered: 0px` with
+it, which tells Leaf that no header covers the top of the box, so a landing inside the
+box stops just below that top. Leaf also restarts `--lf-top` on a box
 marked as a scroll surface, such as a registered reading region's body, once it finds
 the box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other
 box's overflow, so in a box that scrolls without that declaration or the mark, a header
@@ -211,6 +210,10 @@ on the scroller's edge, set `--lf-top-start` to minus that padding and
 with its own `scroll-padding` states it as `--lf-landing-room-start`. A box that only
 clips, such as a card with rounded corners, uses `overflow: clip`, since a header inside
 an `overflow: hidden` box scrolls away with the page.
+
+Leaf leaves `--lf-landing-room` over a landing for its focus ring. A box a package
+sticks beside the content it lists, as a side list does, sets its `top` that far below
+`--lf-top`.
 
 ### Headers over the document
 

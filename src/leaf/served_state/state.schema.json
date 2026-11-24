@@ -673,7 +673,7 @@
       "additionalProperties": false
     },
     "PlanStep": {
-      "description": "One step of the plan (`plans.plan_reading`): plain, or naming an obligation, a to-do among them, whose title and standing it shows; `done` of `total` counts its children that ended done, dropped ones left out.",
+      "description": "One step of the plan (`plans.plan_reading`): a heading, which names no `item` and reads its standing from the records its steps name, or a step naming an obligation, a to-do among them, whose title and standing it shows, with the words a finished to-do's end gave as `detail`; `done` of `total` counts its steps that ended done, dropped ones left out.",
       "type": "object",
       "properties": {
         "title": { "type": ["string", "null"] },
@@ -699,6 +699,7 @@
           "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }]
         },
         "since": { "type": ["string", "null"] },
+        "detail": { "type": ["string", "null"] },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } },
         "done": { "type": "integer" },
         "total": { "type": "integer" }
@@ -712,6 +713,7 @@
         "item",
         "running",
         "since",
+        "detail",
         "steps",
         "done",
         "total"

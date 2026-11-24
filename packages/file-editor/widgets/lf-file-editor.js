@@ -75,10 +75,9 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
+  afterPresentation,
   boundFile,
-  RequestError,
   commandsOn,
-  deferredArrival,
   el,
   focusDestination,
   LeafElement,
@@ -665,29 +664,35 @@ customElements.define(
           }, 1000);
         if (of === file) paint();
         try {
-          of.base = await of.api.save({ revision: against.revision, text: submitted });
-          of.latest = null;
-          of.failure = null;
+          const saved = await of.api.save({
+            revision: against.revision,
+            text: submitted,
+          });
+          // An answer ends the save: it wrote the file, or, refused in the server's own
+          // words, wrote nothing.
           of.sent = null;
-        } catch (fault) {
-          // A refusal in the server's own words, the only `RequestError` file-api.js
-          // passes on, wrote nothing. A save with no such answer, as when a reload
-          // cancels it or a proxy answers for the server, may have reached the file,
-          // so its text stays until a read says.
-          if (fault instanceof RequestError) of.sent = null;
-          if (fault instanceof RequestError && fault.current) {
+          if (!("refused" in saved)) {
+            of.base = saved;
+            of.latest = null;
+            of.failure = null;
+          } else if (saved.current) {
             // A file holding this save or a lost earlier one holds the draft's own
             // words, which the draft stands over, as a read takes them (`refresh`).
-            const held = fault.current.text;
+            const held = saved.current.text;
             if (held === submitted || held === lost) {
-              of.base = fault.current;
+              of.base = saved.current;
               of.latest = null;
-            } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            } else if (replace || !settle(of, saved.current)) of.latest = saved.current;
             of.failure = null;
           } else {
-            of.failure = { kind: "save", message: describeFailure(fault), replace };
+            of.failure = { kind: "save", message: saved.refused, replace };
             of.owed ||= owedBefore;
           }
+        } catch (fault) {
+          // A save with no answer, as when a reload cancels it or a proxy answers for
+          // the server, may have reached the file, so its text stays until a read says.
+          of.failure = { kind: "save", message: describeFailure(fault), replace };
+          of.owed ||= owedBefore;
         } finally {
           of.busy = false;
           if (connected) remember(of);
@@ -838,10 +843,11 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
+          const first = opening;
           this.dispatchEvent(
-            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+            new PendingTaskEvent(Promise.race([first, waited.promise])),
           );
-          deferredArrival(opening);
+          void afterPresentation(() => first);
           initial = false;
         }
         watch();

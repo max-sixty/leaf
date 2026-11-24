@@ -1,0 +1,22 @@
+/* Leaf's theme dresses the library's select by the library's own tag
+   (browser/styles/webawesome-tokens.css, components/webawesome.css). A declaration
+   names another tag, so the package restates what its control needs of those rules:
+   the control face's type and the focus ring on its frame. */
+lf-select {
+  display: block;
+  /* Hold the control's line before its module defines the tag. */
+  min-block-size: var(--lf-line);
+  font-family: var(--lf-sans);
+}
+/* Until then its options are no listbox, so their words stay off the page. */
+lf-select:not(:defined) > * {
+  display: none;
+}
+lf-select::part(combobox lf-focus-visible-within) {
+  outline: var(--lf-focus-ring);
+}
+lf-level {
+  display: block;
+  /* Hold the range's line before the module builds it. */
+  min-block-size: var(--lf-line);
+}

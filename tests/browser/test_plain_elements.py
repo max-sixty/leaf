@@ -5,9 +5,13 @@ sets its `state` and its bound `notes`, hears the `lf-action` a press dispatches
 reads each choice as a comment target from its `data-lf-part` mark
 (module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
-export.
+export. `tests/fixtures/packages/controls` holds two components with no code written
+for Leaf, each recorded because its declaration's `record` names the property that
+holds its value: `lf-select`, Web Awesome's select, and `lf-level`, a range that
+announces every change of its value, a script's set included.
 """
 
+import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -17,9 +21,12 @@ from render_harness import (
     holding,
     http_error_console,
     leaf_page,
+    navigate,
     open_page,
     round_trip,
     sending,
+    tab_onto,
+    told,
     undo,
     write,
 )
@@ -32,6 +39,7 @@ from leaf.schema import PLUGIN_ROOT
 FIXTURES = PLUGIN_ROOT / "tests" / "fixtures" / "packages"
 VERDICT = FIXTURES / "verdict"
 SHORTLIST = FIXTURES / "shortlist"
+CONTROLS = FIXTURES / "controls"
 
 QUESTION = """
 <h1 id="title">Release 4.2</h1>
@@ -262,3 +270,210 @@ def test_a_plain_element_in_an_agent_s_reply_draws_and_records(browser, serve):
         ("reply-verdict", "hold"),
         ("reply-verdict", "ship"),
     ]
+
+
+PLAN = """
+<h1 id="title">Seats</h1>
+<lf-group id="plan" label="Which plan?">
+  <p id="premise">Seats are billed monthly on every plan.</p>
+  <lf-select id="plan-choice" placeholder="Choose a plan">
+    <wa-option value="starter">Starter</wa-option>
+    <wa-option value="team">Team</wa-option>
+    <wa-option value="scale">Scale</wa-option>
+  </lf-select>
+</lf-group>
+"""
+QUOTED_PLAN = """
+<lf-sample id="quoted-plan" label="A quoted choice">
+  <lf-select id="quoted-choice" value="starter">
+    <wa-option value="starter">Starter</wa-option>
+    <wa-option value="team">Team</wa-option>
+  </lf-select>
+</lf-sample>
+"""
+
+
+def chose(page_dir, value):
+    """Record a choice of plan as another tab's pick reaches the log."""
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "choose",
+            "detail": {"value": value},
+        },
+    )
+
+
+def chosen(page_dir):
+    return [
+        (event["widget"], event["detail"]["value"])
+        for event in event_log.read_events(page_dir)
+        if event["kind"] == "action" and event["action"] == "choose"
+    ]
+
+
+def pick(page, widget, value):
+    """Choose `value` in the select `widget` with the pointer. The select says
+    `change` once it has drawn the choice, after the press returns."""
+    select = page.locator(f"#{widget}")
+    select.get_by_role("combobox").click()
+    select.locator(f'wa-option[value="{value}"]').click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_component_with_no_code_for_leaf_records_what_its_declaration_names(
+    engine, serve, request
+):
+    """The select holds its value in `value` and says `change`, and its tag's `record`
+    names that property. A pick by pointer and one by keyboard are each recorded and
+    answer the question on On Me, a reload shows the recorded pick, and Undo takes it
+    back and asks again."""
+    url = live_url(serve(leaf_page("Seats", PLAN), packages=(CONTROLS,)))
+    page = open_page(request.getfixturevalue(engine), url)
+    select = page.locator("#plan-choice")
+    shown = select.get_by_role("combobox")
+    expect_obligations_answered(page, "0/1")
+
+    with sending(page, "the pick"):
+        pick(page, "plan-choice", "team")
+    assert chosen(serve.page_dir) == [("plan-choice", "team")]
+    expect_obligations_answered(page, "1/1")
+
+    navigate(page, url)
+    expect(shown).to_have_value("Team")
+    expect_obligations_answered(page, "1/1")
+
+    undo(page)
+    expect(shown).to_have_value("")
+    expect_obligations_answered(page, "0/1")
+
+    tab_onto(shown)
+    page.keyboard.press("Enter")
+    expect(select).to_have_js_property("open", True)
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    with sending(page, "the pick"):
+        page.keyboard.press("Enter")
+    expect(shown).to_have_value("Scale")
+    # The reload's set and the Undo's recorded nothing of their own.
+    assert chosen(serve.page_dir) == [("plan-choice", "team"), ("plan-choice", "scale")]
+    expect_obligations_answered(page, "1/1")
+
+
+def test_a_recorded_property_shows_what_the_page_holds(browser, serve):
+    """The element shows the recorded value whoever wrote it, and an event it
+    dispatches while its property reads that value, as a later answer to Leaf's set
+    does, records nothing. A change made where the user may not act, and one the
+    server refuses, returns to the recorded value. A value the user is still changing
+    survives a move of the reading that leaves the recorded value alone, and is
+    recorded once the element says `change`."""
+    url = live_url(serve(leaf_page("Seats", PLAN + QUOTED_PLAN), packages=(CONTROLS,)))
+    chose(serve.page_dir, "scale")
+    page = open_page(browser, url)
+    select, quoted = page.locator("#plan-choice"), page.locator("#quoted-choice")
+    expect(select).to_have_js_property("value", "scale")
+
+    chose(serve.page_dir, "starter")
+    told(page)
+    expect(select).to_have_js_property("value", "starter")
+    select.dispatch_event("change")
+
+    # The quoted select says `change` before the trip of the pick behind it ends.
+    pick(page, "quoted-choice", "team")
+
+    def refuse(route):
+        command = route.request.post_data_json
+        if command["kind"] != "action":
+            return route.continue_()
+        route.fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": command["attempt"],
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    page.route("**/api/event", refuse)
+    with sending(page, "the pick the server refuses"):
+        pick(page, "plan-choice", "team")
+    page.unroute("**/api/event")
+    consume_browser_errors(page, http_error_console(400))
+    assert select.evaluate("node => node.value") == "starter"
+    assert quoted.evaluate("node => node.value") == "starter"
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    pick(page, "plan-choice", "team")
+    holding(page, held, 1, "the pick whose delivery is held")
+    # A value still being changed, as a slider's is through a drag.
+    select.evaluate("node => { node.value = 'scale'; }")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert select.evaluate("node => node.value") == "scale"
+    with sending(page, "the value the user settled on"):
+        select.dispatch_event("change")
+    assert chosen(serve.page_dir) == [
+        ("plan-choice", "scale"),
+        ("plan-choice", "starter"),
+        ("plan-choice", "team"),
+        ("plan-choice", "scale"),
+    ]
+
+
+LEVEL = """
+<h1 id="title">Report</h1>
+<p id="premise">Set how much detail the report carries.</p>
+<lf-level id="detail" label="Detail" min="0" max="10" value="3"></lf-level>
+"""
+
+
+def levels(page_dir):
+    return [
+        event["detail"]["value"]
+        for event in event_log.read_events(page_dir)
+        if event["kind"] == "action" and event["action"] == "set"
+    ]
+
+
+def test_what_an_element_says_from_inside_leaf_s_set_is_not_the_user_s_act(
+    browser, serve
+):
+    """The range keeps its value within its scale and says `level-change` from
+    inside every set that moves it, so as Leaf sets a recorded 70 it comes to hold 10
+    and says so. Leaf records nothing of that, on arrival or as Undo sets the value
+    again, and records the step the user makes, which the range says with the same
+    event."""
+    url = live_url(serve(leaf_page("Report", LEVEL), packages=(CONTROLS,)))
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "detail",
+            "action": "set",
+            "detail": {"value": "70"},
+        },
+    )
+    page = open_page(browser, url)
+    level = page.locator("#detail")
+    expect(level).to_have_js_property("value", "10")
+
+    tab_onto(level.get_by_role("slider"))
+    with sending(page, "the step"):
+        page.keyboard.press("ArrowLeft")
+    assert levels(serve.page_dir) == ["70", "9"]
+
+    undo(page)
+    expect(level).to_have_js_property("value", "10")
+    tab_onto(level.get_by_role("slider"))
+    with sending(page, "the step"):
+        page.keyboard.press("ArrowLeft")
+    assert levels(serve.page_dir) == ["70", "9", "9"]

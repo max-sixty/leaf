@@ -17,6 +17,7 @@ import {
   layerFact,
   recordedWidgetSelector,
   registry,
+  sameRecord,
   stateSpecs,
 } from "/runtime/registry.js";
 
@@ -112,6 +113,21 @@ test("a later generation inherits nothing from the index warmed before it", () =
     ["lf-index-fresh"],
   );
   assert.equal(recordedWidgetSelector({ kind: "value", attr: "phase" }), "");
+});
+
+test("records that differ only in how the element keeps the value are one record", () => {
+  const phase = { kind: "value", attr: "phase" };
+  assert.ok(sameRecord(phase, { ...phase, property: "value", event: "sl-change" }));
+  assert.ok(!sameRecord(phase, { kind: "value", attr: "status" }));
+  assert.ok(!sameRecord(phase, { kind: "attribute", attr: "phase" }));
+  assert.ok(
+    !sameRecord(
+      { kind: "position", within: "lf-lane" },
+      { kind: "position", within: "lf-shelf" },
+    ),
+  );
+  assert.ok(sameRecord(undefined, undefined));
+  assert.ok(!sameRecord(phase, undefined));
 });
 
 test("a layer fact is the registry's own value, which a module cannot change", () => {

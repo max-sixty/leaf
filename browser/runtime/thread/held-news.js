@@ -177,10 +177,6 @@ const gestured = (key) => {
 const tokens = (reactions) =>
   new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 
-// The tokens in force in one of two strips and not the other.
-/** @template T @param {ReadonlySet<T>} a @param {ReadonlySet<T>} b */
-const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
-
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
 // draws, that it folds. A reaction reply it covers draws as a strip.
 /** @param {ThreadReading["summaries"][number]} summary @param {ReadonlySet<string>} drawn */
@@ -265,9 +261,11 @@ export function threadChange(was, now) {
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
     else if (message.reactions && prior?.reactions) {
-      const turned = symmetric(tokens(prior.reactions), tokens(message.reactions));
-      news.reactions += turned.length;
-      if (turned.length) changed.add(message.key);
+      const turned = tokens(prior.reactions).symmetricDifference(
+        tokens(message.reactions),
+      );
+      news.reactions += turned.size;
+      if (turned.size) changed.add(message.key);
     }
   }
   /** @param {ChangeReading} reading */

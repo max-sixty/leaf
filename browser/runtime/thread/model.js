@@ -449,16 +449,10 @@ const NONE = Object.freeze([]);
 
 /** @template T @param {readonly T[]} items @param {(item: T) => string | null | undefined} key */
 function grouped(items, key) {
-  /** @type {Map<string, T[]>} */
-  const groups = new Map();
-  for (const item of items) {
-    const name = key(item);
-    if (name == null) continue;
-    const group = groups.get(name);
-    if (group) group.push(item);
-    else groups.set(name, [item]);
-  }
-  return groups;
+  const groups = Map.groupBy(items, key);
+  groups.delete(null);
+  groups.delete(undefined);
+  return /** @type {Map<string, T[]>} */ (groups);
 }
 
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../types/domain.js").AuthoredWidget["state"]}} Unit */

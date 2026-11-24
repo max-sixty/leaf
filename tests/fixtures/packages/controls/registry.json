@@ -1,0 +1,49 @@
+{
+  "lf-select": {
+    "description": "One choice from a dropdown, drawn by Web Awesome's select, a component that knows nothing of Leaf. Put it in an `lf-group` whose label asks the question, with a `wa-option` for each choice.",
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "value": { "type": "string" },
+        "placeholder": { "type": "string" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "verbs": {
+      "choose": {
+        "unit": "widget",
+        "record": { "kind": "value", "attr": "value", "property": "value" }
+      }
+    },
+    "awaits": { "value": "choose", "answered": { "choose": {} } },
+    "example": "<lf-group id=\"plan\" label=\"Which plan?\"><lf-select id=\"plan-choice\" placeholder=\"Choose a plan\"><wa-option value=\"starter\">Starter</wa-option><wa-option value=\"team\">Team</wa-option></lf-select></lf-group>"
+  },
+  "lf-level": {
+    "description": "A level on a scale, set on a range the element holds, which says `level-change` at every change of its value, a script's set included.",
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "value": { "type": "string" },
+        "min": { "type": "string" },
+        "max": { "type": "string" },
+        "label": { "type": "string" }
+      },
+      "required": ["id", "label"],
+      "additionalProperties": false
+    },
+    "content": "empty",
+    "verbs": {
+      "set": {
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "value",
+          "property": "value",
+          "event": "level-change"
+        }
+      }
+    },
+    "example": "<lf-level id=\"detail\" label=\"Detail\" min=\"0\" max=\"10\" value=\"3\"></lf-level>"
+  }
+}

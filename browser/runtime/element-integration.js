@@ -47,9 +47,9 @@
      starts no comment, the value takes the library's faded face, and the property
      would be a second way of saying `available`.
 
-   Leaf sets none of them until the reading holds every declared verb and the page has
-   read the data a bound source names, so the element never draws a reading nobody has
-   made yet. Each pass of sets runs in the stack that moved the reading, inside a claim
+   Leaf makes none of its sets, of `state`, a recorded property or a bound input, until
+   the reading holds every declared verb and the page has read the data a bound source
+   names, so the element never draws a reading nobody has made yet. Each pass of sets runs in the stack that moved the reading, inside a claim
    on the element's render region. So a gesture's result is drawn before the
    `dispatchEvent` that recorded it returns, and the page reads as presented, and as
    showing a data delivery, only once the setters have returned and the drawing they
@@ -243,8 +243,9 @@ function host(element) {
   // (`stateAgain`), and how many of those the last set that returned had heard: a
   // request made from inside a set is owed another, and so is a set that threw. The
   // signal has the element's effect make the pass at once. An element out of the page
-  // is set as it returns, and its effect, which may outlive its leaving by a moment,
-  // is told nothing meanwhile.
+  // is set as it returns. Its effect may outlive its leaving by a moment and is told
+  // nothing meanwhile: a set made on an element out of the page asks again from
+  // inside the set, so each telling would make another set, without end.
   let asks = 0;
   let answered = 0;
   const askedAgain = signal(0);
@@ -425,9 +426,9 @@ document.addEventListener(CONNECT, (event) => {
 /** The request that has `element`'s `state` set again though its reading stands, or
  * undefined where Leaf sets no `state` on the element. It is how Leaf tells an element
  * to draw again when something it draws beside its `state` has moved, as its reports
- * turning ready does (reports.js). Leaf makes the set before the caller's stack
- * unwinds, so before any microtask, in its place among the sets a publication owes,
- * and on an element that is away, as it returns.
+ * turning ready does (reports.js). Leaf makes the set before any microtask runs, in
+ * its place among the sets a publication owes, and on an element that is away, as it
+ * returns.
  * @param {Element} element */
 export const stateAgain = (element) => againBy.get(element);
 

@@ -126,8 +126,8 @@ this.dispatchEvent(hold);
   recorded value. `attr` names the attribute in which a page's markup writes the
   starting value, as for any value record. Leaf sets `state` on the element too, as
   on any widget, so this form doesn't suit an element with a `state` property of its
-  own. That `state` is how the element learns the user may not act: Leaf neither
-  disables it nor makes it inert, so an element that doesn't read the verb's
+  own. The `state` Leaf sets is how the element learns the user may not act: Leaf
+  neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
   the action in Leaf's own words (`module-state.md`, "The widget controller").
 - **A third-party component.** A component from a third-party library keeps its own

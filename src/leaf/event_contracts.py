@@ -2,7 +2,8 @@
 
 `admitted_event` validates and derives a record from `page_view.PageView`, the
 current log, and a command. `append_admitted` performs that reading and write
-under `service.PageTransaction`'s lease.
+under `service.PageTransaction`'s lease, and `append_all_admitted` does so for
+several events that land together or not at all.
 
 This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
@@ -10,7 +11,12 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
+from leaf.event_log import (
+    APPEND_STAMPED,
+    EventRefused,
+    _matching_attempt,
+    new_event_id,
+)
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
     build_threads,
@@ -50,6 +56,7 @@ from leaf.registry.kernel import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
+from leaf.state import now_iso
 from leaf.thread_context import thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
@@ -934,3 +941,22 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
         )
     )
     return record, True
+
+
+def append_all_admitted(page, events: list[dict]) -> list[dict]:
+    """Admit `events` in order, each against the log as the ones before it leave it,
+    then append them; their records. A refusal of any appends none, so a command that
+    writes several events writes all of them or none. An event keeps the `id` it
+    names, so a later one in `events` can name it."""
+    view = PageView(page.page_dir)
+    trial = list(page.events)
+    for event in events:
+        # A retry the trial already holds appends nothing, and one whose attempt
+        # names another payload is refused here, before anything is written.
+        if _matching_attempt(trial, voiced(event)) is not None:
+            continue
+        record = admitted_event(view, trial, voiced(event))
+        # Stamped as the append stamps it, so the next is read after it.
+        seq = trial[-1]["seq"] + 1 if trial else 1
+        trial.append({**record, "ts": now_iso(), "seq": seq})
+    return [append_admitted(page, event, view=view)[0] for event in events]

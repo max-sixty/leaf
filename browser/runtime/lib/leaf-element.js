@@ -233,7 +233,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  promise of the event the server admitted, or of `null` once it refuses and Leaf
    *  has set the server's state again; `null` at once where nothing records the
    *  action, as off a Leaf page or while it is not `available`. `attempt` names the
-   *  draft the words were written in (`sendDraft`).
+   *  draft the words were written in (a draft's `send`, widget-api.js's `draft`).
    *  @param {string} verb @param {Record<string, unknown>} detail
    *  @param {{says?: string, attempt?: string | null | undefined}} [options]
    *  @returns {Promise<unknown> | null} */

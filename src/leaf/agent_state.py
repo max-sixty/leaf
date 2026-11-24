@@ -33,9 +33,16 @@ from .events import bare_reaction, is_reaction
 from .file_bindings import granted_files
 from .files import revision_path
 from .passages import page_passages
-from .projection import ThreadMarkupReading, retirement_outcomes
+from .projection import (
+    AuthoredOrders,
+    StateProjection,
+    ThreadMarkupReading,
+    folded_positions,
+    retirement_outcomes,
+)
 from .publishing import authored_digest, authored_files
 from .refusals import Refused
+from .registry.contract import state_specs
 from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
@@ -194,6 +201,41 @@ def _base_state(
     }
 
 
+def _orders(
+    record: dict, orders: AuthoredOrders, projection: StateProjection, registry: dict
+) -> dict | None:
+    """Each position verb the element `record` owns → container id → its units in
+    the order the page draws them (`folded_positions`), or None for an element that
+    records no positions. A version that changes a container writes each moved unit
+    where this order puts it (`package-data.md`, "User state")."""
+    owner = record["attrs"].get("id")
+    specs = [
+        (verb, spec["record"])
+        for verb, spec in state_specs(registry.get(record["tag"], {}))
+        if (spec.get("record") or {}).get("kind") == "position"
+    ]
+    if owner is None or not specs:
+        return None
+    return {
+        verb: folded_positions(owner, verb, position, orders, projection)
+        for verb, position in specs
+    }
+
+
+def _element(
+    record: dict, thread: str | None, order: dict | None, identity=None
+) -> dict:
+    element = {
+        "tag": record["tag"],
+        "id": identity or record["attrs"].get("id"),
+        "line": record["line"],
+        "thread": thread,
+    }
+    if order is not None:
+        element["order"] = order
+    return element
+
+
 def _apply_document_state(
     state: dict,
     document: DocumentReading,
@@ -204,13 +246,9 @@ def _apply_document_state(
     parser = document.document
     projection = document.projection
     state["title"] = parser.authoring.title.strip()
+    orders = AuthoredOrders(parser.by_id, registry)
     state["elements"] = [
-        {
-            "tag": record["tag"],
-            "id": record["attrs"].get("id"),
-            "line": record["line"],
-            "thread": None,
-        }
+        _element(record, None, _orders(record, orders, projection, registry))
         for record in parser.lf_elements
     ]
     in_force = projection.actions.items()
@@ -225,7 +263,7 @@ def _apply_document_state(
 
 
 def _apply_thread_state(
-    state: dict, thread: ThreadMarkupReading, facts: EventFacts
+    state: dict, thread: ThreadMarkupReading, registry: dict, facts: EventFacts
 ) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
@@ -242,13 +280,14 @@ def _apply_thread_state(
     thread_actions = thread.projection
     thread_byid = thread.by_id
     thread_of = thread.thread_by_widget
+    orders = AuthoredOrders(thread_byid, registry)
     state["elements"] += [
-        {
-            "tag": record["tag"],
-            "id": widget,
-            "line": record["line"],
-            "thread": thread_of[widget],
-        }
+        _element(
+            record,
+            thread_of[widget],
+            _orders(record, orders, thread_actions, registry),
+            widget,
+        )
         for widget, record in thread_byid.items()
     ]
     state["elements"].sort(
@@ -425,7 +464,7 @@ def page_state(
             state, reading.documents[active["revision"]], stored_data, registry, facts
         )
         state["reports"] = view["reports"]
-        _apply_thread_state(state, reading.thread, facts)
+        _apply_thread_state(state, reading.thread, registry, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.

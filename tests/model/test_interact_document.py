@@ -90,7 +90,6 @@ from leaf.registry.schema import schema_error
 from leaf.registry.storage import (
     load_registry,
     read_page_registry,
-    require_registry,
 )
 from leaf.render_gate import readings as render_gate_readings
 from leaf.runtime_selection import executing
@@ -964,22 +963,15 @@ def construction_nodes(content):
 
 
 def folded(page_dir, board="b1"):
-    """Each column of `board` in the order the page draws it: the position fold over
-    the revision `page state` activates."""
-    revision = state_json(page_dir)["active"]["revision"]
-    _, reading, _ = read_served_page(
-        read_page(page_dir, events_model.read_events(page_dir))
+    """Each column of `board` in the order the page draws it, as `leaf page state`
+    gives it on the board's element, so an agent rewriting a column copies the order
+    rather than rebuilding it from the moves in force."""
+    (element,) = (
+        element
+        for element in state_json(page_dir)["elements"]
+        if element["id"] == board and element["thread"] is None
     )
-    assert reading is not None
-    document = reading.documents[revision]
-    registry = require_registry(page_dir)
-    return projection_model.folded_positions(
-        board,
-        "move",
-        registry["lf-board"]["verbs"]["move"]["record"],
-        projection_model.AuthoredOrders(document.document.by_id, registry),
-        document.projection,
-    )
+    return element["order"]["move"]
 
 
 def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):

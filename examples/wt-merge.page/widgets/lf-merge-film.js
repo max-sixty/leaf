@@ -23,8 +23,6 @@ import {
   compoundReadingRegionId,
   generatedElement,
   holdFocus,
-  keeps,
-  keepsText,
   layoutChanged,
   offer,
   once,
@@ -36,6 +34,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
@@ -327,8 +326,8 @@ customElements.define(
       });
       // A later frame, inspection or disconnection retires this pending placement.
       if (paint !== this.#inspectorPaint || !this.isConnected) return;
-      this.inspector.style.left = `${Math.round(x * 64) / 64}px`;
-      this.inspector.style.top = `${Math.round(y * 64) / 64}px`;
+      this.inspector.style.left = layoutPx(x);
+      this.inspector.style.top = layoutPx(y);
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already

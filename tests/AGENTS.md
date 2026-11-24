@@ -328,7 +328,7 @@ is no per-test
 allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
-  moves nothing. Fix a DOM writer with `runtime/keeps.js`; the runtime's scroll writes
+  moves nothing. Fix a DOM writer with `runtime/lib/keeps.js`; the runtime's scroll writes
   go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
   nothing, a package's `scrollTo` that may name the position its box holds asks
   `scrollMoves` first (`runtime/lib/scroll-range.js`), and a stop goes through

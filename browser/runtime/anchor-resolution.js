@@ -20,7 +20,8 @@ import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { declaredRoot, queryAllUnder } from "./shadow.js";
-import { inUi, shadowHost, under, upFrom } from "./shadow-tree.js";
+import { shadowHost, under, upFrom, closestAcross } from "./lib/shadow-tree.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -35,7 +36,6 @@ import {
 } from "./visual-parts.js";
 import {
   blockAt,
-  closestAcross,
   AROUND,
   cut,
   contextAround,
@@ -55,7 +55,6 @@ import {
   excerpt,
   findQuote,
   fileModelsPassage,
-  inChrome,
   leafSurface,
   pageQueryAll,
   settledAway,
@@ -386,9 +385,7 @@ function addressableAt(node) {
 // addressable element.
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring((entry) => entry["text-format"] === "markdown").join(
-    ",",
-  );
+  const formatted = tagsDeclaring((entry) => entry.content === "markdown").join(",");
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );

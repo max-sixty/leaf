@@ -136,7 +136,7 @@ import {
   reveal as openFolds,
 } from "../widget-elements.js";
 import { readingPlace } from "../resolved-target.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
 import { rowWalk } from "../walk-position.js";
@@ -152,13 +152,13 @@ import {
   renderedOrder,
   renderedUnder,
   under,
-} from "../shadow-tree.js";
+  closestAcross,
+} from "../lib/shadow-tree.js";
 
 import { annotationsHidden, watchAnnotations } from "../annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
-import { closestAcross, inChrome } from "../passages.js";
 import { drawnThreadId } from "../thread/selectors.js";
 import { standsIn, visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
@@ -180,6 +180,7 @@ import { alreadyShown } from "../landing-scroll.js";
 
 import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
  * @typedef {import("../margin-model.js").ReadingChoice} Choice

@@ -70,7 +70,7 @@ import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
 import { MessageView, arrivalTint, saidTime } from "./messages.js";
 import { offeredAction } from "../widget-elements.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, workingPlace } from "./summary-ranges.js";
 import {

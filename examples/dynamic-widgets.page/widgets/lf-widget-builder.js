@@ -5,11 +5,11 @@ import {
   LeafElement,
   generate,
   dressCode,
-  keepsText,
   quoted,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keepsText } from "/runtime/lib/keeps.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
 import * as catalog from "../catalog.js";
 

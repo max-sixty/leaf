@@ -6,14 +6,14 @@ from datetime import datetime
 
 from click.testing import CliRunner
 
-from leaf import interaction_log
+from leaf import event_log
 from leaf.event_log import append_event
 from leaf.interaction_log import append_interactions, client_records
 from leaf_dev.cli import cli
 
 
 def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypatch):
-    original_context = interaction_log.session_context
+    original_context = event_log.session_context
 
     def context(session, claim=None):
         if session == "session":
@@ -34,7 +34,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             }
         return original_context(session, claim)
 
-    monkeypatch.setattr(interaction_log, "session_context", context)
+    monkeypatch.setattr(event_log, "session_context", context)
 
     def event(kind, identity, second, **fields):
         return {

@@ -48,7 +48,8 @@ argument.
 ### Shared web code
 
 `/runtime/lib/` is a library of web code that Leaf's runtime and its bundled packages
-share, such as the ticks of a time axis and the words for a thrown value. It is not
+share, such as code's syntax colours, Leaf's icons, the ticks of a time axis and the
+words for a thrown value. It is not
 part of Leaf's interface: a library module keeps none of the page's state and calls
 nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
 module works off Leaf too. Like `widget-api.js`, the library can change in any update.
@@ -113,8 +114,8 @@ script", lists.
   mark the words they write with `generatedElement()` (`module-controls.md`).
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
-- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
-  values through `keeps` ("Scheduling paints", "Writes that change nothing").
+- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value
+  only where it changes ("Scheduling paints", "Writes that change nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes through the widget controller, and keep how they
   look at the widget in `tabStore`.
@@ -216,8 +217,8 @@ changed. Leaf compares only each direct child's tag and attributes, and a revisi
 doesn't redraw a widget it keeps. So a module that draws from what its children hold,
 or can declare neither, reads them again when they change: `lf-pane` watches its
 children with a `MutationObserver`, and a `LeafElement` calls `requestUpdate()` from
-one. A widget that draws its own content (`content` `data` or `empty`) is always
-replaced.
+one. A widget that draws its own content (`content` `data`, `markdown` or `empty`) is
+always replaced.
 
 ## Startup and presentation
 
@@ -386,13 +387,12 @@ loop that `page check` counts as a fault.
 ### Writes that change nothing
 
 Writing a value a node already has still reaches screen readers and can repaint the
-whole document. `keeps(node, name, value)` writes an attribute only when it would read
-back differently; pass booleans and counts as they are, and `null` to remove it.
-`keepsText(node, text)` does the same for words. For a flag such as `hidden`,
-`toggleAttribute(name, force)` writes only when the flag changes, where the `hidden`
-setter rewrites the attribute on every set. Round a measured length to layout's 1/64px,
-as `Math.round(length * 64) / 64`, before writing it into a style, so a measure that
-jitters below that writes nothing new.
+whole document, so write an attribute or a node's words only when they would read back
+differently. For a flag such as `hidden`, `toggleAttribute(name, force)` writes only
+when the flag changes, where the `hidden` setter rewrites the attribute on every set.
+Round a measured length to layout's 1/64px before writing it into a style, so a measure
+that jitters below that writes nothing new. The library ("Shared web code") holds
+guards for attributes, words and measured lengths.
 
 ## Contained examples and scoped appearance
 

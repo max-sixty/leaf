@@ -65,9 +65,9 @@ import {
   hostIn,
   renderedParent,
   shadowHost,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { watchArrivals } from "./arrivals.js";
-import { inlineStyle, keeps, layoutPx } from "./keeps.js";
+import { inlineStyle, keeps, layoutPx } from "./lib/keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
 

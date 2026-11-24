@@ -48,8 +48,6 @@ import {
   frameFor,
   growthIsSeen,
   whileConnected,
-  keeps,
-  keepsText,
   nameAction,
   mountSample,
   once,
@@ -62,6 +60,7 @@ import {
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 
 export class Sample extends HTMLElement {
@@ -347,10 +346,7 @@ export class Sample extends HTMLElement {
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;
-        this.style.setProperty(
-          "--lf-sample-height",
-          `${Math.round(height * 64) / 64}px`,
-        );
+        this.style.setProperty("--lf-sample-height", layoutPx(height));
         this.#view.close();
         this.#view.setAttribute("role", "dialog");
         this.#view.setAttribute("aria-label", this.#frame.title);

@@ -7,7 +7,7 @@ import { TEXT_BOX } from "./control-selectors.js";
 import { DELIVERY, PAGE_ROOT } from "./context.js";
 import { servedRevision } from "./document-identity.js";
 import { focused } from "./focus.js";
-import { isNativeLayer } from "./shadow-tree.js";
+import { isNativeLayer } from "./lib/shadow-tree.js";
 import { objectIds, randomId } from "./ids.js";
 
 // A document with no declared root has no server to record to: an interactive export,

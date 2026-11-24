@@ -2,8 +2,6 @@
 import { nothing } from "/vendor/lit.js";
 import {
   generatedElement,
-  keeps,
-  keepsText,
   LeafElement,
   offer,
   offerAction,
@@ -11,6 +9,7 @@ import {
   threadSurface,
   workAncestor,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-task",
   class extends LeafElement {

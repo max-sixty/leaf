@@ -8,10 +8,11 @@ import {
   pressIsKeyboardActivation,
   eventSource,
 } from "../pointer.js";
-import { elementFromPointAcross, inChrome } from "../passages.js";
+import { elementFromPointAcross } from "../passages.js";
 import { aimTargetAt, captured } from "../anchor-resolution.js";
 import { legendRoot } from "../design.js";
 import { pointInto } from "../pointed-place.js";
+import { inChrome } from "../ui-marks.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence

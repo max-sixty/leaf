@@ -41,12 +41,12 @@ def reserved_marker_errors(parser) -> list[Finding]:
 
 # Each name a `language-…` class may give a language Leaf colours, mapped to its
 # grammar: each grammar's name and Shiki's aliases for it, which build/vendor.mjs writes
-# into the runtime's table as one line of JSON (`syntaxLanguageNames`), and
+# into the library's table as one line of JSON (`syntaxLanguageNames`), and
 # syntax-tokens.js reads a class by.
 _NAMES_LINE = "export const syntaxLanguageNames = "
 COLOURED_LANGUAGES: dict[str, str] = next(
     json.loads(line.removeprefix(_NAMES_LINE).removesuffix(";"))
-    for line in (ASSETS / "runtime" / "syntax-languages.js")
+    for line in (ASSETS / "runtime" / "lib" / "syntax-languages.js")
     .read_text(encoding="utf-8")
     .splitlines()
     if line.startswith(_NAMES_LINE)

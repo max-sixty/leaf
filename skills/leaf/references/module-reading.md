@@ -24,11 +24,12 @@ An agent's message can carry markup that repeats ids on the page, so look up an 
 another element gives within `authoredScope(element)`: the page's `body`, or, for markup
 in an agent's message, that message's own markup. `elementById(id, root)` finds an id
 within `root`, or the whole document, including the shadow trees `getElementById`
-misses. `under(node, root)` says whether `node` is in `root` across shadow boundaries,
-and `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread
-reply is. A widget that acts on the document around it, as a contents list does, reads
-it with `viewDocument(node)`: the view member holding the node (`views`,
-`module-authoring.md`), else the `main` holding it, else null.
+misses. `inChrome(node)` says whether a node is in Leaf's own interface, as a widget in
+a Thread reply is. The library answers whether one node is inside another across shadow
+boundaries (`module-authoring.md`, "Shared web code"). A widget that acts on the
+document around it, as a contents list does, reads it with `viewDocument(node)`: the
+view member holding the node (`views`, `module-authoring.md`), else the `main` holding
+it, else null.
 
 ### Naming elements
 
@@ -36,10 +37,13 @@ To name an element elsewhere, such as in a feed row, use `addressableLabel(eleme
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
-`addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`word`), as `lf-playground-preset` says "preset", else what its element answers
-from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
-says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
+`addressableWord(element)` gives the word for its kind instead. That word is the
+element's `aria-roledescription`, which the module that builds the element writes along
+with a role for it, since ARIA ignores the attribute on an element with no role, as
+`lf-playground` makes each preset a `group` it calls "preset".
+Without one, it is what the element answers from an `lfWord()` method, for a word that
+depends on the element, as `lf-suggestion` says "insertion" or "rewrite"; else its tag
+without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
 returns the words that describe it. A
 widget's name is its `label` attribute, as an option card's, a board card's or a
@@ -99,7 +103,7 @@ to its parts.
 
 ### Markdown
 
-A widget whose entry declares `text-format: markdown` has its data body arrive
+A widget whose entry declares `content: markdown` has its data body arrive
 rendered as block Markdown while the recorded body stays the source. It reads as a
 Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
 `.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
@@ -125,21 +129,8 @@ changing prose repaints then.
 
 ### Code
 
-`syntax(source, lang)` resolves to `{tokens, state}`: the code's tokens,
-`[{text, style}]`, coloured by the page's syntax theme, and the grammar state its last
-line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
-splits them by line. To colour a long text a part at a time, pass each part the state
-the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
-be in the whole text. `lang` is a registry `$languages` name; `codeLanguage(element)`
-reads one off the `language-…` class a block of code names it by, on a `<code>`, on the
-`<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
-language Leaf doesn't colour, and undefined where no class names one, so only the
-latter takes a default; `langForPath(path)` derives one from a file name, and
-`ensureSyntaxLanguage(lang)` loads one ahead of time. `syntaxNow(lang)` resolves, once
-the language has loaded, to `{tokenize, declarations}`: `tokenize(source, state)` is
-`syntax` as a synchronous call, for a module that colours text as it lays it out, such
-as an editor's highlighter, and `declarations` lists each `[property, value]` a token's
-`style` can hold, once, for a module that styles tokens by name. `dressCode(root)` colours
+`langForPath(path)` names the registry `$languages` language a file name means, or
+undefined where the page's table has none. `dressCode(root)` colours
 each `pre > code` in `root` whose `language-…` class names a language and that wears
 the reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
@@ -177,20 +168,14 @@ goes on as written.
 
 ### Icons
 
-`iconTemplate(name, className)` draws Leaf's icons,
-for what something is or holds, such as a kind or a state. A press shows an action's
-symbol instead, so each action looks the same wherever it is offered.
-`offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-controls.md`).
-[`browser/runtime/icon-paths.js`](../../../browser/runtime/icon-paths.js) lists both.
-The keys of its `ICONS` are the icon names, and the keys of its `ACTIONS` the action
-names, each with its symbol and the words its press says. For a symbol whose action
-follows its state, such as Expand all turning to Collapse all,
-`nameAction(control, action, {label, title, className})` swaps in the new action's
-symbol and says its name as the tooltip and accessible name, unless `label` or `title`
-says more.
-`actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
-face, such as the second of two symbols a press swaps by CSS.
+A press shows its action's symbol, so each action looks the same wherever it is
+offered: `offerAction("symbol", className, label, {action: "comment"})` draws one
+(`module-controls.md`). The action names are the keys of `ACTIONS` in the library's
+[`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its symbol and
+the words its press says. For a symbol whose action follows its state, such as Expand
+all turning to Collapse all, `nameAction(control, action, {label, title, className})`
+swaps in the new action's symbol and says its name as the tooltip and accessible name,
+unless `label` or `title` says more.
 
 For a Lit control, `actionClass(role, className)` supplies the same face classes as
 `offerAction`.
@@ -271,9 +256,6 @@ declaring `awaits`, whether its obligation has yet to arrive or was withdrawn, a
 `lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
 not the regions' elements, and follows each revision, so ask it rather than
 reading the regions' elements in a render.
-`tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
-open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
-does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or

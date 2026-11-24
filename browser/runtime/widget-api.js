@@ -20,7 +20,6 @@ import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
-export { iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
 // The rank a position record carries for a unit dropped at an index in a container.
@@ -91,7 +90,6 @@ export { threadSummary } from "./thread/messages.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { under } from "./shadow-tree.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
@@ -184,9 +182,6 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
-// A region's open obligations by whose turn each is, in the words `lf-tally` and
-// `lf-deck` both show.
-export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";

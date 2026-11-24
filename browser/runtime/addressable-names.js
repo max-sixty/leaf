@@ -10,7 +10,8 @@ import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, readsElement } from "./passages.js";
 import { keptEach } from "./kept.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
-import { uiInside, upFrom } from "./shadow-tree.js";
+import { upFrom } from "./lib/shadow-tree.js";
+import { uiInside } from "./ui-marks.js";
 import { excerptWords } from "./words.js";
 
 /** @type {Record<string, string>} */
@@ -59,13 +60,14 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-// A widget's word for its kind: its declaration's fixed word (`word`), else what
-// its module answers from `lfWord()` where `element` is drawn and has the method, else
-// its tag without the prefix.
+// A widget's word for its kind: the `aria-roledescription` its element carries, which
+// its author writes in markup or the widget that owns it writes as it builds, as
+// `lf-playground` does on each preset; else what its module answers from `lfWord()`
+// where `element` is drawn and has the method; else its tag without the prefix.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
   return (
-    registry[tag]?.word ||
+    element?.getAttribute("aria-roledescription")?.trim() ||
     element?.lfWord?.() ||
     (tag.startsWith("lf-") ? tag.slice(3) : "")
   );

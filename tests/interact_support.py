@@ -66,6 +66,7 @@ from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
+from leaf import rows as rows_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -1036,9 +1037,9 @@ def write_record(path, value):
 def write_row(path, page):
     """Publish a neighbor row for `page` at `path` with every field a serving
     page's producer writes, none of them saying anything."""
-    activity = dict.fromkeys(server_rows_model.ACTIVITY_FIELDS)
-    activity["counts"] = dict.fromkeys(server_rows_model.COUNT_FIELDS, 0)
-    server_rows_model.ROW.write(
+    activity = dict.fromkeys(rows_model.ACTIVITY_FIELDS)
+    activity["counts"] = dict.fromkeys(rows_model.COUNT_FIELDS, 0)
+    rows_model.ROW.write(
         path,
         {
             "page": str(page),
@@ -1464,8 +1465,6 @@ def _agent_verb_answers(registry):
 
 
 def _body_record_with_prose(registry):
-    # Isolate the body-record contract from the Markdown/data-content contract.
-    del registry["lf-draft"]["text-format"]
     registry["lf-draft"]["content"] = "markup"
 
 

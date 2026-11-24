@@ -38,17 +38,8 @@ export { measure } from "./shown-box.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
-export {
-  codeLanguage,
-  ensureSyntaxLanguage,
-  synNodes,
-  syntax,
-  syntaxNow,
-  tokenLines,
-} from "./syntax-tokens.js";
 
 export { actionClass } from "./control-faces.js";
-export { actionTemplate } from "./icons.js";
 
 export {
   offerElement,
@@ -74,9 +65,8 @@ export { focusDestination, holdFocus, onUserInput } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
 export { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export { scrollersOf } from "./scroll-containers.js";
-export { inChrome } from "./shadow-tree.js";
+export { inChrome } from "./ui-marks.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
-export { keeps, keepsText } from "./keeps.js";
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { DISCLOSE } from "./control-keys.js";

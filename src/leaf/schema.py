@@ -365,8 +365,6 @@ FACTS: dict[str, dict] = {
             },
         ]
     },
-    "text-format": {"const": "markdown"},
-    "word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
     "views": {
         "type": "object",
         "properties": {
@@ -419,7 +417,7 @@ DECLARATION_SCHEMA = {
                 "required": {"type": "array", "items": {"type": "string"}},
             },
         },
-        "content": {"enum": ["markup", "members", "data", "empty"]},
+        "content": {"enum": ["markup", "members", "data", "markdown", "empty"]},
         **FACTS,
     },
     "required": ["description", "attributes"],

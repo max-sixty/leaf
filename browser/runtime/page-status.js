@@ -7,7 +7,7 @@
  * announcement baseline; saved state or a failed read does.
  */
 import { pageStatus, statusModel } from "./activity-words.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { el } from "./widget-elements.js";
 import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";

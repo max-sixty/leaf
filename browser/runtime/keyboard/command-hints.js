@@ -24,9 +24,9 @@ import {
 import { reachingNow } from "./control-keys.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder, under } from "../shadow-tree.js";
+import { renderedUnder, under } from "../lib/shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
-import { inlineStyle, keepsText } from "../keeps.js";
+import { inlineStyle, keepsText } from "../lib/keeps.js";
 import { repaint } from "../repaint.js";
 import { scrolling, watchScrollEnds, watchScrolls } from "../arrivals.js";
 
@@ -221,7 +221,7 @@ export function createCommandHints({ presentedControl }) {
       if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge, face);
   }
   // The page scrolls under these projections on every frame, so a pass writes only what
-  // changed (keeps.js): a badge already worn keeps its face, and a chip
+  // changed (lib/keeps.js): a badge already worn keeps its face, and a chip
   // stands in the document plane, where the scroll carries it.
   function paint() {
     // Read afresh, since the painters before this one may have moved what is live, and

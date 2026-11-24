@@ -4,13 +4,12 @@
 import { nothing } from "/vendor/lit.js";
 import {
   generatedElement,
-  keeps,
-  keepsText,
   LeafElement,
   offer,
   offerAction,
   threadSurface,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-task",
   class extends LeafElement {

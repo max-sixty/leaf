@@ -5,14 +5,13 @@ import {
   ago,
   generatedElement,
   HeldReading,
-  keeps,
-  keepsText,
   LeafElement,
   readWork,
   reportSequence,
   reportsReady,
   workAncestor,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-worker",
   class extends LeafElement {

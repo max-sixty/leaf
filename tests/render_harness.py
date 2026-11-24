@@ -1786,6 +1786,7 @@ def watch_sources(shifts: bool) -> str:
           window.__lfCheckApi = () => entry('runtime/check-api.js');
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfLibImport = name => entry(`runtime/lib/${name}`);
           window.__lfVendorImport = name => entry(`vendor/${name}`);
         })();""",
     ]

@@ -117,7 +117,6 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export { atScrollEnd } from "./scrolling.js";
 export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

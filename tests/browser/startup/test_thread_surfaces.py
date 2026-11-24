@@ -363,7 +363,7 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     }
     module = """
 import {nothing} from '/vendor/lit.js';
-import {keepsHidden, LeafElement, offer, offerAction, threadSurface}
+import {LeafElement, offer, offerAction, threadSurface}
   from '/runtime/widget-api.js';
 customElements.define('lf-test-card', class extends LeafElement {
   setup() {
@@ -378,7 +378,7 @@ customElements.define('lf-test-card', class extends LeafElement {
     return targets.map(() => this.threads);
   }
   render() {
-    keepsHidden(this.comment, !threadSurface(this).open);
+    this.comment.toggleAttribute('hidden', !threadSurface(this).open);
     return nothing;
   }
 });

@@ -767,10 +767,10 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
 
 def test_a_discarded_rewrite_comes_back(browser, serve):
     """Escape throws a rewrite's changed words away, so an accidental press could lose a
-    long rewrite for good. Restore discarded edit opens the message on those exact words
-    again, without sending them, by `g D`, which the panel offers with the discard's
-    notice once the caret has left the reply box Escape landed in, where `g` types a
-    letter; Save then sends them as any rewrite, and nothing is left to restore."""
+    long rewrite for good. ⌘Z opens the message on those exact words again, without
+    sending them, once the caret has left the reply box Escape landed in, which keeps
+    ⌘Z for its own words; the panel offers that Undo with the discard's notice then.
+    Save then sends them as any rewrite."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
     rewritten = "  Fit both brackets and keep the longer explanation.  "
@@ -787,23 +787,22 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
-    expect_panel_says(page, "Restore edit", says=False)
+    expect_panel_says(page, "Edit discarded · Undo", says=False)
+    # In the reply box, ⌘Z is the box's own.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_have_count(0)
     page.keyboard.press("Escape")
-    expect_panel_says(page, "Edit discarded · Restore edit g D")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
+    expect_panel_says(page, "Edit discarded · Undo")
+    page.keyboard.press("ControlOrMeta+z")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", rewritten)
     expect(editor).to_have_js_property("selectionStart", len(rewritten))
+    expect_panel_says(page, "Undone: discarded an edit of “Fit the north bracket.”")
     assert edits() == []
     message.get_by_role("button", name="Save", exact=True).click()
     round_trip(page)
     expect(editor).to_have_count(0)
     assert edits() == [rewritten]
-    page.keyboard.press("Escape")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
-    expect(editor).to_have_count(0)
 
 
 def test_a_rewrite_saves_its_exact_words(browser, serve):

@@ -7,6 +7,7 @@ from .contract import (
     deciding_verbs,
     declares_string,
     detail_schema,
+    record_unit,
     registry_error,
     state_specs,
     verb_writer,
@@ -135,10 +136,9 @@ def validate_widget_record_contracts(
                 raise registry_error("unit-type", path, tag, verb=verb, unit=unit)
             continue
         kind = record["kind"]
-        expected_unit = "unit" if kind == "position" else "widget"
-        if unit != expected_unit:
+        if unit != record_unit(record):
             raise registry_error(
-                "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
+                "record-unit", path, tag, verb=verb, kind=kind, unit=record_unit(record)
             )
         # A container is a declared element, which may be the widget itself; whether
         # the declarations place one at or inside the widget is advice

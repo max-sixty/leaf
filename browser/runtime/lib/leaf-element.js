@@ -257,7 +257,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  @returns {Promise<unknown> | null} */
   #send(type, detail) {
     const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
-      new CustomEvent(type, { bubbles: true, composed: true, detail })
+      new CustomEvent(type, { detail })
     );
     this.dispatchEvent(event);
     return event.delivery ?? null;

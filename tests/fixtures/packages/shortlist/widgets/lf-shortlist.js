@@ -47,8 +47,6 @@ customElements.define(
       if (this.#state)
         this.dispatchEvent(
           new CustomEvent("lf-action", {
-            bubbles: true,
-            composed: true,
             detail: {
               verb: "pick",
               detail: { candidate: key, picked },

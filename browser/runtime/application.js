@@ -83,7 +83,7 @@ import { raiseError } from "./errors.js";
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel"> & {resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>},
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel"> & {resumeDraft: (context: string, route?: import("./drafts.js").DraftRoute) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
@@ -238,6 +238,8 @@ function createApplication(dependencies) {
     unaccountedGesture: engagement.unaccountedGesture,
     openThread: openPageThread,
     threadPlace: (id) => dependencies.anchorTravel.threadDestination(id),
+    resumeDraft: (context, route) =>
+      dependencies.annotationCommands.resumeDraft(context, route),
   });
 
   // The one bookkeeping door (delivery.js): the page draws the versions read as it

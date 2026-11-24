@@ -153,7 +153,6 @@ export const ACTIONS = {
   "open-in-panel": { name: "Open in panel", icon: "expand" },
   "open-latest": { name: "Open latest", icon: "next" },
   "resume-writing": { name: "Resume writing", icon: "edit" },
-  "restore-edit": { name: "Restore edit", icon: "undo" },
   "show-annotations": { name: "Show annotations", icon: "locate" },
   "show-changes": { name: "Show changes", icon: "locate" },
   "show-on-page": { name: "Show on page", icon: "locate" },

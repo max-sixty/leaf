@@ -305,8 +305,12 @@ interface DocumentEventMap {
   /** A hold the user has on something in an element, until `complete` settles
    * (`lib/widget-events.js`, `HOLD`). */
   "lf-hold": Event & { complete?: PromiseLike<unknown> };
-  /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
-   * sets `delivery` on each it sends (`widget-controller.js`). */
+}
+
+interface ElementEventMap {
+  /** An action a widget asks Leaf to record, and one it asks Leaf to take back, each
+   * heard on the widget's own element; Leaf sets `delivery` on each it sends
+   * (`widget-controller.js`, `hearRecords`). */
   "lf-action": CustomEvent<{
     verb: string;
     detail?: Record<string, unknown>;

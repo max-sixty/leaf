@@ -480,7 +480,8 @@ interface. `runtime/lib/` is that home. It holds code that keeps none of the pag
 state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
 thrown value. A function that reads the page's state, the registry or anything else
 Leaf composes into a page is not library code, and stays in its owner behind
-`widget-api.js`.
+`widget-api.js`, which gains a name only as `../packages/AGENTS.md`, "A widget's need of
+Leaf", says.
 
 - A library module imports only `/vendor/` bundles and the modules beside it, so it
   loads in a document Leaf didn't compose (lint, the library's block in
@@ -746,7 +747,8 @@ block names what a package answers with the browser's own call instead.
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                                |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                              |
 | Which member a widget shows of several, its name in the address, and the user's place in each         | `views.js` `keepView`, `entryView`                                                     |
-| The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
+| Where the user's caret stands, and its element, through open shadow trees                             | `native-selection.js` `userCaret`                                                      |
+| The page place focus or the caret identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                           |
 | The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                    |
 | Which of two nodes the reader reaches first, across shadow trees, alone or in a sort                  | `lib/shadow-tree.js` `renderedOrder`, `renderedOrdering`, `byRenderedOrder`            |

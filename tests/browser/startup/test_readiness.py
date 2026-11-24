@@ -1653,6 +1653,13 @@ def test_keys_still_held_as_another_reload_comes_follow_the_first_into_the_reply
     expect(reply).to_have_js_property("value", "Holdxyz")
 
 
+# Whether the panel's field has said "Draft kept" in this document (`PANEL_SAYS`).
+SAYS_DRAFT_KEPT = """new MutationObserver(() => {
+  const said = document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder');
+  if (said?.includes('Draft kept')) window.saidDraftKept = true;
+}).observe(document, { subtree: true, childList: true, attributes: true })"""
+
+
 def reply_draft(serve):
     """The words the server holds in the draft of the reply to the thread `rows`."""
     record = drafts_model.read_drafts(serve.page_dir)["drafts"].get("reply:rows")
@@ -1820,33 +1827,129 @@ def test_keys_typed_once_the_user_moves_on_are_the_pages_again(browser, serve):
 
 
 @pytest.mark.parametrize(
-    ("kind", "scrolls"),
-    [("text", True), ("password", True), ("text", False)],
-    ids=["text", "password", "put-back"],
+    ("kind", "ending"),
+    [
+        ("text", "scroll"),
+        ("password", "scroll"),
+        ("text", "put-back"),
+        ("text", "cannot-start"),
+    ],
+    ids=["text", "password", "put-back", "cannot-start"],
 )
 def test_words_typed_through_a_reload_for_a_field_of_the_page_stay_in_it(
-    browser, serve, kind, scrolls
+    browser, serve, kind, ending
 ):
     """Words the user types on as a reload Leaf asked for comes, while writing in a
-    field of the page's own, are that field's: the reload puts the user back in the
-    field with the words after the ones it held and the caret after them, and a scroll
-    that ends that return leaves the words in the field all the same. None reaches the
-    drafts the server keeps or the panel's field, as a password's characters must
-    not."""
+    field of the page's own, are that field's. The reload puts the user back in the
+    field with the words after the ones it held and the caret after them, as startup
+    recovery does where the document the reload brings can't start; a scroll that ends
+    that return leaves the words in the field all the same. None reaches the drafts
+    the server keeps or the panel's field, as a password's characters must not."""
     url = serve(
         leaf_page(
             "Restarted",
             "<h1>Sign in</h1>"
-            f'<p><input id="who" type="{kind}" aria-label="Name" autocomplete="off"></p>',
+            f'<p><input id="who" type="{kind}" aria-label="Name" autocomplete="off"></p>'
+            "<script>document.getElementById('who').addEventListener('input',"
+            " (event) => { window.heard = event.target.value; })</script>",
         )
     )
     page = open_page(browser, live_url(url))
     who = page.locator("#who")
     who.fill("ab")
     expect(who).to_be_focused()
+    documents = {"count": 0}
     module = []
-    page.route("**/leaf.js", lambda route: module.append(route))
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def hold(route):
+        if documents["count"] == 1 and not module:
+            module.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    needed = "**/runtime/rendering.js" if ending == "cannot-start" else "**/leaf.js"
+    page.route(needed, hold)
     answer_as_another_runtime(page)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, module, 1, "a module the arriving document needs")
+    page.wait_for_function("document.readyState !== 'loading'")
+    page.keyboard.type("cd")
+    expect(page.locator(".lf-held-key").first).to_be_visible()
+    if ending == "scroll":
+        scroll_away(page)
+    if ending == "cannot-start":
+        with page.expect_navigation(wait_until="commit"):
+            module.pop().abort("internetdisconnected")
+    else:
+        module.pop().continue_()
+    wait_until_ready(page)
+    page.unroute(needed)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    if ending == "cannot-start":
+        take_browser_errors(page)
+    expect(who).to_have_value("abcd")
+    expect(panel_field(page)).not_to_have_js_property("value", "cd")
+    assert "cd" not in json.dumps(drafts_model.read_drafts(serve.page_dir)["drafts"])
+    if ending == "put-back":
+        assert page.evaluate("window.heard") == "abcd"
+    if ending != "scroll":
+        expect(who).to_be_focused()
+        page.keyboard.type("e")
+        expect(who).to_have_value("abcde")
+
+
+def test_words_let_go_into_a_field_of_the_page_are_its_input(browser, serve):
+    """Words the user types on as a reload Leaf asked for comes, into a field of the
+    page's own, before Leaf has started and after it has put the user back in the field
+    but before the reload's return has ended, go into the field when a scroll ends that
+    return, and the page's own script, running by then, hears them as the field's input,
+    as it hears the words of a return that ends in the field."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Sign in</h1><p><input id="who" aria-label="Name" autocomplete="off"></p>'
+            "<script>document.getElementById('who').addEventListener('input',"
+            " (event) => { window.heard = event.target.value; });"
+            " window.listening = true</script>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    who = page.locator("#who")
+    who.fill("ab")
+    documents = {"count": 0}
+    module, answers = [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def hold_module(route):
+        if documents["count"] == 1 and not module:
+            module.append(route)
+        else:
+            route.continue_()
+
+    def hold_answer(route):
+        if documents["count"] == 1:
+            answers.append(route)
+        else:
+            route.fallback()
+
+    page.on("request", navigated)
+    page.route("**/leaf.js", hold_module)
+    answer_as_another_runtime(page)
+    page.route("**/api/state*", hold_answer)
     with page.expect_navigation(wait_until="commit"):
         append_carried_log_record(
             serve.page_dir,
@@ -1854,23 +1957,23 @@ def test_words_typed_through_a_reload_for_a_field_of_the_page_stay_in_it(
         )
     holding(page, module, 1, "the arriving document's entry module")
     page.wait_for_function("document.readyState !== 'loading'")
-    page.keyboard.type("cd")
+    page.keyboard.type("c")
     expect(page.locator(".lf-held-key").first).to_be_visible()
-    if scrolls:
-        scroll_away(page)
-    page.unroute("**/leaf.js")
-    for route in module:
-        route.continue_()
+    module.pop().continue_()
+    page.wait_for_function("window.listening === true")
+    expect(who).to_be_focused()
+    page.keyboard.type("d")
+    scroll_away(page)
+    page.wait_for_function("window.heard === 'abcd'")
+    page.unroute("**/api/state*", hold_answer)
+    for route in answers:
+        route.fallback()
     wait_until_ready(page)
+    page.unroute("**/leaf.js")
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
     expect(who).to_have_value("abcd")
-    expect(panel_field(page)).not_to_have_js_property("value", "cd")
-    assert "cd" not in json.dumps(drafts_model.read_drafts(serve.page_dir)["drafts"])
-    if not scrolls:
-        expect(who).to_be_focused()
-        page.keyboard.type("e")
-        expect(who).to_have_value("abcde")
 
 
 def test_words_typed_through_a_reload_keep_the_replies_picture(browser, serve):
@@ -1993,8 +2096,10 @@ def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
     """Words the user types on as a reload Leaf asked for comes are words for the reply
     they were writing in, though the document the reload brings can't start: once
     startup recovery has loaded the page again, it puts the user back in the reply
-    with the words typed there, and typing goes on after them."""
+    with the words typed there, and typing goes on after them. The panel doesn't say
+    the draft is kept, since the words never left the user's place."""
     page, reply = writing_a_reply(browser, serve)
+    page.add_init_script(SAYS_DRAFT_KEPT)
     documents = {"count": 0}
     held = []
 
@@ -2032,6 +2137,7 @@ def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
     expect(reply).to_have_js_property("value", "Hold more")
     page.keyboard.type(" now")
     expect(reply).to_have_js_property("value", "Hold more now")
+    assert not page.evaluate("window.saidDraftKept")
 
 
 def test_a_key_let_go_during_an_arrival_reaches_the_reply_once_across_another_reload(

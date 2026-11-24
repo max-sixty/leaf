@@ -1609,22 +1609,24 @@ export function mirrorDraft(
 
 // Words the user typed through a reload Leaf asked for, which the early key hold let
 // go before they could go into their box (bootstrap.js, `letGo`), each batch with the
-// box it was typed for (`captureDraftEditing`). They go into that box's draft, among its
-// words and before any pictures it holds (media.js, `readAttachedMedia`): where the
-// caret was, while the draft is still the generation the box was read at
-// (`draftEditingStands`), and after its words otherwise. The reload's own record of the
-// box moves with them, so a reload that still puts the user back in the box puts the
-// caret after them (version.js, `restoreEditingContinuity`). The words leave the panel's
-// field, where the keys stood, so the panel says the draft is kept, with Resume writing,
-// which goes to their end. A document served without the drafts takes them once its
-// first reading has told it what the draft holds (`hearReading`).
+// context of the draft they were typed for. They go into that draft, among its words
+// and before any pictures it holds (media.js, `readAttachedMedia`): at the caret the
+// reload's record of the box being written holds (`captureDraftEditing`), while the
+// draft is still the generation that record was read at (`draftEditingStands`), and
+// after its words otherwise. That record moves with them, so a reload that still puts
+// the user back in the box puts the caret after them (version.js,
+// `restoreEditingContinuity`). Where the return of the user's place had ended, the words
+// left the panel's field, where the keys stood, with nothing to put them back, so the
+// panel says the draft is kept, with Resume writing, which goes to their end. A document
+// served without the drafts takes them once its first reading has told it what the
+// draft holds (`hearReading`).
 const HELD_WORDS = "lf-held-words";
 function takeHeldWords() {
   if (heard.store === null && !offlineInteractive) return;
   const left = tabStore.get(HELD_WORDS);
   if (!left) return;
   tabStore.set(HELD_WORDS, null);
-  /** @type {{box: DraftEditing, words: string}[]} */
+  /** @type {{context: string, words: string, ended: boolean}[]} */
   let kept;
   try {
     kept = JSON.parse(left);
@@ -1634,29 +1636,29 @@ function takeHeldWords() {
   const handed = /** @type {DraftEditing | undefined} */ (
     window.lfStorage?.handoff?.draftEditing
   );
-  for (const { box: written, words: typed } of kept) {
-    const box = handed?.context === written.context ? handed : written;
-    const current = activeDraftRecord(box.context);
+  for (const { context, words: typed } of kept) {
+    const box = handed?.context === context ? handed : null;
+    const current = activeDraftRecord(context);
     const { text, paths } = readAttachedMedia(current?.text ?? "");
     const [start, end] =
-      draftEditingStands(box) && box.selection
+      box && draftEditingStands(box) && box.selection
         ? box.selection
         : [text.length, text.length];
     const words = text.slice(0, start) + typed + text.slice(end);
     const value = writeAttachedMedia(words, paths);
-    saveDraft(box.context, value, current?.payload);
-    tellDraft(box.context, value, current?.payload);
+    saveDraft(context, value, current?.payload);
+    tellDraft(context, value, current?.payload);
     /** @type {Caret} */
     const selection = [start + typed.length, start + typed.length];
-    keepWritingPlace({ context: box.context, selection, generation: randomId() });
-    if (box === handed)
-      Object.assign(handed, {
+    keepWritingPlace({ context, selection, generation: randomId() });
+    if (box)
+      Object.assign(box, {
         words,
         selection,
-        attempt: activeDraftRecord(box.context)?.attempt,
+        attempt: activeDraftRecord(context)?.attempt,
       });
   }
-  noticeDraftKept();
+  if (kept.some(({ ended }) => ended)) noticeDraftKept();
 }
 
 // The drafts start from the copies the page this tab reloaded left waiting

@@ -67,7 +67,10 @@
  * comparison and pointer, which a Back within one document keeps too. Since the handoff
  * describes the moment the document went, a reload that ends the document later, as
  * after the user stays at a page's own leave prompt, hands over the place they then
- * left. Until the arriving document has returned the user to the entry, printed keys
+ * left. Words the user types through the reload change it after that moment: the key
+ * hold types them into the value and caret it carries for a field of the page's own,
+ * and the drafts move its record of the box being written (`draftEditing`) with the
+ * words they take in (bootstrap.js, `letGo`; drafts.js, `takeHeldWords`). Until the arriving document has returned the user to the entry, printed keys
  * wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back,
  * as text in the reply box they were writing in. Waiting keys are no input
  * (document-inputs.js, `holdKeys`), so they don't end the return; any other input does,
@@ -3332,7 +3335,7 @@ export function createVersionController({
     }
     // The arrival in order, returning to the entry's record where it calls for it
     // (`returnToRecord`, history.js `arrive`).
-    /** @param {() => Promise<void>} returnToRecord */
+    /** @param {(returnsFocus?: boolean) => Promise<void>} returnToRecord */
     const landArrival = (returnToRecord) =>
       landContinuity(async () => {
         if (currentIntent()) {
@@ -3344,8 +3347,15 @@ export function createVersionController({
             // thread's card included; the words being written go back after that return,
             // into the box it put the user in, as the reply of whichever view of the
             // thread the claim opened.
+            // A field's focus and caret are the handoff's to put back, which it did
+            // as the document arrived (`restoreCarry`), not the record's.
             await keepReplySession(placed, async () => {
-              await returnToRecord();
+              await returnToRecord(
+                !placed.carry?.some(
+                  (/** @type {import("./carry.js").CarryRecord} */ record) =>
+                    record.focus && record.caret,
+                ),
+              );
               await restoreEditingContinuity(placed, currentIntent);
             });
           } else await returnToRecord();

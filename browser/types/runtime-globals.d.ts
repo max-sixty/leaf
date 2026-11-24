@@ -18,7 +18,7 @@ interface DocumentInputs {
   readonly entered: number;
   holdKeys(
     hold: {
-      holds(event: KeyboardEvent): boolean;
+      holds(event: Event): boolean;
       /** `stepped`: the input is a step Back or Forward the browser says the user
        * took; otherwise it is an act within the entry. */
       counted(stepped: boolean): void;
@@ -133,7 +133,7 @@ interface Window {
     /** The handoff the reload that loaded this document handed it (prepaint.js). */
     readonly handoff: {
       readonly typing?: unknown;
-      readonly draftEditing?: unknown;
+      readonly draftEditing?: { readonly context: string } | null;
       /** Each carried control's state (carry.js, `CarryRecord`), which the key hold
        * types the user's words into while the reload hands back their field. */
       readonly carry?: {

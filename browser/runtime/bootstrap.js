@@ -385,8 +385,8 @@
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
   // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words the hold
-  // lets go for their box's draft (`letGo`). The event of the same name tells the
-  // runtime that words wait there.
+  // lets go for a draft (`letGo`). The event of the same name tells the runtime that
+  // words wait there.
   const HELD_KEYS = "lf-held-keys";
   const HELD_WORDS = "lf-held-words";
   const HALF_PRESSES = new Set([
@@ -409,11 +409,11 @@
     const { handoff, tabStore, placesUser } = window.lfStorage;
     let moved = false;
     const typingBack = () => placesUser() && handoff?.typing === true && !moved;
-    // The box the reload hands back: a draft's editor, as the runtime named it
+    // The box the reload hands back: a draft's editor, named by its draft's context
     // (version.js, `captureHandoff`), or a field of the page's own, by the carry record
     // that holds its focus (carry.js).
-    const box = handoff?.draftEditing ?? null;
-    const field = box
+    const draft = handoff?.draftEditing?.context ?? null;
+    const field = draft
       ? null
       : handoff?.carry?.find((record) => record.focus && record.part === undefined);
     /** @param {string} key */
@@ -424,16 +424,20 @@
         return null;
       }
     };
-    // The words the tab keeps for their boxes until the runtime types them in
-    // (`letGo`), in the order they were typed.
-    /** @returns {{box: unknown, words: string}[]} */
+    // The words the tab keeps for their drafts until the runtime types them in
+    // (`letGo`), in the order they were typed, each saying whether the return of the
+    // user's place had ended.
+    /** @returns {{context: string, words: string, ended: boolean}[]} */
     const keptWords = () => {
       const kept = read(HELD_WORDS);
       return Array.isArray(kept) ? kept : [];
     };
-    /** @param {unknown} into @param {string} words */
-    const keepWords = (into, words) =>
-      tabStore.set(HELD_WORDS, JSON.stringify([...keptWords(), { box: into, words }]));
+    /** @param {string} context @param {string} words @param {boolean} ended */
+    const keepWords = (context, words, ended) =>
+      tabStore.set(
+        HELD_WORDS,
+        JSON.stringify([...keptWords(), { context, words, ended }]),
+      );
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's
@@ -443,23 +447,23 @@
     const stored = read(HELD_KEYS);
     /** @type {KeyboardEventInit[]} */
     const storedKeys = Array.isArray(stored?.keys) ? stored.keys : [];
-    if (!placesUser() && stored?.box && storedKeys.length)
-      keepWords(stored.box, storedKeys.map(({ key }) => key).join(""));
+    if (!placesUser() && stored?.context && storedKeys.length)
+      keepWords(stored.context, storedKeys.map(({ key }) => key).join(""), true);
     /** @type {KeyboardEvent[]} */
     const held = placesUser()
       ? storedKeys.map((init) => new KeyboardEvent("keydown", init))
       : [];
     // Whether the run is the user's writing: words for the box Leaf's reload hands back
     // (`typingBack`), a draft's or a field's. It is read when the run's first key is
-    // held, and a step to another entry doesn't change it.
-    const writes = () => typingBack() && (box !== null || field !== undefined);
+    // held; a key typed once it no longer holds lets the run go (`queue`).
+    const writes = () => typingBack() && (draft !== null || field !== undefined);
     let writing = held.length > 0 && writes();
     const save = () =>
       tabStore.set(
         HELD_KEYS,
         held.length
           ? JSON.stringify({
-              box: writing ? box : null,
+              context: writing ? draft : null,
               keys: held.map(
                 ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
                   key,
@@ -516,21 +520,22 @@
       if (seat) seat(null);
       else row?.say(null);
     };
-    // This is where every word the user types through Leaf's reload ends up, whatever
-    // ends the hold. A run of writing is words for its box, and nothing that ends the
-    // run says the user no longer wants them: a scroll, a press elsewhere, a key
-    // that prints nothing or a step away ends the return of their place, and a page that
-    // can't start ends the hold, but none takes back what they typed. So letting go of
-    // the run keeps its words in the tab, with their box, rather than dropping them, and
-    // the runtime types them into the box's draft, now or as a document of the page next
-    // loads it (drafts.js, `takeHeldWords`). Words for a field of the page's own go
-    // into it at once (`typeIntoField`).
+    // Words the user types through Leaf's reload reach their box by the run's replay
+    // once the reload has put the user back in it, and otherwise when the run is let go.
+    // A run of writing is words for its box, and nothing that ends the run says the user
+    // no longer wants them: a scroll, a press elsewhere, a key that prints nothing or a
+    // step away ends the return of their place, and a page that can't start ends the
+    // hold, but none takes back what they typed. So letting go of the run keeps its
+    // words in the tab with their draft rather than dropping them, and the runtime
+    // types them into the draft, now or as a document of the page next loads
+    // (drafts.js, `takeHeldWords`). Words for a field of the page's own go into it at
+    // once (`typeIntoField`).
     const letGo = () => {
       if (writing && held.length) {
         const typed = held.map(({ key }) => key).join("");
-        if (!box) typeIntoField(typed);
+        if (!draft) typeIntoField(typed);
         else {
-          keepWords(box, typed);
+          keepWords(draft, typed, moved);
           document.dispatchEvent(new Event(HELD_WORDS));
         }
       }
@@ -538,9 +543,13 @@
       save();
       hide();
     };
-    // A field of the page's own takes the words in the value the reload carries for it,
-    // which the arrival puts back (carry.js, `restoreCarry`), and in the field itself,
-    // which may already hold that value. Neither leaves the document.
+    // A field of the page's own takes the words in the value and caret the reload
+    // carries for it, which the arrival puts back (carry.js, `restoreCarry`), and in the
+    // field itself, which may already hold that value; the page hears them there as the
+    // field's input, which is the user's typing replayed rather than a new input of
+    // theirs (`echo`, `holdKeys`). Neither leaves the document.
+    /** @type {InputEvent | null} */
+    let echo = null;
     /** @param {string} key */
     const typeIntoField = (key) => {
       if (!field) return;
@@ -561,6 +570,13 @@
       } catch {
         // An input of a type with no caret, as a number's, keeps the words alone.
       }
+      echo = new InputEvent("input", {
+        bubbles: true,
+        inputType: "insertText",
+        data: key,
+      });
+      control.dispatchEvent(echo);
+      echo = null;
     };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
@@ -661,12 +677,12 @@
     };
     shownKeys = () => (shown ? words() : null);
     stopHoldingKeys = () => {
+      letGo();
       holdKeys(null);
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
       document.removeEventListener("lf-held-keys-seat", seated);
-      letGo();
       endRow();
     };
     // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
@@ -686,7 +702,11 @@
     // the place is handed back is asked of the entry the user stands at as each input
     // comes (prepaint.js, `placesUser`).
     holdKeys({
-      holds: (event) => placesUser() && (HALF_PRESSES.has(event.key) || holds(event)),
+      holds: (event) =>
+        event === echo ||
+        (event instanceof KeyboardEvent &&
+          placesUser() &&
+          (HALF_PRESSES.has(event.key) || holds(event))),
       counted: (stepped) => {
         if (!stepped && (taken || !placesUser())) return;
         moved = true;

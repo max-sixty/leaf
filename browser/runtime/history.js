@@ -66,7 +66,10 @@
  * A revision's reload is a reload, so it returns to this record too; its handoff
  * (version.js) adds only what history never puts back: each reading region's place,
  * the values typed, the words being written with their native editing session, the
- * comparison and the pointer. The record's thread opens where the user stands, moving
+ * comparison and the pointer. A field's focus is the one thing both hold, and there
+ * the handoff's is the newer, since words typed through the reload move its caret
+ * (bootstrap.js, `letGo`), so the record's return leaves it to the handoff
+ * (`returnTo`). The record's thread opens where the user stands, moving
  * no scroller, so a card whose passage the revision hid opens in the floating panel
  * (thread/address.js, `claim`). The panel's hold of where the user stepped in from
  * (`readPlace`) reads the same page place, focus identity and thread reading, and stays
@@ -439,12 +442,15 @@ function readingIndex(reading, node, offset) {
 // `focusByKey`), or, where the page no longer draws it, at the reading place beside the
 // page's landmark, unless focus was in the floating panel's list, which the address's
 // claim has shown standing on its row (thread/address.js). The return settles once they
-// are there, so a command acting on the returned place awaits it.
-/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent */
-async function returnTo(record, intent) {
+// are there, so a command acting on the returned place awaits it. Where the arrival's
+// handoff puts a field's focus back itself (`returnsFocus` false), the return leaves focus and
+// its caret, the field's whole selection, to it (version.js, `installArrival`).
+/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
+async function returnTo(record, intent, returnsFocus = true) {
   const open = threadParts?.open() ?? null;
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   if (record.thread && drawing) showReading(drawing, record.thread);
+  if (!returnsFocus) return;
   const key = record.focus;
   /** @param {string} id */
   const drawingOf = (id) => threadParts?.focusTarget(id, "thread") ?? null;
@@ -752,25 +758,27 @@ export const pendingRestoration = () => restoring;
 // (version.js, `installArrival`), returning to the record where it calls for it
 // (`returnToRecord`), then settled.
 /** @param {Restoration} restoration
- * @param {(returnToRecord: () => Promise<void>) => Promise<void>} land */
+ * @param {(returnToRecord: (returnsFocus?: boolean) => Promise<void>) => Promise<void>} land */
 export const arrive = (restoration, land) =>
-  restoration.run(() => land(() => returnToRecord(restoration)));
+  restoration.run(() =>
+    land((returnsFocus) => returnToRecord(restoration, returnsFocus)),
+  );
 
 // Return to an arrival's record once the page has presented, as a traversal within the
 // document returns to its destination's: the page placed by its record, the thread or
 // list the entry shows opened by the URL's claim (thread/address.js), then where the user
 // was in it (`returnTo`).
-/** @param {Restoration} restoration */
-async function returnToRecord({ record, intent }) {
+/** @param {Restoration} restoration @param {boolean} [returnsFocus] */
+async function returnToRecord({ record, intent }, returnsFocus) {
   await afterPresentation(() => undefined);
   if (!record || !intent()) return;
   if (record.page && placesPage(record.page)) restorePlace(record.page, null, intent);
-  await claimAndReturn(new URL(location.href), record, intent);
+  await claimAndReturn(new URL(location.href), record, intent, returnsFocus);
 }
 // The thread view `url` names opened or put away by its claim (thread/address.js), then
 // the user put back where `record` says they were (`returnTo`), under `intent`.
-/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent */
-async function claimAndReturn(url, record, intent) {
+/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
+async function claimAndReturn(url, record, intent, returnsFocus) {
   /** @type {unknown} */
   let work;
   intent.handoff(() => {
@@ -779,7 +787,7 @@ async function claimAndReturn(url, record, intent) {
   await work;
   if (!record || !intent()) return;
   intent.handoff(() => {
-    work = returnTo(record, intent);
+    work = returnTo(record, intent, returnsFocus);
   });
   await work;
 }

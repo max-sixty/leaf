@@ -337,6 +337,9 @@
   // put the frame's own over it, which the page's next document drops as another
   // entry's.
   //
+  // The key hold and the drafts write into it after it is read, as the user types
+  // through the reload (version.js, `captureHandoff`), and those edits go on with it.
+  //
   // It puts the user back where they were only while the document stands at the entry
   // that place was read at (`placesUser`, by the entry's key, which a replace keeps):
   // elsewhere, as after Back taken before Leaf starts, and where it holds no place, it

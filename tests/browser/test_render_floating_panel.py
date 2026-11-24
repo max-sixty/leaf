@@ -1445,6 +1445,7 @@ def test_whatever_the_field_holds_the_row_keeps_its_line(browser, serve, touch):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-search")).to_be_hidden()
 
+    choose_threads_in_panel(page)
     rows = threads_rows(page)
     page.get_by_role("button", name="Find a thread or message").click()
     expect(page.locator("input.lf-fp-search")).to_be_visible()

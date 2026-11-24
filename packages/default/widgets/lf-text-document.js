@@ -5,9 +5,11 @@
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, which keeps its scroll place independent, and switching keeps the page
  * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
- * tall. A Markdown preview of written text instead takes its rendered height, which
- * its first paint already holds (`prepaint`), and its Source tab takes the same
- * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
+ * tall. A Markdown preview of written text instead takes its rendered height, up to
+ * that bound, and its Source tab takes the same height (`holdSource`). A document
+ * drawn on its Source tab, as after a reload, has not drawn its preview, so its Source
+ * tab keeps the box the page first painted, the written source's, and switching to
+ * the preview then takes the preview's height. Where the Source tab's height cuts the
  * source, a press shows every line (`cut`), as a quote's label opens a thread's whole
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
  * one way to the rest, and stays at the box's foot rather than scrolling off with the
@@ -37,7 +39,6 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  generatedElement,
   offer,
   offerAction,
   loadMarkdown,
@@ -839,12 +840,13 @@ class TextDocument extends LeafElement {
   // the press that shows the rest where that height cuts the source.
   /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
   cut = null;
-  // The Source tab takes the preview's height, so switching to it moves nothing below
-  // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
-  // the height is read while the preview shows, after each of its resizes. A document
-  // drawn on Source, as after a reload, never showed its preview; it keeps the box the
-  // page first painted (`firstBox`), which holds the preview's rendering
-  // (`prepaint`). Either reaches the Source tab before the frame paints.
+  // The Source tab takes the preview's height once the preview has shown, so switching
+  // to it moves nothing below the document. A closed tab skips its contents' layout
+  // (`hidden="until-found"`), so the height is read while the preview shows, after
+  // each of its resizes. A document drawn on Source, as after a reload, never showed
+  // its preview; it keeps the box the page first painted (`firstBox`), the written
+  // source's (text-document.css), so the draw moves nothing either. Either reaches the
+  // Source tab before the frame paints.
   /** @param {number | null} [firstBox] */
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
@@ -1172,7 +1174,7 @@ class TextDocument extends LeafElement {
     const tabs = document.createElement("lf-tabs");
     tabs.id = `${this.id}--views`;
     // Its members are this document's data readings, not authored page content.
-    generatedElement(tabs, { says: false });
+    keeps(tabs, "data-lf-gen", "1");
     const bound = this.getAttribute("data-lf-bound") ?? "start";
     const rendered = document.createElement("lf-tab");
     rendered.id = `${this.id}--preview`;

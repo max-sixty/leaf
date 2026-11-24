@@ -410,9 +410,9 @@ def mark_declared(
     neither is marked.
 
     A mark is declared by the element's tag, so a selector idiom declares none. An
-    element whose written `<pre>` is Markdown, as `content: markdown` or
-    `prepaint` declares, is painted with its rendering, so the page first paints
-    the words, at the size, its module will show.
+    element whose written `<pre>` is Markdown words (`content: markdown`) is painted
+    with their rendering, so the page first paints the words, at the size, its module
+    will show.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -465,24 +465,16 @@ def mark_declared(
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
-        # Declared Markdown words, and a written file whose notation an attribute names
-        # (`prepaint`), first paint as the rendering their module will draw.
-        words = declaration.get("content") == "markdown"
-        prepaint = declaration.get("prepaint")
-        file = bool(prepaint) and attrs.get(prepaint) == "markdown"
-        text = pre_body(element) if words or file else None
+        # Declared Markdown words first paint as the rendering their module will draw.
+        text = pre_body(element) if declaration.get("content") == "markdown" else None
         if text is not None:
-            source_words = (
-                f' data-lf-source-words="{html.escape(text, quote=True)}"'
-                if words
-                else ""
-            )
             edits.append(
                 (
                     index(location.start_tag.end_line, location.start_tag.end_col),
                     (
                         '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1"'
-                        f"{source_words}>{markdown_markup(text)}</div>"
+                        f' data-lf-source-words="{html.escape(text, quote=True)}">'
+                        f"{markdown_markup(text)}</div>"
                     ),
                 )
             )

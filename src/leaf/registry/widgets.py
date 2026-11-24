@@ -3,7 +3,7 @@
 from jsonschema.exceptions import SchemaError
 
 from leaf.findings import Finding
-from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
+from leaf.schema import DECLARATION_SCHEMA
 
 from .contract import (
     body_is_data,
@@ -208,13 +208,12 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
             )
-    for key in ATTRIBUTE_FACTS:
-        declared = entry.get(key) or ()
-        named = {declared} if isinstance(declared, str) else set(declared)
-        if unknown := sorted(named - set(properties)):
-            raise registry_error(
-                "undeclared-attributes", path, tag, key=key, names=unknown
-            )
+    # A `refers` attribute the widget hasn't got leaves the widget out of every pass
+    # that reads it, with no error anywhere, so the door refuses it.
+    if unknown := sorted(set(entry.get("refers", {})) - set(properties)):
+        raise registry_error(
+            "undeclared-attributes", path, tag, key="refers", names=unknown
+        )
     if isinstance(entry.get("visual"), dict):
         if "id" not in required:
             raise registry_error("visual-id", path, tag)

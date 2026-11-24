@@ -762,35 +762,22 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     assert found([finding], "answering-part", "<lf-board>", verb="move")
 
 
-@pytest.mark.parametrize(
-    ("tag", "key", "value", "missing"),
-    [
-        ("lf-option", "refers", {"for": {}, "about": {}}, "about"),
-        ("lf-option", "prepaint", "tone", "tone"),
-    ],
-)
-def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
-    page_dir, tag, key, value, missing
+def test_check_refuses_a_reference_naming_an_attribute_the_widget_has_not_got(
+    page_dir,
 ):
-    """These keys point at attributes rather than declaring them — the ones that name
-    another element, and the one that names the notation the first paint draws — and
-    each is read by a pass that finds the attribute absent and does nothing. That is the
-    never-closed vocabulary's own failure mode: no error anywhere, the widget simply
-    missing from the pass, and a page that looks authored correctly because it was. The
-    door is the only place the mistake is visible, so it refuses here.
-
-    Parametrized rather than written one by one, because it is one rule
-    (ATTRIBUTE_FACTS) and the case that would go wrong is a key left off the tuple —
-    which tests written by hand could never see. The shapes differ and the rule does
-    not: a mapping keyed by the names, or one name."""
+    """`refers` points at attributes rather than declaring them, and each pass that
+    reads it finds the attribute absent and does nothing. That is the never-closed
+    vocabulary's own failure mode: no error anywhere, the widget simply missing from
+    the pass, and a page that looks authored correctly because it was. The door is the
+    only place the mistake is visible, so it refuses here."""
     registry = vocabulary(page_dir)
-    registry[tag][key] = value
+    registry["lf-option"]["refers"] = {"for": {}, "about": {}}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
     assert found(
-        findings, "undeclared-attributes", f"<{tag}>", key=key, names=[missing]
+        findings, "undeclared-attributes", "<lf-option>", key="refers", names=["about"]
     ), findings
 
 

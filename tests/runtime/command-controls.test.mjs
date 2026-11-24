@@ -1711,7 +1711,8 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
     () => contributionEntry({ ...entry, role: "escape" }),
     /^TypeError: Unknown contribution entry option: role$/,
   );
-  // The scope an entry names is checked as an element's `lfCommands` is.
+  // The rows of the scope an entry names are checked as written, as an element's
+  // `lfCommands` are.
   assert.throws(
     () =>
       contributionEntry({
@@ -2552,8 +2553,11 @@ test("a widget's commands stand from when it says them until it withdraws them",
 
 test("one stated object is one scope on each element and margin entry that holds it", async () => {
   const { registerContribution } = await import("/runtime/contributions.js");
+  const { presentContributionEntry } =
+    await import("/runtime/contribution-controls.js");
   const owner = document.createElement("section");
   const editor = owner.appendChild(document.createElement("div"));
+  const control = owner.appendChild(document.createElement("button"));
   document.body.append(owner);
   let runs = 0;
   const stated = {
@@ -2564,24 +2568,25 @@ test("one stated object is one scope on each element and margin entry that holds
     at.lfCommands = stated;
     at.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
   }
+  const entry = {
+    key: "run",
+    icon: "check",
+    label: "Run",
+    activation: "stated.run",
+    scope: stated,
+  };
+  // An entry's control in the widget, as a seated margin entry's is.
+  presentContributionEntry(control, entry);
   const registration = registerContribution({
     key: "stated-probe",
     target: owner,
-    read: () => ({
-      entries: [
-        {
-          key: "run",
-          icon: "check",
-          label: "Run",
-          activation: "stated.run",
-          scope: stated,
-        },
-      ],
-    }),
+    read: () => ({ entries: [entry] }),
   });
   try {
     reflectFirstScopes();
-    // Two elements hold the scope, and the widget's commands count it once.
+    reflectKeys();
+    // Two elements hold the scope and an entry's control projects it, and the widget's
+    // commands count it once: an entry naming another object would add a second.
     assert.deepEqual(
       commandsWithin(owner).map(({ row }) => row.id),
       ["stated.run"],

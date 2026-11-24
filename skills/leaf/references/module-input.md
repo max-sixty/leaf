@@ -21,8 +21,9 @@ widget that also runs off Leaf") binds no key. Declare at upgrade.
 
 Assigning a new object to `lfCommands` and dispatching the event replaces the
 scope, and Leaf checks the new rows then, reporting a malformed one as the element's
-failure. `null` withdraws the scope. Dispatching the event with the same object
-standing only has Leaf read its rows' titles and availability again, so a row or title
+failure. `null` withdraws the scope. Leaf checks an object once, the first time it is
+given. Dispatching the event with that object again, standing or given back after
+`null`, only has Leaf read its rows' titles and availability again, so a row or title
 edited in place goes unchecked; assign a new object to change them.
 
 ```javascript
@@ -62,8 +63,8 @@ classifier.dispatchEvent(
 );
 ```
 
-An element a template draws takes its scope the same way once the render has placed
-it, as from a `ref` callback.
+An element a template draws takes its scope the same way after the render that places
+it, as in a `LeafElement`'s `updated()`.
 
 ### Command rows
 
@@ -111,8 +112,8 @@ away from the editor saves them, `keep` saves them too, as `lf-draft` does; othe
 keeps them where reopening finds them and shows that the widget holds them.
 
 Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
-such as the threads, and, for the scopes a `LeafElement` drew or declared on itself,
-after each of its draws, so their rows may read what a draw follows: `this.state`, a
+such as the threads. For the scopes a `LeafElement` drew or declared on itself, it does
+so after each of the element's draws too, so their rows may read `this.state`, a
 reactive property, or a field the widget calls `requestUpdate()` after changing. For
 any other state a row reads, dispatch `lf-commands` on the element after changing it.
 

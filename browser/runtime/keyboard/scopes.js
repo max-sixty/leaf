@@ -856,11 +856,10 @@ export const commandsOn = directive(
 );
 
 // A package widget's keys are data on the element they apply in, `lfCommands`: the
-// scope's title, rows and options as `keys` takes them, in one object, which is one
-// scope on every element that holds it (`statedScope`). The element says when it sets
-// or changes them, or anything its rows read, with an `lf-commands` event it dispatches
-// on itself (`COMMANDS`, widget-upgrade.js), so a page without Leaf, which hears
-// nothing, binds no key. The element is the one the event
+// scope's title, rows and options as `keys` takes them, in one object (`statedScope`).
+// The element says when it sets or changes them, or anything its rows read, with an
+// `lf-commands` event it dispatches on itself (`COMMANDS`, widget-upgrade.js), so a page
+// without Leaf, which hears nothing, binds no key. The element is the one the event
 // began at, read off its path, since the window sees a shadow host as the target of an
 // event from inside its root; a closed root hides the element, and its host is read in
 // its place. A declaration other than the one standing stands in its
@@ -942,11 +941,13 @@ export function commandScope(title, rows, options) {
 // A package states a scope as data, an object holding its title, rows and options, and
 // gives that object wherever the scope applies: as the `lfCommands` of each element it
 // stands on, and as the `scope` of a margin entry Leaf draws for it. The object is the
-// scope, so the capability built from it is kept by the object: a draft and its editor
-// holding one object share one set of commands, and an entry that names the object
-// projects the commands its widget declared. The rows are checked as written when the
-// object is first given, and what they mean now is read where each attachment or
-// projection is first painted, as for `keys`.
+// scope, so the capability built from it is kept by the object, for good: a draft and
+// its editor holding one object share one set of commands, an entry that names the
+// object projects the commands its widget declared, and an object withdrawn and given
+// again is the scope it was. The rows are checked as written when the object is first
+// given. What they mean now is read where each attachment or projection is first
+// painted, as for `keys`, and not here as `commandScope` reads it: an element says its
+// keys as it upgrades, which can be before the state its rows read is set.
 /** @type {WeakMap<object, CommandCapability>} */
 const stated = new WeakMap();
 /** @param {NonNullable<Element["lfCommands"]> | CommandCapability} declaration @returns {CommandCapability} */

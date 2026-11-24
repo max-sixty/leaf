@@ -148,7 +148,7 @@ interface Element {
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
    * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
-   * title, rows and options. One object is one scope on every element holding it. */
+   * title, rows and options. */
   lfCommands?:
     | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
         title: string | null;

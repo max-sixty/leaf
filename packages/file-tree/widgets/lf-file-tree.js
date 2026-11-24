@@ -168,7 +168,6 @@ class FileTreeWidget extends LeafElement {
           missing: `${file.path} is no longer available.`,
         });
     };
-    // One object on the tree and on each row is one scope.
     /** @type {HTMLElement["lfCommands"]} */
     const fileActions = {
       title: "In files",

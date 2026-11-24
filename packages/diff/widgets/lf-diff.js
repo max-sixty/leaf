@@ -2035,13 +2035,7 @@ customElements.define(
     // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoView(box, {
-        block: "start",
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant"
-          : "smooth",
-        sideways: false,
-      });
+      scrollIntoView(box, { block: "start", behavior: "smooth", sideways: false });
       focusDestination(node, "move");
     }
 

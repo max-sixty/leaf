@@ -18,7 +18,6 @@
  */
 import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
 import {
-  setScroll,
   frameFor,
   sizeObserver,
   whileConnected,
@@ -282,7 +281,7 @@ export class RecordingTimeline {
     this.#start = this.#pxToTime(target);
     if (target === Math.round(scroller.scrollLeft)) return;
     this.#expectedScroll = target;
-    setScroll(scroller, { left: target });
+    scroller.scrollTo({ left: target, behavior: "instant" });
   }
   // A new zoom or width moves the window, so the scroll goes to `left`, a pixel offset
   // on the new track, before anything is drawn: the marks, the ruler and its grid are

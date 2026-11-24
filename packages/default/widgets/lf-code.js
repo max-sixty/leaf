@@ -80,7 +80,6 @@
 import {
   LeafElement,
   alreadyShown,
-  setScroll,
   bodyText,
   codeLanguage,
   commandsChanged,
@@ -284,9 +283,7 @@ customElements.define(
         scrollIntoView(row, {
           block: "center",
           within: scroller,
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "instant"
-            : "smooth",
+          behavior: "smooth",
           sideways: false,
         });
       };
@@ -427,7 +424,7 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
+          if (!wrapped) pre.scrollTo({ left: horizontal, behavior: "instant" });
           layoutChanged(this);
         };
         this.lfCommands = {

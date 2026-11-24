@@ -1448,21 +1448,18 @@ export class Trace extends LeafElement {
     if (!travel) return;
     await this.#pendingPicture?.ready;
     if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
-    const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? "instant"
-      : "smooth";
     // A saved element's row stands in the tree's own scroll box, which can hide it
     // inside the window. A nearest landing reveals it there and the tree in the page,
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoView(row, { block: "nearest", behavior });
+      if (row) scrollIntoView(row, { block: "nearest", behavior: "smooth" });
       return;
     }
     // The moment's picture comes to the middle of the window where the user does not
     // already see it whole, as a pane or the floating panel can keep it from them.
     if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
-      scrollIntoView(this.#nodes.stage, { block: "center", behavior });
+      scrollIntoView(this.#nodes.stage, { block: "center", behavior: "smooth" });
   }
 
   #stream() {

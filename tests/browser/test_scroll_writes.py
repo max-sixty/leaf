@@ -28,7 +28,7 @@ ORIGINS = {
 # For each box the selector names, where `setScroll` put it from zero against where the
 # browser's own range, read by this test's writes, lets a write past each side go.
 MISPLACED = """async (selector) => {
-  const {setScroll} = await window.__lfWidgetApi();
+  const {setScroll} = await window.__lfCheckApi();
   const result = {};
   for (const box of document.querySelectorAll(selector)) {
     const name = box.id || box.localName;

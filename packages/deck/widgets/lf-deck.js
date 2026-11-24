@@ -398,13 +398,10 @@ customElements.define(
       // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
       // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
       // edges in view.
-      const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth";
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
         if (above || !next || this.#open.value !== next) return;
-        scrollIntoView(next, { block: "nearest", behavior });
+        scrollIntoView(next, { block: "nearest", behavior: "smooth" });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
@@ -428,7 +425,7 @@ customElements.define(
       }
       layoutChanged(this);
       carry(next, answered ? SETTLE_MS : 0);
-      if (above) scrollIntoView(this, { block: "start", behavior });
+      if (above) scrollIntoView(this, { block: "start", behavior: "smooth" });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or

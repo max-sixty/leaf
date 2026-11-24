@@ -118,7 +118,8 @@ To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, wh
 region, the box that scrolls it as the user reads, and every other box that scrolls
 it, inside or around that region, reveals it at the nearest edge, so a start landing in
 a bounded pane aligns it in the pane and moves the page only to show it; `block`
-defaults to `start`. Sideways, each box reveals it at the nearest edge. A `nearest`
+defaults to `start`. A `smooth` landing glides, and lands at once for a user who asked
+for less motion. Sideways, each box reveals it at the nearest edge. A `nearest`
 landing moves nothing where the target is already shown: the user sees all of it where
 it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
@@ -141,12 +142,6 @@ control's ring shows. `fitsWhole(target)` says whether the target and those marg
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
-To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
-available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
-readers before that position paints, including writes during resize delivery. Smooth
-scrolling reports its positions through the browser's scroll events.
-
-`atScrollEnd(box)` says whether a box is scrolled as far down as it goes.
 `landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
@@ -264,10 +259,10 @@ page doesn't show once the handler finishes, Leaf reveals that place and lands t
 Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can animate
 its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
 for less motion, and before `body[data-lf-presented]`; treat that as a finished
-animation. Where a module must branch on the preference itself, as for a scroll's
-`behavior`, it reads the `prefers-reduced-motion` media query. Animate only to help the
-eye follow a box from where it was to where it is, and draw a result the module already
-has during the gesture, not after a delay.
+animation. Where a module must branch on the preference itself, as for the `behavior`
+of its own smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
+Animate only to help the eye follow a box from where it was to where it is, and draw a
+result the module already has during the gesture, not after a delay.
 
 A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter

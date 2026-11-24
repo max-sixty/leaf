@@ -57,7 +57,6 @@ import { sectionMarks } from "./toc-marks.js";
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
 import {
-  atScrollEnd,
   comparisonChanges,
   frameFor,
   holdFocus,
@@ -583,7 +582,11 @@ customElements.define(
       this.#standLens(clear, this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      const end = atScrollEnd(this.#scroller);
+      // At the scroller's end the last section shown is current, though its heading
+      // stands below the threshold. Fractional layout and scaled displays can leave a
+      // scroll a pixel or so short of the end, so within two pixels counts as there.
+      const { scrollHeight, clientHeight, scrollTop } = this.#scroller;
+      const end = scrollHeight - clientHeight - scrollTop <= 2;
       for (const measured of this.#measured)
         if (measured.shown && (end || measured.position <= threshold))
           current = measured;

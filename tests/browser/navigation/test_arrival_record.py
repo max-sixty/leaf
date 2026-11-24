@@ -753,6 +753,50 @@ def test_a_revision_during_a_revisions_arrival_keeps_what_it_owes(
         release(page, held)
 
 
+@pytest.mark.parametrize("then", ["the arrival goes on", "another revision comes"])
+def test_back_during_a_revisions_arrival_keeps_its_comparison(browser, serve, then):
+    """The comparison a revision's reload carries is the document's: Back to an earlier
+    entry of the page while that reload still arrives doesn't take it away, whether the
+    arrival then goes on or another revision reloads the page first."""
+    reworded = ARRIVAL_PAGE.replace(
+        "holds what the user types", "keeps what the user types"
+    )
+    page = open_page(browser, live_url(serve(ARRIVAL_PAGE)))
+    stamp_page(serve.page_dir, reworded, "Reword the lead")
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    marks = page.locator(".lf-ins-block, .lf-ins")
+    expect(marks.first).to_be_visible()
+    page.keyboard.press("Escape")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#lead'")
+    # The hold opens at the next navigation, so this step's own lands first.
+    page.wait_for_url(re.compile("#lead$"))
+    page.wait_for_function("navigation.transition === null")
+    held = hold_the_next_documents_reading(page)
+    try:
+        stamp_page(serve.page_dir, executable_revision(reworded, "third"), "Third")
+        holding(page, held, 1, "the third revision's first reading")
+        # The panel mounts in the task that installs the arrival (leaf.js).
+        page.wait_for_function(
+            "document.querySelector('.lf-floating-panel:not([data-lf-served])') !== null"
+        )
+        page.evaluate("history.back()")
+        page.wait_for_function("location.hash === ''")
+        if then == "another revision comes":
+            stamp_page(
+                serve.page_dir, executable_revision(reworded, "fourth"), "Fourth"
+            )
+            release(page, held)
+            wait_for_revision(page, 4)
+        else:
+            release(page, held)
+            wait_until_ready(page)
+        expect(marks.first).to_be_visible()
+    finally:
+        release(page, held)
+
+
 @pytest.mark.parametrize("engine", ENGINES)
 def test_two_backs_while_the_page_starts_leave_each_entry_its_record(
     request, serve, engine

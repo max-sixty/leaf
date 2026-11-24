@@ -3320,14 +3320,21 @@ export function createVersionController({
         new Map(),
         currentIntent.handoff,
       );
+    // The rest of what the handoff carries of the document comes back here too,
+    // whatever becomes of the arrival: the pointer, which is where the user's pointer
+    // stands, not where they were in the entry, and stands until it moves (pointer.js);
+    // and the comparison, chosen now, so a capture before the page draws it hands it on
+    // (`selectedBase`), and drawn once the page presents (`landArrival`).
+    if (handoff) {
+      restorePointer(handoff.pointer);
+      if (handoff.comparison) setDiff(false, null, handoff.comparison);
+    }
     // The arrival in order, returning to the entry's record where it calls for it
     // (`returnToRecord`, history.js `arrive`).
     /** @param {() => Promise<void>} returnToRecord */
     const landArrival = (returnToRecord) =>
       landContinuity(async () => {
-        if (!currentIntent()) return;
-        if (handoff) {
-          restorePointer(handoff.pointer);
+        if (currentIntent()) {
           if (placed) {
             restoreView(placed.view, currentIntent);
             restoreCarryScroll();
@@ -3341,18 +3348,20 @@ export function createVersionController({
               await restoreEditingContinuity(placed, currentIntent);
             });
           } else await returnToRecord();
-          if (handoff.comparison && currentIntent()) showComparison(handoff.comparison);
-          return;
+          // A URL aimed somewhere has already landed there (`aimArrival`).
+          if (
+            !handoff &&
+            navigationType === "navigate" &&
+            !aimedAt &&
+            savedView &&
+            savedView.revision !== runtime.currentRevision
+          )
+            restoreView(savedView, currentIntent);
         }
-        await returnToRecord();
-        // A URL aimed somewhere has already landed there (`aimArrival`).
-        if (
-          navigationType === "navigate" &&
-          !aimedAt &&
-          savedView &&
-          savedView.revision !== runtime.currentRevision
-        )
-          restoreView(savedView, currentIntent);
+        // The comparison the handoff carried, chosen as the document arrived, unless
+        // the user has chosen another since.
+        if (handoff?.comparison && selectedBase() === handoff.comparison)
+          void showComparison(handoff.comparison);
       });
     return {
       landArrival,

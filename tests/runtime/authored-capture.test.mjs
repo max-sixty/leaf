@@ -160,10 +160,7 @@ test("the contents drawing keeps its native state and keyed rows through revisio
     '<header><lf-toc id="contents"></lf-toc></header><main><h1>Field guide</h1>' +
     '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
   const host = document.querySelector("lf-toc");
-  const reading = {
-    label: (heading) => heading.textContent,
-    chrome: () => false,
-  };
+  const reading = { label: (heading) => heading.textContent };
   const live = drawToc(host, reading);
   render(live.render(reading), host, { host });
   const disclosure = host.querySelector("details");

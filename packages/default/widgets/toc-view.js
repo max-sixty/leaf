@@ -1,8 +1,9 @@
 import { titledElement } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
-/* The contents view draws its frame and outline from the complete document.
- * The live widget supplies the canonical heading and chrome readings, and each
- * section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
+/* The contents view draws its frame and outline from the complete document, less the
+ * headings in Leaf's chrome (`.lf-chrome`). The live widget supplies the canonical
+ * heading reading, and each section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
  * where its section holds an On Me item, else `thread` where it holds an open thread.
  * While the changes view is on, `data-lf-toc-changed` marks a changed section. toc.css
  * draws both on the outline's rule or the contents spine; the start row's go on the
@@ -15,7 +16,7 @@ import { keeps } from "/runtime/lib/keeps.js";
 import { html, nothing, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
-/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean}} HeadingReading */
+/** @typedef {{label: (heading: Element) => string}} HeadingReading */
 /** @typedef {{key: string | Element, heading: Element, label: string, destination: Element, depth: number}} OutlineItem */
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 /** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
@@ -302,10 +303,12 @@ const level = (heading) => Number(heading.localName.slice(1));
 
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
 /** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
-function readOutline(host, { label, chrome }) {
+function readOutline(host, { label }) {
   const main = outlineDocument(host);
   if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
+  /** @param {Element} heading */
+  const chrome = (heading) => closestAcross(heading, ".lf-chrome") !== null;
   const headings = [...main.querySelectorAll(HEADING_SELECTOR)]
     .filter(
       (heading) =>

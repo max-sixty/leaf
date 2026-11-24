@@ -42,7 +42,7 @@ customElements.define(
     };
 
     #region() {
-      return elementById(this.getAttribute("for"));
+      return elementById(this.getAttribute("for"), this);
     }
 
     render() {

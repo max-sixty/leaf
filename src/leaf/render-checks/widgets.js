@@ -1,6 +1,6 @@
-import { inChrome } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  inChrome,
   textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,

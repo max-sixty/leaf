@@ -115,10 +115,8 @@ import { nothing } from "/vendor/lit.js";
 import {
   aimedAt,
   nameOf,
-  authoredScope,
   elementById,
   threadInput,
-  inChrome,
   LeafElement,
   landInThread,
   placePreview,
@@ -131,6 +129,7 @@ import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
 // own words, which are all it has. `named` rather than `says`, because a picked option's
@@ -233,7 +232,10 @@ customElements.define(
     get #addition() {
       return (this.#additionOwner ??= new OptionAddition(this, {
         // `closed` answers only from the listed options.
-        offered: this.#choosable && !inChrome(this) && !this.hasAttribute("closed"),
+        offered:
+          this.#choosable &&
+          !closestAcross(this, ".lf-chrome") &&
+          !this.hasAttribute("closed"),
         available: () => this.#available("choose"),
         commit: (added, choice, attempt) => {
           if (!this.#available("add") || !this.#available("choose")) return null;
@@ -546,8 +548,8 @@ customElements.define(
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the
-    // name the chrome gives it (`nameOf`), else by its word, and by the id
-    // only where no block in the option's document answers to it. After § a kind word
+    // name the chrome gives it (`nameOf`), else by its word, and by the id only where no
+    // block in the option's message or on the page answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone, and pointing at it
     // previews the block, as a link into the page does (`placePreview`). It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
@@ -555,12 +557,12 @@ customElements.define(
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, authoredScope(this));
+      const block = elementById(target, this);
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
       ref.lfPreview = () => {
-        const named = elementById(target, authoredScope(this));
+        const named = elementById(target, this);
         return named ? placePreview(named) : null;
       };
       option.append(ref);

@@ -327,9 +327,6 @@ def _explained(console: list[dict]) -> str:
 
 
 def _visual_problem(problem: dict) -> str:
-    kind = problem["kind"]
-    if kind == "unregistered":
-        return "neither marked a part with data-lf-part nor called registerVisualParts"
     return f"named parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 

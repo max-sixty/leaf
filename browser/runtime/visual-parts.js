@@ -163,12 +163,12 @@ export function revealRegisteredVisualPart(source, id) {
   return registeredVisualPart(source, id);
 }
 
-/** Invalid registrations or ids outside a provider's declared prefixes. */
+/** Invalid records, or ids outside a provider's declared prefixes. A visual that
+ * offers no part has none: with marks, an empty inventory is a state its drawing can
+ * be in, and the picture is then one target. */
 /** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!registrations.has(source) && !markedParts(source).length)
-    return [{ kind: "unregistered" }];
   const parts = registeredVisualParts(source);
   const admission = visualPartAdmission(source, declaration);
   const outside =

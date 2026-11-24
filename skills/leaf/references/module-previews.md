@@ -5,7 +5,11 @@ Read with [module-authoring.md](module-authoring.md).
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
 pointer rests on it, when Tab brings the keyboard to it or something inside it, and when
 a finger holds it, beside the element over the page, in one face: a name with key chips,
-then lines of detail. A command's landing, such as a walk's, previews nothing, since
+then lines of detail. An element with no Tab stop, such as an age, previews to the
+keyboard when the caret stands in it and the user presses `K`, in browsers with caret
+browsing (Chromium and Firefox), so a preview needs no Tab stop of its own. Leaf then
+calls `lfPreview("focus")`, though the element doesn't hold focus. A command's
+landing, such as a walk's, previews nothing, since
 what the user asked the command for is in front of them (`module-input.md`, "Focus and layers"). The preview holds no control, so a control the user presses stays
 on the widget; a pointer may cross onto it to read it, and a finger's long press reads
 it and presses nothing, so a widget's click answers a tap alone.

@@ -34,7 +34,7 @@ from render_harness import (
 )
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -1490,18 +1490,20 @@ def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve, anch
 def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
     request, serve, engine
 ):
-    """Back from a thread a press on a row of Threads opened returns to Threads, on that
-    row, as the view's own way back does, rather than closing the panel; Forward opens
-    the thread again. The entry keeps the list and its row across a reload of the
-    document, which forgets the panel's views, so the thread about a passage the reload
-    opens beside its passage still gives way to Threads on Back, and after Escape put
-    the thread away, when Back has no thread to put away."""
+    """Back from a thread a press on a row of Threads opened in the panel, as one about a
+    passage opens for a user who chose the panel for threads, returns to Threads, on
+    that row, as the view's own way back does, rather than closing the panel; Forward
+    opens the thread again. The entry keeps the list and its row across a reload of the
+    document, which forgets the panel's views, so the thread the reload opens again
+    still gives way to Threads on Back, and after Escape put the thread away, when Back
+    has no thread to put away."""
     url = serve(LONG_PAGE)
     for n, text in enumerate(("First question?", "Second question?", "Third?"), 1):
         panel_comment(
             serve.page_dir, text, {"section": f"p{n}", "quote": f"Paragraph {n}."}
         )
     page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
     open_threads(page)
     rows = page.locator(".lf-fp-thread")
     expect(rows).to_have_count(3)

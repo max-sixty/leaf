@@ -25,6 +25,7 @@ from render_harness import (
 )
 
 from browser.test_render_drawing import draw_over
+from browser.threads import choose_threads_in_panel
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
@@ -84,16 +85,20 @@ def long_card(serve, extra=""):
 def test_a_reload_keeps_a_thread_in_the_reader_it_showed(request, serve, engine):
     """A thread about a passage the user opened in the floating panel, from Threads, is
     there again after a reload, rather than in a card beside a passage the window
-    doesn't show, and focus stands only on what the window shows."""
+    doesn't show, though threads open beside their passages by then: the entry's record
+    holds the view the user stood in, which the choice of where threads open doesn't
+    say (thread/address.js). Focus stands only on what the window shows."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Why here?", {"section": "p40", "quote": "Paragraph 40."}
     )
     page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread").first.click()
     view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(view).to_be_visible()
+    choose_threads_in_panel(page, on=False)
     reload(page)
     expect(view).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -273,6 +278,7 @@ def test_a_reload_keeps_focus_on_a_control_of_a_thread_view(
         serve.page_dir, "Why here?", {"section": "p40", "quote": "Paragraph 40."}
     )
     page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread").first.click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
@@ -617,6 +623,7 @@ def test_a_restoration_ends_at_the_users_own_input(request, serve, engine, move)
         serve.page_dir, "Why here?", {"section": "p40", "quote": "Paragraph 40."}
     )
     page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread").first.click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()

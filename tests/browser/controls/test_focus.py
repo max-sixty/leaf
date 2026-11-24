@@ -727,7 +727,7 @@ def test_a_walk_in_a_box_no_reading_region_moves_shows_the_ring(
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.
 HAND_BACK = """async (step) => {
-  const {handBack} = await window.__lfWidgetApi();
+  const {handBack} = await window.__lfCheckApi();
   const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
   const main = document.querySelector('main');
   const made = (tag, id, parent = main, hidden = false) => {

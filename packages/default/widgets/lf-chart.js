@@ -80,7 +80,6 @@ import {
   beginWalk,
   bodyText,
   commandsChanged,
-  keeps,
   listWalkPosition,
   whileConnected,
   failSoft,
@@ -93,6 +92,7 @@ import {
   registerVisualParts,
   sizeObserver,
 } from "/runtime/portable-api.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import {
   cross,
   datumOf,
@@ -435,7 +435,7 @@ customElements.define(
         // drawing measures, and only its width moves the observer.
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";
-        this.drawing.style.blockSize = `${Math.round(height * 64) / 64}px`;
+        this.drawing.style.blockSize = layoutPx(height);
         this.replaceChildren(this.drawing);
         await this.paint(Math.round(width));
         this.classList.add("lf-rendered");

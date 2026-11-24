@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
-from .registry.contract import upgraded
+from .registry.contract import body_is_data, upgraded
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
 
@@ -194,7 +194,7 @@ def markdown_dialect(message: bool, html: bool = False):
 
 
 def markdown_markup(source: str) -> str:
-    """A Markdown body (`text-format: markdown`) as the browser paints it, read as
+    """A Markdown body (`content: markdown`) as the browser paints it, read as
     a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
     revision's prepaint."""
     return markdown_dialect(False).render(source)
@@ -228,10 +228,10 @@ def created_words(words: str) -> str:
 
 def shown_words(words: str, entry: dict, *, added: bool) -> str:
     """The words an element's text shows: an `added` child's (one a user created,
-    `data-lf-added`) as `created_words`, else its entry's `text-format` applied."""
+    `data-lf-added`) as `created_words`, else as its entry's `content` reads them."""
     if added:
         return created_words(words)
-    if entry.get("text-format") == "markdown":
+    if entry.get("content") == "markdown":
         return _rendered_words(markdown_markup(words))
     return words
 
@@ -547,7 +547,7 @@ class _PassageParser:
         )
         withheld = bool(
             (parent and parent["withheld"] and not prose_member)
-            or (opaque and entry.get("content") == "data")
+            or (opaque and body_is_data(entry))
         )
         # A surviving child keeps its parent on the page even where it holds no text —
         # a kept slot whose only content is an image. The text case marks every
@@ -598,7 +598,7 @@ class _PassageParser:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
             _verb, their_text = sub
-            if entry.get("text-format") == "markdown":
+            if entry.get("content") == "markdown":
                 frame["skip"] = False
                 feed_markdown(self, their_text)
                 frame["skip"] = True
@@ -663,7 +663,7 @@ def _walk(parser: "_PassageParser", node) -> None:
             for name, value in node.attrs.items()
         ],
     )
-    if parser.registry.get(node.tag, {}).get("text-format") == "markdown":
+    if parser.registry.get(node.tag, {}).get("content") == "markdown":
         body = pre_body(node)
         assert body is not None
         feed_markdown(parser, body)

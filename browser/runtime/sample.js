@@ -82,12 +82,12 @@ import {
   readSampleVisibility,
   watchFrame,
 } from "./frame-visibility.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { inputInFrame } from "./focus.js";
 import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
-import { exceptionRecord } from "./exception.js";
+import { exceptionRecord } from "./lib/exception.js";
 import { aborted } from "./abort.js";
 import { deferredArrival, onAllNear } from "./presentation.js";
 

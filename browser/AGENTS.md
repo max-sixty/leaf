@@ -401,9 +401,10 @@ and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, stands the floating panel's row from
 the first paint, holds keys pressed before upgrade and shows a startup failure.
 
-Content modules import only `runtime/widget-api.js`, the public helper surface, or a
-widget that also runs off Leaf only its part any document loads,
-`runtime/portable-api.js`;
+Of the runtime, content modules import only `runtime/widget-api.js`, the public helper
+surface, and the modules of the library ("The library of shared web code"). A widget
+that also runs off Leaf imports, in place of `widget-api.js`, only the part of it any
+document loads, `runtime/portable-api.js`.
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
@@ -438,7 +439,7 @@ that follows whether focus is in sight (`user-place.js`, through `geometry.js`
 `whenChanges`).
 
 Lit owns template bindings and skips unchanged values. For imperative writes outside
-those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant
+those bindings, use `keeps` in `runtime/lib/keeps.js`, whose header says what a redundant
 write costs. Give each value one writer, since two owners that set it in turn rewrite
 it whenever either paints. Checks: `tests/write_watch.js`
 fails a write that changes nothing, and `scroll_findings` in `test_page_fixture_renders` fails a
@@ -460,6 +461,35 @@ name the widgets they style, so a rule several packages need belongs in the kern
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
+
+### The library of shared web code
+
+Web code that packages share with one another or with the runtime has one home that
+any of them can import, so that no package copies it and it adds nothing to Leaf's
+interface. `runtime/lib/` is that home. It holds code that keeps none of the page's
+state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
+thrown value. A function that reads the page's state, the registry or anything else
+Leaf composes into a page is not library code, and stays in its owner behind
+`widget-api.js`.
+
+- A library module imports only `/vendor/` bundles and the modules beside it, so it
+  loads in a document Leaf didn't compose (lint, the library's block in
+  `../eslint.config.mjs`). Where it needs a stateless helper of the runtime's, the
+  helper's module joins the library, and the runtime imports the helper from there.
+- The runtime imports a library module by relative path. A package, a page and a
+  render check import it by its served path, `/runtime/lib/<module>.js`.
+  `$public-modules` in `runtime/kernel-registry.json` admits a package's or a page's
+  import, and lists every module of the directory
+  (`../tests/runtime/widget-api.test.mjs`).
+- A module holds one concern, and each importer names the module that holds what it
+  needs. Nothing in the runtime re-exports a library module, so neither `widget-api.js`
+  nor `check-api.js` passes the library on (lint, the same block and
+  `ownerRuntimeSyntax`).
+- A prepared installation compiles the whole library into the chunk every page loads
+  (`portableHomes` in `../build/runtime-bundle.mjs`). So a library module imports
+  lazily any `/vendor/` bundle the page's boot doesn't already load.
+- A module's header and JSDoc are its whole documentation. The package references say
+  where the library is and describe none of its functions.
 
 ### What a style rule costs
 
@@ -776,8 +806,10 @@ block names what a package answers with the browser's own call instead.
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
+| Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                         |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
-| Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
+| Write a DOM value only when it changed; a style property needs no guard (`lib/keeps.js` header)       | `lib/keeps.js` `keeps`                                                             |
+| A number that names an object in a key built of strings, the same at every ask                        | `ids.js` `objectIds`                                                               |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
 | What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                  |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |

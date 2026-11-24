@@ -43,8 +43,6 @@ import {
   holdFocus,
   inChrome,
   nameAction,
-  keeps,
-  keepsText,
   langForPath,
   layoutChanged,
   listWalkPosition,
@@ -64,10 +62,10 @@ import {
   sizeObserver,
   whileConnected,
   scrollIntoView,
-  focused,
-  currentLocationIn,
   commandsChanged,
 } from "/runtime/portable-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -975,8 +973,7 @@ function fileError(view, error) {
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  const message = error instanceof Error ? error.message || error.name : String(error);
-  box.textContent = `That file's diff cannot be shown: ${message}`;
+  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
   restore?.(header);
 }
@@ -1113,9 +1110,14 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
+              const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
+              // The box holds its expand-all control, which counts as in the box.
               return (
-                currentLocationIn(this) &&
-                Boolean(search.value || currentLocationIn(search))
+                this.contains(root.activeElement) &&
+                Boolean(
+                  search.value ||
+                  search.contains(this.shadowRoot?.activeElement ?? null),
+                )
               );
             },
             title: () =>
@@ -1138,7 +1140,7 @@ customElements.define(
       commandsChanged(this);
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, (signal) => {
+      whileConnected(this, () => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -1795,7 +1797,7 @@ customElements.define(
       if (this.filesBody) {
         const { top, height } = this.filesBody.getBoundingClientRect();
         const hold = needle
-          ? `${Math.round(Math.max(0, Math.min(height, innerHeight - top)) * 64) / 64}px`
+          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
           : "";
         if (this.filesBody.style.minBlockSize !== hold)
           this.filesBody.style.minBlockSize = hold;
@@ -1906,10 +1908,7 @@ customElements.define(
     // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
-      const currentLocation = this.shadowRoot && focused(this.shadowRoot);
-      return currentLocation && this.shadowRoot.contains(currentLocation)
-        ? currentLocation
-        : null;
+      return this.shadowRoot?.activeElement ?? null;
     }
 
     // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -2035,13 +2034,7 @@ customElements.define(
     // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoView(box, {
-        block: "start",
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant"
-          : "smooth",
-        sideways: false,
-      });
+      scrollIntoView(box, { block: "start", behavior: "smooth", sideways: false });
       focusDestination(node, "move");
     }
 

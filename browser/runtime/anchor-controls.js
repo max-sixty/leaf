@@ -50,7 +50,7 @@ import { tokenEntry } from "./registry.js";
 import { isElement, shadowHost, upFrom } from "./shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, offeredAction } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps, keepsText } from "./lib/keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 import { raiseError } from "./errors.js";

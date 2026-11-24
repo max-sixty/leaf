@@ -92,15 +92,12 @@ import {
   registerReadingRegion,
   el,
   focusDestination,
-  closeNativeLayer,
   holdFocus,
   actionTemplate,
   iconTemplate,
   inBaseLayer,
   offered,
   offeredAction,
-  keeps,
-  keepsText,
   LeafElement,
   PendingTaskEvent,
   move,
@@ -115,11 +112,11 @@ import {
   showReadingSubject,
   sizeObserver,
   whileConnected,
-  currentLocationIn,
   commandsChanged,
-  seconds,
   actionClass,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { seconds } from "/runtime/lib/time-axis.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
@@ -153,6 +150,13 @@ if (!document.querySelector("#lf-trace-library-styles")) {
 /** @typedef {TraceAction & {input: NonNullable<TraceAction["input"]>}} InputAction */
 /** @typedef {{figure: HTMLElement, canvas: HTMLDivElement, img: HTMLImageElement, status: HTMLSpanElement}} ImageSurface */
 /** @typedef {Viewer & {image: HTMLImageElement, viewer: HTMLDivElement, imageData: {width: number, x: number, y: number, ratio: number}, onResize: () => void}} CompletedViewer */
+// Whether focus is in `box`: whether the active element of the box's tree, where a host
+// stands for focus inside its own shadow tree, is the box or inside it. Unlike
+// `:focus-within`, it still holds while the window is in the background.
+/** @param {Element} box */
+const holdsFocus = (box) =>
+  box.contains(/** @type {Document | ShadowRoot} */ (box.getRootNode()).activeElement);
+
 /** @param {Viewer | null} viewer @returns {viewer is CompletedViewer} */
 function completedViewer(viewer) {
   return (
@@ -612,7 +616,7 @@ export class Trace extends LeafElement {
           },
           {
             id: "trace.zoom-in",
-            keys: () => (currentLocationIn(timeline) ? ["="] : []),
+            keys: () => (holdsFocus(timeline) ? ["="] : []),
             title: "zoom the timeline in",
             control: this.#nodes.zoomIn,
             when: () => this.#timeline.canZoomIn,
@@ -620,7 +624,7 @@ export class Trace extends LeafElement {
           },
           {
             id: "trace.zoom-out",
-            keys: () => (currentLocationIn(timeline) ? ["-"] : []),
+            keys: () => (holdsFocus(timeline) ? ["-"] : []),
             title: "zoom the timeline out",
             control: this.#nodes.zoomOut,
             when: () => this.#timeline.canZoomOut,
@@ -628,7 +632,7 @@ export class Trace extends LeafElement {
           },
           {
             id: "trace.zoom-fit",
-            keys: () => (currentLocationIn(timeline) ? ["0"] : []),
+            keys: () => (holdsFocus(timeline) ? ["0"] : []),
             title: "show the whole recording",
             control: this.#nodes.zoomFit,
             when: () => this.#timeline.canZoomOut,
@@ -636,21 +640,21 @@ export class Trace extends LeafElement {
           },
           {
             id: "trace.previous-event",
-            keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowLeft"] : []),
+            keys: () => (holdsFocus(timeline) ? ["Shift+ArrowLeft"] : []),
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
           },
           {
             id: "trace.next-event",
-            keys: () => (currentLocationIn(timeline) ? ["Shift+ArrowRight"] : []),
+            keys: () => (holdsFocus(timeline) ? ["Shift+ArrowRight"] : []),
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),
           },
           {
             id: "trace.play",
-            keys: () => (currentLocationIn(timeline) ? [" "] : []),
+            keys: () => (holdsFocus(timeline) ? [" "] : []),
             title: () => (this.#playing ? "pause recording" : "play recording"),
             control: this.#nodes.play,
             when: () => this.#items().length > 1,
@@ -1337,43 +1341,33 @@ export class Trace extends LeafElement {
 
   #indexTargets() {
     this.#targets.clear();
-    for (const action of this.#recording.actions) {
-      const firstPhase = this.#phases(action)[0];
-      const pageId = action.pageId;
-      const firstPageId = checkpointOf(action, firstPhase)?.pageId ?? pageId;
-      const scope = this.#targetScope(action.stream, firstPageId);
-      this.#targets.set(this.#id("action", action.id), {
-        action,
-        scope,
-        pageId: firstPageId,
-        phase: firstPhase,
-        label: action.title,
-      });
-      for (const phase of this.#phases(action)) {
-        this.#targets.set(this.#phaseId(action, phase), {
+    for (const action of this.#recording.actions)
+      for (const [index, phase] of this.#phases(action).entries()) {
+        const checkpoint = checkpointOf(action, phase);
+        const pageId = checkpoint?.pageId ?? action.pageId;
+        const at = {
           action,
-          pageId: checkpointOf(action, phase)?.pageId ?? pageId,
-          scope: this.#targetScope(
-            action.stream,
-            checkpointOf(action, phase)?.pageId ?? pageId,
-          ),
+          pageId,
+          scope: this.#targetScope(action.stream, pageId),
           phase,
+        };
+        // An action's own target takes its first phase's page and scope.
+        if (index === 0)
+          this.#targets.set(this.#id("action", action.id), {
+            ...at,
+            label: action.title,
+          });
+        this.#targets.set(this.#phaseId(action, phase), {
+          ...at,
           label: `${action.title} · ${PHASES[phase]}`,
         });
-        for (const node of checkpointOf(action, phase)?.tree?.nodes ?? [])
+        for (const node of checkpoint?.tree?.nodes ?? [])
           this.#targets.set(this.#nodeId(action, phase, node), {
-            action,
-            pageId: checkpointOf(action, phase)?.pageId ?? pageId,
-            scope: this.#targetScope(
-              action.stream,
-              checkpointOf(action, phase)?.pageId ?? pageId,
-            ),
-            phase,
+            ...at,
             node,
             label: `${action.title} · ${PHASES[phase]} · ${nodeName(node)} · path ${node.path}`,
           });
       }
-    }
     for (const image of this.#recording.images)
       this.#targets.set(this.#id("image", image.id), {
         image,
@@ -1460,21 +1454,18 @@ export class Trace extends LeafElement {
     if (!travel) return;
     await this.#pendingPicture?.ready;
     if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
-    const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? "instant"
-      : "smooth";
     // A saved element's row stands in the tree's own scroll box, which can hide it
     // inside the window. A nearest landing reveals it there and the tree in the page,
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoView(row, { block: "nearest", behavior });
+      if (row) scrollIntoView(row, { block: "nearest", behavior: "smooth" });
       return;
     }
     // The moment's picture comes to the middle of the window where the user does not
     // already see it whole, as a pane or the floating panel can keep it from them.
     if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
-      scrollIntoView(this.#nodes.stage, { block: "center", behavior });
+      scrollIntoView(this.#nodes.stage, { block: "center", behavior: "smooth" });
   }
 
   #stream() {
@@ -1762,7 +1753,7 @@ export class Trace extends LeafElement {
       const commit = (/** @type {CompletedViewer | null} */ viewer) => {
         if (!current()) return;
         const retired = this.#picture;
-        const hadFocus = currentLocationIn(this.#nodes.viewport);
+        const hadFocus = holdsFocus(this.#nodes.viewport);
         this.#shownPicture = { viewer, image, scope: pending.scope };
         // Leaf owns container resize so unchanged window signals leave the
         // inspected image alone. Viewer otherwise refits it on every signal.
@@ -2456,7 +2447,7 @@ export class Trace extends LeafElement {
                     aria-label=${label}
                     @click=${() => {
                       run();
-                      closeNativeLayer(this.#nodes.imageScaleOptions);
+                      this.#nodes.imageScaleOptions.hidePopover();
                       focusDestination(this.#nodes.imageScale, "move");
                     }}
                   >

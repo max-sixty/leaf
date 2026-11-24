@@ -1464,8 +1464,6 @@ def _agent_verb_answers(registry):
 
 
 def _body_record_with_prose(registry):
-    # Isolate the body-record contract from the Markdown/data-content contract.
-    del registry["lf-draft"]["text-format"]
     registry["lf-draft"]["content"] = "markup"
 
 

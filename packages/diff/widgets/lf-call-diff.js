@@ -21,15 +21,13 @@ import {
   el,
   generated,
   generatedElement,
-  keeps,
-  keepsText,
   LeafElement,
   navigateToDatum,
   offerAction,
   setChildLists,
   setChildren,
-  focused,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
@@ -341,7 +339,8 @@ customElements.define(
           children: children.map((record) => draw(record, () => buildLine())),
         };
       });
-      const currentLocation = focused(this.getRootNode());
+      const currentLocation = /** @type {Document | ShadowRoot} */ (this.getRootNode())
+        .activeElement;
       for (const { group, body, children } of placements)
         if (
           children.some(

@@ -14,7 +14,6 @@ import {
   el,
   generatedElement,
   keepView,
-  keeps,
   layoutChanged,
   nextRender,
   once,
@@ -25,6 +24,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import "./lf-trace.js";
 
 /** @typedef {{index: number, view: Element, recording: import("./lf-trace.js").Trace}} TraceMember */
@@ -104,10 +104,7 @@ customElements.define(
       this.prepend(header);
       whileConnected(this, () => {
         const paintHeight = (/** @type {number} */ height) =>
-          this.style.setProperty(
-            "--lf-trace-compare-head-h",
-            `${Math.round(height * 64) / 64}px`,
-          );
+          this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
         paintHeight(header.getBoundingClientRect().height);
         let paint = 0;
         const size = sizeObserver((entries) => {

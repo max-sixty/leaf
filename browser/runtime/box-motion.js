@@ -132,7 +132,7 @@
  * state as a picture, sends every press to the root while it runs, and abandons a
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
-import { inlineStyle, keeps } from "./keeps.js";
+import { inlineStyle, keeps } from "./lib/keeps.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { VISIBLE_FOCUS_MARKS, onUserInput } from "./focus.js";

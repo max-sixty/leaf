@@ -158,7 +158,7 @@ import { anchorLabel } from "../thread/messages.js";
 import { seatOf } from "../thread/model.js";
 
 import { livePoint } from "../pointed-place.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 

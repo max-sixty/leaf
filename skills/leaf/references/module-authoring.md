@@ -32,8 +32,8 @@ long it lives across revisions. A widget's declarations are in
 
 Import behavior helpers from `/runtime/widget-api.js`, or its portable part ("A
 widget that also runs off Leaf"), and Lit's templates from `/vendor/lit.js`.
-Don't import the runtime's
-other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
+Of the runtime's other modules, import only the library's ("Shared web code"). Don't
+query Leaf's own chrome or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
 of the module `widget-api.js` re-exports it from. Every export is public for independent
 and bundled packages alike. A DOM helper takes the element it acts for as its first
@@ -45,10 +45,20 @@ argument.
 `widget-api.js` exports `signal`, for private state a command's `when` reads
 (`module-input.md`, "Command rows").
 
+### Shared web code
+
+`/runtime/lib/` is a library of web code that Leaf's runtime and its bundled packages
+share, such as the ticks of a time axis and the words for a thrown value. It is not
+part of Leaf's interface: a library module keeps none of the page's state and calls
+nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
+module works off Leaf too. Like `widget-api.js`, the library can change in any update.
+[The directory](../../../browser/runtime/lib/) lists the modules, and each module's
+header and comments say what it exports. These references describe none of them.
+
 ### A widget that also runs off Leaf
 
-A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
-`widget-api.js`. The portable helpers are
+A widget reused off Leaf imports `/runtime/portable-api.js`, which `widget-api.js`
+re-exports, and may import the library's modules too. The portable helpers are
 [that file's exports](../../../browser/runtime/portable-api.js): each loads on a page
 without Leaf, where `widget-api.js` can't. The host maps `/runtime/` and `/vendor/` to
 a Leaf install with its own import map and gives the element its drawing box. For the
@@ -103,8 +113,8 @@ script", lists.
   mark the words they write with `generatedElement()` (`module-controls.md`).
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
-- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
-  values through `keeps` ("Scheduling paints", "Writes that change nothing").
+- Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value
+  only where it changes ("Scheduling paints", "Writes that change nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes through the widget controller, and keep how they
   look at the widget in `tabStore`.
@@ -206,8 +216,8 @@ changed. Leaf compares only each direct child's tag and attributes, and a revisi
 doesn't redraw a widget it keeps. So a module that draws from what its children hold,
 or can declare neither, reads them again when they change: `lf-pane` watches its
 children with a `MutationObserver`, and a `LeafElement` calls `requestUpdate()` from
-one. A widget that draws its own content (`content` `data` or `empty`) is always
-replaced.
+one. A widget that draws its own content (`content` `data`, `markdown` or `empty`) is
+always replaced.
 
 ## Startup and presentation
 
@@ -382,13 +392,12 @@ loop that `page check` counts as a fault.
 ### Writes that change nothing
 
 Writing a value a node already has still reaches screen readers and can repaint the
-whole document. `keeps(node, name, value)` writes an attribute only when it would read
-back differently; pass booleans and counts as they are, and `null` to remove it.
-`keepsText(node, text)` does the same for words. For a flag such as `hidden`,
-`toggleAttribute(name, force)` writes only when the flag changes, where the `hidden`
-setter rewrites the attribute on every set. Round a measured length to layout's 1/64px,
-as `Math.round(length * 64) / 64`, before writing it into a style, so a measure that
-jitters below that writes nothing new.
+whole document, so write an attribute or a node's words only when they would read back
+differently. For a flag such as `hidden`, `toggleAttribute(name, force)` writes only
+when the flag changes, where the `hidden` setter rewrites the attribute on every set.
+Round a measured length to layout's 1/64px before writing it into a style, so a measure
+that jitters below that writes nothing new. The library ("Shared web code") holds
+guards for attributes, words and measured lengths.
 
 ## Contained examples and scoped appearance
 

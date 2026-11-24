@@ -3,7 +3,7 @@
  * without Leaf's runtime; a host without Leaf simply does not interpret its markers.
  * Templates own content, attributes and handlers that these writers do not name. */
 import { Directive, PartType, directive, nothing } from "/vendor/lit.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { actionClass } from "./control-faces.js";
 import { actionOffers } from "./icon-paths.js";
 import "./role-button-press.js";
@@ -161,8 +161,8 @@ export function elementDirective(name, write) {
           throw new TypeError(`${name} belongs in a template's element part`);
       }
       // The values the template passes, which `update` writes.
-      /** @param {A} args */
-      render(...args) {
+      /** @param {A} _args */
+      render(..._args) {
         return nothing;
       }
       /** @param {import("/vendor/lit.js").ElementPart} part @param {A} args */

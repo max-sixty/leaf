@@ -48,8 +48,6 @@ import {
   frameFor,
   growthIsSeen,
   whileConnected,
-  keeps,
-  keepsText,
   nameAction,
   mountSample,
   once,
@@ -58,14 +56,12 @@ import {
   generatedElement,
   widgetController,
   focusDestination,
-  closeLayer,
-  showNativeLayer,
-  closeNativeLayer,
-  handBack,
   heldGrowth,
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 
 export class Sample extends HTMLElement {
   /** @typedef {Awaited<ReturnType<typeof mountSample>>} SampleHost */
@@ -350,15 +346,12 @@ export class Sample extends HTMLElement {
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;
-        this.style.setProperty(
-          "--lf-sample-height",
-          `${Math.round(height * 64) / 64}px`,
-        );
-        closeNativeLayer(this.#view);
+        this.style.setProperty("--lf-sample-height", layoutPx(height));
+        this.#view.close();
         this.#view.setAttribute("role", "dialog");
         this.#view.setAttribute("aria-label", this.#frame.title);
         this.#paintFull(true);
-        showNativeLayer(this.#view);
+        this.#view.showModal();
         this.#setWindow(true);
         focusDestination(this.#full, "move");
       }
@@ -373,17 +366,19 @@ export class Sample extends HTMLElement {
     return true;
   }
 
+  // The browser hands focus back to wherever it stood as Full view opened: the Full
+  // view button inside the view the close hides, or, where a press leaves a button
+  // unfocused, wherever the user was before. So the user is put on that button once
+  // the view stands embedded again.
   #return() {
-    closeLayer(
-      () => this.#embed(),
-      () => handBack(this.#full),
-    );
+    this.#embed();
+    focusDestination(this.#full, "return");
     if (this.#heightReading !== undefined)
       this.#height(this.#heightReading, { immediate: true, asked: true });
   }
 
   #embed() {
-    closeNativeLayer(this.#view);
+    this.#view.close();
     // Initial open markup keeps the embedded group visible without the native
     // focusing steps of show(), which could scroll the containing page.
     this.#view.setAttribute("open", "");
@@ -443,9 +438,7 @@ export class Sample extends HTMLElement {
       (error.name === "AbortError" || error.name === "SampleDepartedError")
     )
       return;
-    this.#sayFailure(
-      error instanceof Error ? error.message || error.name : String(error),
-    );
+    this.#sayFailure(describeFailure(error));
     keeps(this.#reset, "aria-disabled", null);
   }
 

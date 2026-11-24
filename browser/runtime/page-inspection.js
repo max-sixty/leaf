@@ -6,7 +6,7 @@
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
 import { capitalized } from "./words.js";
-import { describeFailure } from "./exception.js";
+import { describeFailure } from "./lib/exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";

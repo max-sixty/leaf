@@ -4,7 +4,7 @@
    An unallocated document has no view to report; normal observation resumes when
    its viewport has room. A document id is deliberately not stored: duplicated tabs
    must never share a lease. */
-import { describeFailure } from "./exception.js";
+import { describeFailure } from "./lib/exception.js";
 import { pageIdentity } from "./page-identity.js";
 import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";

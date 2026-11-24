@@ -250,7 +250,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     <div id="practice-popover" popover><input></div>
     <iframe title="Authored embedded page" srcdoc="<p>Embedded content is allowed</p>"></iframe>
     <script type="module">
-      import {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }} from '/runtime/widget-api.js';
+      import {{ focusDestination, scrollIntoView }} from '/runtime/widget-api.js';
+      const {{ closeNativeLayer, showNativeLayer }} = await window.__lfCheckApi();
       window.leafNavigation = {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }};
       for (const input of document.querySelectorAll('dialog input, [popover] input'))
         input.autofocus = true;
@@ -291,6 +292,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     sample = page.locator("#isolated-practice")
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
+    # The practice script takes the runtime's layer calls after an await.
+    child.wait_for_function("() => window.leafNavigation")
     assert child.evaluate(
         """() => {
           try { parent.document; return false; }

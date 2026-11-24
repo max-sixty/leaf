@@ -598,26 +598,18 @@ def checked(session_id: str, payload: dict) -> dict:
     (`resent`, noted as `request`) where the harness gives them (`take_answer`), and a
     line for the module's debug log saying what came of it. An answer `ANSWER` refuses
     writes nothing, and says why (`refused`)."""
+    from .forks import run_facts
     from .refusals import Refused
 
     basis = payload["basis"]
     asked = (
         {"turn": basis["turn"], "opened": basis["opened"]} if "turn" in basis else None
     )
-    run = {
-        "usage": payload.get("usage"),
-        "elapsedMs": payload.get("elapsed_ms"),
-        "request": payload.get("resent"),
-        "failed": payload.get("failed"),
-    }
+    failed = payload.get("failed")
+    run = run_facts(payload) | ({"failed": failed} if failed is not None else {})
     text = payload.get("answer")
     try:
-        applied = take_answer(
-            session_id,
-            text,
-            asked,
-            {name: value for name, value in run.items() if value is not None},
-        )
+        applied = take_answer(session_id, text, asked, run)
     except Refused as error:
         return {
             "wrote": [],
@@ -627,7 +619,7 @@ def checked(session_id: str, payload: dict) -> dict:
             "log": f"the clerk wrote nothing: {error}",
         }
     if text is None:
-        return {**applied, "log": f"the clerk's fork gave no answer ({run['failed']})"}
+        return {**applied, "log": f"the clerk's fork gave no answer ({failed})"}
     counts = [
         f"{len(applied[part])} {noun}{'' if len(applied[part]) == 1 else 's'}"
         for part, noun in (
@@ -690,19 +682,17 @@ def take_answer(
 
 def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) -> None:
     """Note what came of a turn-end fork in `page_dir`'s diagnostics."""
-    from .interaction_log import append_interactions
+    from .forks import note
 
-    record = {
-        "source": "cli",
-        "type": "turn_end_check",
-        "session": session_id,
-        "turn": asked and asked["turn"],
-        **outcome,
-    }
-    try:
-        append_interactions(page_dir, [record])
-    except OSError:
-        pass
+    note(
+        page_dir,
+        {
+            "type": "turn_end_check",
+            "session": session_id,
+            "turn": asked and asked["turn"],
+            **outcome,
+        },
+    )
 
 
 def _facts(page_dir: Path) -> dict | None:

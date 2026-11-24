@@ -1,9 +1,5 @@
-import {
-  USER_VIEW_RESTORE_CASES,
-  scrolling,
-  exceptionText,
-  upFrom,
-} from "/runtime/check-api.js";
+import { USER_VIEW_RESTORE_CASES, scrolling, upFrom } from "/runtime/check-api.js";
+import { exceptionText } from "/runtime/lib/exception.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";

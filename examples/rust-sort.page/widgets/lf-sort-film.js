@@ -10,8 +10,6 @@ import {
   frameFor,
   generatedElement,
   inlineMarkdownFragment,
-  keeps,
-  keepsText,
   loadMarkdown,
   offer,
   once,
@@ -19,6 +17,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
   INPUTS,
   LINES,

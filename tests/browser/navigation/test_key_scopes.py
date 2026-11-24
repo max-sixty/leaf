@@ -752,12 +752,9 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 
     outside = page.locator("#outside")
     outside.focus()
-    page.evaluate("""async () => {
-      const {showNativeLayer} = await window.__lfWidgetApi();
-      showNativeLayer(document.querySelector('#scripted-list'), {
-        source: document.querySelector('#scripted-control'),
-      });
-    }""")
+    page.evaluate("""() => document.querySelector('#scripted-list').showPopover({
+      source: document.querySelector('#scripted-control'),
+    })""")
     opener = page.locator("#scripted-control")
     expect(page.locator("#scripted-list")).to_be_visible()
     expect(opener).to_have_attribute("aria-expanded", "true")
@@ -1171,8 +1168,8 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { showNativeLayer, commandsChanged } = await window.__lfWidgetApi();
-          const { shadowStage } = await window.__lfWidgetApi();
+          const { commandsChanged, shadowStage } = await window.__lfWidgetApi();
+          const { showNativeLayer } = await window.__lfCheckApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
           const dialog = document.createElement('dialog');

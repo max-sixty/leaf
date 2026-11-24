@@ -72,7 +72,7 @@ import {
 } from "../comment-placement.js";
 import { railEdge, railStandsBeside } from "../margin-layout.js";
 import { pointBand } from "../../pointed-place.js";
-import { keeps, roomPx } from "../../keeps.js";
+import { keeps, roomPx } from "../../lib/keeps.js";
 import { pageScroller } from "../../scrolling.js";
 
 /** @typedef {import("../../../types/domain.js").Anchor} Anchor */

@@ -136,7 +136,7 @@ import {
   reveal as openFolds,
 } from "../widget-elements.js";
 import { readingPlace } from "../resolved-target.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
 import { rowWalk } from "../walk-position.js";
@@ -986,7 +986,7 @@ export function createMarginProjection({
   // Leaving the rail reads its stop again at once. While focus stood on a row the stop
   // stayed there (`syncRoving`), and a scroll may have carried that row half past an
   // edge since, where a Shift+Tab straight back would land on it.
-  onCurrentLocation((node, cause, left) => {
+  onCurrentLocation((node, _cause, left) => {
     if (left && under(left, nav) && !(node && under(node, nav))) syncRoving();
   });
   // Leaving a cluster folds what it unfolded, unless the user went into a surface that
@@ -994,7 +994,7 @@ export function createMarginProjection({
   // as its blur did. A node removed from under them is in no cluster any more, and the
   // render that removed it hands them on to its replacement, often a frame later, so it
   // folds nothing. A window losing focus moves no one.
-  onCurrentLocation((node, cause, left) => {
+  onCurrentLocation((node, _cause, left) => {
     if (!left) return;
     for (const host of hosts.values()) {
       if (!under(left, host) || (node && under(node, host))) continue;
@@ -2329,7 +2329,7 @@ export function createMarginProjection({
       nameFocusedMarker();
     });
     // A drop is the change's own to put right: the margin follows where the user is.
-    onCurrentLocation((node, cause) => {
+    onCurrentLocation((_node, cause) => {
       if (cause === "drop") return;
       queueMicrotask(followCurrentLocation);
     });

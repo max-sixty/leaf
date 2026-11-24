@@ -149,7 +149,8 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {LeafElement, PendingTaskEvent, keepsText} from '/runtime/widget-api.js';
+import { LeafElement, PendingTaskEvent } from '/runtime/widget-api.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 customElements.define('lf-delayed-body', class extends LeafElement {
   setup() {
     this.dispatchEvent(new PendingTaskEvent(

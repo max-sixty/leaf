@@ -18,7 +18,7 @@ import { inChrome } from "./passages.js";
 import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
 import { el, generatedElement } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 
 /** @typedef {import("./contributions.js").ContributionSource} Source
  * @typedef {{host: HTMLDivElement, offers: Source[]}} Seat */

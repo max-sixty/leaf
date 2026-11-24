@@ -1223,7 +1223,8 @@ def arrived(page, thread_id):
 
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
-import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
+import { LeafElement, readThreads, threadActions } from '/runtime/widget-api.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
@@ -1904,9 +1905,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     expect(
         workspace.locator('.lf-msg[data-lf-event="nested-question"]')
     ).to_be_focused()
-    assert page.evaluate(
-        "api.currentLocationIn(document.querySelector('#workspace').reader)"
-    )
     assert page.evaluate(
         "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )

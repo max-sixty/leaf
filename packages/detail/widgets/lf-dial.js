@@ -113,8 +113,6 @@ import {
   focusDestination,
   foldDuration,
   holdPlace,
-  keeps,
-  keepsText,
   LeafElement,
   motion,
   move,
@@ -132,6 +130,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 

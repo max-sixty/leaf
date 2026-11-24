@@ -2,7 +2,7 @@
 // lazy because most pages contain no Markdown supplied at runtime; callers can paint
 // escaped source immediately and await this only when their own rendering needs it.
 import { opensElsewhere } from "./declared-words.js";
-import { describeFailure } from "./exception.js";
+import { describeFailure } from "./lib/exception.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { declarationFor, declaredElements } from "./registry.js";
 import { alignText } from "./text-alignment.js";
@@ -113,12 +113,13 @@ const unpaintedFiles = (scope) =>
       !element.querySelector(":scope > [data-lf-prepaint]"),
   );
 
-// A declaration whose data body is Markdown words (`text-format`).
+// A declaration whose data body is Markdown words (`content: markdown`).
 /** @param {import("../types/contract.js").WidgetDeclaration} entry */
-const wordsAreMarkdown = (entry) => entry["text-format"] === "markdown";
+const wordsAreMarkdown = (entry) => entry.content === "markdown";
 
-// Registry text formatting belongs to the layer, so a package declaration cannot
-// make file-side passages read words the browser leaves as raw Markdown.
+// A Markdown body (`content: markdown`) is the layer's to render, so a package
+// declaration cannot make file-side passages read words the browser leaves as raw
+// Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (
@@ -134,7 +135,7 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Each element declaring `text-format` shows its data body's rendering in place
+// Each element declaring `content: markdown` shows its data body's rendering in place
 // of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
 // for typed state, revision patching and provenance; arrivals call this after capture,
 // before connection. Their import preparation has already made the parser ready, so
@@ -790,12 +791,12 @@ export function makeMarkdown(module, message, html = false) {
   });
   // Nested image labels can retain special text tokens beyond the core's joining
   // pass. Entities and escapes are text there, just as they are in document prose.
-  markdown.renderer.rules.text_special = (tokens, at, options, env, renderer) =>
+  markdown.renderer.rules.text_special = (tokens, at) =>
     markdown.utils.escapeHtml(parserItem(tokens, at).content);
   // Markdown can't say where a link opens, so this renderer, which writes the link's
   // HTML, sends a link that leaves the page to a new tab. The page, and the thread the
   // reader followed the link from, stay open where they were.
-  markdown.renderer.rules.link_open = (tokens, at, options, env, renderer) => {
+  markdown.renderer.rules.link_open = (tokens, at, options, _env, renderer) => {
     const token = parserItem(tokens, at);
     const href = token.lfSource?.url;
     if (href === null || href === undefined) return "";
@@ -803,7 +804,7 @@ export function makeMarkdown(module, message, html = false) {
     else if (opensElsewhere(href)) token.attrSet("target", "_blank");
     return renderer.renderToken(tokens, at, options);
   };
-  markdown.renderer.rules.link_close = (tokens, at, options, env, renderer) => {
+  markdown.renderer.rules.link_close = (tokens, at, options, _env, renderer) => {
     const url = parserItem(tokens, at).lfSource?.url;
     return url !== null && url !== undefined
       ? renderer.renderToken(tokens, at, options)

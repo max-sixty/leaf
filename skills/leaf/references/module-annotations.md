@@ -127,9 +127,10 @@ the visual shows.
 
 `readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a render
 that calls it redraws when it changes. A thread the user just started is there at once;
-only `phase === "ready"` means every saved thread is. `threadTurns(thread)` returns a
-Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and its
-`latest` activity.
+only `phase === "ready"` means every saved thread is. A Thread's `turns` are the
+messages a drawing of it shows, in order: its opening message and each later message
+that is not a reaction. `threadSummary(thread)` returns its `topic`, its name in words,
+and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, and
@@ -207,7 +208,7 @@ inside the messages it draws live there.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
-`parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
+`parts.message(thread.key, message.key, outlet)` for each of its `turns` and
 `parts.reply(thread.key, outlet)`. Leaf fills the outlets and keeps the rendering,
 reactions, read tracking and reply draft; the package keeps layout, order, selection,
 scroll and disclosure. The user's message editor opens in place of the message,
@@ -302,7 +303,8 @@ threadOutlets(targets, { onCommit }) {
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
 stays in the margin; a widget that seats only its data returns `null` for itself too.
-Call `threadSurface(this).update()` after a change that only shows or hides data.
+After a change that only shows or hides data, dispatch `lf-layout` on the widget
+(`module-plain-elements.md`, "`lf-layout`"), and Leaf calls `threadOutlets` again.
 
 A thread names its widget by `id`, so a widget that shows threads needs an `id` on
 each instance and should require it in its schema: Leaf reports an instance without
@@ -315,9 +317,10 @@ shape, and the outlet draws no frame of its own. An outlet you stop returning ma
 still hold the comment box the user is typing in, so remove outlets only in `onCommit`,
 which runs once this pass's placement takes effect, and keep returned ones in the
 document while redrawing around them. A widget that must remove a node holding outlets
-at another time, such as when its data goes, first calls `releaseOutlets(node)`, before
-any `holdFocus`. If `threadOutlets` throws, Leaf returns the widget's threads to the
-margin until the next pass.
+at another time, such as when its data goes, first calls
+`threadSurface(this).release(node)`, before any `holdFocus`, and the comment box leaves
+the widget's outlets under `node` with the user still writing in it. If `threadOutlets`
+throws, Leaf returns the widget's threads to the margin until the next pass.
 
 `threadSurface(this).open` is the reactive opener for the comment box on the widget or
 one of its data items, or `null` while no surface is registered, as in an export, which
@@ -334,8 +337,8 @@ carries `holds`, naming the widget, so the widget is held while that thread is o
 its reading's `thread.heldBy` names the thread (`module-state.md`), and resolving the
 thread releases it.
 
-`threadSurface` and `releaseOutlets` also load through `portable-api.js`. Without a
-registered Leaf surface, there is nothing to update or release, and `open` is `null`.
+`threadSurface` also loads through `portable-api.js`. Without a registered Leaf
+surface, there is nothing to release, and `open` is `null`.
 
 ### Page annotation presentation
 

@@ -519,7 +519,8 @@ export function createAnchorControls({
     if (!(target instanceof Node)) return;
     invalidatePageGeometry();
     // Authored content asks for a thread pass: its parts can move or be replaced
-    // without a publication, and a pass is what marks the new node. That is the page,
+    // without a publication, and a pass is what marks the new node and asks a widget
+    // that seats threads for its outlets again (thread/surfaces.js). That is the page,
     // and a message's markup, whose authored document is its body (`authoredScope`)
     // though it stands in the runtime's chrome. The chrome's own scaffolding holds no
     // target, so a Threads card opening or closing asks for none.

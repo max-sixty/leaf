@@ -43,7 +43,6 @@ import {
   LeafElement,
   PendingTaskEvent,
   threadSurface,
-  releaseOutlets,
   retainUserIntent,
   searchField,
   setChildren,
@@ -941,13 +940,11 @@ function joinChangeRuns(file) {
   return file;
 }
 
-// The box takes the place of the file's lines, so core's composer leaves their outlets
-// first: a user writing about one of them stays in it. Focus left inside the file
-// moves to its header.
+// The box takes the place of the file's lines, whose outlets core's composer has left
+// (`release`). Focus left inside the file moves to its header.
 /** @param {TextPresentation} view @param {unknown} error */
 function fileError(view, error) {
   const { details, header } = view;
-  releaseOutlets(details);
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -1186,7 +1183,7 @@ customElements.define(
       this.rendering = rendering;
       try {
         if (source == null) {
-          releaseOutlets(this);
+          threadSurface(this).release(this);
           this.committed = null;
           this.publishFiles();
           this.diffTools = null;
@@ -1309,7 +1306,7 @@ customElements.define(
             if (!entries.includes(entry)) {
               for (const note of this.authorNotes)
                 if (entry.node.contains(note)) move(this.unplacedNotes, note, null);
-              releaseOutlets(entry.node);
+              threadSurface(this).release(entry.node);
             }
           setChildren(this.filesBody, [
             ...(this.diffTools ? [this.diffTools.search] : []),
@@ -1336,7 +1333,7 @@ customElements.define(
         // the place of every outlet, which core's composer leaves first. It stands as
         // the shadow stage, as files do, so it lasts until the next `show` stages
         // another rendering; an update that leaves the source unchanged keeps it.
-        releaseOutlets(this);
+        threadSurface(this).release(this);
         shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         this.markFiles(source);
@@ -1620,6 +1617,8 @@ customElements.define(
         );
         entry.rendered = null;
         entry.renderKey = null;
+        // A user writing about one of the file's lines stays in their comment box.
+        threadSurface(this).release(entry.details);
         fileError(entry, prepared.error);
         return null;
       }
@@ -1705,7 +1704,10 @@ customElements.define(
         changed: () => {
           const was = disclosure.open;
           disclosure.open = details.open;
-          threadSurface(this).update();
+          // A closed file seats no thread on its lines, so Leaf asks for the seats again.
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
           this.paintFoldAll();
           if (
             was === disclosure.open ||
@@ -1805,7 +1807,6 @@ customElements.define(
       this.dispatchEvent(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
-      threadSurface(this).update();
     }
 
     // The file view keeps every datum under its retained owner; only the active

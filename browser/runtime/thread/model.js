@@ -646,6 +646,9 @@ const threadRecord = keptEach(
       title: thread.title,
       root,
       msgs: published,
+      // What a drawing of the thread shows (`turns`), for a reader that holds only the
+      // record, as a package's presentation does.
+      turns: Object.freeze(turns({ msgs: published, root })),
       unread: Object.freeze(unread),
       anchor: thread.anchor,
       detached_from: thread.detached_from,

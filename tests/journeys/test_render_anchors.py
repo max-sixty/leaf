@@ -806,9 +806,9 @@ diff --git a/README.md b/README.md
     write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate(
-        """async () => {
-          const {threadSurface} = await window.__lfWidgetApi();
-          threadSurface(document.querySelector('#patch')).update();
+        """() => {
+          document.querySelector('#patch').dispatchEvent(
+            new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
     expect(input_).to_be_focused()

@@ -140,7 +140,7 @@ import { offerAction } from "../lib/controls.js";
 import { keeps, keepsText } from "../lib/keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { focusThread } from "./focus.js";
-import { isReaction, messageKey } from "./model.js";
+import { isReaction, messageKey, turns } from "./model.js";
 import { threadIdNamed, threadNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { runtime } from "../context.js";
@@ -411,12 +411,14 @@ function withheld(was, now) {
         : message,
     );
   });
+  const root =
+    held.find((message) => messageKey(message) === messageKey(now.root)) ?? now.root;
   return Object.freeze({
     ...now,
-    root:
-      held.find((message) => messageKey(message) === messageKey(now.root)) ?? now.root,
+    root,
     resolved: was.resolved,
     msgs: Object.freeze(held),
+    turns: Object.freeze(turns({ msgs: held, root })),
     summaries: was.summaries,
   });
 }

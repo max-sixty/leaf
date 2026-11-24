@@ -22,6 +22,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    stored_drafts,
     told,
     write,
 )
@@ -1393,3 +1394,100 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     expect(seated).to_be_focused()
     page.keyboard.type(" more")
     expect(seated).to_have_js_property("value", "Half a thought more")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_on_a_diff_line_follows_its_file_to_the_margin_and_back(
+    request, serve, engine
+):
+    """A diff seats a thread on a line only while the line's file is open. Folding the
+    file changes no data, so the diff says that what it holds moved (`lf-layout`) and
+    Leaf asks it for its seats again: the thread goes to the margin, where the user
+    still reaches it, and takes its seat on the line again as the file opens. A thread
+    left seated would stand inside the closed file, with no entry in the margin."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+    entry = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    expect(inline).to_be_visible()
+    expect(entry).to_have_count(0)
+    summary = page.locator("lf-diff .lf-diff-file > details > summary").first
+    summary.click()
+    expect(inline).to_have_count(0)
+    expect(entry).to_have_count(1)
+    summary.click()
+    expect(inline).to_be_visible()
+    expect(entry).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("written", ["comment", "reply"])
+def test_a_box_written_in_a_widget_taken_off_the_page_keeps_its_words_and_the_user(
+    request, serve, engine, written
+):
+    """A script takes the whole diff off the page while the user writes in a box seated
+    in it: the comment box on one of its lines, or the reply box of a thread seated
+    there. A widget releases a node it removes itself (`threadSurface(…).release`), but
+    nothing tells a widget it is about to go, so Leaf returns the editor as it sees the
+    widget leave: the comment box to the page's own place for it, the reply to its
+    thread's view in the panel. Either way the user goes on typing in it at the same
+    caret, no task finds them on the page, where the next letters would run page
+    commands, and the server holds the words as the draft another tab or a reload
+    finds."""
+    if written == "comment":
+        url = serve(
+            leaf_page(
+                "diff",
+                f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
+                f'source="review-patch"></lf-diff>{SEAT_FILLER}',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page = open_page(request.getfixturevalue(engine), url)
+        resized(page, 1440, 900)
+        line = page.locator(
+            'lf-diff [data-line-type="change-addition"][data-lf-datum=\''
+            '["app.py","new",1]\']'
+        )
+        line.scroll_into_view_if_needed()
+        line.hover()
+        page.get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        box = page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")
+        returned = page.locator(".lf-fab-input")
+    else:
+        url, root = seated_thread(serve, "diff", 2)
+        page = open_page(request.getfixturevalue(engine), url)
+        resized(page, 1440, 900)
+        box = page.locator(
+            f'lf-diff .lf-page-thread[data-lf-thread="{root}"] '
+            "> .lf-thread-reply leaf-text"
+        )
+        box.scroll_into_view_if_needed()
+        returned = page.locator(PANEL_REPLY)
+    write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
+    expect(box).to_be_focused()
+    page.evaluate(
+        """() => {
+          window.__strandedAt = [];
+          document.addEventListener('focusout', () => setTimeout(() => {
+            if (document.activeElement === document.body)
+              window.__strandedAt.push(performance.now());
+          }), true);
+          document.querySelector('#patch').remove();
+        }"""
+    )
+    expect(page.locator("lf-diff")).to_have_count(0)
+    expect(returned).to_be_focused()
+    expect(returned).to_have_js_property("value", "Half a thought")
+    assert returned.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    assert page.evaluate("() => window.__strandedAt") == []
+    page.keyboard.type(" tr")
+    expect(returned).to_have_js_property("value", "Half tr a thought")
+    expect(returned).to_be_focused()
+    assert [draft["text"] for draft in stored_drafts(page).values()] == [
+        "Half tr a thought"
+    ]

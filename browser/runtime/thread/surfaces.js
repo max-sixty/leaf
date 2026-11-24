@@ -5,10 +5,13 @@
    retires it when it leaves, over the same arrival lifetime every element owner holds
    (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
    the widget itself for outlets with
-   `owner.threadOutlets(targets, {signal, collection, onCommit})`, and the widget
-   reaches its registration through `threadSurface(owner)` to say its seats changed
-   (`update()`) or to open a comment on itself or one of its datums (`open(node)`). The
-   selected page presentation registers explicitly (`placePageThreads`).
+   `owner.threadOutlets(targets, {signal, collection, onCommit})` on every thread pass.
+   The widget says its seats changed as it says any change in what it holds, with
+   `lf-layout`, which asks for a pass (anchor-controls.js), and reaches its
+   registration through `threadSurface(owner)` to open a comment on itself or one of
+   its datums (`open(node)`) or to take the composer out of a node it is about to
+   remove (`release(node)`). The selected page presentation registers explicitly
+   (`placePageThreads`).
 
    A widget is offered two kinds of target, and no other thread on it: a datum it
    projects, and the widget itself, which is a thread anchored to its element and

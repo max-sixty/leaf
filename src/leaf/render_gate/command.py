@@ -6,17 +6,18 @@ are where they become the JSON document `page check` and `package check` print."
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from leaf.findings import Finding
 from leaf.page_snapshot import PageSnapshot, capture_page_snapshot
-from leaf.render_checks import RENDER_VIEWPORT
+from leaf.render_checks import RENDER_VIEWPORT, PageNotReady
 from leaf.user_views import read_user_views
 
 from .browser import browser_hint, launch_browser
 from .page_code import run_page_code
 from .preview import preview_server
+from .scheme import unready_finding
 from .screens import save_screens
 from .version import RenderReading, render_version
 
@@ -155,9 +156,9 @@ class BrowserCheck:
     the check before the render reading, so `render` is None there as well as where
     it was not asked for, and `ran` names only the gates that read the page.
     `screens` is the directory and each saved screen with what it shows, including
-    when the render gate found failures, and None where its reading stopped early
-    (`browser_check`). `desktop` is the window the render check reads the desktop at,
-    where it was asked for."""
+    when the render gate found failures, and None where the page was not ready for
+    them (`browser_check`). `desktop` is the window the render check reads the desktop
+    at, where it was asked for."""
 
     gates: list[str]
     browser: str | None = None
@@ -225,10 +226,15 @@ def browser_check(
     it), then the render invariants at the desktop window `desktop_viewport` chooses,
     saving the screens
     the author reads where `screens` asks, including when there are findings. Page code
-    that fails ends the check before the render reading. A render reading that stopped
-    early (`RenderReading.complete`) ends the check before the screens: a screen is
-    taken of a ready page, and what stopped the reading, such as a page that cannot
-    start, would stop that page too."""
+    that fails ends the check before the render reading.
+
+    A screen is taken of a ready page. A render reading that stopped early
+    (`RenderReading.complete`), or that reported the page never got ready
+    (`not-ready`), ends the check before the screens, since the page would be no
+    readier for them and the check would only wait for it again. A page that is not
+    ready when opened for a screen, as one whose module fails only on a phone, fails
+    the check: the reading gains a `not-ready` finding that says which screens, and
+    no screens are saved."""
     artifact = snapshot.artifact(snapshot.active_revision())
     gates = [
         gate
@@ -254,13 +260,18 @@ def browser_check(
         )
         if errors:
             return errors, None, None
-        return (
-            errors,
-            reading,
-            save_screens(browser, url, reading, page_dir, desktop.viewport)
-            if screens and reading.complete
-            else None,
+        saved = None
+        ready = reading.complete and not any(
+            found.code == "not-ready" for found in reading.findings
         )
+        if screens and ready:
+            try:
+                saved = save_screens(browser, url, reading, page_dir, desktop.viewport)
+            except PageNotReady as error:
+                reading = replace(
+                    reading, findings=[*reading.findings, unready_finding(error)]
+                )
+        return errors, reading, saved
 
     with preview_server(page_dir, snapshot) as url:
         try:

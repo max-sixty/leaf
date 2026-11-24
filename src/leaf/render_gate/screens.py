@@ -30,6 +30,7 @@ import tempfile
 from pathlib import Path
 
 from leaf.render_checks import (
+    PageNotReady,
     asked_again,
     open_render_context,
     open_render_page,
@@ -47,6 +48,10 @@ MOST_SCREENS = 8
 
 
 def _open(browser, url: str, viewport: dict, phone: bool):
+    """A context and its page, ready at `viewport`, opened as a phone where `phone`.
+    A page that is not ready there raises `PageNotReady`, whose words say which
+    screens it was opened for. The render reading found the page ready at the desktop
+    window, so its author needs to know where it was not."""
     context = open_render_context(
         browser,
         viewport=viewport,
@@ -58,8 +63,15 @@ def _open(browser, url: str, viewport: dict, phone: bool):
     stand_in_other_leaves(context)
     page = open_render_page(context)
     page.goto(asked_again(url))
-    wait_until_ready(page, fixed_server=True)
-    start_near_work(page, fixed_server=True)
+    try:
+        wait_until_ready(page, fixed_server=True)
+        start_near_work(page, fixed_server=True)
+    except PageNotReady as error:
+        context.close()
+        which = "phone" if phone else "desktop"
+        raise PageNotReady(
+            error.stage, f"opened for the {which} screens, {error}"
+        ) from error
     rendered(page)
     return context, page
 
@@ -141,7 +153,8 @@ def save_screens(
 ) -> tuple[Path, list[tuple[Path, str]]]:
     """Save the screens for `reading`'s page, replacing the last check's, with the
     desktop and wide screens at the `desktop` window's height; return their directory
-    and each file with what it shows."""
+    and each file with what it shows. Raises `PageNotReady` where the page is not
+    ready when opened for a screen (`_open`)."""
     final = screens_dir(page_dir)
     final.parent.mkdir(exist_ok=True)
     into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))

@@ -10,6 +10,7 @@ import pytest
 
 from leaf import render_checks, user_views
 from leaf.findings import Finding, Rejected
+from leaf.render_gate import command as render_gate_command
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import (
@@ -19,6 +20,7 @@ from leaf.render_gate.command import (
     desktop_viewport,
     user_engine,
 )
+from leaf.validation.command import check_page
 from model.test_user_views import report
 
 
@@ -217,6 +219,44 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     # So with the widget quality gate, where a crash once failed the package check.
     quality = WidgetQuality(1, "Chrome", findings=(crashed,))
     assert (quality.status, quality.json()["ran"]) == (0, [])
+
+
+def test_a_render_check_takes_no_screens_of_a_page_that_never_got_ready(
+    page_dir, monkeypatch
+):
+    """A screen is taken of a ready page. Where the render reading reports that the
+    page never got ready, opening the page for a screen would wait out the same
+    deadline again, so `page check --render` reports the finding and opens no screens.
+    A reading of a ready page gets them."""
+    stuck = Finding("not-ready", values={"stage": "arrived", "error": "never landed"})
+    readings = [
+        render_gate_model.RenderReading([], []),
+        render_gate_model.RenderReading([stuck], []),
+    ]
+    asked = []
+
+    def screens(*args):
+        asked.append(args)
+        return page_dir, []
+
+    monkeypatch.setattr(
+        render_gate_command, "run_in_browser", lambda read, engine: (read(None), "none")
+    )
+    monkeypatch.setattr(
+        render_gate_command, "render_version", lambda *args, **kwargs: readings.pop(0)
+    )
+    monkeypatch.setattr(render_gate_command, "save_screens", screens)
+
+    ready, _ = check_page(page_dir, render=True)
+    assert (len(asked), ready["status"]) == (1, 0), ready
+    assert "screens" in ready["browser"], ready
+
+    unready, _ = check_page(page_dir, render=True)
+    assert len(asked) == 1, asked
+    assert [f["code"] for f in unready["findings"] if f["severity"] == "error"] == [
+        "not-ready"
+    ]
+    assert "screens" not in unready["browser"], unready
 
 
 def test_the_render_check_reads_the_desktop_in_the_last_reported_window(

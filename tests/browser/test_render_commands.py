@@ -190,6 +190,51 @@ def test_a_render_check_names_the_import_a_package_module_fails_to_link(
     assert len(opened) == 1, opened
 
 
+TOUCH_ONLY = UNLINKED | {
+    "description": "A widget whose module throws on a device with touch input.",
+    "example": '<lf-touch-only id="example"></lf-touch-only>',
+}
+TOUCH_ONLY_MODULE = """
+if (navigator.maxTouchPoints > 0) throw new Error('This module refuses touch');
+customElements.define('lf-touch-only', class extends HTMLElement {
+  connectedCallback() { this.textContent = 'Drawn without touch.'; }
+});
+"""
+
+
+def test_a_render_check_fails_a_page_that_cannot_start_for_its_phone_screens(
+    browser, serve, monkeypatch
+):
+    """A module that throws only on a device with touch input leaves the page ready at
+    the desktop window, where the render gate reads it, and unable to start as the
+    phone the check opens for its phone screens. `page check --render` reports that
+    as a failure in the page's own words, saying which screens the page was opened
+    for, and saves no screens."""
+    serve(
+        leaf_page("Touch only", '<lf-touch-only id="touch-only"></lf-touch-only>'),
+        packages=(),
+        layer_registry={"lf-touch-only": TOUCH_ONLY},
+        layer_widgets={"lf-touch-only.js": TOUCH_ONLY_MODULE},
+    )
+    monkeypatch.setattr(
+        render_command_model,
+        "run_in_browser",
+        lambda read, engine: (read(browser.unwatched), "the suite's browser"),
+    )
+    report, _ = check_page(serve.page_dir, render=True)
+    assert report["status"] == 1, report
+    [failure] = [f for f in report["findings"] if f["severity"] == "error"]
+    assert failure["code"] == "not-ready", failure
+    assert failure["values"]["stage"] == "refused", failure
+    error = failure["values"]["error"]
+    assert error.startswith(
+        "opened for the phone screens, the runtime could not start: "
+    ), error
+    assert "This module refuses touch" in error, error
+    assert report["browser"]["ran"] == ["render check"], report
+    assert "screens" not in report["browser"], report
+
+
 @pytest.mark.parametrize("touch", [False, True])
 def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     scrollbar_browser, serve, touch

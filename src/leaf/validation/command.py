@@ -5,8 +5,8 @@
 `findings.Finding.json` gives it, the markup checks' first; and `browser`, the browser
 gates `asked` for and those that `ran` (failing page code ends the check before the
 render gate reads anything), in which browser or why none could, with the render
-gate's margin widths and saved screens even when it reports findings, unless its
-reading stopped early. `browser` is null where no gate needed one. The agent's render
+gate's margin widths and saved screens even when it reports findings, unless the page
+was not ready for them. `browser` is null where no gate needed one. The agent's render
 check leaves its reading for the page's server (`render_gate.handover_pass`), which
 runs the same check without its screens (`check_page`) and keeps its own reading.
 """

@@ -1,6 +1,7 @@
 /* How long the place a widget's step says stands (runtime/walk-position.js): for the
-   step's moment, and no longer than the stop it was said on stays in the page. A step
-   that says none ends it too, which takes a laid-out page to show
+   step's moment, no longer than the stop it was said on stays in the page, and no
+   longer than the widget says the user stays on that stop. A step that says none ends
+   it too, which takes a laid-out page to show
    (tests/browser/test_render_floating_panel.py). */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -50,5 +51,20 @@ test("a place goes as the stop it was said on leaves the page", async (t) => {
   stop.remove();
   // The page hears a departure with its next batch of mutations.
   await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(walkPosition(), null);
+});
+
+test("a place goes as the widget says the user has left its stop", (t) => {
+  const stop = row(t);
+  const other = document.body.appendChild(document.createElement("div"));
+  t.after(() => other.remove());
+  /** @param {Element} left */
+  const leave = (left) =>
+    left.dispatchEvent(new CustomEvent("lf-walk", { bubbles: true, composed: true }));
+  say(stop, 3);
+  // Said on another stop, it is about a place that has already gone.
+  leave(other);
+  assert.equal(walkPosition()?.text, "Hunk 3 of 7");
+  leave(stop);
   assert.equal(walkPosition(), null);
 });

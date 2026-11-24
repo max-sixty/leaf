@@ -9,7 +9,6 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
-    append_command,
     page_packages,
     serving,
     stamp,
@@ -592,28 +591,14 @@ def test_a_failed_summary_fork_hands_the_range_to_the_agent(claimed):
     assert summaries_written(claimed) == []
 
 
-@pytest.mark.parametrize("meanwhile", ["summary", "edit"])
-def test_a_change_in_its_range_meanwhile_drops_the_forks_summary(claimed, meanwhile):
-    """The fork summarizes the range as it read when Leaf asked, so Leaf writes nothing
-    where that summary would no longer be in force by the rules that cancel any
-    summary: one written in the thread since replaces it, and the user's edit of a
-    message in its range cancels it."""
-    _, later, _, summary = summary_beside(claimed)
-    if meanwhile == "summary":
-        basis_ = summary["basis"]
-        thread_model.cmd_summarize(
-            claimed, basis_["from"], basis_["through"], "The agent's."
-        )
-    else:
-        append_command(
-            claimed,
-            {
-                "kind": "edit",
-                "author": "user",
-                "message": later[1]["id"],
-                "text": "Follow-up 1, put another way?",
-            },
-        )
+def test_a_summary_written_meanwhile_drops_the_forks_summary(claimed):
+    """Leaf writes nothing where the fork's summary would no longer be in force, as
+    when one written in the thread since replaces it."""
+    *_, summary = summary_beside(claimed)
+    basis_ = summary["basis"]
+    thread_model.cmd_summarize(
+        claimed, basis_["from"], basis_["through"], "The agent's."
+    )
     answer = {
         "from": summary["basis"]["from"],
         "through": summary["basis"]["through"],

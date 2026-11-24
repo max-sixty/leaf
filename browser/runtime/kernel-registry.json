@@ -385,6 +385,18 @@
         },
         {
           "when": {
+            "required": ["thread"],
+            "properties": {
+              "thread": {
+                "required": ["summaries"],
+                "properties": { "summaries": { "minItems": 1 } }
+              }
+            }
+          },
+          "text": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it."
+        },
+        {
+          "when": {
             "required": ["suggestion"],
             "properties": {
               "suggestion": { "const": true },

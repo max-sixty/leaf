@@ -121,6 +121,12 @@ def complete_declarations(registry: dict) -> dict:
     return registry
 
 
+def body_is_data(entry: Mapping) -> bool:
+    """Whether the element's content is one `<pre>` holding text (`content`): in the
+    notation its module reads (`data`), or in Markdown, which Leaf reads (`markdown`)."""
+    return entry.get("content") in ("data", "markdown")
+
+
 def upgraded(registry: dict, tag: str) -> bool:
     """Whether a module upgrades `tag` in the browser (`MODULES`)."""
     return tag in registry.get(MODULES, ())

@@ -2602,3 +2602,68 @@ test("a focus move reads again only the keys and buttons that ask where the user
     still.remove();
   }
 });
+
+// A package's row asks the browser where focus is, which no signal tracks, so a move
+// reads again the scopes around the node the user left and the one they reached, and
+// still no other.
+test("a focus move reads again the scopes it leaves and enters, whatever their rows ask", () => {
+  const scope = document.createElement("section");
+  const inside = document.createElement("button");
+  const outside = document.createElement("button");
+  const still = document.createElement("section");
+  scope.append(inside);
+  document.body.append(scope, outside, still);
+  let reads = 0;
+  keys(scope, "Native", [
+    {
+      id: "probe.native",
+      title: "Act",
+      keys: ["Alt+5"],
+      when: () => scope.contains(document.activeElement),
+      run: () => {},
+    },
+  ]);
+  keys(still, "Still", [
+    {
+      id: "probe.still-native",
+      title: "Act",
+      keys: ["Alt+4"],
+      when: () => {
+        reads++;
+        return true;
+      },
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), null);
+    reads = 0;
+    inside.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), "Alt+5");
+    outside.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), null);
+    assert.equal(reads, 0);
+    // The node the user left can be gone by then, and with it the climb to its scope.
+    const again = document.createElement("button");
+    scope.append(again);
+    again.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), "Alt+5");
+    again.remove();
+    outside.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), null);
+  } finally {
+    scope.remove();
+    outside.remove();
+    still.remove();
+  }
+});

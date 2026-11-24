@@ -79,7 +79,6 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  setScroll,
   elementById,
   LeafElement,
   move,
@@ -102,7 +101,6 @@ import {
   focusDestination,
   scrollIntoView,
   whileConnected,
-  focused,
   declarationFor,
   authoredScope,
   widgetController,
@@ -585,11 +583,14 @@ customElements.define(
       grip.setAttribute("data-lf-carry", "grip");
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
-      // focus, so only a real departure still lacks focus when this settles.
+      // focus, so only a real departure still lacks focus when this settles. The window
+      // losing system focus blurs the grip but leaves it its tree's active element, so
+      // that is no departure.
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
-          if (this.#grabbed?.grip === grip && focused() !== grip)
+          const root = /** @type {Document | ShadowRoot} */ (grip.getRootNode());
+          if (this.#grabbed?.grip === grip && root.activeElement !== grip)
             this.#cancel(this.#grabbed);
         });
       });
@@ -748,29 +749,18 @@ customElements.define(
 
     // Arrow steps and a cancelled grab place through one writer. Start from the
     // current paint before cancelling a superseded FLIP, so a reversal continues
-    // where the user sees the card. Cancel smooth reveal before measuring, too.
-    // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
-    // back at the old box; native scrolling and the card's motion then run together.
+    // where the user sees the card. Keyboard placement refocuses and reveals the final
+    // box before FLIP puts its paint back at the old box; the reveal's glide and the
+    // card's motion then run together.
     /** @param {Element} card @param {Element} col @param {number} index @param {HTMLElement | null} [grip] */
     #place(card, col, index, grip = null) {
-      for (const box of [this, scrollerFor(this)])
-        setScroll(box, {
-          left: box.scrollLeft,
-          top: box.scrollTop,
-          behavior: "instant",
-        });
       const first = card.getBoundingClientRect();
       for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        scrollIntoView(card, {
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "instant"
-            : "smooth",
-          block: "nearest",
-        });
+        scrollIntoView(card, { behavior: "smooth", block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;

@@ -21,7 +21,6 @@ import { render } from "/vendor/lit.js";
 import {
   PRESS,
   commandScope,
-  focused,
   focusDestination,
   navigateToDatum,
   offer,
@@ -144,12 +143,7 @@ class FileTreeWidget extends LeafElement {
       stopModel = tree.subscribe(modelChanged);
       mounted = true;
     };
-    const focusedRow = () => {
-      const element = focused();
-      return Boolean(
-        element?.getAttribute("role") === "treeitem" && root.contains(element),
-      );
-    };
+    const focusedRow = () => root.activeElement?.getAttribute("role") === "treeitem";
     /** @param {import("@pierre/trees").FileTree} tree @param {string} path */
     const selectOnly = (tree, path) => {
       for (const selected of tree.getSelectedPaths())

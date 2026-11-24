@@ -284,9 +284,7 @@ customElements.define(
         scrollIntoView(row, {
           block: "center",
           within: scroller,
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "instant"
-            : "smooth",
+          behavior: "smooth",
           sideways: false,
         });
       };

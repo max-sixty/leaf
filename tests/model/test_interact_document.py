@@ -898,9 +898,8 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     registry: dict[str, dict] = with_modules(
         {
             "lf-draft": {
-                "content": "data",
+                "content": "markdown",
                 "verbatim": True,
-                "text-format": "markdown",
             }
         },
         "lf-draft",
@@ -4665,8 +4664,7 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     )
     registry: dict[str, dict] = {
         "lf-draft": {
-            "content": "data",
-            "text-format": "markdown",
+            "content": "markdown",
             "verbatim": True,
         }
     }

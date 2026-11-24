@@ -1798,7 +1798,7 @@ def other_pages(page):
 # anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
-  const {focused} = await window.__lfWidgetApi();
+  const {focused} = await window.__lfCheckApi();
   const {closestAcross} = await window.__lfCheckApi();
   const {seenRect} = await window.__lfCheckApi();
   const at = focused();
@@ -2072,7 +2072,7 @@ def into_the_page(page):
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
-            const {focused} = await window.__lfWidgetApi();
+            const {focused} = await window.__lfCheckApi();
             const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
             const at = focused();
             if (!at || !closestAcross(at, 'main')) return false;

@@ -400,8 +400,9 @@ function landLabelPress() {
 // will land (`standingFor`). Asked in `tree`, a document or shadow root,
 // it is the node standing for that place there, as `tree.activeElement` retargets focus:
 // the host of the shadow tree the user is in, for a reader comparing or containing
-// nodes of that tree. Every reading of focus outside this module asks here, so none
-// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
+// nodes of that tree. Every reading of focus elsewhere in the runtime asks here, so none
+// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`);
+// a package asks the browser.
 // Mechanical focus queries made while rendering stay untracked, so restoring focus
 // cannot subscribe a render to itself. Keyboard reflection follows where the user is
 // through this revision, either explicitly or by reading inside `followingFocus`, where

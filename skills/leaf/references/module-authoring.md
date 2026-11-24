@@ -353,11 +353,12 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 Declare `shadow` where the user should quote and comment on the words a widget's
 shadow root shows; a root attached any other way is opaque to comments.
 
-A `LeafElement` whose tag declares `shadow` says `static shadow = true` on its class.
-It then creates the root and owns its Lit render, and Leaf applies the shared
-stylesheet and annotation support. Return the template from `render()` and use native
-slots for authored children. Read presentation inputs from the host and its authored
-children; read decisions through `this.state`.
+A `LeafElement` whose class says `static shadow = true` creates an open shadow root
+and owns its Lit render there, and Leaf applies the shared stylesheet. The class says
+where the widget draws and the tag's `shadow` says the user may quote what it draws,
+so a widget that wants both states both. Return the template from `render()` and use
+native slots for authored children. Read presentation inputs from the host and its
+authored children; read decisions through `this.state`.
 
 An imperative renderer overrides `createRenderRoot()` to keep Lit out of its stage
 and uses `shadowStage(host, nodes)`, never `attachShadow`; it applies

@@ -112,8 +112,9 @@ bytes it moves grows with how long the session has run. The time to load a page,
 to compute or apply a reading of it, grows no faster than n log n in the page's size
 n. The server checks each event against such a reading before admitting it to the
 log, so its work per event may grow with the events the log holds. On the largest
-page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 8 ms of
-main-thread time, and a click shows the server's reading within 100 ms. A step that
+page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 12 ms of
+main-thread time, and a click shows the server's reading within 100 ms. The 12 ms is
+provisional, to be revisited once the architectural changes under way settle. A step that
 walks one of the page's collections once for each member of another grows with the
 square of the page, as finding each obligation's heading by reading every heading
 did. So does a style or layout pass forced once per element, since each pass can

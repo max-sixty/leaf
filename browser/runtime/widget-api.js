@@ -91,8 +91,6 @@ export { wireInput } from "./application.js";
 export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
-// The claim of a scope standing over the page: every key but the command reference's.
-export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
 export {

@@ -30,14 +30,15 @@
    "Edit kept", and the message's head says "unsaved edit" until the user opens the
    rewrite again, which finds them, or Resume writing does. Back lands on the message's
    Edit control rather than the reply box, whose caret would raise a phone's keyboard.
-   So an accidental Escape loses nothing for good: ⌘Z puts the discarded words back in
-   the rewrite's draft and opens its message on them (undo.js, `takeDiscard`). Escape
-   hands the user to the thread's reply box where the thread shows one, up ↑'s rung
-   (below), and the box keeps ⌘Z for its own words, so ⌘Z reaches the discard once the
-   user leaves the box, and the discard's notice shows its Undo then. The notice
-   answers the user's own gesture with a press, so it stays past its time until the
-   first input after it (notifications.js, `showNotice`), and the Escape that leaves the
-   box within that time shows its Undo.
+   So an accidental Escape or Discard loses nothing for good: ⌘Z puts the discarded
+   words back in the rewrite's draft and opens its message on them (undo.js,
+   `takeDiscard`). Where the close leaves the user decides when ⌘Z reaches it (below).
+   On the message's Edit control ⌘Z is Leaf's, and the discard's notice shows its Undo
+   at once. The thread's reply box keeps ⌘Z for its own words, so from there ⌘Z
+   reaches the discard once the user leaves the box, and the notice shows its Undo
+   then. The notice answers the user's own gesture with a press, so it stays past its
+   time until the first input after it (notifications.js, `showNotice`), and the
+   Escape that leaves the box within that time shows its Undo.
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Typed words survive"): a comment box over the message's body, every line of its words
@@ -68,10 +69,16 @@
    (`g i`) opens a rewrite whose words were kept on the message where a message part
    opens (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
    Discard close it, throwing away changed words; opening another rewrite in the thread
-   puts this one aside, keeping them. The
-   editor is a rung below the thread's reply box, so Escape and Discard, which take back
-   the ↑ that opened it, hand the user to that box, or, in a thread showing none, onto
-   the thread (`land`). Enter leaves the box for the thread, as every send does (`saved`;
+   puts this one aside, keeping them. Escape and Discard take back the gesture that
+   opened the rewrite, so they return the user to where that gesture started (the
+   user's decision). A rewrite ↑ opened is a rung below the thread's reply box, and
+   closing it hands the user to that box, or, in a thread showing none, onto the thread
+   (`land`). A rewrite opened on its message, by a press on Edit, a double click,
+   Resume writing or ⌘Z, returns the user to the message's Edit control, where Back
+   lands too.
+   Rejected: every close handing the user to the reply box, where ⌘Z is the box's own,
+   so after a stray press on Discard ⌘Z seemed to do nothing and no Undo showed until
+   the user left the box. Enter leaves the box for the thread, as every send does (`saved`;
    thread/landing.js, `landSent`), whether it saves words or finds none changed; `c`
    then ↑ opens the next rewrite. The user chose the thread for a send; Save follows
    because a key pressed just after it most often leaves the box for the thread, and in
@@ -302,7 +309,7 @@ export function threadRewrites({
         void drawn.value;
         return Boolean(lastEditable());
       },
-      open: () => lastEditable()?.openEdit(),
+      open: () => lastEditable()?.openEdit({ walked: true }),
     },
   };
 }
@@ -327,6 +334,8 @@ function closeMessageEdit(id, { discard }) {
  * the user's message before this one that ↑ opens, or null; `reveal` brings the open
  * editor into view. */
 export class MessageEditor {
+  // Whether ↑ opened the rewrite, so closing it goes back up ↑'s rung (`enter`).
+  #walked = false;
   #stop;
   #putAside;
   #reveal;
@@ -415,12 +424,25 @@ export class MessageEditor {
       if (painting) paint();
       if (says) announce(says);
     };
+    // The message's Edit control, which reopens its words, drawn once the editor has
+    // gone: false where the message draws none.
+    /** @param {Element | null} message */
+    const toEdit = (message) => {
+      /** @type {HTMLButtonElement | null | undefined} */
+      const control = message?.querySelector(".lf-msg-edit");
+      if (control) focusDestination(control, "return");
+      return Boolean(control);
+    };
     // Closing as Escape and Discard do, throwing away what changed, which ⌘Z brings
-    // back (undo.js, `keepDiscard`).
+    // back (undo.js, `keepDiscard`), and returning the user to where the rewrite was
+    // opened (the header): up ↑'s rung, or onto the message's Edit control.
     const close = () => {
-      if (unchanged()) return leave(true, { says: "Stopped editing" });
-      discardDraft(ctx);
-      leave(true);
+      const says = unchanged() ? "Stopped editing" : null;
+      if (!says) discardDraft(ctx);
+      if (this.#walked) return leave(true, { says });
+      const message = this.node.closest(".lf-msg");
+      leave(true, { landing: null, says });
+      if (!toEdit(message)) land();
     };
     // Back's way out (`keep`, keyboard/close-requests.js): closing as Escape does, but
     // changed words stay in the draft, which the message says it holds, and opening the
@@ -431,9 +453,7 @@ export class MessageEditor {
       if (unchanged()) return close();
       const message = this.node.closest(".lf-msg");
       leave(false, { landing: null });
-      /** @type {HTMLButtonElement | null | undefined} */
-      const reopen = message?.querySelector(".lf-msg-edit");
-      if (reopen) focusDestination(reopen, "return");
+      toEdit(message);
       notice("Edit kept");
     };
     // Making way for another rewrite, as ↑ to an earlier message or opening one
@@ -512,7 +532,7 @@ export class MessageEditor {
             const before = previous();
             if (!before) return;
             putAside();
-            before.openEdit();
+            before.openEdit({ walked: true });
           },
         },
       ],
@@ -548,8 +568,9 @@ export class MessageEditor {
   // and bring the editor into view, its last line, where the caret stands, at least. A
   // long one's lines take their height only as the field draws them, after this, so the
   // reveal follows the box's size until the user does anything. Every opening is the
-  // user's own gesture, so the arrival is a move.
-  enter() {
+  // user's own gesture, so the arrival is a move; `walked` where it was ↑.
+  enter({ walked = false } = {}) {
+    this.#walked = walked;
     const end = this.input.value.length;
     focusDestination(this.input, "move", { caret: [end, end] });
     this.#reveal(this.foot);

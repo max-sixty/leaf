@@ -17,9 +17,12 @@
    `dispatchEvent` that recorded it returns, and the page reads as presented, and as
    showing a data delivery, only once the setters have returned and the drawing they
    announced with `pending-task` is in. A `pending-task` the element dispatches on
-   itself at any other time is a draw it started by itself, and holds the same region
-   until it is in; one from a node inside it is preparation (widget-controller.js). A visual may have redrawn the parts it marks by
-   then, which the pass says with `layoutChanged` (visual-parts.js).
+   itself at any other time is a draw it started by itself. Every claim on the region
+   waits for all the drawing the element has announced and not finished, so a later
+   pass never lets go of an earlier draw; a `pending-task` from a node inside the
+   element is preparation (widget-controller.js). A visual may have redrawn the parts
+   it marks by the time a pass's drawing is in, which the pass says with
+   `layoutChanged` (visual-parts.js).
 
    Where one publication moves several readings, their `state`s are set in the page's
    rendered order, a parent before what it holds, whichever class was defined first: a
@@ -45,6 +48,9 @@ import {
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import {
+  announceDrawing,
+  drawingOf,
+  holdsOn,
   takeDrawing,
   widgetController,
   widgetMounted,
@@ -131,25 +137,26 @@ function host(element) {
       (element.shadowRoot ?? element).append(placed);
       return true;
     });
-  // The drawing that the sets of the pass under way announce, and the drawing the
-  // element announced while a claim stood open for a pass still to come.
-  /** @type {PromiseLike<unknown>[] | null} */
-  let announced = null;
-  /** @type {PromiseLike<unknown>[]} */
-  let carried = [];
+  // Whether a pass is making its sets, whose claim it settles itself, and how many
+  // drawings the element has announced.
+  let passing = false;
+  let announced = 0;
+  // A listener on a shadow host sees itself as the target of an event from inside its
+  // root, so the element that dispatched is read off the path.
   element.addEventListener(PENDING_TASK, (event) => {
-    if (event.target !== element) return;
+    if (event.composedPath()[0] !== element) return;
     takeDrawing(event);
-    const { complete } = /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (
-      event
+    announceDrawing(
+      element,
+      /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (event).complete,
     );
-    if (announced) announced.push(complete);
-    else if (ticket) carried.push(complete);
-    // A draw the element started by itself holds its region until it is in.
-    else
+    announced += 1;
+    // A draw the element started by itself claims its region, unless a claim already
+    // stands open for a pass still to come. Away, it waits for the return's pass.
+    if (!passing && !ticket)
       region
         ?.present((reason) => failSoftUnreported(element, reason))
-        .resolve(complete);
+        .resolve(Promise.all([drawingOf(element), ...holdsOn(element)]));
   });
   // One set the element is owed, made whether or not another threw.
   /** @param {unknown[]} failures @param {() => void} owed */
@@ -187,8 +194,9 @@ function host(element) {
   // What a pass's sets came to, said to whoever hears it: the claim, the page's error
   // report, and the readers of a visual's layout.
   /** @param {import("./framework/presentation.js").PresentationTicket | null} drawing
-   * @param {PromiseLike<unknown>[]} tasks @param {unknown[]} failures */
-  const settle = (drawing, tasks, failures) => {
+   * @param {boolean} drew @param {unknown[]} failures
+   * @param {PromiseLike<unknown>[]} held */
+  const settle = (drawing, drew, failures, held) => {
     if (visual) layoutChanged(element);
     if (failures.length) {
       reportFailure(element, failures[0]);
@@ -197,43 +205,52 @@ function host(element) {
     }
     box?.remove();
     box = null;
-    const drawn = Promise.all(tasks);
-    drawing?.resolve(drawn);
+    const drawn = drawingOf(element);
+    drawing?.resolve(Promise.all([drawn, ...held]));
     // The drawing the sets announced may redraw the marks as it lands.
-    if (visual && tasks.length)
+    if (visual && drew)
       void drawn.then(
         () => layoutChanged(element),
         () => {},
       );
   };
+  // The document-wide renderers read the element once the drawing of its first pass
+  // is in, on each arrival.
+  let mounted = false;
   const draw = () => {
     claim();
     const drawing = ticket;
     ticket = null;
     const reading = controller?.read() ?? null;
-    const tasks = carried;
-    carried = [];
+    // A gesture holding the element's nodes now leaves this pass's sets undrawn until
+    // it ends; one that begins in the draw a set starts does not hold that draw.
+    const held = holdsOn(element);
     // A revision's replacement lacks its verbs until its document is adopted.
     if (
       (reading && !verbs.every((verb) => verb in reading.state)) ||
       data.awaitsDelivery()
     ) {
-      drawing?.resolve(Promise.all(tasks));
+      drawing?.resolve(Promise.all([drawingOf(element), ...held]));
       return;
     }
     /** @type {unknown[]} */
     const failures = [];
-    announced = tasks;
+    const before = announced;
+    passing = true;
     setInputs(failures);
-    announced = null;
+    passing = false;
     const finish = () => {
       if (owesState(reading)) {
-        announced = tasks;
+        passing = true;
         setState(reading, failures);
-        announced = null;
+        passing = false;
       }
       passed = true;
-      untracked(() => settle(drawing, tasks, failures));
+      untracked(() => settle(drawing, announced > before, failures, held));
+      if (mounted || !descriptor) return;
+      mounted = true;
+      const read = () => widgetMounted();
+      void drawingOf(element).then(read, read);
     };
     // The first pass is made at once, so an element that asked reads it as it builds.
     // A later `state` waits its turn among the readings its publication moved.
@@ -259,11 +276,11 @@ function host(element) {
           leaveData?.();
           attached.disconnect();
         };
-        if (descriptor) widgetMounted();
       }),
     disconnect() {
       leave?.();
       leave = region = ticket = null;
+      mounted = false;
     },
   });
 }

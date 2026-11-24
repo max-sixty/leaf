@@ -91,9 +91,10 @@ export class PendingTaskEvent extends Event {
 // That an element has connected and wants what its host sets on it now: a bubbling,
 // composed event the element dispatches from `connectedCallback`. A Leaf page answers
 // before `dispatchEvent` returns (element-integration.js): it dresses the element's open
-// shadow root, sets each delivered input, and sets `state` on a widget that records or
-// reads data, to `null` while it has more to set before the element can draw. Without
-// the event Leaf does the same once it sees the element arrive, a microtask later.
+// shadow root and makes the sets it can, each bound input and then `state`. It
+// cancels the event where it will set `state`, at once or once it has everything the
+// element draws from. Without the event Leaf makes the same sets once it sees the
+// element arrive, a microtask later.
 export const CONNECT = "lf-connect";
 
 // A hold an element has on its own nodes through a gesture that rewrites them, such

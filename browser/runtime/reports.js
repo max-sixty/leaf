@@ -128,7 +128,11 @@ export const readHistory = readPart((root) => ({
 // startup and pending release use: a report names its widget by id, so the reports
 // on a widget name no other. A widget asks in the update that draws its state, which
 // is its own render, so only its preparation and the coordinate chrome must have
-// committed. An update told no is asked to draw again once they have.
+// committed. An update told no is asked to draw again once they have, and that update
+// is told yes: where the widget's own update holds its preparation region, as one
+// Leaf sets nothing on does, asking again would never find the region free.
+/** @type {WeakSet<Element>} */
+const proven = new WeakSet();
 /** @type {WeakSet<Element>} */
 const waiting = new WeakSet();
 /** @param {Element} target */
@@ -136,7 +140,7 @@ const committed = (target) =>
   applicationRegionsPresented(["projection:chrome", `widget:${target.id}:preparation`]);
 /** @param {Element & {requestUpdate(): void}} target */
 export const reportsReady = (target) => {
-  if (committed(target)) return true;
+  if (proven.delete(target) || committed(target)) return true;
   if (waiting.has(target)) return false;
   waiting.add(target);
   // The watch's first call comes before it has returned its stop.
@@ -146,7 +150,9 @@ export const reportsReady = (target) => {
     watch.done = true;
     watch.stop?.();
     waiting.delete(target);
-    if (target.isConnected) target.requestUpdate();
+    if (!target.isConnected) return;
+    proven.add(target);
+    target.requestUpdate();
   });
   if (watch.done) watch.stop();
   return false;

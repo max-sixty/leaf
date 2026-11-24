@@ -120,9 +120,10 @@ On Me and admits the ids its buttons mark:
   an element that says `lf-connect` the page's styles and comment support.
 - **`lf-hold`.** A gesture in which the element itself rewrites its nodes, such as a
   drag that moves them, dispatches a bubbling, composed `lf-hold` event as it starts.
-  The event's `complete` property is a promise that settles as the gesture ends, and
-  Leaf reads the page again then, since the nodes changed outside any drawing it
-  waited for.
+  The event's `complete` property is a promise that settles as the gesture ends. A
+  set Leaf makes meanwhile counts as drawn only once it has, so the element may leave
+  that set undrawn until then, and Leaf reads the page again as the gesture ends,
+  since the nodes changed outside any drawing it waited for.
 - **`redraw()`.** `page check --render` calls this method on an element that has one,
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** `connectedCallback` runs again each time a revision or a thread puts

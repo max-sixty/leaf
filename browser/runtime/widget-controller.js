@@ -11,9 +11,10 @@
    A widget's element reaches the controller through events Leaf hears at the
    document. It says it has drawing under way with `pending-task` (`PendingTaskEvent`,
    widget-upgrade.js). One an element Leaf drives dispatches on itself is that
-   element's own drawing and holds its render claim (element-integration.js); any
+   element's own drawing and holds its render claim (element-integration.js). Any
    other reaches the preparation region of the nearest widget the event passed
-   through, or a region of the dispatching element's where it passed through none. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
+   through, or, where it passed through none, a region of the dispatching element's.
+   Either way it holds full rendering readiness until it is in. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
    And it says a gesture holds its nodes with `lf-hold` (`HoldEvent`), at whose end the
    document-wide renderers read the page again. */
 import { untracked } from "/runtime/framework.js";
@@ -204,16 +205,52 @@ const widgetOn = (event, holds = () => true) =>
       return descriptor && holds(descriptor);
     });
 
-// The `pending-task` events an element Leaf drives dispatched on itself: its own
-// drawing, which holds its render claim (element-integration.js) and reaches no
-// preparation region.
+// The drawing each element has announced on itself and not finished, and the holds
+// gestures have on its nodes. A claim on the element's own region waits for all the
+// drawing under way when it settles, so a later claim never lets go of an earlier
+// drawing, and for the holds standing when it was made, since the element draws
+// nothing under one: a hold that begins in the draw a claim is for does not keep that
+// claim. A drawing also holds full rendering readiness while its element stands, as a
+// preparation does; a hold does not, since nothing is being drawn.
+/** @type {WeakMap<Element, Set<PromiseLike<unknown>>>} */
+const underWay = new WeakMap();
+/** @type {WeakMap<Element, Set<PromiseLike<unknown>>>} */
+const holding = new WeakMap();
+/** @param {WeakMap<Element, Set<PromiseLike<unknown>>>} kept @param {Element} element
+ * @param {PromiseLike<unknown>} complete @param {() => void} [ended] */
+function keep(kept, element, complete, ended) {
+  let all = kept.get(element);
+  if (!all) kept.set(element, (all = new Set()));
+  const held = all;
+  held.add(complete);
+  const done = () => {
+    held.delete(complete);
+    ended?.();
+  };
+  Promise.resolve(complete).then(done, done);
+}
+/** The drawing `element` has under way. @param {Element} element */
+export const drawingOf = (element) => Promise.all(underWay.get(element) ?? []);
+/** The holds standing on `element` now. @param {Element} element */
+export const holdsOn = (element) => [...(holding.get(element) ?? [])];
+/** Count a drawing `element` announced on itself. @param {Element} element
+ * @param {PromiseLike<unknown>} complete */
+export function announceDrawing(element, complete) {
+  const release = element.isConnected ? holdRendering() : null;
+  keep(underWay, element, complete, () =>
+    release?.(element.isConnected ? "settle" : "cancel"),
+  );
+}
+
+// The `pending-task` events an element Leaf drives has already counted as its own
+// drawing (element-integration.js), which owns that element's render region.
 /** @type {WeakSet<Event>} */
 const drawingsTaken = new WeakSet();
 /** @param {Event} event */
 export const takeDrawing = (event) => drawingsTaken.add(event);
 
-// Drawing announced from anywhere else: the nearest widget the event passed through on
-// its way out holds its presentation on it, as `present` does. Where it passed through
+// Drawing announced anywhere else: the nearest widget the event passed through on its
+// way out holds its presentation on it, as `present` does. Where it passed through
 // none, as from an element with no id or one of Leaf's own surfaces, the page holds a
 // region of that element's on it, so the page still reads as presented only once the
 // drawing is in.
@@ -222,19 +259,22 @@ document.addEventListener(PENDING_TASK, (event) => {
   const owner = widgetOn(event);
   if (owner) return void widgetController(owner).present(event.complete);
   const [origin] = event.composedPath();
-  if (origin instanceof Element) drawingRegion(origin)?.resolve(event.complete);
+  if (!(origin instanceof Element)) return;
+  const held = holdsOn(origin);
+  announceDrawing(origin, event.complete);
+  ownRegion(origin)?.resolve(Promise.all([drawingOf(origin), ...held]));
 });
 
 // An element's own region, attached while it stands and announces drawing.
 /** @type {WeakMap<Element, {handle: PreparationHandle | null}>} */
-const drawingRegions = new WeakMap();
-let drawings = 0;
+const ownRegions = new WeakMap();
+let regions = 0;
 /** @param {Element} origin */
-function drawingRegion(origin) {
-  let region = drawingRegions.get(origin);
+function ownRegion(origin) {
+  let region = ownRegions.get(origin);
   if (!region) {
     const held = (region = { handle: /** @type {PreparationHandle | null} */ (null) });
-    drawingRegions.set(origin, held);
+    ownRegions.set(origin, held);
     watchOwner(origin, {
       disconnect() {
         held.handle?.disconnect();
@@ -244,14 +284,18 @@ function drawingRegion(origin) {
   }
   if (!origin.isConnected) return null;
   region.handle ??= attachApplicationPresentation(
-    `element:${origin.localName}:drawing:${++drawings}`,
+    `element:${origin.localName}:drawing:${++regions}`,
   );
   return region.handle.present((reason) => failSoftUnreported(origin, reason));
 }
 
 // A hold an element has on its nodes through a gesture that rewrites them
-// (`HoldEvent`): as it ends, the document-wide renderers read the page again.
+// (`HoldEvent`). A claim on the element's region made while it stands waits for the
+// gesture to end, since the element draws nothing until then, and as it ends the
+// document-wide renderers read the page again.
 document.addEventListener(HOLD, (event) => {
+  const [origin] = event.composedPath();
+  if (origin instanceof Element) keep(holding, origin, event.complete);
   const read = () => void invalidateDom();
   Promise.resolve(event.complete).then(read, read);
 });

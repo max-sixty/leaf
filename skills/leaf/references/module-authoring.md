@@ -294,9 +294,7 @@ protocol `module-plain-elements.md` describes. A widget whose class says
 themselves or a generated part `createRenderRoot()` returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the
 rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
-the widget draws nothing after it. The element first draws inside
-`connectedCallback`, so a module that creates one sets what its first draw reads
-before adding it to the page.
+the widget draws nothing after it.
 
 `render()` reads `this.state` (`module-plain-elements.md`, "`state`"), each property a
 bound source sets, which the class declares as a Lit reactive property

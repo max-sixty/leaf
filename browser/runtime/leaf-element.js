@@ -26,15 +26,15 @@
      reads as presented only after the draw, and a set Leaf makes holds its claim on
      the drawing the set started. A widget whose drawing finishes after the render,
      such as highlighting or a loading frame, extends that by overriding
-     `getUpdateComplete`, as any Lit element does. An update asked for while `defer()`
-     holds the element is in once the release has drawn it.
+     `getUpdateComplete`, as any Lit element does.
    - `lf-commands`, after each draw, at its render root: the render may have changed
      what the keys declared in what it drew read from those nodes. A draw leaves what
      the page wrote beside a part it draws into as it was, such as a tab set's panels,
      so their keys aren't read again.
-   - `lf-hold`, as `defer()` starts, with a promise that settles as the hold ends:
-     the gesture rewrote the element's nodes outside any draw, so Leaf reads the
-     document again then.
+   - `lf-hold`, as `defer()` starts, with a promise that settles as the hold ends.
+     A set Leaf makes meanwhile is not drawn, so the page counts it as presented only
+     once the hold has ended and the release has drawn; and the gesture rewrote the
+     element's nodes outside any draw, so Leaf reads the document again then.
    - `error`, for an update that throws anywhere (`failSoft`, widget-upgrade.js). The
      fail-soft box stands at the end of the render root after what the element drew,
      since a render may paint retained nodes no later draw would make again and nothing
@@ -42,10 +42,10 @@
      that throws shows its failure, and the element draws nothing after it.
    - `lf-action` and `lf-undo`, through `record()` and `takeBack()`.
 
-   It draws before the caller returns on the two occasions a document-wide renderer may
-   read its nodes next: its first connection, and each `state` Leaf sets, as a plain
-   element draws in `connectedCallback` and in its setter. Every other update, a signal
-   or a reactive property moving, a return, an input Leaf set, runs on Lit's schedule.
+   It draws before the caller returns when Leaf sets its `state`, as a plain element
+   draws in its setter, so a document-wide renderer that reads its nodes next finds
+   them drawn. Every other update, its first, a signal or a reactive property moving, a
+   return, an input Leaf set, runs on Lit's schedule.
    It draws nothing while away; a return requests a Lit update to reconnect its
    dependencies and draw the current reading, and unchanged template parts keep their
    nodes. While `defer()` holds it, it draws nothing; the release draws the newest
@@ -99,7 +99,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #state;
   // A host answered `lf-connect`: it sets `state`, and nothing draws before it has.
   #hosted = false;
-  // Set up, with Lit connected: from here a pending update can be drawn at once.
+  // It has been through its first update: from here a `state` Leaf sets is drawn at
+  // once.
   #ready = false;
   // The hold a gesture has on drawing, settled as it releases.
   /** @type {PromiseWithResolvers<void> | null} */
@@ -150,19 +151,15 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return result;
   }
 
-  // Tell the host a draw is under way until the update Lit has pending is in, or,
-  // while a gesture holds drawing, until the release has drawn. A failure of that
-  // drawing shows and reports here, so the promise only settles.
+  // Tell the host a draw is under way until the update Lit has pending is in. A
+  // failure of that drawing shows and reports here, so the promise only settles.
   #announce() {
     if (this.#announced) return;
     this.#announced = true;
-    const drawn = this.#hold
-      ? this.#hold.promise.then(() => this.updateComplete)
-      : this.updateComplete;
     untracked(() =>
       this.dispatchEvent(
         new PendingTaskEvent(
-          drawn.then(
+          this.updateComplete.then(
             () => undefined,
             (error) => failSoft(this, error),
           ),
@@ -202,14 +199,14 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       this.#hosted ||= answered;
       if (first) this.#setup();
       super.connectedCallback();
-      this.#ready = true;
-      if (first) this.#drawNow();
     });
   }
 
   #setup() {
+    // A listener on a shadow host sees itself as the target of an event from inside
+    // its root, so the element that connected is read off the path.
     this.addEventListener(CONNECT, (event) => {
-      if (event.target !== this && this.hasUpdated) this.requestUpdate();
+      if (event.composedPath()[0] !== this && this.hasUpdated) this.requestUpdate();
     });
     placesFailure(this, (box) => {
       const root = this.renderRoot ?? this;
@@ -316,6 +313,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     const updating = this.#updating;
     this.#updating = true;
     this.#announced = false;
+    this.#ready = true;
     try {
       const boundary = (this.#signalError = {});
       super.performUpdate();

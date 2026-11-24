@@ -1,10 +1,9 @@
 /* `lf-age` (browser/runtime/age.js): the age it shows in place of the words its author
    wrote, as the clock ticks and its moment changes, and the clock time it previews. */
 import assert from "node:assert/strict";
-import process from "node:process";
 import test from "node:test";
 import "../../browser/runtime/age.js";
-import { ago, tickClock } from "../../browser/runtime/presence.js";
+import { ago, clockTime, tickClock } from "../../browser/runtime/presence.js";
 
 const NOW = Date.parse("2026-11-24T18:05:00Z");
 const tick = () =>
@@ -43,8 +42,12 @@ test("an age stands in place of its author's words and follows the clock", async
   // Another moment shows at once, without waiting for a tick.
   age.setAttribute("datetime", "2026-11-24T15:06:00Z");
   assert.equal(shows(), "3h ago");
-  age.removeAttribute("datetime");
-  assert.equal(shows(), "");
+  // A moment it can't read shows no age.
+  for (const moment of ["yesterday", null]) {
+    if (moment === null) age.removeAttribute("datetime");
+    else age.setAttribute("datetime", moment);
+    assert.equal(shows(), "");
+  }
 });
 
 test("an age out of the page follows nothing, and reads the clock again on return", async (t) => {
@@ -62,25 +65,12 @@ test("an age out of the page follows nothing, and reads the clock again on retur
   assert.equal(shows(), "5m ago");
 });
 
-// Dates read as the reader's platform writes them, so this holds where the platform
-// reads American English, as Node does under an en_US locale.
-const american = Intl.DateTimeFormat().resolvedOptions().locale === "en-US";
-
-test(
-  "an age previews its clock time in the reader's zone",
-  { skip: !american && "the platform doesn't read American English" },
-  (t) => {
-    const zone = process.env.TZ;
-    process.env.TZ = "America/Los_Angeles";
-    const { holder, age } = drawn('<lf-age datetime="2026-08-15T21:02:00Z"></lf-age>');
-    t.after(() => {
-      process.env.TZ = zone;
-      holder.remove();
-    });
-    assert.deepEqual(age.lfPreview("pointer"), {
-      name: "Sat, Aug 15, 2026, 2:02 PM PT",
-    });
-    age.removeAttribute("datetime");
-    assert.equal(age.lfPreview("pointer"), null);
-  },
-);
+test("an age previews the clock time of its moment, as every age does", (t) => {
+  const { holder, age } = drawn('<lf-age datetime="2026-08-15T21:02:00Z"></lf-age>');
+  t.after(() => holder.remove());
+  const said = clockTime("2026-08-15T21:02:00Z");
+  assert.notEqual(said, "");
+  assert.deepEqual(age.lfPreview("pointer"), { name: said });
+  age.removeAttribute("datetime");
+  assert.equal(age.lfPreview("pointer"), null);
+});

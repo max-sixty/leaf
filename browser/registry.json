@@ -55,16 +55,13 @@
     "description": "How long ago a moment was, as “12m ago”, kept current while the page is open: for a time the reader weighs by its age, such as when a check last ran.",
     "attributes": {
       "properties": {
-        "datetime": {
-          "type": "string",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}:[0-9]{2})$"
-        }
+        "datetime": { "type": "string", "format": "date-time" }
       },
       "required": ["datetime"]
     },
     "inline": true,
-    "instructions": "Set `datetime` to the moment, with its zone. Inside, write the time itself, which is what a reader sees where no script runs, as in an export or the file opened without Leaf. On the page Leaf shows the age in place of those words, and pointing at it reads the clock time in the reader's zone. An age changes width as it grows, so place it where nothing follows it on its line, such as the end of a sentence or a cell of its own, or give it a width in the page's CSS.",
-    "example": "<p>The nightly import last ran <lf-age datetime=\"2026-11-24T02:10:00Z\">24 Nov, 02:10 UTC</lf-age>.</p>"
+    "instructions": "Set `datetime` to the moment, with its seconds and its zone. Inside, write the time itself, which is what a reader sees where no script runs, as in an export or the file opened without Leaf. On the page Leaf shows the age in place of those words, and pointing at it reads the clock time in the reader's zone. An age changes width as it grows, and whatever follows it on its line, or takes its width from it as a table's column does, moves then: end the line with the age, or reserve its room in the page's CSS (`page-layout.md`, \"Space for changing text\").",
+    "example": "<p>Last nightly import: <lf-age datetime=\"2026-11-24T02:10:00Z\">24 Nov, 02:10 UTC</lf-age></p>"
   },
   "$languages": {
     "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list, and build/vendor.mjs builds a grammar for each. A block of code names its language with a `language-…` class, as HTML recommends, by one of these names or an alias the grammar's build gives it, such as `py` for python; `page check` advises on a class naming any other, which shows uncolored, except `math`, whose LaTeX the runtime typesets as a formula. `paths` maps a file extension to a language, for widgets with no class to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",

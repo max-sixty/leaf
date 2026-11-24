@@ -70,6 +70,7 @@ import {
   focusDestination,
   keepView,
   LeafElement,
+  motion,
   obligationActions,
   obligationsByRegion,
   obligationsIn,
@@ -85,7 +86,6 @@ import {
   signal,
   whileConnected,
 } from "/runtime/widget-api.js";
-import { motion } from "/runtime/lib/motion.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";

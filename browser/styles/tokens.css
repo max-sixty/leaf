@@ -10,7 +10,7 @@
  * tokens"), and Leaf's examples and instructions use no other; the rest are Leaf's own
  * and change freely. */
 /* The times of motion, registered so each computes to a time a script can read
-   (runtime/lib/motion.js, `motionTime`) as a stylesheet reads it with `var()`. */
+   (runtime/lib/motion-timing.js, `motionTime`) as a stylesheet reads it with `var()`. */
 /* How long the tint that marks an arrival or a change lasts. */
 @property --lf-motion-flash {
   syntax: "<time>";

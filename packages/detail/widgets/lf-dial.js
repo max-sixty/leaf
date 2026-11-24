@@ -113,6 +113,7 @@ import {
   focusDestination,
   holdPlace,
   LeafElement,
+  motion,
   move,
   nextRender,
   offer,
@@ -124,7 +125,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
-import { motion, motionTime } from "/runtime/lib/motion.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";

@@ -162,7 +162,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     context = browser.new_context(reduced_motion="no-preference")
     page = open_page(browser, serve(source), context=context)
     result = page.evaluate("""async () => {
-      const {backgroundFlash, motionTime} = await import('/runtime/lib/motion.js');
+      const {backgroundFlash} = await window.__lfWidgetApi();
+      const {motionTime} = await import('/runtime/lib/motion-timing.js');
       const chrome = document.querySelector('.lf-chrome');
       const arrival = document.createElement('button');
       arrival.className = 'lf-margin-face';

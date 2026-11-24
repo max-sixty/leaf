@@ -13,8 +13,7 @@
      specificity, and the page's unlayered rules and inline styles outrank it. The page
      answers the preference itself, and `page check --render` reports page motion still
      running with it set (`unreducedMotion`, render-checks/motion.js). JS-driven motion
-     goes through the library's motion() (runtime/lib/motion.js), which answers the
-     preference itself.
+     goes through the runtime's motion(), which answers the preference itself.
 
      The two halves are not written alike, because a duration is a way of keeping an
      animation and no way at all of keeping a transition. An animation is declared and

@@ -63,7 +63,7 @@ import { renderedOrdering, shadowHost, under } from "./lib/shadow-tree.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { hasObligationSource } from "./obligations/source.js";
-import { scrollBehavior } from "./lib/motion.js";
+import { scrollBehavior } from "./lib/motion-timing.js";
 import {
   changeAccount,
   changeCard,

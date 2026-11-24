@@ -47,7 +47,7 @@ import {
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./lib/keeps.js";
-import { motionTime, reducedMotion } from "./lib/motion.js";
+import { motionTime, reducedMotion } from "./lib/motion-timing.js";
 import { says } from "./passages.js";
 import { plainPress } from "./pointer.js";
 import { holdRendering } from "./rendering.js";

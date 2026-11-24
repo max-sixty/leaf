@@ -125,8 +125,8 @@ script", lists.
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
-- Animate through the library's motion module, never `element.animate`
-  (`module-scroll-and-motion.md`, "Motion").
+- Animate with `motion`, never `element.animate` (`module-scroll-and-motion.md`,
+  "Motion").
 
 ## Upgrade
 

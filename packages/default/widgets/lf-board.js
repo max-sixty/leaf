@@ -87,6 +87,7 @@ import {
   labelOf,
   saying,
   dragging,
+  motion,
   scrollerFor,
   rankAt,
   focusDestination,
@@ -96,7 +97,6 @@ import {
   authoredScope,
   widgetController,
 } from "/runtime/widget-api.js";
-import { motion } from "/runtime/lib/motion.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

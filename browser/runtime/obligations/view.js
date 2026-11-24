@@ -53,7 +53,7 @@ import {
 } from "../keyboard/scopes.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { paintLocation } from "../target-paint.js";
-import { scrollBehavior } from "../lib/motion.js";
+import { scrollBehavior } from "../lib/motion-timing.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { ownedObligationControl } from "./answer.js";
 import { obligationIn } from "../current-target.js";

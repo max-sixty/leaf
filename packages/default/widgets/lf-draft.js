@@ -73,6 +73,7 @@ import {
   addressableLabel,
   addressableWord,
   commandScope,
+  motion,
   offered,
   offeredAction,
   LeafElement,
@@ -94,7 +95,7 @@ import {
   worksInside,
   pageLinks,
 } from "/runtime/widget-api.js";
-import { motion, motionTime } from "/runtime/lib/motion.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import {
   paintMarkdown,
   markdownSourceOffset,

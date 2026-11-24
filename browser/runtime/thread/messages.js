@@ -87,7 +87,8 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
-import { motion, motionTime } from "../lib/motion.js";
+import { motion } from "../motion.js";
+import { motionTime } from "../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
 

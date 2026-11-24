@@ -44,7 +44,7 @@
    act there, a scroll or a turn arriving, leaves the surface where the page put it. */
 import { seenRect } from "./geometry.js";
 import { glideGap } from "./scroll-containers.js";
-import { scrollBehavior } from "./lib/motion.js";
+import { scrollBehavior } from "./lib/motion-timing.js";
 import { onCurrentLocation } from "./focus.js";
 import { isElement, under } from "./lib/shadow-tree.js";
 

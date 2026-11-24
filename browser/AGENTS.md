@@ -357,9 +357,10 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
 
 - **Nothing the user must read, press or decide waits on a clock.** Motion the user waits
   on stays under 300ms. A delay may hide a flicker but never adds a minimum spinner time
-  or a staged reveal. `runtime/lib/motion.js` owns the shared motion gate, easing and
-  reduced-motion check, and `--lf-motion-*` properties set durations and curves: the
-  theme's for the document, and a runtime surface's own sheet for that surface, as
+  or a staged reveal. `runtime/motion.js` owns the shared motion gate, and
+  `runtime/lib/motion-timing.js` the reduced-motion check and the read of the
+  `--lf-motion-*` properties, which set durations and curves: the theme's for the
+  document, and a runtime surface's own sheet for that surface, as
   `floating-panel.css` does for the panel.
 - **Animations are restrained and finite, and acknowledge state changes.** The one continuous animation
   is the sheen (`@keyframes lf-sheen` in `styles/components/surfaces.css`), which marks
@@ -470,12 +471,7 @@ interface. `runtime/lib/` is that home. It holds code that keeps none of the pag
 state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
 thrown value. A function that reads the page's state, the registry or anything else
 Leaf composes into a page is not library code, and stays in its owner behind
-`widget-api.js`. A custom property is not such a thing, since any stylesheet can state
-one. So a library module may read the cascade as a package's own sheet does:
-`lib/motion.js` reads the theme's durations there, and the hold `base.css` states while
-a page has not presented (`--lf-before-presentation`). It reads no attribute Leaf
-stamps on the page. Lint holds a library module's imports and cannot see what its
-functions read, so a review of one reads them.
+`widget-api.js`.
 
 - A library module imports only `/vendor/` bundles and the modules beside it, so it
   loads in a document Leaf didn't compose (lint, the library's block in

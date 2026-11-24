@@ -108,7 +108,7 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  addressableLabel,
+  nameOf,
   focusDestination,
   holdPlace,
   LeafElement,
@@ -890,7 +890,7 @@ customElements.define(
         this.#unfoldRun(marker, { pressed: true }),
       );
       button.lfPreview = () => {
-        const names = outermost(blocks).map(addressableLabel).filter(Boolean);
+        const names = outermost(blocks).map(nameOf).filter(Boolean);
         return names.length
           ? {
               list: {

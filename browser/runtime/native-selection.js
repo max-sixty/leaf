@@ -1,7 +1,6 @@
 /* Native selection endpoints and the provenance of programmatic writes. Passage
  * capture, view restoration and control activation share the same composed range;
- * none reads Chromium's retargeted light-DOM endpoints as the selected words. `K`
- * reads the element the caret stands in (`selectionFocusElement`). */
+ * none reads Chromium's retargeted light-DOM endpoints as the selected words. */
 import { pageShadowRoots } from "./shadow.js";
 import { isElement, isText, upFrom } from "./lib/shadow-tree.js";
 
@@ -40,22 +39,31 @@ export function pageRange(sel) {
   return range;
 }
 
-// The element the selection's moving end stands in, however deep in open shadow trees
-// it lies: the caret as caret browsing walks it through the page's words, or the end of
-// a selection that Shift and an arrow move (`selectionBackward` says which end that is).
-// The platform names an end inside a shadow tree only once it is handed that tree's
-// root (`getComposedRanges`); otherwise it names the edge of the host holding the end,
-// before the host for a caret or a backward selection's moving end and past it for a
-// forward one. So each host found at that edge has its root handed over in turn, once
-// for each level of nesting, and an end that stays at the edge once the host's root is
-// handed over stands beside the host, not in it. Every open root counts, declared or
-// not, since this asks where the caret is drawn, as a pointer's composed path does,
-// where `pageRange` asks which of the page's words were selected. A caret inside a
-// closed root stays at its host's edge, so it reads as the host's container. Chromium's
-// own `focusNode` stops at the outermost host; Firefox's goes in.
-/** @param {Selection} sel @returns {Element | null} */
-export function selectionFocusElement(sel) {
-  if (!sel.rangeCount) return null;
+// Where the user's caret stands, or null with no selection. The caret is the
+// selection's moving end, wherever a click, caret browsing or Shift and an arrow put it
+// (`selectionBackward` says which end that is). The answer is its boundary point,
+// `node` and `offset`, and the element holding it, `element`. That element is the
+// text's parent, a shadow root's host, or, for a point between an element's children,
+// that element. Each reader of the caret decides for itself whether the caret counts
+// where it stands, as inside what focus is on, in a thread or on screen. A reader of
+// the selected words asks `pageRange` instead.
+//
+// The point is where the page draws the caret, however deep in open shadow trees, so a
+// caret in an age's words has the age as its element in every engine. The selection's
+// own `focusNode` names a node beside the age in Chromium, and in Firefox the age's
+// shadow text, whose `parentElement` is null. The platform names an end inside a shadow
+// tree only once it is handed that tree's root (`getComposedRanges`). Otherwise it
+// moves the start out before the host holding it and the end past that host, so a
+// caret there comes back as a range round the host. So each host found at the moving
+// end has its root handed over in turn, once for each level of nesting, and an end that
+// stays at the edge once the host's root is handed over stands beside the host, not in
+// it. Every open root counts, declared or not, since this asks where the caret is
+// drawn, as a pointer's composed path does. A caret inside a closed root stays at its
+// host's edge, so its element is the host's container.
+/** @returns {{node: Node, offset: number, element: Element | null} | null} */
+export function userCaret() {
+  const sel = getSelection();
+  if (!sel?.rangeCount) return null;
   const forward = !selectionBackward(sel);
   /** @type {ShadowRoot[]} */
   const shadowRoots = [];
@@ -67,7 +75,7 @@ export function selectionFocusElement(sel) {
     const edge = isText(node) ? null : node.childNodes[forward ? offset - 1 : offset];
     const root = isElement(edge) ? edge.shadowRoot : null;
     if (!root || shadowRoots.includes(root))
-      return isElement(node) ? node : upFrom(node);
+      return { node, offset, element: isElement(node) ? node : upFrom(node) };
     shadowRoots.push(root);
   }
 }

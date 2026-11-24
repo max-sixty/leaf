@@ -461,6 +461,52 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_caret_in_an_age_is_where_the_thread_walk_starts(engine, request, serve):
+    """A caret in an age's drawn words, which a shadow root holds, is in the age in either
+    engine, so the walk opens the thread on the age's paragraph as it would from the
+    paragraph's own words. The caret goes there as caret browsing walks it, by the
+    engine's own caret movement (`Selection.modify`)."""
+    url = serve(
+        leaf_page(
+            "a caret in an age",
+            """
+<h1>Caret walk</h1>
+<p id="before">The earlier discussion comes first.</p>
+<p id="here">The import ran <lf-age datetime="2026-11-20T02:10:00Z">20 Nov</lf-age>,
+which this discussion is about.</p>
+<p id="after">The later discussion comes last.</p>
+""",
+        ),
+        anchored=[
+            ("before", "earlier discussion"),
+            ("here", "this discussion"),
+            ("after", "later discussion"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(request.getfixturevalue(engine), url)
+    assert page.evaluate(
+        """() => {
+          const age = document.querySelector('#here lf-age');
+          const words = age.previousSibling;
+          getSelection().collapse(words, words.length);
+          getSelection().modify('move', 'forward', 'character');
+          getSelection().modify('move', 'forward', 'character');
+          const [caret] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
+          return caret.startContainer.getRootNode() === age.shadowRoot;
+        }"""
+    )
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
 @pytest.mark.parametrize("enters", ["c", "Enter"])
 def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     """A comment the user began and put away is a stop of the thread walk, in the page's

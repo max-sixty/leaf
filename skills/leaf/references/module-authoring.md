@@ -124,7 +124,7 @@ script", lists.
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
-- Play no animation for a user who asked for less motion, or before presentation
+- Animate through the library's motion module, never `element.animate`
   (`module-scroll-and-motion.md`, "Motion").
 
 ## Upgrade

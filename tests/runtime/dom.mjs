@@ -172,7 +172,8 @@ document.head.append(sheets);
 // runtime/lib/motion.js reads on `body`). A test that stamps `data-lf-presented` lifts
 // it, as presentation does.
 const held = document.createElement("style");
-held.textContent = "body:not([data-lf-presented]) { --lf-before-presentation: 1; }";
+held.textContent =
+  "html[data-lf-interactive] body:not([data-lf-presented]) { --lf-before-presentation: 1; }";
 document.head.append(held);
 
 // A test's comparisons go through `assert.mjs`, which writes a node as its opening tag.

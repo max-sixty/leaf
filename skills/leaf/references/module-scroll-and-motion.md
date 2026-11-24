@@ -267,16 +267,14 @@ page doesn't show once the handler finishes, Leaf reveals that place and lands t
 
 ## Motion
 
-Animate only to help the eye follow a box from where it was to where it is, and draw a
-result the module already has during the gesture, not after a delay. A module that
-animates from script, as with `element.animate`, plays nothing for a user who asked
-for less motion and nothing before `body[data-lf-presented]`, and shows the finished
-state at once instead. The library's motion module (`module-authoring.md`, "Shared web
-code") plays a Web Animation by both rules, reads a duration token in milliseconds, and
-gives an element the brief tint Leaf gives a newly arrived message. A disclosure can
-animate its `::details-content` without a wrapper. Where a module must branch on the
-preference itself, as for the `behavior` of a smooth `scrollTo`, it reads the
-`prefers-reduced-motion` media query.
+Animate from script through the library's motion module (`module-authoring.md`, "Shared
+web code"), never `element.animate`. It plays nothing for a user who asked for less
+motion, and nothing before `body[data-lf-presented]`; treat that as a finished
+animation. A disclosure can animate its `::details-content` without a wrapper. Where a
+module must branch on the preference itself, as for the `behavior` of a smooth
+`scrollTo`, it reads the `prefers-reduced-motion` media query. Animate only to help the
+eye follow a box from where it was to where it is, and draw a result the module already
+has during the gesture, not after a delay.
 
 A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
 than choosing a number, and a retained frame returning from an editor to its reading

@@ -4,21 +4,18 @@
 // `motionEasing`), the tint that marks an arrival or a change (`backgroundFlash`) and
 // the fold that gives a block's room back (`foldBlock`).
 //
-// Arrival is not a gesture. Restored design-mode, widget, and
-// reading-position state appears at rest. `motion` plays nothing while the stylesheet
-// says the page is not yet presented, and theme transitions wait on the same property.
+// A page's arrival is not a gesture, so state restored at load appears at rest: nothing
+// here plays while the page's stylesheet says the page is not yet presented
+// (`motionPlays`).
 //
-// After presentation, changes that remove a visible unit use a short fold. The semantic
-// state is true at the start of the fold, while the old pixels collapse so the eye can
-// follow them. Reconciliation, not the originating press, owns the fold because the same
-// change can arrive from another tab or the agent. On Leaf, a resolved thread leaves
-// the open-thread vocabulary at once, folds in place, then moves under the resolved
-// disclosure, and a message leaving a thread, as a reply the log refuses does, folds
-// where it stood while the thread gives its room back.
+// A change that removes a visible unit folds it (`foldBlock`). The change is true from
+// the start of the fold, while the old pixels collapse so the eye can follow them. The
+// code that reconciles state plays the fold, not the press that caused the change,
+// since the same change can arrive from another tab or from an agent.
 //
-// A caller composes the complete final state before rendering. An ordered container
-// measures once around that composition and shows one FLIP from the current layout to
-// the final layout. A widget whose drag moves its own nodes defers its correction.
+// A caller that moves boxes composes the complete final state, measures once around
+// that composition and plays one FLIP from the current layout to the final one. A
+// widget whose drag moves its own nodes defers its correction.
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
@@ -47,16 +44,21 @@ preference.addEventListener("change", (event) => {
 const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
 
 // Whether motion plays now, which `playMotion` asks before every animation: the user
-// has not asked for stillness, and the page's stylesheet does not hold motion until the
-// page presents. A page states that hold on its `body` as
-// `--lf-before-presentation: 1`, as Leaf's base.css does until the page's first
-// complete presentation, and stops its transitions by the same property, so a
-// stylesheet's motion and a script's start together. It is read on `body` rather than
-// on the element to animate, which a caller may not have placed yet. A page that
-// states no such property holds nothing. First replay happens behind that boundary. Its
-// state should be the first frame the user sees, not a motion from authored state they
-// never saw; it collapses exactly as reduced motion does. This one shared check reaches
-// folds and FLIP alike without a widget learning whether the page has been presented.
+// has not asked for stillness, and the page's stylesheet does not hold motion. A page
+// states the hold on its `body` as `--lf-before-presentation: 1`. Leaf's base.css
+// states it on a screen while a page its runtime is starting has not presented, and
+// stops its transitions by the same property, so a stylesheet's motion and a script's
+// start together. A page's saved state is first replayed during that hold. The result
+// should be the first frame the user sees, not a motion from authored state they never
+// saw, so each motion collapses exactly as it does under reduced motion. This one
+// shared check reaches folds and FLIP alike without a widget learning whether the page
+// has been presented.
+//
+// The property is read on `body` rather than on the element to animate, which a caller
+// may not have placed yet. A page that states no hold holds nothing: a document without
+// Leaf's sheet, and on Leaf a page in print, a page that could not start, and a page
+// whose sheet did not load, where a time read with `motionTime` is no number either.
+//
 // A caller that must choose before it animates, such as one keeping an old view drawn
 // only while it fades, asks this too.
 export const motionPlays = () =>

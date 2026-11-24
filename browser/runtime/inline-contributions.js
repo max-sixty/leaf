@@ -55,7 +55,7 @@ export function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host = el("div", "lf-ui lf-margin-inline");
-        generatedElement(host, { says: false });
+        generatedElement(host);
         host.setAttribute("role", "group");
         seat = { host, offers: [] };
         hosts.set(target, seat);

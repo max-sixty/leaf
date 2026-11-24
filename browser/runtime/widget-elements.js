@@ -5,8 +5,9 @@ export { generatedElement } from "./element-markers.js";
 
    A behavior module builds injected controls with the library's `offer`, a press
    wearing one of Leaf's control faces with `offerAction` by its role (lib/controls.js),
-   marks words it writes that should stand apart from the author's with
-   `generatedElement`. A Lit template reaches the same writers through element
+   and marks words it writes that should stand apart from the author's with
+   `data-lf-gen` (the runtime's own with `generatedElement`). A Lit template reaches the
+   offers' writers through element
    directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-lf-room`, which the

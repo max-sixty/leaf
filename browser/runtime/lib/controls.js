@@ -5,8 +5,9 @@
  * writers do not name. They load in any document; a host without Leaf simply does not
  * interpret the marks.
  *
- * The marks are attributes and classes Leaf reads off the element, spelled here as
- * HTML spells them, as a module that marks its own words writes them:
+ * The marks are attributes and classes Leaf reads off the element, written here as a
+ * module that marks its own words writes them (module-plain-elements.md, "Words it
+ * writes"):
  *
  * - `lf-ui`, Leaf's chrome, and `lf-ui-face` on a native element, the default Leaf
  *   typography and ink; a custom-element host keeps its component-owned face and state

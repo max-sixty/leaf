@@ -17,8 +17,6 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   el,
-  generated,
-  generatedElement,
   LeafElement,
   navigateToDatum,
   setChildLists,
@@ -124,7 +122,7 @@ function buildToolbar(owner) {
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
-  generatedElement(summary, { says: false });
+  keeps(summary, "data-lf-gen", "1");
   // An offer, not a bare button: the disclosure control is chrome this widget injected,
   // and the offer gives it the press markers the theme and the keyboard read.
   const button = offerAction("symbol", "lf-call-toggle", undefined, {
@@ -232,9 +230,7 @@ function renderLine(record, line, owner, count = null) {
       }${
         count === null
           ? ""
-          : html`<span class="lf-call-group-count" ${generated({ says: false })}
-              >${count}</span
-            >`
+          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
       }`,
     line,
   );

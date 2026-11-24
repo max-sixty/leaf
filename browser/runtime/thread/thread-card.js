@@ -527,7 +527,7 @@ const apartBox = () => {
   const box = document.createElement("div");
   box.className = "lf-thread-apart lf-ui";
   box.dataset.lfRuntime = ""; // passages.js, leafSurface
-  generatedElement(box, { says: false });
+  generatedElement(box);
   return box;
 };
 
@@ -646,7 +646,7 @@ export class ThreadView {
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ring-overlay", "lf-ui");
     this.node.dataset.lfRuntime = ""; // passages.js, leafSurface
-    generatedElement(this.node, { says: false });
+    generatedElement(this.node);
     this.node.dataset.lfOffer = "";
   }
 

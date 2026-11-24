@@ -100,7 +100,6 @@
     </style>
     <script type="module">
       import {
-        generatedElement,
         layoutChanged,
         once,
         setChildren,
@@ -213,9 +212,11 @@
             tableFrame.append(table);
             // The module writes every word here: the filter rows label controls, and the
             // rest is the explorer speaking.
-            for (const box of [toolbar, this.#count, tableFrame])
-              generatedElement(box, { says: true });
-            generatedElement(this.#rows, { says: false });
+            for (const box of [toolbar, this.#count, tableFrame]) {
+              keeps(box, "data-lf-gen", "1");
+              box.toggleAttribute("data-lf-said", true);
+            }
+            keeps(this.#rows, "data-lf-gen", "1");
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 

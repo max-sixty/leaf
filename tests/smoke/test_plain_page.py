@@ -544,7 +544,7 @@ try {{
 
 
 def test_a_host_builds_named_controls_without_leaf(browser):
-    """Control construction and generated labels need no page services."""
+    """Control construction needs no page services."""
     markup = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Host controls</title>
 <style>svg {{ width: 1em; height: 1em; }}</style>
@@ -552,17 +552,13 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{generatedElement, searchField}} = await import("/runtime/portable-api.js");
+  const {{searchField}} = await import("/runtime/portable-api.js");
   const {{offer, nameAction}} = await import("/runtime/lib/controls.js");
-  const {{keepsText}} = await import("/runtime/lib/keeps.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
-  const label = offer("span");
-  generatedElement(label, {{says: "echo"}});
-  keepsText(label, "Evidence");
   const search = searchField("host-search", {{name: "files", label: "Find files"}});
-  document.querySelector("main").append(button, label, search);
+  document.querySelector("main").append(button, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}
 finally {{ window.hostReady = true; }}
 </script></body></html>"""
@@ -574,7 +570,6 @@ finally {{ window.hostReady = true; }}
         button = page.get_by_role("button", name="Close evidence")
         expect(button.locator("svg")).to_be_visible()
         expect(button).to_have_attribute("title", "Close evidence")
-        expect(page.locator("span[data-lf-echo]")).to_have_text("Evidence")
         search = page.get_by_role("searchbox", name="Find files")
         search.fill("patch")
         expect(search).to_have_value("patch")

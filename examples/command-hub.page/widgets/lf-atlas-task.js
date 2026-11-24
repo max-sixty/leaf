@@ -2,7 +2,7 @@
  * `talk` shows the conversations about it at its foot, where its Comment control opens
  * the box that starts one. */
 import { nothing } from "/vendor/lit.js";
-import { generatedElement, LeafElement, threadSurface } from "/runtime/widget-api.js";
+import { LeafElement, threadSurface } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
@@ -15,7 +15,8 @@ customElements.define(
         this.querySelector(":scope > .atlas-task-state[data-lf-gen]") ??
         document.createElement("p");
       status.className = "atlas-task-state";
-      generatedElement(status, { says: true });
+      keeps(status, "data-lf-gen", "1");
+      status.toggleAttribute("data-lf-said", true);
       this.prepend(status);
       this.statusLine = status;
       if (!this.hasAttribute("talk")) return;

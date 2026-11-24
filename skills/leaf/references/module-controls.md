@@ -20,17 +20,8 @@ Leaf or without; for another role, such as a tab's, the widget declares its keys
 Printing drops every generated control, so build structure that isn't injected UI with
 `el(tag, className, text)`.
 
-Words a module writes into the page need no marking: setting an element's
-`textContent`, appending a paragraph or rendering a template leaves them the page's
-words, which the user can comment on. A version comparison reads each version's source
-rather than the page, so they never read as a change. To set apart words the widget
-writes, such as a count after an authored sentence or a generated control's label, mark
-their element with `generatedElement(node, {says})`. Set `says: true` where the words
-are the page speaking, as a pick mark reading "selected" does, `false` for an action
-word, and `"echo"` for a copy of words the page shows elsewhere, such as a worker's
-name; in a template, write `<h2 ${generated({ says: true })}>`. `named()` then
-leaves them out, and a comment's quote doesn't run across them into the author's words. Don't write the
-`data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
+Words a module writes into the page are the page's words unless it marks them apart
+(`module-plain-elements.md`, "Words it writes").
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

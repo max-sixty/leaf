@@ -239,7 +239,7 @@ export function createMarginProjection({
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
-  generatedElement(nav, { says: false });
+  generatedElement(nav);
   nav.setAttribute("aria-label", "Page Map");
   // A group, not a toolbar: a toolbar is one tab stop walked across, while each entry
   // an open cluster shows takes Tab of its own and the markers walk up and down.

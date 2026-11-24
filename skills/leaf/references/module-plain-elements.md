@@ -132,6 +132,18 @@ On Me and admits the ids its buttons mark:
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
   target (`module-annotations.md`, "Visual parts").
+- **Words it writes.** Words the element writes into the page are the page's: the user
+  can comment on them, and a version comparison, which reads each version's source,
+  never shows them as a change. To set apart words it writes, such as a count after an
+  authored sentence, it marks the element holding them `data-lf-gen="1"`. `named()`
+  then leaves them out, and a comment's quote doesn't run across them into the
+  author's words. Words in a generated control or box of controls
+  (`module-controls.md`), such as a control's label, are apparatus: they take no comment, and a printed page drops the
+  box. Marked `data-lf-said`, the box keeps words that are the page speaking, as a
+  pick mark reading "selected" does: they take comments and print. Marked
+  `data-lf-echo`, it keeps words that copy what the page says elsewhere, such as a
+  worker's name: they print and take no comment, which the user leaves where the page
+  says them.
 
 `LeafElement` (`module-authoring.md`, "Drawing what a widget reads") is a Lit element
 on this protocol. It says `lf-connect`, announces each of its updates with

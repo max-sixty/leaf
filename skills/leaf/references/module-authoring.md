@@ -110,8 +110,9 @@ script", lists.
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
 - Build injected controls, and a press that looks like Leaf's controls by its role,
-  with the library's control constructors, and mark the words they write with
-  `generatedElement()` (`module-controls.md`).
+  with the library's control constructors (`module-controls.md`). Mark words the
+  widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
+  "Words it writes").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value

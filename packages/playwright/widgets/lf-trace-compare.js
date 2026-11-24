@@ -11,7 +11,6 @@
 import {
   cancelRender,
   el,
-  generatedElement,
   keepView,
   layoutChanged,
   nextRender,
@@ -55,7 +54,7 @@ customElements.define(
       const opening = openingView(this);
       this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
-      generatedElement(header, { says: false });
+      keeps(header, "data-lf-gen", "1");
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";
       choices.name = `${this.id}-recording`;

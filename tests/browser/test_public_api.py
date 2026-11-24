@@ -404,18 +404,27 @@ def test_a_package_s_own_views_get_the_address_back_and_their_places(
     """A package's widget that shows one member at a time, and says its members are
     the page's views, gets what a root tab set gets from Leaf, by showing each member
     with `keepView` and nothing more (module-state.md, "State only this tab keeps"):
-    the open member is named in the address, a press adds a history entry, a member
-    reopens where the user read it, Back and Forward return to the member and the
-    place of the entry, and a reload opens the member last shown."""
+    the open member is named in the address, a press adds a history entry and a reveal
+    adds none, a member reopens where the user last read it, and Back returns to the
+    member and to the place read on that entry, which is not the member's latest."""
     package = tmp_path / "chapters-package"
     tag = "lf-chapters"
     add_test_widget(package, tag, upgrade=True)
     registry = json.loads((package / "registry.json").read_text())
     registry[tag] |= {"views": {"members": "section"}, "flow": True}
     (package / "registry.json").write_text(json.dumps(registry, indent=2))
+    # The nav is a sticky header as the references have a package state one
+    # (module-scroll-and-motion.md, "Sticky headers").
     with (package / "defaults.css").open("a") as theme:
         theme.write(
-            f"\n{tag} > nav {{ position: sticky; top: 0; background: var(--lf-paper); }}\n"
+            f"\n{tag} {{ --lf-top-outer: var(--lf-top); }}\n"
+            f"{tag} > nav {{\n"
+            "  position: sticky;\n"
+            "  top: var(--lf-top);\n"
+            "  block-size: 2.5rem;\n"
+            "  background: var(--lf-paper);\n"
+            "}\n"
+            f"{tag} > section {{ --lf-top: calc(var(--lf-top-outer) + 2.5rem); }}\n"
         )
     (package / "widgets" / f"{tag}.js").write_text(
         'import { keepView, openingView, viewMembers } from "/runtime/widget-api.js";\n'
@@ -431,6 +440,7 @@ def test_a_package_s_own_views_get_the_address_back_and_their_places(
         '      press.type = "button";\n'
         '      press.textContent = member.getAttribute("aria-label");\n'
         '      press.addEventListener("click", () => keepView(this, member));\n'
+        '      member.addEventListener("beforematch", () => keepView(this, member));\n'
         "      nav.append(press);\n"
         "    }\n"
         "    this.prepend(nav);\n"
@@ -472,35 +482,54 @@ def test_a_package_s_own_views_get_the_address_back_and_their_places(
         page.evaluate("top => scrollTo({top, behavior: 'instant'})", top)
         return at()
 
+    def entries():
+        return page.evaluate("navigation.entries().length")
+
     one, two = page.locator("#one"), page.locator("#two")
     # Arriving with no fragment names the open member, on the entry the user is on.
     expect(one).to_be_visible()
     assert page.url.endswith("#one")
-    entries = page.evaluate("navigation.entries().length")
-    one_read = read_to(700)
+    arrived = entries()
+    one_first = read_to(700)
     # A press is the user's step: a new entry that names the member. One never read
-    # opens at its start, since the page stands past it.
+    # opens at its start, flush under the header stuck over it, since the page stands
+    # past that.
     two_start = press("Two")
     expect(two).to_be_visible()
     assert page.url.endswith("#two")
-    assert page.evaluate("navigation.entries().length") == entries + 1
-    assert two.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
-        0, abs=1
+    assert entries() == arrived + 1
+    edges = page.evaluate(
+        """() => ({
+          member: document.querySelector('#two').getBoundingClientRect().top,
+          header: document.querySelector('#chapters > nav').getBoundingClientRect().bottom,
+        })"""
     )
+    assert edges["member"] == pytest.approx(edges["header"], abs=1), edges
     two_read = read_to(two_start + 500)
-    # Each member reopens where the user read it.
-    assert press("One") == pytest.approx(one_read, abs=2)
+    # Each member reopens where the user last read it.
+    assert press("One") == pytest.approx(one_first, abs=2)
+    one_second = read_to(one_first + 400)
     assert press("Two") == pytest.approx(two_read, abs=2)
-    # Back and Forward return to the entry's member and to the place read on it.
-    page.go_back()
-    expect(one).to_be_visible()
+    assert entries() == arrived + 3
+    # Back returns to each entry's member, and to the place read on that entry: One's
+    # first entry was left at its first place, though One was read further since.
+    for member, place in ((one, one_second), (two, two_read), (one, one_first)):
+        page.go_back()
+        expect(member).to_be_visible()
+        assert at() == pytest.approx(place, abs=2)
     assert page.url.endswith("#one")
-    assert at() == pytest.approx(one_read, abs=2)
-    page.go_forward()
-    expect(two).to_be_visible()
-    assert at() == pytest.approx(two_read, abs=2)
-    # A reload opens the member last shown.
-    page.reload()
-    wait_until_ready(page)
+    # A reveal, as the browser's find makes one, names the member on the entry the
+    # user is on and adds no entry.
+    page.evaluate(
+        """async () => {
+          const {reveal} = await window.__lfCheckApi();
+          const {retainUserIntent} = await window.__lfWidgetApi();
+          reveal(document.querySelector('#two'), retainUserIntent());
+        }"""
+    )
     expect(two).to_be_visible()
     expect(one).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    assert page.url.endswith("#two")
+    assert entries() == arrived + 3
+    assert page.evaluate("navigation.currentEntry.index") == arrived - 1

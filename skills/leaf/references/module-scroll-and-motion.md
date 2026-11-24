@@ -252,23 +252,25 @@ that attribute. It also opens a closed popover holding the target. A widget that
 content hides it with `hidden="until-found"` and opens it on `beforematch`, as `lf-tabs`
 does for a panel, so the browser's find reaches it too; print shows it open. Take a
 folded element that is itself a Tab stop out of the Tab order, since the fold hides
-only what it holds. A widget that switches view sets
-`hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
-handler returns; Leaf reads that as a replaced view and places the target at once rather
-than scrolling from the old view's reading position. A widget that keeps the box of
+only what it holds. Where the reveal replaces one view with another, Leaf places the
+target at once rather than scrolling from the old view's reading position. It reads a
+replaced view from a sibling of the element revealed that is `hidden` once that
+element's `beforematch` listeners have run: Leaf hides the member a `views` widget
+leaves (`module-state.md`, "State only this tab keeps"), and any other widget sets
+`hidden` on the view it leaves in its listener. A widget that keeps the box of
 what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-Leaf writes the page's history entries: one for a followed fragment link, one for each
-step of its walks, and one for each switch between the page's views, which a widget
-states with `data-lf-page-views` (`module-plain-elements.md`). It keeps where the user
-was on each entry, and Back, Forward and a reload return them there. An entry a press
-adds says the press takes the user somewhere, as a link's does, so its result may
-scroll away the control pressed. Where an entry's fragment still names a place the
-page doesn't show once its view is open, Leaf reveals that place and lands there.
+Leaf writes the page's history entries, and a widget writes none: one whose members
+are the page's views says so, and Leaf adds an entry for each switch between them
+(`module-plain-elements.md`, "The page's views"). Leaf keeps where the user was on each
+entry, and Back, Forward and a reload return them there. An entry a press adds says the
+press takes the user somewhere, as a link's does, so its result may scroll away the
+control pressed. Where an entry's fragment still names a place the page doesn't show
+once its view is open, Leaf reveals that place and lands there.
 
 ## Motion
 

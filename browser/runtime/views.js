@@ -16,27 +16,28 @@
  *
  * The address. A holder that says its views are the page's (`data-lf-page-views`, as
  * the first tab set in `main` says) has its open member named in the address, by the
- * member's id. A switch the element makes itself is the user's step, as a followed
- * link is, and adds an entry, which history writes with where the user was in the view
- * they leave (history.js, `pushEntry`). A reveal adds none: the route that revealed the
- * member owns its own entry, so the entry the user is on is renamed, unless its
- * fragment already names a place inside the member. An arrival at an address with no
- * fragment renames its entry too. Back or Forward to an entry whose fragment names a
- * place in another of these views reveals that view (`entryView`), and the entry's
- * record returns the user to where they were in it.
+ * member's id. A switch the element makes itself, a `keepView` of a member other than
+ * the one showing, is the user's step, as a followed link is. It adds an entry, which
+ * history writes with where the user was in the view they leave (history.js,
+ * `pushEntry`); a module has no way to switch such a view without one. A reveal adds
+ * none: the route that revealed the member owns its own entry, so the entry the user
+ * is on is renamed, unless its fragment already names a place inside the member. An arrival at an address with no fragment renames its entry
+ * too. Back or Forward to an entry whose fragment names a place in another of these
+ * views reveals that view (`entryView`), and the entry's record returns the user to
+ * where they were in it.
  *
  * The place. Where the members stand in the page's flow, since the holder draws no box
- * of its own (`flow`) or is the page's parts, each member is a view with a place of its
- * own. As the element switches from one that the user has read past its start, Leaf
- * keeps that place as a landmark in the page's words (reading-place.js), per tab, as
- * the open member is kept, so it survives a resize, a revision and a reload. The
- * member opened returns to its place. One without a place leaves the page where it
- * stands, unless the page is scrolled past the member's start, and then it opens at its
- * start: flush under the headers stuck over it (geometry.js, `visibleBand`), so a
- * strip stuck over the views stays stuck. A
- * reveal places nothing, since whoever revealed the member lands the user in it. A
- * member of any other holder is a box in the page, and a switch leaves the page where
- * it stands.
+ * of its own (`flow`) or is the page's parts, each member with an id is a view with a
+ * place of its own. As the element switches from one that the user has read past its
+ * start, Leaf keeps that place as a landmark in the page's words (reading-place.js),
+ * per tab, as the open member is kept, so it survives a resize, a revision and a
+ * reload. The member opened returns to its place. One without a place leaves the page
+ * where it stands, unless the page is scrolled past the member's start, and then it
+ * opens at its start: flush under the headers stuck over it (geometry.js,
+ * `visibleBand`), so a strip stuck over the views stays stuck. A reveal places nothing,
+ * since whoever revealed the member lands the user in it, as the entry's record does
+ * on Back and Forward. A member of any other holder is a box in the page, and a switch
+ * leaves the page where it stands.
  *
  * Rejected: learning of a switch by watching `hidden` on the members, so that a module
  * states the open member only by showing it. A watcher hears the switch once the member
@@ -92,8 +93,10 @@ export function keepView(holder, member, leaving = null) {
   markViews(holder);
   show(holder, member, leaving, false);
 }
-// The prepaint hands each member the browser or Leaf reveals to this module, before
-// the member's own listeners hear of it.
+// The prepaint hands each member the browser or Leaf reveals to this module as the
+// member's `beforematch` reaches the document, before the member's own listeners hear
+// it. A module's listener that then shows the member with `keepView`, as it does for a
+// press, finds it showing and switches nothing.
 window.lfViews.reveal = (holder, member) => show(holder, member, null, true);
 
 /** @param {Element} holder @param {Element | null} member @param {Element | null} leaving

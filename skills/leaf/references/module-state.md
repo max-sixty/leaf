@@ -93,21 +93,23 @@ the address nor the tab names a member, and choose then.
 Show each member with `keepView` rather than by writing `hidden`, so that Leaf hears of
 a switch before the member the user leaves is hidden, while the page can still say
 where they were in it. Leaf shows a member too, as the browser's find, a fragment or
-travel reveals it and as Back or Forward returns to it. The member hears `beforematch`
-first (`module-scroll-and-motion.md`, "Travel and history"), and there the widget
-redraws what marks its open member. From `keepView` and those reveals Leaf keeps two
-things for the widget:
+travel reveals it and as Back or Forward returns to it. The member gets a `beforematch`
+event then (`module-scroll-and-motion.md`, "Travel and history"). In its listener the
+widget shows the member with `keepView`, as it does for a press, and redraws what marks
+its open member: where Leaf has already shown the member, as it has for one the page's
+own tree holds, the call changes nothing. From `keepView` and those reveals Leaf keeps
+two things for the widget:
 
 - **The address**, where the widget says its members are the page's views
   (`data-lf-page-views`, `module-plain-elements.md`).
 - **The user's place in each member**, where the members stand in the page's flow,
-  because the widget declares `flow` or is the page's parts. A member the widget shows
-  opens where the user last read it in this tab. One they never read past its start
-  leaves the page where it stands, unless the page is scrolled past that start, and
-  then it opens at its start, under the headers stuck over it
-  (`module-scroll-and-motion.md`, "Sticky headers"). A member something reveals is
-  placed by whatever revealed it. A member of any other widget is a box in the page,
-  and showing it scrolls nothing.
+  because the widget declares `flow` or is the page's parts, and each member has an
+  id. A member the widget shows opens where the user last read it in this tab. One
+  they never read past its start leaves the page where it stands, unless the page is
+  scrolled past that start, and then it opens at its start, under the headers stuck
+  over it (`module-scroll-and-motion.md`, "Sticky headers"). A member something
+  reveals is placed by whatever revealed it. A member of any other widget is a box in
+  the page, and showing it scrolls nothing.
 
 ## Declared widget state
 

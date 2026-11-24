@@ -113,10 +113,8 @@ PLATE_PACKAGE = {
     "lf-plate": {
         "description": "A project package's picture, under a name the theme never sees.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "visual": "whole",

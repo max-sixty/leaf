@@ -1484,10 +1484,8 @@ FILM_DECLARATION = {
     tag: {
         "description": f"A <{tag}> page widget.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
     }

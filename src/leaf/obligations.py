@@ -367,7 +367,8 @@ def verb_answers(
     """Whether one answering verb's declared condition holds for this widget now.
 
     The condition reads current state and nothing else. `empty` asks the projected
-    containment the verb's position records leave; an attribute or value record reads
+    containment the verb's position records leave in its own containers (the record's
+    `within`); an attribute or value record reads
     through authored markup (`marks`, the document's `projection.attribute_marks`) as
     well as the fold, so a version that honors the answer keeps it answered and a
     cleared value opens the obligation again; any other verb answers while one of its
@@ -376,8 +377,10 @@ def verb_answers(
     condition = answer_verbs(entry)[verb]
     if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
         return False
+    spec = entry["verbs"][verb]
     if empty := condition.get("empty"):
-        return container_empty(rec, empty, byid, registry, holders)
+        within = spec["record"]["within"]
+        return container_empty(rec, within, empty["when"], byid, registry, holders)
     owner = rec["attrs"].get("id")
     held = projection.actions.get((owner, owner, verb))
     if "detail" in condition:
@@ -385,7 +388,6 @@ def verb_answers(
             key in held[0]["detail"] and held[0]["detail"][key] == value
             for key, value in condition["detail"].items()
         )
-    spec = entry["verbs"][verb]
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
         value = folded_value(*held) if held else markup_value(owner, spec, byid, marks)
@@ -582,13 +584,14 @@ def quoted_in(rec: dict, registry: dict) -> bool:
 
 def container_empty(
     owner: dict,
-    empty: dict,
+    within: str,
+    when: dict,
     byid: dict,
     registry: dict,
     holders: dict[str, dict],
 ) -> bool:
-    """Whether the one member container `empty` names inside `owner` holds no
-    vocabulary members under the projected holder relation.
+    """Whether the one `within` container inside `owner` whose attributes match
+    `when` holds no vocabulary members under the projected holder relation.
 
     A predicate over the same containment the position records change, so undoing
     or superseding one moves the arrangement and the answer in one operation.
@@ -610,9 +613,9 @@ def container_empty(
     containers = [
         record
         for record in byid.values()
-        if record["tag"] == empty["within"]
+        if record["tag"] == within
         and inside(record, owner)
-        and matches_when(record["attrs"], empty["when"])
+        and matches_when(record["attrs"], when)
     ]
     if len(containers) != 1:
         return False

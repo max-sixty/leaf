@@ -1,7 +1,6 @@
 # Commands, focus, and text entry
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 ## Commands and keyboard routes
 
@@ -64,7 +63,7 @@ classifier.dispatchEvent(
 ```
 
 An element a template draws takes its scope the same way after the render that places
-it, as in a `LeafElement`'s `updated()`.
+it.
 
 ### Command rows
 
@@ -112,10 +111,9 @@ away from the editor saves them, `keep` saves them too, as `lf-draft` does; othe
 keeps them where reopening finds them and shows that the widget holds them.
 
 Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
-such as the threads. For the scopes a `LeafElement` drew or declared on itself, it does
-so after each of the element's draws too, so their rows may read `this.state`, a
-reactive property, or a field the widget calls `requestUpdate()` after changing. For
-any other state a row reads, dispatch `lf-commands` on the element after changing it.
+such as the threads. For any other state a row reads, such as the widget's `state`,
+dispatch `lf-commands` on the element after changing or drawing it
+(`module-plain-elements.md`, "`lf-commands`").
 
 ### How scopes compose
 
@@ -151,9 +149,9 @@ their own activation and editing.
 A disclosure needs no row. On every `details > summary` and every button with
 `aria-expanded` on the page, a widget's included, Leaf answers Enter, Space and the
 arrow that opens or closes it, and lists the press in the command reference as open or
-close. In a thread's message only Enter and Space work one. The library names the keys
-that press a button and the arrows along a row in its text direction
-(`module-authoring.md`, "Shared web code"). Leaf spells and says keys itself: a
+close. In a thread's message only Enter and Space work one. The library's
+[`keys.js`](../../../browser/runtime/lib/keys.js) names the keys that press a button and
+the arrows along a row in its text direction. Leaf spells and says keys itself: a
 preview takes each press it adds as bindings (`module-previews.md`), and an
 announcement takes the rows whose keys it names (`module-scroll-and-motion.md`,
 "Notices and spoken words").
@@ -190,13 +188,16 @@ A list of focusable rows gets its arrow keys from `rowWalk({id, noun, plural, ro
 whose two returned rows go into the list's scope: ArrowUp and ArrowDown step, Home and
 End reach the ends, and a step shows its position in Leaf's panel, such as `Entry 3 of
 7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
-runs after a move, and `scroll: false` keeps the page still.
+runs after a move, and `scroll: false` keeps the page still. `position: () => null`
+shows no position, for a list whose rows name their places to a screen reader
+themselves, as a menu's do, and `steps` names the four steps in place of
+`["previous", "next", "first", "last"]`.
 
 A row whose press carries the user along a list of its own declares `lands(from)`
 ("Command rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, says where each
-step landed with a bubbling, composed `lf-walk` event on the stop. The step's `run`
+step landed with an `lf-walk` event on the stop. The step's `run`
 dispatches it, before or after focus moves to the stop:
 
 ```javascript
@@ -217,7 +218,10 @@ without `list` it says every step. The place goes sooner if the element it was s
 leaves the page, as when a redraw replaces it, so a widget whose stops are not elements
 of their own dispatches on the part of its drawing that holds the stop. Leaf hears an
 element leave the page or a shadow stage it builds (`shadowStage`), not a shadow root
-the widget attaches itself, where the place stays its few seconds. The panel shows the
+the widget attaches itself, where the place stays its few seconds. A widget whose user
+can leave a stop without stepping, as a chart's pointer takes its reader to another
+point, dispatches `lf-walk` with no `detail` on the element the place was said on as
+they leave it, and the place goes at once. The panel shows the
 place and says nothing aloud: the widget announces it, with what else a listener
 should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken words").
 Off Leaf, nothing hears the event.
@@ -361,8 +365,8 @@ as a card, a mark or a phrase, calls `event.preventDefault()`.
 
 While the user drags, grabs or scrubs something in the widget, say so with an
 `lf-hold` event (`module-plain-elements.md`, "`lf-hold`"). A widget whose gesture
-moves its own nodes also holds its drawing with `defer()` (`module-state.md`, "The
-widget controller").
+moves its own nodes also holds its drawing with `lf-defer` (`module-plain-elements.md`,
+"`lf-defer`").
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each

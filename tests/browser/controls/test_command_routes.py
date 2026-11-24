@@ -16,12 +16,10 @@ KEYBOARD_HINT_REGISTRY = {
     "lf-keyboard-probe": {
         "description": "Exercises declared keyboard commands and their controls.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "asks": {"type": "boolean"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": SEATED_OBLIGATION_LAYER["lf-verdict"]["verbs"],

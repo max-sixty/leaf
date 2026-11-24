@@ -7,7 +7,9 @@
 
    - `state`, where the element is a widget whose tag declares `verbs`: its reading
      (`widgetState`, widget-controller.js), once its class is defined and again each
-     time the reading moves, whoever moved it;
+     time the reading moves, whoever moved it. Leaf also sets it again, though the
+     reading stands, where something the element draws beside its `state` has moved
+     (`stateAgain`): setting `state` is how Leaf tells any element to draw;
    - with `state`, the property a verb's record names (`record.property`, the
      registry's `$verbs.record`), to that verb's value ("Recorded properties" below);
    - the property each bound input names, and a written data body as its `value`
@@ -32,9 +34,22 @@
    back to the verb's value, and a refusal moves the reading, so the element shows
    no value the page does not hold.
 
-   Leaf sets none of them until the reading holds every declared verb and the page has
-   read the data a bound source names, so the element never draws a reading nobody has
-   made yet. Each pass of sets runs in the stack that moved the reading, inside a claim
+   Until that set the element shows the change the user made, because Leaf sets
+   nothing on it to stop the change. An element that should take none reads the
+   verb's `available` from its `state`, as any widget does, and what it shows then is
+   its package's to choose. Neither attribute Leaf could set from outside does what
+   Leaf's own widgets do there, which stay readable and stay comment targets:
+   - `inert` takes the element, and the value it shows, out of the accessibility tree
+     and out of the targets a comment can aim at, by pointer or by keyboard, and
+     leaves it looking live;
+   - `disabled`, on an element that has it, keeps the value in the accessibility tree
+     and the element a keyboard target, but an Alt+click anywhere on the control
+     starts no comment, the value takes the library's faded face, and the property
+     would be a second way of saying `available`.
+
+   Leaf makes none of its sets, of `state`, a recorded property or a bound input, until
+   the reading holds every declared verb and the page has read the data a bound source
+   names, so the element never draws a reading nobody has made yet. Each pass of sets runs in the stack that moved the reading, inside a claim
    on the element's render region. So a gesture's result is drawn before the
    `dispatchEvent` that recorded it returns, and the page reads as presented, and as
    showing a data delivery, only once the setters have returned and the drawing they
@@ -73,11 +88,11 @@ import {
 import { widgetDescriptor } from "./widget-descriptors.js";
 import {
   announceDrawing,
+  controllerOf,
   drawingOf,
   holdsOn,
   isDrawing,
   takeDrawing,
-  widgetController,
   widgetMounted,
   widgetState,
 } from "./widget-controller.js";
@@ -116,6 +131,9 @@ const hosted = new WeakSet();
 // The elements that said `lf-connect`.
 /** @type {WeakSet<Element>} */
 const asked = new WeakSet();
+// The request that has each widget's `state` set again (`stateAgain`).
+/** @type {WeakMap<Element, () => void>} */
+const againBy = new WeakMap();
 
 // The `state`s a publication owes, each by its element. Every reading's own effect
 // claims its region and adds to them as the publication notifies it; writing `owed`
@@ -139,7 +157,11 @@ function host(element) {
   hosted.add(element);
   const descriptor = widgetDescriptor(element);
   const verbs = Object.keys(descriptor?.declaration.verbs ?? {});
-  const controller = verbs.length ? widgetController(element) : null;
+  // Made here, ahead of this element's own watch below, so the controller hears each
+  // return first: it presents the preparation the widget still has under way before
+  // the return's sets are drawn, and a draw that asks whether that preparation is in
+  // (reports.js) finds it.
+  const controller = verbs.length ? controllerOf(element) : null;
   // The verbs whose value the element keeps in a property ("Recorded properties").
   const properties = Object.entries(descriptor?.declaration.verbs ?? {}).flatMap(
     ([verb, { record }]) =>
@@ -217,16 +239,35 @@ function host(element) {
       });
     attempt(failures, () => data.deliver());
   };
-  // Whether a pass owes `state`: a reading that moved, or, on an element with none
-  // that said `lf-connect`, the empty state that says its first inputs are set.
+  // How many times `state` was asked for again though the reading stands
+  // (`stateAgain`), and how many of those the last set that returned had heard: a
+  // request made from inside a set is owed another, and so is a set that threw. The
+  // signal has the element's effect make the pass at once. An element out of the page
+  // is set as it returns. Its effect may outlive its leaving by a moment and is told
+  // nothing meanwhile: a set made on an element out of the page asks again from
+  // inside the set, so each telling would make another set, without end.
+  let asks = 0;
+  let answered = 0;
+  const askedAgain = signal(0);
+  if (controller)
+    againBy.set(element, () => {
+      asks += 1;
+      if (element.isConnected) tick(askedAgain);
+    });
+  // Whether a pass owes `state`: a reading that moved or is asked for again, or, on an
+  // element with none that said `lf-connect`, the empty state that says its first
+  // inputs are set.
   /** @param {import("./widget-controller.js").WidgetReading | null} reading */
   const owesState = (reading) =>
-    reading ? reading !== shown : !passed && asked.has(element) && !records;
+    reading
+      ? reading !== shown || asks !== answered
+      : !passed && asked.has(element) && !records;
   /** @param {import("./widget-controller.js").WidgetReading | null} reading
    * @param {unknown[]} failures */
   const setState = (reading, failures) =>
     attempt(failures, () => {
       const state = reading ? widgetState(reading) : NO_VERBS;
+      const heard = asks;
       untracked(() => {
         Object.assign(element, { state });
         for (const { verb, property } of properties) {
@@ -237,6 +278,7 @@ function host(element) {
         }
       });
       shown = reading;
+      answered = heard;
     });
   // Whether Leaf is setting a recorded property, when an event the element dispatches
   // is its answer to that set.
@@ -295,6 +337,7 @@ function host(element) {
     return drawing;
   };
   const draw = () => {
+    askedAgain.value;
     claim();
     const reading = controller?.read() ?? null;
     // A hold the element has on its drawing now leaves this pass's sets undrawn until
@@ -379,6 +422,15 @@ document.addEventListener(CONNECT, (event) => {
     if (!entry.verbs || widgetDescriptor(element)) event.preventDefault();
   });
 });
+
+/** The request that has `element`'s `state` set again though its reading stands, or
+ * undefined where Leaf sets no `state` on the element. It is how Leaf tells an element
+ * to draw again when something it draws beside its `state` has moved, as its reports
+ * turning ready does (reports.js). Leaf makes the set before any microtask runs, in
+ * its place among the sets a publication owes, and on an element that is away, as it
+ * returns.
+ * @param {Element} element */
+export const stateAgain = (element) => againBy.get(element);
 
 /** Drive each element whose tag declares `verbs` or `inputs` from outside while it
  * stands. An element is driven only once its class is defined: a property set on an

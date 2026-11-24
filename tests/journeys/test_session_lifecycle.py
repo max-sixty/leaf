@@ -36,7 +36,6 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
-from leaf.registry.kernel import kernel_protocol
 
 
 def test_the_server_a_prompt_hook_starts_lives_as_long_as_its_session(claimed):
@@ -250,8 +249,7 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     prompt(prompt_id="resumed")
     running = server_model.running_server(page_dir)
     assert running is not None and running["port"] == port
-    record = registry_storage.layer_record(page_dir)
-    assert record is not None and record["protocol"] == kernel_protocol()
+    assert registry_storage.layer_record(page_dir) is not None
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)
     assert claim is not None and claim["turn"] == "resumed"

@@ -1,7 +1,6 @@
 # Scrolling and motion
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 ## Scrolling
 
@@ -102,7 +101,10 @@ in its shadow tree, `node` is that widget. The change itself scrolls nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with
-`restorePlace(place)` however the page has moved since.
+`restorePlace(place)` however the page has moved since. Both read the page's own
+scroller. `restorePlace(place, null, intent)` restores only
+while an `intent` taken earlier with `retainUserIntent()` still holds
+(`module-input.md`, "Delayed work").
 
 A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
 the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
@@ -159,7 +161,9 @@ scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
 fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
-only chrome standing across those columns takes room.
+only chrome standing across those columns takes room. It reads the visual viewport,
+which pinch zoom and a phone's keyboard shrink, or with `viewport: "layout"` the layout
+viewport.
 
 ### Sticky headers
 
@@ -254,7 +258,9 @@ skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` 
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-A widget that adds history entries uses `pushEntry(url)` and `replaceEntry(url)`. An
+A widget that adds history entries uses `pushEntry(url, state)` and
+`replaceEntry(url, state)`, where the optional `state` is the entry's `history.state`,
+which `replaceEntry` keeps as it is when given none. An
 entry a press adds says the press takes the user somewhere, as a link's does, so its
 result may scroll away the control pressed; `replaceEntry` only renames the entry the
 user is on. To
@@ -279,8 +285,8 @@ result the module already has during the gesture, not after a delay.
 A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
 than choosing a number, and a retained frame returning from an editor to its reading
 takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
-library (`module-authoring.md`, "Shared web code") reads a token's time in
-milliseconds.
+library's [`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js) reads a
+token's time in milliseconds.
 
 `backgroundFlash(element)` gives an element a brief yellow tint that fades to its
 own background, and tints each box inside it that paints a background of its own too.

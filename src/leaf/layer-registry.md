@@ -32,7 +32,8 @@ whose markup names a file the layer serves. A package that stops composing after
 refuses, is refused there: `page check` and `server start` refuse it, naming the
 repair, while hooks and reads of the page go on.
 
-The layer record holds the selection and two identities:
+The layer record holds the selection and an identity, and its `format` names the
+page protocol ("Page protocol"):
 
 - `packages` records the packages the page selects, in the order every Leaf composes
   them after the mandatory layer. A page's theme is one of them, Leaf's bundled
@@ -50,8 +51,6 @@ The layer record holds the selection and two identities:
   behind the document it served would hand back the same document. A revision's
   executable digest includes the generation, so a new selection gives an open tab a
   new document rather than a patch.
-- `protocol`, the page protocol a Leaf last initialized the page at ("Page
-  protocol").
 
 The runtime and layer a document executes are named apart from these, by the identity
 `runtime_selection.py` gives the serving Leaf's runtime, which covers every layer
@@ -72,17 +71,26 @@ the generation, so open tabs don't reload.
 
 ## Page protocol
 
-The layer record's `protocol` is the page protocol: the version of what a page keeps
-across Leaf versions, the kernel event records in its log and the records Leaf keeps
-outside the page. Root `AGENTS.md`, "Pages across Leaf updates", says when it moves.
+The page protocol is the version of what a page keeps across Leaf versions: the kernel
+event records in its log and the records Leaf keeps outside the page. Root `AGENTS.md`,
+"Pages across Leaf updates", says when it moves. A page's protocol is the number in its
+layer record's `format`, `leaf-layer/<protocol>`, which `page init` writes at the
+protocol of the Leaf running it.
 
-Every page server and the append door refuse a page at another number
-(`layer.incompatible_layer` says what each refusal names). The session holding a page
-at a lower number takes it to this Leaf's at its first command that writes to the page
-or hook that reads its pages (`vendoring.renew_layer` says which do); a command that
-only reads the page leaves it and its server alone. No Leaf takes a page down. A
-session's hooks and watch run the copy of Leaf its harness loaded, or a checkout the
-session selected (`session-lifetime.md`, "Which Leaf runs a session").
+Every reader of the layer record decides by that number before it reads a field
+(`registry.storage.layer_record`). At any number but this Leaf's, every page server
+and the append door refuse the page, and so does every command that reads the page's
+layer without renewing it, each naming the repair: a newer Leaf for a higher number,
+since no Leaf takes a page down, and `page init` under this Leaf for a lower one. The
+session holding a page at a lower number renews it at its first command that writes to
+the page or hook that reads its pages (`vendoring.renew_layer` says which do); a
+command that only reads the page leaves it and its server alone. A session's hooks and
+watch run the copy of Leaf its harness loaded, or a checkout the session selected
+(`session-lifetime.md`, "Which Leaf runs a session").
+
+A change to the layer record's shape keeps `packages` as the page's selection, with the
+same meaning. It is the one field a Leaf reads from another Leaf's layer record, so that
+renewal keeps the page's selection (`registry.storage.layer_packages`).
 
 A Leaf's readings skip an event kind it doesn't know, and its deliveries hand such an
 event over as logged, with no handling clause. So a new kind declares `skippable` where
@@ -94,17 +102,16 @@ the composer's draft as they stood at the current number, and the build
 annotations, or a new kind not declared `skippable`, until the number moves.
 
 The number also versions each record Leaf keeps outside a page's log and document:
-every `state.Record` in a page directory or the state home, the layer record among
-them, and the composer's draft (`$events.draft`). Each carries `leaf-<kind>/<since>` in
-its `format`, where `since` is the protocol at which that record's shape last changed,
-so a bump for another change leaves it readable. A new kind starts at the current
-protocol without a bump, since no earlier Leaf reads it. A shape change sets `since` to
-the current protocol, bumping the protocol first where `since` already names it, and the
-build refuses a shape change at the same `since` or a `since` moved anywhere else. A
-reader treats a record at another format as absent, except a layer
-record at a later shape than its own, which refuses the page as a newer Leaf's
-(`registry.storage.layer_record`): read as absent, it would have `page init` replace
-the page's selection.
+every `state.Record` in a page directory or the state home, and the composer's draft
+(`$events.draft`). Each carries `leaf-<kind>/<since>` in its `format`, where `since` is
+the protocol at which that record's shape last changed, so a bump for another change
+leaves it readable. A new kind starts at the current protocol without a bump, since no
+earlier Leaf reads it. A shape change sets `since` to the current protocol, bumping the
+protocol first where `since` already names it, and the build refuses a shape change at
+the same `since` or a `since` moved anywhere else. A reader treats a record at another
+format as absent. The layer record's `since` is always the current protocol, so a layer
+record at another format is another Leaf's page, read as above, and the build lets its
+shape change only with a bump.
 
 ## Composition stamps
 
@@ -112,7 +119,13 @@ Every composition, `page init`'s layer and a page's own declarations over it, wr
 `$modules`, the module each declared element has among the files it composes
 (`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
 `page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
-declaration says so. It then stamps the facts the browser reads rather than derives
+declaration says so. Composition also writes into each declaration the defaults it
+leaves out (`registry/contract.complete_declarations`): its `content`, its attribute
+schema, and the `type` and `additionalProperties` of that schema and of each verb's
+`detail` schema. It writes them before validation, so validation and every later
+reader read them whether the declaration or composition wrote them.
+
+Composition then stamps the facts the browser reads rather than derives
 (`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,
 each widget's deciding verb (`verbs`) and the member tags each of its outcomes
 retires, and `$states`, each verb's writer and the operation definition an admitted

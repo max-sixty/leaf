@@ -536,7 +536,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
-    obligation: the trial's module is the product's starter, which only defines the
+    obligation: the trial's module is the test wrapper's, which only defines the
     element — a `LeafElement` with no `render()` of its own — and
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic

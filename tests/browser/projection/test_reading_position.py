@@ -839,10 +839,8 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
     entry = {
         "description": "A test-owned reading scroller.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "example": '<lf-owned-scroll id="example">'

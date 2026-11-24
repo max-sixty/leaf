@@ -29,8 +29,9 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   version never moves as later saves go live. A static-site build may write these
   responses out as disposable delivery output, never an authority.
 
-- `layer.json` — the packages the page selects, its generation and
-  its page protocol (`registry.storage.LAYER`, [layer-registry.md](layer-registry.md)).
+- `layer.json` — the packages the page selects and its generation, in a `format`
+  that names its page protocol (`registry.storage.LAYER`,
+  [layer-registry.md](layer-registry.md)).
   Every Leaf that reads the page composes its registry, theme, instructions, widgets
   and package modules from it; none of them is a file in the page.
 

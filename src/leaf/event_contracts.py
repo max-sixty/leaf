@@ -21,7 +21,6 @@ from leaf.events import (
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
-from leaf.layer import incompatible_layer
 from leaf.obligations import questions_in_words, quoted_in
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
@@ -887,14 +886,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
 
 def write_refusal(page_dir: Path) -> Finding | None:
     """Why this Leaf may write no event to the page, or None where it may: the page
-    is at another page protocol (`layer.incompatible_layer`). A writer that must not
-    fail on a page it cannot write, such as a hook, asks this first, and so does
-    `page check`."""
+    is at another page protocol (`registry.storage.layer_record`). A writer that
+    must not fail on a page it cannot write, such as a hook, asks this first."""
     try:
-        record = layer_record(page_dir)
+        layer_record(page_dir)
     except IncompatibleLayer as refused:
         return refused.findings[0]
-    return None if record is None else incompatible_layer(page_dir, record)
+    return None
 
 
 def voiced(event: dict) -> dict:

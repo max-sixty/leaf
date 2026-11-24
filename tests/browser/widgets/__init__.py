@@ -22,11 +22,12 @@ def expect_walk_says(page, words):
 
 def hear_walks(page):
     """Start recording the places a widget's steps say to the page (`lf-walk`,
-    module-input.md, "Walks"), as the window hears them, for `walks_said`."""
+    module-input.md, "Walks"), as the window hears them, for `walks_said`. An `lf-walk`
+    saying the user has left a stop carries no place, and is not recorded."""
     page.evaluate(
         """() => {
           window.__lfWalksSaid = [];
-          addEventListener('lf-walk', ({detail}) => window.__lfWalksSaid.push(
+          addEventListener('lf-walk', ({detail}) => detail && window.__lfWalksSaid.push(
             `${detail.noun} ${detail.position} of ${detail.total}`));
         }"""
     )

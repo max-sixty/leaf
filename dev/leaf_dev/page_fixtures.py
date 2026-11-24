@@ -24,7 +24,7 @@ from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
-from leaf.registry.storage import layer_record
+from leaf.registry.storage import layer_packages
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
@@ -118,8 +118,8 @@ def source_manifest(source: Path) -> Path | None:
 
 def source_packages(source: Path) -> list[str]:
     # A page directory's `index.html` takes the selection its layer record keeps.
-    if (record := layer_record(source.parent)) is not None:
-        return list(record["packages"])
+    if (packages := layer_packages(source.parent)) is not None:
+        return packages
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 
@@ -275,17 +275,18 @@ def import_referenced_media(
             run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
-    from leaf.registry.storage import layer_record, layer_vocabulary
+    from leaf.registry.storage import selected_vocabulary
 
     # The arm preparing the page may speak another protocol, which this Leaf would
-    # refuse to serve; finding the media its documents name needs only a vocabulary.
-    # A base arm from before pages composed their layer at read time vendored it.
-    record = layer_record(page)
-    registry = (
-        layer_vocabulary(record, page)
-        if record
-        else json.loads((page / "registry.json").read_text(encoding="utf-8"))
-    )
+    # refuse to serve; finding the media its documents name needs only a vocabulary,
+    # composed from the page's selection, which this Leaf reads at any protocol. Its
+    # `$layer` names the selection, whose files a document may name. A base arm from
+    # before pages composed their layer at read time vendored it.
+    if (packages := layer_packages(page)) is not None:
+        layer = {"packages": packages}
+        registry = {**selected_vocabulary(layer, page).registry, "$layer": layer}
+    else:
+        registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
     for document in documents:
         capture_artifact(
             page, SourceDocument(document), registry, read_resource=read_resource

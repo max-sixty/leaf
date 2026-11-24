@@ -14,10 +14,11 @@ is live and whether an invalid source save leaves the last valid version active.
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
 registry leaves no active document or readable vocabulary; its
-source error still remains readable. A page at a protocol this Leaf cannot
-serve (`layer.incompatible_layer`) is still read, its `source.error` the refusal
-naming `page init`: the reading gives the agent the page's context, and the error
-says not to act on it before `page init`.
+source error still remains readable. `page state` refuses a page at a protocol
+this Leaf cannot serve and names its repair, since reading the page's layer record
+refuses it (`registry.storage.layer_record`). Printing the reading anyway, with the
+refusal as `source.error`, would give the agent the page's context, but computed from
+a log this Leaf may misread.
 """
 
 from pathlib import Path

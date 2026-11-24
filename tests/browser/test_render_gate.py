@@ -252,6 +252,45 @@ def test_the_gate_names_keys_said_before_their_element_was_placed(browser, serve
     assert "bubbling, composed lf-commands event" in str(unread[0])
 
 
+# A module that leaves an attribute of its own on its element as it connects.
+MOOD_WIDGET = """
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{ this.setAttribute('mood', 'calm'); }}
+}});
+"""
+
+
+def test_the_gate_names_an_undeclared_attribute_only_where_the_schema_is_closed(
+    browser, serve
+):
+    """A module that writes an attribute its declaration doesn't name is told, since no
+    version can carry it. A declaration that opens its attribute schema admits
+    attributes it doesn't name, so the gate has nothing to say of the same write."""
+    boxes = {tag: element_declaration(tag) for tag in ("lf-shut-box", "lf-open-box")}
+    boxes["lf-open-box"]["attributes"]["additionalProperties"] = True
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            leaf_page(
+                "Boxes",
+                "<h1>Boxes</h1>"
+                + "".join(
+                    f'<{tag} id="{tag.removeprefix("lf-")}"><p>Words.</p></{tag}>'
+                    for tag in boxes
+                ),
+            ),
+            layer_registry=boxes,
+            layer_widgets={f"{tag}.js": MOOD_WIDGET.format(tag=tag) for tag in boxes},
+        ),
+        served_timeout_ms=3000,
+    )
+    undeclared = [f for f in reading.findings if f.code == "undeclared-attr"]
+
+    assert [(f.values["tag"], f.values["attr"]) for f in undeclared] == [
+        ("lf-shut-box", "mood")
+    ], reading.findings
+
+
 def _panel(name: str) -> str:
     return (
         f'<section class="lf-panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
@@ -667,11 +706,13 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) is None
     page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           window.probeOlderSettled = false;
           const work = new Promise(resolve => { window.releaseProbeOlder = resolve; });
           window.probeOlder = work.then(() => { probeOlderSettled = true; });
-          widgetController(document.getElementById('readiness')).present(work);
+          // Said from inside the widget, the work is its preparation.
+          document.querySelector('#readiness lf-new')
+            .dispatchEvent(new PendingTaskEvent(work));
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
@@ -1390,10 +1431,8 @@ def _author_stateful_verbatim_widget(tmp_path):
     declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "verbatim": True,

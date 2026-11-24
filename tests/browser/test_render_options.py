@@ -1916,11 +1916,6 @@ MARKED_OPTION_PAGE = leaf_page(
   <lf-option id="rt-stop" label="Stop at the first failure"><strong>Stop at the first failure</strong>
     <p id="rt-stop-p">A failure pages the owner at once.</p></lf-option>
 </lf-options></lf-group>
-<lf-group id="when-decision" label="When should it run?"><h2 id="when-decision-h">When should it run?</h2>
-<lf-options id="when">
-  <lf-option id="wh-night">At night, while the deploy queue is empty</lf-option>
-  <lf-option id="wh-day">During the day</lf-option>
-</lf-options></lf-group>
 """,
 )
 
@@ -1933,7 +1928,8 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     opens the comment's thread. Where the user has just selected those words, both
     gestures land in the same box, and neither is a pick: the drag's own click ended a
     selection, and the press inside the words it took is the mark's. A press on an
-    option's own pick mark still picks it.
+    option's own pick mark still picks it, on a card too, whose digit draws in the
+    mark's seat while the button is down.
 
     In both engines, because they part between a press's release and its click: Firefox
     collapses the words the press landed in before the click, Chromium after it. Read at
@@ -1959,22 +1955,21 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     picked = "el => el.hasAttribute('selected')"
 
     # An option's own mark picks it while its words stand selected: the press is the
-    # mark's, and the selection is no reason to refuse the pick it is for. A row's mark,
-    # since a card's key badge, which is drawn over its mark as the press focuses it,
-    # can take the press's mouseup in Firefox and send its click to the card.
-    night = page.locator("#wh-night")
-    night.evaluate(
-        """el => {
-          const words = document.createRange();
-          words.selectNodeContents(
-            [...el.childNodes].find((node) => node.data?.includes('night')),
-          );
-          getSelection().removeAllRanges();
-          getSelection().addRange(words);
-        }"""
+    # mark's, and the selection is no reason to refuse the pick it is for. A card's
+    # mark, whose seat its digit draws in once the press has put the user in the group.
+    # The button stays down until the digit stands there, as it does under a hand, so
+    # the release is read with the digit drawn: one the digit took would send the click
+    # to the card, which the selected words would refuse.
+    stop = page.locator("#rt-stop")
+    page.locator("#rt-stop-p").evaluate("el => getSelection().selectAllChildren(el)")
+    assert page.evaluate("() => getSelection().toString()").strip()
+    stop.locator(":scope > .lf-pick").hover()
+    page.mouse.down()
+    expect(stop.locator(":scope > .lf-key-badge")).to_have_attribute(
+        "data-lf-binding-badge", ""
     )
-    night.locator(":scope > .lf-pick").click()
-    expect(night).to_have_attribute("selected", re.compile(".*"))
+    page.mouse.up()
+    expect(stop).to_have_attribute("selected", re.compile(".*"))
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
@@ -2006,7 +2001,7 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
         e["detail"]["value"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
-    ] == [["wh-night"]], "a gesture on the option's words sent a pick"
+    ] == [["rt-stop"]], "a gesture on the option's words sent a pick"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -2392,10 +2387,8 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                 "lf-work-point": {
                     "description": "A block that can hold a local agent task.",
                     "attributes": {
-                        "type": "object",
                         "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "markup",
                 }

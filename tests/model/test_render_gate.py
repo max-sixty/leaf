@@ -10,6 +10,7 @@ import pytest
 
 from leaf import render_checks, user_views
 from leaf.findings import Finding, Rejected
+from leaf.render_gate import command as render_gate_command
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import (
@@ -19,6 +20,7 @@ from leaf.render_gate.command import (
     desktop_viewport,
     user_engine,
 )
+from leaf.validation.command import check_page
 from model.test_user_views import report
 
 
@@ -219,6 +221,44 @@ def test_page_check_json_names_only_the_gates_that_read_the_page():
     assert (quality.status, quality.json()["ran"]) == (0, [])
 
 
+def test_a_render_check_takes_no_screens_of_a_page_that_never_got_ready(
+    page_dir, monkeypatch
+):
+    """A screen is taken of a ready page. Where the render reading reports that the
+    page never got ready, opening the page for a screen would wait out the same
+    deadline again, so `page check --render` reports the finding and opens no screens.
+    A reading of a ready page gets them."""
+    stuck = Finding("not-ready", values={"stage": "arrived", "error": "never landed"})
+    readings = [
+        render_gate_model.RenderReading([], []),
+        render_gate_model.RenderReading([stuck], []),
+    ]
+    asked = []
+
+    def screens(*args):
+        asked.append(args)
+        return page_dir, []
+
+    monkeypatch.setattr(
+        render_gate_command, "run_in_browser", lambda read, engine: (read(None), "none")
+    )
+    monkeypatch.setattr(
+        render_gate_command, "render_version", lambda *args, **kwargs: readings.pop(0)
+    )
+    monkeypatch.setattr(render_gate_command, "save_screens", screens)
+
+    ready, _ = check_page(page_dir, render=True)
+    assert (len(asked), ready["status"]) == (1, 0), ready
+    assert "screens" in ready["browser"], ready
+
+    unready, _ = check_page(page_dir, render=True)
+    assert len(asked) == 1, asked
+    assert [f["code"] for f in unready["findings"] if f["severity"] == "error"] == [
+        "not-ready"
+    ]
+    assert "screens" not in unready["browser"], unready
+
+
 def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
     tmp_path, monkeypatch
 ):
@@ -371,8 +411,8 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
-        reading = render_gate_model.RenderReading([*failures, *advice], [])
-        return reading, list(notices), complete
+        reading = render_gate_model.RenderReading([*failures, *advice], [], complete)
+        return reading, list(notices)
 
     def policy(*attempts):
         left = list(attempts)
@@ -413,8 +453,12 @@ def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
     assert policy(
         attempt([error], [notice]), attempt([failed], complete=False)
     ).findings == [error, failed]
-    # Nor can an attempt that did not finish ask for one.
-    assert policy(attempt([error], [notice], complete=False)).findings == [error]
+    # The reading is still the first attempt's, which read the page through.
+    assert unread.complete
+    # Nor can an attempt that did not finish ask for one, and its reading says the
+    # page was never read through.
+    stopped = policy(attempt([error], [notice], complete=False))
+    assert (stopped.findings, stopped.complete) == ([error], False)
 
 
 def test_output_contract_failures_refuse_page_and_package_checks():

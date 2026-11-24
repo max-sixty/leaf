@@ -480,7 +480,8 @@ interface. `runtime/lib/` is that home. It holds code that keeps none of the pag
 state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
 thrown value. A function that reads the page's state, the registry or anything else
 Leaf composes into a page is not library code, and stays in its owner behind
-`widget-api.js`.
+`widget-api.js`, which gains a name only as `../packages/AGENTS.md`, "A widget's need of
+Leaf", says.
 
 - A library module imports only `/vendor/` bundles and the modules beside it, so it
   loads in a document Leaf didn't compose (lint, the library's block in

@@ -136,6 +136,7 @@ import {
   drawn,
   entryInputCount,
   focusDestination,
+  inputCount,
   readCaret,
   landAtReading,
 } from "./focus.js";
@@ -664,12 +665,14 @@ let draftReturn = null;
 // is one ordered operation under one intent, which its every step and every route it
 // starts runs under: a newer restoration, or any navigation but this document's own
 // rename, aborts it, as the platform aborts a traversal's own (`NavigateEvent.signal`),
-// and the user's own input within the entry ends it, for a route that moves no focus
-// as for one that does (`stands`; focus.js, `entryInputCount`). Until it settles, a
+// and the user's own input ends it, for a route that moves no focus as for one that
+// does (`stands`), a step Back or Forward among them, which ends a document's arrival
+// before the document handles its traversals (`mountHistory`). Until it settles, a
 // departure, the hidden page's checkpoint or the handoff of a reload Leaf asked for
 // writes the record it owes, rather than a reading of the page it is still putting
-// back (`owes`, `readRecord`, version.js `handOff`); so does the handoff such a reload
-// brings (`extras`). It settles once every piece of work it runs has (`run`), its
+// back (`owes`, `readRecord`, version.js `handOff`), unless the user's input within the
+// entry has moved them (focus.js, `entryInputCount`): the step that leaves the entry
+// still writes it. So does the handoff such a reload brings (`extras`). It settles once every piece of work it runs has (`run`), its
 // fresh thread arrival and last fragment landing among them (leaf.js), so a navigation
 // finds it to abort until the last has run, and keys held for it wait until then
 // (`settled`, version.js `installArrival`).
@@ -679,15 +682,18 @@ let draftReturn = null;
 /** @type {Restoration | null} */
 let restoring = null;
 /** @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent
- * @param {AbortSignal | null} [ended] @param {number} [since] @returns {Restoration} */
-function beginRestoration(record, intent, ended = null, since = entryInputCount()) {
+ * @param {AbortSignal | null} [ended] @param {boolean} [fromStart] the document's own
+ * arrival, which counts the user's inputs from the document's start
+ * @returns {Restoration} */
+function beginRestoration(record, intent, ended = null, fromStart = false) {
   restoring?.abort();
   const controller = new AbortController();
   const signal = ended
     ? AbortSignal.any([ended, controller.signal])
     : controller.signal;
-  const moved = () => entryInputCount() !== since;
-  const stands = () => !signal.aborted && !moved();
+  const inputs = fromStart ? 0 : inputCount();
+  const withinEntry = fromStart ? 0 : entryInputCount();
+  const stands = () => !signal.aborted && inputCount() === inputs;
   /** @type {PromiseWithResolvers<void>} */
   const settled = Promise.withResolvers();
   /** @type {Restoration} */
@@ -707,9 +713,8 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
         if (!held) settle();
       }
     },
-    // A newer navigation aborting it ends nothing it owes the entry that navigation
-    // leaves.
-    owes: () => restoring === restoration && Boolean(record) && !moved(),
+    owes: () =>
+      restoring === restoration && Boolean(record) && entryInputCount() === withinEntry,
     extras: null,
     settled: settled.promise,
   };
@@ -734,7 +739,7 @@ export function beginArrival(intent) {
     type === "reload" || type === "traverse"
       ? (/** @type {EntryRecord | undefined} */ (entry?.getState()) ?? null)
       : null;
-  return beginRestoration(record, intent, null, 0);
+  return beginRestoration(record, intent, null, true);
 }
 // The restoration under way, whose record and extras a departure writes while it owes
 // them.

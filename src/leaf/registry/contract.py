@@ -223,7 +223,7 @@ class VisualParts:
 
     def __str__(self) -> str:
         if self.all:
-            return "the registered visual inventory"
+            return "the parts the visual draws"
         if self.prefixes:
             return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
         return "no visual parts"

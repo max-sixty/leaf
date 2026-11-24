@@ -26,7 +26,6 @@ import {
   once,
   preserveReadingRegions,
   registerReadingRegion,
-  registerVisualParts,
   scrollIntoView,
   shownWindow,
   sizeObserver,
@@ -121,9 +120,12 @@ customElements.define(
         this.#reveal();
       });
 
-      this.parts = registerVisualParts(this, () =>
-        this.painter.parts().map(({ id, element, label }) => ({ id, element, label })),
-      );
+      this.lfParts = {
+        read: () =>
+          this.painter
+            .parts()
+            .map(({ id, element, label }) => ({ id, element, label })),
+      };
 
       const bar = offer("div", "film-bar");
       this.playBtn = offer("button", "film-play", "Play");
@@ -460,7 +462,7 @@ customElements.define(
       this.scrub.value = this.#t;
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
-      this.parts.update();
+      layoutChanged(this);
       this.frame = {
         chapter: fr.chapter,
         caption: fr.caption,

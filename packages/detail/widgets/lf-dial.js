@@ -119,7 +119,6 @@ import {
   phrasing,
   onPress,
   readingAt,
-  registerRootHeader,
   shownWindow,
   tabStore,
   whileConnected,
@@ -435,6 +434,9 @@ customElements.define(
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
       this.addEventListener("lf-preview-ended", this.#ended);
+      // The dial sticks at the window's top while the reader scrolls the page under it,
+      // so landings arrive below it.
+      this.toggleAttribute("data-lf-root-header", true);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -477,13 +479,7 @@ customElements.define(
         );
         const stored = tabStore.get(this.#key);
         if (stored) this.#apply(stored, { moving: false });
-        // The dial sticks at the window's top while the reader scrolls the page under
-        // it, so landings arrive below it.
-        const stopHeader = registerRootHeader(this);
-        return () => {
-          stopHeader();
-          this.#restore();
-        };
+        return () => this.#restore();
       });
     }
 

@@ -77,7 +77,6 @@ import {
   placeOf,
   openingView,
   viewMembers,
-  quoted,
   queueTitle,
   readObligations,
   readQueues,
@@ -208,7 +207,7 @@ customElements.define(
       const opening = this.#cards.find((card) => card === selected);
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       whileConnected(this, (signal) => {
         const options = { signal };
         this.addEventListener("pointerdown", (event) => this.#press(event), options);

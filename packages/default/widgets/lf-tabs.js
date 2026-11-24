@@ -107,7 +107,6 @@ import {
   preserveReadingRegions,
   pushEntry,
   registerReadingRegion,
-  registerRootHeader,
   replaceEntry,
   restorePlace,
   sizeObserver,
@@ -187,8 +186,6 @@ export class TabSet extends LeafElement {
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
   #strip = offer("div", "lf-tabstrip");
-  /** @type {(() => void) | null} */
-  #stopHeader = null;
   #side = false;
   #pageFlow = false;
   /** @type {(ReturnType<typeof backgroundFlash>) | null} */
@@ -374,8 +371,6 @@ export class TabSet extends LeafElement {
         stripSize.disconnect();
         this.#contextObserver?.disconnect();
         this.#contextObserver = null;
-        this.#stopHeader?.();
-        this.#stopHeader = null;
       };
     });
   }
@@ -669,7 +664,7 @@ export class TabSet extends LeafElement {
 
   // A page-flow strip sticks at the window's top over the whole document, so it is a
   // sticky header of the root: its border-box height joins the root landing inset
-  // through registerRootHeader, and every landing arrives
+  // through its `data-lf-root-header` mark, and every landing arrives
   // below it. What the strip stands over inside its panels stacks through `--lf-top`
   // (the package theme). A set that stops being the page's strip withdraws it only
   // where no other set has become that strip. A page's list of parts is that header
@@ -680,9 +675,7 @@ export class TabSet extends LeafElement {
     const over =
       !this.#parts || Boolean(this.#active.value && this.#listOver(this.#active.value));
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
-    if (header === Boolean(this.#stopHeader)) return;
-    this.#stopHeader?.();
-    this.#stopHeader = header ? registerRootHeader(this.#strip) : null;
+    this.#strip.toggleAttribute("data-lf-root-header", header);
   }
 
   // Whether a page's list of parts stands over the open part rather than beside it.

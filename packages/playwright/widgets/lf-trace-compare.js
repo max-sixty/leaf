@@ -17,7 +17,6 @@ import {
   once,
   openingView,
   viewMembers,
-  quoted,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -85,7 +84,7 @@ customElements.define(
         choice.value = String(index);
         // An attribute, so the theme seats it as a chooser from its first paint.
         choice.setAttribute("appearance", "button");
-        choice.disabled = quoted(this);
+        choice.disabled = this.matches("[data-lf-exhibit] *");
         choices.append(choice);
       }
       choices.value = String(this.#selected?.index ?? -1);

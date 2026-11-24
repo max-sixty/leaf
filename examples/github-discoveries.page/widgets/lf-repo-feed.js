@@ -10,7 +10,6 @@ import {
   HeldReading,
   threadActions,
   readThreads,
-  quoted,
   loadMarkdown,
   markdownReady,
   renderMarkdown,
@@ -534,7 +533,7 @@ class RepoFeed extends LeafElement {
               >
             </div>
           </details>
-          ${!quoted(this) ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
+          ${!this.matches("[data-lf-exhibit] *") ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
         </div>
       </div>
     </article>`;

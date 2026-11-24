@@ -112,8 +112,14 @@ interface Window {
     tabStore: LeafStore;
     userStore: LeafStore;
     /** The place handed to this document by the reload that loaded it (version.js). */
-    readonly handoff: { readonly url?: unknown; readonly typing?: unknown } | null;
+    readonly handoff: {
+      readonly url?: unknown;
+      readonly typing?: unknown;
+      readonly keys?: unknown;
+    } | null;
     handOff(value: unknown): boolean;
+    /** Whether the tab still keeps a handoff (version.js, `installArrival`). */
+    handoffKept(): boolean;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };

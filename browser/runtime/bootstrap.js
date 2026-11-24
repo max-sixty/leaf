@@ -392,8 +392,6 @@
     "CapsLock",
   ]);
   function holdEarlyKeys() {
-    /** @type {KeyboardEvent[]} */
-    const held = [];
     let taken = false;
     // The place a reload Leaf asked for hands this document (prepaint.js, `handoff`).
     // While it comes back a held key is no input (`holdKeys`, below). Where the user
@@ -403,6 +401,15 @@
     const { handoff } = window.lfStorage;
     const handedBack = handoff !== null;
     const typingBack = handoff?.typing === true;
+    // The run starts with the keys the document before this one held for the same
+    // place and never pressed, which it left with the handoff when it went before its
+    // arrival had put the user back (below).
+    /** @type {KeyboardEvent[]} */
+    const held = (
+      Array.isArray(handoff?.keys)
+        ? /** @type {KeyboardEventInit[]} */ (handoff.keys)
+        : []
+    ).map((init) => new KeyboardEvent("keydown", init));
     /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
     /** @type {(() => boolean) | null} */
@@ -555,6 +562,29 @@
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
+    if (held.length) beat = setTimeout(show, 150);
+    // A document that goes while the tab still keeps the handoff, its arrival not yet
+    // having put the user back (version.js, `installArrival`), as when a second reload
+    // Leaf asks for comes first, leaves its held keys with that handoff, so the next
+    // document holds them for the same place rather than losing words typed for it.
+    if (handedBack)
+      addEventListener("pagehide", () => {
+        if (!held.length || !window.lfStorage.handoffKept()) return;
+        window.lfStorage.handOff({
+          ...handoff,
+          keys: held.map(
+            ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
+              key,
+              code,
+              location,
+              shiftKey,
+              ctrlKey,
+              altKey,
+              metaKey,
+            }),
+          ),
+        });
+      });
   }
 
   // A small public-site profile separates browser upgrade from the first state

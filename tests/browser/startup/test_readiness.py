@@ -21,6 +21,7 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
+    holding,
     leaf_page,
     open_page,
     open_threads,
@@ -590,6 +591,125 @@ def restart_under_another_runtime(page, serve, answer=None):
     wait_until_ready(page)
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
+
+
+# The page interface of the first document an init script runs in, the one the first
+# reload brings, never settles (`reload_twice`).
+HOLD_SECOND_INTERFACE = """(() => {
+  const loads = Number(sessionStorage.getItem("test-loads") || 0) + 1;
+  sessionStorage.setItem("test-loads", String(loads));
+  if (loads === 1)
+    document.addEventListener("lf-page-interface", (event) =>
+      event.detail.present(new Promise(() => {})),
+    );
+})()"""
+
+
+def reload_twice(page, serve, between=None, slow=False):
+    """Two reloads Leaf asks for in a row: the tab's server restarted under another
+    Leaf (`answer_as_another_runtime`), and so did the server the document that reload
+    brings first hears from, so that document reloads too, while its arrival still
+    waits for its first answer and so before it has put the user back. `between` runs
+    while that document waits. With `slow`, that document's page interface never
+    settles (presentation.js, `settlePageInterface`), as a widget slow to upgrade holds
+    it, so its anchoring is not yet ready as it goes. Returns once the second reload
+    has landed."""
+    if slow:
+        page.add_init_script(HOLD_SECOND_INTERFACE)
+    reloads = {"count": 0}
+    replaced = {"documents": 0}
+    hold = {"on": True}
+    held = []
+
+    def navigated(frame):
+        if frame == page.main_frame:
+            replaced["documents"] += 1
+
+    def another_runtime(route):
+        if reloads["count"] >= 2:
+            route.continue_()
+            return
+        if hold["on"] and replaced["documents"] == 1 and reloads["count"] == 1:
+            held.append(route)
+            return
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+        )
+        if route.request.url.endswith("/registry.json"):
+            reloads["count"] += 1
+
+    page.on("framenavigated", navigated)
+    page.route("**/api/**", another_runtime)
+    page.route("**/registry.json", another_runtime)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "the arriving document's first answer")
+    page.wait_for_function("() => document.readyState !== 'loading'")
+    if between:
+        between()
+    hold["on"] = False
+    with page.expect_navigation(wait_until="commit"):
+        while held:
+            another_runtime(held.pop(0))
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("framenavigated", navigated)
+
+
+def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
+    """A value the user typed into the page's own form comes back after two reloads
+    Leaf asks for in a row, the second before the first's arrival has put it back,
+    while something slow to upgrade still holds back that document's anchoring. The
+    field asks the browser to keep no value of its own, so only Leaf's carry can."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    reload_twice(page, serve, slow=True)
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
+def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve):
+    """Words the user types on as the tab reloads, into the reply box they were writing
+    in, reach that box though a second reload Leaf asks for comes before the first
+    document has put the box back, as typed words survive every path (SOUL.md)."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    reply = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
+        ".lf-thread-reply leaf-text"
+    )
+    write(reply, "Hold")
+    reload_twice(page, serve, between=lambda: page.keyboard.type(" the resend"))
+    expect(reply).to_have_js_property("value", "Hold the resend")
 
 
 def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):

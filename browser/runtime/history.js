@@ -673,14 +673,14 @@ let draftReturn = null;
 // an earlier one brought the user to the entry it returns to. Until it settles, a
 // departure, the hidden page's checkpoint or the handoff of a reload Leaf asked for
 // writes the record it owes, rather than a reading of the page it is still putting
-// back (`owes`, `readRecord`, version.js `handOff`), the step that leaves the entry
-// among them. So does the handoff such a reload brings (`extras`). It settles once
+// back (`owes`, `readRecord`), the step that leaves the entry among them, and the tab
+// keeps the handoff such a reload brought (version.js, `installArrival`). It settles once
 // every piece of work it runs has (`run`), its fresh thread arrival and last fragment
 // landing among them (leaf.js), so a navigation finds it to abort until the last has
 // run, and keys held for it wait until then (`settled`, version.js `installArrival`).
 /** @typedef {{record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>,
  * abort: () => void, run: (work: () => PromiseLike<unknown>) => Promise<void>,
- * owes: () => boolean, extras: unknown, settled: Promise<void>}} Restoration */
+ * owes: () => boolean, settled: Promise<void>}} Restoration */
 /** @type {Restoration | null} */
 let restoring = null;
 /** @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent
@@ -713,7 +713,6 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
       }
     },
     owes: () => restoring === restoration && Boolean(record) && !moved(),
-    extras: null,
     settled: settled.promise,
   };
   let held = 0;
@@ -742,8 +741,7 @@ export function beginArrival() {
   const steps = inputCount() - entryInputCount();
   return beginRestoration(record, retainUserIntent({ since: steps }), null, 0);
 }
-// The restoration under way, whose record and extras a departure writes while it owes
-// them.
+// The restoration under way, whose record a departure writes while it owes it.
 export const pendingRestoration = () => restoring;
 
 // The document's arrival run as one operation: `land`, the handoff's own landing

@@ -243,8 +243,10 @@ def probe(
 
     --log FILE admits each line, one event as its writer would hand it to the
     log, after the source's own history and before the page loads, so a user's
-    message in it is still waiting for its delivery. A line may name its id for a
-    later one to answer; give the revision a message was made on:
+    message in it is still waiting for its delivery. The source's own history is
+    its STEM.jsonl companion, so a FILE of that name is admitted twice and its
+    first id fails as already existing. A line may name its id for a later one to
+    answer; give the revision a message was made on:
 
     \b
       {"kind":"comment","author":"user","revision":1,"id":"q","text":"Can the gutters wait?","anchor":{"section":"gutters"}}

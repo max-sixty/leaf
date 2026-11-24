@@ -115,9 +115,9 @@ import {
   whileConnected,
   currentLocationIn,
   commandsChanged,
-  seconds,
   actionClass,
 } from "/runtime/widget-api.js";
+import { seconds } from "/runtime/lib/time-axis.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";

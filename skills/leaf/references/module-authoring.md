@@ -32,8 +32,8 @@ long it lives across revisions. A widget's declarations are in
 
 Import behavior helpers from `/runtime/widget-api.js`, or its portable part ("A
 widget that also runs off Leaf"), and Lit's templates from `/vendor/lit.js`.
-Don't import the runtime's
-other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
+Of the runtime's other modules, import only the library's ("Shared web code"). Don't
+query Leaf's own chrome or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
 of the module `widget-api.js` re-exports it from. Every export is public for independent
 and bundled packages alike. A DOM helper takes the element it acts for as its first
@@ -45,10 +45,20 @@ argument.
 `widget-api.js` exports `signal`, for private state a command's `when` reads
 (`module-input.md`, "Command rows").
 
+### Shared web code
+
+`/runtime/lib/` is a library of web code that Leaf's runtime and its bundled packages
+share, such as the ticks of a time axis and the words for a thrown value. It is not
+part of Leaf's interface: a library module keeps none of the page's state and calls
+nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
+module works off Leaf too. Like `widget-api.js`, the library can change in any update.
+[The directory](../../../browser/runtime/lib/) lists the modules, and each module's
+header and comments say what it exports. These references describe none of them.
+
 ### A widget that also runs off Leaf
 
-A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
-`widget-api.js`. The portable helpers are
+A widget reused off Leaf imports `/runtime/portable-api.js`, which `widget-api.js`
+re-exports, and may import the library's modules too. The portable helpers are
 [that file's exports](../../../browser/runtime/portable-api.js): each loads on a page
 without Leaf, where `widget-api.js` can't. The host maps `/runtime/` and `/vendor/` to
 a Leaf install with its own import map and gives the element its drawing box. For the

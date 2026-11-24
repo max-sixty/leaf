@@ -28,7 +28,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
-import { describeFailure } from "./exception.js";
+import { describeFailure } from "./lib/exception.js";
 import { html, render } from "/runtime/framework.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { inBaseLayer } from "./base-layer.js";

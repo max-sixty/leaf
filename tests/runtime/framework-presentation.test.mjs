@@ -6,7 +6,7 @@ import {
   createPresentationSchedule,
 } from "../../browser/runtime/framework/presentation.js";
 
-import { describeFailure } from "../../browser/runtime/exception.js";
+import { describeFailure } from "../../browser/runtime/lib/exception.js";
 
 // Complete a region immediately.
 const presented = (handle) => {

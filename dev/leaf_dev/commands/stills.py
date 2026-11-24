@@ -371,7 +371,7 @@ def differences(out: Path, browser):
     so a state's unreadable image or failed crop leaves the other pairs available.
     """
 
-    # The module imports the public package API, as a widget does, so the tab answers
+    # The module imports from the runtime's library, as a widget may, so the tab answers
     # with this tree's runtime under the package's own vendored modules.
     runtime = read_runtime().source
 

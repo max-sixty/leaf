@@ -38,7 +38,9 @@ function exceptionFields(reason) {
   };
 }
 
-/** @param {unknown} reason @returns {string} */
+/** A thrown value in one line, for a failure the page shows: its message, or its name
+ * where it has no message, with the members of an `AggregateError` listed after it.
+ * @param {unknown} reason @returns {string} */
 export function describeFailure(reason) {
   return readException(() => {
     const fields = exceptionFields(reason);
@@ -49,7 +51,9 @@ export function describeFailure(reason) {
   }, UNREADABLE);
 }
 
-/** @param {unknown} reason */
+/** A thrown value's `{name, message, stack}` as plain data, which a message port
+ * carries where it would refuse the value itself.
+ * @param {unknown} reason */
 export function exceptionRecord(reason) {
   return readException(
     () => {
@@ -64,7 +68,9 @@ export function exceptionRecord(reason) {
   );
 }
 
-/** @param {unknown} reason @returns {Error} */
+/** A thrown value as an `Error`: itself where it is one, else an object that is one
+ * and carries the value's record, with no stack the value didn't have.
+ * @param {unknown} reason @returns {Error} */
 export function exceptionError(reason) {
   return readException(
     () =>
@@ -75,7 +81,10 @@ export function exceptionError(reason) {
   );
 }
 
-/** @param {unknown} reason @param {string} [context] @returns {string} */
+/** A thrown value's whole evidence, for a log or a report: its name and message, its
+ * stack, each member of an `AggregateError` and each cause behind it, under a first
+ * line of `context` and its one-line description where `context` is given.
+ * @param {unknown} reason @param {string} [context] @returns {string} */
 export function exceptionText(reason, context = "") {
   return readException(
     () => {

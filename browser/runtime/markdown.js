@@ -2,7 +2,7 @@
 // lazy because most pages contain no Markdown supplied at runtime; callers can paint
 // escaped source immediately and await this only when their own rendering needs it.
 import { opensElsewhere } from "./declared-words.js";
-import { describeFailure } from "./exception.js";
+import { describeFailure } from "./lib/exception.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { declarationFor, declaredElements } from "./registry.js";
 import { alignText } from "./text-alignment.js";

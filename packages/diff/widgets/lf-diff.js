@@ -68,6 +68,7 @@ import {
   currentLocationIn,
   commandsChanged,
 } from "/runtime/portable-api.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -975,8 +976,7 @@ function fileError(view, error) {
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  const message = error instanceof Error ? error.message || error.name : String(error);
-  box.textContent = `That file's diff cannot be shown: ${message}`;
+  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
   restore?.(header);
 }

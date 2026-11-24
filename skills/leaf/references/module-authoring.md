@@ -90,8 +90,8 @@ through events and element declarations that a plain host can ignore:
   the widget shows neither.
 - Comment targets: `data-lf-part` marks or `registerVisualParts`
   (`module-annotations.md`, "Visual parts"), which only Leaf reads.
-- Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
-  and spoken words"), which only Leaf says.
+- Words for a listener: an `lf-announce` event (`module-scroll-and-motion.md`,
+  "Notices and spoken words"), which only Leaf says.
 - State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
   there answers null.
 
@@ -369,9 +369,9 @@ the renderer needs before staging.
 On a plain host `shadowStage` stages only the renderer's content; a Leaf page supplies
 its theme, annotation support and page watches from outside the widget.
 
-Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
-the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
-stylesheet.
+Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
+sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the
+page's own stylesheet.
 
 ### Scheduling paints
 

@@ -3440,12 +3440,12 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {inBaseLayer, once, shadowStage} from '/runtime/widget-api.js';
+import {once, shadowStage} from '/runtime/widget-api.js';
 const sheet = new CSSStyleSheet();
-sheet.replaceSync(inBaseLayer(`
+sheet.replaceSync(`@layer lf-base {
   @layer library { .library { font: 18px Georgia; } }
   .own { font: 20px Georgia; }
-`));
+}`);
 customElements.define('lf-own-controls', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

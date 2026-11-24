@@ -1159,26 +1159,3 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   container-type: inline-size;
   --lf-block-frame: 1;
 }
-
-/* Board motion carries a compact card label without duplicating its live
- * controls. The motion owner sets position and travel; this face stays bounded. */
-.lf-motion-preview {
-  box-sizing: border-box;
-  max-width: 24rem;
-  max-height: 3.5rem;
-  padding: 12px;
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
-  background: var(--lf-card);
-  color: var(--lf-ink);
-  font: inherit;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  pointer-events: none;
-}
-.lf-motion-preview.lf-inhand {
-  max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
-  opacity: 1;
-  box-shadow: var(--lf-raise-2);
-}

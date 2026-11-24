@@ -333,7 +333,6 @@ Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;
 meanwhile the page applies no revision or undo. A widget whose drag moves its own nodes
 holds its drawing with `defer()` (`module-state.md`, "The widget controller").
-`motionPreview(label)` makes the image that follows the pointer.
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each

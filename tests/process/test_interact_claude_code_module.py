@@ -29,6 +29,7 @@ from leaf import event_log as events_model
 from leaf import hooks as hooks_model
 from leaf import inference as inference_model
 from leaf import leases as leases_model
+from leaf import rows as rows_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
@@ -267,7 +268,7 @@ def test_the_band_opens_a_page_from_the_keyboard(
     server = server_model.running_server(page_dir)
     assert server is not None
     url = server["url"]
-    read_result_2 = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
+    read_result_2 = rows_model.ROW.read(rows_model.row_path(page_dir))
     assert read_result_2 is not None
     title = read_result_2["row"]["title"]
     [button] = elements(band, "Button")

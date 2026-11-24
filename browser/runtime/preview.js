@@ -28,9 +28,12 @@
      for each new presentation of the document while the preview stands, so the words
      follow the page, a thread's turn or a link's place, redrawn in place with no fade
      and left as they are where they come back the same: `{name, keys, detail, list,
-     at, about, excerpt, unseen}`, every field optional (module-input.md, "Previews"). On a control its
+     at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
-     accessible name where that says more than the face should; `at` is where to stand,
+     accessible name where that says more than the face should; `keys` are presses the
+     control's own chips leave out, as a grip's activation keys or the keys of a Go-to
+     door, each the bindings of its steps, which the face spells as it spells those
+     chips (`lines`); `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `about` is what it
      is about, which it leaves in view as it does the box it stands by, as a margin
@@ -41,14 +44,14 @@
      many as the room it is held to holds, and under them the words `more(count)` gives
      for the rest, as "and 26 more threads" (`fit`), where another preview's last line
      that fits ends in an ellipsis. When what it says changes under an aim
-     that stays inside the element, as a chart's point, it says so (`previewChanged`,
-     widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
-     on the element or a finger holding it reads it; a preview the user put away stays
-     away, whatever the element declares, until they aim again. When its preview goes,
-     whatever puts it away, the pointer or focus leaving, the press after a finger's
-     hold, Escape or another target's taking its place, though not while a focus
-     reading is only suspended out of sight, the element hears `lf-preview-ended`
-     (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
+     that stays inside the element, as a chart's point, it says so (`lf-preview`,
+     lib/widget-events.js), and a standing preview redraws in place, or a pointer
+     resting on the element or a finger holding it reads it; a preview the user put
+     away stays away, whatever the element declares, until they aim again. When its
+     preview goes, whatever puts it away, the pointer or focus leaving, the press
+     after a finger's hold, Escape or another target's taking its place, though not
+     while a focus reading is only suspended out of sight, the element hears
+     `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
      `detail.declared` is what its `lfPreview` returned for the reading that ended, the
      last it returned while that preview stood, a new object for each reading, so a mark it drew for that reading, as a
      chart's ring on its point, comes off then, and one it drew for a reading it has
@@ -63,7 +66,7 @@
      element's name, or as its name where it has none. Nothing here writes or removes a
      title, so it says what its writer last wrote and names what it names. Leaf's own
      controls declare their words as `lfPreview` and write no title on Leaf (the
-     portable writers, element-markers.js and control-labels.js, write one off Leaf,
+     library's control constructors, lib/controls.js, write one off Leaf,
      where the browser's tooltip is the only reading).
    - A range with no element of its own, as a passage mark is, is its owner's to hit
      test, so the owner says where the pointer rests (`pointRange`), as often as it
@@ -137,7 +140,7 @@
    that room holds a whole line, held to it and its words fitted to it as to any room
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
    "The page holds still under the user's aim") nor cover anything. A new aim inside the
-   element it stands for (`previewChanged` with `aim`), as a chart's next point, keeps
+   element it stands for (`lf-preview` with `aim`), as a chart's next point, keeps
    its side by the new box, standing by the edge that side stands by, its bottom above
    the box and its top below or beside it, where that side's room holds the new
    reading whole, so the preview rides along the drawing on one side as the pointer
@@ -184,8 +187,9 @@
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
      a resting pointer never covers what the user reads, and nor does one a pointer
-     reaches while it carries a press, as in a drag. A tab the user leaves takes its
-     preview away.
+     reaches while it carries a press, as in a drag. A target the pointer came to
+     shows after its dwell even where it redraws under the pointer meanwhile. A tab
+     the user leaves takes its preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
      once, with no fade, where the user aimed it there by a Tab or Shift+Tab, or by a
      placement standing in for one (`step`), the cause its mover gives (focus.js,
@@ -200,7 +204,7 @@
      on demand, whatever put it there and in whatever layer, as an editor's hover key
      does, so a landing's preview stays one key away. A declaration
      that stops being true, as a grip's once its card is grabbed, says so
-     (`previewChanged`), which redraws a preview standing on focus and opens none.
+     (`lf-preview`), which redraws a preview standing on focus and opens none.
    - A screen reader hears every preview shown on focus, whatever supplied it, as the
      focused element's description (`ariaDescribedByElements`) while it stands, except a
      control's own, which says what its accessible name and `aria-keyshortcuts` already
@@ -243,9 +247,7 @@
    hit tests for its side, never the page's elements (root AGENTS.md,
    "Responsiveness"). The target a finger held wears `data-lf-touch-held` while its
    preview stands, so its surface can keep it where the finger held it (margin-layout.js,
-   `HELD`). The mark is the finger's alone: a thread's hold on an element is
-   `data-lf-held` (thread/presentation.js), and each pass that writes one clears it
-   from elements it no longer holds.
+   `HELD`).
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
    holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.
@@ -307,7 +309,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { drawnKeys } from "./keyboard/command-hints.js";
-import { advertisesKeys } from "./keyboard/bindings.js";
+import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
@@ -321,14 +323,14 @@ import {
   renderedParent,
   renderedUnder,
   under,
-} from "./shadow-tree.js";
-import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
-import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+} from "./lib/shadow-tree.js";
+import { PREVIEW, PREVIEW_ENDED } from "./lib/widget-events.js";
+import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
-import { actionClass } from "./control-faces.js";
+import { actionClass } from "./lib/control-faces.js";
 import { aimableAt, PRESSABLE } from "./widget-elements.js";
 import { MODIFIER_KEYS, PRESSES, WORKS } from "./control-selectors.js";
 import {
@@ -852,10 +854,10 @@ function lines(declared, own) {
   const keys = advertisesKeys()
     ? [
         ...new Map(
-          [...(declared?.keys ?? []), ...(own.keys ?? [])].map((steps) => [
-            steps.join(" "),
-            steps,
-          ]),
+          [
+            ...(declared?.keys ?? []).map((press) => press.map(spell)),
+            ...(own.keys ?? []),
+          ].map((steps) => [steps.join(" "), steps]),
         ).values(),
       ]
     : [];
@@ -2061,7 +2063,7 @@ function showHeld(held) {
   else hide();
 }
 
-// What `node` previews changed (`previewChanged`): a preview standing for it reads it
+// What `node` previews changed (`lf-preview`): a preview standing for it reads it
 // again where it stands, with no dwell and no fade, or goes where it now says nothing;
 // otherwise a finger holding it or one beside it reads it, and a pointer resting over
 // it after the dwell, unless the user put its preview away. Focus on it opens none for
@@ -2187,14 +2189,17 @@ export function mountPreviews(chrome) {
       if (onPreview()) return ride();
       // Something that arrives under a pointer the user hasn't moved takes it, but
       // shows nothing: the user pointed at what was there before. A pointer carrying a
-      // press, as a drag does, is acting, not reading.
+      // press, as a drag does, is acting, not reading. A target that only redraws
+      // under the pointer that came to it, as an entry's icon does, is still what the
+      // user pointed at, so the dwell their move began goes on.
       if (still || event.buttons) {
         const target = aimed();
-        if (!sameTarget(target, pointing)) {
+        const stays = sameTarget(target, pointing);
+        if (!stays) {
           pointing = target;
           pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
         }
-        clearTimeout(dwell);
+        if (!stays || event.buttons) clearTimeout(dwell);
         if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
       } else aim();
     },

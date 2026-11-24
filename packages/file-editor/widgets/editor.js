@@ -1,13 +1,9 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import {
-  setScroll,
-  langForPath,
-  leafEditorView,
-  sizeObserver,
-  syntaxNow,
-} from "/runtime/widget-api.js";
+import { langForPath, leafEditorView } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { syntaxNow } from "/runtime/lib/syntax-tokens.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   Annotation,
@@ -20,6 +16,8 @@ import {
   StateField,
   Transaction,
   EditorView,
+  ViewPlugin,
+  countColumn,
   keymap,
   lineNumbers,
   highlightActiveLineGutter,
@@ -49,15 +47,22 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from "/vendor/extensions.esm.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
 const LeafEditorView = leafEditorView(codemirror);
+// Put the editor's scroller where a file was left, unless it stands there.
+/** @param {Element} port @param {{top: number, left: number}} at */
+const placeScroll = (port, at) => {
+  if (scrollMoves(port, at)) port.scrollTo({ ...at, behavior: "instant" });
+};
 
 const theme = EditorView.theme({
   "&": { color: "var(--lf-ink)", backgroundColor: "var(--lf-card)" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
   ".cm-content": { caretColor: "var(--lf-accent)" },
-  ".cm-line": { padding: "0 .85rem" },
+  // Its wrapped rows' mark stands past this padding (`hangs`).
+  ".cm-line": { padding: "0 .85rem", "--lf-pre-line-inset": ".85rem" },
   // A line another writer changed (`written`), tinted and barred in the accent.
   ".cm-line.lf-written": {
     background:
@@ -205,6 +210,45 @@ const loadLanguage = (name) => {
   }
   return pending;
 };
+// Each line in view is a line of code whose wrapped rows hang from its indent behind a
+// mark, as a code block's are (marks.css, `[data-lf-pre-line]`), so a row a long line
+// wraps onto reads as the rest of that line: started at the editor's edge, it read as a
+// line of its own, and in YAML as a new top-level key. The line states its indent
+// (`--lf-code-indent`), which CSS can't read: its leading spaces and tabs, in the
+// columns CodeMirror counts for them.
+/** @param {EditorView} view */
+const indents = (view) => {
+  const marks = [];
+  for (const { from, to } of view.visibleRanges)
+    for (let at = from; at <= to;) {
+      const { text, from: start, to: end } = view.state.doc.lineAt(at);
+      const indent = countColumn(text, view.state.tabSize, text.search(/[^ \t]|$/));
+      marks.push(
+        Decoration.line({
+          attributes: {
+            "data-lf-pre-line": "",
+            ...(indent && { style: `--lf-code-indent: ${indent}` }),
+          },
+        }).range(start),
+      );
+      at = end + 1;
+    }
+  return Decoration.set(marks);
+};
+const hangs = ViewPlugin.fromClass(
+  class {
+    /** @param {EditorView} view */
+    constructor(view) {
+      this.decorations = indents(view);
+    }
+    /** @param {import("@codemirror/view").ViewUpdate} update */
+    update(update) {
+      if (update.docChanged || update.viewportChanged)
+        this.decorations = indents(update.view);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 // The lines the last write from elsewhere changed, such as an agent's: shown until
 // the next one replaces them, and each until the reader edits that line, so a reader
 // whose file changed under them sees where. A file's first reading marks nothing.
@@ -454,6 +498,7 @@ export function createEditor(
         }),
         editable.of(readonlyExtension()),
         EditorView.lineWrapping,
+        hangs,
         // A comparison is created with the disk version it shows and only ever moves
         // to a later one (`setConflict`); the primary editor never shows one.
         original === null
@@ -641,7 +686,7 @@ export function createEditor(
       if (!view) retained = settings;
       else {
         view.setState(settings);
-        setScroll(view.scrollDOM, scroll);
+        placeScroll(view.scrollDOM, scroll);
       }
     },
     // Put the caret at the start of line `number`, or the last line where the file is
@@ -665,7 +710,7 @@ export function createEditor(
     connect() {
       if (view) return;
       view = new LeafEditorView({ state: retained, parent });
-      setScroll(view.scrollDOM, { top: scroll.top, left: scroll.left });
+      placeScroll(view.scrollDOM, scroll);
       resize?.observe(view.scrollDOM);
     },
     disconnect,

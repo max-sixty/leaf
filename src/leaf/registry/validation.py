@@ -21,6 +21,7 @@ from .contract import (
     element_declarations,
     gathering,
     is_element_name,
+    recorded,
     registry_error,
     registry_finding,
     state_specs,
@@ -244,8 +245,7 @@ def _validate_work_role(tag: str, role: dict, entry: dict, path) -> None:
     state = role["state"]
     # No two verbs record one slot (`validate_widget_state_relations`), so one does.
     if not any(
-        spec["unit"] == "widget"
-        and spec.get("record") == {"kind": "value", "attr": state}
+        spec["unit"] == "widget" and recorded(spec) == {"kind": "value", "attr": state}
         for _, spec in state_specs(entry)
     ):
         raise registry_error("work-state", path, tag, attr=state)

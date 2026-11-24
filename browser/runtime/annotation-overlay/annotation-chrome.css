@@ -97,11 +97,15 @@
   /* Placement fits the finished thread before typing: the frame reserves the card's
      header and reply rows around the editor, and starts where the card will, so the
      card Send opens grows out of the field from that start (box-motion.js, `drawnAt`).
-     The frame stands at the card's least width (`--lf-thread-card-min`) however many
-     lines its words take, so typing never widens it; Send opens the card at the width
-     `size-width` gives its words. Where its start stands away from its text, it takes the card's width, the measure (`--lf-thread-card`) or its
-     room where that is narrower (`data-lf-card-width`; comment-placement.js,
-     `fromSubject`). Only the
+     The frame is as wide as its words' longest line, from the card's least width
+     (`--lf-thread-card-min`) to the measure (`--lf-thread-card`) or its room where that
+     is narrower, and wraps them there, so a first line widens it away from its start,
+     and the card Send opens keeps that width (thread-preview.js, `size-width`). Where
+     its placement can't widen it from the edge its words start at, it takes its widest
+     at once (`data-lf-card-width`; comment-placement.js, `widens`). So does a
+     draft that scrolls in it (`:state(overflows)`, composing/text-field.js): its editor
+     draws only the lines near what the box shows, so the longest drawn would change as
+     the reader scrolls, and so would the box's width. Only the
      field paints; the transparent rows neither take document flow nor intercept
      presses. Its tracks shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
@@ -114,7 +118,8 @@
       var(--lf-float-w, calc(100vw - 16px)),
       var(--lf-thread-card)
     );
-    width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
+    min-width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
+    max-width: var(--lf-comment-frame-max-width);
     grid-template-columns: minmax(0, 1fr);
     --lf-comment-box-h: calc(var(--lf-response-height) + 2 * var(--lf-thread-frame));
     grid-template-rows: minmax(var(--lf-comment-box-h), 1fr);
@@ -125,6 +130,10 @@
     pointer-events: none;
   }
   .lf-fab-bar[data-lf-card-width]:not(
+      [data-lf-target-only],
+      [data-lf-presentation="inline"]
+    ),
+  .lf-fab-bar:has(.lf-compose-field > leaf-text:state(overflows)):not(
       [data-lf-target-only],
       [data-lf-presentation="inline"]
     ) {
@@ -319,7 +328,7 @@
     pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
     /* The width of a card no placement has sized yet, where each selection starts;
-       placement stands it at the least width or the measure, capped by its room
+       placement stands it at the width `size-width` gives it, capped by its room
        (thread-preview.js, `measureThreadCard`). */
     width: min(var(--lf-thread-card-min), calc(100vw - 16px));
     max-height: calc(100vh - var(--lf-head-room) - 16px);

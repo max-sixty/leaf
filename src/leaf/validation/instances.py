@@ -9,6 +9,7 @@ from leaf.obligations import group_tags, shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     authored_inert,
+    body_is_data,
     is_element_name,
     matches_when,
     retirement_slots,
@@ -118,9 +119,9 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
         # Tags that name this declaration in `owners` are its admissible members
-        # under any content model. "data" takes one <pre>, or none where the markup
-        # binds the input (`inputs`) whose property is `value`, which is then the text;
-        # "members" takes element members only, and "empty" takes nothing at all.
+        # under any content model. "data" and "markdown" take one <pre>, or none where
+        # the markup binds the input (`inputs`) whose property is `value`, which is then
+        # the text; "members" takes element members only, and "empty" takes nothing.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
@@ -132,7 +133,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         )
         if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(found_at("content-empty", rec))
-        elif content == "data":
+        elif body_is_data(entry):
             others = [c for c in stray if c != "pre"]
             pres = rec["children"].count("pre")
             if pres != (0 if bound else 1) or others:

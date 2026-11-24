@@ -572,7 +572,7 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     expect(page.locator("#local leaf-text")).to_be_focused()
     rendered(page)
     page.evaluate("""async()=>{
-      const {observeQueuedWork}=await window.__lfCheckApi();
+      const {observeQueuedWork}=await window.__lfLibImport('queued-work.js');
       window.closeJobs=new Set();window.captureClose=true;
       window.stopCloseObserver=observeQueuedWork((phase,job)=>{
         if(phase==='enqueue'&&captureClose)closeJobs.add(job);
@@ -641,7 +641,7 @@ def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
 import { html } from '/vendor/lit.js';
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-draft-subject', class extends LeafElement {
   static properties = {words: {attribute: false}, key: {attribute: false}};
   constructor() {
@@ -672,12 +672,10 @@ customElements.define('lf-draft-subject', class extends LeafElement {
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
                 "attributes": {
-                    "type": "object",
                     "properties": {
                         "source": {"type": "string"},
                     },
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "inputs": {

@@ -10,13 +10,13 @@ import {
 import { coarsePointer } from "../pointer.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { closestAcross } from "../passages.js";
-import { nextRender } from "../rendering.js";
+import { nextRender } from "../lib/frame-pass.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { threadNamed } from "./state.js";
 import { threadKey } from "./model.js";
 import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
 /** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
@@ -37,13 +37,23 @@ export function focusThread(thread, cause) {
 // That choice is about clicks. A key that opens a thread in a walk, `t` or Enter on a
 // marker or Next, keeps the user on the thread to walk on. Enter on a row of Threads or
 // On Me keeps the caret in the reply instead, as a press on one does, and the floating
-// panel owns that (`focusView`). It does so because what the user
+// panel owns that (`openRow`). It does so because what the user
 // types after picking a row is an answer. Stood on the thread, after `g T` and Enter,
 // "really?" resolves the thread with `r`, moves on and opens the Command reference with
 // `?`, and Escape closes the panel in one press rather than two.
-/** @returns {"reply" | "thread"} */
-export const openingPart = () =>
-  pressLed() && !coarsePointer.matches ? "reply" : "thread";
+//
+// A thread moved between its card and the floating panel (`moved`, its key), by Open in
+// panel or Show on page, a press or `p`, opens where the user was in it: in its reply
+// while they are writing there (`replyIsEditing`), which the move carries with its
+// caret, so the words and the editing position go on; else on the thread, where the
+// panel's field shows the move's notice and its press back
+// (thread/threads-in-panel.js), which a caret in the reply would cover, and where a
+// second `p` moves it back. Words the user left in the reply stay there for `c`.
+/** @param {{moved?: string}} [options] @returns {"reply" | "thread"} */
+export const openingPart = ({ moved } = {}) => {
+  if (moved !== undefined) return replyIsEditing(moved) ? "reply" : "thread";
+  return pressLed() && !coarsePointer.matches ? "reply" : "thread";
+};
 
 /** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {

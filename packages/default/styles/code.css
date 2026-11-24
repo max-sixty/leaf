@@ -59,10 +59,9 @@ lf-code.lf-rendered > pre {
 lf-code .lf-code-line {
   display: block;
   position: relative;
-  --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
   padding: 0 var(--lf-code-inset-inline) 0
     calc(var(--lf-code-gutter) + var(--lf-code-gap));
-  text-indent: var(--lf-code-hang) hanging;
+  text-indent: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch) hanging;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

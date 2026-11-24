@@ -10,7 +10,7 @@
 
    Core registers scopes through internal `keys(el, title, rows)`; a package widget
    declares the same scope as data on its element, `lfCommands`, which this module reads
-   when the widget says it changed (`commandsChanged`, widget-upgrade.js). A module
+   when the element says it changed (`lf-commands`, lib/widget-events.js). A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; the command reference gathers their section presentations.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
@@ -38,7 +38,12 @@
    name another button while out of the page, with no write reported, and is put back
    and pressed in one task, is found by the frame after its arrival, not by that press:
    the gap a getter that queries the document has wherever its writer reports nothing. */
-import { focusDestination, focusRevision, followingFocus } from "../focus.js";
+import {
+  focusDestination,
+  focusRevision,
+  followingFocus,
+  onCurrentLocation,
+} from "../focus.js";
 import {
   AsyncDirective,
   PartType,
@@ -73,12 +78,13 @@ import {
   isElement,
   composedParentNode,
   renderedParent,
-} from "../shadow-tree.js";
+} from "../lib/shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
-import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
+import { COMMANDS } from "../lib/widget-events.js";
+import { reportFailure } from "../lib/failure.js";
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandRoute} CommandRoute
@@ -497,11 +503,8 @@ const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 /** @param {Scope} scope */
 export const scopeIdentity = (scope) => scope.identity ?? scope;
-/** @param {unknown} capability @returns {capability is CommandCapability} */
-export const isCommandScope = (capability) =>
-  capability != null &&
-  (typeof capability === "object" || typeof capability === "function") &&
-  commandScopeCapabilities.has(capability);
+/** @param {object} capability @returns {capability is CommandCapability} */
+const isCommandScope = (capability) => commandScopeCapabilities.has(capability);
 // Context aliases are their own scope so native text entry always precedes them,
 // even when the original declaration is attached to the exact editor. They remain
 // references to that attachment, not copied handlers or a second command inventory.
@@ -776,7 +779,7 @@ function declaredScope(title, rows, options) {
       `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
     );
   // `claims` takes the bindings it answers true for from every scope further out
-  // while the user is in this one, as a menu standing over the page does.
+  // while the user is in this one, as a view of the floating panel does.
   return {
     title,
     rows: checked(rows, title ?? "a scope", ready),
@@ -802,8 +805,8 @@ export function keys(where, ...declaration) {
 // one reading of this element alone, so an unchanged render costs that one element.
 // Removing the directive withdraws only its own attachment, including when Lit keeps
 // the element. Temporary disconnection restores that declaration on reconnection. Rows
-// that read the element at their current location, as a disclosure's toggle does, come as a function
-// of it, called on each render, since the template declaring them renders that element.
+// that read the element they stand on come as a function of it, called on each render,
+// since the template declaring them renders that element.
 export const commandsOn = directive(
   class extends AsyncDirective {
     #reconnect = () => {};
@@ -853,20 +856,46 @@ export const commandsOn = directive(
 );
 
 // A package widget's keys are data on the element they apply in, `lfCommands`: the
-// scope's title, rows and options as `keys` takes them, or a `commandScope()` value. The
-// widget says when it sets or changes them, or anything its rows read, with
-// `commandsChanged` (widget-upgrade.js), so a page without Leaf, which hears nothing,
-// binds no key. A declaration other than the one standing stands in its place, and none
-// withdraws it; the same one standing means a row's reading moved, so the element
-// reads its rows again (`mark`), and so does every reader of the register's
-// availability. A malformed declaration is refused where the widget made it, as `keys`
-// refuses one: the refusal goes back on the event, and `commandsChanged` throws it.
+// scope's title, rows and options as `keys` takes them, in one object (`statedScope`).
+// The element says when it sets or changes them, or anything its rows read, with an
+// `lf-commands` event it dispatches on itself (`COMMANDS`, lib/widget-events.js), so a
+// page without Leaf, which hears nothing, binds no key. The element is the one the event
+// began at, read off its path, since the window sees a shadow host as the target of an
+// event from inside its root; a closed root hides the element, and its host is read in
+// its place. A declaration other than the one standing stands in its
+// place, and none withdraws it; the same one standing means a row's reading moved, so
+// the element reads its rows again (`mark`), and so does every reader of the register's
+// availability. An element that says it drew (`detail.within`) has every scope at or
+// under it read its rows again instead (`paintKeysWithin`), since what they read from
+// the nodes it drew may have changed. A malformed declaration is refused as `keys`
+// refuses one, and since a listener's exception never reaches the element that
+// dispatched, the refusal is reported as that element's failure.
+//
+// Nothing hears an element that says its keys before it is placed, and they bind
+// nothing. Reading the property where it is needed instead would find it for a key,
+// along the key's path, but a declaration also acts before any key arrives, wherever
+// the user is: it wires the buttons its rows name and shows their availability, and
+// writes the element's `aria-keyshortcuts`; and the command reference lists every
+// scope in the page. Those need each declaration as it is made, and a property is
+// found only by a walk. Reading it as each element arrives would be such a walk on
+// every page at every mutation, and would still leave a later change to be said. So
+// the element says it, and the render check walks once for one never heard
+// (`commandsUnread`).
 const declared = new WeakMap();
+/** @type {WeakSet<Element>} */
+const heard = new WeakSet();
+/** Whether `element` holds an `lfCommands` this module never read.
+ * @param {Element} element */
+export const commandsUnread = (element) =>
+  element.lfCommands != null && !heard.has(element);
 addEventListener(COMMANDS, (event) => {
-  const element = commandsChangedOn(event);
+  const [element] = event.composedPath();
+  if (!(element instanceof Element)) return;
   const declaration = element.lfCommands ?? null;
+  if (declaration !== null) heard.add(element);
   const standing = declared.get(element);
   if (declaration === (standing?.declaration ?? null)) {
+    if (event.detail?.within) return paintKeysWithin(element);
     if (standing) mark(element);
     availabilityDirty = true;
     repaint();
@@ -878,17 +907,23 @@ addEventListener(COMMANDS, (event) => {
     return;
   }
   try {
-    const scope = attachScope(
-      element,
-      isCommandScope(declaration)
-        ? declaration.scope
-        : declaredScope(declaration.title, declaration.rows, declaration),
-    );
+    const scope = attachScope(element, statedScope(declaration).scope);
     declared.set(element, { declaration, scope });
   } catch (error) {
-    refuseCommands(event, error);
+    reportFailure(element, error);
   }
 });
+
+// One scope wherever it stands: every attachment and projection of a capability
+// shares its identity, so the scopes around a place count its commands once.
+/** @param {Scope} declaration @returns {CommandCapability} */
+function capabilityOf(declaration) {
+  const capability = Object.freeze({
+    scope: { ...declaration, identity: Object.freeze({}) },
+  });
+  commandScopeCapabilities.add(capability);
+  return capability;
+}
 
 /** Declare a command scope that presentation owners attach to generated controls.
  *
@@ -898,13 +933,33 @@ addEventListener(COMMANDS, (event) => {
  */
 /** @param {string | null} title @param {readonly Command[]} rows @param {ScopeOptions | (() => boolean)} [options] */
 export function commandScope(title, rows, options) {
-  const scope = {
-    ...declaredScope(title, rows, options),
-    identity: Object.freeze({}),
-  };
-  validateRows(scope.rows, title ?? "a scope");
-  const capability = Object.freeze({ scope });
-  commandScopeCapabilities.add(capability);
+  const capability = capabilityOf(declaredScope(title, rows, options));
+  validateRows(capability.scope.rows, title ?? "a scope");
+  return capability;
+}
+
+// A package states a scope as data, an object holding its title, rows and options, and
+// gives that object wherever the scope applies: as the `lfCommands` of each element it
+// stands on, and as the `scope` of a margin entry Leaf draws for it. The object is the
+// scope, so the capability built from it is kept by the object, for good: a draft and
+// its editor holding one object share one set of commands, an entry that names the
+// object projects the commands its widget declared, and an object withdrawn and given
+// again is the scope it was. The rows are checked as written when the object is first
+// given. What they mean now is read where each attachment or projection is first
+// painted, as for `keys`, and not here as `commandScope` reads it: an element says its
+// keys as it upgrades, which can be before the state its rows read is set.
+/** @type {WeakMap<object, CommandCapability>} */
+const stated = new WeakMap();
+/** @param {NonNullable<Element["lfCommands"]> | CommandCapability} declaration @returns {CommandCapability} */
+export function statedScope(declaration) {
+  if (isCommandScope(declaration)) return declaration;
+  let capability = stated.get(declaration);
+  if (!capability) {
+    capability = capabilityOf(
+      declaredScope(declaration.title, declaration.rows, declaration),
+    );
+    stated.set(declaration, capability);
+  }
   return capability;
 }
 
@@ -1068,9 +1123,39 @@ export function reflectFirstScopes() {
 // every element, and `paintKeysWithin(root)` the ones a renderer's paint touched. A
 // publication that moves nothing an element read, and no renderer whose output it reads,
 // leaves its reflection as it is.
+//
+// A package's rows ask the browser where focus is, as a tree's `activeElement`, which
+// no signal tracks. So each change in where the user is also marks the scoped elements
+// around the node they left and around the one they reached (`markAroundMove`): the
+// scopes on those paths, never the page's. The scopes around a node are also kept from
+// when the user arrived on it, since a change that takes the node out of the page, as a
+// drop does, takes the climb to them with it.
 let keysDirty = true;
 /** @type {Set<Element>} */
 const dirtyElements = new Set();
+/** @param {Node | null} node */
+function scopesAround(node) {
+  /** @type {Element[]} */
+  const found = [];
+  for (let at = node; at; at = renderedParent(at))
+    if (isElement(at) && scopeRefFor.has(at)) found.push(at);
+  return found;
+}
+/** @type {WeakRef<Element>[]} */
+let aroundArrival = [];
+/** @param {Element | null} node @param {unknown} _cause @param {Element | null} left */
+function markAroundMove(node, _cause, left) {
+  const around = scopesAround(node);
+  const marks = [
+    ...aroundArrival.map((ref) => ref.deref()),
+    ...scopesAround(left),
+    ...around,
+  ];
+  aroundArrival = around.map((scoped) => new WeakRef(scoped));
+  for (const scoped of marks) if (scoped) mark(scoped);
+  if (marks.length) repaint();
+}
+onCurrentLocation(markAroundMove);
 /** @type {WeakMap<Element, () => void>} */
 const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. A command may name a

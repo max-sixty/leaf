@@ -24,8 +24,11 @@ from render_harness import (
     wait_for_revision,
 )
 
+from browser.threads import open_panel_thread
+from browser.widgets import hear_walks, walks_said
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 ROOT_TABS_PAGE = named_source("root-tabs")
@@ -1198,10 +1201,13 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
         first.getBoundingClientRect().top - strip.getBoundingClientRect().top + 10;
     }""")
     page.get_by_role("tab", name="Ticket 11").focus()
+    hear_walks(page)
     page.keyboard.press("ArrowUp")
     expect(page.get_by_role("tab", name="Ticket 10")).to_have_attribute(
         "aria-selected", "true"
     )
+    # The step said its place in the queue to the page.
+    assert walks_said(page) == ["Tab 11 of 30"]
     page.wait_for_function("""() => {
       const strip = document.querySelector('#queue > .lf-tabstrip');
       const band = strip.getBoundingClientRect();
@@ -1688,6 +1694,46 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         page.evaluate("window.navigation.transition?.finished")
         scroll_settled(page)
         assert page.evaluate("scrollY") == pytest.approx(offset, abs=2)
+
+
+def test_back_to_another_view_with_a_thread_returns_to_both(browser, serve):
+    """Back to an entry in another root view, where a thread stood open, opens the
+    thread again and returns to that view where the user had read it to: the tab set
+    and the thread each restore their part of the entry."""
+    body = '<h1>Views</h1><p>Shared context.</p><lf-tabs id="views" list="side">'
+    body += "".join(
+        f'<lf-tab id="view-{name.lower()}" label="{name}">'
+        + "".join(
+            f"<p>{name} paragraph {i}. Reading continues here.</p>" for i in range(180)
+        )
+        + "</lf-tab>"
+        for name in ("A", "B")
+    )
+    body += "</lf-tabs>"
+    url = serve(leaf_page("Reading views", body))
+    root = panel_comment(serve.page_dir, "About the whole page.")
+    page = open_page(browser, url)
+    resized(page, 1600, 1000)
+    a = page.get_by_role("tab", name="A", exact=True)
+    b = page.get_by_role("tab", name="B", exact=True)
+    open_panel_thread(page, root)
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    page.evaluate("scrollTo({top: 3000, behavior: 'instant'})")
+    scroll_settled(page)
+    # Keys, not presses: a press on the page would put the thread away first.
+    a.focus()
+    page.keyboard.press("ArrowDown")
+    expect(b).to_have_attribute("aria-selected", "true")
+    expect(thread).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(a).to_have_attribute("aria-selected", "true")
+    expect(thread).to_be_visible()
+    page.evaluate("window.navigation.transition?.finished")
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(3000, abs=2)
 
 
 def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(

@@ -44,11 +44,13 @@ import { runtime } from "./context.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
-import { el, offerAction, responseAction } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { responseAction } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
+import { offerAction } from "./lib/controls.js";
+import { keeps } from "./lib/keeps.js";
 
 import { elementById } from "./passages.js";
-import { addressableWord } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce } from "./notifications.js";
 import { claimsEsc, keys } from "./keyboard/scopes.js";
@@ -66,11 +68,9 @@ import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
 import {
-  PRESS,
   cycledRow,
   hasRows,
   nativePress,
-  rowArrows,
   savedReadingSettled,
 } from "./keyboard/bindings.js";
 import { anchorLabel } from "./thread/messages.js";
@@ -80,6 +80,7 @@ import { effect, untracked } from "/runtime/framework.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
+import { PRESS, rowArrows } from "./lib/keys.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor
  * @typedef {ReturnType<typeof import("./composing/surface.js").createResponseSurface>} ResponseSurface

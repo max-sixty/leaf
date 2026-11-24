@@ -13,7 +13,7 @@
 // One liberty: MIN_RUN is 6 rather than 32, and the short-slice path (len <= 64: plain
 // insertion sort) is not taken, so a 40-element slice shows the run and merge structure.
 
-import { keeps, keepsText } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 export const N = 40;
 const MIN_RUN = 6;

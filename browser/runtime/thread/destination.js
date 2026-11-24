@@ -1,8 +1,25 @@
 /* Core Thread destinations and held identity.
 
+   Where a thread about a passage opens is the user's choice (threads-in-panel.js):
+   beside its passage, as a card, until they choose the floating panel with a card's
+   Open in panel, and in the panel until its Show on page chooses cards again. Every
+   route that names no reader follows the choice: `t` and Shift+t, a press on a
+   passage's mark, a row of the panel's lists, the next thread a Resolve there moves on
+   to, a link naming the thread, Page Map, and a return to the thread, as taking back a
+   settlement does (undo.js). The user chose the two places and the two presses that
+   switch between them, with cards the default, and adopted a review's rules for the
+   rest: the placements Leaf forces (below) never change the choice; a route that
+   moves the page into the panel still brings the thread's passage into view (below);
+   the choice lasts for the tab, and its two presses say so; and `t` from a thread in
+   the panel stays there. That last rule needs no code of its own: under the panel
+   choice every route opens a thread there, and under the cards choice only a forced
+   placement puts a passage's thread in the panel, from which `t` goes on to the next
+   thread's card.
+
    A registered primary reader is asked first. Its `open(key, request)` may decline,
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
-   passage, which opens beside its passage. A message whose widgets the primary holds
+   passage under the cards choice, which opens beside its passage, and takes it under
+   the panel's (floating-panel.js, `reveal`). A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
    primary declined uses the page's nearest drawing of its thread: the outlet a widget
    seats it in (surfaces.js, `surfaceFocusTarget`), whose Resolved disclosure opens for
@@ -10,20 +27,53 @@
    part lands on its message there. Where neither shows it, the primary is asked again
    with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
-   second refusal leaves the thread unopened. That is every thread about a passage on a
-   window with no room for the rail, where no margin card stands (margin-projection.js,
-   the user's choice). The primary holds such a thread only until
+   second refusal leaves the thread unopened. These are the placements Leaf forces,
+   whatever the user chose: a resolved thread, which no card draws; one whose passage
+   the page doesn't draw; and every thread about a passage on a window with no room for
+   the rail, where no margin card stands (margin-projection.js, the user's choice). A
+   thread about the whole page always opens in the panel, which never declines one. The
+   primary holds a forced thread only until
    the page can draw it again, as when a wider window brings the rail, or shows the
    passage a narrow one hid: once a thread pass has drawn every surface, it goes back to
    the page, and the user in it goes with it, a reply they are writing carried with its
-   caret and undo history (`returnToPage`). A route to the page alone
+   caret and undo history (`returnToPage`), though only under the cards choice, since
+   under the panel's the page draws no card (margin-projection.js, `showPreview`). A
+   route to the page alone
    (`reader: "page"`), Show on page's and that return, asks the primary only to put its
-   view away once the page shows the thread; where the page shows the thread's place but
+   view away once the page shows the thread (`request.page`), which the floating panel
+   does under either choice; where the page shows the thread's place but
    no view of it, a route that travels lands on the place. A route to the primary alone
-   (`reader: "primary"`) returns the user to a thread they had there, as taking back a
-   settlement made there does (undo.js): nothing else shows the thread on it, so the
-   primary is asked as the last resort is, and keeps the thread once the page could draw
-   it. A thread about an element an agent sent
+   (`reader: "primary"`) returns the user to a thread they had there, as a live revision
+   carrying the panel's view across does (floating-panel.js, `restoreCurrentLocation`):
+   the primary is asked as the last resort is, and keeps the thread once the page could
+   draw it, unless it holds it already as a placement Leaf forced (below). A route to a
+   card (`reader: "card"`) returns the user to a thread they had read beside its
+   passage, as Back to such an entry does (thread/address.js): it opens
+   as a route under the cards choice does, whatever the choice now, the card standing
+   where it can and the placements Leaf forces taking the thread where it can't. A
+   route to where a thread stands (`reader: "standing"`) takes the reader of the view
+   that shows the thread: the primary where its view does, the page's (`"card"`) where
+   a card or a widget's seat does, and none where nothing shows it, which then follows
+   the choice. It reads that from the drawing of the thread itself, not of the part
+   asked for, which may stand folded inside it; the route then goes as one to that
+   reader does, revealing the part and recording the trip as every route does. A draft's
+   return fills the box of the view the entry's return opened (history.js), and a
+   reload's hand-back of the reply being written the box of the view the user writes in
+   (version.js), so neither moves the thread to where the choice says once the entry's
+   record has said where the user stands. A route that asks the primary for a thread it
+   already holds leaves the reason it holds it, which belongs to the placement rather
+   than the route: one Leaf placed there still goes back to the page once it can.
+
+   A route that travels into the primary brings the thread's passage into view as well
+   as the primary's view of it (`taken`): nearest, in the room the floating panel's view
+   leaves (geometry.js, `landingInsets`), and not at all where the passage already
+   shows. Its departure counts as moving the page only where the passage is out of
+   view. Without the landing, a thread in the panel stands apart from the words it is
+   about, where comparable products scroll the document to a comment's place. A route
+   that doesn't travel, as a press on the passage's words, moves the page only where the
+   view now stands over the passage, as far as brings it clear, as a freshly opened card
+   may scroll to open clear of its target (browser/AGENTS.md, "A box floating over the
+   page grows inside the window"). A thread about an element an agent sent
    in a message has no drawing beside its subject: `openThreadSubject` opens that
    message and lands on the element there.
    A route shows one thread at a time: the primary taking a thread closes the page's
@@ -74,8 +124,7 @@ import { showHeld } from "./held-news.js";
 import { surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
-import { closestAcross } from "../passages.js";
-import { renderedUnder } from "../shadow-tree.js";
+import { renderedUnder, closestAcross } from "../lib/shadow-tree.js";
 import { deleted, discussed, editable } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
@@ -86,7 +135,7 @@ import { awaitsDrawing } from "../anchor-resolution.js";
 /** @typedef {NonNullable<ReturnType<typeof threadNamed>>} ThreadRecord */
 /** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
 /** @typedef {{part: ThreadPart, message: string | null, focus: boolean,
- * last: boolean, signal: AbortSignal, current: () => boolean}} PrimaryRequest */
+ * last: boolean, page: boolean, signal: AbortSignal, current: () => boolean}} PrimaryRequest */
 /** @typedef {(key: string, request: PrimaryRequest) => boolean | void | PromiseLike<boolean | void>} OpenPrimary */
 /** @typedef {{owner: Element, open: OpenPrimary,
  * reader: ReturnType<typeof import("./primary-reader.js").createPrimaryReader>}} Presentation */
@@ -217,7 +266,7 @@ export function createThreadDestinations({
   /** @typedef {{part?: "thread" | "reply" | "message" | null,
    * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
    * intent?: ReturnType<typeof retainUserIntent>, origin?: ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>,
-   * reader?: "page" | "primary" | null}} OpenThreadOptions */
+   * reader?: "page" | "primary" | "card" | "standing" | null}} OpenThreadOptions */
   /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(
     id,
@@ -234,7 +283,17 @@ export function createThreadDestinations({
   ) {
     if (!intent()) return null;
     part ??= openingPart();
+    if (reader === "standing") {
+      const shown = threadFocusTarget(id, { part: "thread" });
+      reader =
+        !shown || !presented(shown)
+          ? null
+          : presentation?.owner.isConnected && renderedUnder(shown, presentation.owner)
+            ? "primary"
+            : "card";
+    }
     const page = reader === "page";
+    const card = reader === "card";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
     const navigationStep = travel && scroll;
     // The return place, read before any reader is asked (the header).
@@ -263,6 +322,7 @@ export function createThreadDestinations({
         ...addressedPart(thread, id, part),
         focus,
         last,
+        page: page || card,
         signal: abort.signal,
         current: () =>
           !abort.signal.aborted &&
@@ -276,8 +336,12 @@ export function createThreadDestinations({
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
+      // A thread the primary already holds keeps the reason it holds it (the header).
+      const holds = selected.reader
+        .destination(thread.key, { part: "thread" })
+        ?.checkVisibility();
       if (resort) lastResort.add(thread.key);
-      else lastResort.delete(thread.key);
+      else if (!holds) lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
       if (result === false) lastResort.delete(thread.key);
       // A reader that declines at once is answered at once, so the page's own drawing
@@ -312,6 +376,17 @@ export function createThreadDestinations({
           await whileCurrent(reveal(destination, intent).ready);
           return mayPresent() ? destination : null;
         }
+        // The user lands in the reader's view at once. The page then brings the
+        // thread's passage into view, as travel to its card does (anchor-travel.js,
+        // `scrollToThread`): after a route that travels, wherever the passage is, the
+        // widget holding it drawing it; after one that doesn't, as a press on the
+        // passage, only where the page draws it, so a passage the view opened over comes
+        // clear of it. Focus stays in the view (the header). The route's departure is
+        // planned on the view, a Back step where the user lands in a thread they weren't
+        // in (anchor-travel.js, `prepareNavigationStep`), and planned again by where the
+        // passage's landing puts the passage. It commits once the last landing is
+        // reached, so a thread with no passage on the page, one about the whole page or
+        // one whose passage a revision removed, is a step as well.
         departure?.plan(destination);
         const reached = await whileCurrent(
           arrive(
@@ -325,10 +400,24 @@ export function createThreadDestinations({
                 }
               );
             },
-            { intent: arriving, departure },
+            { intent: arriving },
           ),
         );
-        return reached ? selected.reader.destination(thread.key, request) : null;
+        if (!reached) return null;
+        if (thread.anchor && (navigationStep || (scroll && placeDrawn(thread.id))))
+          await whileCurrent(
+            scrollToThread(thread.id, {
+              part: null,
+              focus: false,
+              intent: arriving,
+              departure,
+              block: "nearest",
+              drawn: !navigationStep,
+            }),
+          );
+        if (!mayPresent()) return null;
+        departure?.commit();
+        return selected.reader.destination(thread.key, request);
       }
     }
     // The page's own drawings of the thread: its outlet or seat, a preview. Its
@@ -405,7 +494,7 @@ export function createThreadDestinations({
       const invocation = { opened: null };
       if (preview && (!place || placeDrawn(id)))
         intent.handoff(() => {
-          invocation.opened = preview.open(id, { origin });
+          invocation.opened = preview.open(id, { origin, card });
         });
       const opened = invocation.opened;
       if (opened) {
@@ -576,15 +665,27 @@ export function createThreadDestinations({
   // message where a message part lands (`message-edit.js`).
   // Landed on the thread instead, a long one's landing on its latest turn took the view
   // away from a rewrite it had just opened higher up.
-  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent */
-  async function openThreadDraft(context, intent) {
+  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent
+   * @param {{travel?: boolean}} [options] */
+  async function openThreadDraft(context, intent, { travel = true } = {}) {
     const route = threadDraft(context);
     if (!route) return null;
     const { part, name } = route;
     const thread = threadNamed(name);
     if (!thread) return null;
-    if (part === "reply") return openPageThread(thread.id, { part: "reply", intent });
-    const landed = await openPageThread(name, { part: "message", intent });
+    if (part === "reply")
+      return openPageThread(thread.id, {
+        part: "reply",
+        intent,
+        travel,
+        reader: "standing",
+      });
+    const landed = await openPageThread(name, {
+      part: "message",
+      intent,
+      travel,
+      reader: "standing",
+    });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }
@@ -608,21 +709,18 @@ export function createThreadDestinations({
     openThreadDraft,
     returnToPage,
     // Whether the page shows the thread `key` names, or at least its place, so a route
-    // to the page alone has somewhere to go: false only for a thread the primary holds
-    // as the last resort while the page draws its place nowhere.
+    // to the page alone has somewhere to go: false for a thread whose passage no longer
+    // resolves, and for one the primary holds as the last resort while the page draws
+    // its place nowhere.
     showsOnPage: (/** @type {string} */ key) => {
-      const thread = lastResort.has(key) ? threadNamed(key) : null;
-      return !thread || placeDrawn(thread.id);
+      const thread = threadNamed(key);
+      if (!thread) return true;
+      return lastResort.has(key)
+        ? placeDrawn(thread.id)
+        : threadTarget(thread.id) !== null;
     },
     holdsThreadDraft: (/** @type {string} */ context) =>
       Boolean(threadHolding(context)),
-    // The reader drawing `node`, as a route's `reader` names it: "primary" for a node
-    // the primary's presentation holds, else null, which leaves the route its default.
-    // A route asked with it returns the user to the reader they had the thread in.
-    readerOf: (/** @type {Node} */ node) =>
-      presentation?.owner.isConnected && renderedUnder(node, presentation.owner)
-        ? /** @type {const} */ ("primary")
-        : null,
     threadFocusTarget,
     threadHere,
     threadAtCurrentLocation,

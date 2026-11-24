@@ -163,17 +163,13 @@
     <script type="module">
       import {
         frameFor,
-        generatedElement,
-        keeps,
-        keepsText,
-        layoutChanged,
-        offer,
-        offerAction,
-        once,
-        sizeObserver,
         whileConnected,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
+      import { offer, offerAction } from "/runtime/lib/controls.js";
+      import { once } from "/runtime/lib/once.js";
+      import { sizeObserver } from "/runtime/lib/frame-pass.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const DEFAULT_COMPARISON = {
         candidateA: { density: "compact", wrap: false },
@@ -218,8 +214,10 @@
             // Each candidate's title and measurement are this module's words.
             for (const words of this.querySelectorAll(
               ".code-candidate-title, .code-measurement",
-            ))
-              generatedElement(words, { says: true });
+            )) {
+              keeps(words, "data-lf-gen", "1");
+              words.toggleAttribute("data-lf-said", true);
+            }
           }
 
           #connect(signal) {
@@ -297,7 +295,9 @@
                 `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
               );
             }
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           });
         },
       );

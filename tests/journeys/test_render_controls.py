@@ -10,7 +10,7 @@ from browser.controls import (
     RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
 )
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
@@ -580,7 +580,9 @@ RING_SCOPE_THREAD = {
 
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
-    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded."""
+    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded, with
+    the panel chosen for threads about a passage."""
+    choose_threads_in_panel(page)
     show_resolved(page)
     keys = page.locator(".lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.lfKey)"
@@ -2339,6 +2341,12 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
         window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
+    # The host gives the frame its page's height; the module that mounted it sets none.
+    wait_until_ready(page)
+    mounted = page.locator("iframe").last.content_frame
+    assert page.evaluate("practiceFrame.clientHeight") == mounted.locator(
+        "body"
+    ).evaluate("body => Math.ceil(body.getBoundingClientRect().height)")
     previous = page.evaluate(
         "new URL(practiceFrame.src).origin + new URL(practiceFrame.src).pathname"
     )

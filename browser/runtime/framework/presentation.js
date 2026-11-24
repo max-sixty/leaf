@@ -296,33 +296,6 @@ export function createPresentationSchedule(bindJob) {
   /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
-  /** Queue a native renderer, separating its scheduling return from committed DOM.
-   * @param {() => readonly PromiseLike<unknown>[]} after
-   * @param {() => unknown} run
-   * @param {() => PromiseLike<unknown>} committed
-   */
-  function enqueue(after, run, committed) {
-    /** @type {PromiseWithResolvers<void>} */
-    const completion = Promise.withResolvers();
-    /** @type {PromiseWithResolvers<void>} */
-    const dom = Promise.withResolvers();
-    collect(after, async () => {
-      try {
-        await run();
-        // Release Lit's scheduleUpdate before awaiting its updateComplete: Lit
-        // completes the native update only once this callback has returned.
-        completion.resolve();
-        await committed();
-        dom.resolve();
-      } catch (error) {
-        completion.reject(error);
-        dom.reject(error);
-        throw error;
-      }
-    });
-    return Object.freeze({ ready: completion.promise, committed: dom.promise });
-  }
-
   /**
    * @template Value
    * @param {{
@@ -394,5 +367,5 @@ export function createPresentationSchedule(bindJob) {
     return Object.freeze({ sync, committed: () => dom.promise, disconnect });
   }
 
-  return Object.freeze({ presenter, enqueue, passed });
+  return Object.freeze({ presenter, passed });
 }

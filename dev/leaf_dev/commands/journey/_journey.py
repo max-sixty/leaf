@@ -206,12 +206,12 @@ class Session(NamedTuple):
 
 
 def still_answering(state: dict, event_id: str) -> bool:
-    """Whether the page's `activity` says a turn is working while the comment's own
-    obligation is still on the agent, which a wall clock cannot tell."""
+    """Whether the page's `activity` says a turn is at work, or held on a dialog in
+    its own window, while the comment's own obligation is still on the agent, which
+    a wall clock cannot tell."""
     activity = state.get("activity") or {}
-    return activity.get("kind") == "working" and f"update:{event_id}" in (
-        activity.get("obligations") or ()
-    )
+    at_work = activity.get("state") == "running" or activity.get("reason") == "terminal"
+    return at_work and f"update:{event_id}" in (activity.get("obligations") or ())
 
 
 class TurnReading(NamedTuple):
@@ -254,7 +254,7 @@ class AgentProfile:
 
     def observe(self, state: dict) -> None:
         activity = state.get("activity") or {}
-        reading = (activity.get("kind") or "unknown", activity.get("detail") or "")
+        reading = (activity.get("state") or "unknown", activity.get("detail") or "")
         if self.activities and self.activities[-1][1:] == reading:
             return
         self.activities.append((time.monotonic() - self.started, *reading))
@@ -310,8 +310,8 @@ def agent_profile(profile: AgentProfile, milestones: dict) -> dict:
         },
         "responseShownBy": profile.visible_reply_by,
         "activity": [
-            {"atMs": at * 1000, "kind": kind, "detail": detail}
-            for at, kind, detail in profile.activities
+            {"atMs": at * 1000, "state": state, "detail": detail}
+            for at, state, detail in profile.activities
         ],
     }
 
@@ -335,7 +335,7 @@ def check_turn_answered(
     that never names the marker."""
     state, published, replies, answer = turn
     tried = f" to {asks} asks" if asks > 1 else ""
-    reading = (state.get("activity") or {}).get("kind") or "no activity"
+    reading = (state.get("activity") or {}).get("state") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
     published = check(
         published,
@@ -923,10 +923,11 @@ class Terminal:
             claimed(page)["turn"] == turn,
             "escape: a turn opened after Escape with no new input",
         )
-        reading = activity(page)
+        presence, state = activity(page)
         require(
-            reading == "listening",
-            f"escape: the page reads {reading}, not listening, after Escape",
+            presence == "here" and state in {"waiting", "done"},
+            f"escape: the page reads {presence} and {state}, not here and idle, "
+            "after Escape",
         )
         stayed = turn_open(page_claim(page), turn)
         user.comment("escape")

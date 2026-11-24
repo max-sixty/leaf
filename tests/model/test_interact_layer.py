@@ -75,7 +75,11 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
-from leaf.registry.contract import DECLARED_WORDS, stamp_grammars
+from leaf.registry.contract import (
+    DECLARED_WORDS,
+    complete_declarations,
+    stamp_grammars,
+)
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
@@ -302,38 +306,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
-    """A process the session started before its plugin updated still runs the older
-    Leaf, and must not take the page back to it: the newer Leaf's next hook would
-    re-vendor it up again, reloading the user's tabs each time. Neither a command
-    naming the page nor an explicit `page init` re-vendors it down, and each names
-    the newer Leaf as the repair rather than the re-vendor it refuses."""
-    publish(claimed)
-    foreign = vendored_at_another_protocol(claimed, newer=True)
-    for command in (["page", "check"], ["page", "init"]):
-        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
-        assert refused.exit_code != 0
-        assert "Use a newer Leaf" in refused.output
-        assert "leaf page init" not in refused.output
-        layer_4 = registry_storage.layer_record(claimed)
-        assert layer_4 is not None
-        assert layer_4["protocol"] == foreign
-    # A fresh process in a session that does not hold the page reads the state of
-    # the revision published before, and reports the same refusal as its source
-    # error.
-    stated = subprocess.run(
-        [*LEAF_COMMAND, "page", "state", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
-    )
-    assert stated.returncode == 0, stated.stderr
-    error = json.loads(stated.stdout)["source"]["error"]
-    assert "Use a newer Leaf" in error
-
-
 def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
     """A server keeps the Leaf it started under, so a check by another Leaf, at
     another path or commit, may pass on code the user's tab doesn't run. `page check`
@@ -370,38 +342,80 @@ def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
     assert advised("0123456789ab", enabled=False) == []
 
 
-def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
-    """A newer Leaf may change the layer record's shape without a protocol bump, and
-    this Leaf reads that format as no record at all. Told "no layer.json; run `leaf
-    page init` first", an agent would replace the page's packages and theme under
-    this Leaf, so the page is refused as a newer Leaf's instead, by the hooks and
-    writers that ask first as by `page check` and `page init`."""
+def test_a_page_an_older_leaf_initialized_is_renewed_keeping_its_packages(claimed):
+    """A layer record an older Leaf wrote, at that Leaf's shape, is its page rather
+    than none: the check each hook makes before writing refuses it as
+    `foreign-layer`, which is what has the session renew it, and `page init` with no
+    `--package` keeps the packages it selected, the one field this Leaf reads off
+    another Leaf's record. Read as none, the page would never be renewed, and `page
+    init` would select no packages."""
     from leaf.event_contracts import write_refusal
 
     path = claimed / schema_model.LAYER_FILE
     record = registry_storage.layer_record(claimed)
+    assert record is not None and record["packages"]
+    # The shape before a page's theme was one of its packages.
+    older = {
+        "format": "leaf-layer/36",
+        "packages": record["packages"],
+        "theme": {"name": "reading", "source": "default"},
+        "generation": record["generation"],
+        "protocol": 53,
+    }
+    cleanup_model.write_json(path, older)
+
+    refusal = write_refusal(claimed)
+    assert refusal is not None
+    assert (refusal.code, refusal.values["recorded"]) == ("foreign-layer", 36)
+    renewed = CliRunner().invoke(cli_model.cli, ["page", "init", str(claimed)])
+    assert renewed.exit_code == 0, renewed.output
+    assert write_refusal(claimed) is None
+    layer = registry_storage.layer_record(claimed)
+    assert layer is not None
+    assert layer["packages"] == record["packages"]
+    assert layer["generation"] != record["generation"]
+
+
+def test_a_page_a_newer_leaf_initialized_is_refused_whatever_its_shape(claimed):
+    """A process the session started before its plugin updated still runs the older
+    Leaf, and must not take the page back to it: the newer Leaf's next hook would
+    renew it again, reloading the user's tabs each time. So a layer record at a
+    newer format refuses the page as that newer Leaf's, here one whose shape moved
+    `packages`: the check each hook makes before writing, and every command that
+    reads the page's layer, name the newer Leaf as the repair, rather than crashing
+    on the shape or reading it as none and naming `page init`, and none rewrites the
+    file."""
+    from leaf.event_contracts import write_refusal
+
+    publish(claimed)
+    path = claimed / schema_model.LAYER_FILE
+    record = registry_storage.layer_record(claimed)
     assert record is not None
-    path.unlink()
-    later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
-    path.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+    newer = {
+        "format": f"leaf-layer/{registry_storage.LAYER.since + 1}",
+        "selection": {"packages": record["packages"]},
+        "generation": record["generation"],
+    }
+    cleanup_model.write_json(path, newer)
     recorded = path.read_bytes()
 
     refusal = write_refusal(claimed)
     assert refusal is not None and refusal.code == "newer-layer"
-    for command in (["page", "check"], ["page", "init"]):
-        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
-        assert refused.exit_code != 0
-        assert "Use a newer Leaf" in refused.output
-        assert "leaf page init" not in refused.output
-        assert path.read_bytes() == recorded
+    for command in ("check", "init", "state", "vocabulary"):
+        refused = CliRunner().invoke(cli_model.cli, ["page", command, str(claimed)])
+        assert refused.exit_code != 0, command
+        assert "Use a newer Leaf" in refused.output, command
+        assert "leaf page init" not in refused.output, command
+        assert path.read_bytes() == recorded, command
 
 
-def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
-    """`page state` on a page this Leaf can neither serve nor write, from a session
-    that may not re-vendor it since another one holds the page, still prints its
-    reading, and says why under `source.error`, naming the re-vendor, from the one
-    reading the servers and the append door refuse on (`layer.incompatible_layer`).
-    Activation writes no revision under that layer, even for an edited source.
+def test_page_state_refuses_a_layer_this_leaf_cannot_serve(claimed):
+    """`page state` on a page an older Leaf initialized, from a session that may not
+    renew it since another one holds the page, refuses it, naming the renewal, from
+    the one reading the servers and the append door refuse on
+    (`registry.storage.layer_record`), since this Leaf reads no page at another
+    protocol. Activation writes no revision under that layer, even for an edited
+    source.
 
     A fresh process, as an agent's is: this one holds the revision `publish`
     captured in memory, under the vocabulary before the change."""
@@ -420,12 +434,10 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
         check=False,
         env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
-    assert result.returncode == 0, result.stderr
-    state = json.loads(result.stdout)
-    assert state["source"]["live"] is False
-    assert "page protocol" in state["source"]["error"]
-    assert f"leaf page init {page_dir}" in state["source"]["error"]
-    assert state["active"]["revision"] == revisions[-1]
+    said = result.stdout + result.stderr
+    assert result.returncode != 0, said
+    assert "page protocol" in said
+    assert f"leaf page init {page_dir}" in said
     assert interact_files.list_revisions(page_dir) == revisions
 
 
@@ -561,7 +573,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    assert written(["page", "init", str(page_dir)]) == {"page": str(page_dir)}
+    assert written(["page", "init", str(page_dir)]) == {
+        "page": str(page_dir),
+        "packages": [],
+    }
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
@@ -1496,7 +1511,7 @@ def test_leaf_writes_its_own_marks_under_its_prefix():
         for mark in found
     ]
     assert len(marks) > 1000, "the reading of marks is broken"
-    faces = schema_model.ASSETS / "runtime" / "control-faces.js"
+    faces = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     constants = json.loads(js_facts("literals", [faces]))[str(faces)]["constants"]
     roles = {
         key: value
@@ -2213,15 +2228,16 @@ def test_controls_are_built_by_role_and_never_by_face():
     cannot draw two controls of one kind two ways. The classes of a role's face are
     spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
-    module-authoring.md lists the roles for package authors, in the table's order."""
-    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
-    table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    The table's header describes each role, in the table's order, for whoever picks
+    one."""
+    owner = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
+    source = owner.read_text()
+    table = re.search(r"const ACTION_FACES = \{(.*?)\};", source, re.DOTALL)
     assert table is not None
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
     assert {"symbol", "word", "commit"} <= roles.keys(), roles
-    reference = (SKILL_ROOT / "references" / "module-authoring.md").read_text()
-    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
-    assert documented == list(roles), "module-authoring.md lists other roles"
+    described = re.findall(r"^   - `(\w+)`: ", source, re.MULTILINE)
+    assert described == list(roles), "control-faces.js's header describes other roles"
     faces = {name for classes in roles.values() for name in classes.split()}
     named = re.compile(r"(?<![\w-])(" + "|".join(sorted(faces)) + r")(?![\w-])")
     spelled = []
@@ -2472,7 +2488,7 @@ def _face_overrides(sheets, faces, placed, homes):
 def _role_classes():
     """The classes of each role's face (control-faces.js, `ACTION_FACES`), and every
     class a bundled module's builder writes beside a role."""
-    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
+    owner = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     constants = json.loads(js_facts("literals", [owner]))[str(owner)]["constants"]
     faces = {
         name
@@ -3678,29 +3694,17 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     project_layer.mkdir(parents=True)
     user_entry = {
         "description": "user shape",
-        "attributes": {
-            "type": "object",
-            "properties": {"user-only": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"user-only": {"type": "string"}}},
         "content": "empty",
     }
     project_entry = {
         "description": "project shape",
-        "attributes": {
-            "type": "object",
-            "properties": {"project-only": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"project-only": {"type": "string"}}},
         "content": "empty",
     }
     project_only = {
         "description": "project-only shape",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "empty",
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
@@ -3726,7 +3730,9 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page)
     composed = stamp_grammars(
-        {"lf-local": project_entry, "lf-project-only": project_only}
+        complete_declarations(
+            {"lf-local": project_entry, "lf-project-only": project_only}
+        )
     )
     assert registry["lf-local"] == composed["lf-local"]
     assert registry["lf-project-only"] == composed["lf-project-only"]
@@ -3895,7 +3901,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert f"leaf page init '{page}'" in json.loads(result.stdout)["error"]
+    assert f"{page} is not an initialized page" in json.loads(result.stdout)["error"]
     assert list(page.iterdir()) == []
 
 
@@ -3918,7 +3924,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     # uncontended; the second is the one taker that can find it held.
     second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
-    def paused_init(page_dir, selected, *, theme=None):
+    def paused_init(page_dir, selected):
         creator = threading.current_thread().name
         creations.append(creator)
         if creator == "first-init":
@@ -3926,7 +3932,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
         else:
             second_entered.set()
-        return original_init(page_dir, selected, theme=theme)
+        return original_init(page_dir, selected)
 
     def initialize():
         try:
@@ -4168,6 +4174,41 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
     theme = layer_files(page)["/theme.css"].decode()
     assert theme.index("--package-first") < theme.index("--package-second")
+
+
+def test_a_page_wears_the_themes_it_lists_in_that_order(tmp_path, monkeypatch):
+    """A page's look is among the packages it lists. Leaf's `reading` composes only
+    where the page lists it, a theme listed after it wins a tie with it, and a page
+    that lists none composes none, so it starts from the browser's defaults.
+    `page init` returns the selection it recorded, which is how an author sees that
+    a selection replaced the page's earlier one."""
+    monkeypatch.chdir(tmp_path)
+    dense = tmp_path / "dense"
+    dense.mkdir()
+    (dense / "defaults.css").write_text(":root { --lf-accent: #814b07; }\n")
+    # The reading theme's ground, which no other sheet of the layer states.
+    paper, accent = "--lf-paper: light-dark(", "--lf-accent: #814b07"
+
+    def worn(name: str, *packages: str) -> tuple[list[str], str]:
+        page = tmp_path / name
+        selection = [arg for package in packages for arg in ("--package", package)]
+        made = CliRunner().invoke(
+            cli_model.cli, ["page", "init", *selection, str(page)]
+        )
+        assert made.exit_code == 0, made.output
+        return (
+            json.loads(made.output)["packages"],
+            layer_files(page)["/theme.css"].decode(),
+        )
+
+    selected, theme = worn("none")
+    assert selected == [] and paper not in theme
+    selected, theme = worn("built-on", "reading", "./dense")
+    assert selected == ["reading", "./packages/dense"]
+    assert theme.index(paper) < theme.index(accent)
+    selected, theme = worn("in-its-place", "./dense")
+    assert selected == ["./packages/dense"]
+    assert accent in theme and paper not in theme
 
 
 def test_init_refuses_non_utf8_package_instructions_before_revendoring(
@@ -4596,13 +4637,48 @@ def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypa
     assert (unrelated / "missing").is_symlink()
 
 
-def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeypatch):
+def test_package_init_writes_a_starter_for_each_widget_named(tmp_path, monkeypatch):
+    """`--widget` given more than once writes each tag's starter, its declaration,
+    module and style rule, and a tag named twice once; `package check` finds nothing
+    to say about what it wrote."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["package", "init", str(package), "--widget", "risk-note"],
+        ["package", "init", str(package)]
+        + ["--widget", "lf-first", "--widget", "lf-second", "--widget", "lf-first"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["widgets"] == ["lf-first", "lf-second"]
+    registry = json.loads((package / "registry.json").read_text())
+    assert registry == {
+        tag: packages_model.starter_element_declaration(tag)
+        for tag in ("lf-first", "lf-second")
+    }
+    assert {
+        path.name: path.read_bytes() for path in (package / "widgets").iterdir()
+    } == {
+        f"{tag}.js": packages_model.starter_widget_module(tag)
+        for tag in ("lf-first", "lf-second")
+    }
+    styles = (package / "defaults.css").read_bytes()
+    assert [
+        styles.count(packages_model.starter_widget_styles(tag))
+        for tag in ("lf-first", "lf-second")
+    ] == [1, 1]
+    assert package_findings(package) == (0, [])
+
+
+def test_package_init_widget_validates_each_tag_without_writing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package)]
+        + ["--widget", "lf-risk-note", "--widget", "risk-note"],
     )
 
     assert result.exit_code != 0
@@ -5460,12 +5536,14 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
 
 
 def test_every_bundled_package_says_when_to_select_it():
-    """`package list` is where an author learns what each package is for, so each
-    bundled package's `author.md` opens with that paragraph."""
+    """`package list` is where an author learns what each package is for, Leaf's
+    `reading` theme among them, so each bundled package's `author.md` opens with that
+    paragraph."""
     listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
 
     assert listed.exit_code == 0, listed.output
     packages = json.loads(listed.output)["packages"]
+    assert "reading" in [each["name"] for each in packages]
     assert [each["name"] for each in packages if not each["description"]] == []
 
 

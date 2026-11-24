@@ -135,7 +135,7 @@ export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
     Object.entries(declarations)
-      .filter(([tag, entry]) => entry.inline)
+      .filter(([, entry]) => entry.inline)
       .map(([tag]) => tag),
   );
   return [...document.querySelectorAll("*")]
@@ -285,7 +285,7 @@ export function unreachableWords() {
 
 // A declared label inside a form control is out of reach whatever it is marked: WebKit
 // starts no pointer selection inside one, whatever its `user-select`, which is why
-// `selectableOffer` builds a press as a span wearing its role (widget-elements.js). A
+// `selectableOffer` builds a press as a span wearing its role (lib/controls.js). A
 // widget module reaching for <button> anyway puts its label where no selection can go.
 // The suite asks it of Leaf's own widgets over the shipped pages; an authored page has
 // never been found doing it.

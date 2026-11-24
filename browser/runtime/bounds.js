@@ -9,12 +9,9 @@
    continuity records and restores. A scroller page CSS makes is none of these: Leaf
    keeps no place in it, and `page check` advises bounding the block instead.
 
-   A region needs an id that names it in the next document too, since that is where a
-   revision restores its place. A block of the page's own document with an id takes one
-   from it. Any other block, an anonymous one or one in a message's markup, whose
-   ids repeat the page's, takes an id that names this element in this document alone:
-   it answers every geometry question and keeps its place while it stands, and a
-   replacement document starts it afresh rather than guess which block it was.
+   A block names its own region (reading-regions.js, `regionId`): one of the page's own
+   document with an id keeps its place across a revision, and any other keeps it while
+   it stands.
 
    A block bounded at its end follows its newest entry: it opens at the end, and what
    arrives there stays in view while the user is at the end. A user who scrolls back
@@ -41,7 +38,7 @@
    and its own hidden state. What is registered is what stands in the page.
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
-   left as it stands until it is drawn (shadow-tree.js, `skipped`). Finding its scroller
+   left as it stands until it is drawn (lib/shadow-tree.js, `skipped`). Finding its scroller
    reads the bounded element's style, and finding its end reads layout, and either
    question makes the browser style and lay out the hidden subtree first; Chromium has
    left style elsewhere on the page stale after that forced pass. A block first seen
@@ -53,12 +50,11 @@
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
-import { skipped } from "./shadow-tree.js";
-import { sizeObserver } from "./rendering.js";
+import { skipped } from "./lib/shadow-tree.js";
+import { sizeObserver } from "./lib/frame-pass.js";
 import { followEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
-import { authoredScope, pageDocument } from "./passages.js";
-import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
+import { regionId, registerReadingRegion } from "./reading-regions.js";
 import { marks } from "./kernel-facts.js";
 
 // The bound's attribute (`$marks`), read from the generated table rather than the registry,
@@ -74,8 +70,6 @@ const holds = new WeakMap();
 const registered = new Set();
 /** @type {WeakMap<Element, BoundHold>} */
 const byBox = new WeakMap();
-const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
-let unnamed = 0;
 
 /** @param {Element} bounded */
 function scrollerOf(bounded) {
@@ -86,12 +80,6 @@ function scrollerOf(bounded) {
     if (box.closest(BOUNDED) === bounded) return box;
   return bounded;
 }
-
-/** @param {Element} bounded */
-const regionId = (bounded) =>
-  bounded.id && authoredScope(bounded) === pageDocument()
-    ? compoundReadingRegionId(bounded, "bound")
-    : `${THIS_DOCUMENT}:${(unnamed += 1)}`;
 
 /** @param {Element} box */
 const heldBy = (box) => {
@@ -112,7 +100,7 @@ function holdBlock(bounded) {
   /** @type {BoundHold} */
   const hold = {
     bounded,
-    id: regionId(bounded),
+    id: regionId(bounded, "bound", bounded),
     bound: null,
     box: null,
     follow: null,

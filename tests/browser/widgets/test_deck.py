@@ -6,7 +6,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_harness import leaf_page, open_page, round_trip
+from render_harness import leaf_page, open_page, round_trip, wait_for_check_api
 
 from leaf import event_log as events_model
 
@@ -366,6 +366,51 @@ def test_a_card_still_flying_off_takes_no_focus(browser, serve):
     )
     expect(leaving).not_to_have_attribute("data-lf-deck-leaving", "right")
     expect(leaving).not_to_have_attribute("inert", "")
+
+
+def test_a_swipe_stays_held_until_the_fingers_lift(browser, serve):
+    """A swipe of the open card says the user holds it (`lf-hold`) from its first
+    sideways move until the finger lifts. A second finger that lands on the card
+    mid-swipe leaves the swipe to the first, so once both lift the hold has ended and
+    the card stands where it was."""
+    context = browser.new_context(
+        has_touch=True, viewport={"width": 900, "height": 800}
+    )
+    page = open_page(browser, serve(DECK_PAGE), context=context)
+    open_card(page, "store-ask")
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, *points):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": kind,
+                "touchPoints": [{"x": x, "y": y, "id": i} for i, x, y in points],
+            },
+        )
+
+    box = page.locator("#store-ask-h").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+
+    def swipe():
+        touch("touchStart", (0, x, y))
+        touch("touchMove", (0, x + 15, y))
+        touch("touchMove", (0, x + 30, y))
+        wait_for_check_api(page, "(api) => api.dragHeld()")
+
+    swipe()
+    touch("touchEnd")
+    wait_for_check_api(page, "(api) => !api.dragHeld()")
+
+    swipe()
+    touch("touchStart", (0, x + 30, y), (1, x + 80, y + 2))
+    touch("touchEnd")
+    wait_for_check_api(page, "(api) => !api.dragHeld()")
+    assert page.evaluate(OPEN) == "store-ask"
+    assert (
+        page.evaluate("() => document.querySelector('#store-ask').style.translate")
+        == ""
+    )
 
 
 # The height each motion of the deck's own box ends at, recorded as it starts.

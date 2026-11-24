@@ -61,7 +61,7 @@
 
    The walk can also step within one region of the page (`obligationActions.next`, as an
    `lf-tally`'s Next On Me presses it): its stops are then the obligations waiting on the user
-   that the region holds (`obligationsIn`, obligations/place.js), stepped by the same current location and
+   that the region holds (`readObligations(region)`, obligations/place.js), stepped by the same current location and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
@@ -90,14 +90,13 @@ import {
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
-import { closestAcross, inChrome } from "./passages.js";
-import { byRenderedOrder, under } from "./shadow-tree.js";
+import { byRenderedOrder, under, closestAcross } from "./lib/shadow-tree.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { obligationEnding, obligationWord } from "./obligations/answer.js";
-import { answeredInWords, readObligations } from "./obligations/model.js";
-import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
-import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
+import { answeredInWords } from "./obligations/model.js";
+import { obligationPlace, readObligations, subjectPlace } from "./obligations/place.js";
+import { readPlan, readQueues } from "./queue-api.js";
 import { carriesObligation, emptyOnList, itemNoun } from "./queues.js";
 import { threadIn } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
@@ -109,6 +108,7 @@ import { agentName } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { notice } from "./notifications.js";
+import { inChrome } from "./ui-marks.js";
 
 /** @typedef {import("./queue-api.js").CurrentQueueItem} QueueItem
  * @typedef {import("./obligations/answer.js").AnswerableObligation} Obligation
@@ -194,14 +194,15 @@ export const groupingLabel = (grouping) =>
       ? "By kind"
       : "By place";
 // The ids of the items a plan step names, its own and its steps', in the plan's order;
-// and whether a step, or one under it, is the user's.
+// and whether a step, or one under it, names something asked of the user.
 /** @param {PlanStep} step @returns {string[]} */
 const namedIn = (step) => [
   ...(step.item ? [step.item.id] : []),
   ...step.steps.flatMap(namedIn),
 ];
 /** @param {PlanStep} step @returns {boolean} */
-const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
+const givesUser = (step) =>
+  step.item?.kind === "obligation" || step.steps.some(givesUser);
 
 /** @param {{
  * arriveAtRecord: ReturnType<typeof import("./obligations/view.js").createObligationView>["arriveAtRecord"],
@@ -296,7 +297,7 @@ export function createQueueWalk({
   function onMeGroups(items, by = grouping(), carried = new Set()) {
     const keyed = new Map(
       [...heldOnMe().filter((item) => !carried.has(item.id)), ...items].map((item) => [
-        queueItemKey(item),
+        item.id,
         item,
       ]),
     );
@@ -348,11 +349,11 @@ export function createQueueWalk({
       if (previous) previous.items.push(item);
       else stops.set(key, { at, items: [item] });
     });
-    const shown = new Set(items.map(queueItemKey));
+    const shown = new Set(items.map((item) => item.id));
     /** @type {Set<QueueItem>} */
     const leads = new Set();
     for (const stop of stops.values()) {
-      const listed = stop.items.filter((item) => shown.has(queueItemKey(item)));
+      const listed = stop.items.filter((item) => shown.has(item.id));
       const lead = listed[0];
       if (!lead) continue;
       leads.add(lead);
@@ -411,7 +412,7 @@ export function createQueueWalk({
   // in page order whatever On Me's grouping, as the region is read on the page.
   /** @param {Element} region */
   function stopsWithin(region) {
-    const held = new Set(obligationsIn(region).map((item) => item.id));
+    const held = new Set(readObligations(region).all.map((item) => item.id));
     return pageStops().filter(
       (stop) => stop.kind === "obligation" && held.has(stop.id),
     );
@@ -450,7 +451,7 @@ export function createQueueWalk({
   function cardItem(origin) {
     const card = closestAcross(origin.node, ON_CARD)?.getAttribute("data-lf-key");
     if (card == null) return undefined;
-    return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
+    return readQueues().on_user.find((item) => item.id === card) ?? null;
   }
 
   // A list's obligation stops and their records, read once for each list (kept.js), so
@@ -522,7 +523,11 @@ export function createQueueWalk({
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
       const record = readObligations().byId.get(stop.id);
-      if (!record || hasObligationSource(record, "update"))
+      if (
+        !record ||
+        hasObligationSource(record, "update") ||
+        hasObligationSource(record, "todo")
+      )
         return Promise.resolve(false);
       return arriveAtRecord(record);
     }
@@ -638,7 +643,7 @@ export function createQueueWalk({
       if (!arrived) return false;
       const said =
         beginWalk("queue", null, own) ??
-        (record.status === "open" ? null : obligationEnding(record));
+        (record.state !== "done" ? null : obligationEnding(record));
       if (said) announce(said);
       return true;
     });
@@ -675,7 +680,7 @@ export function createQueueWalk({
     if (!(within instanceof Element))
       throw new TypeError("leaf: obligationActions.next needs an element `within`");
     const here = walkOrigin();
-    const items = obligationsIn(within);
+    const items = readObligations(within).all;
     const kept = items.find((item) => item.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
     if (under(here.place, within)) return walk(toward, within, here);

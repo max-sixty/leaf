@@ -81,7 +81,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * `shadow` widget's stage (runtime/widget-upgrade.js). Its face is the sans the
+ * `shadow` widget's stage (runtime/lib/failure.js). Its face is the sans the
  * theme gives other labels (.lf-tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
@@ -1085,7 +1085,7 @@ summary {
   position: relative;
   border-radius: var(--lf-r);
 }
-.lf-primary-part[data-lf-part="reply"] {
+.lf-primary-part[data-lf-kind="reply"] {
   padding-block-start: 28px;
 }
 .lf-primary-news {

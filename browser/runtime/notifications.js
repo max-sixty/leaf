@@ -48,12 +48,14 @@
    included (floating-panel.js, `GESTURES`). A notice of the user's own command is
    one; each other moment's producer gives it, news as it arrives rather than when its
    notice shows. */
-import { el, elementDirective } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { el } from "./lib/elements.js";
+import { elementDirective } from "./lib/controls.js";
+import { keeps } from "./lib/keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
-import { ANNOUNCE } from "./widget-upgrade.js";
+import { ANNOUNCE } from "./lib/widget-events.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
+import { saying } from "./keyboard/control-keys.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
@@ -143,8 +145,17 @@ export function announce(msg) {
   }, 30);
 }
 
-// A widget's words for a listener (`announce`, widget-upgrade.js), said here.
-addEventListener(ANNOUNCE, (event) => announce(event.detail));
+// A widget's words for a listener (`ANNOUNCE`, lib/widget-events.js), said here: the
+// words themselves, or `{words, rows}`, the words and the command rows whose keys a
+// listener hears after them, named as a press would reach them when the words are said
+// (keyboard/control-keys.js, `saying`).
+addEventListener(ANNOUNCE, ({ detail }) =>
+  announce(
+    typeof detail === "object" && "rows" in detail
+      ? () => [detail.words, saying(detail.rows)].filter(Boolean).join(" — ")
+      : detail,
+  ),
+);
 
 // An undo ("Undone: Chose “Fast” just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
@@ -314,9 +325,9 @@ function yieldNotice() {
 // rather than words of its own (walk-position.js), so the seat says that position for
 // a notice's moment from the latest step (field-readings.js, "notice"), and news
 // arriving meanwhile waits for it as it waits for a notice. The walk itself stands
-// where it landed after the moment; only the seat goes back to its own words.
-// beginWalk dispatches the step only for gestures, so ordinary repaints never restart
-// the moment.
+// where it landed after the moment; only the seat goes back to its own words, and a
+// place a widget said goes with the moment. A walk answers only a step
+// (walk-position.js, `stepTo`), so ordinary repaints never restart the moment.
 let stepTimer = 0;
 const stepping = signal(false);
 export const answeringStep = () => stepping.value;

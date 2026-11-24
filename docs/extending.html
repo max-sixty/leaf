@@ -639,31 +639,34 @@
               <lf-diagram id="styles-theme-capture" data-height="370" parts="all">
                 <pre>
 flowchart TD
-  accTitle: A page captures its selected theme
-  accDescr: The author selects Editorial from the user's themes. Leaf captures that theme in the release-review page, and the export carries the same theme. Changing the user's default later changes neither existing copy.
-  Themes["User's themes&lt;br/&gt;Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Captured: Editorial"]
+  accTitle: A page selects its theme as a package
+  accDescr: The author selects the Editorial theme from the packages on the user's machine, which also hold Leaf's reading theme and the user's Dense theme. The release-review page records that selection, and the export carries the same theme.
+  Themes["Themes on this machine&lt;br/&gt;Reading · Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Selects: Editorial"]
   Page -->|export| Export["Exported review&lt;br/&gt;Same Editorial theme"]
 </pre>
               </lf-diagram>
               <figcaption>
-                <strong>A page keeps the theme it was made with.</strong>
-                <code>leaf theme list</code> shows the user’s named themes. Changing the
-                default later leaves this page and its export intact.
+                <strong>A page’s theme is a package it selects.</strong>
+                <code>leaf package list</code> shows Leaf’s reading theme beside the
+                user’s own. The page records its selection, and its export carries the
+                theme’s rules.
               </figcaption>
             </figure>
             <details id="styles-theme-selection">
               <summary>Choosing a theme and honoring browser preferences</summary>
               <p id="styles-user-preference">
-                <code>leaf theme list</code> exposes the user's named themes and their
-                author instructions. <code>page init --theme NAME</code> selects one; a
-                new page otherwise uses the user's default, or Leaf's reading theme. A
-                theme either stands alone or names a theme it builds on, such as the
-                reading theme, which Leaf composes under it. A page with a design wholly
-                its own takes none with <code>--no-theme</code> and starts from the
-                browser's defaults, while Leaf's widgets, classes, threads and panel
-                keep their faces. Re-initializing keeps the captured choice unless
-                explicitly changed. The author follows the user's request first, then
-                the task and the theme's instructions.
+                <code>leaf package list</code> shows each theme the machine can select
+                with its author instructions: Leaf's reading theme,
+                <code>reading</code>, and any the user installed. A theme is a package,
+                which <code>page init --package NAME</code> selects ahead of the page's
+                other packages. A theme builds on the reading theme where the page
+                selects <code>reading</code> before it, and replaces it where the page
+                selects the theme alone. A page with a design wholly its own selects no
+                theme and starts from the browser's defaults, while Leaf's widgets,
+                classes, threads and panel keep their faces. Re-initializing keeps the
+                page's packages unless <code>--package</code> names a new list. The
+                author follows the user's request first, then the task and the theme's
+                instructions.
               </p>
               <p id="styles-platform-preferences">
                 The reading theme supports light and dark schemes. Authors preserve
@@ -1794,8 +1797,8 @@ flowchart TD
                     <td>User</td>
                     <td>Goals, preferences, decisions, and edits.</td>
                     <td>
-                      Instructions to the agent, actions on the page, and named personal
-                      themes with a default. Theme colors can follow the browser's
+                      Instructions to the agent, actions on the page, and themes
+                      installed as packages. Theme colors can follow the browser's
                       color-scheme preference.
                     </td>
                   </tr>
@@ -1953,13 +1956,13 @@ flowchart TD
                 defines those interfaces.
               </p>
               <p id="package-captured-layer">
-                <code>page init</code> records the page's package and theme selection.
-                The Leaf serving, checking or exporting the page composes its
-                <em>layer</em> from that selection and supplies the browser runtime.
-                Each revision captures the authored content, page-owned declarations and
-                modules, and the package selection. Historical revisions run with the
-                current Leaf's runtime and composed layer while retaining their authored
-                content and recorded decisions. The
+                <code>page init</code> records the page's package selection. The Leaf
+                serving, checking or exporting the page composes its <em>layer</em> from
+                that selection and supplies the browser runtime. Each revision captures
+                the authored content, page-owned declarations and modules, and the
+                package selection. Historical revisions run with the current Leaf's
+                runtime and composed layer while retaining their authored content and
+                recorded decisions. The
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
                   >package contract</a
@@ -2000,13 +2003,13 @@ packages/callout/
 </pre>
 
             <p>
-              Every package beyond the bundled default joins a page with
-              <code>--package</code>. In the commands below, <code>PAGE</code> is the
-              page directory to create or update:
+              Every package joins a page with <code>--package</code>, the page’s theme
+              included. In the commands below, <code>PAGE</code> is the page directory
+              to create or update:
             </p>
             <pre
               id="page-init-command"
-            ><code class="language-bash">$ leaf page init --package packages/callout PAGE</code></pre>
+            ><code class="language-bash">$ leaf page init --package reading --package packages/callout PAGE</code></pre>
             <p>
               The
               <a
@@ -2024,14 +2027,15 @@ packages/callout/
               id="widget-init-command"
             ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
             <p>
-              Leaf writes a valid markup-widget element declaration and its one-shot
-              browser module, then checks the complete candidate before changing the
-              package. The tutorial below stays with the smaller CSS-only form so each
-              contract remains visible. A behavior module imports Leaf's package API
-              from
-              <code>/runtime/widget-api.js</code>; it declares each interactive
-              capability once, as the <code>lfCommands</code> of the element it applies
-              in. The same live command rows feed keyboard dispatch, help, accessibility
+              Leaf writes a working starter, a yes-or-no choice that records the user's
+              press: its element declaration, its browser module and its style rule. It
+              checks the complete candidate before changing the package, and each part
+              is there to be changed into the widget you need. The tutorial below stays
+              with the smaller CSS-only form so each contract remains visible. A module
+              that needs Leaf's functions imports them from
+              <code>/runtime/widget-api.js</code>, and one that adds keys declares each
+              command once, as the <code>lfCommands</code> of the element it applies in.
+              The same live command rows feed keyboard dispatch, help, accessibility
               shortcuts, and—when <code>decision</code> names the action—the controls
               shown inline for an obligation.
             </p>
@@ -2080,11 +2084,7 @@ packages/callout/
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
@@ -2093,8 +2093,11 @@ packages/callout/
               the entry needs no other Leaf declaration: the body is the author's markup
               unless <code>content</code> says otherwise. Every element takes an
               <code>id</code>, which Leaf adds with its grammar, so the entry says only
-              that this one requires it; <code>description</code> and
-              <code>example</code> make the merged registry useful to an author.
+              that this one requires it. Leaf also writes the schema's
+              <code>type</code> and <code>additionalProperties</code>, so
+              <code>page check</code> refuses an attribute the entry doesn't name, such
+              as a misspelt one. <code>description</code> and <code>example</code> make
+              the merged registry useful to an author.
             </p>
             <p>
               The <a href="#keys">registry-key reference</a> lists every other fact a
@@ -2107,7 +2110,7 @@ packages/callout/
             <pre
               id="package-check-command"
             ><code class="language-bash">$ leaf package check packages/callout
-$ leaf page init --package packages/callout PAGE
+$ leaf page init --package reading --package packages/callout PAGE
 $ leaf page vocabulary PAGE | jq '.["lf-callout"], .["$keys"]'
 $ leaf page check PAGE --render</code></pre>
             <p>
@@ -2300,8 +2303,8 @@ flowchart TD
                     <td>
                       In the document: Leaf’s <code>base.css</code>, then packages’
                       <code>defaults.css</code> and <code>widget-shadow.css</code>. In a
-                      shadow tree: defaults the widget adopts with
-                      <code>inBaseLayer()</code>.
+                      shadow tree: defaults the widget adopts inside
+                      <code>@layer lf-base { … }</code>.
                     </td>
                   </tr>
                 </tbody>
@@ -2407,10 +2410,23 @@ flowchart TD
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
-              Leaf’s default widgets and controls. The pages below demonstrate optional
-              packages; the Code review package provides authoring instructions.
+              Leaf’s default widgets and controls in the reading theme. The other pages
+              below each demonstrate an optional package; the Code review package
+              provides authoring instructions.
             </p>
             <div class="package-catalog">
+              <a
+                class="package-card"
+                data-package="reading"
+                href="/examples/feature-gallery/"
+              >
+                <strong>Reading</strong>
+                <span
+                  >Leaf’s reading theme: the type, color and faces that prose, tables
+                  and controls read in.</span
+                >
+                <em>Open page ↗</em>
+              </a>
               <a
                 class="package-card"
                 data-package="code-review"

@@ -191,18 +191,19 @@ page of parts, whose column parts each take their own outline.
 
 ## Style the page
 
-A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
+Leaf's reading theme, the `reading` package a page selects (the main skill's "Author
+the page"), styles semantic HTML (headings, prose,
 tables, code, controls) in both colour schemes, and Leaf draws its class idioms, such
 as `.lf-callout`, on every page, so a page of ordinary content needs no CSS of its
 own: polish it through clearer content and hierarchy within that treatment. Where the
 task calls for a design of its own, such as an instrument, an arrangement, or a look
 the user asks for, write it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
-mockup or a page the user brings, takes no theme instead (`leaf page init <page>
---no-theme`), so it starts from the browser's defaults, its tables, code blocks and
+mockup or a page the user brings, selects no theme instead, leaving `reading` out of
+its packages, so it starts from the browser's defaults, its tables, code blocks and
 controls included, and none of the theme shows through its rules; Leaf's widgets,
 idioms, threads and panel keep their own faces either way.
-`leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
-themes"). Page CSS stands above every theme rule
+`leaf package list` names the other themes a page can select (`package-themes.md`, "A
+page's theme"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as
 `table`, `code` or `blockquote`, replaces only the properties it names, so set the rest
 too wherever the theme's would show through. Wrapping elements the theme already
@@ -211,8 +212,8 @@ interaction to express.
 
 On a themed page, wrap content that has its own design in a box that sets
 `--lf-reading-face: initial`. The reading face then stays out of the box, and the
-controls in it keep the browser's look, as on a page that takes no theme
-(`package-themes.md`, "Personal themes").
+controls in it keep the browser's look, as on a page that selects no theme
+(`package-themes.md`, "A page's theme").
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page. Three colours carry a
@@ -327,15 +328,15 @@ put the same block inside a code excerpt with numbered lines for a walkthrough. 
 the actual language from `$languages.names` or a bundled grammar's alias, such as
 `language-js` and `language-sh`. Leaf colours a native block only where the reading
 face reaches it: the `reading` theme turns it on, and a page with no theme sets
-`--lf-reading-face: 1` on a box around the `<pre>` (`package-themes.md`, "Personal
-themes"). Format example code with
-the language's usual indentation and line breaks rather than packing several statements or fields onto one
-line, and keep it working when you reformat it. Quote source verbatim when quoting it.
-Data in a language Leaf colours, such as a JSON object a tool returned, is code wherever
-it came from: name its language and give it one field per line with its values exact,
-even when it reached you on one line or cut down with `…`, and even when the page's
-other samples are plain. Text in no such language, such as a log or a message as an
-agent receives it, stays literal and uncoloured.
+`--lf-reading-face: 1` on a box around the `<pre>` (`package-themes.md`, "A page's
+theme"). Format example code with the language's usual indentation and line breaks,
+even where it reached you with several statements or fields packed onto a line, and keep
+it working when you reformat it. Quote source verbatim when quoting it.
+Data in a language Leaf colours, such as JSON a tool returned, goes in a code block
+named for its language, even beside plain samples, with its values exact, `…` included,
+and laid out so the reader can pick out each field and compare values down a column.
+Text in no such language, such as a log or a message as an agent receives it, stays
+literal and uncoloured.
 
 Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
 from a doc or a pull request's description, in a text document that previews it, with
@@ -351,8 +352,8 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 `page-layout.md`, "Bounds and widths".
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
-reading face, as a page in the `reading` theme does (`package-themes.md`, "Personal
-themes"), Leaf also wraps a `<pre>`'s long lines, and a table's columns size to their
+reading face, as a page in the `reading` theme does (`package-themes.md`, "A page's
+theme"), Leaf also wraps a `<pre>`'s long lines, and a table's columns size to their
 content. It puts each line of a `<pre>` in a `<span data-lf-pre-line>`, so the rows a line wraps onto
 hang from its indent behind a mark; a selector such as `pre span` reaches those spans
 too. A block whose columns must line up past its container's width, such as a diagram

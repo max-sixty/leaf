@@ -29,7 +29,8 @@ import {
 } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
 import { move } from "./dom-move.js";
-import { keeps, layoutPx } from "./keeps.js";
+import { objectIds } from "./ids.js";
+import { keeps, layoutPx } from "./lib/keeps.js";
 
 /** @typedef {import("./rect.js").Box} Box
  * @typedef {import("./geometry.js").ClipCache} ClipCache
@@ -257,11 +258,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
 
   // A stand's key: the frames that cut it, each band from its holder's corner, which no
   // scroll moves, whether they are anchored, and the plane it stands in.
-  /** @type {WeakMap<Element, number>} */
-  const ids = new WeakMap();
-  let idCount = 0;
-  /** @param {Element} node */
-  const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+  const idOf = objectIds();
   /** @param {SetPlacement} placed @param {Anchor | null} anchor @param {string} plane @param {boolean} framed */
   const keyOf = ({ surface, levels }, anchor, plane, framed) =>
     !surface

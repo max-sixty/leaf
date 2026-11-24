@@ -2,7 +2,6 @@
 and closing its turn, session end releasing its pages, and the prompt that serves a
 resumed session's pages again."""
 
-import contextlib
 import json
 import os
 import subprocess
@@ -12,24 +11,18 @@ import pytest
 from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
-    available_loopback_port,
     declared,
     read_record,
     record_claim,
     serving,
-    write_record,
 )
 
 from leaf import codex as codex_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
 from leaf import leases as leases_model
-from leaf import reconnect as reconnect_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -135,64 +128,6 @@ def test_a_prompt_takes_back_a_page_whose_server_outlived_its_session(claimed, c
     assert service_model.claim_is_active(service_model.page_claim(claimed))
     assert read_record(claimed / "service.json")["server_id"] == "fixture-server"
     assert capsys.readouterr().out == ""
-
-
-def test_a_prompt_restarts_only_a_server_another_installed_leaf_started(
-    claimed, tmp_path, monkeypatch, capsys
-):
-    """A session whose hooks run another installed Leaf reads `page check` from it,
-    while its page's server runs the Leaf that started it. Its next prompt restarts
-    that server once it has served its pages again, so a resumed session's server
-    still in its grace restarts too. Codex replaces its one copy in place, so there a
-    server the same copy started at another commit restarts, and one at the copy's
-    commit keeps running. A server a checkout started keeps running, as does every
-    server when the hook runs from a checkout, or has too little time left to bring a
-    stopped server back."""
-    serving(claimed, available_loopback_port(), "session")
-    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    older, newer, local = (
-        cache / "0a0a0a0a0a0a",
-        cache / "1b1b1b1b1b1b",
-        cache / "local",
-    )
-    restarted = []
-
-    @contextlib.contextmanager
-    def restarting(page_dir, harness, *, deadline):
-        restarted.append(page_dir)
-        yield
-
-    monkeypatch.setattr(hosting_model, "restarting_server", restarting)
-
-    def runs(root, commit):
-        """The hook runs the installed copy at `root`, at `commit`."""
-        for module in (reconnect_model, server_model):
-            monkeypatch.setattr(module, "PLUGIN_ROOT", root)
-        monkeypatch.setattr(layer_model, "running_leaf", lambda: {"commit": commit})
-
-    def restarts(started_by, commit=None):
-        service = read_record(claimed / "service.json")
-        runtime = {"path": str(started_by), "commit": commit or started_by.name}
-        write_record(claimed / "service.json", {**service, "runtime": runtime})
-        restarted.clear()
-        prompt()
-        assert capsys.readouterr().out == ""
-        return restarted == [claimed]
-
-    assert not restarts(older), "a hook from a checkout"
-    runs(newer, newer.name)
-    assert not restarts(PLUGIN_ROOT), "a server a checkout started"
-    assert restarts(older)
-    cleanup_model.end_harness_instance("s1")
-    assert restarts(older), "a resumed session"
-    assert service_model.claim_is_active(service_model.page_claim(claimed))
-    runs(local, "2c2c2c2c2c2c")
-    assert restarts(local, "1b1b1b1b1b1b"), "Codex's copy, updated in place"
-    assert not restarts(local, "2c2c2c2c2c2c")
-    monkeypatch.setattr(
-        hook_transport_model, "CONFIRM_WITHIN", reconnect_model.RESTART_NEEDS - 1
-    )
-    assert not restarts(older), "too little time left"
 
 
 def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):

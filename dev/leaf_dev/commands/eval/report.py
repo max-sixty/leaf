@@ -37,7 +37,6 @@ import click
 import turbohtml
 from PIL import Image
 
-from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND, gallery
@@ -70,7 +69,7 @@ cmd_export(page, target, version, runtime=True)
 
 # What a report needs without being asked: `lf-diff` for a cited patch, and `lf-diagram`
 # for the review's campaign. Packages already on the page stay.
-REQUIRED_PACKAGES = ["diff", "diagram"]
+REQUIRED_PACKAGES = ["reading", "diff", "diagram"]
 
 UNREVIEWED = '<h1 id="title">Authoring comparisons</h1>'
 
@@ -1556,7 +1555,7 @@ def eval_report(
     heading = turbohtml.parse_fragment(source, context="main").find("h1")
     if heading is None:
         raise click.ClickException("The review needs an <h1>, the report's title.")
-    packages = list(layer_packages(page)) if initialized(page) else []
+    packages = layer_packages(page) or []
     if any(name not in packages for name in REQUIRED_PACKAGES):
         leaf(
             "page",
@@ -1564,7 +1563,7 @@ def eval_report(
             str(page),
             *[
                 argument
-                for name in dict.fromkeys([*packages, *REQUIRED_PACKAGES])
+                for name in dict.fromkeys([*REQUIRED_PACKAGES, *packages])
                 for argument in ("--package", name)
             ],
         )

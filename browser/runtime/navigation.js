@@ -42,7 +42,7 @@ import {
 import { focused } from "./focus.js";
 import { closeDraft, draftAnchor, draftsReading, standsOnDraft } from "./drafts.js";
 import { pageSelection } from "./composing/capture.js";
-import { blockAt, closestAcross, inPage, layoutBox } from "./passages.js";
+import { blockAt, inPage, layoutBox } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -56,7 +56,12 @@ import {
   threadNamed,
 } from "./thread/state.js";
 import { threadPlace } from "./thread/placement.js";
-import { byRenderedOrder, renderedOrder, under } from "./shadow-tree.js";
+import {
+  byRenderedOrder,
+  renderedOrder,
+  under,
+  closestAcross,
+} from "./lib/shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -117,7 +122,7 @@ function currentStop({ keys, drafts }, origin) {
 
 // What a position names its list: by its stops' noun where they are all of one kind,
 // "Thread 2 of 5" or "Draft 1 of 2", and by both kinds where it holds threads and
-// drafts, "2 of 5 threads and drafts" (walk-declaration.js, `beginWalk`).
+// drafts, "2 of 5 threads and drafts" (walk-position.js, `beginWalk`).
 /** @param {Stops} stops */
 const listNames = ({ keys, drafts }) =>
   !drafts.size
@@ -180,7 +185,7 @@ function stepThread(dir, { destinations, placedAt, savedAt, showDraft }) {
   // The walk reads the current destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
   const { noun, qualifier } = listNames(stops);
-  /** @returns {import("./walk-declaration.js").WalkPosition | null} */
+  /** @returns {import("./walk-position.js").WalkPosition | null} */
   const position = () => {
     const now = walkStops(placedAt, savedAt);
     return listWalkPosition(now.keys, currentStop(now, currentLocationOrigin()), {

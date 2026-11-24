@@ -54,9 +54,8 @@ in the reference.
 Leaf writes the summary as the agent's (`thread.cmd_summarize`), and the user never
 meets the fork. It writes nothing once the page is no longer the session's, or where
 the summary, had it been written as the fork was asked, would no longer be in force
-(`_fence`): a summary written in the thread since replaced it, or an edit or a
-take-back of a message in its range cancelled it, by the rules that cancel any
-summary (`events.active_summaries`). The agent hears what Leaf wrote at its next step,
+(`_fence`), as when a summary written in the thread since replaced it
+(`events.active_summaries`). The agent hears what Leaf wrote at its next step,
 with its id, range and words, as its own (`clerk.queue`), and replaces it as it would
 a summary it wrote. The page's diagnostics note each outcome (`summary_fork`), with
 the fork's usage, time and what it resent, as `forks` notes the line fork's.
@@ -169,15 +168,14 @@ def take_answer(
     *,
     answer: str | None,
     failed: str | None,
-    usage: dict | None = None,
-    elapsed_ms: float | None = None,
-    request: dict | None = None,
+    run: dict | None = None,
 ) -> dict:
     """Write the fork's summary as the agent's over the range it chose, and tell the
     agent; or nothing, where the fork folds nothing or `_fence` stops it; or tell the
     agent the range `basis` suggested, where the fork failed, its answer doesn't fit
     `ANSWER`, or Leaf can't take its range (`_fence`, admission). What came of it is
-    noted in the page's diagnostics."""
+    noted in the page's diagnostics, with what `forks.run_facts` read of the fork's run
+    (`run`)."""
     from .forks import note
     from .thread import cmd_summarize
 
@@ -218,9 +216,7 @@ def take_answer(
             "suggested": {"from": basis["from"], "through": basis["through"]},
             **{key: chosen[key] for key in ("from", "through") if key in chosen},
             **outcome,
-            **({"usage": usage} if usage else {}),
-            **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
-            **({"request": request} if request else {}),
+            **(run or {}),
         },
     )
     return outcome

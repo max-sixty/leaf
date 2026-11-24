@@ -53,16 +53,14 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         'export * from "/runtime/widget-api.js";\n'
     )
     widget = custom / "widgets/lf-risk-note.js"
-    widget.write_text(
-        widget.read_text().replace(
-            "/runtime/widget-api.js", "/runtime/helpers/État+v1.mjs"
-        )
-    )
+    widget.write_text('import "/runtime/helpers/État+v1.mjs";\n' + widget.read_text())
     leaf("package", "check", "custom")
     page_dir = tmp_path / "page"
     leaf(
         "page",
         "init",
+        "--package",
+        "reading",
         "--package",
         "./custom",
         "--package",
@@ -73,7 +71,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     )
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-options">').replace(
         "<h2>Plan</h2>",
-        '<h2>Plan</h2><lf-risk-note id="risk">Custom package works.</lf-risk-note>',
+        '<h2>Plan</h2><lf-risk-note id="risk"></lf-risk-note>',
     )
     source = source.replace(
         "</main>",
@@ -113,8 +111,10 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         tab = browser.new_page()
         tab.goto(target)
         expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")
-        expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
-        assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
+        # The custom package's starter widget draws its choices.
+        expect(
+            tab.locator("lf-risk-note").get_by_role("button", name="Yes")
+        ).to_be_visible()
         playground = tab.locator("#prepared-playground")
         expect(playground.locator("input[name=label]")).to_have_value("Prepared")
         expect(playground.locator("lf-playground-output")).to_contain_text(

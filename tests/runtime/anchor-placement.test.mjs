@@ -21,7 +21,6 @@ import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js"
 import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
-import { registerVisualParts } from "/runtime/visual-parts.js";
 
 const STAGED = '<p id="s4">Mu nu shared phrase xi.</p>';
 const PAGE =
@@ -291,11 +290,12 @@ test("a saved draft on a part the picture draws later stands on the part at the 
   const plot = /** @type {Element} */ (document.getElementById("plot"));
   const point = /** @type {Element} */ (document.getElementById("p"));
   let drawn = false;
-  registerVisualParts(plot, () => [], {
+  plot.lfParts = {
+    read: () => [],
     find: (id) =>
       drawn && id === "point:p" ? { id, element: point, label: "x 1" } : null,
     label: (id) => (id === "point:p" ? "x 1" : null),
-  });
+  };
   const placement = createAnchorPlacement();
   const read = () =>
     placement.read({

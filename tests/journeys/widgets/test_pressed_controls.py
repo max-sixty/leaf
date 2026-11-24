@@ -109,9 +109,8 @@ UNRESOLVED = """async () => {
   const boot = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry,
     location.href);
   const api = await import(new URL('runtime/check-api.js', boot));
-  const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
+    api.declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);

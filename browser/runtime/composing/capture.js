@@ -3,13 +3,12 @@
  * The response surface calls `remember` only at genuine selection gestures, refining
  * a completed pointer selection after snapping. One semantic anchor and direction survive same-page revisions;
  * neither editor selections nor programmatic restoration choose that passage.
- * Browser history separately owns the native working place at each return checkpoint.
+ * History separately keeps the selection on each entry the user leaves (history.js).
  * Restore selection resolves current words through shared travel, refusing a missing
  * or ambiguous passage rather than choosing another occurrence. */
 import { pageRange, selectEnds, selectionBackward } from "../native-selection.js";
 import { COLLAPSE } from "../kernel-facts.js";
 import {
-  closestAcross,
   pageWords,
   pointAt,
   readingHolding,
@@ -17,11 +16,12 @@ import {
   segmentsIn,
   spanIn,
 } from "../passages.js";
-import { textUnits } from "../text-alignment.js";
+import { sentenceUnits, textUnits } from "../lib/text-alignment.js";
 import { anchorForRange, anchoringIsReady } from "../anchor-resolution.js";
 import { takesLetters, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { raiseError } from "../errors.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 // Selection and control-context capture use the same durable passage producer.
 /** @param {Selection} sel */
@@ -116,7 +116,6 @@ const sameRun = (left, right) =>
   right !== null &&
   segmentBlock(left.segment) === segmentBlock(right.segment) &&
   left.segment.gen === right.segment.gen;
-const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
 // An EDGE in the reading: a position inside it that holds no character.
 /** @param {import("../passages.js").PageReading} reading @param {number} i */

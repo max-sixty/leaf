@@ -124,10 +124,13 @@ async function nativeImports(layerRoot, local, assetRoot) {
   });
 }
 
-/** The modules `runtime/portable-api.js` re-exports, which the compiler captures with
- * their dependencies into one chunk. Left to its default, it splits them along every
- * set of entries reaching each one, so a plain page loading the portable helpers, and
- * a Leaf page's boot beside it, would fetch a handful of small chunks rather than one.
+/** The modules that load in any document: those `runtime/portable-api.js` re-exports
+ * and the library's (`runtime/lib/`). The compiler captures them with their
+ * dependencies into one chunk. Left to its default, it splits them along every set of
+ * entries reaching each one, so a plain page loading the portable helpers, and a Leaf
+ * page's boot beside it, would fetch a handful of small chunks rather than one. A
+ * library module the boot reaches would be a file of its own beside them, since each
+ * is an entry: in the chunk, its entry only re-exports it.
  */
 async function portableHomes(layerRoot) {
   const entry = join(layerRoot, "runtime/portable-api.js");
@@ -135,9 +138,12 @@ async function portableHomes(layerRoot) {
     ecmaVersion: "latest",
     sourceType: "module",
   });
-  return new Set(
-    moduleSources(module).map(({ value }) => resolve(dirname(entry), value)),
-  );
+  return new Set([
+    ...moduleSources(module).map(({ value }) => resolve(dirname(entry), value)),
+    ...runtimeEntries
+      .filter((path) => path.startsWith("runtime/lib/"))
+      .map((path) => join(layerRoot, path)),
+  ]);
 }
 
 /** Retain native static edges and keep their runtime imports as kernel entries. */

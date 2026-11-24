@@ -2,21 +2,16 @@
  * window the page shows, where sticky boxes stand and how far a scroll carries what
  * they hold (`carried`), and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import {
-  excludedByInert,
-  renderedParent,
-  skipped,
-  uiInside,
-  under,
-} from "./shadow-tree.js";
+import { excludedByInert, renderedParent, skipped, under } from "./lib/shadow-tree.js";
+import { uiInside } from "./ui-marks.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
-import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
+import { isNativeLayer, nativeLayerHolding } from "./lib/shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
-import { isHTML, isElement, isSVG } from "./shadow-tree.js";
-import { elementBox } from "./shown-box.js";
+import { isHTML, isElement, isSVG } from "./lib/shadow-tree.js";
+import { elementBox } from "./lib/shown-box.js";
 import {
   carriedBox,
   elementAxes,
@@ -26,7 +21,7 @@ import {
   scrollAxes,
 } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
@@ -67,7 +62,8 @@ export const visualViewport = nativeViewport;
    - `seenRect` for whether, and how much of, something is in front of the user;
    - `growthIsSeen` and `growthAfterIsSeen` for whether a change of size would move what
      the user sees (`motionBand`), which scroll anchoring makes a different question;
-   - `whenNone` to hear when one of those readings stops holding for all of something;
+   - `whenChanges` to hear when one of those readings starts or stops holding, and
+     `whenNone` when it stops holding for all of something;
    - `clippedRect` for an element's box the caller has adjusted;
    - `nearWindow` and `nearObserver` for whether a box standing against something
      belongs in layout yet;
@@ -79,7 +75,7 @@ export const visualViewport = nativeViewport;
      and what this page shows of a sample it holds, and `watchRoom` for when any of
      those readings may have changed.
 
-   `skipped` (shadow-tree.js) is asked first by a reading that can leave out a box the
+   `skipped` (lib/shadow-tree.js) is asked first by a reading that can leave out a box the
    browser is not drawing, since reading one in skipped content forces that content's
    style and layout.
 
@@ -803,7 +799,7 @@ function scrollPadding(style) {
     left: inset("Left"),
   };
 }
-// The box an element shows as (`elementBox`, shown-box.js), and for the document's
+// The box an element shows as (`elementBox`, lib/shown-box.js), and for the document's
 // scroller the band of the window it shows.
 /** @param {Element} el @returns {DOMRect} */
 export function shownBox(el) {
@@ -839,7 +835,7 @@ export function shownBox(el) {
 // A reading of what is drawn now leaves that content out (`leaveSkipped`) rather than
 // read its boxes, which lays it out to answer: Firefox can take hundreds of milliseconds
 // to lay out a closed tab's panel holding a text document of several megabytes.
-// A mark that must stand once the content is drawn reads it, and pays (shadow-tree.js,
+// A mark that must stand once the content is drawn reads it, and pays (lib/shadow-tree.js,
 // `skipped`).
 /** @param {Element} el @param {{leaveSkipped?: boolean}} [options] @returns {Element[]} */
 export function shownParts(el, { leaveSkipped = false } = {}) {
@@ -1265,14 +1261,14 @@ export function growthAfterIsSeen(node, clips = new Map()) {
   const band = motionBand(node, clips);
   return band !== null && bottom > band.top && bottom < band.bottom;
 }
-// Calls `leave` once `holds(node, clips)` stops holding for every one of `nodes`, and
-// again each time it stops after holding once more; returns the step that stops
-// watching. `holds` is a reading of geometry such as `seenRect` or `growthIsSeen`. Every
-// watch is read in one rendering pass with one clip cache, after anything that changes
-// what the page shows of its window (`watchRoom`), or a watched node entering or leaving
-// the window, which a change of layout moving it does. A pass calls `leave` only once
+// Calls `changed(now)` each time whether `holds(clips)` holds changes, its first reading
+// included; returns the step that stops watching. `holds` is a reading of geometry such
+// as `seenRect` or `growthIsSeen`. Every watch is read in one rendering pass with one
+// clip cache, after anything that changes what the page shows of its window
+// (`watchRoom`), a scroll's every frame included, or one of `nodes` entering or leaving
+// the window, which a change of layout moving it does. A pass calls back only once
 // every watch is read, so one that redraws cannot stale another's reading.
-/** @type {Set<{read: (clips: ClipCache) => boolean, leave: () => void}>} */
+/** @type {Set<{read: (clips: ClipCache) => boolean, report: () => void}>} */
 const watches = new Set();
 /** @type {ReturnType<typeof nextRender> | null} */
 let watchPass = null;
@@ -1281,25 +1277,24 @@ let unlisten = null;
 const readWatches = () => {
   watchPass = null;
   const clips = new Map();
-  const left = [...watches].filter((watch) => watch.read(clips));
-  for (const watch of left) if (watches.has(watch)) watch.leave();
+  const moved = [...watches].filter((watch) => watch.read(clips));
+  for (const watch of moved) if (watches.has(watch)) watch.report();
 };
 const rereadWatches = () => {
   watchPass ??= nextRender(readWatches);
 };
-/** @param {readonly Element[]} nodes @param {(node: Element, clips: ClipCache) => unknown} holds @param {() => void} leave */
-export function whenNone(nodes, holds, leave) {
+/** @param {(clips: ClipCache) => unknown} holds @param {(now: boolean) => void} changed @param {readonly Element[]} [nodes] */
+export function whenChanges(holds, changed, nodes = []) {
   /** @type {boolean | null} */
   let held = null;
   const watch = {
-    leave,
-    // Whether `holds` has just stopped holding for every node.
+    report: () => changed(Boolean(held)),
     /** @param {ClipCache} clips */
     read(clips) {
-      const now = nodes.some((node) => node.isConnected && Boolean(holds(node, clips)));
-      const stopped = !now && held !== false;
+      const now = Boolean(holds(clips));
+      const moved = now !== held;
       held = now;
-      return stopped;
+      return moved;
     },
   };
   watches.add(watch);
@@ -1316,6 +1311,17 @@ export function whenNone(nodes, holds, leave) {
     watchPass = null;
   };
 }
+// Calls `leave` once `holds(node, clips)` stops holding for every one of `nodes`, and
+// again each time it stops after holding once more (`whenChanges`).
+/** @param {readonly Element[]} nodes @param {(node: Element, clips: ClipCache) => unknown} holds @param {() => void} leave */
+export const whenNone = (nodes, holds, leave) =>
+  whenChanges(
+    (clips) => nodes.some((node) => node.isConnected && Boolean(holds(node, clips))),
+    (now) => {
+      if (!now) leave();
+    },
+    nodes,
+  );
 
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for

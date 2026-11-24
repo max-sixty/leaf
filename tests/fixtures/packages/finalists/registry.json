@@ -33,12 +33,10 @@
   "lf-finalists": {
     "description": "The picked candidates of a shortlist another widget holds, by name, each with a control that drops it from that shortlist. Use it to keep the finalists in view beside or away from the full list.",
     "attributes": {
-      "type": "object",
       "properties": {
         "for": { "type": "string" }
       },
-      "required": ["id", "for"],
-      "additionalProperties": false
+      "required": ["id", "for"]
     },
     "content": "empty",
     "inputs": {

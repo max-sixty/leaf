@@ -5,10 +5,13 @@
    retires it when it leaves, over the same arrival lifetime every element owner holds
    (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
    the widget itself for outlets with
-   `owner.threadOutlets(targets, {signal, collection, onCommit})`, and the widget
-   reaches its registration through `threadSurface(owner)` to say its seats changed
-   (`update()`) or to open a comment on itself or one of its datums (`open(node)`). The
-   selected page presentation registers explicitly (`placePageThreads`).
+   `owner.threadOutlets(targets, {signal, collection, onCommit})` on every thread pass.
+   The widget says its seats changed as it says any change in what it holds, with
+   `lf-layout`, which asks for a pass (anchor-controls.js), and reaches its
+   registration through `threadSurface(owner)` to open a comment on itself or one of
+   its datums (`open(node)`) or to take the composer out of a node it is about to
+   remove (`release(node)`). The selected page presentation registers explicitly
+   (`placePageThreads`).
 
    A widget is offered two kinds of target, and no other thread on it: a datum it
    projects, and the widget itself, which is a thread anchored to its element and
@@ -30,11 +33,10 @@
    owner's region. */
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
-import { reportFailure as reportWidgetFailure } from "../widget-upgrade.js";
+import { reportFailure as reportWidgetFailure } from "../lib/failure.js";
 import { offlineInteractive } from "../context.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { closestAcross } from "../passages.js";
 import { drawnThreadId, drawnThreadsWithId } from "./selectors.js";
 import { registry } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
@@ -42,7 +44,7 @@ import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
 import { discussed, seatOf, seatRoot } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
-import { under } from "../shadow-tree.js";
+import { under, closestAcross } from "../lib/shadow-tree.js";
 import { declareSide } from "../current-target.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";

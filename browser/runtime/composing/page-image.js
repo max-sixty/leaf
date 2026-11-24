@@ -35,10 +35,10 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
-import { canvas2D } from "../canvas.js";
+import { canvas2D } from "../lib/canvas.js";
 import { carriedBox, elementBorderFrame } from "../element-axes.js";
 import { hasArea, intersect, overlaps } from "../rect.js";
-import { describeFailure } from "../exception.js";
+import { describeFailure } from "../lib/exception.js";
 /** @param {Blob} blob */
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
@@ -144,6 +144,13 @@ export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
   /** @type {Set<string>} */
   const warnings = new Set();
+  // The crop in window coordinates, at the page's scroll when called.
+  const shownClip = () => ({
+    left: clip.x - scrollX,
+    top: clip.y - scrollY,
+    right: clip.x - scrollX + clip.width,
+    bottom: clip.y - scrollY + clip.height,
+  });
   // The crop carried into the frame's own viewport by the inverse of its frame
   // (element-axes.js, `elementBorderFrame`), where the child and the substitute's own
   // box read it, held to that viewport. A turned frame draws the box that covers the
@@ -155,12 +162,10 @@ export async function pageImage(clip, { exclude = [] } = {}) {
     if (!frame.checkVisibility({ visibilityProperty: true })) return box;
     const { matrix } = elementBorderFrame(frame);
     const area = intersect(
-      carriedBox(matrix.translate(frame.clientLeft, frame.clientTop).inverse(), {
-        left: clip.x - scrollX,
-        top: clip.y - scrollY,
-        right: clip.x - scrollX + clip.width,
-        bottom: clip.y - scrollY + clip.height,
-      }),
+      carriedBox(
+        matrix.translate(frame.clientLeft, frame.clientTop).inverse(),
+        shownClip(),
+      ),
       { left: 0, top: 0, right: frame.clientWidth, bottom: frame.clientHeight },
     );
     if (!hasArea(area)) return box;
@@ -188,15 +193,7 @@ export async function pageImage(clip, { exclude = [] } = {}) {
     }
     return box;
   }
-  const { root, ground } = captureRoot(
-    {
-      left: clip.x - scrollX,
-      top: clip.y - scrollY,
-      right: clip.x - scrollX + clip.width,
-      bottom: clip.y - scrollY + clip.height,
-    },
-    exclude.join(", "),
-  );
+  const { root, ground } = captureRoot(shownClip(), exclude.join(", "));
   const image = await snapdom(root, {
     clip,
     backgroundColor: ground,

@@ -19,6 +19,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     opened_tab,
     panel_field,
     panel_settled,
@@ -33,7 +34,7 @@ from render_harness import (
 )
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -219,7 +220,8 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
 
     The source message's caret must not remain the thread walk's starting point.
     Pointer and native keyboard links share that arrival with Go-to hints, from either
-    thread surface.
+    thread surface. The walk goes on in the place the user chose for threads: a card
+    after a thread read in its card, and the panel once they chose the panel.
     """
     url = serve(
         leaf_page(
@@ -298,7 +300,9 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     expect(page.locator("#arrival")).to_be_focused()
     page.keyboard.press("t")
     next_thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
+        f'{PANEL_THREAD}[data-lf-thread="{roots[2]}"]'
+        if surface == "panel"
+        else f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
     )
     expect(next_thread).to_be_focused()
 
@@ -351,7 +355,8 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """
-import { once, shadowStage } from "/runtime/widget-api.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -825,11 +830,11 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
 
 def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     """A walk shows the thread it lands on and no other, so `c` and the walk's position
-    have one thread to mean. From a thread open in the panel, `t` to a thread about a
-    passage opens its card and puts the panel's view away; from that card, `t` to a
-    thread about the whole page opens it in the panel and closes the card. Were both to
-    stay open, the panel would say "Thread 2 of 2" under the thread the user had
-    left."""
+    have one thread to mean. From the thread about the whole page, open in the panel,
+    `t` to a thread about a passage opens its card and puts the panel's view away; from
+    a card, `t` to the thread about the whole page opens it in the panel and closes the
+    card. Were both to stay open, the panel would say "Thread 2 of 2" under the thread
+    the user had left."""
     url = serve(INLINE_PAGE)
     first = panel_comment(
         serve.page_dir, "About the bold text.", {"section": "p", "quote": "bold text"}
@@ -841,16 +846,20 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     )
     general = panel_comment(serve.page_dir, "About the whole page.")
     page = open_page(browser, url)
-    view = open_panel_thread(page, first)
+    view = open_panel_thread(page, general)
     # The caret leaves the reply for the view, where the thread's keys answer.
     page.keyboard.press("Escape")
     expect(view).to_be_focused()
 
+    # The thread about the whole page stands after every passage's, so `t` comes round
+    # to the first.
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{first}"]')).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
+    page.keyboard.press("t")
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
     page.keyboard.press("t")
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{general}"]')).to_be_focused()
     expect(card).to_be_hidden()
@@ -1322,7 +1331,7 @@ def thread_page(serve):
 
 def linked_thread(page, name):
     return page.locator(
-        f":is(.lf-page-thread:not([data-lf-part], .lf-fp-view *), .lf-fp-view)"
+        f":is(.lf-page-thread:not([data-lf-kind], .lf-fp-view *), .lf-fp-view)"
         f'[data-lf-thread="{name}"]'
     )
 
@@ -1339,17 +1348,21 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
     entries = page.evaluate("history.length")
     page.reload()
     wait_until_ready(page)
+    # A reload is a return: the thread opens again where the browser restored the page,
+    # with the user in it.
     expect(thread).to_be_focused()
     assert page.evaluate("history.length") == entries
     if name == "anchor01":
-        # Leaving the passage puts its card away. Back reveals that thread again.
+        # Leaving the passage puts its card away, renaming the entry, so Back returns
+        # to the link the user left by with no thread open, as they left it.
         link = page.get_by_role("link", name="Back to the heading")
         link.click()
         expect(page.locator("#start")).to_be_in_viewport()
         expect(thread).not_to_be_visible()
         page.go_back()
-        expect(thread).to_be_visible()
-        expect(page.locator("#target")).to_be_in_viewport()
+        expect(link).to_be_focused()
+        expect(thread).not_to_be_visible()
+        assert "thread" not in dict(parse_qsl(urlsplit(page.url).query))
     else:
         # A primary reader stays shown while the user reads elsewhere on the page.
         # Returning to its URL must keep that reading position as well.
@@ -1361,6 +1374,173 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
         page.go_back()
         expect(page.locator("#target")).to_be_in_viewport()
         assert page.evaluate("scrollY") == pytest.approx(reading_offset, abs=1)
+
+
+def test_t_after_a_reload_goes_on_from_the_thread_it_reopened(browser, serve):
+    """A reload opens the card its entry names again, with the user in it and the page
+    where the browser restored it, so the first `t` after it goes on to the next
+    thread, a Back step, rather than landing on the card already open."""
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")])
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    first = card.get_attribute("data-lf-thread") or ""
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-lf-thread", first)
+    second = card.get_attribute("data-lf-thread") or ""
+    # The reload restores the offset the walk's landing reached, not one mid-glide.
+    scroll_settled(page)
+    read_to = page.evaluate("scrollY")
+    page.reload()
+    wait_until_ready(page)
+    expect(card).to_have_attribute("data-lf-thread", second)
+    expect(card).to_be_focused()
+    assert page.evaluate("scrollY") == pytest.approx(read_to, abs=2)
+    entries = page.evaluate("history.length")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    expect(card).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+
+
+def test_back_to_a_hidden_fragment_opens_the_thread_its_entry_names(browser, serve):
+    """Back to an entry naming a thread and a fragment the page has hidden since reveals
+    the fragment, which puts away the panel's view standing over it, and opens the
+    thread the entry names again after, as the page then stands."""
+    filler = "".join(f"<p>Reading context {n}.</p>" for n in range(40))
+    url = serve(
+        leaf_page(
+            "Hidden fragment",
+            '<h1 id="top">Hidden fragment</h1><p id="middle">The middle.</p>'
+            f'{filler}<details id="more" open><summary>More</summary>'
+            '<p id="foot">The foot.</p></details>',
+        )
+    )
+    root = panel_comment(serve.page_dir, "About the whole page.")
+    for n in range(3):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {n}. " + "More of the explanation. " * 12,
+            },
+        )
+    page = open_page(browser, thread_url(url, root, "foot"))
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(thread).to_be_visible()
+    # To another entry with the thread still open, by no press that would put it away.
+    page.evaluate("location.hash = 'middle'")
+    expect(page.locator("#middle")).to_be_focused()
+    expect(thread).to_be_visible()
+    page.evaluate("document.getElementById('more').open = false")
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator("#foot")).to_be_visible()
+    expect(thread).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+    query = dict(parse_qsl(urlsplit(page.url).query))
+    assert query.get("thread") == root
+    assert urlsplit(page.url).fragment == "foot"
+
+
+@pytest.mark.parametrize(
+    "anchor",
+    [None, {"section": "gone", "quote": "Words a revision removed."}],
+    ids=["about the page", "passage removed"],
+)
+def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve, anchor):
+    """A press on a row of Threads lands the user in a thread they weren't in, a Back
+    step as every other route's is, and so does Resolve moving them on from it to the
+    next thread; Back returns to the thread they resolved. A thread with no passage on
+    the page opens in the panel with nothing to land beside it, about the whole page or
+    about words a revision removed, and its view alone makes the step."""
+    url = serve(LONG_PAGE)
+    threads = [
+        panel_comment(serve.page_dir, "First question?", anchor),
+        panel_comment(serve.page_dir, "Second question?", anchor),
+    ]
+    page = open_page(browser, url)
+    open_threads(page)
+    view = page.locator(PANEL_THREAD)
+    rows = page.locator(".lf-fp-thread")
+    expect(rows).to_have_count(2)
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    rows.first.click()
+    expect(view).to_be_visible()
+    opened = view.get_attribute("data-lf-thread")
+    assert opened in threads
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+    with sending(page, "the resolve that moves on"):
+        page.locator(".lf-fp-thread-controls .lf-resolve").click()
+    expect(view).not_to_have_attribute("data-lf-thread", opened or "")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 2
+    page.go_back()
+    expect(view).to_have_attribute("data-lf-thread", opened or "")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
+    request, serve, engine
+):
+    """Back from a thread a press on a row of Threads opened in the panel, as one about a
+    passage opens for a user who chose the panel for threads, returns to Threads, on
+    that row, as the view's own way back does, rather than closing the panel; Forward
+    opens the thread again. The entry keeps the list and its row across a reload of the
+    document, which forgets the panel's views, so the thread the reload opens again
+    still gives way to Threads on Back, and after Escape put the thread away, when Back
+    has no thread to put away."""
+    url = serve(LONG_PAGE)
+    for n, text in enumerate(("First question?", "Second question?", "Third?"), 1):
+        panel_comment(
+            serve.page_dir, text, {"section": f"p{n}", "quote": f"Paragraph {n}."}
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
+    open_threads(page)
+    rows = page.locator(".lf-fp-thread")
+    expect(rows).to_have_count(3)
+    pressed = rows.nth(1)
+    key = pressed.get_attribute("data-lf-key")
+    pressed.click()
+    opened = page.locator(PANEL_THREAD).get_attribute("data-lf-thread") or ""
+    thread = linked_thread(page, opened)
+    expect(thread).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+
+    row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
+    for reload in (True, False):
+        if reload:
+            page.reload()
+            wait_until_ready(page)
+            expect(thread).to_be_visible()
+        page.go_back()
+        expect(page.locator(panel_view("threads"))).to_be_visible()
+        expect(row).to_be_focused()
+        expect(thread).to_be_hidden()
+        page.wait_for_function("navigation.transition === null")
+        page.go_forward()
+        expect(thread).to_be_visible()
+        page.wait_for_function("navigation.transition === null")
+
+    # Escape puts the thread away where the user stands, so Back has no thread to put
+    # away, and the entry's own record names the row.
+    page.keyboard.press("Escape")
+    if thread.is_visible():
+        page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
+    expect(row).to_be_focused()
 
 
 def test_following_a_thread_url_uses_native_history(browser, serve):
@@ -1375,14 +1555,72 @@ def test_following_a_thread_url_uses_native_history(browser, serve):
     assert "thread=" not in page.url
     page.go_forward()
     wait_until_ready(page)
+    # Forward into the document is a return, so the thread opens in place.
     expect(linked_thread(page, "general1")).to_be_focused()
     assert page.evaluate("history.length") == entries + 1
 
 
-def test_authored_fragment_takes_precedence_over_thread_query(browser, serve):
+def test_a_thread_url_with_a_fragment_lands_there_with_the_thread_open(browser, serve):
+    """The fragment places the page, and the thread the URL names opens beside it
+    without moving it, so a reload of an entry that showed both shows both again."""
     page = open_page(browser, thread_url(thread_page(serve), "general1", "target"))
+    expect(linked_thread(page, "general1")).to_be_visible()
     expect(page.locator("#target")).to_be_in_viewport()
-    expect(page.locator('.lf-page-thread[data-lf-thread="general1"]')).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engine):
+    """An entry's `?thread=` names the thread view standing open on it, renamed as views
+    open and close where the user stands. A link followed out of a thread a URL opened
+    puts the view away and leaves an entry naming no thread; Back returns to the
+    thread, with the user on the link they left by and the page where it was, and
+    Forward to the link's target with the view put away again. Escape puts the view
+    away by renaming the entry, never by a traversal."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "See [the last paragraph](#p59).",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), thread_url(url, root))
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(thread).to_be_focused()
+
+    def query():
+        return dict(parse_qsl(urlsplit(page.url).query))
+
+    start = page.evaluate("navigation.currentEntry.index")
+    link = thread.get_by_role("link", name="the last paragraph")
+    link.click()
+    expect(page.locator("#p59")).to_be_focused()
+    expect(thread).to_be_hidden()
+    page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
+    entries = page.evaluate("navigation.entries().length")
+
+    page.go_back()
+    expect(link).to_be_focused()
+    assert query()["thread"] == root
+    page.wait_for_function("scrollY === 0")
+    page.go_forward()
+    expect(thread).to_be_hidden()
+    expect(page.locator("#p59")).to_be_in_viewport()
+    assert "thread" not in query()
+    expect(page.locator("#p59")).to_be_focused()
+
+    page.go_back()
+    expect(link).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
+    assert page.evaluate("navigation.entries().length") == entries
+    assert page.evaluate("navigation.currentEntry.index") == start
 
 
 def test_unknown_thread_url_reports_the_missing_destination(browser, serve):
@@ -1462,45 +1700,28 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
     expect(linked_thread(page, "anchor01")).to_be_focused()
     expect(page.locator("#target")).to_be_in_viewport()
     assert page.evaluate("history.length") == 2
-    assert urlsplit(page.url).fragment == ""
+    # The tab set names the view it opened beside the thread, and the entry keeps both:
+    # the thread by the reply the link named, or by its own id where the tab set's
+    # rename came before the thread stood open and the entry was named again after.
+    assert urlsplit(page.url).fragment == "second"
+    assert dict(parse_qsl(urlsplit(page.url).query))["thread"] in (
+        "answer01",
+        "anchor01",
+    )
     page.reload()
     wait_until_ready(page)
-    expect(linked_thread(page, "anchor01")).to_be_focused()
-    page.emulate_media(reduced_motion="no-preference")
-    page.evaluate(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          preview.addEventListener('transitionrun', function hold(event) {
-            if (event.propertyName !== 'opacity' || !preview.inert) return;
-            for (const animation of preview.getAnimations()) animation.pause();
-            preview.removeEventListener('transitionrun', hold);
-          });
-        }"""
-    )
-    # The hold catches only a fade the tab press starts, so the card still stands
-    # placed when the press lands; a card already put away fails here, not in the wait.
-    expect(page.locator(".lf-margin-preview")).to_have_attribute(
-        "data-lf-thread-placement", re.compile(r".+")
-    )
+    expect(linked_thread(page, "anchor01")).to_be_visible()
+    # A press on the other tab puts the card away, so the entry it leaves names no
+    # thread, and Back returns to the tab with the card put away.
     page.get_by_role("tab", name="First", exact=True).click()
     expect(page.locator("#first")).to_be_visible()
     assert urlsplit(page.url).fragment == "first"
-    page.wait_for_function(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
-        }"""
-    )
     page.go_back()
     wait_until_ready(page)
-    assert page.locator("#second").is_visible()
-    expect(linked_thread(page, "anchor01")).to_be_visible()
-    assert urlsplit(page.url).fragment == ""
-    # The card stands under its passage at the full measure, over the link below it,
-    # so the reader puts it away before the press.
-    preview = page.locator(".lf-margin-preview")
-    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
-    expect(preview).to_be_hidden()
+    expect(page.locator("#target")).to_be_visible()
+    expect(linked_thread(page, "anchor01")).to_be_hidden()
+    assert urlsplit(page.url).fragment == "second"
+    assert "thread" not in dict(parse_qsl(urlsplit(page.url).query))
     # Opening an authored fragment link in a new document inherits the query,
     # just as Copy Link or Open in New Tab does.
     heading_url = page.get_by_role("link", name="Return to the heading").evaluate(

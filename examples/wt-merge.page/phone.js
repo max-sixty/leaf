@@ -2,7 +2,9 @@
 // History runs down two lanes; the refs move with their commits. Worktrees and hooks
 // stay below that history, and a disclosure holds the complete, seekable terminal.
 // Coordinates come from the interpolated world, so a resize preserves playback.
-import { keeps, keepsText, offer, setChildren } from "/runtime/widget-api.js";
+import { setChildren } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const color = (role) =>
@@ -54,6 +56,9 @@ export class PhonePainter {
     this.latest = document.createElement("p");
     this.latest.className = "film-phone-latest";
     this.log = document.createElement("div");
+    // The log is a reading region the disclosure hosts.
+    this.log.setAttribute("data-lf-scroll", "terminal");
+    this.terminal.setAttribute("data-lf-scroll-host", "terminal");
     this.terminal.append(summary, this.log);
     this.root.append(this.context, this.latest, this.terminal);
     stage.append(this.root);

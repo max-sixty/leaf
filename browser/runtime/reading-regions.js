@@ -1,9 +1,9 @@
 /* Reading regions are stable semantic places whose current scroll container may change.
 
-   `registerReadingRegion` binds one stable id to a host and body. The host makes focus
-   in a pane's header or footer select that pane; the body is the region's scroller
-   whenever the stylesheet makes it scroll, which is the only reading of scroll behavior there
-   is: a bounded region's body scrolls, and a flowing one's is carried by the region
+   A region binds one stable id to a host and body. The host makes focus in a pane's
+   header or footer select that pane; the body is the region's scroller whenever the
+   stylesheet makes it scroll, which is the only reading of scroll behavior there is: a
+   bounded region's body scrolls, and a flowing one's is carried by the region
    containing it or by the page. CSS decides that from the space a workspace has
    (layouts.css, the workspace Layout), so nothing here chooses a scroll behavior.
 
@@ -15,6 +15,26 @@
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
    Containment follows the rendered tree, including assigned slots: a native message
    laid out by a package's shadow reader belongs to that reader's region.
+
+   A module states a region on the box itself: reach's mark with a name,
+   `data-lf-scroll="<name>"`, makes the box a region's body for as long as it stands in
+   the page wearing it, and `data-lf-scroll-host="<name>"` on a box around it makes that
+   box the host. One watch (arrivals.js) keeps those regions registered. Every question
+   asked of the registry first reads the mutations the watch has yet to deliver
+   (`readMarks`), because a question can come in the task that wrote the mark: a widget
+   draws a box and shows its first subject in it (`showReadingSubject`), lands
+   something in it, or brackets its first change with `preserveReadingRegions`. A mark
+   heard only at the watch's delivery would be a region none of those knew. A reading
+   of the marks is one batch, which decides its departures first, so a box that replaces
+   another takes the id the other held. The watch is this module's own: reach's watch
+   of the same mark (reach.js) starts once the page has presented and gives back a
+   keyboard stop where a box leaves, which a reading in the middle of a task would do
+   to a box a script is only moving. The runtime registers its own regions directly
+   (`registerReadingRegion`).
+
+   A region's id has to name it in the next document too, since that is where a revision
+   restores its place, so it is composed from the id of an element that holds the region
+   and the region's name (`regionId`).
 
    A region's scroller can change without any gesture: a window crossing the workspace
    threshold, a tab showing, a panel opening. A region whose width changes keeps its
@@ -41,7 +61,7 @@
 
    A region can show one subject of several in turn, as a trace's saved tree shows one
    checkpoint's elements at a time. Its owner replaces the body's contents through
-   `showReadingSubject(id, subject, render)`, which tells watchers the subject is
+   `showReadingSubject(body, subject, render)`, which tells watchers the subject is
    `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
    subject and returns them to it.
 
@@ -54,18 +74,27 @@
    domain. */
 import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { stageOf, watchArrivals } from "./arrivals.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import {
+  closestAcross,
   isElement,
   skipped,
   under,
   renderedUnder,
   renderedParent,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { pageScroller } from "./scrolling.js";
 import { holdReach, reachReadingScroller } from "./reach.js";
-import { focusInPage, inPage, layoutBox } from "./passages.js";
+import {
+  authoredScope,
+  focusInPage,
+  inPage,
+  layoutBox,
+  pageDocument,
+} from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -78,6 +107,14 @@ import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
  * (CompositionTransition & ({phase: "before", retained: boolean} | {phase: "after", cancelled: boolean}))} ReadingTransition */
 /** @type {Map<string, RegionRegistration>} */
 const regions = new Map();
+// Reads the marks written since the watch below last delivered (the header says why).
+// Every question about the registry asks through `registered` or `regionsAround`,
+// which read them first.
+let readMarks = () => {};
+const registered = () => {
+  readMarks();
+  return regions;
+};
 /** @type {Set<(transition: ReadingTransition) => void>} */
 const transitionWatchers = new Set();
 
@@ -105,6 +142,7 @@ const byBody = new WeakMap();
 const current = (region) => regions.get(region.id) === region && live(region);
 /** @param {Node | null | undefined} node @param {WeakMap<Element, RegionRegistration[]>} index */
 function* regionsAround(node, index) {
+  readMarks();
   for (let at = node; at; at = renderedParent(at))
     if (isElement(at)) yield* (index.get(at) ?? []).filter(current);
 }
@@ -131,12 +169,20 @@ const regionRecord = (region) => ({
   subject: region.subject,
 });
 
-/** @param {Element} owner @param {string} localName */
-export function compoundReadingRegionId(owner, localName) {
-  if (!owner?.id || !/^[a-z][a-z0-9-]*$/.test(localName ?? ""))
-    throw new Error("leaf: a compound reading region needs an owner id and local name");
-  return `lf-region:${owner.id}:${localName}`;
-}
+// The id of the region `name` that `owner` names, whose body is `box` (the header says
+// what an id is for). An element with an id names its regions in the page's own
+// document for good. A box no such element names, or one in a message's markup, whose
+// ids repeat the page's, takes a fresh id that names its region in this document
+// alone: the region answers every geometry question and keeps its place while it
+// stands, and a replacement document starts it afresh rather than guess which region
+// it was.
+const THIS_DOCUMENT = `lf-region:${performance.timeOrigin}`;
+let unnamed = 0;
+/** @param {Element | null} owner @param {string} name @param {Element} box */
+export const regionId = (owner, name, box) =>
+  owner?.id && authoredScope(box) === pageDocument()
+    ? `lf-region:${owner.id}:${name}`
+    : `${THIS_DOCUMENT}:${(unnamed += 1)}`;
 
 /** @param {{id: string, host: Element, body: Element,
  * paintContinuation?: (above: boolean) => void}} options */
@@ -227,12 +273,13 @@ export function syncLayoutRegion() {
       });
 }
 
-// Replace a region's contents with another subject's (see the header). A region not
-// registered yet has no place to keep, so the render runs alone.
-/** @template T @param {string} id @param {string | null} subject @param {() => T} render @returns {T} */
-export function showReadingSubject(id, subject, render) {
-  const region = regions.get(id);
-  if (!live(region) || region.subject === subject) {
+// Replace a region's contents with another subject's (see the header). A box that is no
+// region's body has no place to keep, so the render runs alone.
+/** @template T @param {Element} body @param {string | null} subject @param {() => T} render @returns {T} */
+export function showReadingSubject(body, subject, render) {
+  readMarks();
+  const region = byBody.get(body)?.find(current);
+  if (!region || region.subject === subject) {
     if (region) region.subject = subject;
     return render();
   }
@@ -245,17 +292,17 @@ export function showReadingSubject(id, subject, render) {
 
 /** @param {string | null | undefined} id */
 export const readingRegion = (id) => {
-  const region = id == null ? undefined : regions.get(id);
+  const region = id == null ? undefined : registered().get(id);
   return live(region) ? regionRecord(region) : undefined;
 };
 
 export const readingRegions = () =>
-  [...regions.values()].filter(live).map(regionRecord);
+  [...registered().values()].filter(live).map(regionRecord);
 
 // Keep a region in the inventory while an authored disclosure or tab conceals it,
 // but never ask its geometry merely to decide whether to sample it.
 export const unconcealedReadingRegions = () =>
-  [...regions.values()]
+  [...registered().values()]
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
@@ -380,9 +427,9 @@ export const containingReadingRegionFor = (node) => {
 
 /** @param {RegionTarget} regionOrNode */
 const asRegion = (regionOrNode) => {
-  if (typeof regionOrNode === "string") return regions.get(regionOrNode);
+  if (typeof regionOrNode === "string") return registered().get(regionOrNode);
   if (!regionOrNode) return undefined;
-  const named = regions.get(regionOrNode.id);
+  const named = registered().get(regionOrNode.id);
   if (named || !(regionOrNode instanceof Element)) return named;
   const containing = readingRegionFor(regionOrNode);
   return containing ? regions.get(containing.id) : undefined;
@@ -519,7 +566,7 @@ const pageMoved = (now = pageGeometry()) => {
 export const regionsSettled = () =>
   viewportHeight === innerHeight &&
   !pageMoved() &&
-  [...regions.values()].every(
+  [...registered().values()].every(
     (region) =>
       !live(region) ||
       !region.scroller ||
@@ -537,7 +584,7 @@ function measureRegions() {
   viewportHeight = innerHeight;
   /** @type {RegionShift[]} */
   const shifted = [];
-  for (const region of regions.values()) {
+  for (const region of registered().values()) {
     if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
     const width = region.host.offsetWidth;
@@ -567,3 +614,67 @@ sizes.observe(pageScroller);
 // A flowing region need not resize when only the window's height changes.
 // Share the observer's comparison so one reflow produces one shift reading.
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
+
+// The regions the page's marks state (the header): each marked body with the name and
+// host it is registered under, so a body offered again as it stood costs one climb.
+//
+// - The host is the nearest box around the body that names the region, or the body
+//   where none does. The climb stops at a box that is another region's body: a region's
+//   host stands inside the region that holds it, so a host further out names some other
+//   widget's region of the same name.
+// - The region is named after the nearest element with an id, the host itself or one
+//   around it, so a pane's region keeps its id whichever body the pane holds, and a
+//   widget's regions are named after the widget wherever it stands, a shadow tree
+//   included.
+// - A name a standing box already holds under that element is no refusal: the later
+//   box is a region under an id of this document alone, and keeps that id while it
+//   stands. Each answers for what it scrolls, and only the earlier one's place is found
+//   again in a replacement document.
+const BODY = PAGE_PAINT_ATTRIBUTE.scrollSurface;
+const HOST = PAGE_PAINT_ATTRIBUTE.scrollHost;
+/** @type {Map<Element, {name: string, host: Element, stop: () => void}>} */
+const stated = new Map();
+/** @type {WeakMap<Element, string>} */
+const hosts = new WeakMap();
+/** @param {Element} body */
+function readBody(body) {
+  const name = body.isConnected ? body.getAttribute(BODY) : null;
+  let host = body;
+  for (let at = renderedParent(body); name && at; at = renderedParent(at)) {
+    if (at.getAttribute(HOST) === name) host = at;
+    if (host === at || at.getAttribute(BODY)) break;
+  }
+  const held = stated.get(body);
+  if (held?.name === name && held.host === host) return;
+  held?.stop();
+  stated.delete(body);
+  if (!name) return;
+  const named = regionId(closestAcross(host, "[id]"), name, body);
+  const id = live(regions.get(named)) ? regionId(null, name, body) : named;
+  stated.set(body, { name, host, stop: registerReadingRegion({ id, host, body }) });
+}
+// A host's mark can be written after its body's region is registered, or taken off
+// while the body stands, so each change to what a box hosts offers again the bodies it
+// hosted and those it may host now: the marked ones in its own tree, and in its shadow
+// stage where the box is a widget hosting a body it drew there.
+/** @param {Element} box */
+function readHost(box) {
+  const name = box.isConnected ? box.getAttribute(HOST) : null;
+  if (name === (hosts.get(box) ?? null)) return;
+  if (name === null) hosts.delete(box);
+  else hosts.set(box, name);
+  for (const region of [...(byHost.get(box) ?? [])]) readBody(region.body);
+  if (name === null) return;
+  const named = `[${BODY}="${CSS.escape(name)}"]`;
+  for (const tree of [box, stageOf(box)])
+    for (const body of tree?.querySelectorAll(named) ?? []) readBody(body);
+}
+/** @param {Element} box */
+const readBox = (box) => {
+  readHost(box);
+  readBody(box);
+};
+readMarks = watchArrivals(`[${BODY}]:not([${BODY}=""]), [${HOST}]`, [BODY, HOST], {
+  arrive: readBox,
+  leave: readBox,
+});

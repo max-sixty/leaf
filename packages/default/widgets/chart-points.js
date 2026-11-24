@@ -209,7 +209,7 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
     const reach = Number(options.maxRadius ?? RADIUS) ** 2;
     const derived = Plot.initializer(
       { ...options, x: null, y: null },
-      (data, facets, channels, scales, dimensions, context) =>
+      (_data, _facets, _channels, _scales, _dimensions, context) =>
         /** @type {any} */ (context).getMarkState(mark),
     );
     const {

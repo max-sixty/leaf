@@ -12,10 +12,9 @@
  * below; there Down past a column's last card continues into the column below and Up
  * past its first into the one above, the next slot the user sees (#step). Escape also
  * cancels a pointer drag.
- * For the whole gesture the board holds
- * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
- * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
- * completed move
+ * For the whole gesture the board says the user holds a card (`lf-hold`), so no new
+ * revision or undo replaces the cards under the hand, and defers its own drawing
+ * (`defer`), so no foreign move replays mid-gesture; a completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. Its render receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
@@ -79,42 +78,21 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  setScroll,
   elementById,
-  LeafElement,
   move,
-  offer,
-  offerAction,
-  generatedElement,
-  quoted,
-  announce,
-  labelOf,
-  layoutChanged,
-  previewChanged,
-  saying,
-  dragging,
   motion,
-  motionPreview,
   scrollerFor,
-  PRESS,
-  rowArrows,
-  onMotionPreferenceChange,
-  rankAt,
-  reducedMotion,
-  scrollBehavior,
-  keeps,
-  keepsHidden,
-  keepsText,
   focusDestination,
   scrollIntoView,
   whileConnected,
-  focused,
-  declarationFor,
-  authoredScope,
+  layerFact,
   widgetController,
-  commandsChanged,
-  reportFailure,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { byRank, rankAt } from "/runtime/lib/rank.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -145,20 +123,20 @@ const showsId = (card) => card.getAttribute("shows") || null;
 /** The widget whose answer a card shows, with the verb that writes the answer and
  * that verb's record; `{fault}`, telling the author what to write instead, where the
  * card's `shows` names no answer a board can show; or null for a card that shows none.
- * A board can show the answer of a widget in the card's own page or message whose
- * `awaits.value` verb records a value or members. */
+ * A board can show the answer of a widget whose `awaits.value` verb records a value or
+ * members, in the card's own message first, then on the page. */
 /** @param {Element} card */
 function shownWidget(card) {
   const id = showsId(card);
   if (id === null) return null;
-  const owner = elementById(id, authoredScope(card));
+  const owner = elementById(id, card);
   if (!owner)
     return {
       fault:
-        `shows="${id}" names no element beside the card; a card shows a widget in` +
-        " the same page, or in the same message",
+        `shows="${id}" names no element beside the card; a card shows a widget on` +
+        " the page, or in the message that holds it",
     };
-  const declaration = declarationFor(owner);
+  const declaration = layerFact(owner.localName);
   const verb = declaration?.awaits?.value;
   const record = verb ? declaration?.verbs?.[verb]?.record : undefined;
   if (!verb || (record?.kind !== "value" && record?.kind !== "attribute"))
@@ -178,8 +156,7 @@ function valuelessFault(card, { owner, record }) {
   if (record.kind !== "attribute") return null;
   const members = widgetController(owner).read().memberships?.[record.attr];
   if (!members?.length) return null;
-  const scope = authoredScope(owner);
-  return members.some((member) => elementById(member, scope)?.hasAttribute(VALUE))
+  return members.some((member) => elementById(member, owner)?.hasAttribute(VALUE))
     ? null
     : `shows="${showsId(card)}" names <${owner.localName}>, none of whose members ` +
         `carries a \`${VALUE}\`, so no pick puts the card in a column; give each ` +
@@ -190,6 +167,9 @@ function valuelessFault(card, { owner, record }) {
  * answer a board can show (`shownWidget`), or a widget whose state has not loaded.
  * Reading it reads that widget's own published state, and changing it sends the
  * widget's own command through its controller, the same command its own control sends.
+ * `render()` follows that reading, so the board draws again when the answer changes.
+ * The widget's own `state` property holds the same answer, but nothing tells the
+ * board when Leaf sets it.
  * `value` is the value the answer names now (null for none), `available` whether the
  * user can change it, `takes(value)` whether the widget can answer `value` (null
  * clears a pick), and `answer(value, says)` sends the widget's command, returning
@@ -203,11 +183,10 @@ function shownAnswer(card) {
   const reading = controller.read();
   const state = reading.state?.[verb];
   if (!state) return null;
-  const scope = authoredScope(owner);
   const valueOf =
     record.kind === "attribute"
       ? (/** @type {string} */ member) =>
-          elementById(member, scope)?.getAttribute(VALUE) ?? null
+          elementById(member, owner)?.getAttribute(VALUE) ?? null
       : null;
   const detailFor = (/** @type {string | null} */ value) => {
     if (!valueOf) return value === null ? null : { value };
@@ -251,6 +230,9 @@ customElements.define(
     #sortables = new Set();
     /** @type {(() => void) | null} */
     #resumeProjection = null;
+    // The user's hold through the gesture, settled as the card is put down.
+    /** @type {PromiseWithResolvers<void> | null} */
+    #held = null;
     // The fault last reported for each card, so the author hears of it once rather
     // than at every draw.
     /** @type {WeakMap<Element, string>} */
@@ -261,7 +243,7 @@ customElements.define(
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.#allCards()) {
         this.#grip(card);
@@ -297,7 +279,7 @@ customElements.define(
     //
     // The heading is written here too, because it is two things at once: the words a
     // user selects to comment on the column, and the list's accessible name, so the
-    // tree hears them once, as the name. It is the page speaking (`says: true`) and
+    // tree hears them once, as the name. It is the page speaking (`data-lf-said`) and
     // generated, so the diff looks away, and it isn't .lf-ui, so the anchor pass
     // doesn't.
     #structure() {
@@ -308,7 +290,8 @@ customElements.define(
         if (col.querySelector(":scope > .lf-column-name")) continue;
         const heading = document.createElement("span");
         heading.className = "lf-column-name";
-        generatedElement(heading, { says: true });
+        keeps(heading, "data-lf-gen", "1");
+        heading.toggleAttribute("data-lf-said", true);
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
         // select them, and the theme's generated copy is left to the no-script case.
@@ -320,7 +303,7 @@ customElements.define(
         // list already tells a screen reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
-        generatedElement(count, { says: false });
+        keeps(count, "data-lf-gen", "1");
         count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
         heading.after(count);
@@ -341,7 +324,9 @@ customElements.define(
     // one shared reading on the card rather than another suffix in this control's name.
     #names() {
       this.#counts();
-      for (const col of this.#columns()) {
+      const columns = [...this.#columns()];
+      const byId = new Map(columns.map((col) => [col.id, col]));
+      for (const col of columns) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
@@ -352,17 +337,17 @@ customElements.define(
             ":scope > .lf-board-destinations > .lf-board-destination",
           );
           for (const button of destinations)
-            keepsHidden(
-              button,
+            button.toggleAttribute(
+              "hidden",
               button.getAttribute("data-lf-board-target") === col.id ||
                 !this.#takes(
                   card,
-                  elementById(button.getAttribute("data-lf-board-target")),
+                  byId.get(button.getAttribute("data-lf-board-target") ?? "") ?? null,
                 ),
             );
           // With no button to show, the group's "Move to" would name no destination.
-          keepsHidden(
-            card.querySelector(":scope > .lf-board-destinations"),
+          card.querySelector(":scope > .lf-board-destinations")?.toggleAttribute(
+            "hidden",
             [...destinations].every((button) => button.hidden),
           );
         }
@@ -383,12 +368,14 @@ customElements.define(
 
     #observeMotion() {
       if (!this.#sortables.size) return;
-      for (const sortable of this.#sortables)
-        sortable.option("animation", reducedMotion() ? 0 : 150);
-      return onMotionPreferenceChange((/** @type {boolean} */ reduced) => {
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+      const animate = () => {
         for (const sortable of this.#sortables)
-          sortable.option("animation", reduced ? 0 : 150);
-      });
+          sortable.option("animation", reduced.matches ? 0 : 150);
+      };
+      animate();
+      reduced.addEventListener("change", animate);
+      return () => reduced.removeEventListener("change", animate);
     }
 
     #paintAvailability = () => {
@@ -410,7 +397,7 @@ customElements.define(
     };
 
     #available() {
-      return Boolean(this.reading?.actions.move?.available);
+      return Boolean(this.state?.move?.available);
     }
 
     // A card with `shows` moves when the answer it shows can change and a column other
@@ -526,10 +513,7 @@ customElements.define(
       grip.setAttribute("aria-description", drag);
       // Grabbed, the card is moving, so the grip says nothing over it until it drops.
       grip.lfPreview = () =>
-        !held() && {
-          keys: grab.keys.map((binding) => [labelOf({ ...grab, keys: [binding] })]),
-          detail: [drag],
-        };
+        !held() && { keys: grab.keys.map((binding) => [binding]), detail: [drag] };
       /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,
@@ -577,7 +561,6 @@ customElements.define(
         },
       ];
       grip.lfCommands = { title: "On a card grip", rows };
-      commandsChanged(grip);
       return rows;
     }
     /** @param {BoardCard} card */
@@ -588,15 +571,21 @@ customElements.define(
       grip.setAttribute("data-lf-carry", "grip");
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
-      // focus, so only a real departure still lacks focus when this settles.
+      // focus, so only a real departure still lacks focus when this settles. The window
+      // losing system focus blurs the grip but leaves it its tree's active element, so
+      // that is no departure.
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
-          if (this.#grabbed?.grip === grip && focused() !== grip)
+          const root = /** @type {Document | ShadowRoot} */ (grip.getRootNode());
+          if (this.#grabbed?.grip === grip && root.activeElement !== grip)
             this.#cancel(this.#grabbed);
         });
       });
       card.append(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {BoardCard} card */
@@ -608,7 +597,7 @@ customElements.define(
       group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
       const label = document.createElement("span");
       label.className = "lf-board-destinations-label";
-      generatedElement(label, { says: false });
+      keeps(label, "data-lf-gen", "1");
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {
@@ -649,13 +638,17 @@ customElements.define(
       this.#grabbed = { card, grip, from, index };
       this.#beginGesture();
       card.classList.add("lf-lift");
-      previewChanged(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+      );
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
       const grabbed = `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
         index + 1
       } of ${cards.length}`;
-      announce(() => [grabbed, saying(rows)].filter(Boolean).join(" — "));
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", { detail: { words: grabbed, rows } }),
+      );
     }
 
     /** @param {BoardCard} card @param {HTMLElement} grip @param {number} dCol @param {number} dRow */
@@ -696,10 +689,12 @@ customElements.define(
       this.#place(card, target, index, grip);
       const now = card.parentElement;
       const cards = this.#cards(now);
-      announce(
-        `${this.#title(card)} — ${now.getAttribute("label")}, position ${
-          cards.indexOf(card) + 1
-        } of ${cards.length}`,
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${this.#title(card)} — ${now.getAttribute("label")}, position ${
+            cards.indexOf(card) + 1
+          } of ${cards.length}`,
+        }),
       );
     }
 
@@ -726,16 +721,27 @@ customElements.define(
       // without taking the viewport from the control the user deliberately entered.
       this.#place(card, from, index, refocus ? grip : null);
       this.#finishGesture();
-      announce(`${this.#title(card)} — move cancelled`);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${this.#title(card)} — move cancelled`,
+        }),
+      );
     }
 
     #beginGesture() {
-      this.#resumeProjection ??= this.controller.defer();
-      dragging(this, true);
+      if (this.#resumeProjection) return;
+      this.#resumeProjection = this.defer();
+      this.#held = Promise.withResolvers();
+      this.dispatchEvent(
+        Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+          complete: this.#held.promise,
+        }),
+      );
     }
 
     #finishGesture() {
-      dragging(this, false);
+      this.#held?.resolve();
+      this.#held = null;
       this.#resumeProjection?.();
       this.#resumeProjection = null;
     }
@@ -746,32 +752,30 @@ customElements.define(
     #release(grab) {
       grab.card.classList.remove("lf-lift");
       this.#grabbed = null;
-      previewChanged(grab.grip);
+      // The grip's rows read the grab, and a drag that takes a grab over keeps the
+      // user's hold, whose start and end are what paint them otherwise.
+      grab.grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
+      grab.grip.dispatchEvent(
+        new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+      );
     }
 
     // Arrow steps and a cancelled grab place through one writer. Start from the
     // current paint before cancelling a superseded FLIP, so a reversal continues
-    // where the user sees the card. Cancel smooth reveal before measuring, too.
-    // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
-    // back at the old box; native scrolling and the card's motion then run together.
+    // where the user sees the card. Keyboard placement refocuses and reveals the final
+    // box before FLIP puts its paint back at the old box; the reveal's glide and the
+    // card's motion then run together.
     /** @param {Element} card @param {Element} col @param {number} index @param {HTMLElement | null} [grip] */
     #place(card, col, index, grip = null) {
-      for (const box of [this, scrollerFor(this)])
-        setScroll(box, {
-          left: box.scrollLeft,
-          top: box.scrollTop,
-          behavior: "instant",
-        });
       const first = card.getBoundingClientRect();
       for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        scrollIntoView(card, {
-          behavior: scrollBehavior(),
-          block: "nearest",
-        });
+        scrollIntoView(card, { behavior: "smooth", block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
@@ -805,10 +809,9 @@ customElements.define(
         this.#finishGesture();
         return;
       }
-      this.controller.dispatch({
-        kind: "action",
-        verb: "move",
-        detail: {
+      this.record(
+        "move",
+        {
           unit: card.id,
           value: to.id,
           // Among the cards as the board shows them, those standing by an answer
@@ -820,11 +823,13 @@ customElements.define(
             card.id,
           ),
         },
-        says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
-      });
-      // A gesture can outlive the reading that enabled it. If admission has already
-      // closed by commit time, resuming the deferred controller repaints the moved
-      // native node from current semantic state immediately.
+        {
+          says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
+        },
+      );
+      // A gesture can outlive the state that enabled it. If admission has already
+      // closed by commit time, releasing the hold repaints the moved native node from
+      // the current state immediately.
       this.#finishGesture();
     }
 
@@ -863,7 +868,14 @@ customElements.define(
         // that product boundary from the board alone.
         scroll: scroller instanceof HTMLElement ? scroller : false,
         forceFallback: true, // pointer-driven label preview, including touch
-        cloneElement: (card) => motionPreview(this.#title(card)),
+        // The image under the pointer carries the card's label, never a second live
+        // widget tree: no copied form groups, widget lifetimes or iframes.
+        cloneElement: (card) => {
+          const preview = offer("div", "lf-motion-preview", this.#title(card));
+          preview.inert = true;
+          preview.setAttribute("aria-hidden", "true");
+          return preview;
+        },
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
@@ -916,7 +928,11 @@ customElements.define(
           ) {
             this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));
             this.#finishGesture();
-            announce(`${this.#title(card)} — move cancelled`);
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", {
+                detail: `${this.#title(card)} — move cancelled`,
+              }),
+            );
             return;
           }
           if (from === to && oldIndex === newIndex) {
@@ -933,7 +949,7 @@ customElements.define(
     // once around that placement so FLIP animates the resulting layout together.
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
-      if (!this.reading) return nothing;
+      if (!this.state) return nothing;
       this.#reportUnshown();
       this.#arrange(this.#placement());
       this.#paintAvailability();
@@ -954,7 +970,13 @@ customElements.define(
         if (fault === null) this.#reported.delete(card);
         else if (this.#reported.get(card) !== fault) {
           this.#reported.set(card, fault);
-          reportFailure(card, new Error(fault));
+          card.dispatchEvent(
+            new ErrorEvent("error", {
+              error: new Error(fault),
+              bubbles: true,
+              composed: true,
+            }),
+          );
         }
       }
     }
@@ -988,15 +1010,7 @@ customElements.define(
         }
         destination.push(card.id);
       }
-      // By rank, ties by id, as the position fold orders a column (projection/model.js).
-      /** @param {string} id @returns {[string, string]} */
-      const key = (id) => [ranks[id] ?? "", id];
-      /** @param {string} a @param {string} b */
-      const before = (a, b) => {
-        const [x, y] = [key(a), key(b)];
-        return x[0] !== y[0] ? (x[0] < y[0] ? -1 : 1) : x[1] < y[1] ? -1 : 1;
-      };
-      for (const cards of Object.values(columns)) cards.sort(before);
+      for (const cards of Object.values(columns)) cards.sort(byRank(ranks));
       return columns;
     }
 
@@ -1052,9 +1066,15 @@ customElements.define(
           if (played) movements.push(played.finished);
         }
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       if (movements.length)
-        void Promise.allSettled(movements).then(() => layoutChanged(this));
+        void Promise.allSettled(movements).then(() =>
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          ),
+        );
     }
   },
 );

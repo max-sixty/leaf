@@ -20,7 +20,7 @@
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // surfaces, send commands, or reconcile thread DOM.
-import { sizeObserver } from "./rendering.js";
+import { sizeObserver } from "./lib/frame-pass.js";
 import { scheduleDocumentLayout } from "./content-layout.js";
 
 /** @param {{scheduleThreadPreviewPosition?: (() => unknown) | undefined,

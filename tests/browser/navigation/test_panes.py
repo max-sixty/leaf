@@ -1434,6 +1434,44 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, na
     assert right.evaluate("el => el.scrollTop") > 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_revision_that_replaces_a_pane_returns_the_reader_to_their_place_in_it(
+    engine, request, serve
+):
+    """A revision that changes a pane's own attribute replaces the pane whole, so the
+    body the reader had scrolled is gone and the new one starts at its top. The new body
+    takes the region the old one held within the revision's own handoff, which puts the
+    passage the reader was on back where it stood."""
+    page = open_page(
+        request.getfixturevalue(engine), live_url(serve(READING_REGIONS_PAGE))
+    )
+    pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
+    body = page.locator("#left-reading > :not(header, footer)")
+    body.evaluate("el => el.scrollTop = 300")
+    scroll_settled(page, "#left-reading > :not(header, footer)")
+    landmark = """() => {
+      const landmark = document.getElementById('left-landmark');
+      return landmark.getBoundingClientRect().top
+        - landmark.closest('lf-pane > :not(header, footer)').getBoundingClientRect().top;
+    }"""
+    before = page.evaluate(landmark)
+    replaced = body.element_handle()
+
+    stamp_page(
+        serve.page_dir,
+        READING_REGIONS_PAGE.replace(
+            'label="Left reading"', 'label="Left reading, renamed"'
+        ),
+        "rename the left pane",
+    )
+    wait_for_revision(page, 2)
+    assert not replaced.evaluate("el => el.isConnected"), (
+        "the pane was patched in place"
+    )
+    assert page.evaluate(landmark) == pytest.approx(before, abs=2)
+    assert body.evaluate("el => el.scrollTop") > 0
+
+
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     browser, serve
 ):

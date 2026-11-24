@@ -528,16 +528,12 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
 
     registry = {
         "lf-producer": {
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "empty",
             "outputs": {"rows": {"contract": "rows"}},
         },
         "lf-consumer": {
             "attributes": {
-                "type": "object",
                 "properties": {
                     name: {"type": "string"} for name in ("id", "source", "for")
                 },
@@ -552,9 +548,9 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
             },
         },
     }
-    # As composing a layer completes it: the consumer's input reads another widget
-    # through `for`, which declares `for` an element relation.
-    registry_contract.complete_declarations(registry)
+    # As composing a layer leaves it: the consumer's input reads another widget through
+    # `for`, which declares `for` an element relation, and every element takes an `id`.
+    registry_contract.stamp_grammars(registry_contract.complete_declarations(registry))
 
     def errors(binding):
         document = SourceDocument(

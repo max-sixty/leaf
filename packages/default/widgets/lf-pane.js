@@ -1,56 +1,35 @@
 /* A pane is one named reading region: an optional header, exactly one body element, and
    an optional footer, all authored. The theme lays them out and decides whether the body
-   scrolls; this module names the region and registers its body, so reading keys, travel
-   and continuity find the place whichever box scrolls it. The module reads only which
-   child is which, so a revision edits inside them in place (`lfPatch`) and the
-   browser's scroll anchoring keeps the reader's place in the body, which a pane
-   replaced whole would lose. A revision that replaces the body re-registers the region
-   under the same id. */
-import {
-  keeps,
-  once,
-  registerReadingRegion,
-  whileConnected,
-} from "/runtime/widget-api.js";
-
-/** @param {HTMLElement} pane */
-const bodyOf = (pane) =>
-  [...pane.children].find((child) => !child.matches("header, footer")) ?? null;
+   scrolls; this module marks the body as the region and itself as the region's host
+   (module-scroll-and-motion.md, "Reading regions"), so reading keys, travel and
+   continuity find the place whichever box scrolls it. The module reads only which child
+   is which, so a revision edits inside them in place (`lfPatch`) and the browser's
+   scroll anchoring keeps the reader's place in the body, which a pane replaced whole
+   would lose. A revision that replaces the body marks the new one, which takes the
+   region. */
+import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define(
   "lf-pane",
   class extends HTMLElement {
     static lfPatch = "members";
-    /** @type {Element | null} */
-    #body = null;
-    /** @type {(() => void) | null} */
-    #stop = null;
-    #children = new MutationObserver(() => this.#register());
+    #children = new MutationObserver(() => this.#mark());
+
+    constructor() {
+      super();
+      this.#children.observe(this, { childList: true });
+    }
 
     connectedCallback() {
       keeps(this, "role", "region");
       keeps(this, "aria-label", this.getAttribute("label"));
-      if (!once(this)) return;
-      whileConnected(this, () => {
-        this.#register();
-        this.#children.observe(this, { childList: true });
-        return () => {
-          this.#children.disconnect();
-          this.#stop?.();
-          this.#stop = null;
-          this.#body = null;
-        };
-      });
+      keeps(this, "data-lf-scroll-host", "body");
+      this.#mark();
     }
 
-    #register() {
-      const body = bodyOf(this);
-      if (body === this.#body) return;
-      this.#stop?.();
-      this.#body = body;
-      this.#stop = body
-        ? registerReadingRegion({ id: this.id, host: this, body })
-        : null;
+    #mark() {
+      const body = [...this.children].find((child) => !child.matches("header, footer"));
+      keeps(body, "data-lf-scroll", "body");
     }
   },
 );

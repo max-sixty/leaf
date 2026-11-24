@@ -52,9 +52,9 @@
    wait out a release's click each its own way, by a timer the next press could outrun
    or a flag held until the next press, and a flag a stopped release left standing.
 
-   And it owns the widget primitives built on these: closing a layer and handing the user
-   on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
-   and a group's one Tab stop (`rove`).
+   And it owns the primitives built on these: closing a layer and handing the user
+   on as one act (`closeLayer`), and holding a place in a keyed list (`holdFocus` with
+   `key`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
    In a framed document, a sample's or any other, only the document already holding
@@ -68,10 +68,11 @@
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
-import { afterScript, nextRender } from "./rendering.js";
+import { afterScript } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
@@ -84,7 +85,7 @@ import {
   renderedParent,
   renderedUnder,
   shadowHost,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
 /** @typedef {"move" | "step" | "return" | "press"} PlacementCause
  * @typedef {PlacementCause | "drop"} CurrentLocationCause
@@ -400,8 +401,9 @@ function landLabelPress() {
 // will land (`standingFor`). Asked in `tree`, a document or shadow root,
 // it is the node standing for that place there, as `tree.activeElement` retargets focus:
 // the host of the shadow tree the user is in, for a reader comparing or containing
-// nodes of that tree. Every reading of focus outside this module asks here, so none
-// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
+// nodes of that tree. Every reading of focus elsewhere in the runtime asks here, so none
+// misses a label press or a shadow tree (eslint's `architecture/current-location-reads`);
+// a package asks the browser.
 // Mechanical focus queries made while rendering stay untracked, so restoring focus
 // cannot subscribe a render to itself. Keyboard reflection follows where the user is
 // through this revision, either explicitly or by reading inside `followingFocus`, where
@@ -1090,6 +1092,13 @@ addEventListener(
 // it, and each of the user's ways of scrolling begins with one that is.
 
 export const inputCount = () => inputs.count;
+// The user's inputs within the entry they are on: all of them but those that take
+// them away from it, their steps Back and Forward and their leaving the window
+// (document-inputs.js, `away`). A return to an entry's record (history.js) yields to
+// these alone, counted from where it began, or for the document's arrival from the
+// user's latest step (`enteredInputCount`).
+export const entryInputCount = () => inputs.count - inputs.away;
+export const enteredInputCount = () => inputs.entered;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 /** @type {typeof inputs.observe} */
@@ -1474,6 +1483,13 @@ const dropped = () => {
   const node = lastLocation?.deref();
   return node && !drawn(node) ? node : null;
 };
+// What makes a control like another to a user who comes back for it, as Remove for
+// Remove: its tag and its classes, as a selector.
+/** @param {Element} control */
+export const likeSelector = (control) =>
+  control.localName +
+  [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+
 // A list of keyed items names its place by `key`, the attribute each item carries. The
 // hold then reads the item the user is in and the order of every item at the hold,
 // and its restore, after the held node, tries the item now carrying the same key, then
@@ -1501,7 +1517,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not lib/shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {
@@ -1509,9 +1525,7 @@ export function holdFocus(scope, { key = null } = {}) {
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
-  const like =
-    control.localName +
-    [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  const like = likeSelector(control);
   const [same, ...rest] = order;
   return (...standIns) => {
     // The items now present, by key, read once for the whole restore: a list whose keys
@@ -1599,13 +1613,6 @@ export const currentLocationIn = (scope) => {
   const at = focused();
   return Boolean(at) && at !== document.body && renderedUnder(at, scope);
 };
-
-// The roving stop of a group: `stop` is the one item Tab reaches, and every other item
-// is reached by the group's own arrows. Null leaves the group no stop.
-/** @param {Iterable<Element>} items @param {Element | null | undefined} stop */
-export function rove(items, stop) {
-  for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
-}
 
 // Where a layer hands the user back when it closes: the control they had focused as it
 // opened, or the one its opener names, as a menu row's door. Recorded once at the opening

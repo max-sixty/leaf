@@ -55,6 +55,7 @@ from render_harness import (
     rgb_pixels,
     root_overflow,
     round_trip,
+    select,
     sending,
     stamp_page,
     suggestion_control,
@@ -1904,6 +1905,123 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     ] == [["ro-column"]]
 
 
+MARKED_OPTION_PAGE = leaf_page(
+    "marked option",
+    """
+<h1 id="h">The retry</h1>
+<lf-group id="retry-decision" label="Should the run retry?"><h2 id="retry-decision-h">Should the run retry?</h2>
+<lf-options id="retry">
+  <lf-option id="rt-retry" label="Retry until it lands"><strong>Retry until it lands</strong>
+    <p id="rt-retry-p">When the deploy fails again in the night, the run is retried until it lands.</p></lf-option>
+  <lf-option id="rt-stop" label="Stop at the first failure"><strong>Stop at the first failure</strong>
+    <p id="rt-stop-p">A failure pages the owner at once.</p></lf-option>
+</lf-options></lf-group>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
+    engine, request, serve
+):
+    """The option takes a click anywhere on its card, and a comment's mark on its words
+    opens the comment's thread. Where the user has just selected those words, both
+    gestures land in the same box, and neither is a pick: the drag's own click ended a
+    selection, and the press inside the words it took is the mark's. A press on an
+    option's own pick mark still picks it, on a card too, whose digit draws in the
+    mark's seat while the button is down.
+
+    In both engines, because they part between a press's release and its click: Firefox
+    collapses the words the press landed in before the click, Chromium after it. Read at
+    the click, the press would pick the option in Firefox and open the thread in
+    Chromium."""
+    url = serve(MARKED_OPTION_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the retry.",
+            "anchor": {
+                "section": "rt-retry-p",
+                "quote": "the run is retried until it lands",
+            },
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    option = page.locator("#rt-retry")
+    picked = "el => el.hasAttribute('selected')"
+
+    # An option's own mark picks it while its words stand selected: the press is the
+    # mark's, and the selection is no reason to refuse the pick it is for. A card's
+    # mark, whose seat its digit draws in once the press has put the user in the group.
+    # The button stays down until the digit stands there, as it does under a hand, so
+    # the release is read with the digit drawn: one the digit took would send the click
+    # to the card, which the selected words would refuse.
+    stop = page.locator("#rt-stop")
+    page.locator("#rt-stop-p").evaluate("el => getSelection().selectAllChildren(el)")
+    assert page.evaluate("() => getSelection().toString()").strip()
+    stop.locator(":scope > .lf-pick").hover()
+    page.mouse.down()
+    expect(stop.locator(":scope > .lf-key-badge")).to_have_attribute(
+        "data-lf-binding-badge", ""
+    )
+    page.mouse.up()
+    expect(stop).to_have_attribute("selected", re.compile(".*"))
+
+    run = page.evaluate(
+        """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
+                   return {left: r.left, right: r.right, y: r.top + r.height / 2}; }"""
+    )
+    width = run["right"] - run["left"]
+
+    select(
+        page,
+        (run["left"] + 4, run["y"]),
+        (run["left"] + width * 0.75, run["y"]),
+        steps=10,
+    )
+    held = page.evaluate("() => getSelection().toString()")
+    assert held.strip(), f"the drag selected nothing, so this says nothing: {held!r}"
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    assert not option.evaluate(picked), "the drag across the option's words picked it"
+
+    page.mouse.click(run["left"] + width * 0.4, run["y"])
+    assert not option.evaluate(picked), (
+        "the press on the mark inside the selected words picked the option"
+    )
+    expect(page.locator(".lf-page-thread:focus-within")).to_contain_text(
+        "About the retry."
+    )
+    assert not option.evaluate(picked), "a gesture on the option's words picked it"
+    round_trip(page)
+    assert [
+        e["detail"]["value"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [["rt-stop"]], "a gesture on the option's words sent a pick"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_tap_beside_an_options_selected_words_picks_it(engine, request, serve):
+    """A tap is read by the selection it leaves, as a click is, so a tap on an option's
+    title beside words of the option selected a moment before picks it. A finger's
+    `mousedown`, which collapses those words, comes after its `pointerup`: read as the
+    finger lifts, the words would still stand and refuse the pick."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 420, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(MARKED_OPTION_PAGE), context=context)
+    option = page.locator("#rt-retry")
+    page.locator("#rt-retry-p").evaluate("el => getSelection().selectAllChildren(el)")
+    assert page.evaluate("() => getSelection().toString()").strip()
+    option.locator("strong").tap()
+    expect(option).to_have_attribute("selected", re.compile(".*"))
+
+
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):
     """A row's § reference rides at the end of the words' last line where it fits, and
     drops under them where it doesn't, so on a phone the words keep the row's width
@@ -2269,10 +2387,8 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                 "lf-work-point": {
                     "description": "A block that can hold a local agent task.",
                     "attributes": {
-                        "type": "object",
                         "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "markup",
                 }
@@ -2450,7 +2566,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     One reply holds both: the question wires up and its pick reaches the log,
     the exhibit beside it does neither, and the gutter marking it renders in the
     panel's narrower column as it does in the document. The theme's sample
-    rules and quoted()'s closest() both have to reach outside <main>, and
+    rules and the widgets' read of the exhibit mark both have to reach outside <main>, and
     nothing else in the suite renders a sample there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir

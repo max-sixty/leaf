@@ -10,10 +10,12 @@
    the status line that names the agent's work.
 
    New agent content is the server's `unread` reading, the same one the floating panel
-   paints: a version is news the first time this tab sees it unread, and
-   never once the user has taken it in, here or in another tab, nor once this tab has
-   seen it read. An undo of the resolve or reply that marked a message read makes it
-   unread again (read_state.py), but nothing arrived. What the user has
+   paints: a version is news the first time this tab sees it unread in a thread that
+   announces its words (thread/model.js, `announces`), and never once the user has
+   taken it in, here or in another tab, nor once this tab has seen it read. Words that
+   reach a resolved thread wait unannounced, and are news if the thread reopens while
+   they are still unread. An undo of the resolve or reply that marked a message read
+   makes it unread again (read_state.py), but nothing arrived. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it.
@@ -23,10 +25,10 @@
    obligation away. The list is the one the panel's badge counts (queue-api.js,
    `onUserCount`). The user asked to be told when they finish
    what waits on them, taking words over a flash of the panel's colour for now. */
-import { moved } from "./thread/model.js";
+import { announces, moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { counted, excerptWords } from "./words.js";
+import { counted, excerptWords } from "./lib/words.js";
 import { NOTHING_ON_ME } from "./queues.js";
 
 /** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading
@@ -63,11 +65,13 @@ export function semanticNewsReading(root) {
   };
 }
 
-// Unread agent content, oldest first. A failure reply is unread content too, but
-// its news is the failed response's, announced from its workflow.
+// Unread agent content in the threads that announce it, oldest first. A failure reply
+// is unread content too, but its news is the failed response's, announced from its
+// workflow.
 /** @param {NewsReading["thread"]} threadView */
 function unreadContent(threadView) {
   return threadView.threads
+    .filter(announces)
     .flatMap((thread) =>
       thread.msgs.flatMap((message) => {
         const version = thread.unread[message.id];
@@ -104,9 +108,8 @@ function responseFailures(workflows) {
   const failures = new Map();
   for (const workflow of workflows) {
     if (
-      workflow.condition?.operation !== "response" ||
-      (workflow.condition.kind !== "failed" &&
-        workflow.condition.kind !== "interrupted")
+      workflow.state !== "blocked" ||
+      (workflow.reason !== "failed" && workflow.reason !== "interrupted")
     )
       continue;
     const source = workflow.response;
@@ -115,7 +118,7 @@ function responseFailures(workflows) {
     if (!key) continue;
     failures.set(key, {
       key,
-      kind: workflow.condition.kind,
+      kind: workflow.reason,
       input: workflow.input,
       thread: workflow.thread,
       seq: workflow.seq,
@@ -151,9 +154,11 @@ export function observeSemanticNews(prior, reading) {
       });
     observed.content.add(version);
   }
+  // What this tab has seen read: every other version a thread holds.
   for (const thread of reading.thread.threads)
     for (const message of thread.msgs)
-      if (message.content_version) observed.content.add(message.content_version);
+      if (message.content_version && !Object.hasOwn(thread.unread, message.id))
+        observed.content.add(message.content_version);
   for (const failure of failures.values()) {
     if (!first && !observed.failures.has(failure.key))
       news.push({

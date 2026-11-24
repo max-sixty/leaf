@@ -2,8 +2,8 @@
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
 
-import { actionIcon } from "./icon-paths.js";
-import { excerptWords } from "./words.js";
+import { actionIcon } from "./lib/icon-paths.js";
+import { excerptWords } from "./lib/words.js";
 
 const TONES = Object.freeze({ neutral: true, positive: true, negative: true });
 const BEHAVIORS = Object.freeze({ action: true, disclosure: true, status: true });
@@ -30,7 +30,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
  * pressed?: boolean | null, workflowReceipt?: import("./framework/application.js").Workflow | null | undefined,
  * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
- * scope?: import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
+ * scope?: NonNullable<Element["lfCommands"]> | import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry
@@ -102,13 +102,6 @@ const kinds = {
   sent: {
     label: "Queued",
     icon: "sent",
-    priority: 3,
-    indication: true,
-    voice: "leaf",
-  },
-  queued: {
-    label: "Up next",
-    icon: "pickup",
     priority: 3,
     indication: true,
     voice: "leaf",

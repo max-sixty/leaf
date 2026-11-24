@@ -285,6 +285,36 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
+def test_a_field_a_fresh_revision_makes_a_file_input_leaves_its_words_behind(
+    browser, serve
+):
+    """A revision that needs a fresh document and turns a field the user typed into into
+    a file input carries no words into it, since a file input takes none, and the words
+    typed into the page's other fields still come back."""
+    body = (
+        '<h1 id="subject">Form</h1>'
+        '<p><input id="who" aria-label="Name" autocomplete="off">'
+        '<input id="where" aria-label="Place" autocomplete="off"></p>'
+    )
+    page = open_page(browser, live_url(serve(editing_revision_source("before", body))))
+    page.locator("#who").fill("Ada")
+    page.locator("#where").fill("Rome")
+    birth = page.evaluate("performance.timeOrigin")
+    stamp_page(
+        serve.page_dir,
+        editing_revision_source(
+            "after", body.replace('id="who"', 'id="who" type="file"')
+        ),
+        "Make the name a file",
+    )
+    told(page)
+    if page.evaluate("performance.timeOrigin") == birth:
+        open_latest(page)
+    wait_for_revision(page, 2)
+    assert page.evaluate("performance.timeOrigin") != birth
+    expect(page.locator("#where")).to_have_value("Rome")
+
+
 def test_executable_revision_preserves_non_editor_thread_current_location(
     browser, serve
 ):

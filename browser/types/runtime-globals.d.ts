@@ -9,6 +9,8 @@ interface DocumentInputs {
   holdKeys(
     hold: { holds(event: KeyboardEvent): boolean; counted(step: boolean): void } | null,
   ): void;
+  /** Whether the user has changed `node` in this document (document-inputs.js). */
+  edited(node: Element): boolean;
   observe(read: (event: Event) => void): () => boolean;
 }
 
@@ -117,7 +119,6 @@ interface Window {
     readonly handoff: {
       readonly url?: unknown;
       readonly typing?: unknown;
-      readonly carry?: unknown;
     } | null;
     handOff(value: unknown): boolean;
     keepDisclosure(node: HTMLDetailsElement): void;

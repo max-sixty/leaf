@@ -675,26 +675,19 @@ def reload_in_a_row(page, serve, waits, slow=()):
     page.remove_listener("request", navigated)
 
 
-@pytest.mark.parametrize("authored", ["named", "unnamed"])
-def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(
-    browser, serve, authored
-):
+def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
     """A value the user typed into the page's own form, and an option they chose before
     the one its author chose, come back after two reloads Leaf asks for in a row, the
     second before the first's arrival has put them back, while something slow to
     upgrade still holds back that document's anchoring. The form asks the browser to
-    keep no value of its own, so only Leaf's carry can. A script between the options
-    has the parser hand over the first before it adds the one the author chose, which
-    may have an id, and so a record of its own, or none."""
-    steady = ' id="steady"' if authored == "named" else ""
+    keep no value of its own, so only Leaf's carry can."""
     url = serve(
         leaf_page(
             "Restarted",
             '<h1>Form</h1><form autocomplete="off"><p><label>Name <input id="who">'
             "</label></p>"
             '<label><input type="radio" name="pace" id="slow"> slow</label>'
-            "<script>0</script>"
-            f'<label><input type="radio" name="pace"{steady} checked> steady</label>'
+            '<label><input type="radio" name="pace" checked> steady</label>'
             '<label><input type="radio" name="pace" id="fast"> fast</label>'
             "</form>",
         )
@@ -705,6 +698,52 @@ def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(
     reload_in_a_row(page, serve, [lambda: None], slow={1})
     expect(page.locator("#who")).to_have_value("Ada")
     expect(page.locator("#slow")).to_be_checked()
+
+
+def test_a_value_a_page_script_writes_yields_to_the_one_the_reload_carries(
+    browser, serve
+):
+    """A value the user typed comes back after a reload Leaf asks for though the page's
+    own script writes the field's first value as the page loads: the carried value is
+    the user's, newer than what the page starts the field with."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p><script>0</script>"
+            "<script>document.getElementById('who').value = 'initial'</script>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    expect(page.locator("#who")).to_have_value("initial")
+    page.locator("#who").fill("Ada")
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
+def while_leaf_reloads(page, serve, act):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, with
+    `act` run in the document it brings while that document's entry module still
+    loads, so before Leaf has started there. Returns once that document is ready."""
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        act()
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
 
 
 @pytest.mark.parametrize("step", ["stay", "back"])
@@ -729,29 +768,72 @@ def test_a_value_typed_before_leaf_starts_outlasts_the_one_the_reload_carries(
         page.wait_for_function("navigation.transition === null")
         page.evaluate("location.hash = '#later'")
         page.wait_for_function("navigation.transition === null")
-    module = []
-    page.route("**/leaf.js", lambda route: module.append(route))
-    answer_as_another_runtime(page)
-    try:
-        with page.expect_navigation(wait_until="commit"):
-            append_carried_log_record(
-                serve.page_dir,
-                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
-            )
-        holding(page, module, 1, "the arriving document's entry module")
-        page.wait_for_function("document.readyState !== 'loading'")
+
+    def type_again():
         if step == "back":
             page.evaluate("history.back()")
             page.wait_for_function("location.hash === ''")
         page.locator("#who").fill("Grace")
-    finally:
-        page.unroute("**/leaf.js")
-        for route in module:
-            route.continue_()
-    wait_until_ready(page)
-    page.unroute("**/api/**")
-    page.unroute("**/registry.json")
+
+    while_leaf_reloads(page, serve, type_again)
     expect(page.locator("#who")).to_have_value("Grace")
+
+
+def test_an_option_chosen_before_leaf_starts_outlasts_the_one_the_reload_carries(
+    browser, serve
+):
+    """An option the user chooses while the document a reload Leaf asked for brings is
+    still loading Leaf stays chosen, though the reload carries another option of the
+    same group, and the page's own script moves the option its author chose
+    meanwhile."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><form autocomplete="off">'
+            '<p id="first"><label><input type="radio" name="pace" id="slow"> slow</label>'
+            '<label><input type="radio" name="pace" id="steady" checked> steady</label>'
+            '<label><input type="radio" name="pace" id="fast"> fast</label></p>'
+            '<p id="second"></p></form>',
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#slow").check()
+
+    def choose_again():
+        page.locator("#fast").check()
+        page.evaluate(
+            "document.getElementById('second')"
+            ".append(document.getElementById('steady').closest('label'))"
+        )
+
+    while_leaf_reloads(page, serve, choose_again)
+    expect(page.locator("#fast")).to_be_checked()
+
+
+def test_a_disclosure_closed_before_leaf_starts_stays_closed(browser, serve):
+    """A disclosure the user opens and closes again by its summary while the document
+    a reload Leaf asked for brings is still loading Leaf stays closed, though the
+    reload carries it open."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Notes</h1><details id="more"><summary>More</summary>'
+            "<p>The rest of the notes.</p></details>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    more = page.locator("#more")
+    more.locator("summary").click()
+    expect(more).to_have_attribute("open", "")
+
+    def open_and_close():
+        more.locator("summary").click()
+        expect(more).to_have_attribute("open", "")
+        more.locator("summary").click()
+        expect(more).not_to_have_attribute("open", "")
+
+    while_leaf_reloads(page, serve, open_and_close)
+    expect(more).not_to_have_attribute("open", "")
 
 
 def scroll_away(page):

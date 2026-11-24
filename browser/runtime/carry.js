@@ -26,9 +26,10 @@
  * and radio inputs. Select values, contenteditable markup, and file-input values are
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own
- * lifecycles. `version.js` owns when capture and restoration run for each install. The
- * document a reload brings takes the values, checked state and disclosures as the parser
- * adds each control (prepaint.js), before the user can change them.
+ * lifecycles. `version.js` owns when capture and restoration run for each install. A
+ * control the user has changed in the arriving document since it started keeps their
+ * newer state (document-inputs.js, `edited`); one only the page's own script has set
+ * takes the carried value, which is the user's.
  *
  * Focus is named by identity a reload keeps (`focusKey`), which history's record of an
  * entry uses too (history.js): a page element by the id and tag above, or by its
@@ -57,6 +58,7 @@ import {
   upFrom,
 } from "./lib/shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
+import { inputs } from "./inputs.js";
 import { elementById, inPage, pageDocument } from "./passages.js";
 import { ADDRESSABLE } from "./anchor-resolution.js";
 import { runtime } from "./context.js";
@@ -254,13 +256,19 @@ export function captureCarry(root, authored) {
   return { records, held };
 }
 
-// Where the user was among records, focus, caret and scroll offsets, without what
-// they carry of the document itself, values, checked state and disclosures, which an
-// arriving document takes as the parser adds each control (prepaint.js) and the user
-// may have changed since (version.js, `installArrival`).
+// What records carry of the document itself, values, checked state and disclosures,
+// which a Back within one document keeps too, without where the user was in it, focus,
+// caret and scroll offsets, which belong to the entry the records were read on
+// (version.js, `installArrival`).
 /** @param {readonly CarryRecord[] | null | undefined} records @returns {CarryRecord[]} */
-export const placeIn = (records) =>
-  (records ?? []).map(({ open, value, checked, ...place }) => place);
+export const documentState = (records) =>
+  (records ?? []).map(({ id, name, open, value, checked }) => ({
+    id,
+    name,
+    ...(open !== undefined && { open }),
+    ...(value !== undefined && { value }),
+    ...(checked !== undefined && { checked }),
+  }));
 
 // Restore authored values, disclosures, focus and caret in the replacement turn, so
 // typing continues while renderers settle. Generated controls become visible after
@@ -281,12 +289,15 @@ export function restoreCarry(
     const arrived = elementById(record.id, pageDocument());
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
-    // Only a disclosure's record says whether it was open.
-    if (record.open !== undefined && isHTML(arrived, "details"))
-      arrived.open = record.open;
-    if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
-    if (record.checked !== undefined && holdsTick(arrived))
-      arrived.checked = record.checked;
+    if (!inputs.edited(arrived)) {
+      // Only a disclosure's record says whether it was open.
+      if (record.open !== undefined && isHTML(arrived, "details"))
+        arrived.open = record.open;
+      if (record.value !== undefined && holdsValue(arrived))
+        arrived.value = record.value;
+      if (record.checked !== undefined && holdsTick(arrived))
+        arrived.checked = record.checked;
+    }
     positions.push({ arrived, record });
   }
   // Values and disclosures are owed even when a connected widget took focus during

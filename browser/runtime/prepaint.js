@@ -319,7 +319,6 @@
     for (const node of tree.querySelectorAll("a, details"))
       if (node instanceof HTMLDetailsElement) keepDisclosure(node);
       else markExternalLink(node);
-    carryInto(tree);
   };
   const earlyContent = new MutationObserver((records) => {
     for (const record of records)
@@ -369,64 +368,6 @@
     // The source baseline reads this parser-time default, never the later live value.
     initialDisclosureOpen: (node) => disclosures.get(node),
   };
-  // What that handoff carries of the page's own controls: the values typed into its
-  // inputs, the boxes ticked and the disclosures opened, each named by its id and tag
-  // (carry.js, `captureCarry`). Each lands as the parser adds its control, before the
-  // page first shows it, as the browser restores a form's own state, so whatever the
-  // user types or chooses there is newer and nothing writes over it. They are the
-  // document's, so they land whichever entry it arrives at (version.js,
-  // `installArrival`). The handoff is read once the body begins, the bootstrap in the
-  // head having taken Leaf's marks off the address, and each record lands once. A radio
-  // the parser adds checked, as its author wrote it, unchecks the rest of its group, a
-  // choice landed earlier among them included, so that choice is made again after it.
-  /** @type {Map<unknown, {name?: unknown, value?: unknown, checked?: unknown, open?: unknown}> | null} */
-  let carried = null;
-  /** @type {HTMLInputElement[]} */
-  const chosen = [];
-  /** @param {Document | Element} tree */
-  function carryInto(tree) {
-    if (!document.body) return;
-    if (!carried) {
-      const records = window.lfStorage.handoff?.carry;
-      carried = new Map(
-        Array.isArray(records) ? records.map((record) => [record?.id, record]) : [],
-      );
-    }
-    // A choice landed stays owed after the last record lands: the radio its author
-    // checked may come later, and need no id of its own.
-    if (!carried.size && !chosen.length) return;
-    for (const node of [tree, ...tree.querySelectorAll("[id]")]) {
-      if (!(node instanceof Element)) continue;
-      const record = carried.get(node.id);
-      if (record?.name !== node.localName) continue;
-      carried.delete(node.id);
-      if (node instanceof HTMLDetailsElement && typeof record.open === "boolean")
-        node.open = record.open;
-      if (
-        (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) &&
-        typeof record.value === "string"
-      )
-        node.value = record.value;
-      if (node instanceof HTMLInputElement && typeof record.checked === "boolean") {
-        node.checked = record.checked;
-        if (node.type === "radio" && node.name && record.checked) chosen.push(node);
-      }
-    }
-    for (const radio of [tree, ...tree.querySelectorAll("input[name]")])
-      if (
-        radio instanceof HTMLInputElement &&
-        radio.type === "radio" &&
-        radio.defaultChecked
-      )
-        for (const choice of chosen)
-          if (
-            choice !== radio &&
-            choice.name === radio.name &&
-            choice.form === radio.form
-          )
-            choice.checked = true;
-  }
-
   // View selection is tab-local browser state from parsing through later switches.
   // Delivery carries the registry's member selector; only the browser evaluates it.
   // Readers leave the DOM alone. Showing a choice paints membership and native hidden.

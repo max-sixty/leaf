@@ -23,6 +23,46 @@
   let hold = null;
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
+  // The controls the user has changed in this document: a field they typed into or a
+  // box they ticked, as its trusted `input` says; a group of radios they chose among,
+  // the radios of one `name` in one form, or in one tree where they have none; and a
+  // disclosure whose summary they pressed, or took Enter or Space on. A page's own
+  // script that sets a value or opens a disclosure makes no such input, so state a
+  // reload carries yields to the user's newer change alone (carry.js, `restoreCarry`).
+  /** @type {WeakSet<Element>} */
+  const changed = new WeakSet();
+  /** @type {WeakMap<Node, Set<string>>} */
+  const chosenAmong = new WeakMap();
+  /** @param {HTMLInputElement} radio */
+  const radioScope = (radio) => radio.form ?? radio.getRootNode();
+  /** @param {Event} event */
+  const noteChange = (event) => {
+    if (!event.isTrusted) return;
+    if (event.type === "input") {
+      const [origin] = event.composedPath();
+      if (!(origin instanceof Element)) return;
+      changed.add(origin);
+      if (
+        origin instanceof HTMLInputElement &&
+        origin.type === "radio" &&
+        origin.name
+      ) {
+        const scope = radioScope(origin);
+        const names = chosenAmong.get(scope) ?? new Set();
+        chosenAmong.set(scope, names.add(origin.name));
+      }
+      return;
+    }
+    const presses =
+      event.type === "pointerdown" ||
+      (event instanceof KeyboardEvent && (event.key === "Enter" || event.key === " "));
+    if (!presses) return;
+    const summary = event
+      .composedPath()
+      .find((node) => node instanceof HTMLElement && node.localName === "summary");
+    const details = summary instanceof HTMLElement ? summary.parentElement : null;
+    if (details instanceof HTMLDetailsElement) changed.add(details);
+  };
   // Early key holding and the runtime ask the same question of a key's origin.
   // Selects and custom options keep typeahead without being text editors.
   const textField = "leaf-text";
@@ -67,6 +107,15 @@
     holdKeys(next) {
       hold = next;
     },
+    edited(node) {
+      if (changed.has(node)) return true;
+      return (
+        node instanceof HTMLInputElement &&
+        node.type === "radio" &&
+        Boolean(node.name) &&
+        Boolean(chosenAmong.get(radioScope(node))?.has(node.name))
+      );
+    },
     observe(read) {
       inputReaders.add(read);
       return () => inputReaders.delete(read);
@@ -83,6 +132,7 @@
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
     if (event instanceof KeyboardEvent && hold?.holds(event)) return;
+    noteChange(event);
     inputs++;
     hold?.counted(false);
     for (const read of inputReaders) read(event);

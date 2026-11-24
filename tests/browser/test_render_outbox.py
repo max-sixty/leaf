@@ -2939,10 +2939,8 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',

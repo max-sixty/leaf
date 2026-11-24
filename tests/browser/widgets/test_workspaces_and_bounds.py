@@ -567,10 +567,8 @@ ZONE_PACKAGE = {
     "lf-zone": {
         "description": "A project package's differently named pane.",
         "attributes": {
-            "type": "object",
             "properties": {"label": {"type": "string"}},
             "required": ["id", "label"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "reading-role": "pane",

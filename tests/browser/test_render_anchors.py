@@ -3702,10 +3702,8 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-decoration id="decoration"></lf-decoration>',
@@ -5217,10 +5215,8 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
 LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
-        "type": "object",
         "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "shadow": True,

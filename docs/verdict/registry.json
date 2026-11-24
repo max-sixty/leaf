@@ -1,0 +1,15 @@
+{
+  "lf-verdict": {
+    "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
+    "attributes": {
+      "properties": { "verdict": { "type": "string", "enum": ["ship", "hold"] } },
+      "required": ["id"]
+    },
+    "content": "empty",
+    "verbs": {
+      "decide": { "unit": "widget", "record": { "kind": "value", "attr": "verdict" } }
+    },
+    "awaits": { "value": "decide", "answered": { "decide": {} } },
+    "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
+  }
+}

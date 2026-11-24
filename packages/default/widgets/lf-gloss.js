@@ -18,8 +18,6 @@
  * dismissal; CSS anchors keep the card with its phrase. */
 import {
   keeps,
-  showNativeLayer,
-  closeNativeLayer,
   offerAction,
   once,
   says,
@@ -127,8 +125,8 @@ customElements.define(
     #sync() {
       if (!this.#bubble?.isConnected) return;
       const open = this.#bubble.matches(":popover-open");
-      if (this.#pinned && !open) showNativeLayer(this.#bubble);
-      else if (!this.#pinned && open) closeNativeLayer(this.#bubble);
+      if (this.#pinned && !open) this.#bubble.showPopover();
+      else if (!this.#pinned && open) this.#bubble.hidePopover();
     }
   },
 );

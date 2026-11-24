@@ -79,14 +79,11 @@ import {
   announce,
   boundFile,
   RequestError,
-  closeLayer,
-  closeNativeLayer,
   commandsOn,
   deferredArrival,
   el,
   focusDestination,
   focused,
-  handBack,
   iconTemplate,
   LeafElement,
   offered,
@@ -252,16 +249,17 @@ customElements.define(
       };
       // The status control naming the conflict, and the menu of its choices. A choice
       // and Escape put the menu away onto that control, so a save that settles the
-      // conflict returns the reader from it to the editor. A press away from the menu
-      // leaves them where they pressed.
+      // conflict returns the reader from it to the editor. The browser hands focus
+      // back only from inside the menu, and a pointer press in Safari or Firefox on
+      // macOS leaves the row it pressed unfocused, so the menu puts the user there
+      // itself. A press away from the menu leaves them where they pressed.
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
-      const putChoicesAway = () =>
-        closeLayer(
-          () => closeNativeLayer(choices()),
-          () => handBack(conflictControl()),
-        );
+      const putChoicesAway = () => {
+        choices().hidePopover();
+        focusDestination(conflictControl(), "return");
+      };
       /** @param {() => unknown} run */
       const choose = (run) => () => {
         putChoicesAway();
@@ -427,7 +425,7 @@ customElements.define(
             : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!of.latest) closeNativeLayer(choices());
+        if (!of.latest) choices().hidePopover();
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)

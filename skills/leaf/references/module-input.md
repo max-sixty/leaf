@@ -272,19 +272,18 @@ Chromium that makes every focus move restyle the page.
 
 ### Layers
 
-A widget opening its own layer, such as a list over its contents, calls
-`openLayer(layer)`, which records where focus was, and closes it with
-`closeLayer(close, land)`. `close` hides it, and `land` puts the user where closing takes
-them, usually `() => handBack(openerOf(layer))`. `handBack(...destinations)` lands on the
-first destination that can take focus. The layer's Escape is an ordinary command row.
-
-Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
-`modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.
-Inside a live sample they suppress the browser's own focus moves, so place the arrival
-with `focusDestination`.
+A widget's own layer, such as a list over its contents, is a native popover or dialog,
+opened and closed with the browser's own methods (`showPopover`, `hidePopover`,
+`showModal`, `close`) or with `popovertarget` in markup. Closing a dialog, or an auto
+popover (`popover="auto"`) opened while no other was showing, returns the user to where
+they stood as it opened, but only while focus is inside it, and a pointer press in
+Safari or Firefox on macOS leaves the button it pressed unfocused. So a widget that
+closes its own layer from a choice in it, or closes any other popover, puts the user
+back on its opener with `focusDestination(opener, "return")`. A manual popover's Escape
+is an ordinary command row.
 
 A control that opens a popover, such as a menu of choices, names it with
-`popovertarget`, or passes itself as the source of `showNativeLayer(popover, {source})`.
+`popovertarget`, or passes itself as the popover's source, `showPopover({source})`.
 Leaf puts the user on a `popovertarget` control as the popover opens, so closing it
 returns them there. Every such control declares `aria-expanded="false"`, and Leaf keeps
 it current as the popover opens and closes, however it opened. To land the user on a

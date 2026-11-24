@@ -34,7 +34,7 @@
    user content. */
 import { isElement } from "./lib/shadow-tree.js";
 
-import { markViews } from "./storage.js";
+import { markViews } from "./views.js";
 import { holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";

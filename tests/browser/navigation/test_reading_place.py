@@ -54,11 +54,10 @@ def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
     )
     # The region is read in the task that marks its box.
     page.evaluate("""async () => {
-      const api = await window.__lfWidgetApi();
-      const {readingRegionFor} = await window.__lfCheckApi();
+      const api = await window.__lfCheckApi();
       const host = document.querySelector('#reading');
       host.setAttribute('data-lf-scroll', 'reading');
-      window.reading = {api, host, region: readingRegionFor(host)};
+      window.reading = {api, host, region: api.readingRegionFor(host)};
     }""")
     expect(page.locator("#reading")).to_have_attribute("data-lf-more-below", "")
     page.evaluate("""() => {
@@ -706,7 +705,7 @@ def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serv
     page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           navigation.addEventListener('navigate', (event) => {
             if (event.destination.url.endsWith('#slow'))
               event.intercept({handler: () => new Promise(() => {})});
@@ -1307,7 +1306,7 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     reading = """async () => {
       const owner = await window.__lfCheckApi();
       return {blocks: [...owner.blocksOnScreen()].map(([block]) => block.id),
-        place: (await window.__lfWidgetApi()).capturePlace(), top: document.querySelector('#visible').getBoundingClientRect().top};
+        place: owner.capturePlace(), top: document.querySelector('#visible').getBoundingClientRect().top};
     }"""
     initial = page.evaluate(reading)
     assert "mixed" not in initial["blocks"]
@@ -1371,7 +1370,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         }""")
         scroll_settled(page)
         place = page.evaluate(
-            """async () => (await window.__lfWidgetApi()).capturePlace()"""
+            """async () => (await window.__lfCheckApi()).capturePlace()"""
         )
         assert place.get("datum") == "record", place
         assert place["quote"].startswith(record)
@@ -1386,7 +1385,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         }""")
         scroll_settled(page)
         reading = page.evaluate("""async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           const place = api.capturePlace();
           return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
         }""")
@@ -1401,7 +1400,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         scroll_settled(page)
         page.evaluate(
             """async place => {
-          (await window.__lfWidgetApi()).restorePlace(place);
+          (await window.__lfCheckApi()).restorePlace(place);
         }""",
             reading["place"],
         )
@@ -1439,8 +1438,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
         with subtests.test(conceal=conceal, quote=quote):
             result = page.evaluate(
                 """async ({identity, words, conceal, quote}) => {
-              const {restorePlace} = await window.__lfWidgetApi();
-              const {landingBand, shownBox} = await window.__lfCheckApi();
+              const {restorePlace, landingBand, shownBox} = await window.__lfCheckApi();
               const section = document.getElementById(identity);
               const place = {section: section.id, sectionTop: 0};
               if (quote) Object.assign(place, {quote: words, quoteTop: 0});

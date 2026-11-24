@@ -542,7 +542,10 @@
           // Native reload fragment reveal must not override the saved view. Restore
           // after the browser removes hidden, before the next paint.
           requestAnimationFrame(initialViews);
-        } else window.lfViews.keep(member.parentElement, member);
+        } else
+          // The runtime's own reveal once it has loaded, which reads where the user
+          // was before the member they leave is hidden (views.js).
+          (window.lfViews.reveal ?? window.lfViews.keep)(member.parentElement, member);
     },
     true,
   );

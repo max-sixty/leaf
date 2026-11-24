@@ -34,6 +34,7 @@ from browser.threads import (
     SEAT_WORDS,
     THIRTY_LINES,
     append_agent_reply,
+    choose_threads_in_panel,
     clear_of_the_panel,
     long_diff_thread,
     open_panel_thread,
@@ -917,6 +918,35 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
     box.focus()
     page.keyboard.press("ControlOrMeta+z")
     expect(box).to_have_js_property("value", "Half a thought")
+
+
+def test_a_rewrite_written_in_a_diff_seat_comes_back_there_with_the_panel_chosen(
+    browser, serve
+):
+    """A rewrite of the user's message, written in the seat a diff line gives its
+    thread, comes back in that seat after a reload though the user chose the panel for
+    threads: the seat shows the thread, so the rewrite's return fills its editor there
+    rather than opening the thread where the choice says."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    choose_threads_in_panel(page)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
+    words = inline.locator(".lf-msg .lf-msg-text").first
+    words.scroll_into_view_if_needed()
+    words.dblclick()
+    editor = inline.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.type(" Twice.")
+    written = editor.evaluate("editor => editor.value")
+    assert written.endswith(" Twice.")
+    page.wait_for_function("navigation.transition === null")
+    page.reload()
+    wait_until_ready(page)
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", written)
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 @pytest.mark.parametrize("focus_route", ["close", "marker"])

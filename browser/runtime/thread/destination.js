@@ -50,9 +50,11 @@
    read beside its passage, as Back to such an entry does (thread/address.js): it opens
    as a route under the cards choice does, whatever the choice now, the card standing
    where it can and the placements Leaf forces taking the thread where it can't. A
-   route to where a thread stands (`reader: "standing"`) keeps the view it stands open
-   in, its card or the primary's, and opens one that stands nowhere as a route that
-   names no reader does: a draft's return fills the box of the view the entry's return
+   route to where a thread stands (`reader: "standing"`) lands in the view that shows
+   it, its card, the primary's or a widget's seat, and asks no reader to open it, so the
+   thread keeps where it stands and the reason Leaf placed it there, as a forced
+   placement's return to the page needs; a thread shown nowhere opens as a route that
+   names no reader does. A draft's return fills the box of the view the entry's return
    opened (history.js), and a reload's hand-back of the reply being written the box of
    the view the user writes in (version.js), so neither moves the thread to where the
    choice says once the entry's record has said where the user stands.
@@ -277,8 +279,29 @@ export function createThreadDestinations({
     if (!intent()) return null;
     part ??= openingPart();
     if (reader === "standing") {
-      const named = threadNamed(id);
-      reader = named ? standingReader(named) : null;
+      // The part of the view that shows the thread, where one does (the header).
+      const standing = () => {
+        const shown = threadFocusTarget(id, { part });
+        return shown && presented(shown) ? shown : null;
+      };
+      if (standing()) {
+        if (focus === false) return standing();
+        const reached = await arrive(
+          () => {
+            const current = standing();
+            return (
+              current && {
+                where: current,
+                focus: current,
+                scroll: scroll ? [{ at: current, block: "nearest" }] : [],
+              }
+            );
+          },
+          { intent },
+        );
+        return reached ? standing() : null;
+      }
+      reader = null;
     }
     const page = reader === "page";
     const card = reader === "card";
@@ -642,16 +665,6 @@ export function createThreadDestinations({
       { intent },
     );
     return arrived ? element : null;
-  }
-
-  // The view `thread` stands open in, the margin's card or the primary's, as a route
-  // to where it stands names it (`reader: "standing"`), or null where none shows it.
-  /** @param {NonNullable<ReturnType<typeof threadNamed>>} thread @returns {"card" | "primary" | null} */
-  function standingReader(thread) {
-    if (preview?.shown() === thread.id) return "card";
-    const selected = presentation?.owner.isConnected ? presentation : null;
-    const drawing = selected?.reader.destination(thread.key, { part: "thread" });
-    return drawing?.checkVisibility() ? "primary" : null;
   }
 
   // Where a thread holds the user's draft `context`, with its box ready for the caret:

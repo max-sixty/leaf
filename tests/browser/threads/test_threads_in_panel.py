@@ -16,6 +16,7 @@ from render_harness import (
     scroll_settled,
     sending,
     undo,
+    write,
 )
 
 from browser.navigation.test_reading_place import ITEMS_LAYER, ITEMS_WIDGETS
@@ -166,6 +167,36 @@ def test_a_narrow_window_puts_threads_in_the_panel_and_keeps_the_choice(browser,
     resized(page, 1440, 900)
     expect(view("mid")).to_be_visible()
     expect(cards).to_be_hidden()
+
+
+def test_resuming_a_reply_the_panel_holds_for_a_narrow_window_leaves_it_owed_back(
+    browser, serve
+):
+    """Resume writing a reply in a thread the panel holds only because the window is
+    too narrow for its card goes on in the panel, where the thread stands, and leaves
+    the reason Leaf put it there: the window widening gives the thread back to its card,
+    the reply with it."""
+    url, roots = threads_page(serve)
+    page = open_page(browser, url)
+    resized(page, 700, 900)
+    page.keyboard.press("t")
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["near"]}"]')
+    expect(view).to_be_focused()
+    reply = page.locator(PANEL_REPLY)
+    write(reply, "Half a thought")
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(reply).to_be_focused()
+    resized(page, 1440, 900)
+    card = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots["near"]}"]'
+    )
+    expect(card.locator(".lf-thread-reply leaf-text")).to_have_js_property(
+        "value", "Half a thought"
+    )
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 def test_a_walk_into_the_panel_draws_the_widget_part_its_thread_is_on(browser, serve):

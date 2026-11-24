@@ -737,7 +737,7 @@
         },
         {
           "properties": { "form": { "const": "move" } },
-          "required": ["unit", "to"]
+          "required": ["unit"]
         },
         { "properties": { "form": { "const": "edit" } }, "required": [] },
         { "properties": { "form": { "const": "add" } }, "required": ["words"] },

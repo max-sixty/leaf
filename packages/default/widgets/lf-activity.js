@@ -107,7 +107,7 @@ function gesturePhrase(gesture) {
     case "choice":
       return `chose ${gesture.chosen.map(named).join(", ") || "nothing"} in`;
     case "move":
-      return `moved ${named(gesture.unit)} to ${named(gesture.to)} in`;
+      return `moved ${named(gesture.unit)}${gesture.to ? ` to ${named(gesture.to)}` : ""} in`;
     case "edit":
       return "edited";
     case "add":

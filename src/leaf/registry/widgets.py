@@ -126,7 +126,7 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     still checks; a measured input whose source or run receipt an instance may
     leave out, so that instance is never compared with its source's latest run; and
     a position record whose `within` names no container the declarations place
-    inside the widget (`_containers`), so a drop of the widget's own members is
+    at or inside the widget (`_containers`), so a drop of the widget's own members is
     refused at admission. The last is advice, not a refusal, because it can still
     work: a container outside the declared membership may stand in a member's
     markup, and another package may declare the membership that places it."""

@@ -98,18 +98,7 @@ const indexedState = perVocabulary(() => {
   const recordSelectors = new Map(
     [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")]),
   );
-  /** @type {Map<string, Set<string>>} */
-  const ordering = new Map();
-  for (const { tag, spec } of specs)
-    if (spec.record?.kind === "position") {
-      const tags = ordering.get(spec.record.within) ?? new Set();
-      tags.add(tag);
-      ordering.set(spec.record.within, tags);
-    }
-  const containerSelectors = new Map(
-    [...ordering].map(([within, tags]) => [within, [...tags].join(",")]),
-  );
-  return { recordSelectors, containerSelectors, specs };
+  return { recordSelectors, specs };
 });
 
 // Whether two verbs' records read their state from markup the same way. A value
@@ -130,15 +119,6 @@ export const stateSpecs = () => indexedState().specs;
 /** @param {import("../types/domain.js").StateRecord} record */
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-// The widget that orders a position container's units: the nearest element at or
-// above it whose position record names its tag in `within`, which is the container
-// itself where a widget orders its own members. Python's
-// `projection.container_owner` reads the same rule.
-/** @param {Element} container */
-export const containerOwner = (container) => {
-  const selector = indexedState().containerSelectors.get(container.localName);
-  return selector ? container.closest(selector) : null;
-};
 
 // The registry's entry under a name, the one reader a package module has: a widget's
 // declaration under its tag, or a shared `$` declaration, which belongs to the layer

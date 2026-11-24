@@ -227,8 +227,7 @@ def position_record_error(
             node = holder(node)
         return False
 
-    # Admission and projection use the same ownership for both ends: a unit's
-    # nearest position-recording ancestor, and the destination's `container_owner`.
+    # Admission and projection use the same physical-slot ownership for both ends.
     owner = event["widget"]
     if (
         recorded_owner(unit_id, record, by_id, registry, holders=projected_holders)

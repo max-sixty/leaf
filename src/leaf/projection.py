@@ -541,21 +541,20 @@ def container_owner(
     container: str, byid: dict, registry: dict, *, holders: dict | None = None
 ):
     """The widget whose position record places units in `container`: the nearest
-    element at or above it whose record names the container's tag in `within`, so a
-    widget that orders its own members is its own container's owner. The browser
-    reads containers by the same rule (`projection/authored.js`)."""
-    holders = holders or {}
+    element at or above it that records positions, which is the container itself
+    where a widget orders its own members. Each unit the container holds has the
+    same owner (`recorded_owner`), and the browser reads containers by the same rule
+    (`projection/authored.js`, `initialState`)."""
     node = byid.get(container)
-    tag = node and node["tag"]
-    while node is not None:
-        if any(
-            (spec.get("record") or {}).get("kind") == "position"
-            and spec["record"]["within"] == tag
-            for _, spec in state_specs(registry.get(node["tag"], {}))
-        ):
-            return node["attrs"].get("id")
-        node = holders.get(node["attrs"].get("id"), node.get("holder"))
-    return None
+    if node is not None and any(
+        spec["record"]["kind"] == "position"
+        for _, spec in state_specs(registry.get(node["tag"], {}))
+        if spec.get("record")
+    ):
+        return container
+    return recorded_owner(
+        container, {"kind": "position"}, byid, registry, holders=holders
+    )
 
 
 def attribute_marks(byid: dict, spk: dict, registry: dict) -> dict[str, dict]:

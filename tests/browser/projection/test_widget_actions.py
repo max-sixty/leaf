@@ -77,7 +77,7 @@ def test_a_list_that_is_its_own_container_keeps_the_order_the_user_gives_it(
 ):
     """A list whose entries stand directly in it records a drag and a keyboard move
     with itself as the container, shows both after a reload, and Undo takes the
-    last one back."""
+    last one back, naming the list once."""
     url = live_url(serve(leaf_page("Release steps", STEPS), packages=(SORTABLE,)))
     page = open_page(request.getfixturevalue(engine), url)
     expect_steps(page, ["tag", "notes", "ship"])
@@ -102,6 +102,9 @@ def test_a_list_that_is_its_own_container_keeps_the_order_the_user_gives_it(
 
     undo(page)
     expect_steps(page, ["ship", "tag", "notes"])
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Undone: moved “Write the notes” in the test-list"
+    )
 
 
 def thread_head(page, page_dir, skipping=None):

@@ -33,7 +33,7 @@
  * mid-upload.
  */
 import { describeFailure } from "../lib/exception.js";
-import { el } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { focusDestination, focused, handBack, closeLayer } from "../focus.js";
 import { keeps, keepsHidden, keepsText } from "../lib/keeps.js";

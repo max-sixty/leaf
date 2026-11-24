@@ -16,12 +16,12 @@
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
 import {
-  el,
   LeafElement,
   navigateToDatum,
   setChildLists,
   setChildren,
 } from "/runtime/widget-api.js";
+import { el } from "/runtime/lib/elements.js";
 import { nameAction, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

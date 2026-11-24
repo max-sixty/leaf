@@ -48,14 +48,10 @@ export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
-// Putting the user on an element, saying what moved them there; holding their place,
-// caret included, across a move or re-render of the node they stand on, by key in a
-// list; hearing each move of their current location with its cause; running something
-// once they move off an element, or once a press lands away from it (`onPressAway`); and
-// a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the
-// user to write Markdown in.
-export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
-export { TEXT_FIELD } from "./control-selectors.js";
+// Hearing each move of the user's current location with its cause
+// (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
+// a press that lands away from a surface (`onPressAway`).
+export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 // The page's obligations, or those a region of it holds by the rule every count and walk
 // of them reads, with whether the region's markup asks the user something.
 export { readObligations } from "./obligations/place.js";
@@ -112,7 +108,7 @@ export { copyControl } from "./copy-control.js";
 export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
-export { aimedAt, el } from "./widget-elements.js";
+export { aimedAt } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

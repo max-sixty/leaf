@@ -6,7 +6,6 @@ import {
   move,
   saveDraft,
   sendDraft,
-  TEXT_FIELD,
   watchDraft,
   whileConnected,
   wireInput,
@@ -21,7 +20,7 @@ import {
 
 const ANOTHER = "Another option";
 
-/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap[typeof TEXT_FIELD], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
+/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap["leaf-text"], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
 
 export class OptionAddition {
   #host;
@@ -83,7 +82,7 @@ export class OptionAddition {
   /** @returns {OptionEditor} */
   #buildForm() {
     const form = offer("form", "lf-another");
-    const input = offer(TEXT_FIELD);
+    const input = offer("leaf-text");
     input.name = "option";
     input.setAttribute("aria-label", ANOTHER);
     // Its hint is Leaf's words, as every empty box's is (voice.js).

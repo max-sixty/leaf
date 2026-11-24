@@ -18,8 +18,9 @@ A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so the library builds it as a focusable span with the control's role
 rather than as a form control. With a button's role, Enter and Space press it, with
 Leaf or without; for another role, such as a tab's, the widget declares its keys.
-Printing drops every generated control, so build structure that isn't injected UI with
-`el(tag, className, text)`.
+Printing drops every generated control, so build structure that isn't injected UI as
+ordinary elements, which the library's
+[`elements.js`](../../../browser/runtime/lib/elements.js) makes in one call.
 
 Words a module writes into the page are the page's words unless it marks them apart
 (`module-plain-elements.md`, "Words it writes").

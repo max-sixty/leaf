@@ -875,11 +875,13 @@ export const commandsOn = directive(
 //
 // Nothing hears an element that says its keys before it is placed, and they bind
 // nothing. Reading the property where it is needed instead would find it for a key,
-// along the key's path, but a declaration also acts before any key arrives: it wires
-// the buttons its rows name and shows their availability, writes key badges and
-// `aria-keyshortcuts`, and gives an obligation its decision controls. Those need every
-// declaration in the page, and a property can only be found by walking the page. So
-// the element says it, and the render check walks once for one it never heard
+// along the key's path, but a declaration also acts before any key arrives, wherever
+// the user is: it wires the buttons its rows name and shows their availability, and
+// writes the element's `aria-keyshortcuts`; and the command reference lists every
+// scope in the page. Those need each declaration as it is made, and a property is
+// found only by a walk. Reading it as each element arrives would be such a walk on
+// every page at every mutation, and would still leave a later change to be said. So
+// the element says it, and the render check walks once for one never heard
 // (`commandsUnread`).
 const declared = new WeakMap();
 /** @type {WeakSet<Element>} */
@@ -892,7 +894,7 @@ addEventListener(COMMANDS, (event) => {
   const [element] = event.composedPath();
   if (!(element instanceof Element)) return;
   const declaration = element.lfCommands ?? null;
-  if (declaration) heard.add(element);
+  if (declaration !== null) heard.add(element);
   const standing = declared.get(element);
   if (declaration === (standing?.declaration ?? null)) {
     if (event.detail?.within) return paintKeysWithin(element);

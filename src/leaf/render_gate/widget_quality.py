@@ -38,10 +38,6 @@ tag in its values:
   page shows the key it adds (`../../../skills/leaf/references/module-input.md`, "Commands and
   keyboard routes"). Its reading is `unshownContextKeys` in `render-checks/widgets.js`,
   which reads the declarations rather than the keys reachable now.
-- `unread-commands`: an element holds an `lfCommands` Leaf never read, so its keys
-  bind nothing. It is an error, shared with `page check --render`, and names the
-  element rather than a tag. Its reading is `unreadCommands` in
-  `render-checks/widgets.js`.
 """
 
 import re
@@ -175,9 +171,8 @@ def _blank_image(suffix: str) -> bytes:
 
 def _readings(
     browser, url: str, tags: list[str]
-) -> tuple[list[dict], list[dict], list[dict], list[dict], list[dict]]:
-    """Changed startup boxes, unshown keys, unread commands, held scrollers and
-    published outputs."""
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """Changed startup boxes, unshown keys, held scrollers and published outputs."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     page = open_render_page(browser, viewport=RENDER_VIEWPORT)
@@ -213,9 +208,8 @@ def _readings(
             raise UnreadablePage("; ".join(map(str, errors)))
         changed = evaluate_probe(page, "changedBoxes")
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
-        unread = evaluate_probe(page, "unreadCommands")
         held = evaluate_probe(page, "heldScrollers", tags)
-        return changed, unshown, unread, held, output_values(page)
+        return changed, unshown, held, output_values(page)
     except (PlaywrightTimeout, TimeoutError) as error:
         # A wait the page never answered, as the render gate's `no-runtime` reads one.
         raise UnreadablePage(str(error).strip()) from error
@@ -264,15 +258,11 @@ def _page_findings(
     pages: list[tuple[str, SourceDocument]],
     tags: list[str],
 ) -> list[Finding]:
-    """`keeps-first-box`, `shows-context-keys`, `unread-commands` and
-    `grows-with-content` over each page of examples (`served_examples`)."""
+    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
+    of examples (`served_examples`)."""
     findings = []
     for layout, url, artifact in served_examples(package, pages):
-        changed, unshown, unread, held, outputs = _readings(browser, url, tags)
-        # One record however many Layouts read the same element.
-        findings += [
-            found for found in map(Finding.read, unread) if found not in findings
-        ]
+        changed, unshown, held, outputs = _readings(browser, url, tags)
         findings += output_findings(
             outputs,
             artifact.registry,

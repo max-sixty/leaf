@@ -2531,6 +2531,13 @@ test("a widget's commands stand from when it says them until it withdraws them",
     say(owner);
     owner.removeEventListener("error", hear);
     assert.equal(failures.length, 1);
+    // A declaration Leaf refused is one it read: the failure says what is wrong.
+    const fresh = inner.appendChild(document.createElement("div"));
+    fresh.lfCommands = owner.lfCommands;
+    fresh.addEventListener("error", hear);
+    say(fresh);
+    assert.equal(failures.length, 2);
+    assert.equal(commandsUnread(fresh), false);
     assert.equal(failures[0][0], owner);
     assert.match(failures[0][1], /not a stable command id/);
     assert.deepEqual(declared(owner), []);

@@ -266,7 +266,6 @@ def _page_findings(context: _PageContext) -> list[Finding]:
     found += map(Finding.read, retired)
     found += context.unsettled
     found += (Finding.read(block) for block in evaluate_probe(page, "uncolouredCode"))
-    found += map(Finding.read, evaluate_probe(page, "unreadCommands"))
     found += _unreduced_motion(page)
     return found
 
@@ -322,6 +321,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
     found = list(map(Finding.read, invalid_paints))
+    found += map(Finding.read, evaluate_probe(page, "unreadCommands"))
     if missing_upgrades:
         found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:

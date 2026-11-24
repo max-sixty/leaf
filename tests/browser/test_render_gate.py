@@ -204,6 +204,53 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
 
 
+EARLY_KEYS_WIDGET = """
+customElements.define('lf-early', class extends HTMLElement {
+  connectedCallback() {
+    if (this.firstChild) return;
+    const keyed = (id) => {
+      const press = document.createElement('button');
+      press.dataset.key = id;
+      press.textContent = id;
+      press.lfCommands = { title: 'Keyed', rows: [
+        { id: `early.${id}`, keys: ['F2'], title: 'Run', control: press, run() {} },
+      ] };
+      return press;
+    };
+    const say = (press) => press.dispatchEvent(
+      new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+    const early = keyed('early');
+    say(early);
+    const late = keyed('late');
+    this.append(early, late);
+    say(late);
+    this.classList.add('lf-rendered');
+  }
+});
+"""
+
+
+def test_the_gate_names_keys_said_before_their_element_was_placed(browser, serve):
+    """A widget that says `lf-commands` on a button before placing it is heard by
+    nobody, so the button's keys bind nothing, and the gate fails naming the button.
+    The button it says after placing is read and quiet."""
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            leaf_page("Keys", '<h1>Keys</h1><lf-early id="keys"></lf-early>'),
+            layer_registry={"lf-early": element_declaration("lf-early")},
+            layer_widgets={"lf-early.js": EARLY_KEYS_WIDGET},
+        ),
+        served_timeout_ms=3000,
+    )
+    unread = [f for f in reading.failures if f.code == "unread-commands"]
+
+    assert [f.at for f in unread] == ["<button> in <lf-early id=keys>"], (
+        reading.findings
+    )
+    assert "bubbling, composed lf-commands event" in str(unread[0])
+
+
 def _panel(name: str) -> str:
     return (
         f'<section class="lf-panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'

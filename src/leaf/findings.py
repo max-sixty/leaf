@@ -790,8 +790,8 @@ _TEXT = {
         lambda at, v: (
             f"{at} sets lfCommands, but no lf-commands event from it reached Leaf, so"
             " its keys bind nothing and the buttons its rows name do nothing; dispatch"
-            " the event on the element after setting lfCommands, once the element"
-            " stands in the page (module-plain-elements.md, lf-commands)"
+            " a bubbling, composed lf-commands event on the element once it stands in"
+            " the page (module-plain-elements.md, lf-commands)"
         ),
     ),
     "unmarkable": _fails(

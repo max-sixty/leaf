@@ -1082,6 +1082,99 @@ def test_a_handoff_written_as_the_page_hid_comes_back_only_to_its_entry(
     )
 
 
+def test_a_key_typed_while_a_page_handed_only_values_starts_ends_its_arrival(
+    browser, serve
+):
+    """A reload that hands the document only the values the user typed, as startup
+    recovery's does after a document that never started, hands back no place. So a key
+    the user presses while the page starts ends its arrival, as on a fresh load: the
+    thread its address names, the page's first, doesn't open, so `t` walks to that
+    first thread rather than on from it to the next."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Restarted",
+                '<h1>Form</h1><p id="first">The first finding.</p>'
+                '<p><label>Name <input id="who" autocomplete="off"></label></p>'
+                '<p id="second">The second finding.</p>',
+            )
+        )
+    )
+    for thread, section in [("one", "first"), ("two", "second")]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "id": thread,
+                "text": f"Why {section}?",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(browser, url)
+    documents = {"count": 0}
+    probes, states, failed = [], [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def lose(route):
+        if documents["count"] == 1 and not failed:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    # Recovery's probe of the source waits while the user types into the document that
+    # never started, and the reloaded document's first reading waits while the user
+    # presses a key.
+    def probe(route):
+        if documents["count"] == 1 and urlsplit(route.request.url).path == (
+            "/registry.json"
+        ):
+            probes.append(route)
+        else:
+            route.continue_()
+
+    def state(route):
+        if documents["count"] == 2:
+            states.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/runtime/rendering.js", lose)
+    page.route("**/registry.json", probe)
+    page.route("**/api/state*", state)
+    page.goto(f"{url}&thread=one", wait_until="commit")
+    holding(page, probes, 1, "startup recovery's probe")
+    page.locator("#who").fill("Grace")
+    page.evaluate("document.activeElement.blur()")
+    with page.expect_navigation(wait_until="commit"):
+        probes.pop().continue_()
+    holding(page, states, 1, "the reloaded document's first reading")
+    page.wait_for_function("document.readyState !== 'loading'")
+    page.keyboard.press("t")
+    page.unroute("**/api/state*")
+    for route in states:
+        route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    assert len(failed) == 1, failed
+    take_browser_errors(page)
+    expect(page.locator("#who")).to_have_value("Grace")
+    expect(
+        page.locator(
+            f'{PANEL_THREAD}[data-lf-thread="one"], '
+            '.lf-margin-preview .lf-page-thread[data-lf-thread="one"]'
+        )
+    ).to_be_focused()
+
+
 def test_a_page_that_starts_hidden_keeps_its_handoff_in_the_tab(browser, serve):
     """A document a reload brings into a hidden tab, as Leaf's reload of a background
     tab does, leaves the handoff it was given in the tab while it stays hidden, so a

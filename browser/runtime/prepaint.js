@@ -324,11 +324,11 @@
   // The handoff a reload hands the document it loads (version.js, `captureHandoff`):
   // what the document carried, the values typed into the page's form, its disclosures,
   // the comparison and the pointer, and where the user was, which belongs to the entry
-  // it was read on (`entry`). Prepaint alone writes it to the tab and reads it back.
-  // The tab holds it only while a document would hand it on and isn't standing in view:
-  // from its departure, or its page going hidden, since a tab the browser discards
-  // while hidden goes with no `pagehide`, to the next document's first script. That
-  // script removes it and takes it only where its document stands at the entry it names
+  // it was read on. Prepaint alone writes it to the tab and reads it back. The tab
+  // holds it only while a document would hand it on and isn't standing in view: from
+  // its departure, or its page going hidden, since a tab the browser discards while
+  // hidden goes with no `pagehide`, to the next document's first script. That script
+  // removes it and takes it only where its document stands at the entry it names
   // (`entryId`): a reload, a discarded tab's return and Back to a document the browser
   // didn't keep all keep the entry's id. A document that starts hidden, as a background
   // tab's reload does, writes back what it hands on as a hide does, and a page shown
@@ -336,6 +336,12 @@
   // script, its return to view and its departure can still remove the page's handoff or
   // put the frame's own over it, which the page's next document drops as another
   // entry's.
+  //
+  // It puts the user back where they were only while the document stands at the entry
+  // that place was read at (`placesUser`, by the entry's key, which a replace keeps):
+  // elsewhere, as after Back taken before Leaf starts, and where it holds no place, it
+  // carries what it holds of the document alone. The bootstrap's key hold and the
+  // arrival both ask (bootstrap.js, `holdEarlyKeys`; version.js, `installArrival`).
   //
   // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
   // that is what it owes of the document, none of which has reached the page yet: the
@@ -348,7 +354,7 @@
   // may come back, so its hide writes, and its return removes what it wrote.
   const HANDOFF_KEY = "lf-revision-handoff";
   const entryId = () => window.navigation?.currentEntry?.id ?? null;
-  /** @type {{carry?: {id: string}[], typing?: unknown} | null} */
+  /** @type {{carry?: {id: string}[], entry?: unknown, typing?: unknown} | null} */
   const handoff = (() => {
     const stored = tabStore.get(HANDOFF_KEY);
     tabStore.set(HANDOFF_KEY, null);
@@ -359,6 +365,8 @@
       return null;
     }
   })();
+  const placesUser = () =>
+    handoff?.entry != null && handoff.entry === window.navigation?.currentEntry?.key;
   // A changed control's state as a carry record holds it (carry.js, `captureCarry`).
   /** @param {Element} node */
   const changedState = (node) => ({
@@ -410,6 +418,7 @@
     tabStore,
     userStore,
     handoff,
+    placesUser,
     handOnWith: (next) => {
       handingOn = next;
     },

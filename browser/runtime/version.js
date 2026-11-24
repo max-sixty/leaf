@@ -3259,13 +3259,15 @@ export function createVersionController({
         ? value
         : null;
     })();
+    // Where it puts the user back (prepaint.js, `placesUser`).
+    const placed = handoff && window.lfStorage.placesUser() ? handoff : null;
     // Printed keys typed while the user is put back wait until the arrival has done so
     // (history.js, `settled`), the entry's record's return and the handoff's restore
     // (`landArrival`) among its work. Then they run where it put the user, as text in
     // the box they were writing in. An input of theirs meanwhile ended the arrival, and
     // the hold let their keys, meant for a place they never got back to, go with it
     // (bootstrap.js, `holdEarlyKeys`).
-    if (handoff) {
+    if (placed) {
       handingBackPlace(true);
       void arrival.settled.then(() => {
         handingBackPlace(false);
@@ -3298,11 +3300,6 @@ export function createVersionController({
     // where they were in it either, since their input ended the arrival's claim on the
     // place (document-inputs.js, `edited`); so its record goes unrestored.
     const currentIntent = arrival.intent;
-    const placed =
-      Number.isInteger(handoff?.view?.revision) &&
-      handoff.entry === window.navigation?.currentEntry?.key
-        ? handoff
-        : null;
     // What the document hands on as it goes (prepaint.js): the handoff as it came,
     // while it still owes this entry its place, until the arrival has put it back or
     // the user has acted within the entry (history.js, `owes`). Its values went into

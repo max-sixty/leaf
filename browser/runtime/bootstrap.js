@@ -395,14 +395,15 @@
   ]);
   function holdEarlyKeys() {
     let taken = false;
-    // The place a reload Leaf asked for hands this document (prepaint.js, `handoff`).
-    // While it comes back a held key is no input (`holdKeys`, below). Where the user
-    // was writing in a box (`typing`), a user typing through the reload means their
-    // keys as words for that box: a Space starts a run as a letter does, rather than
-    // scrolling the page, and the hold takes keys whatever the single-key preference.
-    const { handoff, tabStore } = window.lfStorage;
-    const handedBack = handoff !== null;
-    const typingBack = handoff?.typing === true;
+    // The place a reload Leaf asked for hands this document (prepaint.js,
+    // `placesUser`); a handoff of values alone hands back none. While the place comes
+    // back a held key is no input (`holdKeys`, below). Where the user was writing in a
+    // box (`typing`), a user typing through the reload means their keys as words for
+    // that box: a Space starts a run as a letter does, rather than scrolling the page,
+    // and the hold takes keys whatever the single-key preference.
+    const { handoff, tabStore, placesUser } = window.lfStorage;
+    const handedBack = placesUser();
+    const typingBack = handedBack && handoff?.typing === true;
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's

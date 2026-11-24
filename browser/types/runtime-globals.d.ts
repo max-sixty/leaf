@@ -126,6 +126,8 @@ interface Window {
     userStore: LeafStore;
     /** The handoff the reload that loaded this document handed it (prepaint.js). */
     readonly handoff: { readonly typing?: unknown } | null;
+    /** Whether the handoff puts the user back where they were, here (prepaint.js). */
+    placesUser(): boolean;
     /** What this document hands on as it goes from now on (prepaint.js). */
     handOnWith(handingOn: () => object | null): void;
     keepDisclosure(node: HTMLDetailsElement): void;

@@ -325,14 +325,16 @@
   // what the document carried, the values typed into the page's form, its disclosures,
   // the comparison and the pointer, and where the user was, which belongs to the entry
   // it was read on (`entry`). Prepaint alone writes it to the tab and reads it back.
-  // The tab holds it only from a document's departure, or its page going hidden, since
-  // a tab the browser discards while hidden goes with no `pagehide`, to the next
-  // document's first script, which removes it and takes it only where that document
-  // stands at the entry it names (`entryId`): a reload, a discarded tab's return and
-  // Back to a document the browser didn't keep all keep the entry's id. A page shown
-  // again removes it too, so a live, visible document leaves none in the tab. A frame
-  // showing the same page shares the tab's key, so its departure can still put its own
-  // handoff over the page's, which the page's next document then drops as another
+  // The tab holds it only while a document would hand it on and isn't standing in view:
+  // from its departure, or its page going hidden, since a tab the browser discards
+  // while hidden goes with no `pagehide`, to the next document's first script. That
+  // script removes it and takes it only where its document stands at the entry it names
+  // (`entryId`): a reload, a discarded tab's return and Back to a document the browser
+  // didn't keep all keep the entry's id. A document that starts hidden, as a background
+  // tab's reload does, writes back what it hands on as a hide does, and a page shown
+  // again removes it. A frame showing the same page shares the tab's key, so its first
+  // script, its return to view and its departure can still remove the page's handoff or
+  // put the frame's own over it, which the page's next document drops as another
   // entry's.
   //
   // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
@@ -402,6 +404,7 @@
   addEventListener("pageshow", (event) => {
     if (event.persisted) handOn(null);
   });
+  if (document.visibilityState === "hidden") handOn(handingOn());
   window.lfStorage = {
     stored,
     tabStore,

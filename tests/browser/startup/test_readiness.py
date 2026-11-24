@@ -1082,6 +1082,39 @@ def test_a_handoff_written_as_the_page_hid_comes_back_only_to_its_entry(
     )
 
 
+def test_a_page_that_starts_hidden_keeps_its_handoff_in_the_tab(browser, serve):
+    """A document a reload brings into a hidden tab, as Leaf's reload of a background
+    tab does, leaves the handoff it was given in the tab while it stays hidden, so a
+    discard before Leaf has put back what it carries loses nothing."""
+    page = open_page(browser, live_url(serve(leaf_page("Restarted", NAME_AND_TOWN))))
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.add_init_script(
+        """Object.defineProperty(document, "visibilityState",
+          {value: "hidden", configurable: true});"""
+    )
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        assert page.evaluate("document.visibilityState") == "hidden"
+        stored = carried_values(page)
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    assert stored == {"who": "Ada"}
+
+
 def test_a_page_hidden_before_leaf_starts_keeps_what_its_reload_carried(browser, serve):
     """A page hidden before Leaf has started, after the user clicked in its prose, keeps
     in the tab the values the reload Leaf asked for carried, which haven't reached the

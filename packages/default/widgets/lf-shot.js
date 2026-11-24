@@ -62,7 +62,6 @@ import { ShotView } from "./shot-view.js";
 // A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
-  setScroll,
   afterPresentation,
   once,
   offer,
@@ -81,6 +80,7 @@ import {
 } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -214,15 +214,8 @@ export class Shot extends HTMLElement {
         () => {
           if (this.#drawing.view !== "pair" || !this.#drawing.actual) return;
           const peer = index === 0 ? drawing.viewports[1] : drawing.viewports[0];
-          if (
-            peer.scrollLeft !== viewport.scrollLeft ||
-            peer.scrollTop !== viewport.scrollTop
-          )
-            setScroll(peer, {
-              left: viewport.scrollLeft,
-              top: viewport.scrollTop,
-              behavior: "instant",
-            });
+          const at = { left: viewport.scrollLeft, top: viewport.scrollTop };
+          if (scrollMoves(peer, at)) peer.scrollTo({ ...at, behavior: "instant" });
         },
         { passive: true },
       );

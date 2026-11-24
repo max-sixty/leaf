@@ -80,7 +80,6 @@
 import {
   LeafElement,
   alreadyShown,
-  setScroll,
   bodyText,
   failSoft,
   nameAction,
@@ -425,7 +424,9 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
+          // Wrapped, the block stood at its start, so only an offset it had is put back.
+          if (!wrapped && horizontal)
+            pre.scrollTo({ left: horizontal, behavior: "instant" });
           this.dispatchEvent(
             new CustomEvent("lf-layout", { bubbles: true, composed: true }),
           );

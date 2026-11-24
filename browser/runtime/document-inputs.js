@@ -10,14 +10,22 @@
   // back from someone already using the authored page. focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
-  // The steps Back or Forward among them, which move the user to another entry rather
-  // than within the one they are on (history.js).
-  let steps = 0;
+  // The inputs among them that take the user away from the entry they are on rather
+  // than acting in it (`away`): a step Back or Forward, which moves them to another
+  // entry, and leaving the window, as for another application, after which they come
+  // back to the same place. Either supersedes a gesture under way (user-intent.js), but
+  // a return to an entry's record yields only to the user's acts within the entry
+  // (history.js). A search with find-in-page leaves the window too, so a return still
+  // under way can move the page from the match the search reached; the user leaving
+  // for another application while a slow reload arrives is the commoner case, and
+  // counting it would lose their place for good.
+  let away = 0;
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
-  // waits for is not superseded by it. The hold hears of every input the clock does
-  // count, a step Back or Forward included (`counted`), each of which ends the
-  // hand-back the held keys were typed for (bootstrap.js, `holdEarlyKeys`).
+  // waits for is not superseded by it. The hold hears of every other input the clock
+  // counts, a step Back or Forward included (`counted`), each of which ends the
+  // hand-back the held keys were typed for, but not of leaving the window, after which
+  // the keys still land where they were typed for (bootstrap.js, `holdEarlyKeys`).
   /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
   let hold = null;
   /** @type {Set<(event: Event) => void>} */
@@ -109,8 +117,8 @@
     get count() {
       return inputs;
     },
-    get steps() {
-      return steps;
+    get away() {
+      return away;
     },
     holdKeys(next) {
       hold = next;
@@ -137,7 +145,8 @@
       return;
     if (event instanceof KeyboardEvent && hold?.holds(event)) return;
     inputs++;
-    hold?.counted();
+    if (event.type === "blur") away++;
+    else hold?.counted();
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
@@ -151,7 +160,7 @@
   // as a live sample is, has the API with no entries and fires only `popstate`.
   const step = () => {
     inputs++;
-    steps++;
+    away++;
     hold?.counted();
   };
   if (window.navigation?.currentEntry)

@@ -1125,6 +1125,33 @@ def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
     expect(reply).to_have_js_property("value", "Hold")
 
 
+# The user leaving the window and coming back, as switching to another application
+# does: the document loses focus, which a headless browser never lets it do, so the
+# page is told so for the length of the window's `blur`.
+LEAVE_THE_WINDOW = """() => {
+  Object.defineProperty(document, "hasFocus", { value: () => false, configurable: true });
+  dispatchEvent(new FocusEvent("blur"));
+  delete document.hasFocus;
+}"""
+
+
+def test_leaving_the_window_while_a_reload_arrives_leaves_the_return_owed(
+    browser, serve
+):
+    """A user writing a reply when Leaf reloads the page, who types on and then leaves
+    the window and comes back while the server is slow to answer the document the
+    reload brings, comes back to the reply with the words they typed: leaving the
+    window is no input within the page, as a step Back is none, so the reload still
+    owes them their place, and the keys held for it still land there."""
+    page, reply = writing_a_reply(browser, serve)
+    release = reload_with_its_answers_held(page, serve)
+    page.keyboard.type(" more")
+    page.evaluate(LEAVE_THE_WINDOW)
+    release(False)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hold more")
+
+
 def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
     browser, serve
 ):

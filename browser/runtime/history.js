@@ -136,7 +136,6 @@ import {
   drawn,
   entryInputCount,
   focusDestination,
-  inputCount,
   readCaret,
   landAtReading,
 } from "./focus.js";
@@ -668,10 +667,12 @@ let draftReturn = null;
 // starts runs under: a newer restoration, or any navigation but this document's own
 // rename, aborts it, as the platform aborts a traversal's own (`NavigateEvent.signal`),
 // and the user's own input within the entry ends it, for a route that moves no focus
-// as for one that does (`stands`; focus.js, `entryInputCount`). A step Back or Forward
-// is no such input: every restoration begins once the document handles its
-// traversals (`mountHistory`), so a later step is a navigation, which aborts it, and
-// an earlier one brought the user to the entry it returns to. Until it settles, a
+// as for one that does (`stands`; focus.js, `entryInputCount`), and the intent it runs
+// under counts that input alone. A step Back or Forward is no such input: every
+// restoration begins once the document handles its traversals (`mountHistory`), so a
+// later step is a navigation, which aborts it, and an earlier one brought the user to
+// the entry it returns to. Nor is leaving the window, from which the user comes back
+// to the same place. Until it settles, a
 // departure, the hidden page's checkpoint or the handoff of a reload Leaf asked for
 // writes the record it owes, rather than a reading of the page it is still putting
 // back (`owes`, `readRecord`), the step that leaves the entry among them, and the tab
@@ -729,9 +730,8 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
 // restoration of the record that entry kept, where the document came by a reload or by
 // Back or Forward from another document (the Navigation API's `activation`), and of
 // none for a fresh visit, whose address alone says where to go, under the arrival's
-// intent still. Its intent counts the user's inputs from the document's start, as a
-// document arrival's does (user-intent.js), but for the steps Back or Forward taken
-// before Leaf began, which brought the user to the entry it returns to.
+// intent still. Its intent counts the user's inputs within the entry from the
+// document's start, as a document arrival's does (user-intent.js).
 export function beginArrival() {
   const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;
@@ -739,8 +739,8 @@ export function beginArrival() {
     type === "reload" || type === "traverse"
       ? (/** @type {EntryRecord | undefined} */ (entry?.getState()) ?? null)
       : null;
-  const steps = inputCount() - entryInputCount();
-  return beginRestoration(record, retainUserIntent({ since: steps }), null, 0);
+  const intent = retainUserIntent({ count: entryInputCount, since: 0 });
+  return beginRestoration(record, intent, null, 0);
 }
 // The restoration under way, whose record a departure writes while it owes it.
 export const pendingRestoration = () => restoring;
@@ -828,7 +828,7 @@ export function mountHistory({
       const claim = claimed(url);
       const restoration = beginRestoration(
         record ?? null,
-        retainUserIntent(),
+        retainUserIntent({ count: entryInputCount }),
         event.signal,
       );
       const mayReturn = restoration.intent;

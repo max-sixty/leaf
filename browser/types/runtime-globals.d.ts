@@ -216,9 +216,10 @@ interface WindowEventMap {
         rows: readonly import("../runtime/keyboard/bindings.js").Command[];
       }
   >;
-  /** Where a step of a widget's own walk landed, which Leaf's panel says
-   * (`lib/widget-events.js`, `WALK`; `walk-position.js`). */
-  "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace>;
+  /** Where a step of a widget's own walk landed, which Leaf's panel says, or null
+   * where the user has left that stop (`lib/widget-events.js`, `WALK`;
+   * `walk-position.js`). */
+  "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace | null>;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
    * in its Errors list (`errors.js`). */
   "lf-error": CustomEvent<string>;

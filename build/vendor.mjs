@@ -953,13 +953,15 @@ async function bundle(spec) {
 }
 
 /**
- * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
- * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a `language-…` class names, read here so that identifying a
- * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
- * names too, as the one line of JSON `syntaxLanguageNames` is written on
- * (`leaf.validation.markup.COLOURED_LANGUAGES`).
+ * The table of the grammars `syntax` bundles, a library module
+ * (`runtime/lib/syntax-languages.js`): a literal import for each, so an export binds
+ * it, and each name and alias Shiki gives a grammar, which a `language-…` class names,
+ * read here so that identifying a block loads no grammar. Both come from this build,
+ * which a page's grammars need anyway, so the browser doesn't read `$languages.names`
+ * itself. `page check` reads the names too, as the one line of JSON
+ * `syntaxLanguageNames` is written on (`leaf.validation.markup.COLOURED_LANGUAGES`).
+ * Beside them stands the shipped extension table, which `language-paths.js` starts
+ * from until a page installs its composed one.
  */
 async function syntaxLoaders() {
   const names = languages();
@@ -981,18 +983,19 @@ async function syntaxLoaders() {
         .join("") +
       "};\n" +
       `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguageNames = ${JSON.stringify(labels)};\n` +
-      `/** @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
+      "/** The shipped extension table, which a page's composition may change: a file's language on a page is `langForPath`'s, in the package API.\n" +
+      ` * @type {Record<string, string>} */\n// prettier-ignore\nexport const syntaxLanguagePaths = ${JSON.stringify(languageDeclarations().paths)};\n`,
   );
 }
 
-/** Every bundle's outputs, and the runtime's syntax table, keyed by repository path. */
+/** Every bundle's outputs, and the library's syntax table, keyed by repository path. */
 export async function vendorOutputs() {
   const built = await Promise.all(
     Object.values(bundles).map(async (spec) => bundle(await spec())),
   );
   return new Map([
     ...built.flatMap((outputs) => [...outputs]),
-    [`${assets}/runtime/syntax-languages.js`, await syntaxLoaders()],
+    [`${assets}/runtime/lib/syntax-languages.js`, await syntaxLoaders()],
   ]);
 }
 

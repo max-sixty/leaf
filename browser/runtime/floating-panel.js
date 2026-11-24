@@ -208,8 +208,8 @@ import {
   signal,
 } from "/runtime/framework.js";
 import { el, offeredAction, reveal } from "./widget-elements.js";
-import { actionTemplate, iconTemplate } from "./icons.js";
-import { actionName } from "./icon-paths.js";
+import { actionTemplate, iconTemplate } from "./lib/icons.js";
+import { actionName } from "./lib/icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
 import { atLayoutPrecision, keeps, keepsHidden } from "./lib/keeps.js";
 import { keepFieldKeys } from "./field-keys.js";

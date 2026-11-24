@@ -38,17 +38,8 @@ export { measure } from "./shown-box.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
-export {
-  codeLanguage,
-  ensureSyntaxLanguage,
-  synNodes,
-  syntax,
-  syntaxNow,
-  tokenLines,
-} from "./syntax-tokens.js";
 
 export { actionClass } from "./control-faces.js";
-export { actionTemplate } from "./icons.js";
 
 export {
   offerElement,

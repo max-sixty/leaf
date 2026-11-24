@@ -19,6 +19,7 @@ from render_harness import (
 )
 
 from browser.threads import append_agent_reply, open_panel_thread, summarize_thread
+from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -239,6 +240,48 @@ def test_back_returns_to_the_card_a_later_open_in_panel_left(
             page.locator(f'{PANEL_THREAD}[data-lf-thread="{first}"]')
         ).to_be_visible()
         expect(cards).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_rewrite_written_in_a_card_back_returned_to_reopens_there(
+    request, serve, engine
+):
+    """A rewrite of the user's message, written in the card Back returned them to after
+    Open in panel chose the panel, comes back in that card after a reload: the entry's
+    record says the thread stands in its card, and the rewrite's return fills the box
+    of the view that return opened rather than opening the thread again where the
+    choice of where threads open says."""
+    url = serve(LONG_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    second = panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    cards = page.locator(".lf-margin-preview")
+    card = cards.locator(".lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", second)
+    cards.get_by_role("button", name="Open in panel", exact=True).click()
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{second}"]')).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(card).to_have_attribute("data-lf-thread", first)
+    card.locator(".lf-msg .lf-msg-text").first.dblclick()
+    editor = card.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("End")
+    page.keyboard.type(" Twice.")
+    page.wait_for_function("navigation.transition === null")
+    page.reload()
+    wait_until_ready(page)
+    expect(card).to_have_attribute("data-lf-thread", first)
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Why here? Twice.")
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

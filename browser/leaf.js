@@ -376,7 +376,11 @@ async function boot() {
   const version = createVersionController({
     initialDocument,
     openThread: (id, options) =>
-      app.threadDestinations.openPageThread(id, { ...options, travel: false }),
+      app.threadDestinations.openPageThread(id, {
+        reader: "standing",
+        ...options,
+        travel: false,
+      }),
     refreshThread: () => app.refreshThread(),
     midComposition: (...args) => app.midComposition(...args),
     hasPending: () => app.hasPending(),

@@ -49,7 +49,13 @@
    draw it. A route to a card (`reader: "card"`) returns the user to a thread they had
    read beside its passage, as Back to such an entry does (thread/address.js): it opens
    as a route under the cards choice does, whatever the choice now, the card standing
-   where it can and the placements Leaf forces taking the thread where it can't.
+   where it can and the placements Leaf forces taking the thread where it can't. A
+   route to where a thread stands (`reader: "standing"`) keeps the view it stands open
+   in, its card or the primary's, and opens one that stands nowhere as a route that
+   names no reader does: a draft's return fills the box of the view the entry's return
+   opened (history.js), and a reload's hand-back of the reply being written the box of
+   the view the user writes in (version.js), so neither moves the thread to where the
+   choice says once the entry's record has said where the user stands.
 
    A route that travels into the primary brings the thread's passage into view as well
    as the primary's view of it (`taken`): nearest, in the room the floating panel's view
@@ -254,7 +260,7 @@ export function createThreadDestinations({
   /** @typedef {{part?: "thread" | "reply" | "message" | null,
    * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
    * intent?: ReturnType<typeof retainUserIntent>, origin?: ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>,
-   * reader?: "page" | "primary" | "card" | null}} OpenThreadOptions */
+   * reader?: "page" | "primary" | "card" | "standing" | null}} OpenThreadOptions */
   /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(
     id,
@@ -271,6 +277,10 @@ export function createThreadDestinations({
   ) {
     if (!intent()) return null;
     part ??= openingPart();
+    if (reader === "standing") {
+      const named = threadNamed(id);
+      reader = named ? standingReader(named) : null;
+    }
     const page = reader === "page";
     const card = reader === "card";
     // A navigation step moves the page, so a destination that may move no scroller takes none.
@@ -635,6 +645,16 @@ export function createThreadDestinations({
     return arrived ? element : null;
   }
 
+  // The view `thread` stands open in, the margin's card or the primary's, as a route
+  // to where it stands names it (`reader: "standing"`), or null where none shows it.
+  /** @param {NonNullable<ReturnType<typeof threadNamed>>} thread @returns {"card" | "primary" | null} */
+  function standingReader(thread) {
+    if (preview?.shown() === thread.id) return "card";
+    const selected = presentation?.owner.isConnected ? presentation : null;
+    const drawing = selected?.reader.destination(thread.key, { part: "thread" });
+    return drawing?.checkVisibility() ? "primary" : null;
+  }
+
   // Where a thread holds the user's draft `context`, with its box ready for the caret:
   // the thread's reply box, or the rewrite of one of its messages, which opens on that
   // message where a message part lands (`message-edit.js`).
@@ -649,8 +669,18 @@ export function createThreadDestinations({
     const thread = threadNamed(name);
     if (!thread) return null;
     if (part === "reply")
-      return openPageThread(thread.id, { part: "reply", intent, travel });
-    const landed = await openPageThread(name, { part: "message", intent, travel });
+      return openPageThread(thread.id, {
+        part: "reply",
+        intent,
+        travel,
+        reader: "standing",
+      });
+    const landed = await openPageThread(name, {
+      part: "message",
+      intent,
+      travel,
+      reader: "standing",
+    });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }

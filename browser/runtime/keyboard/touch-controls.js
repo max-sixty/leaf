@@ -12,7 +12,7 @@
  * predicate may read the whole log, which a paint that follows what it reads must not
  * (leaf-element.js). A change in what stands is said with `pageControlsChanged`.
  */
-import { capitalized } from "../words.js";
+import { capitalized } from "../lib/words.js";
 import {
   PAGE_CONTROL_RANK,
   pageControlsChanged,

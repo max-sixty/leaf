@@ -27,7 +27,7 @@ export { rankAt } from "./projection/model.js";
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
-export { addressableLabel, addressableWord } from "./addressable-names.js";
+export { addressableLabel } from "./addressable-names.js";
 // `authoredTitle()`: the page's own `<title>`, without the count the tab's title
 // shows in front of it.
 export { authoredTitle } from "./tab-title.js";
@@ -92,7 +92,6 @@ export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
-export { excerptWords } from "./words.js";
 export {
   presentContributionEntry,
   presentContributionReceipts,
@@ -119,7 +118,7 @@ export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export { declarationFor, layerFact, matchesWhen } from "./registry.js";
-export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.js";
+export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;

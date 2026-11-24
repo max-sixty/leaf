@@ -162,7 +162,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     context = browser.new_context(reduced_motion="no-preference")
     page = open_page(browser, serve(source), context=context)
     result = page.evaluate("""async () => {
-      const owner = await window.__lfWidgetApi();
+      const {backgroundFlash} = await window.__lfWidgetApi();
+      const {motionTime} = await import('/runtime/lib/motion-timing.js');
       const chrome = document.querySelector('.lf-chrome');
       const arrival = document.createElement('button');
       arrival.className = 'lf-margin-face';
@@ -170,13 +171,12 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const {agentArrivalDuration} = await window.__lfCheckApi();
-      const animation = owner.backgroundFlash(document.querySelector('#subject'));
+      const animation = backgroundFlash(document.querySelector('#subject'));
       const played = animation.effect.getTiming().duration;
       animation.finish();
       arrival.remove();
-      return {cssArrival, cssFold, played,
-        fold: owner.foldDuration(), agent: agentArrivalDuration()};
+      return {cssArrival, cssFold, played, fold: motionTime('--lf-motion-fold'),
+        agent: motionTime('--lf-motion-agent-arrival')};
     }""")
     assert result == {
         "cssArrival": "0.91s",

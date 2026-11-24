@@ -43,7 +43,7 @@ import {
   messageKey,
   turns,
 } from "./model.js";
-import { counted, excerptWords, labelWords } from "../words.js";
+import { counted, excerptWords, labelWords } from "../lib/words.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -81,14 +81,16 @@ import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById, says } from "../passages.js";
 import { designName } from "../design-readings.js";
-import { addressableWord, sectionLabel } from "../addressable-names.js";
+import { sectionLabel } from "../addressable-names.js";
+import { addressableWord } from "../lib/element-word.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
-import { flashDuration, motion } from "../motion.js";
+import { motion } from "../motion.js";
+import { motionTime } from "../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
 
@@ -743,7 +745,7 @@ export function messageReading(
 // answers for restoration and reduced motion.
 /** @param {Element} node */
 export const arrivalTint = (node) =>
-  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], flashDuration());
+  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], motionTime("--lf-motion-flash"));
 
 export class MessageView {
   #commands;

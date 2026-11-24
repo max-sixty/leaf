@@ -360,7 +360,8 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
   or a staged reveal. `runtime/motion.js` owns the shared motion gate, easing and
   reduced-motion check, and `--lf-motion-*` properties set durations and curves: the
   theme's for the document, and a runtime surface's own sheet for that surface, as
-  `floating-panel.css` does for the panel.
+  `floating-panel.css` does for the panel. A script reads one with
+  `runtime/lib/motion-timing.js`.
 - **Animations are restrained and finite, and acknowledge state changes.** The one continuous animation
   is the sheen (`@keyframes lf-sheen` in `styles/components/surfaces.css`), which marks
   agent work in progress. It stops when the work ends and is static under reduced
@@ -815,7 +816,8 @@ block names what a package answers with the browser's own call instead.
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                                   |
 | What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                      |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                           |
-| Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                      |
+| Words as a label reads them, a count with its noun, and a label opening a sentence                    | `lib/words.js` `labelWords`, `counted`, `capitalized`                                  |
+| The word for an element's kind, a widget's own word for it included                                   | `lib/element-word.js` `addressableWord`, `widgetWord`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                            |
 | What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                             |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                        |

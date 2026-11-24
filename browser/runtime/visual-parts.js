@@ -52,7 +52,7 @@
  * (element-integration.js). A change said elsewhere leaves the reading kept, so a
  * film playing on the page doesn't make every other visual read its parts again. */
 
-import { labelWords } from "./words.js";
+import { labelWords } from "./lib/words.js";
 import { under, upFrom } from "./lib/shadow-tree.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { version } from "./kept.js";

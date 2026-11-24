@@ -9,6 +9,7 @@
       "/runtime/lib/canvas.js",
       "/runtime/lib/control-faces.js",
       "/runtime/lib/controls.js",
+      "/runtime/lib/element-word.js",
       "/runtime/lib/exception.js",
       "/runtime/lib/frame-pass.js",
       "/runtime/lib/icon-paths.js",
@@ -16,6 +17,7 @@
       "/runtime/lib/keeps.js",
       "/runtime/lib/keys.js",
       "/runtime/lib/markdown.js",
+      "/runtime/lib/motion-timing.js",
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/once.js",
       "/runtime/lib/queued-work.js",
@@ -27,7 +29,8 @@
       "/runtime/lib/syntax-tokens.js",
       "/runtime/lib/text-alignment.js",
       "/runtime/lib/text-width.js",
-      "/runtime/lib/time-axis.js"
+      "/runtime/lib/time-axis.js",
+      "/runtime/lib/words.js"
     ]
   },
   "$authored": {

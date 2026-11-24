@@ -1,22 +1,19 @@
 // @ts-check
-/* Words as a label reads them: whitespace collapsed with the one collapse class
-   (kernel-facts.js), an excerpt cut at a word boundary, a count with its noun, and a
-   label's first letter capitalized to open a sentence. Pure, so the record folds, the
-   passage reader and a package's widgets share one truncation rule. */
-import { COLLAPSE } from "./kernel-facts.js";
+/* Words as a label reads them: whitespace collapsed, an excerpt cut at a word boundary,
+   a count with its noun, and a label's first letter capitalized to open a sentence.
+   Pure, so a record's fold, a reading of the page and a widget share one truncation
+   rule. */
 
-// What an empty comment box says, in every box, at rest and with the caret in, in
-// Leaf's voice (voice.js). The user chose these, with the ellipsis a
-// box that prompts for words may carry and the italic of words the agent didn't write,
-// over Reply and Comment in the interface's own face.
-export const COMMENT_HINT = "Comment…";
-export const REPLY_HINT = "Reply…";
-export const REOPEN_HINT = "Reply to reopen…";
+// A run of whitespace, by JavaScript's own class. It is the set Leaf's passages
+// collapse (the kernel registry's `$passages.collapse`, which spells JavaScript's set
+// out for Python), so a label's words and a quote's collapse alike.
+const SPACES = /\s+/g;
 
-/** @param {unknown} value */
+/** A value's words on one line: each run of whitespace one space, none at either end.
+ * @param {unknown} value */
 export const labelWords = (value) =>
   String(value ?? "")
-    .replace(COLLAPSE, " ")
+    .replace(SPACES, " ")
     .trim();
 
 // Words cut to at most `cap` characters, at a word boundary in the second half where

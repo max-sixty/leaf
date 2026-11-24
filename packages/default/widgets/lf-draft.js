@@ -71,10 +71,8 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
-  addressableWord,
   commandScope,
   motion,
-  returnDuration,
   LeafElement,
   TEXT_FIELD,
   sendDraft,
@@ -93,7 +91,9 @@ import {
   pageLinks,
 } from "/runtime/widget-api.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -483,7 +483,7 @@ customElements.define(
         this.#returnMotion = motion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          returnDuration(),
+          motionTime("--lf-motion-return"),
         );
       if (discard) clearEdit(this.id);
       this.#stopPressAway?.();

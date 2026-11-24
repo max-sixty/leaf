@@ -145,7 +145,6 @@ export {
 export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
-export { flashDuration, agentArrivalDuration } from "./motion.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
 export { registerSampleCommand } from "./sample-child.js";

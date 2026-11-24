@@ -49,7 +49,7 @@ import { offerAction } from "./lib/controls.js";
 import { keeps } from "./lib/keeps.js";
 
 import { elementById } from "./passages.js";
-import { addressableWord } from "./addressable-names.js";
+import { addressableWord } from "./lib/element-word.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce } from "./notifications.js";
 import { claimsEsc, keys } from "./keyboard/scopes.js";

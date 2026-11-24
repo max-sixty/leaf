@@ -844,18 +844,16 @@ async function boot() {
       name: (url) => threadAddress.name(url),
     },
     list: () => floatingPanel.listShown(),
-    // A draft's box opens where the user stands, as the walk or Resume writing opened it.
+    // A draft's box opens where the user stands, as the walk or Resume writing opened it,
+    // with the user on the box, in its words or on a control inside it.
     draft: (key, intent) =>
-      key.box
-        ? writingResume.showDraft(key.draft, {
-            travel: false,
-            intent,
-            ...(key.control && { control: key.control }),
-          })
+      key.box && !key.control
+        ? writingResume.showDraft(key.draft, { travel: false, intent })
         : writingResume.resumeDraft(key.draft, {
             travel: false,
             intent,
             ...(key.caret && { caret: key.caret }),
+            ...(key.control && { control: key.control }),
           }),
   });
   // The document's one arrival (history.js, `beginArrival`), whose intent every route

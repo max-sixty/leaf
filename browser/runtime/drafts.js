@@ -1053,14 +1053,6 @@ const writingRoute = (ctx) =>
 /** @param {DraftEditor} editor */
 const editorInput = (editor) =>
   typeof editor.input === "function" ? editor.input() : editor.input;
-// The box `input`'s words are written in, as the editor it subscribes says (`box`).
-/** @param {DraftField | null | undefined} input */
-const editorBox = (input) => {
-  if (!input) return null;
-  for (const editor of draftEditors)
-    if (editorInput(editor) === input) return editor.box();
-  return null;
-};
 const storeWritingPlace = () =>
   writingStore.set(
     WRITING_PLACE,
@@ -1291,8 +1283,9 @@ function moveToPage(ctx) {
 //
 // The command resumes the writing place; `resumeDraft` resumes the draft a press names,
 // as a row of Threads' Drafts does, at the caret the place last kept for it, else at its
-// words' end. Opening a draft is no content edit, so it leaves the writing place where
-// it was. Each travels to the draft, a Back step, except where the caller opens it
+// words' end, or on a control inside its box the route names (`control`), as history
+// returns the user to one (`draftFocus`). Opening a draft is no content edit, so it
+// leaves the writing place where it was. Each travels to the draft, a Back step, except where the caller opens it
 // where the user stands (`travel: false`), as a press on its passage's margin marker
 // does (thread/destination.js).
 /** @typedef {{travel?: boolean, caret?: import("./focus.js").Caret, control?: import("./carry.js").FocusKey,
@@ -1357,11 +1350,14 @@ export function createWritingResume({
       !editor?.closed() &&
       !("disabled" in field && field.disabled)
     ) {
+      const box = route.control ? (editor?.box() ?? null) : null;
+      const within = box && route.control ? namedIn(box, route.control) : null;
       // Coming back to the words is the user dealing with any error over them, as a
       // press on it is (errors.js, `passErrorsAt`).
       intent.handoff(() => {
         passErrorsAt(field);
-        focusDestination(field, "move", { caret: place.selection });
+        if (within && within !== box) focusDestination(within, "return");
+        else focusDestination(field, "move", { caret: place.selection });
       });
       return;
     }
@@ -1384,7 +1380,7 @@ export function createWritingResume({
   // content edit, so it leaves the writing place where it was. Back to such a stop opens
   // the box where the user stands (`travel: false`, history.js).
   /** @param {string} ctx @param {DraftRoute} [options] */
-  const showDraft = async (ctx, { travel = true, control, intent: asked } = {}) => {
+  const showDraft = async (ctx, { travel = true, intent: asked } = {}) => {
     const route = writingRoute(ctx);
     if (!route) return false;
     const intent = asked ?? retainUserIntent();
@@ -1394,11 +1390,6 @@ export function createWritingResume({
       onFrame: true,
       travel,
     });
-    // A control inside the box, where history returns the user to one (`draftFocus`).
-    const box = frame && control ? editorBox(route(ctx)?.input?.()) : null;
-    const within = box && control ? namedIn(box, control) : null;
-    if (within && within !== box)
-      intent.handoff(() => focusDestination(within, "return"));
     return Boolean(frame) && intent();
   };
   return {

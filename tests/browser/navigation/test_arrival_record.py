@@ -6,7 +6,12 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import executable_revision, live_url, panel_comment
+from render_cases_interaction import (
+    OBLIGATION_PAGE,
+    executable_revision,
+    live_url,
+    panel_comment,
+)
 from render_harness import (
     LONG_PAGE,
     compare_with,
@@ -23,6 +28,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    write,
 )
 
 from browser.test_render_drawing import draw_over
@@ -287,6 +293,26 @@ def test_a_reload_keeps_focus_on_a_control_in_a_comment_box(request, serve, engi
     expect(undo).to_be_focused()
     reload(page)
     expect(undo).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_reload_keeps_focus_on_the_add_beside_an_option_being_added(
+    request, serve, engine
+):
+    """Focus on the press that adds an option the user is writing in, beside the box
+    they wrote it in, comes back to that press after a reload, so Enter adds the option,
+    as it does for a control in a comment's box: the option's box is a draft's box like
+    any other (drafts.js, `draftFocus`)."""
+    page = open_page(request.getfixturevalue(engine), serve(OBLIGATION_PAGE))
+    another = page.locator("#jobs > .lf-another")
+    field = another.locator("leaf-text")
+    write(field, "An option of mine.")
+    page.keyboard.press("Tab")
+    add = another.get_by_role("button")
+    expect(add).to_be_focused()
+    reload(page)
+    expect(field).to_have_js_property("value", "An option of mine.")
+    expect(add).to_be_focused()
 
 
 @pytest.mark.parametrize("engine", ENGINES)

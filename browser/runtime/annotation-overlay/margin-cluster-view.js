@@ -279,7 +279,7 @@ export function createMarginClusterViews(dependencies) {
   const create = (className, options) => {
     const view = document.createElement(TAG);
     view.className = className;
-    generatedElement(view, { says: false });
+    generatedElement(view);
     view.setAttribute("role", "group");
     view.configure({ owner, ...options });
     return view;

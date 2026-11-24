@@ -34,8 +34,8 @@
  * content, which answers "block" for every custom element, so they exclude
  * `[data-lf-inline]` rather than the tags that declare `inline`. The affordance
  * rules that draw an option group as a control exclude the descendants of
- * `[data-lf-exhibit]` for the same reason, asking in CSS the question `quoted()` asks
- * in JavaScript. A tag name in a shared list is a closed vocabulary wherever it
+ * `[data-lf-exhibit]` for the same reason, asking the question a module asks of the
+ * same mark. A tag name in a shared list is a closed vocabulary wherever it
  * appears, and one layer's tag written into another layer's stylesheet is that plus a
  * leak.
  *

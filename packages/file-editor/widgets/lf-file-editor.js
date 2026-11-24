@@ -75,7 +75,6 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
-  allButCommandReference,
   boundFile,
   RequestError,
   commandsOn,
@@ -514,9 +513,7 @@ customElements.define(
             role="menu"
             aria-label="The file changed on disk"
             @toggle=${choiceOpened}
-            ${commandsOn("In the file's conflict menu", choiceKeys, {
-              claims: allButCommandReference,
-            })}
+            ${commandsOn("In the file's conflict menu", choiceKeys)}
           >
             <button
               ${offeredAction("word")}

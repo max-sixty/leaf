@@ -74,35 +74,34 @@ node. Use the focus query when retaining a focused entry while updating its read
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
-part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and
-calls `registerVisualParts(source, read, {reveal, label})` once, where the widget
-builds itself (`setup()`, or behind `once()`). The registration lasts as long as the
-element, with nothing to undo, and a second call for the same element throws. `read()`
-returns the parts drawn now as `{id, element, label}`, each id a nonempty string with
-no whitespace.
-`reveal(id)` shows a part when someone follows its thread, even if it is visible
-already, so cancel work that would hide it. `label(id)` names a part in Threads, in its
-margin entry and in Page Map without changing the visual, or returns `null`. Call the
-returned `update()` after the parts or their positions change: a part's margin entry
-stands level with the part, and Leaf learns that a part moved inside the visual only
-from `update()`.
+part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and marks
+each part: each node in the visual's light DOM that carries `data-lf-part="<id>"` is the
+part of that id, named by its `aria-label` or else by its words; a node inside another
+visual standing in it is that visual's. Each id marks one node, each marked node needs
+a name, and the `visual` declaration admits the id, a nonempty string with no
+whitespace. A mark inside a shadow root is not read.
 
-A visual that registers nothing marks its parts instead. Each node in the visual's
-light DOM that carries `data-lf-part="<id>"` is the part of that id, named by its
-`aria-label` or else by its words; a node inside another visual standing in it is that
-visual's. Each id marks one node, each marked node needs a name, and the `visual`
-declaration admits the id. A mark inside a shadow root is not read. Leaf reads the marks
-again each time it sets a plain element's properties (`module-plain-elements.md`); a
-visual that redraws its marks at another time calls `layoutChanged(element)`
-(`module-controls.md`). Register instead where the visual needs `reveal`, `label`,
-`find`, `at` or `focus`.
+Where marks can't say it, the element states its parts as its `lfParts` property, an
+object Leaf reads each time it needs the parts. Set it where the widget builds itself
+(`setup()`, or behind `once()`). Its `read()` returns the parts drawn now as
+`{id, element, label}`, in place of the marks, and may name an element in the visual's
+shadow root. `reveal(id)` shows a part when someone follows its thread, even if it is
+visible already, so cancel work that would hide it. `label(id)` names a part in
+Threads, in its margin entry and in Page Map without changing the visual, or returns
+`null`. Each member is optional.
+
+Leaf reads the parts again each time it sets a plain element's properties
+(`module-plain-elements.md`). A visual whose parts or their positions change at another
+time dispatches `lf-layout` on itself (`module-plain-elements.md`, "`lf-layout`"): a
+part's margin entry stands level with the part, and Leaf learns that a part moved
+inside the visual only from it.
 
 The user picks a part as they pick any element that isn't words, with Alt-click or in
 Select mode (`page-authoring.md`, "Stable anchors"). Leaf finds the part under the
 pointer by hit-testing, so paint each part across the area a user aims at: an SVG shape
 with `fill: none` takes a press only along its stroke.
 
-A visual with too many parts to list, such as a chart's points, also passes `find` and
+A visual with too many parts to list, such as a chart's points, also gives `find` and
 `at`, and its `read()` may return none, since `read()` is what the target picker and a
 screen reader's list offer. `find(id)` returns the part an id names in the current
 state, drawing an element for it if it must, or `null` where the state holds none; Leaf
@@ -115,7 +114,7 @@ target, such as the point its arrow keys reached.
 
 Leaf puts the user on a part's `element` when they travel to it or leave a comment box
 on it. A visual whose parts are no places to stand, such as the marks round a chart's
-points, also passes `focus` and takes focus for its parts itself. Leaf calls `focus(id)`
+points, also gives `focus` and takes focus for its parts itself. Leaf calls `focus(id)`
 as it places focus on the visual for a part, and at no other time, and the visual
 settles on the part, as a chart moves its reading to the point even where it holds
 focus already. So leaving a comment box, or travel the user cancels, changes nothing

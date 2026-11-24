@@ -306,7 +306,7 @@ def test_a_card_reply_s_ring_stands_over_an_error_about_it(browser, serve):
     reply.focus()
     expect(reply).to_be_focused()
     reply.evaluate(
-        "async (subject) => (await window.__lfWidgetApi())"
+        "async (subject) => (await window.__lfCheckApi())"
         ".raiseError('That writing place is unavailable', {subject})"
     )
     expect(page.locator(".lf-margin-preview .lf-compose-error")).to_be_visible()

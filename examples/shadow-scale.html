@@ -415,11 +415,7 @@
       }
     </style>
     <script type="module">
-      import {
-        generatedElement,
-        once,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
+      import { once, whileInterfaceConnected } from "/runtime/widget-api.js";
       import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       // The app's current tokens (tokens.css), as layers.
@@ -632,7 +628,10 @@
             sliders.append(colour);
 
             inspector.append(head, presets, row, this.#parts.layers, sliders);
-            for (const box of [stage, inspector]) generatedElement(box, { says: true });
+            for (const box of [stage, inspector]) {
+              keeps(box, "data-lf-gen", "1");
+              box.toggleAttribute("data-lf-said", true);
+            }
             this.append(stage, inspector);
           }
 

@@ -73,10 +73,11 @@ through events and element declarations that a plain host can ignore:
   Components Community Group's `pending-task` protocol. Leaf holds the page's
   presentation until `promise` settles, as it does for `present(promise)`
   (`module-state.md`, "The widget controller").
-- A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
-  which Leaf reports to the author as the page's error.
-- Keys: an element's `lfCommands` and `commandsChanged` (`module-input.md`, "Commands
-  and keyboard routes"). A plain page binds none and advertises none. A button that must
+- A failure: an `error` event, which `failSoft` dispatches ("Upgrade") and a widget
+  that shows a failure its own way dispatches itself. Leaf reports it to the author as
+  the page's error.
+- Keys: an element's `lfCommands` and its `lf-commands` event (`module-input.md`,
+  "Commands and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
   can't act, which is the availability Leaf reads. Where a key takes the user is the
@@ -88,7 +89,7 @@ through events and element declarations that a plain host can ignore:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
-- Comment targets: `data-lf-part` marks or `registerVisualParts`
+- Comment targets: `data-lf-part` marks or an element's `lfParts`
   (`module-annotations.md`, "Visual parts"), which only Leaf reads.
 - Words for a listener: an `lf-announce` event (`module-scroll-and-motion.md`,
   "Notices and spoken words"), which only Leaf says.
@@ -106,12 +107,13 @@ script", lists.
 - Build once, in a widget's `setup()` or behind `once()` in any other element, and
   hold each connection's listeners, observers and registrations in `whileConnected`
   ("Upgrade", "Connection lifetimes").
-- Check `quoted()` before wiring anything that sends input back ("Upgrade").
+- Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
-  mark the words they write with `generatedElement()` (`module-controls.md`).
+- Build injected controls with `offer()`, `offered` or `selectableOffer()`, and a press
+  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role
+  (`module-controls.md`). Mark words the widget writes apart from the author's with
+  `data-lf-gen` (`module-plain-elements.md`, "Words it writes").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value
@@ -135,10 +137,12 @@ connection, or with a guard of its own where it imports nothing. Use `disconnect
 as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
 callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one whose `exhibit` declaration
-applies (including its optional `when` condition), such as `lf-sample`. A quoted widget
-never takes the user's edits, so check `quoted` before wiring a choice, a drag grip or
-anything else that sends input back. Its presentation and view state still work.
+A widget inside an element whose `exhibit` declaration applies (including its optional
+`when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
+`data-lf-exhibit`. A quoted widget never takes the user's edits. Its verbs are never
+`available`, and before wiring a drag grip, a command or anything else that sends
+input back, it asks `this.matches("[data-lf-exhibit] *")`. Its presentation and view
+state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and
@@ -150,8 +154,8 @@ A native renderer that retains its nodes can register `placesFailure(element, pl
 to place the box beside them: `place(box)` returns true when it handles the box, and
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
-failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports.
+failed part its own way, as `lf-diff` does for a patch it cannot draw, it dispatches
+the `error` event itself (`module-plain-elements.md`, "`error`"), which only reports.
 
 ## Connection lifetimes
 

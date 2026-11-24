@@ -88,7 +88,7 @@ function quietWord(el, word) {
     className: "lf-ui lf-quiet",
     textContent: word,
   });
-  generatedElement(span, { says: false });
+  generatedElement(span);
   move(el, span, el.firstChild);
 }
 
@@ -163,14 +163,12 @@ export function paintDeclaredWords(root) {
 // Whether the widget quotes what it holds is the third (`exhibit`). An exhibit is
 // a mention, not a use, so every rule saying "this takes input" — the hand, the lift,
 // the joined shape, the reserved strips, the hover wash — stands down inside one. The
-// declaration is the tag's and the question is the occurrence's, which is the shape
-// quoted() has too: whether this element sits inside an exhibit. So the mark goes on
-// the exhibit and the rules exclude what stands under it, strictly within, as quoted()
-// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before:
-// a bundled tag, saying nothing about a project's own exhibit. quoted() still asks the
-// registry rather than this paint, which is the arrangement and not an oversight — the
-// declaration is the one representation, and the mark is how a stylesheet, which cannot
-// read a registry, asks it the same thing.
+// declaration is the tag's and the question is the occurrence's: whether this element
+// sits inside an exhibit. So the mark goes on the exhibit and the rules exclude what
+// stands under it, strictly within, as a widget's descriptor does: the exhibit itself
+// is no mention. Ten of those rules spelled lf-sample before: a bundled tag, saying
+// nothing about a project's own exhibit. A module asks the same of the mark
+// (`[data-lf-exhibit] *`), as a stylesheet does, since neither reads a registry.
 //
 // `reading-role` completes the set: the structure the theme and the workspace Layout
 // lay out, so every package's pane takes the same rules. One mark is no declaration's:

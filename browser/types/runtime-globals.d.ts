@@ -147,7 +147,7 @@ interface Element {
   lfElementsFor?(key: string): Iterable<Element> | null;
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
-   * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
+   * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
    * title, rows and options, or a `commandScope()` value. */
   lfCommands?:
     | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
@@ -165,6 +165,9 @@ interface Element {
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
+  /** A visual's parts where its `data-lf-part` marks don't say them, read as each
+   * reading of the visual asks (`visual-parts.js`). */
+  lfParts?: import("../runtime/visual-parts.js").Parts | undefined;
 }
 
 interface HTMLScriptElement {
@@ -210,6 +213,9 @@ interface WindowEventMap {
   "lf-announce": CustomEvent<
     import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
   >;
+  /** A widget's words for something the user did that has not taken, which Leaf keeps
+   * in its Errors list (`errors.js`). */
+  "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -398,7 +404,9 @@ interface DocumentEventMap {
 }
 
 interface WindowEventMap {
-  "lf-commands": import("../runtime/widget-upgrade.js").CommandsChangedEvent;
+  /** An element's `lfCommands`, or what its rows read, changed (`keyboard/scopes.js`);
+   * `within` says every scope at or under it reads again. */
+  "lf-commands": CustomEvent<{ within?: boolean } | null>;
 }
 interface Element {
   // render() creates its root part with an inserted marker (lit-html render).

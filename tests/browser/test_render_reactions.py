@@ -1544,10 +1544,10 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
     page.evaluate(
-        """() => {
+        """async () => {
           const visual = document.querySelector('#flow');
           visual.parts.find(part => part.id === 'outer').label = 'Outer revised';
-          visual.visualRegistration.update();
+          visual.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -1565,10 +1565,10 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     page.evaluate("() => window.lfRetainedVisualControl.focus()")
 
     page.evaluate(
-        """() => {
+        """async () => {
           const visual = document.querySelector('#flow');
           visual.parts.reverse();
-          visual.visualRegistration.update();
+          visual.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     page.wait_for_function(
@@ -1620,8 +1620,7 @@ diff --git a/value.txt b/value.txt
             picture.setAttribute('viewBox', '0 0 20 20');
             root.append(picture);
           }
-          const { layoutChanged } = await window.__lfWidgetApi();
-          layoutChanged(document.querySelector('#patch'));
+          document.querySelector('#patch').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     controls = page.locator(".lf-visual-action")
@@ -1633,8 +1632,7 @@ diff --git a/value.txt b/value.txt
 
     page.evaluate(
         """async () => {
-          const { layoutChanged } = await window.__lfWidgetApi();
-          layoutChanged(document.querySelector('#patch'));
+          document.querySelector('#patch').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     expect(second).to_be_focused()
@@ -1711,11 +1709,11 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     # The registered provider declares geometry changes inside the same SVG host.
     # That publication invalidates the native attachment without a scroll callback.
     before_part, before_field = start.bounding_box(), bar.bounding_box()
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
       const diagram = document.querySelector('#flow');
       const part = diagram.visualParts.get('node:S').element;
       part.setAttribute('transform', (part.getAttribute('transform') ?? '') + ' translate(0 60)');
-      return diagram.visualPartRegistration.update();
+      diagram.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }""")
     rendered(page)
     after_part, after_field = start.bounding_box(), bar.bounding_box()

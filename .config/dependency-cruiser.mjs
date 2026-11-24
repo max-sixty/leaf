@@ -89,7 +89,6 @@ const exactClosures = {
     "control-selectors.js",
     "inputs.js",
     "document-inputs.js",
-    "control-keys.js",
     "ui-marks.js",
     "language-paths.js",
     "scroll-containers.js",

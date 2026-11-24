@@ -1786,6 +1786,7 @@ def watch_sources(shifts: bool) -> str:
           window.__lfCheckApi = () => entry('runtime/check-api.js');
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfLibImport = name => entry(`runtime/lib/${name}`);
           window.__lfVendorImport = name => entry(`vendor/${name}`);
         })();""",
     ]
@@ -2984,12 +2985,11 @@ def margins_laid_out(page):
     """
     page.evaluate(
         """async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
           window.__lfMarginLaidOut = false;
           document.addEventListener('lf-margin-layout', () => {
             window.__lfMarginLaidOut = true;
           }, {once: true});
-          layoutChanged(document.body);
+          document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     page.wait_for_function(

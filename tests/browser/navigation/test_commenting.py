@@ -498,7 +498,7 @@ def test_a_comment_box_s_ring_stands_over_an_error_about_it(browser, serve):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     field.evaluate(
-        "async (subject) => (await window.__lfWidgetApi())"
+        "async (subject) => (await window.__lfCheckApi())"
         ".raiseError('That writing place is unavailable', {subject})"
     )
     expect(page.locator(".lf-fab-bar .lf-compose-error")).to_be_visible()

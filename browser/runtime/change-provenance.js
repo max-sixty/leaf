@@ -30,7 +30,7 @@
    message exists. It reads nothing while no comparison stands, and nothing of the log
    or the threads while one does. */
 import { runtime } from "./context.js";
-import { markdownReady } from "./markdown.js";
+import { markdownReady } from "./lib/markdown.js";
 import { messageWords } from "./thread/messages.js";
 import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "./voice.js";

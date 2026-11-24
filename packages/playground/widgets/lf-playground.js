@@ -408,7 +408,8 @@ customElements.define(
       const field = this.#fields.get(name);
       if (!field) return jsonSnapshot(value, `contributor ${name}`);
       if (!field.holds(value)) throw new Error(`field ${name} can't hold ${value}`);
-      return /** @type {JSONSnapshot} */ (value);
+      // A multiple select's list, read from the log, freezes as a slice's does.
+      return jsonSnapshot(value, `field ${name}`);
     }
 
     // Native range focus and dragging share a default: cancelling it cancels the

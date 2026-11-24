@@ -138,7 +138,7 @@ import {
 import { readingPlace } from "../resolved-target.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 
-import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
+import { cycledRow, nativePress } from "../keyboard/bindings.js";
 import { rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -181,6 +181,7 @@ import { alreadyShown } from "../landing-scroll.js";
 import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { inChrome } from "../ui-marks.js";
+import { rowArrows } from "../lib/keys.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
  * @typedef {import("../margin-model.js").ReadingChoice} Choice

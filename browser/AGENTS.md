@@ -756,7 +756,7 @@ block names what a package answers with the browser's own call instead.
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                               |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
-| Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                     |
+| Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                        |
 | Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                            |
 | What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                         |
@@ -789,7 +789,6 @@ block names what a package answers with the browser's own call instead.
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                              |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                                 |
 | Whether focus stands on something in the page, which focus on the body doesn't                        | `passages.js` `focusInPage`                                                            |
-| The document a node stands in: the view member or `main` holding it                                   | `storage.js` `viewDocument`                                                            |
 | The box the page's Layout arranges, the shell it stands in (its parent), and a page of parts' views   | `passages.js` `layoutBox`, `layoutParts`                                               |
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                      |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                          |

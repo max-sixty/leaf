@@ -103,7 +103,6 @@ import { generatedElement, offeredAction } from "../widget-elements.js";
 import { contentsBox, measure } from "../shown-box.js";
 import { keeps, keepsHidden, layoutPx, roomPx } from "../lib/keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
-import { PRESS } from "../keyboard/bindings.js";
 import {
   createReplyView,
   replyIsEditing,
@@ -145,6 +144,7 @@ import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
 import { partTrail } from "./placement.js";
 import { addressableLabel } from "../addressable-names.js";
+import { PRESS } from "../lib/keys.js";
 
 /** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */

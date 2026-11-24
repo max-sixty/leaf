@@ -63,7 +63,6 @@ import { ShotView } from "./shot-view.js";
 import { render } from "/vendor/lit.js";
 import {
   afterPresentation,
-  announce,
   once,
   offer,
   failSoft,
@@ -380,7 +379,9 @@ export class Shot extends HTMLElement {
       this.#drawing.view = view;
       this.#fit();
     }
-    announce(`Showing ${label.toLowerCase()}`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", { detail: `Showing ${label.toLowerCase()}` }),
+    );
   }
 
   #syncComparison() {

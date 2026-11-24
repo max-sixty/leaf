@@ -273,7 +273,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     refused = page.locator("#offline-widget").evaluate(
         """owner => [
           owner.choose(),
-          owner.controller.dispatch({kind: 'undo', target: 'missing'}),
+          owner.takeBack('choose'),
         ]"""
     )
     assert refused == [None, None]

@@ -30,7 +30,7 @@
  * the new drawing still holds it. The point the reader is on wears a ring, with a rule
  * to the axis it stands at, and its words stand beside it in the page's preview
  * (`lfPreview`), which the chart reads again as the aim moves to another point, each a
- * new aim (`previewChanged` with `aim`), so a point the pointer or a key reaches after
+ * new aim (`lf-preview` with `aim`), so a point the pointer or a key reaches after
  * Escape put the preview away shows its own. The ring goes when the aim leaves, the
  * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
  * page puts the preview away (`PREVIEW_ENDED`), as Escape and a press do and as the
@@ -76,7 +76,6 @@
 import {
   PREVIEW_ENDED,
   PendingTaskEvent,
-  announce,
   beginWalk,
   bodyText,
   commandsChanged,
@@ -84,11 +83,9 @@ import {
   whileConnected,
   failSoft,
   frameFor,
-  inBaseLayer,
   measure,
   nextRender,
   once,
-  previewChanged,
   registerVisualParts,
   sizeObserver,
 } from "/runtime/portable-api.js";
@@ -510,7 +507,10 @@ customElements.define(
       this.lfCommands = reading && points ? this.#keys(reading) : null;
       commandsChanged(this);
       if (reading && at) this.#choose(again(at), this.#by);
-      else if (at) previewChanged(this);
+      else if (at)
+        this.dispatchEvent(
+          new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+        );
       this.#placeAim();
     }
 
@@ -676,7 +676,13 @@ customElements.define(
         }
       }
       this.#placeAim();
-      previewChanged(this, { aim: aim && point !== null });
+      this.dispatchEvent(
+        new CustomEvent("lf-preview", {
+          bubbles: true,
+          composed: true,
+          detail: { aim: aim && point !== null },
+        }),
+      );
     }
 
     // The mark round the point a pointer on the drawing aims at (`#partAt`): the
@@ -723,7 +729,11 @@ customElements.define(
         },
       );
       const { name, detail } = sayPoint(point);
-      announce([name, ...detail, place].filter(Boolean).join(", "));
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: [name, ...detail, place].filter(Boolean).join(", "),
+        }),
+      );
     }
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
@@ -773,7 +783,7 @@ customElements.define(
         node.matches("svg[aria-label]"),
       );
       // The drawing is one picture, whose points the chart says itself (`lfPreview`,
-      // `announce`), so nothing inside it needs to be reachable on its own to a screen
+      // `lf-announce`), so nothing inside it needs to be reachable on its own to a screen
       // reader. `role="img"` closes the tree under it, and
       // Plot names every group inside — `aria-label="bar"`, `"x-axis tick label"` — on
       // `<g>` elements carrying no role, which axe reports as a serious WCAG failure.
@@ -791,7 +801,7 @@ customElements.define(
       // face and paper remain stylesheet-owned; authored Plot style options keep
       // their inline priority, including legend styles.
       for (const style of built.querySelectorAll("style"))
-        style.textContent = inBaseLayer(style.textContent);
+        style.textContent = `@layer lf-base {\n${style.textContent}\n}`;
       // Plot writes a mark's `title` channel as each shape's <title>, the platform's
       // tooltip, which would stand beside the preview that says it.
       for (const title of drawing.querySelectorAll("title")) title.remove();

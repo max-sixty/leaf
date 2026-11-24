@@ -149,14 +149,16 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement, PendingTaskEvent } from '/runtime/widget-api.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 customElements.define('lf-delayed-body', class extends LeafElement {
   setup() {
-    this.controller.present(new Promise(resolve => requestAnimationFrame(() => {
-      this.querySelector('pre').textContent = 'Presentation-only rewrite.';
-      resolve();
-    })));
+    this.dispatchEvent(new PendingTaskEvent(
+      new Promise(resolve => requestAnimationFrame(() => {
+        this.querySelector('pre').textContent = 'Presentation-only rewrite.';
+        resolve();
+      })),
+    ));
   }
   render() { keepsText(this.querySelector('pre'), this.state.edit.value); }
 });

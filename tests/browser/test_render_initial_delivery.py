@@ -173,6 +173,7 @@ PROGRESSIVE_WIDGET = """import { html } from '/vendor/lit.js';
 import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-progressive-proof',class extends LeafElement {
  static lfPatch='members';
+ static shadow=true;
  render(){return html`<button class="proof-control">${this.getAttribute('label')}</button><slot></slot>`;}
 });"""
 PROGRESSIVE_REGISTRY = {

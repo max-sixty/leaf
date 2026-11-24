@@ -15,6 +15,7 @@ const COLORS = ["#2f6f9f", "#b5532a", "#4f7d3a", "#7a4f9a"];
 customElements.define(
   "lf-trend",
   class extends LeafElement {
+    static shadow = true;
     render() {
       const [head, ...rows] = [...this.querySelectorAll("tr")].map((row) =>
         [...row.cells].map((cell) => cell.textContent.trim()),

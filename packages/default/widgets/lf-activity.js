@@ -41,7 +41,6 @@ import {
   ago,
   anchorLabel,
   elementById,
-  fragmentTarget,
   layerFact,
   LeafElement,
   nameOf,
@@ -175,7 +174,7 @@ customElements.define(
     #template(reading = undefined) {
       return this.#drawing.render(reading, {
         printing: this.#printing,
-        names: fragmentTarget,
+        names: elementById,
         age: ago,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);

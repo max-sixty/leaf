@@ -106,7 +106,7 @@ import {
   restorePlace,
   tabStore,
   focusDestination,
-  fragmentTarget,
+  elementById,
   scrollIntoView,
   landingInsets,
   LeafElement,
@@ -589,7 +589,7 @@ export class TabSet extends LeafElement {
   /** @param {readonly Element[]} panels @param {string} [hash] */
   #panelForLocation(panels, hash = location.hash) {
     if (!this.#root) return null;
-    const target = fragmentTarget(hash);
+    const target = elementById(hash);
     return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
   }
 

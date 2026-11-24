@@ -804,7 +804,7 @@ block names what a package answers with the browser's own call instead.
 | Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `lib/shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `lib/shadow-tree.js` `closedOver`                                                      |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                          |
-| The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                             |
+| The element an id or a fragment names, a message's own first, or the part of a widget its key names   | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                             |
 | The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `thread/messages.js` `addressableAt`                                                   |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                                   |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |

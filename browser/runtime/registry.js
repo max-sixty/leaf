@@ -120,9 +120,11 @@ export const stateSpecs = () => indexedState().specs;
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 
-// Shared `$` declarations belong to the layer rather than to one widget. Each is frozen
-// on adoption, so a package module reads its cross-widget vocabulary without a registry
-// write path, and a reader called per element copies nothing.
+// The registry's entry under a name, the one reader a package module has: a widget's
+// declaration under its tag, or a shared `$` declaration, which belongs to the layer
+// rather than to one widget. Each `$` one is frozen on adoption, so a package module
+// reads its cross-widget vocabulary without a registry write path, and a reader called
+// per element copies nothing.
 /** @param {string} name */
 export const layerFact = (name) => registry[name];
 

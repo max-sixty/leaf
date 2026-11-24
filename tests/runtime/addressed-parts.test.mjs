@@ -200,6 +200,25 @@ test("a fragment names an element by its id first, else a widget's key", () => {
   assert.equal(fragmentTarget("#missing:frame:two"), null);
 });
 
+test("an address in an agent's message names its message's element before the page's", () => {
+  document.body.innerHTML =
+    '<main><section id="twice">Page</section><p id="100%">Full</p></main>' +
+    '<div class="lf-msg-body"><section id="twice">Message</section><b>From</b></div>';
+  const source = film();
+  document.querySelector("main").append(source);
+  const [page, message] = document.querySelectorAll("section");
+  const from = document.querySelector("b");
+
+  assert.equal(fragmentTarget("twice"), page);
+  assert.equal(fragmentTarget("#twice", from), message);
+  assert.equal(fragmentTarget("twice", from), message);
+  // What the message doesn't hold, the page does, a widget's key included.
+  assert.equal(fragmentTarget("film:frame:two", from), source);
+  // A bare address keeps each `%` it spells; a fragment spells one encoded.
+  assert.equal(fragmentTarget("100%")?.localName, "p");
+  assert.equal(fragmentTarget("#100%25")?.localName, "p");
+});
+
 // A plot of three points, drawn as one line, that draws a mark for a point when asked
 // for it by id, whose own aim stands on one point or none, and which stands on a point
 // Leaf puts focus on it for.

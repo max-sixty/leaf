@@ -249,12 +249,14 @@ export function placedMarkdownTokens(source, message = true) {
       }
       continue;
     }
-    // Container prefixes precede the inline words; a list marker is not emphasis.
+    // Container prefixes precede the inline words; a list marker is not emphasis. A
+    // table cell's words name no line, and stand past its `|`, after the prefixes.
     let wordsAt = Math.max(from, inlineAt);
     for (const block of found)
       if (
-        isBlockPlacement(block, "blockquote_open") ||
-        isBlockPlacement(block, "list_item_open")
+        token.map &&
+        (isBlockPlacement(block, "blockquote_open") ||
+          isBlockPlacement(block, "list_item_open"))
       )
         for (const [a, b] of block.markers)
           if (a >= wordsAt && a < parserItem(starts, token.map[0] + 1) && b > wordsAt)

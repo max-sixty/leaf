@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadMarkdown } from "/runtime/lib/markdown.js";
+import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
 import { loadFieldEditor } from "/runtime/composing/field-editor.js";
 import { keymap } from "/vendor/codemirror.esm.js";
 
@@ -47,7 +47,10 @@ for (const message of [true, false]) {
   for (const readOnly of [false, true]) {
     test(`Enter ${readOnly ? "refuses a read-only" : "keeps indentation in an editable"} ${message ? "draft" : "file"} code fence`, async () => {
       const source = "```\n    code\n```";
-      const { handled, words } = await enterAfterCode(source, { message, readOnly });
+      const { handled, words } = await enterAfterCode(source, {
+        message,
+        readOnly,
+      });
       assert.equal(handled, !readOnly);
       assert.equal(words, readOnly ? source : "```\n    code\n    \n```");
     });
@@ -261,7 +264,10 @@ test("a paste keeps a fence's marks and its containers", async () => {
   ]) {
     const field = await draftField(source);
     field.view.dispatch({
-      selection: { anchor: from, head: name.startsWith("over") ? source.length : from },
+      selection: {
+        anchor: from,
+        head: name.startsWith("over") ? source.length : from,
+      },
     });
     assert.equal(field.paste("a\nb"), expected, name);
   }
@@ -376,5 +382,104 @@ test("what a draft's keys meant is what its message holds", async () => {
       assert.fail(
         `${keys}\nleft ${JSON.stringify(source)}\nsent ${sent}\nmeant ${meant}`,
       );
+  }
+});
+
+/** The words a draft's field saves (`oneLinePerGap`), its Markdown read as a file. */
+async function savedWords(source) {
+  const { fieldState, oneLinePerGap } = await loadFieldEditor();
+  return oneLinePerGap(
+    fieldState(
+      { base: source, text: source, anchor: 0, head: 0, steps: [] },
+      {
+        typed: (_native, insert) => insert(),
+        returned: () => true,
+        oneLine: () => false,
+        message: () => false,
+        revealed: () => {},
+        focused: () => {},
+        readOnly: false,
+        attributes: {},
+      },
+    ),
+  );
+}
+
+// What a draft's body shows: its blocks, apart from the blank lines counted before each.
+/** @param {string} source */
+const shown = (source) =>
+  renderMarkdown(source, {}, false).replace(/ data-lf-gap="\d+"/g, "");
+
+test("a draft saves each run of blank lines between blocks as one", async () => {
+  assert.equal(await loadMarkdown(), true);
+  for (const [source, saved] of [
+    ["Alpha\n\n\n\nBravo", "Alpha\n\nBravo"],
+    ["# Head\n\n\nText", "# Head\n\nText"],
+    ["- Alpha\n\n\n\n- Bravo", "- Alpha\n\n- Bravo"],
+    ["- a\n\n\n  b", "- a\n\n  b"],
+    ["> a\n>\n>\n> b", "> a\n>\n> b"],
+    ["> a\n>\n\nB", "> a\n\nB"],
+    ["| a |\n| - |\n| 1 |\n\n\n\nB", "| a |\n| - |\n| 1 |\n\nB"],
+    ["```\none\n\n\ntwo\n```\n\n\nB", "```\none\n\n\ntwo\n```\n\nB"],
+  ])
+    assert.equal(await savedWords(source), saved, source);
+  // A line the parser holds, as a link's definition, an empty quote, a space that
+  // isn't one or code, stays, and so do the blank lines at the draft's ends.
+  for (const source of [
+    "Read [here][ref].\n\n[ref]: /guide\n\nAfter.",
+    "    cmd\n    >\n\nGo",
+    "A\n\n>\n\nB",
+    "A\n\n \n\nB",
+    "> ```\n> foo\n>\n>\n\nNext",
+    "\n\n\nA",
+    "A\n\n\n\n",
+  ])
+    assert.equal(await savedWords(source), source, source);
+});
+
+test("what a draft saves shows as its words did, and saves again unchanged", async () => {
+  assert.equal(await loadMarkdown(), true);
+  const lines = [
+    ...["", "", "", " ", "\t", " ", ">", "> ", ">>", "  "],
+    ...["Alpha", "Bravo **bold**", "Use [ref].", "[ref]: /x", "# Head", "---"],
+    ...["Setext", "===", "> quote", "> > deep", "> - quoted item", "> ```"],
+    ...["- item", "  continued", "  - nested", "1. one", "-", "    code", "```"],
+    ...["~~~", "| a | b |", "| - | - |"],
+  ];
+  // A seeded generator, so a failure names a draft that fails again.
+  let seed = 7;
+  const next = () => {
+    seed = (seed * 1103515245 + 12345) % 2 ** 31;
+    return seed / 2 ** 31;
+  };
+  for (let draft = 0; draft < 1500; draft++) {
+    const length = 2 + Math.floor(next() * 10);
+    const source = Array.from(
+      { length },
+      () => lines[Math.floor(next() * lines.length)],
+    ).join("\n");
+    const saved = await savedWords(source);
+    assert.equal(shown(saved), shown(source), JSON.stringify(source));
+    assert.equal(await savedWords(saved), saved, JSON.stringify(source));
+  }
+});
+
+test("Return beside a bold paragraph's words keeps its markup with them", async () => {
+  assert.equal(await loadMarkdown(), true);
+  for (const [source, caret, expected] of [
+    // Before the first word, a paragraph opens above, the caret in it.
+    ["Alpha\n\n**Bravo**", 9, "Alpha\n\n\n\n**Bravo**"],
+    ["Alpha\n\n[Bravo](/b)", 8, "Alpha\n\n\n\n[Bravo](/b)"],
+    // After the last word, one opens below.
+    ["**Alpha**\n\nBravo", 7, "**Alpha**\n\n\n\nBravo"],
+  ]) {
+    const field = await draftField(source, caret, false);
+    const enter = field.view.state
+      .facet(keymap)
+      .flat()
+      .filter((binding) => binding.key === "Enter")
+      .some((binding) => binding.run?.(field.view));
+    assert.ok(enter, source);
+    assert.equal(field.type("X"), expected.replace("\n\n\n\n", "\n\nX\n\n"), source);
   }
 });

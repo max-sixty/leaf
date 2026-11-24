@@ -403,7 +403,7 @@ delta span` too.
 def test_a_draft_shows_each_blank_line_and_saves_one_per_gap(browser, serve):
     """Return between two paragraphs drew nothing until a word was typed, so the user
     pressed it again and wrote blank lines the prose dropped, and the draft then opened
-    with its words moved. Each Return shows a line, a word typed on it stands where it
+    with its words moved. Each Return shows a line, a word typed after one stands where it
     will stand, and saving writes each run of blank lines between two blocks as the one
     gap the prose draws, so the draft reopens where it read; a code block keeps its
     blank lines. A draft written with a run, opened and saved untouched, records no

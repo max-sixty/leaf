@@ -39,22 +39,23 @@
  * paragraph's words writes a hard break, which the body draws as a line too
  * (field-editor.js, `joints`, `newLine`).
  *
- * Every blank line shows. In a run of them between two blocks, each line stands where a
- * paragraph typed on it would: the first and last as the gaps around that paragraph and
- * the rest as its lines (field-editor.js, `standBlocks`). So each Return shows a line,
- * and Return on a blank line or before a paragraph's first words leaves the caret with
- * a blank line on each side, where the words typed next stand as a paragraph of their
- * own (`newLine`). The display draws a run as one gap, so an owner saves it as one
- * blank line (`valueToSave`) and the words reopen where they read. A source written
- * with a run opens with the run's lines drawn, which moves the words below it down; an
- * agent rarely writes one, and the user takes the move in at a glance. The user chose
- * this for how dependable it is: a line's height follows from the words alone, so no
- * caret move, click or selection lays a run out again. Rejected: one gap shared among
- * a run's lines, which showed nothing for a Return between paragraphs until a word was
- * typed, and then opened the gap under it; a run drawn as lines only while the caret
- * stands in it, whose lines moved as the caret came and went, so a click could land on
- * a moving line. A ¶ on each line saving drops would add a widget beside those lines,
- * and can join this rule later.
+ * Every blank line shows. In a run of them between two blocks, the first and last lines
+ * stand as the gaps around a paragraph and the rest as its lines (field-editor.js,
+ * `standBlocks`). So each Return shows a line, and Return on a blank line or before a
+ * paragraph's first words leaves the caret with a blank line on each side, where the
+ * words typed next stand as a paragraph of their own (`newLine`). Words typed after one
+ * Return move nothing. After two or more, the line above them becomes a gap, and the
+ * words below rise by a line less a gap. The display draws a run as one gap, so an
+ * owner saves it as one blank line (`valueToSave`) and the words reopen where they
+ * read. A source written with a run opens with the run's lines drawn, which moves the
+ * words below it down; an agent rarely writes one, and the user takes the move in at a
+ * glance. The user chose this for how dependable it is: a line's height follows from
+ * the words alone, so no caret move, click or selection lays a run out again.
+ * Rejected: one gap shared among a run's lines, which showed nothing for a Return
+ * between paragraphs until a word was typed, and then opened the gap under it; a run
+ * drawn as lines only while the caret stands in it, whose lines moved as the caret came
+ * and went, so a click could land on a moving line. A ¶ on each line saving drops would
+ * add a widget beside those lines, and can join this rule later.
  *
  * The cascade answers what those faces are: as the editor builds, and when its width
  * changes, an empty copy of that element holding one of each block stands hidden
@@ -666,7 +667,9 @@ class LeafText extends HTMLElement {
     this.addEventListener("dragenter", () => {
       if (!this.#view) this.#build();
     });
-    this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
+    this.addEventListener("scroll", () => this.#measureOverflow(), {
+      passive: true,
+    });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
     });
@@ -1017,7 +1020,10 @@ class LeafText extends HTMLElement {
     /** @param {number} value @param {number} low @param {number} high */
     const clamp = (value, low, high) => Math.min(Math.max(value, low), high - 1);
     const at = this.#view.posAtCoords(
-      { x: clamp(x, area.left, area.right), y: clamp(y, area.top, area.bottom) },
+      {
+        x: clamp(x, area.left, area.right),
+        y: clamp(y, area.top, area.bottom),
+      },
       false,
     );
     this.#view.focus();
@@ -1052,9 +1058,9 @@ class LeafText extends HTMLElement {
   }
 
   /** The words as an owner that shows them in `facesOf` saves them: each run of blank
-   * lines the field draws between two blocks written as one, as the display draws it
-   * (field-editor.js, `oneLinePerGap`). Until the editor has built, the field draws no
-   * gaps, and these are the words as they stand. */
+   * lines between two blocks written as one, as the display draws it (field-editor.js,
+   * `oneLinePerGap`). Until the editor has built, the field draws no gaps, and these are
+   * the words as they stand. */
   get valueToSave() {
     const content = this.#content;
     if (content.kind === "draft") return content.draft.text;

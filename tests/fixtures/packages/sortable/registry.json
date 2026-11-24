@@ -1,12 +1,7 @@
 {
   "lf-test-list": {
     "description": "A list the user reorders by dragging an entry or by Alt+ArrowUp and Alt+ArrowDown on the focused one. It is its own position container: its entries stand directly in it.",
-    "attributes": {
-      "type": "object",
-      "properties": {},
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "members",
     "verbs": {
       "move": {
@@ -18,12 +13,7 @@
   },
   "lf-test-entry": {
     "description": "One entry of a list the user reorders.",
-    "attributes": {
-      "type": "object",
-      "properties": {},
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "owners": ["lf-test-list"]
   }
 }

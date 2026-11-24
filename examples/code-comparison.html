@@ -165,11 +165,11 @@
         frameFor,
         offer,
         offerAction,
-        once,
-        sizeObserver,
         whileConnected,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
+      import { sizeObserver } from "/runtime/lib/frame-pass.js";
       import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const DEFAULT_COMPARISON = {

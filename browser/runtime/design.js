@@ -1,6 +1,6 @@
 /* This module owns Design mode and legend geometry. Anchor resolution owns the
  * target reading shared by its direct presses, pointer promise, and keyboard picker. */
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { shownBox } from "./geometry.js";
 import { layoutPx } from "./lib/keeps.js";
 import { paintSet } from "./target-paint-geometry.js";

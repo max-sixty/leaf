@@ -73,7 +73,7 @@
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
 import { isElement, renderedParent, shadowHost, under } from "./lib/shadow-tree.js";
-import { cancelRender, nextFrame, nextRender } from "./rendering.js";
+import { cancelRender, nextFrame, nextRender } from "./lib/frame-pass.js";
 import { scrollMoves } from "./lib/scroll-range.js";
 
 /** The elements a watch holds: whether `is` one, and every one `within` a tree.

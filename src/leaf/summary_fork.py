@@ -54,9 +54,8 @@ in the reference.
 Leaf writes the summary as the agent's (`thread.cmd_summarize`), and the user never
 meets the fork. It writes nothing once the page is no longer the session's, or where
 the summary, had it been written as the fork was asked, would no longer be in force
-(`_fence`): a summary written in the thread since replaced it, or an edit or a
-take-back of a message in its range cancelled it, by the rules that cancel any
-summary (`events.active_summaries`). The agent hears what Leaf wrote at its next step,
+(`_fence`), as when a summary written in the thread since replaced it
+(`events.active_summaries`). The agent hears what Leaf wrote at its next step,
 with its id, range and words, as its own (`clerk.queue`), and replaces it as it would
 a summary it wrote. The page's diagnostics note each outcome (`summary_fork`), with
 the fork's usage, time and what it resent, as `forks` notes the line fork's.

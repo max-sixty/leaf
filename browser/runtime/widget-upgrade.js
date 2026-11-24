@@ -3,9 +3,9 @@
    plain HTML page that maps `/runtime/` with its own import map (portable-api.js).
 
    A module defines its custom element once and makes `connectedCallback` safe to run
-   after reconnection, using `once(el)` for generated chrome so reconnecting does not
-   duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
-   a blank page.
+   after reconnection, using `once(el)` (lib/once.js) for generated chrome so
+   reconnecting does not duplicate it. A failed upgrade becomes a visible error box
+   (`failSoft`) rather than a blank page.
 
    The widget tells its host what Leaf needs to hear through standard events, which Leaf
    reads from outside and a plain page may ignore. That it has connected and wants what
@@ -30,34 +30,7 @@
    is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
 import { describeFailure, exceptionError } from "./lib/exception.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { version } from "./kept.js";
-
-/** @type {WeakSet<Element>} */
-const initialized = new WeakSet();
-
-// Whether `el` stands in this window's document, the only one where an element
-// initializes. A copy in a document of its own stays markup in every engine but one:
-// Firefox (160), asked for the contents of a selection a drag carried through a shadow
-// root (`Range.cloneContents`), copies the Document itself, and upgrades and connects
-// the custom elements it copies into that copy before it throws. Highlighter extensions
-// read each selection the user makes that way. The check goes once Firefox clones the
-// range alone (`test_firefox_s_copy_of_a_group_builds_no_add_field`).
-/** @param {Element} el */
-export const inWindowDocument = (el) => el.ownerDocument === document;
-
-// One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
-// already-upgraded child) must be harmless. A clone starts its own lifetime even when
-// it copied the painted upgrade mark; that mark never owns initialization, and a copy
-// connected outside the window's document (`inWindowDocument`) never initializes.
-/** @param {Element} el */
-export function once(el) {
-  if (initialized.has(el) || !inWindowDocument(el)) return false;
-  initialized.add(el);
-  if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done))
-    el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
-  return true;
-}
 
 // A data widget's body: the <pre> the content model requires, never the element's own
 // textContent. The two differ once the element holds a

@@ -37,7 +37,7 @@ import { focused } from "../../browser/runtime/focus.js";
 import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
 import { watchOwner } from "../../browser/runtime/arrivals.js";
 import { mountRepaint } from "../../browser/runtime/repaint.js";
-import { nextRender } from "../../browser/runtime/rendering.js";
+import { nextRender } from "../../browser/runtime/lib/frame-pass.js";
 import { signal } from "/runtime/framework.js";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";

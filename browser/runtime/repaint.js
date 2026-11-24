@@ -23,7 +23,7 @@
    the next placement. */
 
 import { onCurrentLocation, onFocusVisibility } from "./focus.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 
 /** @typedef {Partial<Record<"reflectFirstScopes" | "markHere" | "paintCurrentLocation" | "paintSelectedMarginEntries"
  * | "paintTouchControls" | "paintCloseRequests" | "paintStatusContext" | "syncLayout" | "pageShifted"

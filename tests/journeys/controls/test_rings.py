@@ -47,7 +47,8 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
             layer_registry={"lf-shadow-focus": declaration},
             layer_widgets={
                 "lf-shadow-focus.js": """
-import {offerAction, once, shadowStage} from '/runtime/widget-api.js';
+import {offerAction, shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 import '/vendor/webawesome.esm.js';
 customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {

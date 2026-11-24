@@ -683,6 +683,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "deleted message": {"kind": "edit", "text": "", **titled, **owes("reply")},
+        "rewritten message in a summarized thread": {
+            "kind": "edit",
+            "text": "Tuesdays, after the report run",
+            "thread": {"title": "Tuesday backfill", "summaries": [{"covers": ["m1"]}]},
+            **owes("reply"),
+        },
         "rewritten suggestion": {
             "kind": "edit",
             "text": "moves to Wednesdays",

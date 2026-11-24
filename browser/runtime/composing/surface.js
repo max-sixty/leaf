@@ -94,7 +94,7 @@ import { covered, outOfWindow, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { landGlides, stopGlide } from "../scrolling.js";
 import { carriersOf } from "../scroll-containers.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,

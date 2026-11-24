@@ -36,7 +36,10 @@ HELD_REQUEST = (
 )
 
 
-def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+def test_summaries_replace_overlaps_and_stand_through_the_users_rewrite():
+    """A summary replaces the one it overlaps whole, and the user's rewrite of a
+    message it folds leaves it standing, for the agent to judge whether it still
+    holds."""
     identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "one"},
@@ -69,48 +72,15 @@ def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
     )
 
     thread = model.threads(state)["e1"]
-    assert thread["summaries"] == []
+    assert [summary["text"] for summary in thread["summaries"]] == [
+        "Extended exchange."
+    ]
     assert [message["text"] for message in thread["msgs"]] == [
         "one",
         "two, revised",
         "three",
         "four",
     ]
-
-
-def test_a_reaction_taken_back_retires_the_summaries_written_after_it():
-    """A summary in words may report what a reaction said, wherever the reaction
-    stood, so taking back one its thread held when the summary was written retires
-    the summary, as rewriting a message in its range does, and taking back what it
-    stood on later doesn't restore it. A reaction made after the summary leaves it
-    standing when taken back."""
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
-    log = (
-        {"kind": "comment", "text": "Ship it?"},
-        {"kind": "reply", "parent": "e1", "token": "keep"},
-        {"kind": "reply", **identity, "parent": "e1", "text": "Ready when you are."},
-        {"kind": "reply", "parent": "e2", "token": "keep"},
-        {"kind": "reply", **identity, "parent": "e1", "text": "Shipping."},
-        {
-            "kind": "summary",
-            **identity,
-            "thread": "e1",
-            "from": "e3",
-            "through": "e5",
-            "text": "The user approved shipping.",
-        },
-        {"kind": "reply", "parent": "e5", "token": "keep"},
-    )
-
-    def summaries(*undone):
-        tail = tuple({"kind": "undo", "undoes": event} for event in undone)
-        state = model.reading(HUB, (*log, *tail))
-        return [summary["id"] for summary in model.threads(state)["e1"]["summaries"]]
-
-    assert summaries() == ["e6"]
-    assert summaries("e7") == ["e6"]
-    assert summaries("e2") == []
-    assert summaries("e4", "e2") == []
 
 
 AGENT = {"author": "agent", "agent": "Agent", "session": "session-1"}
@@ -352,51 +322,6 @@ def test_summary_leaves_messages_after_its_range_visible():
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
     assert thread["msgs"][-1]["text"] == "new message"
-
-
-def test_the_users_rewrite_retires_any_fold_and_the_agents_leaves_it():
-    """A summary the agent wrote can't account for the user's rewrite, whether it
-    reports the range in words or names it with a label, so the rewrite retires it;
-    the agent's own edit leaves its summary standing."""
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
-    state = model.reading(
-        HUB,
-        (
-            {"kind": "comment", "text": "one"},
-            {"kind": "reply", **identity, "parent": "e1", "text": "two"},
-            {"kind": "reply", "parent": "e1", "text": "three"},
-            {"kind": "reply", **identity, "parent": "e1", "text": "four"},
-            {
-                "kind": "summary",
-                **identity,
-                "thread": "e1",
-                "from": "e1",
-                "through": "e2",
-                "label": "Previous progress messages",
-                "text": "",
-            },
-            {
-                "kind": "summary",
-                **identity,
-                "thread": "e1",
-                "from": "e3",
-                "through": "e4",
-                "text": "The later exchange.",
-            },
-            {"kind": "edit", "author": "user", "message": "e1", "text": "one, revised"},
-            {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
-        ),
-    )
-
-    thread = model.threads(state)["e1"]
-    [summary] = thread["summaries"]
-    assert (summary["covers"], summary["text"]) == (["e3", "e4"], "The later exchange.")
-    assert [message["text"] for message in thread["msgs"]] == [
-        "one, revised",
-        "two",
-        "three",
-        "four, revised",
-    ]
 
 
 def progress_ends(thread: dict) -> dict:

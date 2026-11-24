@@ -54,7 +54,7 @@
    domain. */
 import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import {
   isElement,

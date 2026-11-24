@@ -827,7 +827,7 @@ export class HeldReading {
  *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
- *  live sample does on a click or key inside its child (lf-sample.js). */
+ *  live sample's host does on a click or key inside its child (sample.js). */
 /** @param {Element} node @param {() => void} change */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {

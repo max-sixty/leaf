@@ -18,6 +18,8 @@
    library's (lib/; browser/AGENTS.md, "The library of shared web code"). */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
+import { growthIsSeen } from "./geometry.js";
+import { PendingTaskEvent } from "./lib/pending-task.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
@@ -43,9 +45,8 @@ export { partOver } from "./thread/placement.js";
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
-// user sees, as scroll anchoring and the chrome leave it; `whenNone` hears when such a
-// reading stops holding.
-export { growthIsSeen, landingInsets, shownWindow, whenNone } from "./geometry.js";
+// user sees, as scroll anchoring and the chrome leave it.
+export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
@@ -77,7 +78,7 @@ export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (browser/AGENTS.md, "The page holds still under the user's aim").
-export { HeldReading, heldGrowth } from "./thread/held-news.js";
+export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
@@ -127,14 +128,27 @@ export { el, reachedForWords, worksInside } from "./widget-elements.js";
 export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
-// The returned host owns readiness, Reset and disposal (live-samples.md).
+// The returned host owns readiness, the frame's height, Reset and disposal
+// (live-samples.md). A block's frame the reader sees as it mounts is part of what they
+// are being shown, the page arriving or a view a gesture of theirs opened or brought
+// near: that showing waits, as on any drawing under way (lib/pending-task.js), until
+// the host says the frame's fit to its page need hold it no longer (sample.js).
 /** @param {Parameters<typeof import("./sample.js").mountSample>[0]} frame
  * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
  * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
-  // The page counts the sample's arrival from here; the host counts it once it starts.
-  const owner = await deferredArrival(import("./sample.js"));
-  return owner.mountSample(frame, options);
+  /** @type {PromiseWithResolvers<void> | null} */
+  const landing =
+    !options.window && growthIsSeen(frame) ? Promise.withResolvers() : null;
+  if (landing) frame.dispatchEvent(new PendingTaskEvent(landing.promise));
+  try {
+    // The page counts the sample's arrival from here; the host counts it once it starts.
+    const owner = await deferredArrival(import("./sample.js"));
+    return owner.mountSample(frame, options, landing && landing.resolve);
+  } catch (error) {
+    landing?.resolve();
+    throw error;
+  }
 }
 export { wear } from "./dress.js";
 export { landInThread } from "./application.js";

@@ -833,7 +833,7 @@ block names what a package answers with the browser's own call instead.
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                       |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                                   |
 | The clock time behind an age, and what an age previews                                                | `presence.js` `clockTime`, `agePreview`                                                |
-| An age in the page's markup, a message or a widget's template, kept current                           | `age.js`, the `lf-age` element                                                         |
+| An age kept current in a page, a message or a widget's template: the `lf-age` element                 | `age.js`                                                                               |
 | When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                                 |
 | A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                              |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |

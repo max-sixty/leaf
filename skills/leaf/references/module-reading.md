@@ -175,11 +175,9 @@ symbol and the words its press says.
 
 ## Page readings
 
-Each function here returns a page reading, and so do `readThreads`
-(`module-annotations.md`), a widget controller's `read()`, and `ago` and `clockValue`
-(`module-state.md`). A `LeafElement`'s `render()` that reads one synchronously runs
-again when the reading changes (`module-plain-elements.md`, "`LeafElement`"); a read
-after an `await` is not followed.
+Each function here returns a page reading. A `LeafElement`'s `render()` that reads one
+synchronously runs again when the reading changes (`module-plain-elements.md`,
+"`LeafElement`"); a read after an `await` is not followed.
 
 ### Reading obligations and the On lists
 

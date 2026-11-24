@@ -78,7 +78,7 @@ carries a promise, the promise is the event's `complete` property:
 
 ```js
 const hold = new Event("lf-hold", { bubbles: true, composed: true });
-hold.complete = finished; // a promise the element settles as the hold ends
+hold.complete = finished;
 this.dispatchEvent(hold);
 ```
 
@@ -242,10 +242,10 @@ this.dispatchEvent(hold);
 
 ## `LeafElement`
 
-A widget that draws with Lit extends `LeafElement`, from the library's
+A widget that draws with Lit usually extends `LeafElement`, the Lit element on this
+protocol in the library's
 [`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js), as the starter that
-`leaf package init --widget` writes does. It is a Lit element on this protocol. Its
-`render()` draws `this.state`, its Lit properties and the page readings it reads
+`leaf package init --widget` writes does. Its `render()` draws `this.state`, its Lit properties and the page readings it reads
 synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
 changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
 announces each update with `pending-task`, says `lf-commands` after each draw, defines
@@ -255,6 +255,6 @@ itself, so a widget that holds authored children returns from `createRenderRoot(
 part it generated beside them, or says `static shadow = true` and slots them. The
 module's header is the class's whole contract.
 
-Only the class follows a page reading, so a widget that draws from one extends it. A
-widget that imports nothing, or wraps a component written without Leaf, extends
-`HTMLElement`.
+Only the class follows a page reading, so a widget that draws from one must extend it.
+A widget that draws with Lit's standalone `render`, as the opening example does, that
+imports nothing, or that wraps a component written without Leaf extends `HTMLElement`.

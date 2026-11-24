@@ -14,8 +14,9 @@ properties, and the element answers with events: one records a gesture, one take
 back, and others say that it is drawing, holding something for the user or failing.
 [module-plain-elements.md](module-plain-elements.md) gives each property, event and
 mark of that protocol. A widget that only records state and reads bound data imports
-nothing, and one that draws with Lit extends `LeafElement`, the Lit element on that
-protocol (`module-plain-elements.md`, "`LeafElement`").
+nothing. One that draws with Lit usually extends `LeafElement`, the Lit element on that
+protocol, and one that draws from a page reading must (`module-plain-elements.md`,
+"`LeafElement`").
 
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a

@@ -102,7 +102,7 @@ in its shadow tree, `node` is that widget. The change itself scrolls nothing.
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with
 `restorePlace(place)` however the page has moved since. Both read the page's own
-scroller, not a reading region's. `restorePlace(place, null, intent)` restores only
+scroller. `restorePlace(place, null, intent)` restores only
 while an `intent` taken earlier with `retainUserIntent()` still holds
 (`module-input.md`, "Delayed work").
 

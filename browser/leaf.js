@@ -605,7 +605,6 @@ async function boot() {
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
-    fabAnchorAt: responseSurface.fabAnchorAt,
     pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
     armChanged: () => aim.armChanged(),

@@ -139,7 +139,6 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
- * @property {() => import("./selection.js").Anchor | null} fabAnchorAt
  * @property {() => boolean} pointerModeActive
  * @property {() => PickerTarget[]} readTargets
  * @property {() => unknown} armChanged
@@ -157,7 +156,6 @@ export function createTargetPicker({
   hintChrome,
   commentOnTarget,
   updateFab,
-  fabAnchorAt,
   pointerModeActive,
   readTargets,
   armChanged,

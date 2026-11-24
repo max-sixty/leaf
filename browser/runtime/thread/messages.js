@@ -830,7 +830,7 @@ export class MessageView {
     // closed editor goes with its subscription and keys.
     const editing = model.editable && holdsMessageEdit(model.id, this);
     const editor = editing
-      ? (this.#editor ??= new MessageEditor(model.id, this, {
+      ? (this.#editor ??= new MessageEditor(model.id, {
           wireInput: this.#commands.reply.wireInput,
           said: () => presentation.model.body.text,
           base: () => presentation.model.base,

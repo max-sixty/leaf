@@ -47,7 +47,7 @@ import {
 import { headerLevels } from "./css-anchors.js";
 import { leafSurface } from "./passages.js";
 import { skipped, upFrom } from "./lib/shadow-tree.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
 import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";

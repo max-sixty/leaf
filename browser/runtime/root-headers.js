@@ -14,7 +14,8 @@
  * (page-layout.md). Rejected: hit-testing the window's top for such a header and
  * starting Leaf's sticky-header slot below it, a reading on every layout, resize and
  * scroll end for the few pages with one (the user's decision). */
-import { afterScript, sizeObserver } from "./rendering.js";
+import { afterScript } from "./rendering.js";
+import { sizeObserver } from "./lib/frame-pass.js";
 import { watchArrivals } from "./arrivals.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 

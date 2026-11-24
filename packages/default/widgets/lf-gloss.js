@@ -18,12 +18,12 @@
  * dismissal; CSS anchors keep the card with its phrase. */
 import {
   offerAction,
-  once,
   says,
   reachedForWords,
   worksInside,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 let nextId = 0;

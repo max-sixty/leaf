@@ -79,7 +79,7 @@
    margin card takes it too, so one mechanism serves both, and that mechanism's rule at
    its end, under the user's request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
-import { nextRender, sizeObserver } from "../rendering.js";
+import { nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { holdFocus, focusDestination, focused, currentLocationIn } from "../focus.js";
 import {
   effect,
@@ -100,7 +100,7 @@ import {
   threadSummary,
 } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
-import { contentsBox, measure } from "../shown-box.js";
+import { contentsBox, measure } from "../lib/shown-box.js";
 import { keeps, keepsHidden, layoutPx, roomPx } from "../lib/keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import {

@@ -17,7 +17,7 @@ import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { commandScope, keys } from "/runtime/keyboard/scopes.js";
 import { liveEl } from "/runtime/notifications.js";
 import { mountRepaint } from "/runtime/repaint.js";
-import { nextRender } from "/runtime/rendering.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import { html } from "/runtime/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.

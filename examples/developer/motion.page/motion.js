@@ -1,4 +1,5 @@
-import { frameFor, sizeObserver, whileConnected } from "/runtime/widget-api.js";
+import { frameFor, whileConnected } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 // Illustrative source timings and alternatives, not recordings. The optional

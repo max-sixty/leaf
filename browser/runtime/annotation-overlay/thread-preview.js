@@ -142,7 +142,8 @@ import {
 } from "../scrolling.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
-import { afterScript, cancelRender, nextRender } from "../rendering.js";
+import { afterScript } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";

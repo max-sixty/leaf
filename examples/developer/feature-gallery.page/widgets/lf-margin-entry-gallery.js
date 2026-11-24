@@ -2,12 +2,12 @@
 import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
 import {
-  once,
   presentContributionEntry,
   presentContributionReceipts,
   registerContribution,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 function wireSample({ sample, key, control, disclosure }) {
   const behavior = sample.behavior ?? "action";

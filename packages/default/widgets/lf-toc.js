@@ -67,10 +67,10 @@ import {
   readObligations,
   readThreads,
   scrollerFor,
-  sizeObserver,
   whileConnected,
   named,
 } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.

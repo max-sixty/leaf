@@ -415,7 +415,8 @@
       }
     </style>
     <script type="module">
-      import { once, whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
       import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       // The app's current tokens (tokens.css), as layers.

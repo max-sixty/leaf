@@ -1460,7 +1460,8 @@ PAGE_ACTIONS_PAGE = leaf_page(
   <lf-playground-output>Keep the tile size.</lf-playground-output>
 </lf-playground></lf-group>
 <script type="module">
-import {once, whileInterfaceConnected} from "/runtime/widget-api.js";
+import {whileInterfaceConnected} from "/runtime/widget-api.js";
+import {once} from "/runtime/lib/once.js";
 customElements.define("tile-tool", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

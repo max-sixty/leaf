@@ -89,13 +89,13 @@ import {
   reachedForWords,
   dressCode,
   focusDestination,
-  nextRender,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
   worksInside,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import {
   paintMarkdown,
   markdownSourceOffset,

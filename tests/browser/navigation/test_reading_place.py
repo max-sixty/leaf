@@ -352,7 +352,7 @@ ITEMS_LAYER = {
 }
 ITEMS_WIDGETS = {
     "lf-items.js": """
-import {once} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-items', class extends HTMLElement {
   #item = null;
   connectedCallback() {
@@ -381,7 +381,8 @@ customElements.define('lf-items', class extends HTMLElement {
 });
 """,
     "lf-item-link.js": """
-import {navigateToDatum, once} from '/runtime/widget-api.js';
+import {navigateToDatum} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-item-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

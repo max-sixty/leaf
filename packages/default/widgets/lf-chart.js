@@ -81,11 +81,10 @@ import {
   whileConnected,
   failSoft,
   frameFor,
-  measure,
-  nextRender,
-  once,
-  sizeObserver,
 } from "/runtime/portable-api.js";
+import { measure } from "/runtime/lib/shown-box.js";
+import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import {
   cross,

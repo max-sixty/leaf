@@ -599,6 +599,26 @@
     hgroup > :is(h1, h2, h3):not(:first-child) {
       margin-top: 10px;
     }
+    /* A box under 15rem wide, such as the header of a page of parts' column
+     * (layouts.css, "A page of parts"), held three or four words of prose a line at the
+     * body's size. In one, prose steps down to the size of a list's names, and the title
+     * to a section heading's. The box's width decides it, so a page's own box that narrow
+     * gets the same. An eyebrow, a caption or a chip keeps the size it sets for itself. */
+    @container (width < 15rem) {
+      p,
+      ul,
+      ol,
+      dl,
+      blockquote {
+        font-size: var(--lf-t-5);
+        line-height: 1.45;
+      }
+      h1 {
+        font-size: var(--lf-t-3);
+        line-height: 1.25;
+        letter-spacing: normal;
+      }
+    }
     figure {
       margin: var(--lf-figure-margin-block) 0;
     }

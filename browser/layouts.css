@@ -143,7 +143,9 @@
         /* Room for a focus ring at its foot, where it scrolls, taken from the list's
          * top (the package theme). */
         padding: var(--lf-sp-4) 20px var(--lf-focus-ring-room);
-        --lf-parts-title: 1;
+        /* Its width says it is narrow, so type for a narrow measure finds it by a size
+         * query, as on any box that narrow (reading.css), and asks the Layout nothing. */
+        container-type: inline-size;
       }
     }
     html[data-lf-interactive]

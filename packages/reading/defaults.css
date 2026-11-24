@@ -1,6 +1,6 @@
 /* Leaf's reading look, the bundled `reading` theme, which a page wears by listing
  * this package (`leaf page init --package reading`). It holds the body's type
- * and colour, the page's ground, and a wide page's and a page of parts' title; the
+ * and colour, the page's ground, and a wide page's title; the
  * idioms an author writes, such as a tag or a callout, are Leaf's own and draw on every
  * page (browser/styles/components/idioms.css). A theme builds on this one where the
  * page lists it after this package, and stands alone where the page lists it without
@@ -61,23 +61,5 @@ html {
   h1 {
     letter-spacing: -0.02em;
     line-height: 1.1;
-  }
-}
-/* A page of parts' header heads the narrow column its list of parts stands in
- * (layouts.css, "A page of parts"), so its title is set as that column's heading and
- * the rest of what it says as the column's text, a lede included (idioms.css). At the
- * part's prose size, a paragraph there ran three or four words to a line. What sets its
- * own size for its own purpose, such as an eyebrow, keeps it. */
-@container style(--lf-holds-parts: 1) {
-  :where(main > *):not([data-lf-views="parts"]) {
-    font-size: var(--lf-t-5);
-    line-height: 1.45;
-  }
-}
-@container style(--lf-parts-title: 1) {
-  h1 {
-    font-size: var(--lf-t-3);
-    line-height: 1.25;
-    letter-spacing: normal;
   }
 }

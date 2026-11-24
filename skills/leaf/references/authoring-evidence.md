@@ -5,9 +5,9 @@ adds it (`leaf package list`).
 
 ## Measured facts
 
-Tie a repeatably measured number inside a sentence to the data run that produced it,
-with a widget that takes the `measured-scalar` contract, and write a number with no
-repeatable source as plain HTML.
+A number the page gives as current should be its latest measurement. For one you will
+measure again while the user reads, a widget taking the `measured-scalar` contract lets
+`page check` flag it once its source holds a later run.
 
 ## Interactive and visual evidence
 

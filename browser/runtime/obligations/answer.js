@@ -7,12 +7,12 @@
    once the thread is put away. */
 import { capitalized, labelWords } from "../words.js";
 import { widgetWord } from "../addressable-names.js";
-import { closestAcross } from "../passages.js";
 import { addressableAt } from "../thread/messages.js";
 import { perVocabulary, tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
 

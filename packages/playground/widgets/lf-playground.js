@@ -78,10 +78,11 @@ import {
   sizeObserver,
   wear,
   whileConnected,
-  under,
   worksInside,
   commandsChanged,
+  widgetController,
 } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
 
 /** @typedef {null | string | number | boolean | readonly JSONSnapshot[] | {readonly [name: string]: JSONSnapshot}} JSONSnapshot */
@@ -180,7 +181,7 @@ customElements.define(
     #submit = null;
     /** @type {HTMLButtonElement | null} */
     #reset = null;
-    /** @type {string | null | undefined} */
+    /** @type {unknown} */
     #drawn = undefined;
     #ready = false;
     #interactive = false;
@@ -576,26 +577,18 @@ customElements.define(
     // The tune in force, whose values are the settings the log holds; without one, it
     // holds the authored defaults.
     #tune() {
-      return (
-        Object.values(this.controller.read().provenance).find(
-          ({ event }) => event.action === "tune",
-        )?.event ?? null
-      );
+      const tune = this.state?.tune;
+      return tune && "action" in tune && tune.action ? tune : null;
     }
 
     #commit() {
       clearTimeout(this.#pause);
       const values = { ...this.#pendingValues, ...this.#values };
       const recorded = this.#tune()?.detail.values ?? this.#defaults;
-      if (!this.controller.read().actions.tune?.available) return;
+      if (!this.state?.tune?.available) return;
       this.#unsent.clear();
       if (same(values, recorded)) return;
-      this.controller.dispatch({
-        kind: "action",
-        verb: "tune",
-        detail: { values },
-        says: "Changed the playground's settings",
-      });
+      this.record("tune", { values }, { says: "Changed the playground's settings" });
     }
 
     #paint() {
@@ -626,20 +619,13 @@ customElements.define(
       const undo = chosen ? this.#undo() : null;
       if (chosen ? !undo : !this.#available()) return;
       if (!chosen) this.#commit();
-      if (chosen) {
-        if (!undo) return;
-        this.controller.dispatch({
-          kind: "undo",
-          target: ("attempt" in undo ? undo.attempt : null) ?? undo.id,
-        });
-      } else {
-        this.controller.dispatch({
-          kind: "action",
-          verb: "choose",
-          detail: { values: this.values, instruction: this.#instruction() },
-          says: "Playground settings",
-        });
-      }
+      if (chosen) this.takeBack("choose");
+      else
+        this.record(
+          "choose",
+          { values: this.values, instruction: this.#instruction() },
+          { says: "Playground settings" },
+        );
     }
 
     // A choice records the controls' values. It still matches when a reload restored
@@ -660,24 +646,22 @@ customElements.define(
     }
 
     #undo() {
-      const action = this.controller.read().actions.choose;
-      const latest = action?.inForce[0]?.event;
-      return action?.undo.find((event) => event.id === latest?.id) ?? null;
+      const choose = this.state?.choose;
+      return Boolean(choose && "undoable" in choose && choose.undoable);
     }
 
     #available() {
-      return this.controller.read().actions.choose?.available ?? false;
+      return this.state?.choose?.available ?? false;
     }
 
     // Only a tune the controls haven't drawn replaces their values (the header says
-    // why); its attempt stays its identity once the server gives it an id. A change to
-    // the reading's availability draws again too, and paints the keys.
+    // why). The reading names no event, so a tune is told from the one drawn by the
+    // values it records. A change to the reading's availability draws again too, and
+    // paints the keys.
     render() {
       const tune = this.#tune();
-      const drawn = tune
-        ? (("attempt" in tune ? tune.attempt : null) ?? tune.id)
-        : null;
-      if (this.#drawn !== drawn) {
+      const drawn = tune ? tune.detail.values : null;
+      if (!same(this.#drawn, drawn)) {
         this.#drawn = drawn;
         // An edit the tune in force already holds, such as a value the browser restored
         // on a reload, is recorded already.
@@ -704,7 +688,10 @@ customElements.define(
         chosen: () => this.#chosen(),
         // The submission's action says why it can't be sent (module-state.md, "The
         // widget controller"), so the bar keeps no rule of its own about delivery.
-        unavailable: this.controller.read().actions.choose?.unavailable ?? null,
+        // `state` says only whether it can, so the reason comes from the controller.
+        unavailable:
+          (this.state && widgetController(this).read().actions.choose?.unavailable) ??
+          null,
       });
       this.#paint();
       return template;
@@ -715,8 +702,7 @@ customElements.define(
     /** @param {import("lit").PropertyValues} changed */
     updated(changed) {
       super.updated(changed);
-      if (this.#unsent.size && this.controller.read().actions.tune?.available)
-        this.#recordLater();
+      if (this.#unsent.size && this.state?.tune?.available) this.#recordLater();
     }
   },
 );

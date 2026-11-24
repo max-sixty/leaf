@@ -29,6 +29,7 @@ test("a bound element draws its source only once the page has read it", async ()
     customElements.define(
       tag,
       class extends LeafElement {
+        static properties = { value: { attribute: false } };
         constructor() {
           super();
           this.value = null;

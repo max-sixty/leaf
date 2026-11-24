@@ -48,7 +48,7 @@ from pathlib import Path
 
 from .registry.schema import aware_instant
 from .schema import INTERACTIONS_FILE
-from .state import now_iso, session_record
+from .state import now_iso
 
 BATCH_SCHEMA = json.loads(
     Path(__file__).with_name("interaction-batch.schema.json").read_text()
@@ -112,6 +112,7 @@ def record_command(command: str, *, refused: str | None = None) -> None:
         return
     import psutil
 
+    from .event_log import initialized, session_context
     from .harness import session_harness
 
     try:
@@ -130,8 +131,6 @@ def record_command(command: str, *, refused: str | None = None) -> None:
         }
     except (OSError, psutil.Error):
         return
-    from .event_log import initialized
-
     for page_dir in pages:
         try:
             if initialized(page_dir):
@@ -207,28 +206,6 @@ def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
         }
         for entry in entries
     ]
-
-
-def session_context(session: str | None, claim: dict | None = None) -> dict | None:
-    """Capture native session metadata as it stands at the write boundary."""
-    if session is None:
-        return None
-    from .harness import session_harness
-
-    owner = claim if claim and claim["id"] == session else None
-    writer = session_harness() if owner is None else None
-    lifecycle = session_record(session)
-    return {
-        "harness": owner["harness"]
-        if owner
-        else writer.name
-        if writer and writer.session == session
-        else None,
-        "cwd": owner.get("cwd") if owner else None,
-        "transcript_path": lifecycle.get("transcript_path") if lifecycle else None,
-        "turn": lifecycle["turn"] if lifecycle else None,
-        "provider": lifecycle["provider"] if lifecycle else None,
-    }
 
 
 def interaction_time(value: str) -> datetime:

@@ -7,10 +7,10 @@ import {
   pageDocument,
   inPage,
   TEXT_BOX,
-  upFrom,
   userScrollport,
   visualPartProblems,
 } from "/runtime/check-api.js";
+import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

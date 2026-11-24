@@ -115,7 +115,11 @@ import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { runLanding, scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeModes } from "./layer-stack.js";
-import { composedParentNode, renderedUnder, excludedByInert } from "../shadow-tree.js";
+import {
+  composedParentNode,
+  renderedUnder,
+  excludedByInert,
+} from "../lib/shadow-tree.js";
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandEntry} CommandEntry

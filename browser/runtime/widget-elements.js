@@ -1,5 +1,5 @@
 export { searchField } from "./control-labels.js";
-import { offer, offerAction } from "./element-markers.js";
+import { offerAction } from "./element-markers.js";
 export {
   generatedElement,
   offer,
@@ -67,7 +67,7 @@ import {
   renderedUnder,
   renderedParent,
   untilFound,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
 import { keeps } from "./lib/keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
@@ -377,14 +377,4 @@ export function responseAction(
     control,
   );
   return control;
-}
-
-// Motion carries the card's label, never a second live widget tree. Native chrome
-// avoids copied form groups, widget lifetimes and iframe browsing contexts.
-/** @param {string} label */
-export function motionPreview(label) {
-  const preview = offer("div", "lf-motion-preview", label);
-  preview.inert = true;
-  preview.setAttribute("aria-hidden", "true");
-  return preview;
 }

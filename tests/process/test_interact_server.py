@@ -92,6 +92,7 @@ from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import rows as rows_model
 from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -231,7 +232,9 @@ def test_diagnostic_write_failure_does_not_change_the_http_answer(
 
 def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -2860,7 +2863,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     publisher.refresh()
     activity = activity_reading(neighbor)
     assert activity["detail_source"] is not None
-    expected = server_rows_model.compact_activity(activity)
+    expected = rows_model.compact_activity(activity)
     reads = []
     read = server_model.SERVICE.read
 
@@ -2930,7 +2933,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         )
         presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
-    changed = server_rows_model.row_path(neighbor)
+    changed = rows_model.row_path(neighbor)
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
@@ -3477,7 +3480,9 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             value = [value]
         return value
 
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -3728,7 +3733,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     )
     publish(page_dir)
     events = event_model.read_events(page_dir)
-    active = files_model.active_descriptor(page_dir, events)
+    active = served_context.active_descriptor(page_dir, events)
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -3825,7 +3830,9 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         .replace("</main>", '<lf-activity id="recent"></lf-activity></main>')
     )
     publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -3984,7 +3991,9 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
 
     select_resources("images[].url", "optional")
     publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     artifact = artifact_model.read_artifact(page_dir, active["revision"])
     before = artifact.manifest

@@ -15,7 +15,7 @@ import { actionElement, iconElement } from "./lib/icon-paths.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
 import { focused, focusDestination } from "./focus.js";
-import { nativeLayerHolding } from "./shadow-tree.js";
+import { nativeLayerHolding } from "./lib/shadow-tree.js";
 
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the

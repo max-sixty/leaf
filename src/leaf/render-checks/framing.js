@@ -1,5 +1,6 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
-import { servedElements, upFrom } from "/runtime/check-api.js";
+import { servedElements } from "/runtime/check-api.js";
+import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

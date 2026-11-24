@@ -13,7 +13,8 @@
  * than restating it, so what one probe walks and what another walks cannot come apart. A
  * reading of the page as the user sees it walks `drawnPage` instead, which passes over
  * what the browser skips. */
-import { drawnElements, pageDocument } from "/runtime/check-api.js";
+import { pageDocument } from "/runtime/check-api.js";
+import { drawnElements } from "/runtime/lib/shadow-tree.js";
 
 /** @template {Document | ShadowRoot | Element} Root
  * @param {Root} root @returns {(Root | ShadowRoot)[]} */
@@ -25,7 +26,7 @@ export const openRoots = (root) => [
   ),
 ];
 
-// What the browser draws of the page (`drawnElements` in runtime/shadow-tree.js). Two
+// What the browser draws of the page (`drawnElements` in runtime/lib/shadow-tree.js). Two
 // readings can share one walk, as each reading of the view and each geometry sample do.
 export const drawnPage = () => {
   const page = pageDocument();

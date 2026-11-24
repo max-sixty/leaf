@@ -12,7 +12,7 @@ import { carriedBox } from "./element-axes.js";
 import { layoutWindow, shellRight } from "./geometry.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { inChrome } from "./shadow-tree.js";
+import { inChrome } from "./ui-marks.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */

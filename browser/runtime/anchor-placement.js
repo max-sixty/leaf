@@ -57,13 +57,12 @@ import { resolvedInMessage, targetElement } from "./resolved-target.js";
 import {
   catchUpWords,
   hearPageWords,
-  inChrome,
   quotesChanged,
   rangeOf,
   segmentBounds,
   trackQuotes,
 } from "./passages.js";
-import { under } from "./shadow-tree.js";
+import { under } from "./lib/shadow-tree.js";
 import { afterScript } from "./rendering.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
@@ -71,6 +70,7 @@ import { messageHolding } from "./thread/messages.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "./version-signal.js";
 import { version as keptVersion } from "./kept.js";
+import { inChrome } from "./ui-marks.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor */
 /** @typedef {ReturnType<typeof import("./thread/state.js").allThreads>[number]} Thread */

@@ -93,10 +93,10 @@ import {
   el,
   focusDestination,
   holdFocus,
-  inBaseLayer,
   offered,
   offeredAction,
   LeafElement,
+  PendingTaskEvent,
   move,
   onUserInput,
   signal,
@@ -127,7 +127,7 @@ import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 if (!document.querySelector("#lf-trace-library-styles")) {
   const styles = document.createElement("style");
   styles.id = "lf-trace-library-styles";
-  styles.textContent = inBaseLayer(`@scope (lf-trace) { ${imageCss} }`);
+  styles.textContent = `@layer lf-base {\n@scope (lf-trace) { ${imageCss} }\n}`;
   document.head.append(styles);
 }
 
@@ -1858,7 +1858,7 @@ export class Trace extends LeafElement {
         });
       }, failed);
     }
-    this.controller.present(ready);
+    this.dispatchEvent(new PendingTaskEvent(ready));
   }
 
   /** @param {TraceAction} action */

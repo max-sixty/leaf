@@ -61,7 +61,7 @@ export { holdPlace, readingAt } from "./user-place.js";
 // user to write Markdown in.
 export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
-export { answeredInWords, readObligations } from "./obligations/model.js";
+export { readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them
 // reads, and which regions hold a widget that asks the user something, including one
 // whose obligation the inventory hasn't listed yet or lists as withdrawn.
@@ -90,9 +90,7 @@ export { threadSummary } from "./thread/messages.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { under } from "./shadow-tree.js";
-// `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
-export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
+export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 // The claim of a scope standing over the page: every key but the command reference's.
@@ -151,17 +149,11 @@ export {
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
+export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
-export {
-  dragging,
-  el,
-  motionPreview,
-  reachedForWords,
-  worksInside,
-} from "./widget-elements.js";
+export { dragging, el, reachedForWords, worksInside } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

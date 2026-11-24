@@ -1,6 +1,6 @@
 /* The user's pointer: the one unrounded position shared by hit-test consumers, and
    whether it is a finger. */
-import { isNode } from "./shadow-tree.js";
+import { isNode } from "./lib/shadow-tree.js";
 let x = -1;
 let y = -1;
 

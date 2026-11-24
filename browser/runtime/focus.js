@@ -84,7 +84,7 @@ import {
   renderedParent,
   renderedUnder,
   shadowHost,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 
 /** @typedef {"move" | "step" | "return" | "press"} PlacementCause
  * @typedef {PlacementCause | "drop"} CurrentLocationCause
@@ -1502,7 +1502,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not lib/shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {

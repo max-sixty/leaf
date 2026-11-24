@@ -41,7 +41,7 @@
      many as the room it is held to holds, and under them the words `more(count)` gives
      for the rest, as "and 26 more threads" (`fit`), where another preview's last line
      that fits ends in an ellipsis. When what it says changes under an aim
-     that stays inside the element, as a chart's point, it says so (`previewChanged`,
+     that stays inside the element, as a chart's point, it says so (`lf-preview`,
      widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
      on the element or a finger holding it reads it; a preview the user put away stays
      away, whatever the element declares, until they aim again. When its preview goes,
@@ -137,7 +137,7 @@
    that room holds a whole line, held to it and its words fitted to it as to any room
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
    "The page holds still under the user's aim") nor cover anything. A new aim inside the
-   element it stands for (`previewChanged` with `aim`), as a chart's next point, keeps
+   element it stands for (`lf-preview` with `aim`), as a chart's next point, keeps
    its side by the new box, standing by the edge that side stands by, its bottom above
    the box and its top below or beside it, where that side's room holds the new
    reading whole, so the preview rides along the drawing on one side as the pointer
@@ -201,7 +201,7 @@
      on demand, whatever put it there and in whatever layer, as an editor's hover key
      does, so a landing's preview stays one key away. A declaration
      that stops being true, as a grip's once its card is grabbed, says so
-     (`previewChanged`), which redraws a preview standing on focus and opens none.
+     (`lf-preview`), which redraws a preview standing on focus and opens none.
    - A screen reader hears every preview shown on focus, whatever supplied it, as the
      focused element's description (`ariaDescribedByElements`) while it stands, except a
      control's own, which says what its accessible name and `aria-keyshortcuts` already
@@ -322,7 +322,7 @@ import {
   renderedParent,
   renderedUnder,
   under,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
@@ -2062,7 +2062,7 @@ function showHeld(held) {
   else hide();
 }
 
-// What `node` previews changed (`previewChanged`): a preview standing for it reads it
+// What `node` previews changed (`lf-preview`): a preview standing for it reads it
 // again where it stands, with no dwell and no fade, or goes where it now says nothing;
 // otherwise a finger holding it or one beside it reads it, and a pointer resting over
 // it after the dwell, unless the user put its preview away. Focus on it opens none for

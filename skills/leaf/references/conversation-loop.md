@@ -240,9 +240,8 @@ whatever it says, so On Me clears the moment they reply. Its delivery names thos
 requests in `settled`, for you to read the message against. A clarification hands the
 conversation back to you, as does a question about an action, such as "where do I run
 it?"; if the request still stands, answer with `--obligation <id>`, which returns
-the same item to On Me (`threads.md`). A new question takes `--obligation` alone. Ask a
-dependent question only once its prerequisite is answered. An answer grants nothing
-its question did not ask.
+the same item to On Me (`threads.md`). A new question takes `--obligation` alone. An
+answer grants nothing its question did not ask.
 
 Read the lists before a handoff, before waiting for the user, and after taking in an
 answer:

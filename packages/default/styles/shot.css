@@ -23,8 +23,9 @@ lf-shot {
   /* The toolbar's height: the row the view chooser sets, inside its padding, and a
      second row in a narrow shot (below). */
   --lf-shot-toolbar: calc(var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad));
-  /* Keep the shared image frame's shadow inside the stage's scrollport. */
-  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
+  /* Keep the shared image frame's shadow inside the stage's scrollport: the 2px drop
+     and 8px blur of the lift a picture lies at (`--lf-raise-1`). */
+  --lf-shot-frame-room: 10px;
 }
 /* Until its module draws, a shot holds the room its first drawing takes, so nothing
    below it moves when the drawing lands: the toolbar, and the stage's padding and
@@ -163,11 +164,6 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-scale-options > .lf-btn {
-  /* Selection changes the face, never the width of its words. */
-  font: var(--lf-font-choice);
-  white-space: nowrap;
-}
 .lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {
   grid-area: before;
   justify-self: start;
@@ -202,6 +198,9 @@ lf-shot {
 }
 .lf-shot-scale-options > button {
   flex: 1;
+  /* Selection changes the face, never the width of its words. */
+  font: var(--lf-font-choice);
+  white-space: nowrap;
 }
 .lf-shotchoice {
   display: flow-root;

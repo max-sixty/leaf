@@ -25,6 +25,15 @@ lf-parts,
 lf-part {
   display: block;
 }
+/* One row of a strip: its 8px head, a name's 38px face or the aim floor where that is
+ * taller, and its 1px rule. Each set states it, and so does a text document, whose
+ * preview draws a set (text-document.css), so the room either keeps for the strip
+ * before upgrade is the strip's own height. */
+lf-tabs,
+lf-parts,
+lf-text-document {
+  --lf-tabstrip-h: calc(9px + max(38px, var(--lf-aim-floor)));
+}
 /* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
  * generated name can't wear as a class. A side list's group label is a list's group
  * heading (controls.css, `.lf-rows-head`). */

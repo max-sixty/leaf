@@ -95,6 +95,7 @@ export class OptionAddition {
     form.append(bindingBadge, input);
     const sync = wireInput(input, {
       hint: "Add another option…",
+      sendClass: "lf-option-add",
       sends: "add and select option",
       action: "add",
       allowsMedia: () => "Images can be added to comments, not options",

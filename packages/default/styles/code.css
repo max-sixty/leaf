@@ -59,10 +59,9 @@ lf-code.lf-rendered > pre {
 lf-code .lf-code-line {
   display: block;
   position: relative;
-  --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
   padding: 0 var(--lf-code-inset-inline) 0
     calc(var(--lf-code-gutter) + var(--lf-code-gap));
-  text-indent: var(--lf-code-hang) hanging;
+  text-indent: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch) hanging;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -218,18 +217,19 @@ lf-code > lf-note code {
 }
 /* A block with notes draws its notes mark and Copy on one toolbar (integration.css,
    `.lf-mark-bar`) in the seat a lone Copy takes, inside the block's top-right corner,
-   taking no room, and shows it as Copy shows: while the pointer or focus is on the
-   block, or after a tap stands the user there. Hidden, the notes leave the code whole
-   and each annotated line keeps its number in the accent, so the reader can see where
-   they were. */
+   past the block's 1px hairline and standing clear of it (`--lf-clear`), taking no
+   room, and shows it as Copy shows: while the pointer or focus is on the block, or
+   after a tap stands the user there. Hidden, the notes leave the code whole and each
+   annotated line keeps its number in the accent, so the reader can see where they
+   were. */
 lf-code:has(> .lf-code-bar) {
   position: relative;
 }
 lf-code > .lf-code-bar {
   position: absolute;
   z-index: 1;
-  inset-block-start: var(--lf-block-control-inset);
-  inset-inline-end: var(--lf-block-control-inset);
+  inset-block-start: calc(1px + var(--lf-clear));
+  inset-inline-end: calc(1px + var(--lf-clear));
   opacity: 0;
   pointer-events: none;
 }

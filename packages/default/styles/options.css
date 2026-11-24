@@ -326,7 +326,7 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
         var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--lf-sp-2)
       );
     }
-    & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
+    & > .lf-another:has(.lf-option-add:not([data-lf-empty])) > .lf-key-badge {
       inset-inline-end: var(--lf-option-write-badge-inset);
     }
     & > lf-option:has(> .lf-key-badge[data-lf-binding-badge]) > .lf-pick {
@@ -345,7 +345,7 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > .lf-another:has(> .lf-key-badge:not(:empty), .lf-compose-error:not([hidden])) {
       position: relative;
     }
-    & > .lf-another .lf-compose-submit {
+    & > .lf-another .lf-option-add {
       grid-area: 1 / 1;
       position: static;
       z-index: auto;
@@ -356,13 +356,13 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
         calc((var(--lf-option-line) - var(--lf-icon-action-face)) / 2);
     }
     @media (pointer: coarse) {
-      & > .lf-another .lf-compose-submit {
+      & > .lf-another .lf-option-add {
         position: relative;
         inset: auto;
       }
     }
     @media not (pointer: coarse) {
-      & > .lf-another .lf-compose-submit::after {
+      & > .lf-another .lf-option-add::after {
         content: none;
       }
     }
@@ -899,12 +899,12 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   .lf-another .lf-compose-placeholder {
     font: inherit;
   }
-  .lf-another .lf-compose-submit {
+  .lf-another .lf-option-add {
     inset-inline-end: var(--lf-option-add-seat-inset);
     inset-block-end: var(--lf-option-add-seat-end);
   }
   /* Keep an empty Add press visible while it owns focus after submission. */
-  .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) {
+  .lf-another .lf-option-add[data-lf-empty]:not([data-lf-focus]) {
     visibility: hidden;
   }
   /* The leading column holds the key badge (from an 8px inset, --lf-key-badge-size wide)
@@ -995,6 +995,21 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
     --lf-ground: color-mix(in srgb, var(--lf-card) 92%, var(--lf-ink));
     background: var(--lf-ground);
   }
+}
+/* The block an option row is about (§): its `for`, which lf-options writes. It points;
+ * it never supplies the row's words. It names the block by the name the chrome gives
+ * it, without the kind word a thread's § coordinate adds, and rides at the words' end,
+ * out of the way of what the row says. The user chose the block's name over showing
+ * its raw id as "what it is". */
+.lf-ref {
+  font: var(--lf-font-small);
+  color: var(--lf-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lf-ref:hover {
+  color: var(--lf-accent);
+  text-decoration: underline;
 }
 /* The reference floats to the end of the words' last line where it fits there and
  * drops under them where it doesn't, so the words keep the row's whole width and never

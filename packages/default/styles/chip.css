@@ -24,21 +24,16 @@
 }
 .lf-chip[data-lf-tone="ok"],
 :where(lf-option[recommended])::before {
-  --lf-tone-tint: var(--lf-ok-tint);
-  --lf-tone-ink: var(--lf-ok-ink);
+  background: var(--lf-ok-tint);
+  color: var(--lf-ok-ink);
 }
 .lf-chip[data-lf-tone="warn"] {
-  --lf-tone-tint: var(--lf-warn-tint);
-  --lf-tone-ink: var(--lf-warn-ink);
+  background: var(--lf-warn-tint);
+  color: var(--lf-warn-ink);
 }
 .lf-chip[data-lf-tone="danger"] {
-  --lf-tone-tint: var(--lf-danger-tint);
-  --lf-tone-ink: var(--lf-danger-ink);
-}
-.lf-chip[data-lf-tone],
-:where(lf-option[recommended])::before {
-  background: var(--lf-tone-tint);
-  color: var(--lf-tone-ink);
+  background: var(--lf-danger-tint);
+  color: var(--lf-danger-ink);
 }
 /* How many passages a version changed, counted on what holds them (a tab, a settled
  * decision): a chip in the tint the changed words wear. */

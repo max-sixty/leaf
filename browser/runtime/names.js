@@ -1,8 +1,7 @@
-/* The name Leaf's own surfaces show for a thing, for packages (`nameOf`): an element's,
-   the page's, a thread's or an On list row's. Each owner keeps its rule, and the
-   runtime's surfaces call the owner; this module only chooses among them by what it is
-   handed, so a widget that names one of these agrees with the panel, Threads and On Me
-   without knowing which rule names it.
+/* The name Leaf gives a thing in words, for packages (`nameOf`): an element's, the
+   page's, a thread's or an On list row's. Each owner keeps its rule, and the runtime's
+   surfaces call the owner; this module only chooses among them by what it is handed, so
+   a widget names any of these as Leaf does without knowing which rule names it.
 
    Two decisions, each with the alternative a later change might reach for:
 
@@ -22,7 +21,7 @@ import { threadName } from "./thread/messages.js";
 /** @typedef {import("./thread/workflow.js").ThreadRecord} Thread */
 /** @typedef {import("./queue-api.js").CurrentQueueItem} Row */
 
-/** The name Leaf's surfaces show for `thing`, or "" where they show none.
+/** The name Leaf gives `thing` in words, or "" where it gives none.
     @param {Element | Document | Thread | Row | null | undefined} thing */
 export function nameOf(thing) {
   if (!thing) return "";

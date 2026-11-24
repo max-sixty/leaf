@@ -25,8 +25,8 @@ export { widgetController } from "./widget-controller.js";
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
-// `nameOf(thing)`: the name Leaf's surfaces show for an element, the page, a thread or
-// an On list row.
+// `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
+// row, in words.
 export { nameOf } from "./names.js";
 // `titledElement(heading)`: the element a heading titles, its hgroup and the section or
 // article that opens with it, which a count per heading counts under that heading.

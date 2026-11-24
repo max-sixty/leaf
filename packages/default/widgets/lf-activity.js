@@ -58,7 +58,7 @@ const NAME = 60;
 
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
-function placeNamed(id) {
+function nameById(id) {
   const element = id ? elementById(id) : null;
   if (!element) return id || "the page";
   return excerptWords(nameOf(element), NAME) || `the ${addressableWord(element)}`;
@@ -74,7 +74,7 @@ function placeName(anchor, about) {
     return quoted(excerptWords(anchor.quote, NAME));
   if (anchor?.visual || anchor?.datum || about === "design")
     return excerptWords(anchorLabel(anchor, about), NAME);
-  return placeNamed(anchor?.section ?? null);
+  return nameById(anchor?.section ?? null);
 }
 
 /** @param {string} token */
@@ -138,7 +138,7 @@ function describe(row) {
           widget: row.anchor?.section ?? null,
           label: placeName(row.anchor, row.about),
         };
-      if (row.holds) return thread("paused", placeNamed(row.holds));
+      if (row.holds) return thread("paused", nameById(row.holds));
       return thread(
         row.drawing && !row.excerpt ? "drew on" : "commented on",
         placeName(row.anchor, row.about),
@@ -260,7 +260,7 @@ customElements.define(
       // Hold the complete drawn reading, including an undo or a changed title:
       // those may wrap too. The reactive reading supplies the authoritative history.
       for (const row of current) {
-        if (row.widget || row.label) row.label ??= placeNamed(row.widget);
+        if (row.widget || row.label) row.label ??= nameById(row.widget);
       }
       const wanted = JSON.stringify(current);
       if (this.#closedReading === null) this.#closedReading = wanted;

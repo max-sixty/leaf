@@ -34,10 +34,9 @@ document around it, as a contents list does, reads it with
 
 ### Naming
 
-To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name
-Leaf's own surfaces show for it, so a widget's words for it match the panel's,
-Threads' and On Me's. It names an element, the page (`document`), a thread from
-`readThreads()` and a row from `readQueues()`, and returns "" where Leaf shows no name.
+To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name Leaf
+gives it in words. It names an element, the page (`document`), a thread from
+`readThreads()` and a row from `readQueues()`, and returns "" where Leaf gives no name.
 An element's name is its title, caption or label; failing those, a paragraph or list
 item is named by its first words, and another element by the nearest named element
 around it. A registered widget with no name gets an empty name: say the
@@ -256,7 +255,7 @@ to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `us
 hand while its `state` is `running`, and a row in `done` ended as its `outcome` and
 `end` say. An obligation's row lists in `also` the ids of the other obligations the
 user answers at the same place, such as the agent's answer in a thread about it.
-`nameOf(row)` gives the words On Me names a row by ("Naming"). An obligation is
+`nameOf(row)` gives a row's name ("Naming"). An obligation is
 answered only through its widget or thread. Act on a collection only when its `phase`
 is `ready`.
 

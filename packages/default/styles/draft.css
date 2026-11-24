@@ -106,10 +106,9 @@ lf-draft > pre {
   .lf-draft-tools {
     position: absolute;
     z-index: 1;
-    /* Clear of the box's 1px border (`--lf-clear`), which these insets start inside,
-       so it stands as far from the box's outer edge as a code block's does. */
-    inset-block-start: var(--lf-clear);
-    inset-inline-end: var(--lf-clear);
+    /* Measured from the box's outer edge, past its 1px border, as a code block's is. */
+    inset-block-start: calc(var(--lf-block-control-inset) - 1px);
+    inset-inline-end: calc(var(--lf-block-control-inset) - 1px);
     opacity: 0;
     transition: opacity 120ms;
   }

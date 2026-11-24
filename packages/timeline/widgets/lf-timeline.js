@@ -26,7 +26,8 @@ import {
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
  * a reply shares. */
 import { render } from "/vendor/lit.js";
-import { failSoft, tabStore, whileConnected } from "/runtime/portable-api.js";
+import { tabStore, whileConnected } from "/runtime/portable-api.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 

@@ -80,13 +80,13 @@
 import {
   LeafElement,
   alreadyShown,
-  bodyText,
-  failSoft,
   onUserInput,
   scrollersOf,
   scrollIntoView,
   tabStore,
 } from "/runtime/portable-api.js";
+import { bodyText } from "/runtime/lib/data-body.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import {
   codeLanguage,

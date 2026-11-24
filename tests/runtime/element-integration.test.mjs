@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hostDeclaredElements } from "/runtime/element-integration.js";
 import { widgetState } from "/runtime/widget-controller.js";
-import { failureOf, placesFailure } from "/runtime/widget-upgrade.js";
+import { failureOf, placesFailure } from "/runtime/lib/failure.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
 import { readApplicationPresentation } from "/runtime/semantic-state.js";

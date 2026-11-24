@@ -131,7 +131,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # diagram package's does.
 SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
-import {PendingTaskEvent} from '/runtime/portable-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-sketch', class extends HTMLElement {
   connectedCallback() {

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { bodyText } from "/runtime/widget-upgrade.js";
+import { bodyText } from "/runtime/lib/data-body.js";
 
 const { cases } = JSON.parse(
   readFileSync(new URL("../body_text_cases.json", import.meta.url)),
@@ -429,7 +429,7 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   const { registry } = await import("/runtime/registry.js");
   const { preloadWidgets } = await import("/runtime/widget-loader.js");
   const { formatDeclaredMarkdown } = await import("/runtime/page-markdown.js");
-  const { dataBody } = await import("/runtime/widget-upgrade.js");
+  const { dataBody } = await import("/runtime/lib/data-body.js");
   registry["lf-source-contract"] = {
     content: "markdown",
   };

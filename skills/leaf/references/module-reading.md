@@ -295,16 +295,20 @@ thread, whether it was undone, the agent's name as `agent`, and a gesture's word
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads `readReports(this)` in its render:
-`{phase, reports}`. `phase` turns `ready` once the server's reading has arrived and
-the state the reports describe is drawn; until then, return `noChange`, and the widget
-draws again as it turns. Each report has `id`, `target`, `source`, `action`,
+A widget an agent reports on reads `readReports(this)` as it draws its `state`, in
+its `render()` or its `state` setter: `{phase, reports}`. `phase` turns `ready` once
+the server's reading has arrived and the state the reports describe is drawn. Until
+then the widget draws no report: a `render()` returns `noChange`. Leaf sets the
+widget's `state` again as `phase` turns `ready`, so it draws its reports then. Each
+report has `id`, `target`, `source`, `action`,
 `detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
 on the same unit and verb, or `settled` by a stamped version. The element form is for
-the widget's own render: its `phase` waits on that element's drawing, and only that
-element draws again as it turns. Pass `{kind: "widget", id}` for another widget's
-reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them; their
-`phase` is the page's.
+the widget's own drawing: its `phase` waits on that element's drawing, and Leaf sets
+only that element's `state` again. Pass `{kind: "widget", id}` for another widget's
+reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them. Those are
+page readings (`module-authoring.md`, "Drawing what a widget reads"): their `phase` is
+the page's, a `LeafElement`'s `render()` follows them, and nothing sets a plain
+element's `state` when they move.
 
 ### Reading version changes
 

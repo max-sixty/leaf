@@ -173,20 +173,23 @@ function createWidgetController(owner) {
   });
 }
 
-// A custom element constructed with document.createElement receives its authored id
-// only after its constructor and field initializers run. The descriptor is resolved
-// on first use, which is normally connectedCallback, so a data renderer can build a
-// replacement with the same revision-bound identity as the authored node.
 /** @type {WeakMap<Element, Controller>} */
 const created = new WeakMap();
-/** @param {Element} owner */
-function controllerOf(owner) {
+/** The controller of a widget the page has captured, made on the first call, with its
+ * watch of the owner's leaving and return. Leaf's own code asks here; a package asks
+ * `widgetController`.
+ * @param {Element} owner */
+export function controllerOf(owner) {
   let controller = created.get(owner);
   if (!controller) created.set(owner, (controller = createWidgetController(owner)));
   return controller;
 }
 
-/** What a package reads and records of a widget: `read` and `dispatch`.
+/** What a package reads and records of a widget: `read` and `dispatch`. A custom
+ * element constructed with document.createElement receives its authored id only after
+ * its constructor and field initializers run, so the descriptor is resolved on first
+ * use, which is normally connectedCallback, and a data renderer can build a
+ * replacement with the same revision-bound identity as the authored node.
  * @param {Element} owner @returns {WidgetController} */
 export function widgetController(owner) {
   let controller = controllers.get(owner);

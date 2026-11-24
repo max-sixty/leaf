@@ -33,9 +33,11 @@
    the history reading. A LeafElement reads them in render(), so Lit follows both
    initial state and later publications. A reading's `phase` is the page's, as
    `readHistory`'s is, so a render never narrates the empty feed a page holds before the
-   server's reading. A widget's reading, which it makes in its own render, also waits
-   until the projection has committed every report coordinate the widget holds: no
-   renderer narrates a report the widget has not yet painted.
+   server's reading. A widget's reading, which it makes as it draws its `state`, in a
+   render or a plain element's setter, also waits until the projection has committed
+   every report coordinate the widget holds: no renderer narrates a report the widget
+   has not yet painted. Leaf sets the widget's `state` again once that reading is
+   ready, so an element that follows no signal draws it too.
 
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
@@ -61,6 +63,7 @@ import {
 } from "./semantic-state.js";
 import { closestAcross } from "./lib/shadow-tree.js";
 import { runtime } from "./context.js";
+import { stateAgain } from "./element-integration.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
 /** @param {unknown} target @returns {ReportTarget | null} */
@@ -128,26 +131,31 @@ export const readHistory = readPart((root) => ({
   events: root.authoritative?.browser.history ?? [],
 }));
 
-// A report can speak only once the renderer of its widget and coordinate chrome have
-// committed, and any required asynchronous preparation, the same coordinator region
-// startup and pending release use: a report names its widget by id, so the reports
-// on a widget name no other. A widget asks in the update that draws its state, which
-// is its own render, so only its preparation and the coordinate chrome must have
-// committed. An update told no is asked to draw again once they have, and every
-// reading in that update is told yes: where the widget's own update holds its
-// preparation region, as one Leaf sets nothing on does, asking again would never find
-// the region free.
-/** @typedef {Element & {requestUpdate(): void, updateComplete: Promise<unknown>}} Drawer */
+// A report can speak only once the server's reading has arrived and the renderer of
+// its widget and coordinate chrome have committed, with any required asynchronous
+// preparation, the same coordinator region startup and pending release use: a report
+// names its widget by id, so the reports on a widget name no other. A widget asks as
+// it draws its `state`, which is its own render, so only its preparation and the
+// coordinate chrome must have committed. A draw told no is owed another once they
+// have, which Leaf starts as it starts any element's draw, by setting the element's
+// `state` again (`stateAgain`, element-integration.js). Leaf makes that set before
+// any microtask runs, and every reading until then is told yes, since a draw that
+// begins preparation before it reads would never find the region free. An element
+// that left is set as it returns, and asks afresh then. An element Leaf sets no
+// `state` on has no report of its own and no draw Leaf can start, so it waits on
+// nothing here.
 /** @type {WeakSet<Element>} */
 const proven = new WeakSet();
 /** @type {WeakSet<Element>} */
 const waiting = new WeakSet();
 /** @param {Element} target */
 const committed = (target) =>
+  runtime.statePhase === "ready" &&
   applicationRegionsPresented(["projection:chrome", `widget:${target.id}:preparation`]);
-/** @param {Drawer} target */
+/** @param {Element} target */
 const reportsReady = (target) => {
-  if (proven.has(target) || committed(target)) return true;
+  const again = stateAgain(target);
+  if (!again || proven.has(target) || committed(target)) return true;
   if (waiting.has(target)) return false;
   waiting.add(target);
   // The watch's first call comes before it has returned its stop.
@@ -157,28 +165,23 @@ const reportsReady = (target) => {
     watch.done = true;
     watch.stop?.();
     waiting.delete(target);
-    if (!target.isConnected) return;
-    proven.add(target);
-    target.requestUpdate();
-    const release = () => proven.delete(target);
-    target.updateComplete.then(release, release);
+    if (target.isConnected) {
+      proven.add(target);
+      queueMicrotask(() => proven.delete(target));
+    }
+    again();
   });
   if (watch.done) watch.stop();
   return false;
 };
 
-// A widget's reading, in its own render, also waits on its report coordinates
-// (`reportsReady`) once the page's reading has arrived; a thread's, or the whole
-// feed's, phase is the page's.
-/** @param {Drawer | ReportTarget | null} [target] */
+// A widget's reading, as it draws its `state`, also waits on its report coordinates
+// (`reportsReady`), which it asks in every phase: a draw told that the page waits is
+// owed another too. A thread's, or the whole feed's, phase is the page's.
+/** @param {Element | ReportTarget | null} [target] */
 export const readReports = (target = null) => {
   const reports = reportSequence(target);
   const phase = runtime.statePhase;
-  return {
-    phase:
-      phase === "ready" && target instanceof Element && !reportsReady(target)
-        ? "waiting"
-        : phase,
-    reports,
-  };
+  const waits = target instanceof Element && !reportsReady(target);
+  return { phase: waits && phase === "ready" ? "waiting" : phase, reports };
 };

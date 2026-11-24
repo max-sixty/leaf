@@ -226,4 +226,5 @@ on this protocol. It says `lf-connect`, announces each of its updates with
 `pending-task`, defines `redraw()`, and wraps the events as `record()`, `takeBack()`
 and `defer()` (`module-state.md`, "The widget controller"). Extend it where the widget
 draws from a page reading, such as obligations, history or the time, which its
-`render()` follows.
+`render()` follows. The one page reading a plain element's `state` setter can draw is
+its own reports (`module-reading.md`, "Page history and reports").

@@ -87,7 +87,6 @@ import {
   dragging,
   motion,
   scrollerFor,
-  rankAt,
   focusDestination,
   scrollIntoView,
   whileConnected,
@@ -98,6 +97,7 @@ import {
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { byRank, rankAt } from "/runtime/lib/rank.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -173,6 +173,11 @@ function valuelessFault(card, { owner, record }) {
  * answer a board can show (`shownWidget`), or a widget whose state has not loaded.
  * Reading it reads that widget's own published state, and changing it sends the
  * widget's own command through its controller, the same command its own control sends.
+ * `render()` follows the controller's reading, so the board draws again when the
+ * answer changes. The widget's `state` property holds the same answer, but Leaf sets
+ * it on that widget alone and the board's own state does not change with it, so
+ * nothing would draw the board again: a card read from the property stays in its
+ * column after a pick.
  * `value` is the value the answer names now (null for none), `available` whether the
  * user can change it, `takes(value)` whether the widget can answer `value` (null
  * clears a pick), and `answer(value, says)` sends the widget's command, returning
@@ -1002,15 +1007,8 @@ customElements.define(
         }
         destination.push(card.id);
       }
-      // By rank, ties by id, as the position fold orders a column (projection/model.js).
-      /** @param {string} id @returns {[string, string]} */
-      const key = (id) => [ranks[id] ?? "", id];
-      /** @param {string} a @param {string} b */
-      const before = (a, b) => {
-        const [x, y] = [key(a), key(b)];
-        return x[0] !== y[0] ? (x[0] < y[0] ? -1 : 1) : x[1] < y[1] ? -1 : 1;
-      };
-      for (const cards of Object.values(columns)) cards.sort(before);
+      // As the position fold orders a column.
+      for (const cards of Object.values(columns)) cards.sort(byRank(ranks));
       return columns;
     }
 

@@ -7,6 +7,7 @@
    projection/authored.js: a map from widget id to `{state, specs}`. */
 
 import { keptEach } from "../kept.js";
+import { byRank } from "../lib/rank.js";
 
 /** @typedef {import("../../types/domain.js").ProjectionEntry} ProjectionEntry */
 /** @typedef {import("../../types/domain.js").ClassifiedEntry} ClassifiedEntry */
@@ -198,103 +199,9 @@ export function projectionOrigins(authoredSnapshots, projection) {
   return [...origins.values()];
 }
 
-/* Rank keys: where a unit stands among its container's siblings, as a coordinate of its
-   own.
-
-   A position record carries a rank rather than an index. A rank is a base-36 fraction
-   written as its digits after the point, `0-9a-z`, never ending in `0`, so ordinary
-   string order is numeric order and there is always a key strictly between two others.
-   A container lists its units by rank, ties by id. An index counts siblings, so it means
-   something only against the order the other moves left; a rank means the same thing
-   whichever of the other moves stand, so undoing or superseding one card's move never
-   shifts another card.
-
-   Authored units rank by their authored index, `authoredRank(i)`, a key that does not
-   depend on how many siblings follow. `projection.py`'s `authored_rank` and `RANK`
-   state the same two rules for the Python fold and the append door, and
-   `tests/rank_cases.json` holds both runtimes to the same cases.
-
-   A rank lies among the container's authored units on the revision the user moved on,
-   so it holds while a revision authors them the same way. A revision that authors them
-   differently absorbs the move: it writes the unit where the move left it, and its
-   markup places the unit. The server marks such an entry `absorbed` for the document
-   it reads, and it no longer places its unit. */
-
-const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-/** @param {number} index */
-export const authoredRank = (index) =>
-  "z".repeat(Math.floor(index / 35)) + DIGITS.charAt((index % 35) + 1);
-
-/** @param {Record<string, string>} ranks */
-const byRank = (ranks) => /** @param {string} a @param {string} b */ (a, b) => {
-  const left = ranks[a];
-  const right = ranks[b];
-  if (left !== undefined && right !== undefined && left !== right)
-    return left < right ? -1 : 1;
-  return a < b ? -1 : a > b ? 1 : 0;
-};
-
-// A key strictly between `before` ("" is the start) and `after` (null is the end).
-// Equal bounds have nothing between them, so the key ties and ids decide. An open end
-// steps one digit past its neighbour rather than halving the gap, so a column that only
-// ever grows at one end gains a character per 35 drops rather than per 5; an empty
-// container starts in the middle.
-/** @param {string} before @param {string | null} after @returns {string} */
-function rankBetween(before, after) {
-  if (after === null) return before ? rankAfter(before) : "i";
-  if (!before) return rankBefore(after);
-  if (before >= after) return before;
-  return midpoint(before, after);
-}
-
-/** @param {string} key @returns {string} */
-function rankAfter(key) {
-  const digit = DIGITS.indexOf(key.charAt(0));
-  if (digit < DIGITS.length - 1) return DIGITS.charAt(digit + 1);
-  return "z" + (key.length > 1 ? rankAfter(key.slice(1)) : "1");
-}
-
-/** @param {string} key @returns {string} */
-function rankBefore(key) {
-  if (key.length > 1 && key.charAt(0) !== "0") return key.charAt(0);
-  const digit = DIGITS.indexOf(key.charAt(0));
-  if (digit > 1) return DIGITS.charAt(digit - 1);
-  return "0" + (key.length > 1 ? rankBefore(key.slice(1)) : "z");
-}
-
-/** @param {string} before @param {string | null} after @returns {string} */
-function midpoint(before, after) {
-  if (after !== null) {
-    let n = 0;
-    while ((before[n] ?? "0") === after[n]) n += 1;
-    if (n > 0) return after.slice(0, n) + midpoint(before.slice(n), after.slice(n));
-  }
-  const low = before ? DIGITS.indexOf(before.charAt(0)) : 0;
-  const high = after !== null ? DIGITS.indexOf(after.charAt(0)) : DIGITS.length;
-  if (high - low > 1) return DIGITS.charAt(Math.round((low + high) / 2));
-  if (after !== null && after.length > 1) return after.charAt(0);
-  return DIGITS.charAt(low) + midpoint(before.slice(1), null);
-}
-
-// The rank that puts `unit` at `index` among the other units a position verb's state
-// lists in `container`: the widget's own reading of where a gesture dropped it.
-/** @param {PositionValue} state @param {string} container @param {number} index @param {string} unit */
-export function rankAt({ value, ranks }, container, index, unit) {
-  const members = value[container];
-  if (!members) throw new Error(`Unknown position container ${container}`);
-  const others = members.filter((id) => id !== unit);
-  const before = others[index - 1];
-  const after = others[index];
-  return rankBetween(
-    before ? (ranks[before] ?? "") : "",
-    after ? (ranks[after] ?? null) : null,
-  );
-}
-
 // Compose complete verb values in memory. A position record the document has not
-// absorbed places its unit at the rank it names, a coordinate of that unit's own (rank keys
-// above), so each container lists its units by rank once every placement in force is
+// absorbed places its unit at the rank it names, a coordinate of that unit's own
+// (lib/rank.js), so each container lists its units by rank once every placement in force is
 // in. `projection.py`'s `folded_positions` is the server's reading of the same rule.
 //
 // Each widget's folded state is kept (`kept.js`) by its authored state and the entries

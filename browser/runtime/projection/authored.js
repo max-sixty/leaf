@@ -7,7 +7,7 @@ import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
 import { readPart } from "../semantic-state.js";
 import { dataBody } from "../widget-upgrade.js";
-import { authoredRank } from "./model.js";
+import { authoredRank } from "../lib/rank.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */

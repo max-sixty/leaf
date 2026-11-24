@@ -383,6 +383,8 @@
   const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
+  // Where the tab keeps the run of held keys (`holdEarlyKeys`).
+  const HELD_KEYS = "lf-held-keys";
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -398,18 +400,47 @@
     // was writing in a box (`typing`), a user typing through the reload means their
     // keys as words for that box: a Space starts a run as a letter does, rather than
     // scrolling the page, and the hold takes keys whatever the single-key preference.
-    const { handoff } = window.lfStorage;
+    const { handoff, tabStore } = window.lfStorage;
     const handedBack = handoff !== null;
     const typingBack = handoff?.typing === true;
-    // The run starts with the keys the document before this one held for the same
-    // place and never pressed, which it left with the handoff when it went before its
-    // arrival had put the user back (below).
+    // The run is kept in the tab as it changes, as each key is held, pressed or let go
+    // (`save`), so a document that goes leaves the keys it held and never pressed. A
+    // reload Leaf asks for of the same address hands a place back, and its document's
+    // run starts with those keys, even where the document before it had put its own
+    // place back and was pressing them as it went; any other load starts a run of its
+    // own.
     /** @type {KeyboardEvent[]} */
-    const held = (
-      Array.isArray(handoff?.keys)
-        ? /** @type {KeyboardEventInit[]} */ (handoff.keys)
-        : []
-    ).map((init) => new KeyboardEvent("keydown", init));
+    const held = (() => {
+      if (!handedBack) return [];
+      try {
+        const kept = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
+        return Array.isArray(kept)
+          ? kept.map((init) => new KeyboardEvent("keydown", init))
+          : [];
+      } catch {
+        return [];
+      }
+    })();
+    const save = () =>
+      tabStore.set(
+        HELD_KEYS,
+        held.length
+          ? JSON.stringify(
+              held.map(
+                ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
+                  key,
+                  code,
+                  location,
+                  shiftKey,
+                  ctrlKey,
+                  altKey,
+                  metaKey,
+                }),
+              ),
+            )
+          : null,
+      );
+    save();
     /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
     /** @type {(() => boolean) | null} */
@@ -453,12 +484,14 @@
     };
     const letGo = () => {
       held.length = 0;
+      save();
       hide();
     };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
+      save();
       if (taken) return;
       if (shown) show();
       else beat ||= setTimeout(show, 150);
@@ -510,8 +543,10 @@
     const pointed = () => letGo();
     // The controller takes a run, but the hold stands until its owner has pressed the
     // last key in it: a printed key pressed meanwhile joins the same run rather than
-    // running ahead of the keys pressed before it. Words already shown stand until the
-    // run is pressed or pauses on a key that must still wait, which they then name.
+    // running ahead of the keys pressed before it. Each key leaves the run as the
+    // controller presses it (`pressed`), and a release lets go of any it leaves. Words
+    // already shown stand until the run is pressed or pauses on a key that must still
+    // wait, which they then name.
     /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
@@ -524,6 +559,10 @@
       clearTimeout(beat);
       beat = 0;
       event.detail.keys = held;
+      event.detail.pressed = () => {
+        held.shift();
+        save();
+      };
       event.detail.pause = () => {
         taken = false;
         if (!keep?.()) return stopHoldingKeys();
@@ -531,7 +570,7 @@
       };
       event.detail.release = () => {
         taken = false;
-        hide();
+        letGo();
         if (!keep?.()) stopHoldingKeys();
       };
     };
@@ -563,30 +602,6 @@
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
     if (held.length) beat = setTimeout(show, 150);
-    // A document that goes while the tab still keeps the handoff, its arrival not yet
-    // having put the user back (version.js, `installArrival`), as when a second reload
-    // Leaf asks for comes first, leaves its held keys with that handoff, so the next
-    // document holds them for the same place rather than losing words typed for it. It
-    // leaves the queue as it stands, empty too: a key the run pressed, or one the user
-    // let go of, as by a press or Escape (`letGo`), is no longer held for that place.
-    if (handedBack)
-      addEventListener("pagehide", () => {
-        if (!window.lfStorage.handoffKept()) return;
-        window.lfStorage.handOff({
-          ...handoff,
-          keys: held.map(
-            ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
-              key,
-              code,
-              location,
-              shiftKey,
-              ctrlKey,
-              altKey,
-              metaKey,
-            }),
-          ),
-        });
-      });
   }
 
   // A small public-site profile separates browser upgrade from the first state

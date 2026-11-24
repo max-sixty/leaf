@@ -62,8 +62,7 @@
  * presents, the words being written with their native editing session, the comparison
  * and the pointer. The document that reload loads consumes it, at that revision or a
  * newer one, once its arrival has put back what it carries; one that goes before then,
- * as by a second reload Leaf asks for, leaves it to the next, with the keys held for it
- * (`installArrival`). Where the user was belongs to the entry they left, so an arrival
+ * as by a second reload Leaf asks for, leaves it to the next (`installArrival`). Where the user was belongs to the entry they left, so an arrival
  * at another, as after Back taken before Leaf starts, takes from the handoff only what
  * it carries of the document: the values, disclosures, comparison and pointer, which a
  * Back within one document keeps too. Since it describes the moment the document went,
@@ -73,7 +72,8 @@
  * keys wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put
  * back, as text in the reply box they were writing in. Waiting keys are no input
  * (document-inputs.js, `holdKeys`), so they don't end the return; any other input
- * does, and drops them. An in-place patch is no navigation, so it restores the page's
+ * does, and drops them. The keys not yet pressed when the document goes carry to the
+ * next reload Leaf asks for of the address (bootstrap.js, `holdEarlyKeys`). An in-place patch is no navigation, so it restores the page's
  * place, the margin's and the panel's thread location, focus, and the selected
  * obligation by id itself; it gives an unnamed replaced control no guessed focus.
  * Explicit historical travel carries reading position and the decision landmark,
@@ -3248,8 +3248,8 @@ export function createVersionController({
     // The handoff prepaint read for a reload of its address. It stays in the tab until
     // this arrival has put back what it carries (history.js, `settled`), so a document
     // that goes before then, as by a second reload Leaf asks for, leaves the next one
-    // the same handoff, with the keys held for it (`pagehide`); then it is dropped. One
-    // that isn't this document's is dropped as the document arrives, however it arrived.
+    // the same handoff (`pagehide`); then it is dropped. One that isn't this document's
+    // is dropped as the document arrives, however it arrived.
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
       return currentRevision !== null &&
@@ -3284,7 +3284,7 @@ export function createVersionController({
     })();
     addEventListener("pagehide", () => {
       // The arrival still owes the user the handoff's place, so the tab keeps that
-      // handoff for the next document, with the keys held for it (bootstrap.js).
+      // handoff for the next document.
       if (handoff && arrival.owes()) return;
       if (!anchoringIsReady()) return;
       const revision = runtime.currentRevision;

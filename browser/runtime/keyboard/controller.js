@@ -201,7 +201,7 @@ export function mountKeyboard({
       },
     });
     document.dispatchEvent(taking);
-    const { keys, pause, release } = taking.detail;
+    const { keys, pressed, pause, release } = taking.detail;
     // An empty or ended hold has nothing to hand over.
     if (!keys) return;
     pressingHeld = true;
@@ -214,10 +214,10 @@ export function mountKeyboard({
         return;
       }
       // With single-key commands off, a held key only ever types into a box, as the
-      // words a user typed through a reload do into the box it hands back.
-      if (!quickShortcuts() && !typesText(focused())) keys.length = 0;
+      // words a user typed through a reload do into the box it hands back; the release
+      // lets go of the rest.
       const [key] = keys;
-      if (!key) {
+      if (!key || (!quickShortcuts() && !typesText(focused()))) {
         release();
         pressingHeld = false;
         return;
@@ -227,7 +227,7 @@ export function mountKeyboard({
         pressingHeld = false;
         return;
       }
-      keys.shift();
+      pressed();
       // The hold prevented each key's own insertion, so one whose turn comes in a box
       // an earlier key opened is typed into it here, as the browser would have.
       if (key.key.length === 1 && typesText(focused()))

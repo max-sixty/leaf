@@ -115,12 +115,9 @@ interface Window {
     readonly handoff: {
       readonly url?: unknown;
       readonly typing?: unknown;
-      readonly keys?: unknown;
       readonly carry?: unknown;
     } | null;
     handOff(value: unknown): boolean;
-    /** Whether the tab still keeps a handoff (version.js, `installArrival`). */
-    handoffKept(): boolean;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };
@@ -243,8 +240,15 @@ interface DocumentEventMap {
       ready(event: KeyboardEvent): boolean;
       keep(): boolean;
     } & (
-      | { keys?: never; pause?: never; release?: never }
-      | { keys: KeyboardEvent[]; pause(): void; release(): void }
+      | { keys?: never; pressed?: never; pause?: never; release?: never }
+      | {
+          keys: readonly KeyboardEvent[];
+          /** The first key leaves the run as the controller presses it. */
+          pressed(): void;
+          pause(): void;
+          /** Ends the take, letting go of any key the run still holds. */
+          release(): void;
+        }
     )
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null

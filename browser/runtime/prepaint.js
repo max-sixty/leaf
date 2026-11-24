@@ -331,8 +331,8 @@
   // controller read the one value: a reload of the address it was written for. The
   // first reader asks after the bootstrap has taken Leaf's marks off the address. The
   // version controller drops it from the tab once its arrival has put back what it
-  // carries, so a document that reloads again before then leaves it for the next, with
-  // the keys held for it (version.js, `installArrival`).
+  // carries, so a document that reloads again before then leaves it for the next
+  // (version.js, `installArrival`).
   const HANDOFF_KEY = "lf-revision-handoff";
   /** @type {{url?: unknown, typing?: unknown} | null} */
   let handoff = null;
@@ -363,9 +363,6 @@
     /** @param {unknown} value null drops it */
     handOff: (value) =>
       tabStore.set(HANDOFF_KEY, value === null ? null : JSON.stringify(value)),
-    // Whether the tab still keeps a handoff, which the document that read it drops
-    // once its arrival has put back what it carries.
-    handoffKept: () => tabStore.get(HANDOFF_KEY) !== null,
     keepDisclosure,
     finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.

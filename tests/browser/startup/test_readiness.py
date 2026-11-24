@@ -781,6 +781,86 @@ def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve
     expect(reply).to_have_js_property("value", "Hold the resend")
 
 
+# In the first document the next reload brings, a reload Leaf asks for (layer-client.js,
+# `reloadDocument`) as the held key `x` goes into the box it replays into, with no frame
+# after it, so the keys after `x` are still held as the document goes.
+RELOAD_AS_X_REPLAYS = """(() => {
+  const loads = Number(sessionStorage.getItem("test-x-loads") || 0) + 1;
+  sessionStorage.setItem("test-x-loads", String(loads));
+  if (loads !== 1) return;
+  const frame = window.requestAnimationFrame.bind(window);
+  let gone = false;
+  window.requestAnimationFrame = (callback) => (gone ? 0 : frame(callback));
+  let reload = null;
+  document.addEventListener("lf-upgraded", () => {
+    const entry = document.querySelector('script[type="module"][src$="/leaf.js"]');
+    void import(new URL("runtime/layer-client.js", entry.src).href).then((module) => {
+      reload = module.reloadDocument;
+    });
+  });
+  addEventListener("input", (event) => {
+    if (gone || !reload || event.data !== "x") return;
+    gone = true;
+    reload();
+  }, true);
+})()"""
+
+
+def test_keys_still_held_as_another_reload_comes_follow_the_first_into_the_reply(
+    browser, serve
+):
+    """Words the user typed through a reload Leaf asked for go into the reply box it
+    hands back one key at a time. Another reload coming after the first key has gone in
+    hands the box back again, and the keys still to go follow there, rather than going
+    with the document that was pressing them."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    reply = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
+        ".lf-thread-reply leaf-text"
+    )
+    write(reply, "Hold")
+    page.add_init_script(RELOAD_AS_X_REPLAYS)
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.keyboard.type("xyz")
+    finally:
+        page.unroute("**/leaf.js")
+    with page.expect_navigation(wait_until="commit"):
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    expect(reply).to_have_js_property("value", "Holdxyz")
+
+
 def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
     browser, serve
 ):

@@ -7,8 +7,8 @@
    the keys it declares as `lfCommands`, what pointing at an element reads
    (`lfPreview`, preview.js, `lf-preview` as that changes, and `lf-preview-ended` as
    the preview goes), the words it asks a
-   listener to hear (`lf-announce`), the inventory of Comment targets it registers
-   (`registerVisualParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
+   listener to hear (`lf-announce`), the inventory of Comment targets it states
+   (`data-lf-part` marks or `lfParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
    code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, shows no
    preview, says nothing aloud, offers no Comment target and shows no Leaf control.
@@ -28,7 +28,6 @@ export {
   placesFailure,
 } from "./widget-upgrade.js";
 export { measure } from "./shown-box.js";
-export { registerVisualParts } from "./visual-parts.js";
 export { tabStore } from "./tab-store.js";
 
 export { actionClass } from "./control-faces.js";

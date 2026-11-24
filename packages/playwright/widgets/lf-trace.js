@@ -99,8 +99,6 @@ import {
   move,
   onUserInput,
   signal,
-  quoted,
-  registerVisualParts,
   scopedMediaUrl,
   retainUserIntent,
   scrollIntoView,
@@ -371,13 +369,6 @@ export class Trace extends LeafElement {
   #scope = null;
   /** @type {string | null} */
   #selected = null;
-  /** @type {ReturnType<typeof registerVisualParts> | null} */
-  #visualParts = null;
-  get #parts() {
-    if (!this.#visualParts)
-      throw new Error("The recording has not registered its visual parts");
-    return this.#visualParts;
-  }
   /** @type {import("../../../browser/runtime/visual-parts.js").VisualPart[]} */
   #inventory = [];
   /** @type {Map<string, TraceTarget>} */
@@ -579,14 +570,14 @@ export class Trace extends LeafElement {
     const image = this.#committedPicture.image;
     this.#applyPictureView(this.#picture, image);
     this.#imageZoom();
-    this.#parts.update();
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   };
 
   setup() {
     this.#build();
     const timeline = this.#nodes.timelineHost;
     // Element command scopes leave with their element; a return keeps the declaration.
-    if (!quoted(this)) {
+    if (!this.matches("[data-lf-exhibit] *")) {
       this.lfCommands = {
         title: "In a Playwright recording",
         rows: [
@@ -738,7 +729,7 @@ export class Trace extends LeafElement {
     // drawing; neither region holds a Lit child part.
     this.#nodes.viewport.append(this.#missingImage, ...this.#overlays());
     this.#drawnTimeline = new RecordingTimeline(this.#nodes.timelineHost, {
-      quoted: quoted(this),
+      quoted: this.matches("[data-lf-exhibit] *"),
       onSeek: (time, final) => this.#seek(time, final),
       onPick: (lane, id, time) => this.#pick(lane, id, time),
       onUserPan: () => {
@@ -751,11 +742,12 @@ export class Trace extends LeafElement {
         ),
     });
     this.addEventListener("lf-inspect", (event) => this.#inspect(event));
-    this.#visualParts = registerVisualParts(this, () => this.#inventory, {
-      label: (id) => this.#targets.get(id)?.label ?? null,
-      reveal: (id) => this.#reveal(id),
-    });
-    if (!quoted(this)) {
+    this.lfParts = {
+      read: () => this.#inventory,
+      label: (/** @type {string} */ id) => this.#targets.get(id)?.label ?? null,
+      reveal: (/** @type {string} */ id) => this.#reveal(id),
+    };
+    if (!this.matches("[data-lf-exhibit] *")) {
       this.#nodes.timelineHost.lfCommands = {
         title: "On a recording timeline",
         rows: [
@@ -1560,7 +1552,7 @@ export class Trace extends LeafElement {
     this.#scopeView().image = null;
     this.#applyPictureView(this.#picture, image);
     this.#imageZoom();
-    this.#parts.update();
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
   /** @param {Viewer | null} viewer */
@@ -1860,12 +1852,12 @@ export class Trace extends LeafElement {
           },
           moved: () => {
             this.#rememberPictureView(pending.viewer);
-            this.#parts.update();
+            this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
           },
           zoomed: () => {
             this.#rememberPictureView(pending.viewer);
             this.#imageZoom();
-            this.#parts.update();
+            this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
           },
         });
       }, failed);
@@ -2161,7 +2153,7 @@ export class Trace extends LeafElement {
     rows = [],
   ) {
     const trace = this.#trace;
-    const q = quoted(this);
+    const q = this.matches("[data-lf-exhibit] *");
     const items = this.#items();
     const extent = this.#imageSizes.get(this.#scope);
     const choices = trace ? this.#scopeChoices() : [];
@@ -2590,7 +2582,7 @@ export class Trace extends LeafElement {
           "aria-label",
           "Captured image. Arrow keys pan the image; use image controls to zoom or fit.",
         );
-        if (!quoted(this)) {
+        if (!this.matches("[data-lf-exhibit] *")) {
           canvas.lfCommands = {
             title: "In a captured image",
             rows: [
@@ -2731,7 +2723,9 @@ export class Trace extends LeafElement {
       if (!marked.has(element)) for (const name of MARKS) element.removeAttribute(name);
     this.#marked = marked;
     this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
-    this.#parts.update();
+    this.dispatchEvent(
+      new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+    );
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
     );

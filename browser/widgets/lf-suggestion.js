@@ -23,7 +23,6 @@ import {
   commandScope,
   LeafElement,
   failSoft,
-  quoted,
   registerContribution,
   says,
 } from "/runtime/widget-api.js";
@@ -229,7 +228,7 @@ customElements.define(
       // Quoted material is exhibited, not offered: a suggestion inside an
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
-      if (quoted(this) || this.#margin) return;
+      if (this.matches("[data-lf-exhibit] *") || this.#margin) return;
       this.#ensureCommands();
       this.#margin = registerContribution({
         key: `suggestion:${this.id}`,
@@ -571,7 +570,7 @@ customElements.define(
     render() {
       const { state } = this;
       this.#draw(state);
-      if (quoted(this) || !this.#margin) return nothing;
+      if (this.matches("[data-lf-exhibit] *") || !this.#margin) return nothing;
       // Signals publish before the projection adapter. Keep the currently focused entry
       // until that adapter applies the new state: the next complete reading can hand
       // focus directly to its semantic replacement instead of losing the user's place

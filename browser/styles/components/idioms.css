@@ -58,11 +58,10 @@
   }
 
   /* The one paragraph a user is guaranteed to read, so it is set as one: larger than the
-     body, looser, and in the ink the body isn't. In a box under 15rem wide, such as a
-     page of parts' column (layouts.css, "A page of parts"), it takes the size the face
-     sets the prose around it (reading.css), or the browser's without the face, since
-     set larger it ran three or four words to a line and left the list of parts a strip
-     at the window's foot. */
+     body, looser, and in the ink the body isn't. In a page of parts' header
+     (layouts.css, "A page of parts") it takes the size the face sets the prose around
+     it (reading.css), or the browser's without the face, since set larger it ran three
+     or four words to a line and left the list of parts a strip at the window's foot. */
   h1 + .lf-lede {
     margin-block-start: 12px;
   }
@@ -72,7 +71,7 @@
     line-height: 1.5;
     margin: 0 0 10px;
   }
-  @container (width < 15rem) {
+  @container style(--lf-parts-title: 1) {
     .lf-lede {
       font-size: revert-layer;
       line-height: revert-layer;

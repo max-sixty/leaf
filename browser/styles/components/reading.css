@@ -599,12 +599,17 @@
     hgroup > :is(h1, h2, h3):not(:first-child) {
       margin-top: 10px;
     }
-    /* A box under 15rem wide, such as the header of a page of parts' column
-     * (layouts.css, "A page of parts"), held three or four words of prose a line at the
-     * body's size. In one, prose steps down to the size of a list's names, and the title
-     * to a section heading's. The box's width decides it, so a page's own box that narrow
-     * gets the same. An eyebrow, a caption or a chip keeps the size it sets for itself. */
-    @container (width < 15rem) {
+    /* A page of parts' header heads the column its list of parts stands in, and shares
+     * the column's height with that list (layouts.css, "A page of parts"). At the
+     * body's size, prose there ran three or four words a line, and every line it took
+     * was one the list lost. So what the header says is set at the size of the list's
+     * names, and its title at a section heading's. An eyebrow, a caption or a chip keeps
+     * the size it sets for itself, by its rule's weight in this layer. The Layout's
+     * fact decides it, not the header's width: a narrow box elsewhere has the page's
+     * height to grow into. Rejected: a size query on boxes under 15rem, since three
+     * option cards across a reading column hold 207px of text and the header 200px, so
+     * no width parts them. */
+    @container style(--lf-parts-title: 1) {
       p,
       ul,
       ol,

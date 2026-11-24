@@ -20,13 +20,14 @@ from interact_support import (
     fetch,
     wait_for,
 )
+from model_folds import leaf_page
 
 from leaf import cli as cli_model
 from leaf import server, service
 from leaf.interaction_log import read_interactions
 from leaf.layer import stylesheet
 from leaf.media import media_name
-from leaf.registry.storage import layer_record, load_registry, selected
+from leaf.registry.storage import layer_packages, layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
@@ -583,6 +584,26 @@ def test_a_page_directory_source_takes_its_layer_records_packages(tmp_path):
     assert result.exit_code == 0, result.output
 
     assert preview.source_packages(page / "index.html") == ["diagram"]
+
+
+def test_a_page_directory_source_builds_with_the_package_copy_it_holds(
+    tmp_path, monkeypatch
+):
+    """A path in a page's layer record names the copy inside that page directory,
+    which a build reaches from the checkout's root, where it runs `page init`."""
+    monkeypatch.chdir(ROOT)
+    page = tmp_path / "page"
+    selection = ["--package", "./tests/fixtures/packages/shortlist"]
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", *selection, str(page)])
+    assert result.exit_code == 0, result.output
+    source = page / "index.html"
+    source.write_text(leaf_page("Shortlist", "<h1>Shortlist</h1>"))
+
+    built = tmp_path / "built"
+    prepare_page(built, read_fixture(source), leaf_in_process, final_status=None)
+
+    assert layer_packages(built) == ["./packages/shortlist"]
+    assert load_registry(built)["lf-shortlist"] == load_registry(page)["lf-shortlist"]
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):

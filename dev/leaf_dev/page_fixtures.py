@@ -10,6 +10,8 @@ content inputs in their callers.
 
 import functools
 import json
+import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -26,7 +28,7 @@ from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.registry.storage import layer_packages
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
-from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import HTML_NAME, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
@@ -117,9 +119,19 @@ def source_manifest(source: Path) -> Path | None:
 
 
 def source_packages(source: Path) -> list[str]:
-    # A page directory's `index.html` takes the selection its layer record keeps.
-    if (packages := layer_packages(source.parent)) is not None:
-        return packages
+    """The packages `source` selects, as `page init` takes them when it runs from this
+    checkout's root: a path in the selection starts there."""
+    # A page directory's `index.html` takes the selection its layer record keeps. The
+    # record names each package copy the page holds by its path from the page
+    # directory, so that path is restated from the root.
+    page = source.parent
+    if (packages := layer_packages(page)) is not None:
+        return [
+            value
+            if re.fullmatch(HTML_NAME, value)
+            else os.path.relpath(page / value, ROOT)
+            for value in packages
+        ]
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 

@@ -594,8 +594,8 @@ customElements.define(
         const returning =
           connected &&
           returnFrom &&
-          /** @type {Document | ShadowRoot} */ (returnFrom.getRootNode()).activeElement ===
-            returnFrom;
+          /** @type {Document | ShadowRoot} */ (returnFrom.getRootNode())
+            .activeElement === returnFrom;
         if (of === file) {
           paint();
           if (returning && returnFrom.hidden) returnToEditor();

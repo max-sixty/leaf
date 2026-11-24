@@ -186,13 +186,13 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     # Opening peer actions leaves one direct entry beside an options group. That
     # wider row cannot supply the allocation of a new single-entry comment row.
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'rail-details', target: document.querySelector('#subject'),
-        read: () => ({entries: [contributionEntry({
+        read: () => ({entries: [{
           key: 'details', icon: 'comment', label: 'Rail details',
           behavior: 'disclosure', rank: 'reading'
-        })]}), activate: () => {}});
+        }]}), activate: () => {}});
     }""")
     entry.focus()
     expect(
@@ -729,9 +729,9 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
                 page.mouse.move(20, 20)
             before = pin.bounding_box()
             page.evaluate("""async()=>{
-              const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
+              const {registerContribution}=await window.__lfWidgetApi();
               window.railActivated=false;
-              window.newRail=registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate rail'})]}),activate:()=>{window.railActivated=true;}});
+              window.newRail=registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[{key:'activate',glyph:'R',label:'Activate rail'}]}),activate:()=>{window.railActivated=true;}});
             }""")
             try:
                 margins_laid_out(page)
@@ -775,8 +775,8 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, subtests):
         browser, serve(leaf_page("Held rail and new pin", body)), context=context
     )
     page.evaluate("""async()=>{
-      const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
-      window.registerPlacementControl=id=>registerContribution({key:id,target:document.getElementById(id+'-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate '+id})]}),activate:()=>{window.placementActivated=id;}});
+      const {registerContribution}=await window.__lfWidgetApi();
+      window.registerPlacementControl=id=>registerContribution({key:id,target:document.getElementById(id+'-target'),read:()=>({entries:[{key:'activate',glyph:'R',label:'Activate '+id}]}),activate:()=>{window.placementActivated=id;}});
       window.registerPlacementControl('rail');
     }""")
     margins_laid_out(page)

@@ -73,8 +73,7 @@ element, as a chart's pointer or arrow key reaching another point, the widget sa
 with `detail: { aim: true }` on the event, and the new target shows its preview whatever
 put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
 reads, as a chart's ring on the point it names, comes off when Leaf dispatches
-`PREVIEW_ENDED` (`"lf-preview-ended"`, from `portable-api.js`) at the element, a
-`CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
+`lf-preview-ended` at the element, a `CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
 reading that ended, as the preview goes for any reason: the pointer or focus leaving,
 the pointer leaving the window, the next touch after a finger's hold, Escape, or
 another target's preview taking its place. A focus preview hidden while the box it

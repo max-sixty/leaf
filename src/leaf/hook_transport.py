@@ -228,9 +228,9 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} lapsed when its turn ended with no agent "
-        "of yours reported working in the background, or predates the pickup of a "
-        "newer update in its thread. Answer once that work is done, or, while it runs, "
+        f"; your start on {', '.join(items)} lapsed: no agent of yours carried it into "
+        "this turn from the one that wrote it, or it predates the pickup of a newer "
+        "update in its thread. Answer once that work is done, or, while it runs, "
         'start it again with `leaf task start <page> <id> --text "<what is still '
         'running>"`'
     )

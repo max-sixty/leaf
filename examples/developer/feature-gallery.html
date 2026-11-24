@@ -182,13 +182,12 @@
         connection,
         generate,
         once,
-        PAGE_INTERFACE,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
       import { keepsText } from "/runtime/lib/keeps.js";
 
-      document.addEventListener(PAGE_INTERFACE, () => {
+      document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
         if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
           return;
@@ -217,7 +216,7 @@
         });
       });
 
-      document.addEventListener(PAGE_INTERFACE, () => {
+      document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-llm");
         if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
           return;

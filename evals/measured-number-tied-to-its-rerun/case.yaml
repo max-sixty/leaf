@@ -1,0 +1,60 @@
+# A number the agent will measure again while the user reads the page goes stale when
+# the next run lands; tying it to its run lets `page check` name the sentence that
+# still states the old value. The primary is a session still tuning, with the next
+# bench run minutes away, which invites writing the figures as plain text.
+# closed-report is the sibling where the investigation is over and nothing will be
+# measured again, which invites binding every repeatable figure to a source anyway.
+description: measured-number-tied-to-its-rerun
+metadata:
+  purpose:
+    "Evidence: a number that will be measured again while the page is read is tied to
+    its run; one that won't stays plain text."
+  page: []
+  tags:
+    - evidence
+vars:
+  prompt: |
+    You are working with the user on speeding up our `import` command, and keep a
+    Leaf page on it that they read while you work. Write the page's status section.
+
+    Where it stands: the bench, `uv run bench-import --json`, reports a p95 of 184 ms,
+    down from 310 ms when we started. It prints `{"p95_ms": 184}`. Next you'll cache
+    the parsed schema, then run the bench again, and you'll keep revising the page as
+    each run lands.
+
+    Reply with the section HTML and the commands you would run for it.
+assert:
+  - type: llm-rubric
+    metric: rerun-number-tied
+    value: |
+      Pass only if the current p95, 184 ms, is tied to its run: an lf-num (or another
+      widget taking the measured-scalar contract) with a `source` naming the bench's
+      feed and a `run` attribute, and commands that write the bench's result to that
+      source with `leaf data set` and put the returned receipt in `run`. The 310 ms
+      starting figure may stay plain text. Fail if 184 ms is plain text, or if the
+      commands never write the source.
+variants:
+  closed-report:
+    metadata:
+      purpose:
+        "Evidence: figures in a closed report, which nobody will measure again while
+        the page is read, stay plain text."
+    vars:
+      prompt: |
+        You are finishing a Leaf page that records why our `import` command got slow
+        in release 4.2. The fix is merged and the investigation is closed; this page is
+        its record. Write its results section.
+
+        What you found: every row re-parsed the schema. Caching the parsed schema
+        brought the bench's p95 (`uv run bench-import --json`, run once on each commit)
+        from 310 ms back to 184 ms, and all 214 import tests pass.
+
+        Reply with the section HTML and any commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: closed-figures-plain
+        value: |
+          Pass only if the figures 310 ms, 184 ms and 214 tests are written as plain
+          text in the section's HTML, with no lf-num or other widget bound to a data
+          source for them, and no `leaf data set` command for them. Fail if any of
+          those figures is wrapped in an lf-num or another source-bound widget.

@@ -1483,11 +1483,10 @@ def contribution(page, built, target, place):
     the widget draws it."""
     page.evaluate(
         """async (target) => {
-          const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+          const {registerContribution} = await window.__lfWidgetApi();
           registerContribution({
             key: 'joining', target: () => document.getElementById(target),
-            read: () => ({entries: [contributionEntry(
-              {key: 'action', icon: 'dot', label: 'Joining action'})]}),
+            read: () => ({entries: [{key: 'action', icon: 'dot', label: 'Joining action'}]}),
             activate: () => {},
           }).update({immediate: true});
         }""",

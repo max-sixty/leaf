@@ -14,11 +14,7 @@ widget that owns them when the controls have to sit beside an ancestor that outl
 it. For example, inside a widget whose `save()` method does the work:
 
 ```js
-import {
-  contributionEntry,
-  registerContribution,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { registerContribution, whileConnected } from "/runtime/widget-api.js";
 
 setup() {
   whileConnected(this, () => {
@@ -28,9 +24,9 @@ setup() {
       read: () => ({
         kind: "action",
         subject: this.getAttribute("aria-label"),
-        entries: [contributionEntry({
-          key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
-        })],
+        entries: [
+          { key: "save", glyph: "✓", label: "Save", disabled: this.disabled },
+        ],
       }),
       activate: () => this.save(),
     });
@@ -42,7 +38,7 @@ syncActions() { this.actions.update(); }
 ```
 
 `read()` returns data, never controls: the actions available in the widget's current
-state, built with `contributionEntry`. Call `update()` whenever that state changes, and
+state, each a plain object. Call `update()` whenever that state changes, and
 every surface redraws from the new entries. Each entry needs a `key`, a `label`, and one
 of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
@@ -372,7 +368,9 @@ is about, and the view reads the rest:
   the margin's kinds ("Margin contributions"), a `text` to show for it, and for some a
   `label` naming its subject, as an obligation's `label` is its question. An open
   thread about the same thing that no outlet holds is among the items, with kind
-  `comment` and the Thread as its `thread`. Key items by `contributionItemKey(item)`.
+  `comment` and the Thread as its `thread`. Key an item's row by its `owner` and `id`
+  together: `owner` is the key of the contribution that offered it, absent on an item
+  Leaf made, and `id` is unique only within it.
 - `view.controls(entry)` returns the real controls that margin contributions offer for
   it. Place those nodes, not copies of their markup, so they keep their behavior.
   `view.controlKey(control)` and `view.controlRecord(control)` name and describe one.

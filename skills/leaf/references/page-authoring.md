@@ -329,14 +329,14 @@ the actual language from `$languages.names` or a bundled grammar's alias, such a
 `language-js` and `language-sh`. Leaf colours a native block only where the reading
 face reaches it: the `reading` theme turns it on, and a page with no theme sets
 `--lf-reading-face: 1` on a box around the `<pre>` (`package-themes.md`, "A page's
-theme"). Format example code with
-the language's usual indentation and line breaks rather than packing several statements or fields onto one
-line, and keep it working when you reformat it. Quote source verbatim when quoting it.
-Data in a language Leaf colours, such as a JSON object a tool returned, is code wherever
-it came from: name its language and give it one field per line with its values exact,
-even when it reached you on one line or cut down with `…`, and even when the page's
-other samples are plain. Text in no such language, such as a log or a message as an
-agent receives it, stays literal and uncoloured.
+theme"). Format example code with the language's usual indentation and line breaks,
+even where it reached you with several statements or fields packed onto a line, and keep
+it working when you reformat it. Quote source verbatim when quoting it.
+Data in a language Leaf colours, such as JSON a tool returned, goes in a code block
+named for its language, even beside plain samples, with its values exact, `…` included,
+and laid out so the reader can pick out each field and compare values down a column.
+Text in no such language, such as a log or a message as an agent receives it, stays
+literal and uncoloured.
 
 Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
 from a doc or a pull request's description, in a text document that previews it, with

@@ -23,7 +23,6 @@ import {
   commandScope,
   commandsChanged,
   LeafElement,
-  contributionEntry,
   failSoft,
   registerContribution,
   says,
@@ -37,11 +36,12 @@ import { shownParts } from "../runtime/geometry.js";
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
+/** @typedef {import("../runtime/contribution-model.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
 /** @param {SuggestionState} state */
 const outcomeOf = (state) => state.decide?.detail?.outcome ?? null;
-/** @type {Record<Outcome, Pick<import("../runtime/contribution-model.js").EntryInput, "action" | "tone" | "rank">>} */
+/** @type {Record<Outcome, Pick<EntryInput, "action" | "tone" | "rank">>} */
 const FACE = {
   accept: { action: "accept", tone: "positive", rank: "primary" },
   reject: { action: "reject", tone: "negative", rank: "secondary" },
@@ -273,28 +273,27 @@ customElements.define(
       let words;
       const change = () => (words ??= this.#label());
       const entry = {
-        undo: () =>
-          contributionEntry({
-            key: "undo",
-            action: "undo",
-            label: "Undo",
-            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
-            rank: "primary",
-            activation: "undo",
-            scope: this.#commandScope,
-          }),
-      };
-      /** @param {Outcome} kind */
-      const decision = (kind) =>
-        contributionEntry({
-          key: kind,
-          ...FACE[kind],
-          label: WORDS[kind],
-          accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
-          disabled: !this.state?.decide?.available,
-          activation: kind,
+        /** @returns {EntryInput} */
+        undo: () => ({
+          key: "undo",
+          action: "undo",
+          label: "Undo",
+          accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
+          rank: "primary",
+          activation: "undo",
           scope: this.#commandScope,
-        });
+        }),
+      };
+      /** @param {Outcome} kind @returns {EntryInput} */
+      const decision = (kind) => ({
+        key: kind,
+        ...FACE[kind],
+        label: WORDS[kind],
+        accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
+        disabled: !this.state?.decide?.available,
+        activation: kind,
+        scope: this.#commandScope,
+      });
       return this.#offered().map((key) =>
         key === "undo" ? entry.undo() : decision(key),
       );

@@ -292,6 +292,13 @@ of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
 
+A package's stylesheet animates with a `transition` or an `animation`. Leaf turns the
+sheet's transitions off until the page is presented (`module-authoring.md`, "Startup
+and presentation"), though an `animation` plays as soon as its rule matches. For a
+user who asked for less motion, Leaf turns the transitions off and ends the
+animations at once. `element.animate` has neither guard, so it plays before the page
+is presented and for that user.
+
 A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
 than choosing a number, and a retained frame returning from an editor to its reading
 takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The

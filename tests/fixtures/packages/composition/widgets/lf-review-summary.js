@@ -31,7 +31,7 @@ customElements.define(
             keys: ["p"],
             control: this.passButton,
             bindingBadge: null,
-            when: () => this.reading.actions.review.available,
+            when: () => this.state.review.available,
             run: () => this.review("pass"),
           },
           {
@@ -40,7 +40,7 @@ customElements.define(
             keys: ["f"],
             control: this.failButton,
             bindingBadge: null,
-            when: () => this.reading.actions.review.available,
+            when: () => this.state.review.available,
             run: () => this.review("fail"),
           },
         ],
@@ -49,12 +49,11 @@ customElements.define(
     }
 
     review(outcome) {
-      return this.controller.dispatch({
-        kind: "action",
-        verb: "review",
-        detail: { outcome },
-        says: outcome === "pass" ? "Passed review" : "Failed review",
-      });
+      return this.record(
+        "review",
+        { outcome },
+        { says: outcome === "pass" ? "Passed review" : "Failed review" },
+      );
     }
 
     render() {

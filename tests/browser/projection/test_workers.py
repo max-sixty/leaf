@@ -481,15 +481,30 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {projectionRegionsPresented, readApplicationPresentation} =
-            await window.__lfCheckApi();
+          const {
+            projectionRegionsPresented,
+            readApplicationPresentation,
+            whenApplicationRegionsPresented,
+          } = await window.__lfCheckApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
           customElements.define('lf-report-proof', class extends api.LeafElement {
             render() {
-              if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return noChange;
+              // The watcher draws nothing until the owner's own drawing is in, and
+              // asks to draw again once it is.
+              if (!projectionRegionsPresented([owner.id])) {
+                this.waiting ??= whenApplicationRegionsPresented([
+                  'projection:chrome',
+                  `widget:${owner.id}:render`,
+                  `widget:${owner.id}:preparation`,
+                ]).then(() => {
+                  this.waiting = null;
+                  this.requestUpdate();
+                });
+                return noChange;
+              }
               api.clockValue(() => window.__proofClock);
               window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
               return noChange;
@@ -513,7 +528,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
           const controller = api.widgetController(owner);
           if (holding === 'defer') {
-            window.__proofResume = controller.defer();
+            window.__proofResume = owner.defer();
           } else {
             let resolve;
             controller.present(new Promise(done => { resolve = done; }));

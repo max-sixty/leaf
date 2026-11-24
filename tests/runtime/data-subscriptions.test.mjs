@@ -57,6 +57,7 @@ async function feed(
   customElements.define(
     tag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       constructor() {
         super();
         this.value = null;
@@ -345,6 +346,7 @@ function outputScene(draw) {
   customElements.define(
     consumerTag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       render() {
         return nothing;
       }
@@ -500,6 +502,7 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
   customElements.define(
     producerTag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       render() {
         return nothing;
       }

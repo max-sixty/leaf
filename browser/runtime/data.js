@@ -22,8 +22,8 @@
    depends on one, so a change runs no fold and no selection, and only the readers of
    that producer hear it. The proof that a reader has drawn is the one every element
    Leaf delivers to has: its region is claimed in the stack that moved its reading
-   (`requestUpdate` in leaf-element.js, `host` in element-integration.js), so the page
-   reads as presented only after the draw.
+   (`host` in element-integration.js), so the page reads as presented only after the
+   draw.
 
    What a source shows moves only as state application delivers, and each element that
    draws data holds the data version until its region has drawn the delivery

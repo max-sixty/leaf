@@ -96,6 +96,7 @@ import {
   offered,
   offeredAction,
   LeafElement,
+  PendingTaskEvent,
   move,
   onUserInput,
   signal,
@@ -1857,7 +1858,7 @@ export class Trace extends LeafElement {
         });
       }, failed);
     }
-    this.controller.present(ready);
+    this.dispatchEvent(new PendingTaskEvent(ready));
   }
 
   /** @param {TraceAction} action */

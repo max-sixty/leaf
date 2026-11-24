@@ -1,20 +1,20 @@
-/* Leaf's data integration for an element lifecycle. Whoever runs that lifecycle, a
-   `LeafElement` for itself or element-integration.js for any other element, calls
-   initialize before the element's first draw from Leaf, deliver before each draw's
-   gate, and connect with its presentation region on each arrival. The returned
-   disconnect releases that region's data hold.
+/* Leaf's data integration for one element it drives (element-integration.js), which
+   calls initialize before the element's first draw from Leaf, deliver in each pass of
+   sets, and connect with the element's presentation region on each arrival. The
+   returned disconnect releases that region's data hold.
    The widget itself reads ordinary properties and reports drawn marks; this owner
    associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
    Bound values. A module reads each input (`inputs`) through the plain property its
-   declaration names (`property`): before each update that the input's delivery
-   moves, this element sets `this[property]` to the delivered value, or null while the
-   source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. A widget whose body is data (`content: data`) takes its `<pre>` as its
+   declaration names (`property`): as the input's delivery moves, Leaf sets that
+   property on the element to the delivered value, or null while the source has none,
+   so the widget reads `this.value` as it would anywhere else a host sets it, and draws
+   again as any element does when a host sets a property: in its setter, or, on Lit,
+   by declaring the property reactive. A widget whose body is data (`content: data`) takes its `<pre>` as its
    `value`, as a `<textarea>`'s text is: where the markup binds the input whose property
-   is `value` to nothing, to a source or to another widget's output, this element sets
-   `value` to the text the page wrote in its `<pre>` once, at setup, since the widget's
-   drawing replaces the `<pre>`. Its other inputs, such as the lines a code block
+   is `value` to nothing, to a source or to another widget's output, Leaf sets
+   `value` to the text the page wrote in its `<pre>` once, with its first sets, since
+   the widget's drawing replaces the `<pre>`. Its other inputs, such as the lines a code block
    follows, leave the `<pre>` alone. Any other unbound input, and one a module hosts on
    an element it made without a `<pre>`, is left to the widget and whoever else hosts
    it.

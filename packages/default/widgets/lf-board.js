@@ -401,7 +401,7 @@ customElements.define(
     };
 
     #available() {
-      return Boolean(this.reading?.actions.move?.available);
+      return Boolean(this.state?.move?.available);
     }
 
     // A card with `shows` moves when the answer it shows can change and a column other
@@ -736,7 +736,7 @@ customElements.define(
     }
 
     #beginGesture() {
-      this.#resumeProjection ??= this.controller.defer();
+      this.#resumeProjection ??= this.defer();
       dragging(this, true);
     }
 
@@ -804,10 +804,9 @@ customElements.define(
         this.#finishGesture();
         return;
       }
-      this.controller.dispatch({
-        kind: "action",
-        verb: "move",
-        detail: {
+      this.record(
+        "move",
+        {
           unit: card.id,
           value: to.id,
           // Among the cards as the board shows them, those standing by an answer
@@ -819,11 +818,13 @@ customElements.define(
             card.id,
           ),
         },
-        says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
-      });
-      // A gesture can outlive the reading that enabled it. If admission has already
-      // closed by commit time, resuming the deferred controller repaints the moved
-      // native node from current semantic state immediately.
+        {
+          says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
+        },
+      );
+      // A gesture can outlive the state that enabled it. If admission has already
+      // closed by commit time, releasing the hold repaints the moved native node from
+      // the current state immediately.
       this.#finishGesture();
     }
 
@@ -943,7 +944,7 @@ customElements.define(
     // once around that placement so FLIP animates the resulting layout together.
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
-      if (!this.reading) return nothing;
+      if (!this.state) return nothing;
       this.#reportUnshown();
       this.#arrange(this.#placement());
       this.#paintAvailability();

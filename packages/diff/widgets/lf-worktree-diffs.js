@@ -6,6 +6,7 @@ customElements.define(
   "lf-worktree-diffs",
   class extends LeafElement {
     static lfPatch = "members";
+    static shadow = true;
     render() {
       return render(this);
     }

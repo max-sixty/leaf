@@ -291,10 +291,9 @@ def test_back_returns_a_list_read_from_its_top_to_its_top(request, serve, engine
     scroll_settled(page)
     assert view.evaluate("view => view.scrollTop") > 100
     page.go_back()
-    page.wait_for_function("navigation.transition === null")
-    scroll_settled(page)
     expect(view).to_be_visible()
-    assert view.evaluate("view => view.scrollTop") == 0
+    # The list returns once the panel has presented it, after the step itself ends.
+    expect(view).to_have_js_property("scrollTop", 0)
 
 
 @pytest.mark.parametrize("engine", ENGINES)

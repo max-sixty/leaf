@@ -77,7 +77,7 @@ export const CONNECT = "lf-connect";
 // as through a drag that moves them or an edit in place: `complete` settles as the hold
 // ends. A Leaf page counts what it set meanwhile as drawn only then, and reads the
 // document again (widget-controller.js), since the element changed its nodes outside
-// any draw. The page goes on applying revisions and Undo.
+// any draw. It keeps no revision or undo waiting, which `lf-hold` does.
 export const DEFER = "lf-defer";
 export class DeferEvent extends Event {
   /** @param {PromiseLike<unknown>} complete */

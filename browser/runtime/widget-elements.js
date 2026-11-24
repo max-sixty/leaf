@@ -126,8 +126,8 @@ export function el(tag, cls, text) {
 // an action still in the ledger, undo.js's `travelling`). What the element draws
 // meanwhile is its own to hold (`lf-defer`, which `LeafElement.defer()` says), and
 // every other widget goes on drawing. An element that holds only its own drawing, as
-// while an editor stands in place of its words, says no `lf-hold`, and revisions and
-// Undo go on.
+// while an editor stands in place of its words, says no `lf-hold`: what a revision
+// waits for under a text field in use is another rule (composing/engagement.js).
 //
 // Holding while a pointer is down anywhere would need no declaration, and is not done.
 // A grab by keyboard has no pointer; a press whose release the window never hears

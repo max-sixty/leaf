@@ -121,17 +121,19 @@ On Me and admits the ids its buttons mark:
 - **`lf-hold`.** An element in which the user holds something, as through a drag, a
   keyboard grab or a scrub, dispatches a bubbling, composed `lf-hold` event as the
   hold starts. The event's `complete` property is a promise the element settles as
-  the hold ends, is cancelled, or the element leaves the page. While it stands, Leaf
-  applies no revision and takes nothing back with Undo, so nothing replaces the
-  nodes under the user's hand. Leaf goes on setting `state` meanwhile.
-- **`lf-defer`.** An element that rewrites its own nodes for a while, as a drag that
-  moves them or an editor standing in place of its words does, and leaves what Leaf
-  sets undrawn until it is done, dispatches a bubbling, composed `lf-defer` event as
-  it starts. The event's `complete` property is a promise that settles as it ends.
-  A set Leaf makes meanwhile counts as drawn only once it has, and Leaf reads the
-  page again then, since the nodes changed outside any drawing it waited for.
-  Revisions and Undo go on, so a gesture that needs the page held says `lf-hold`
-  too.
+  the hold ends, is cancelled, or the element leaves the page. Until the promise
+  settles, Leaf applies no revision and takes nothing back with Undo, so nothing
+  replaces the nodes under the user's hand. A promise the element never settles
+  keeps both waiting until the page is loaded again. Leaf goes on setting `state`
+  meanwhile, and reads the element's keys again as the hold starts and as it ends.
+- **`lf-defer`.** An element may rewrite its own nodes for a while and leave what
+  Leaf sets undrawn until it is done, as a drag that moves the nodes does, or an
+  editor that stands in place of the element's words. It dispatches a bubbling,
+  composed `lf-defer` event as it starts, whose `complete` property is a promise it
+  settles as it finishes. Leaf counts a `state` it set meanwhile as drawn only once
+  the promise has settled. It reads the page again then, since the nodes changed
+  outside any drawing it waited for. `lf-defer` keeps no revision or undo waiting;
+  a gesture that needs that says `lf-hold` too.
 - **`lf-commands`.** An element's keys are its `lfCommands` property
   (`module-input.md`, "Commands and keyboard routes"). Leaf reads the property each
   time the element dispatches a bubbling, composed `lf-commands` event on itself, so

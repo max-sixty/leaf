@@ -261,7 +261,7 @@ interface DocumentEventMap {
   >;
   /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
-  /** A hold a widget has on its own nodes through a gesture (`widget-upgrade.js`). */
+  /** A hold a widget has on its own drawing (`widget-upgrade.js`). */
   "lf-defer": import("../runtime/widget-upgrade.js").DeferEvent;
   /** A hold the user has on something in an element, until `complete` settles
    * (`widget-upgrade.js`, `HOLD`). */

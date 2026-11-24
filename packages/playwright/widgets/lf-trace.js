@@ -450,7 +450,7 @@ export class Trace extends LeafElement {
   set #cursorTime(time) {
     this.#cursor.value = time;
   }
-  // A scrub's hold on the page, settled as the pointer lets go.
+  // The user's hold through a scrub, settled as the pointer lets go.
   /** @type {PromiseWithResolvers<void> | null} */
   #scrubbing = null;
   // Nodes of the Lit view that their imperative owners below read and write.
@@ -1078,8 +1078,8 @@ export class Trace extends LeafElement {
     if (this.#scrubbing) this.#scrub(false);
     if (draw) this.#draw();
   }
-  // A scrub holds the page until the pointer lets go, so no revision or undo
-  // replaces the recording under it.
+  // The user holds the recording until the pointer lets go, so no revision or
+  // undo replaces it under a scrub.
   /** @param {boolean} on */
   #scrub(on) {
     if (on) {

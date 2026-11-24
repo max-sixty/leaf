@@ -550,6 +550,9 @@ customElements.define(
         )
       )
         return;
+      // A second finger leaves a swipe under way to the first, whose hold it would
+      // otherwise take with it unsettled.
+      if (this.#drag?.moving) return;
       this.#drag = {
         id: event.pointerId,
         x: event.clientX,
@@ -572,8 +575,8 @@ customElements.define(
         if (Math.abs(drag.dx) < 8) return;
         drag.moving = true;
         card.setPointerCapture(event.pointerId);
-        // The swipe holds the page until it settles, so no revision or undo
-        // replaces the card under the finger.
+        // The user holds the card until the swipe settles, so no revision or undo
+        // replaces it under the finger.
         drag.held = Promise.withResolvers();
         this.dispatchEvent(
           Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {

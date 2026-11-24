@@ -19,8 +19,8 @@
    announced with `pending-task` is in. A `pending-task` the element dispatches on
    itself at any other time is a draw it started by itself. Every claim on the region
    waits for all the drawing the element has announced and not finished, so a later
-   pass never lets go of an earlier draw, and for a gesture's hold on the element
-   (`lf-defer`) that stood when the claim's sets were made, under which the element
+   pass never lets go of an earlier draw, and for the element's hold on its own
+   drawing (`lf-defer`) that stood when the claim's sets were made, under which it
    draws nothing; a `pending-task` from a node inside the element is preparation
    (widget-controller.js). A visual may have redrawn the parts
    it marks by the time a pass's drawing is in, which the pass says with
@@ -226,7 +226,7 @@ function host(element) {
   const draw = () => {
     claim();
     const reading = controller?.read() ?? null;
-    // A gesture holding the element's nodes now leaves this pass's sets undrawn until
+    // A hold the element has on its drawing now leaves this pass's sets undrawn until
     // it ends; one that begins in the draw a set starts does not hold that draw.
     const held = holdsOn(element);
     // A revision's replacement lacks its verbs until its document is adopted.

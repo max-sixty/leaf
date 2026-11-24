@@ -206,7 +206,7 @@ const widgetOn = (event, holds = () => true) =>
     });
 
 // The drawing each element has announced on itself and not finished, and the holds
-// gestures have on its nodes. A claim on the element's own region waits for all the
+// it has on its own drawing. A claim on the element's own region waits for all the
 // drawing under way when it settles, so a later claim never lets go of an earlier
 // drawing, and for the holds standing when it was made, since the element draws
 // nothing under one: a hold that begins in the draw a claim is for does not keep that

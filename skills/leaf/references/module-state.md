@@ -79,8 +79,8 @@ the hold stands, so a widget that shows a gesture's progress through `render()`,
 slider previewing its value does, leaves `defer()` alone. Call `resume()` once `record`
 has returned, or after cancelling has put the DOM back; it draws the newest state. The
 hold is on the widget's own drawing (`lf-defer`, `module-plain-elements.md`). A
-widget the user drags, grabs or scrubs also holds the page for the whole gesture,
-with `lf-hold` (`module-plain-elements.md`, "`lf-hold`").
+widget the user drags, grabs or scrubs also says `lf-hold` for the whole gesture
+(`module-plain-elements.md`, "`lf-hold`").
 
 Say asynchronous preparation the page should wait for, such as a renderer loading,
 with `this.dispatchEvent(new PendingTaskEvent(promise))` (`module-authoring.md`, "A

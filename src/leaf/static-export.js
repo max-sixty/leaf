@@ -30,8 +30,8 @@
    become spans (`markHighlights`).
 
    An age (`lf-age`, browser/runtime/age.js) can't tick in a file that runs no script,
-   so the file says when instead, and leaves out the age the element drew: the time
-   its author wrote in it, else the clock time the age previews, which names its zone.
+   so the file says when instead: the time its author wrote in it, else the clock time
+   the age previews, which names its zone. The age the element drew is left out.
 
    `:defined` and `:state()` hold only for an element a script defined, and none runs in
    the file. So each element defined when it was drawn carries `data-lf-defined`,

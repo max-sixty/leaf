@@ -361,8 +361,10 @@ plot.fillRect(0, 0, 30, 20);
     expect(page.locator("#shot")).to_have_js_property("naturalWidth", 64)
     expect(page.locator("img#plot")).to_have_js_property("naturalWidth", 30)
     expect(page.locator("#ran")).to_have_text("20 Nov, 02:10 UTC")
-    # The clock time, as the platform that drew the file writes it, with its zone.
-    expect(page.locator("#passed")).to_have_text(re.compile(r"2026.*\d:\d\d.* \S+$"))
+    # The clock time, as the platform that drew the file writes it, with its zone, in
+    # the page and in a widget's shadow tree.
+    for age in (page.locator("#passed"), widget.locator("#chosen-at")):
+        expect(age).to_have_text(re.compile(r"2026.*\d:\d\d.* \S+$"))
     expect(page.locator("#fold")).not_to_have_attribute("open", "")
     assert page.locator("#fold p").text_content() == "Drawn on opening"
     expect(page.locator("#panel")).to_have_attribute("hidden", "until-found")

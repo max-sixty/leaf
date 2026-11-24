@@ -819,6 +819,60 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi x")
 
 
+# A page whose frames each take a while once Leaf takes the held keys, so the keys run
+# one per slow frame and the user can act between them.
+SLOW_REPLAY_PAGE = leaf_page(
+    "Held keys",
+    "<h1>Held keys</h1><p id='said'>A sentence the user commented on.</p>"
+    """<script>
+      document.addEventListener("lf-held-keys", () => {
+        if (window.slowFrames) return;
+        window.slowFrames = true;
+        const slow = () => {
+          const start = performance.now();
+          while (performance.now() - start < 250) {}
+          requestAnimationFrame(slow);
+        };
+        requestAnimationFrame(slow);
+      });
+    </script>""",
+)
+
+# The held keys the tab keeps for the page (bootstrap.js, `holdEarlyKeys`).
+STORED_KEYS = """() => {
+  const key = Object.keys(sessionStorage).find((key) => key.endsWith("lf-held-keys"));
+  return key ? JSON.parse(sessionStorage.getItem(key)) : null;
+}"""
+
+
+def test_held_keys_still_to_run_go_when_the_user_steps_back(browser, serve):
+    """Keys the user typed while the page started run one at a time once Leaf takes
+    them. A step Back the user takes meanwhile leaves the entry they typed them at, so
+    the keys still to run go, rather than run at the entry the step reached."""
+    url = serve(SLOW_REPLAY_PAGE)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.goto(url)
+    wait_until_ready(page)
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#said'")
+    page.wait_for_url(re.compile("#said$"))
+    page.wait_for_function("navigation.transition === null")
+    held, release = _hold_startup(page, "module")
+    with page.expect_navigation(wait_until="commit"):
+        page.evaluate("setTimeout(() => location.reload())")
+    holding(page, held, 1, "the runtime module")
+    expect(page.locator("#said")).to_be_attached()
+    for key in ["c", "h", "e", "l", "l", "o"]:
+        page.keyboard.press(key)
+    expect(page.locator(".lf-held-key")).to_have_count(6)
+    release()
+    page.wait_for_function("window.slowFrames === true")
+    page.go_back(wait_until="commit")
+    assert page.evaluate(STORED_KEYS) is None
+    expect(page.locator(".lf-held-key")).to_have_count(0)
+
+
 @pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])
 def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     """A held run is printed keys. Enter or a chord acts where focus stands, which a

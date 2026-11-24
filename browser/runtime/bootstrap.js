@@ -599,14 +599,14 @@
     // let go of nothing (`taken`). Elsewhere a held key still counts, so a key typed
     // while the page starts still stops arrival work, such as reopening a comment box,
     // as it always did. Whatever the load, the run belongs to the entry its keys were
-    // typed at: a step Back or Forward before the runtime takes it lets it go, so its
-    // keys neither run at the entry the step reached nor count against its return
-    // (document-inputs.js, `within`). Whether the place is handed back is asked of the
-    // entry the user stands at as each input comes (prepaint.js, `placesUser`).
+    // typed at: a step Back or Forward lets it go, the keys the runtime has yet to
+    // press included, so none runs at the entry the step reached. Whether the place is
+    // handed back is asked of the entry the user stands at as each input comes
+    // (prepaint.js, `placesUser`).
     holdKeys({
       holds: (event) => placesUser() && (HALF_PRESSES.has(event.key) || holds(event)),
       counted: (stepped) => {
-        if (!taken && (stepped || placesUser())) letGo();
+        if (stepped || (!taken && placesUser())) letGo();
       },
     });
     window.addEventListener("keydown", hold, true);

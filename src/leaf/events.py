@@ -556,8 +556,10 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     message bounding its range leaves the thread. An edit or a take-back of any other
     message, the user's or the agent's, leaves it standing as written: the agent hears
     of the change, judges whether the summary still holds, and summarizes the range
-    again where it doesn't (`thread.cmd_edit` names the summary over a message the
-    agent edits). The maintainer chose this. Retiring a summary on the user's change,
+    again where it doesn't. `thread.cmd_edit` names the summary over a message the
+    agent edits, and the handling of the user's edit in a thread that holds a summary
+    asks the agent to check it (the kernel registry's `edit` clauses). The maintainer
+    chose this. Retiring a summary on the user's change,
     which a later change might reach for so that no summary hides the user's words,
     decides for the agent whether the summary still holds, as root `AGENTS.md`'s
     "Leaf's role" says code doesn't. A summary folds no progress: the thread shows

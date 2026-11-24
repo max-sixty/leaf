@@ -42,14 +42,16 @@ import { readLeavingKeys } from "../field-keys.js";
 import { authoredScope } from "../passages.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
 // a server serving another layer, ends bootstrap's hold: nothing in it will run what
-// was held, so those keys are dropped and later ones reach the page as they come.
+// was held, so those keys are dropped, words typed through a reload waiting for the
+// document that replaces it (bootstrap.js, `letGo`), and later keys reach the page as
+// they come. Pausing a take that keeps nothing ends the hold.
 export function letHeldKeysGo() {
   /** @type {DocumentEventMap["lf-held-keys"]} */
   const taking = new CustomEvent("lf-held-keys", {
     detail: { ready: () => false, keep: () => false },
   });
   document.dispatchEvent(taking);
-  taking.detail.release?.();
+  taking.detail.pause?.();
 }
 
 /** @param {{goToSequenceActive: () => boolean, setGoToSequence: (on: boolean) => void, reactArmed: () => boolean, setReact: (on: boolean) => void}} options */
@@ -205,16 +207,16 @@ export function mountKeyboard({
       },
     });
     document.dispatchEvent(taking);
-    const { keys, pressed, pause, release } = taking.detail;
+    const { keys, writing, pressed, pause, release } = taking.detail;
     // An empty or ended hold has nothing to hand over.
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      // With single-key commands off, a held key only ever types into a box, as the
-      // words a user typed through a reload do into the box it hands back; the release
-      // lets go of the rest.
+      // The words a user typed through a reload only ever type into a box, the one it
+      // hands back, and so does any held key with single-key commands off. The release
+      // lets go of the rest, and puts words into their box's draft.
       const [key] = keys;
-      if (!key || (!quickShortcuts() && !typesText(focused()))) {
+      if (!key || ((writing || !quickShortcuts()) && !typesText(focused()))) {
         release();
         pressingHeld = false;
         return;

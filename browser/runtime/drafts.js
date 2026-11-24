@@ -1601,11 +1601,46 @@ export function mirrorDraft(
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
+// Words the user typed for their box while a reload Leaf asked for brought it back,
+// which the early key hold let go before they could go in through the box, as when the
+// user scrolled first (bootstrap.js, `letGo`), wait in the tab until a document of the
+// page takes them. They go into the draft of the box the reload's handoff names
+// (`captureDraftEditing`): where its caret was, if the draft still holds the words it
+// held then, else after its words, as more of what the user was writing. A box with no
+// draft, such as a field of the page's own, leaves them nowhere else to stand, so they
+// join the page's draft, as words whose box is gone do (`moveToPage`). Resume writing
+// goes to their end.
+const HELD_WORDS = "lf-held-words";
+function takeHeldWords() {
+  const typed = tabStore.get(HELD_WORDS);
+  if (!typed) return;
+  tabStore.set(HELD_WORDS, null);
+  const editing = /** @type {DraftEditing | undefined} */ (
+    window.lfStorage?.handoff?.draftEditing
+  );
+  const context = editing?.context ?? PAGE_DRAFT;
+  const current = activeDraftRecord(context);
+  const text = current?.text ?? "";
+  const [start, end] =
+    editing?.selection && text === editing.words
+      ? editing.selection
+      : [text.length, text.length];
+  const lead = !editing && text ? "\n\n" : "";
+  const words = text.slice(0, start) + lead + typed + text.slice(end);
+  saveDraft(context, words, current?.payload);
+  tellDraft(context, words, current?.payload);
+  const at = start + lead.length + typed.length;
+  keepWritingPlace({ context, selection: [at, at], generation: randomId() });
+}
+
 // The drafts start from the copies the page this tab reloaded left waiting
 // (`takeWaitingDrafts`), then those the document was served with (`lf-drafts`), heard
-// as any reading is (`hearReading`); every later change reaches the list through the
-// maps. A document served without them, as a release's or an export's, hears them at
-// its first look, or has none.
+// as any reading is (`hearReading`), then the words the key hold let go
+// (`takeHeldWords`); every later change reaches the list through the maps. A document
+// served without them, as a release's or an export's, hears them at its first look, or
+// has none.
 takeWaitingDrafts();
 const served = document.getElementById("lf-drafts")?.textContent;
 if (served) hearReading(/** @type {DraftsReading} */ (JSON.parse(served)));
+takeHeldWords();
+document.addEventListener(HELD_WORDS, takeHeldWords);

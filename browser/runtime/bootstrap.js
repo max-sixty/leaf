@@ -361,9 +361,11 @@
   // pressed on the page starts it, and every printed key after it
   // joins. Any other key ends the run, and so does a pointer press, which puts the user
   // somewhere the keys were not aimed at: what was held is dropped and the new press
-  // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
-  // press, which neither starts nor ends one. After a beat the held keys are shown, so a
-  // press visibly landed; a runtime that takes the run within the beat shows nothing.
+  // keeps its own meaning, unless the run is words typed through Leaf's reload, which go
+  // into their box's draft instead (`letGo`). A chord never starts a run, and a
+  // modifier alone is half a press, which neither starts nor ends one. After a beat the
+  // held keys are shown, so a press visibly landed; a runtime that takes the run within
+  // the beat shows nothing.
   //
   // They are shown where the page says what it is doing, the floating panel's field,
   // in place of the status: before the panel mounts, in the row the document served
@@ -383,8 +385,11 @@
   const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
-  // Where the tab keeps the run of held keys (`holdEarlyKeys`).
+  // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words of a run
+  // typed through Leaf's reload that the hold let go (`letGo`), which is also the event
+  // that tells the runtime of them.
   const HELD_KEYS = "lf-held-keys";
+  const HELD_WORDS = "lf-held-words";
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -408,18 +413,23 @@
     // reload Leaf asks for of the same address hands a place back, and its document's
     // run starts with those keys, even where the document before it had put its own
     // place back and was pressing them as it went; any other load starts a run of its
-    // own.
+    // own. Words a document before it let go as it gave up the run (`letGo`) lead the
+    // run, since the place they were typed for is back; any other load leaves them to
+    // the runtime, which types them into their box's draft.
     /** @type {KeyboardEvent[]} */
     const held = (() => {
       if (!placesUser()) return [];
+      const left = [...(tabStore.get(HELD_WORDS) ?? "")].map((key) => ({ key }));
+      tabStore.set(HELD_WORDS, null);
+      /** @type {KeyboardEventInit[]} */
+      let kept = [];
       try {
-        const kept = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
-        return Array.isArray(kept)
-          ? kept.map((init) => new KeyboardEvent("keydown", init))
-          : [];
+        const stored = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
+        if (Array.isArray(stored)) kept = stored;
       } catch {
-        return [];
+        // An unreadable run leaves the words alone.
       }
+      return [...left, ...kept].map((init) => new KeyboardEvent("keydown", init));
     })();
     const save = () =>
       tabStore.set(
@@ -441,6 +451,10 @@
           : null,
       );
     save();
+    // Whether the run is the user writing in the box Leaf's reload hands back
+    // (`typingBack`), read as its first key is held, so a step that takes them to
+    // another entry leaves it their writing.
+    let writing = held.length > 0 && typingBack();
     /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
     /** @type {(() => boolean) | null} */
@@ -482,7 +496,21 @@
       if (seat) seat(null);
       else row?.say(null);
     };
-    const letGo = () => {
+    // A run of writing is words the user typed for their box, and nothing that ends
+    // the run says they no longer want them: a scroll, a press elsewhere, a key that
+    // prints nothing or a step away ends the return of their place, and a page that
+    // can't start ends the hold, but none takes back what they typed. So the tab keeps
+    // its words rather than letting them go with the run. Where the document goes on
+    // (`tell`), its runtime types them into the box's draft (drafts.js,
+    // `takeHeldWords`), now or as it loads. A document that gives the run up
+    // (`stopHoldingKeys`) leaves them to the one that replaces it, which types them
+    // into the box where it puts the user back there, and into the draft otherwise.
+    const letGo = (tell = true) => {
+      if (writing && held.length) {
+        const typed = held.map(({ key }) => key).join("");
+        tabStore.set(HELD_WORDS, (tabStore.get(HELD_WORDS) ?? "") + typed);
+        if (tell) document.dispatchEvent(new Event(HELD_WORDS));
+      }
       held.length = 0;
       save();
       hide();
@@ -490,6 +518,7 @@
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
+      if (!held.length) writing = typingBack();
       held.push(event);
       save();
       if (taken) return;
@@ -559,6 +588,7 @@
       clearTimeout(beat);
       beat = 0;
       event.detail.keys = held;
+      event.detail.writing = writing;
       event.detail.pressed = () => {
         held.shift();
         save();
@@ -586,7 +616,7 @@
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
       document.removeEventListener("lf-held-keys-seat", seated);
-      letGo();
+      letGo(false);
       endRow();
     };
     // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
@@ -594,7 +624,8 @@
     // modifier, which acts on nothing, as the Shift before a capital the hold keeps.
     // Any other input the document's clock counts, a scroll or a step Back or Forward as
     // much as a press, ends that hand-back, so the keys held for the place it would put
-    // back go at once (`counted`), and a document that goes then leaves none of them.
+    // back go at once (`counted`), words into their box's draft (`letGo`), and a
+    // document that goes then leaves none of them as keys.
     // The run's own presses, once the place is back, are the clock's inputs too, and
     // let go of nothing (`taken`). Elsewhere a held key still counts, so a key typed
     // while the page starts still stops arrival work, such as reopening a comment box,

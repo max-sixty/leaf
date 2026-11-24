@@ -131,7 +131,10 @@ interface Window {
     tabStore: LeafStore;
     userStore: LeafStore;
     /** The handoff the reload that loaded this document handed it (prepaint.js). */
-    readonly handoff: { readonly typing?: unknown } | null;
+    readonly handoff: {
+      readonly typing?: unknown;
+      readonly draftEditing?: unknown;
+    } | null;
     /** Whether the handoff puts the user back where they were, here (prepaint.js). */
     placesUser(): boolean;
     /** What this document hands on as it goes from now on (prepaint.js). */
@@ -271,13 +274,22 @@ interface DocumentEventMap {
       ready(event: KeyboardEvent): boolean;
       keep(): boolean;
     } & (
-      | { keys?: never; pressed?: never; pause?: never; release?: never }
+      | {
+          keys?: never;
+          writing?: never;
+          pressed?: never;
+          pause?: never;
+          release?: never;
+        }
       | {
           keys: readonly KeyboardEvent[];
+          /** The run is words typed through Leaf's reload, for the box it hands back. */
+          writing: boolean;
           /** The first key leaves the run as the controller presses it. */
           pressed(): void;
           pause(): void;
-          /** Ends the take, letting go of any key the run still holds. */
+          /** Ends the take, letting go of any key the run still holds, and putting
+           * words into their box's draft. */
           release(): void;
         }
     )

@@ -3296,8 +3296,10 @@ export function createVersionController({
       }
     })();
     let gone = false;
-    addEventListener("pagehide", () => {
-      gone = true;
+    addEventListener("pagehide", (event) => {
+      // A page the back/forward cache keeps may come back, and its later hide still
+      // counts.
+      gone = !event.persisted;
       // The arrival still owes the user the handoff's place, so the tab keeps that
       // handoff for the next document.
       if (handoff && arrival.owes()) return;

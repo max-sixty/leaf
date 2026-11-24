@@ -560,10 +560,13 @@ function landingAim(
 // control they were on, is `kept`: it is no choice of theirs, so a hold on their place
 // open meanwhile still keeps it (user-place.js, `holdUserPlace`). Counted as their
 // choice, a resize while a diff's new source drew took the hold's correction away and
-// left the control they were on 262px down.
-/** @param {Destination | null | undefined} where @param {{alignment?: Destination, behavior?: ScrollBehavior, block?: ScrollLogicalPosition, within?: Element | null, sideways?: boolean, kept?: boolean}} [options] */
+// left the control they were on 262px down. `including` is a larger destination holding
+// the target, such as a run from a group's label to the item, which the landing takes
+// in its place where it fits whole (`fitsWhole`), so the label comes in with the item
+// where there is room and the item comes in alone where there is not.
+/** @param {Destination | null | undefined} target @param {{alignment?: Destination, behavior?: ScrollBehavior, block?: ScrollLogicalPosition, within?: Element | null, sideways?: boolean, kept?: boolean, including?: Destination | null}} [options] */
 export function scrollIntoView(
-  where,
+  target,
   {
     alignment,
     behavior = "auto",
@@ -571,9 +574,11 @@ export function scrollIntoView(
     within = null,
     sideways = true,
     kept = false,
+    including = null,
   } = {},
 ) {
-  if (!where) return;
+  if (!target) return;
+  const where = including && fitsWhole(including) ? including : target;
   const aligned = alignment ?? where;
   const holder = holderOf(aligned);
   if (!holder) return;

@@ -3,7 +3,6 @@ import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
 import {
   presentContributionEntry,
-  presentContributionReceipts,
   registerContribution,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -28,23 +27,23 @@ function wireSample({ sample, key, control, disclosure }) {
         disabled: !sample.interactive,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       },
-      { selected: sample.selected ?? false, unread: sample.unread ?? false },
-    );
-    presentContributionReceipts(
-      control,
-      sample.workflowState
-        ? {
-            id: key,
-            subject: { kind: "widget", id: key },
-            // Where the server says the update stands (activity.py): a turn took it
-            // in, or the agent is at work on it.
-            state: sample.workflowState,
-            reason: null,
-            seen: true,
-            detail: "",
-          }
-        : null,
-      sample.awaitsUser ?? false,
+      {
+        selected: sample.selected ?? false,
+        unread: sample.unread ?? false,
+        receipt: sample.workflowState
+          ? {
+              id: key,
+              subject: { kind: "widget", id: key },
+              // Where the server says the update stands (activity.py): a turn took it
+              // in, or the agent is at work on it.
+              state: sample.workflowState,
+              reason: null,
+              seen: true,
+              detail: "",
+            }
+          : null,
+        awaitsUser: sample.awaitsUser ?? false,
+      },
     );
     // The words beside each fixed sample say what its preview would, over the next
     // cell, so only the live discovery samples keep the preview the factory gives them.

@@ -92,14 +92,10 @@ export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
-export {
-  presentContributionEntry,
-  presentContributionReceipts,
-} from "./contribution-controls.js";
+export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -113,7 +109,6 @@ export {
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
-export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
@@ -121,11 +116,10 @@ export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
-// `whenNear` for the reader to near a node, then each starts the work;
-// `deferredArrival` counts work the widget has already started.
+// `whenNear` for the reader to near a node, then each starts the work, or hands back
+// work the widget has already started.
 export {
   afterPresentation,
-  deferredArrival,
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";

@@ -5,6 +5,7 @@ import {
   contributionEntry,
   contributionHost,
   contributionReceipts,
+  presentContributionEntry,
   presentContributionHost,
   presentContributionReceipts,
 } from "../../browser/runtime/contribution-controls.js";
@@ -58,6 +59,25 @@ test("a reply streaming paints the working face under its own word", () => {
     control.getAttribute("aria-description"),
     "Delivered · Preparing an update",
   );
+});
+
+test("an entry draws the receipts it is given and keeps those a seat painted", () => {
+  const control = document.createElement("button");
+  const entry = { key: "apply", icon: "check", label: "Apply" };
+  presentContributionEntry(control, entry, {
+    receipt: workflow(RUNNING),
+    awaitsUser: true,
+  });
+  assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
+  assert.equal(control.getAttribute("data-lf-turn"), "user");
+  // A seat that paints the receipts on every pass redraws the entry without them
+  // (`materializeContributionControls`).
+  presentContributionEntry(control, entry);
+  assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
+  assert.equal(control.getAttribute("data-lf-turn"), "user");
+  presentContributionEntry(control, entry, { receipt: null, awaitsUser: false });
+  assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
+  assert.equal(control.hasAttribute("data-lf-turn"), false);
 });
 
 test("template contribution hosts paint the retained-host contract and are found on their surface", async () => {

@@ -61,14 +61,24 @@ export function boundFile(binding) {
       if (file === null) throw new Error(`No file is bound as '${binding}'.`);
       return file;
     },
+    // Resolves the saved file, or a refusal in the server's own words, which wrote
+    // nothing, with the newer file where the file had moved on from `revision`. It
+    // rejects only where no such answer came, when the save may have reached the file.
     /** @param {Pick<import("../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
-     * @returns {Promise<import("../types/contract.js").ServedFileSnapshot>} */
-    save: (snapshot) =>
-      request({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(snapshot),
-      }),
+     * @returns {Promise<import("../types/contract.js").ServedFileSnapshot | {refused: string, current: import("../types/contract.js").ServedFileSnapshot | null}>} */
+    save: async (snapshot) => {
+      try {
+        return await request({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(snapshot),
+        });
+      } catch (error) {
+        // `request` passes on a `RequestError` only where the server said why.
+        if (!(error instanceof RequestError)) throw error;
+        return { refused: error.message, current: error.current ?? null };
+      }
+    },
     // Calls back each time an adopted state answer carries a different label or stamp
     // for this binding, the tab's first answer included, until the returned function
     // stops it. A stamp says only that the file may have moved; `read()`'s revision

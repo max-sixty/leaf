@@ -19,6 +19,10 @@ PACKAGES = [
 ]
 
 KNOWN: dict[str, set[tuple[str, str]]] = {
+    # A written Markdown preview first paints its source, which the module replaces
+    # with the rendering. Matching the rendering's height before upgrade needs the
+    # Markdown renderer.
+    "default": {("lf-text-document", "keeps-first-box")},
     # Formatting replaces raw unified-diff header lines with file/hunk rows.
     # Matching that content-derived height before upgrade needs another renderer.
     "diff": {("lf-diff", "keeps-first-box")},

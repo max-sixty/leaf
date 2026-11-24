@@ -150,7 +150,6 @@ import {
   pageLinks,
   loadDeclaredMarkdown,
   formatDeclaredMarkdown,
-  prepaintDeclaredFiles,
 } from "./page-markdown.js";
 import {
   chosenSince,
@@ -2261,7 +2260,6 @@ export function createVersionController({
         // cannot borrow the old widget's semantic state during preparation.
         bindWidgetDescriptors(bindings);
         formatDeclaredMarkdown(arriving);
-        prepaintDeclaredFiles(arriving);
         arrived.push(arriving);
       }
       return arriving;

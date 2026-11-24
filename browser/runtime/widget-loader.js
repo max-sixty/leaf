@@ -28,11 +28,7 @@ import {
   verbatimOwnerIdentity,
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
-import {
-  loadDeclaredMarkdown,
-  formatDeclaredMarkdown,
-  prepaintDeclaredFiles,
-} from "./page-markdown.js";
+import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./page-markdown.js";
 import { widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
@@ -181,7 +177,6 @@ export async function preloadWidgets(scope) {
 export async function importWidgets(scope) {
   await loadWidgetDependencies(scope);
   formatDeclaredMarkdown(scope);
-  prepaintDeclaredFiles(scope);
   await importWidgetModules(scope);
 }
 

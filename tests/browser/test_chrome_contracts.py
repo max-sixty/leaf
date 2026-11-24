@@ -1519,11 +1519,11 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     resized(page, 1280, 600)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const contribute = (key, target, label) => registerContribution({
             key, target,
-            read: () => ({entries: [contributionEntry({key: 'action', icon: 'dot', label})]}),
+            read: () => ({entries: [{key: 'action', icon: 'dot', label}]}),
             activate: () => {},
           });
           for (let index = 0; index < 29; index++)

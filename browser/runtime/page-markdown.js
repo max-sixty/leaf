@@ -2,7 +2,7 @@
    dialect renders (lib/markdown.js), and the passes that render the words the composed
    registry declares Markdown. The dialect itself reads nothing of the page's. */
 import { opensElsewhere } from "./declared-words.js";
-import { generatedElement, offerContentElement } from "./element-markers.js";
+import { offerContentElement } from "./element-markers.js";
 import { describeFailure } from "./lib/exception.js";
 import {
   loadMarkdown,
@@ -11,7 +11,7 @@ import {
   renderMarkdown,
 } from "./lib/markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-import { declarationFor, declaredElements } from "./registry.js";
+import { declaredElements } from "./registry.js";
 import { dataBody } from "./widget-upgrade.js";
 
 /** The page's links and pictures (`MarkdownLinks` in lib/markdown.js), which every
@@ -46,18 +46,6 @@ export const pageLinks = {
   },
 };
 
-// The written files in `scope` whose `prepaint` attribute names Markdown and that
-// hold no rendering yet: a revision's or a message's, since delivery renders only the
-// first document's (`revision_delivery.mark_declared`).
-/** @param {Element | Document | DocumentFragment} scope */
-const unpaintedFiles = (scope) =>
-  declaredElements(scope, (entry) => entry.prepaint).filter(
-    (element) =>
-      element.getAttribute(String(declarationFor(element)?.prepaint)) === "markdown" &&
-      element.querySelector(":scope > pre") &&
-      !element.querySelector(":scope > [data-lf-prepaint]"),
-  );
-
 // A declaration whose data body is Markdown words (`content: markdown`).
 /** @param {import("../types/contract.js").WidgetDeclaration} entry */
 const wordsAreMarkdown = (entry) => entry.content === "markdown";
@@ -67,11 +55,7 @@ const wordsAreMarkdown = (entry) => entry.content === "markdown";
 // Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
-  if (
-    !declaredElements(scope, wordsAreMarkdown).length &&
-    !unpaintedFiles(scope).length
-  )
-    return;
+  if (!declaredElements(scope, wordsAreMarkdown).length) return;
   /** @type {unknown} */
   let failure;
   if (!(await loadMarkdown((error) => (failure = error))))
@@ -111,23 +95,5 @@ export function formatDeclaredMarkdown(scope) {
     body.removeAttribute("data-lf-prepaint");
     body.removeAttribute("data-lf-gen");
     pre.replaceWith(body);
-  }
-}
-// A written Markdown file first paints as its rendering beside the `<pre>` its module
-// reads, as delivery paints the first document's, so its box is the drawn preview's
-// before the module draws over both. Presentation arrivals, a revision's and a
-// message's, call this before connection, with the parser loaded. A version's painted
-// source leaves the rendering out, as its baseline does, since it is presentation.
-/** @param {Element | Document | DocumentFragment} scope */
-export function prepaintDeclaredFiles(scope) {
-  const files = unpaintedFiles(scope);
-  if (files.length && !markdownReady())
-    throw new Error("leaf: Markdown prepaint requires its loaded renderer");
-  for (const file of files) {
-    const body = generatedElement(document.createElement("div"), { says: false });
-    body.className = "lf-markdown-body";
-    body.setAttribute("data-lf-prepaint", "");
-    body.innerHTML = renderMarkdown(dataBody(file), pageLinks, false);
-    file.prepend(body);
   }
 }

@@ -966,7 +966,7 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     resized(page, 1440, 900)
     page.evaluate(
         """async (tree) => {
-          const { contributionEntry, registerContribution } =
+          const { registerContribution } =
             await window.__lfWidgetApi();
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
@@ -993,13 +993,13 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
             }
           }
           const margin = registerContribution({key: 'deep', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'deep', glyph: '!', label: 'deep controls'})]}),
+            read: () => ({entries: [{
+              key: 'deep', glyph: '!', label: 'deep controls'}]}),
             activate: () => {}});
           const sideways = registerContribution({key: 'side',
             target: side,
-            read: () => ({entries: [contributionEntry({
-              key: 'side', glyph: '!', label: 'side controls'})]}),
+            read: () => ({entries: [{
+              key: 'side', glyph: '!', label: 'side controls'}]}),
             activate: () => {}});
           window.__deep = {host, target, inner: root.getElementById('inner'), margin,
                            wide: root.getElementById('wide'), sideways};
@@ -1487,7 +1487,7 @@ def test_a_constrained_target_carries_its_row_through_scroll(
             page.mouse.move(0, 0)
             page.evaluate(
                 """async (position) => {
-                  const {contributionEntry, registerContribution} =
+                  const {registerContribution} =
                     await window.__lfWidgetApi();
                   if (window.__nonlinear) {
                     // The case before leaves its host, or its fixed target, and its row.
@@ -1522,8 +1522,8 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                     host.remove();
                   }
                   const contribution = registerContribution({key: 'nonlinear', target,
-                    read: () => ({entries: [contributionEntry({key: 'nonlinear',
-                      glyph: '!', label: 'Constrained controls'})]}), activate: () => {}});
+                    read: () => ({entries: [{key: 'nonlinear',
+                      glyph: '!', label: 'Constrained controls'}]}), activate: () => {}});
                   window.__nonlinear = {host, target, position, contribution};
                 }""",
                 position,
@@ -1588,7 +1588,7 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     resized(page, 1280, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const main = document.querySelector('main');
           const space = document.createElement('div');
@@ -1601,8 +1601,8 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
           target.style.setProperty('--target-y', '123456.578125px');
           space.append(target); main.append(space);
           const contribution = registerContribution({key: 'distant', target,
-            read: () => ({entries: [contributionEntry({key: 'distant',
-              glyph: '!', label: 'Distant controls'})]}), activate: () => {}});
+            read: () => ({entries: [{key: 'distant',
+              glyph: '!', label: 'Distant controls'}]}), activate: () => {}});
           window.__distantMargin = {target, contribution};
         }"""
     )

@@ -259,7 +259,7 @@
       </details>
     </main>
     <script type="module">
-      import { PAGE_INTERFACE, once, whileConnected } from "/runtime/widget-api.js";
+      import { once, whileConnected } from "/runtime/widget-api.js";
       function initialize() {
         const root = document.querySelector("#panel-candidates");
         if (!root || !once(root)) return;
@@ -285,7 +285,7 @@
           );
         });
       }
-      document.addEventListener(PAGE_INTERFACE, initialize);
+      document.addEventListener("lf-page-interface", initialize);
       initialize();
     </script>
   </body>

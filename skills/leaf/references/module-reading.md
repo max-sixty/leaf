@@ -115,12 +115,6 @@ A widget whose entry declares `content: markdown` has its data body arrive
 rendered as block Markdown, read as a Markdown file, while the recorded body stays the
 source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into it.
 
-An entry declaring `prepaint` names the attribute that gives the notation of the
-widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
-its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
-page first paints at that rendering's size. The module still reads the `<pre>`, and
-replaces both when it draws.
-
 ### Code
 
 `langForPath(path)` names the registry `$languages` language a file name means, or

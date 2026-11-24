@@ -40,6 +40,7 @@ from render_harness import (
     selection_field,
     sending,
     take_browser_errors,
+    told,
     wait_for_check_api,
     watched,
     write,
@@ -2184,7 +2185,53 @@ def test_a_reload_returns_a_selection_beside_focus_on_a_control_of_the_page(
     assert page.evaluate("getSelection().toString()") == "backfill"
     restart_under_another_runtime(page, serve)
     expect(page.locator("#tick")).to_be_focused()
-    page.wait_for_function("getSelection().toString() === 'backfill'", timeout=20000)
+    page.wait_for_function("getSelection().toString() === 'backfill'")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reload_into_a_revision_without_the_focused_control_lands_at_the_reading(
+    request, serve, engine
+):
+    """Focus on a checkbox of the page's own that the revision a reload brings no
+    longer has comes back nowhere, so the reload lands the user at the reading place
+    instead, and Tab goes on from what they read rather than from the page's top."""
+    notes = "".join(f"<p>Rehearsal note {n}.</p>" for n in range(40))
+
+    def revision(tick, mark):
+        return leaf_page(
+            "Restarted",
+            f'<h1>Rehearsal</h1><p><a id="top" href="#top">Top</a></p>{notes}'
+            f'<p id="near">The backfill copied 310 million rows.</p>{tick}'
+            f'<p><a id="next" href="#next">Next</a></p>{notes}',
+        ).replace(
+            "</head>", f'<script type="module">window.mark = "{mark}";</script></head>'
+        )
+
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(
+            serve(
+                revision(
+                    '<p><label>Checked <input id="tick" type="checkbox"></label></p>',
+                    "first",
+                )
+            )
+        ),
+    )
+    tick = page.locator("#tick")
+    tick.scroll_into_view_if_needed()
+    tick.focus()
+    expect(tick).to_be_focused()
+    original_document = page.evaluate("performance.timeOrigin")
+    (serve.page_dir / "index.html").write_text(revision("", "second"))
+    told(page)
+    page.wait_for_function(
+        "(before) => performance.timeOrigin !== before", arg=original_document
+    )
+    wait_until_ready(page)
+    expect(tick).to_have_count(0)
+    page.keyboard.press("Tab")
+    expect(page.locator("#next")).to_be_focused()
 
 
 # Where the user is writing a reply, and the page's address: its live root or a

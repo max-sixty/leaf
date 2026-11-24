@@ -466,13 +466,22 @@ async function returnTo(record, intent, returnsFocus = true) {
     return;
   }
   const thread = key?.thread === null ? (open?.id ?? null) : key?.thread;
+  // Focus that puts the user somewhere: on a drawn element, not the page's body, whether
+  // the record returns it or the handoff did, which finds nothing where the revision
+  // dropped the control.
+  /** @param {Element | null} target */
+  const lands = (target) =>
+    target !== null && target !== document.body && presented(target);
+  const handed = deepFocus();
   const focus = !returnsFocus
-    ? deepFocus()
+    ? lands(handed)
+      ? handed
+      : null
     : key && thread !== null
       ? focusByKey(
           /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
           drawingOf,
-          (target) => target !== document.body && presented(target),
+          lands,
         )
       : null;
   // A field's caret is its whole selection, and clearing the document's would

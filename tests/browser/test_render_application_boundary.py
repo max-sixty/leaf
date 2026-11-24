@@ -261,10 +261,11 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     # Unrelated preparation prevents global presentation proof, while the reply's
     # own rendered words are already visible. Feedback telemetry must not wait on it.
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfWidgetApi();
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       const held = Promise.withResolvers();
       window.releaseTimingPreparation = held.resolve;
-      widgetController(document.querySelector('#timing-local')).present(held.promise);
+      document.querySelector('#timing-local').shadowRoot
+        .dispatchEvent(new PendingTaskEvent(held.promise));
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
         view = open_panel_thread(page, question["id"])
@@ -892,30 +893,24 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
 
-    # Several children prepared by one owner are one requirement. A later call for the
-    # same reading includes the earlier promise rather than superseding it.
-    returned = page.evaluate(
+    # Several children prepared inside one owner are one requirement. A later one for
+    # the same reading joins the earlier promise rather than superseding it.
+    pending = page.evaluate(
         """async () => {
-          window.localController = (await window.__lfWidgetApi()).widgetController;
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          // Said from inside the widget, the work is its preparation.
+          window.prepareLocal = promise =>
+            pageLocal.shadowRoot.dispatchEvent(new PendingTaskEvent(promise));
           window.firstPreparation = heldPreparation();
           window.secondPreparation = heldPreparation();
-          const controller = localController(pageLocal);
-          const first = controller.present(firstPreparation.promise);
-          const second = controller.present(secondPreparation.promise);
+          prepareLocal(firstPreparation.promise);
+          prepareLocal(secondPreparation.promise);
           window.preparationReady = false;
           whenLeafPresented().then(() => { preparationReady = true; });
-          return {
-            first: first === firstPreparation.promise,
-            second: second === secondPreparation.promise,
-            pending: readLeafPresentation().pending,
-          };
+          return readLeafPresentation().pending;
         }"""
     )
-    assert returned == {
-        "first": True,
-        "second": True,
-        "pending": ["widget:page-local:preparation"],
-    }
+    assert pending == ["widget:page-local:preparation"]
     page.evaluate("firstPreparation.release('first')")
     assert page.evaluate("preparationReady") is False
     page.evaluate("secondPreparation.release('second')")
@@ -996,7 +991,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
           window.beforeDetachedReading = Number(pageLocal.dataset.readings);
           window.resumeDetached = pageLocal.defer();
           window.reconnectPreparation = heldPreparation();
-          localController(pageLocal).present(reconnectPreparation.promise);
+          prepareLocal(reconnectPreparation.promise);
           window.beforeRemovalReady = false;
           whenLeafPresented().then(() => { beforeRemovalReady = true; });
           localLifetimeOwner.remove();
@@ -1093,11 +1088,12 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     reported_browser_errors(page, failure)
 
 
-@pytest.mark.parametrize(
-    "mode", ["siblings", "superseded", "reconnected", "registered-detached"]
-)
+@pytest.mark.parametrize("mode", ["siblings", "superseded", "reconnected"])
 def test_preparation_waits_for_all_capable_work(browser, serve, mode):
-    """Failures and reconnects retain every producer that can still commit DOM."""
+    """Failures and reconnects retain every producer that can still commit DOM. A
+    widget says its preparation with `pending-task`, which is heard only while the
+    widget stands in the page, so work said there is held through the widget's leaving
+    and return."""
     page = open_page(
         browser,
         serve(
@@ -1112,46 +1108,30 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         ),
     )
     page.locator("#page-local").evaluate("""async owner => {
-      window.preparationController = (await window.__lfWidgetApi()).widgetController;
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      // Said from inside the widget, the work is its preparation.
+      window.prepare = promise =>
+        owner.shadowRoot.dispatchEvent(new PendingTaskEvent(promise));
       window.preparationOwner = owner;
       window.preparationParent = owner.parentNode;
     }""")
-    if mode == "registered-detached":
-        page.evaluate("preparationOwner.remove()")
     page.evaluate("""() => {
       const owner = preparationOwner;
       const first = new Promise((done, fail) => {
         window.finishPreparation = done;
         window.rejectPreparation = fail;
       });
-      preparationController(owner)
-        .present(first.then(() => { owner.dataset.late = 'committed'; }));
+      prepare(first.then(() => { owner.dataset.late = 'committed'; }));
     }""")
-    if mode == "registered-detached":
-        append_command(
-            serve.page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "page-local",
-                "action": "choose",
-                "detail": {"value": "chosen"},
-            },
-        )
-        told(page)
-    elif mode != "siblings":
+    if mode != "siblings":
         page.get_by_role("button", name="Choose", exact=True).click()
         expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     page.evaluate("""() => {
-      const owner = preparationOwner;
-      const second = new Promise(done => { window.releaseSibling = done; });
-      preparationController(owner).present(second);
+      prepare(new Promise(done => { window.releaseSibling = done; }));
     }""")
-    if mode in {"reconnected", "registered-detached"}:
-        if mode == "reconnected":
-            page.get_by_role("heading", name="Preparation", exact=True).click()
-            page.evaluate("preparationOwner.remove()")
+    if mode == "reconnected":
+        page.get_by_role("heading", name="Preparation", exact=True).click()
+        page.evaluate("preparationOwner.remove()")
         rendered(page)
         page.evaluate("preparationParent.append(preparationOwner)")
     if mode != "siblings":
@@ -1165,7 +1145,7 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
     assert not page.evaluate(
         "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
     )
-    if mode in {"reconnected", "registered-detached"}:
+    if mode == "reconnected":
         page.evaluate("finishPreparation()")
         rendered(page)
         expect(page.locator("#page-local")).to_have_attribute("data-late", "committed")

@@ -18,20 +18,23 @@ from leaf.structure import SourceDocument
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { layerFact, widgetController } from "/runtime/widget-api.js";
+import { layerFact } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
-    return this.attachShadow({mode: "open"});
+    return this.shadowRoot ?? this.attachShadow({mode: "open"});
   }
 
   setup() {
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     const held = globalThis.__heldLocalPresentations?.get(this.id);
-    if (held) widgetController(this).present(held);
+    // Said from inside the widget, the work is its preparation, which holds the page
+    // apart from the widget's own drawing.
+    if (held) this.createRenderRoot().dispatchEvent(new PendingTaskEvent(held));
   }
 
   // The gesture writes its own result into the output, which a deferral holds the

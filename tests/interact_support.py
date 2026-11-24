@@ -217,9 +217,7 @@ def queue_board_registry(registry: dict) -> dict:
     registry = deepcopy(registry)
     registry["lf-board"]["awaits"] = {
         "value": "move",
-        "answered": {
-            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
-        },
+        "answered": {"move": {"empty": {"when": {"label": ["Queued"]}}}},
     }
     return registry
 

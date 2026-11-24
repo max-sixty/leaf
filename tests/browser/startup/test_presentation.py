@@ -376,19 +376,19 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
             layer_registry={"lf-settled-link": settled, "lf-shadow-link": shadow},
             layer_widgets={
                 "lf-settled-link.js": """
-import {widgetController} from '/runtime/widget-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    widgetController(this).present(new Promise(resolve => setTimeout(() => {
+    this.dispatchEvent(new PendingTaskEvent(new Promise(resolve => setTimeout(() => {
       const link = document.createElement('a');
       link.id = 'settled-link';
       link.href = 'https://example.com/settled';
       link.textContent = 'settled destination';
       this.replaceChildren(link);
       resolve();
-    }, 25)));
+    }, 25))));
   }
 });
 """,

@@ -667,11 +667,13 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) is None
     page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           window.probeOlderSettled = false;
           const work = new Promise(resolve => { window.releaseProbeOlder = resolve; });
           window.probeOlder = work.then(() => { probeOlderSettled = true; });
-          widgetController(document.getElementById('readiness')).present(work);
+          // Said from inside the widget, the work is its preparation.
+          document.querySelector('#readiness lf-new')
+            .dispatchEvent(new PendingTaskEvent(work));
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"

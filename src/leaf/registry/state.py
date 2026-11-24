@@ -230,8 +230,8 @@ def validate_answered_conditions(
     # Asked only after the declaration's record and retirement gates have reported
     # their more fundamental structural errors. Each answering verb's condition reads
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
-    # verb recording positions, the emptiness of one member container inside the
-    # widget.
+    # verb recording positions, the emptiness of one of its own containers (`within`,
+    # which the record gate has found declared) inside the widget.
     for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
         spec = entry["verbs"][verb]
         empty = condition.get("empty")
@@ -254,12 +254,8 @@ def validate_answered_conditions(
             continue
         if record.get("kind") != "position":
             raise registry_error("answering-position", path, tag, verb=verb)
-        within = empty["within"]
-        container = declarations.get(within)
-        if container is None:
-            raise registry_error(
-                "answering-container", path, tag, verb=verb, within=within
-            )
+        within = record["within"]
+        container = declarations[within]
         if container.get("content") != "members":
             raise registry_error(
                 "answering-members", path, tag, verb=verb, within=within

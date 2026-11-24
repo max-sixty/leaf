@@ -128,8 +128,10 @@ this.dispatchEvent(hold);
   recorded value. `attr` names the attribute in which a page's markup writes the
   starting value, as for any value record. Leaf sets `state` on the element too, as
   on any widget, so this form doesn't suit an element with a `state` property of its
-  own. Undo names the action in Leaf's own words (`module-state.md`, "The widget
-  controller").
+  own. The `state` Leaf sets is how the element learns the user may not act: Leaf
+  neither disables it nor makes it inert, so an element that doesn't read the verb's
+  `available` shows the user's change until Leaf sets the property back. Undo names
+  the action in Leaf's own words (`module-state.md`, "The widget controller").
 - **A third-party component.** A component from a third-party library keeps its own
   tag, since the library's styles and the component's own children find it by that
   tag. The page writes it inside the element the registry declares, as in
@@ -257,5 +259,7 @@ part it generated beside them, or says `static shadow = true` and slots them. Th
 module's header is the class's whole contract.
 
 Only the class follows a page reading, so a widget that draws from one must extend it.
+A plain element can still draw its own reports in its `state` setter, since Leaf sets
+`state` again as they turn ready (`module-reading.md`, "Page history and reports").
 A widget that draws with Lit's standalone `render`, as the opening example does, that
 imports nothing, or that wraps a component written without Leaf extends `HTMLElement`.

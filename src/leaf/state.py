@@ -276,26 +276,13 @@ def hooks_root(session_id: str) -> Path | None:
     return Path(marked.rpartition("\n")[0])
 
 
-def hooks_launcher(session_id: str) -> Path | None:
-    """The launcher of the Leaf the session's hooks last ran (`hooks_root`), where
-    that is another Leaf than this one and its launcher still runs, or else None."""
+def runs_session(session_id: str) -> bool:
+    """Whether this Leaf may act for the session `session_id`: it is the Leaf the
+    session's hooks last ran (`hooks_root`), or no hook of the session has run.
+    Another Leaf, such as a checkout's `bin/leaf` run from the session's shell, acts
+    for no session (`harness.session_harness`)."""
     root = hooks_root(session_id)
-    if root is None or root == PLUGIN_ROOT:
-        return None
-    launcher = root / "bin" / "leaf"
-    return launcher if os.access(launcher, os.X_OK) else None
-
-
-def protocol_at(root: Path = PLUGIN_ROOT) -> int:
-    """The page protocol of the Leaf at `root`, this one by default, as its kernel
-    registry on disk states it now (`KERNEL_REGISTRY`). In this one it moves past
-    the protocol the process loaded (`registry.kernel.kernel_protocol`) when the
-    checkout a long-running process loaded moves on under it, as a worktree's does
-    when its branch is updated: the process still speaks the protocol it loaded, and
-    the newer Leaf the session's hooks now run reads that process's leases as no
-    one's (`leases.lease_speaks_here`)."""
-    registry = root / KERNEL_REGISTRY.relative_to(PLUGIN_ROOT)
-    return json.loads(registry.read_text(encoding="utf-8"))["$events"]["protocol"]
+    return root is None or root == PLUGIN_ROOT
 
 
 class LoadedCopy:
@@ -347,8 +334,13 @@ class LoadedCopy:
         session's page onto a checkout."""
         if not self._installed:
             return None
-        launcher = hooks_launcher(session_id) if session_id is not None else None
-        if launcher is not None and installed_copy(root := launcher.parents[1]):
+        root = hooks_root(session_id) if session_id is not None else None
+        if (
+            root is not None
+            and root != PLUGIN_ROOT
+            and installed_copy(root)
+            and os.access(root / "bin" / "leaf", os.X_OK)
+        ):
             return root
         return PLUGIN_ROOT if self.replaced() else None
 

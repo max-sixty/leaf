@@ -24,7 +24,9 @@ A command goes to the Leaf that owns what it acts on (`src/leaf/session-lifetime
 - **This checkout's runtime**: `<root>/bin/leaf` for a preview, a fixture or another
   page the session doesn't hold, and `uv run` from `<root>` for the tests and
   `leaf-dev`. `<root>` is the repository root three directories above this
-  `SKILL.md`, which `<root>/bin/leaf --root` prints.
+  `SKILL.md`, which `<root>/bin/leaf --root` prints. The checkout acts for no
+  session, as a dev server of any project would: it serves a page unclaimed,
+  `leaf-dev preview --user` included, and `<root>/bin/leaf wait PAGE` hears it.
 
 ## Read the owning contract
 
@@ -51,18 +53,15 @@ after a compaction, before the page's next revision or handoff. A brief for a
 subagent that writes the page names the content and the decisions to put to the user,
 and leaves how to pose them to those instructions.
 
-A page runs the runtime of the Leaf serving it. The session's hooks, its pages
-follower and the hooks module run the session's own copy whichever launcher you use,
-and read a page the session holds only at that copy's page protocol, so the checkout
-claims a page for the session only at that protocol. Behind it, merge main first;
-ahead of it, serve the page unclaimed, with `leaf-dev preview` without `--user` or
-`server start --lifetime persistent`, and hear it with `<root>/bin/leaf wait PAGE`.
-To try a change to the hooks or the hooks module, run the agent journey ("Run the
-agent journey") or `uv run leaf-dev journey session`, whose Claude Code loads this
-checkout as its plugin. A page built in another checkout, such as a subagent's
-worktree, was checked against that checkout's Leaf, and markup and layout contracts
-change between commits with no protocol change. Serve it with that checkout's
-launcher, and judge it against that checkout's instructions.
+A page runs the runtime of the Leaf serving it, so a page the checkout serves shows
+the checkout's runtime. The session's hooks, its pages follower and the hooks module
+run the session's own copy whichever launcher you use; to try a change to them, run
+the agent journey ("Run the agent journey") or `uv run leaf-dev journey session`,
+whose Claude Code loads this checkout as its plugin. A page built in another
+checkout, such as a subagent's worktree, was checked against that checkout's Leaf,
+and markup and layout contracts change between commits with no protocol change.
+Serve it with that checkout's launcher, and judge it against that checkout's
+instructions.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the

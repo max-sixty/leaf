@@ -10,7 +10,11 @@ opens offline.
 A plain preview takes no claim: its comments settle in the page's log and nowhere
 else, so a session can drive it. `--user` claims the page for this session, so presses
 arrive through the harness's feedback path, and serves it from the page's durable
-service. Ending the preview stops its service and withdraws its acquisition.
+service. It claims only where the session's hooks run the preview's runtime, as in
+`leaf-dev journey session`: any other Leaf acts for no session
+(`harness.session_harness`), so a checkout's `--user` preview in a session started
+normally serves unclaimed, and that checkout's `bin/leaf wait` hears it. Ending the
+preview stops its service and withdraws its acquisition.
 In Codex it also starts or joins
 the task's delivery adapter, so comments can start a new turn after this one ends.
 
@@ -40,11 +44,7 @@ source and the run. User previews keep their base under `.tmp/preview-base` afte
 because detached watchers still need its files. Foreground previews end together.
 
 The preview serves the selected checkout in place, with its runtime's source modules,
-so a runtime edit reaches the page with no build. A `--user` preview's session hears
-the page through the copy of Leaf the session loaded (`session-lifetime.md`, "Which
-Leaf runs a session"), which reads it only at that copy's page protocol, so a
-runtime at another protocol refuses the claim and the preview with it
-(`service.refuse_unheard`).
+so a runtime edit reaches the page with no build.
 
 While it runs, a native subscription (`leaf.file_changes`) reports edits.
 Initialization decides whether the layer actually changed; identical saves leave the
@@ -1040,7 +1040,8 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
 @click.option(
     "--user",
     is_flag=True,
-    help="Hand this preview to a user: claim the page so presses arrive as feedback.",
+    help="Hand this preview to a user: serve its page durably, claimed so presses "
+    "arrive as feedback where the session's hooks run this runtime.",
 )
 @click.option(
     "--export",

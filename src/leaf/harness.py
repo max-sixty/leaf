@@ -38,6 +38,7 @@ from leaf.leases import (
 from leaf.machine import ancestry, pid_alive, process_argv
 from leaf.page_memory import Slot
 from leaf.refusals import Refused
+from leaf.state import runs_session
 
 
 @dataclass(frozen=True)
@@ -1007,7 +1008,14 @@ def session_harness() -> Harness | None:
     Code shell, or Claude Code from Pi's, states both sessions. The harness running
     the command is the nearest one, so where more than one is implied they are
     ranked by how far above this process each one's `process_pid` runs, and the
-    order below breaks a tie."""
+    order below breaks a tie.
+
+    A Leaf other than the one that session's hooks run, such as a checkout's
+    `bin/leaf` run from the session's shell, finds no harness (`state.runs_session`),
+    and so acts as a command from a bare shell does: it claims nothing, writes none
+    of the session's records, and serves a page unclaimed. The user chose that
+    developing Leaf works as developing any project does, so a checkout's version,
+    page protocol included, never reaches the session."""
     implied = [
         (harness, session)
         for harness in _ENVIRONMENT_HARNESSES
@@ -1023,6 +1031,8 @@ def session_harness() -> Harness | None:
     if not implied:
         return None
     harness, session = implied[0]
+    if not runs_session(session):
+        return None
     return harness(
         session=session,
         agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,

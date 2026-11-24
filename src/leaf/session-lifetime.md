@@ -276,13 +276,13 @@ idle or changes hands.
 
 A session's hooks, watch, pages follower and bare `leaf` commands run the copy of
 Leaf its harness loaded, whose `bin/leaf` its hooks run, and a Codex task's adapter
-starts from that copy too (`codex_adapter.preparing_adapter`). Claude Code installs
-each update as a new copy and keeps a running process on the copy it loaded until
-`/reload-plugins`, or until a new process of the session, such as a resume or a
-background job's wake, loads the update. Codex and Pi each keep one copy and update
-it in place, so the session's next hook runs the update. A path names no version
-there, so Leaf identifies a copy by its path and commit (`state.installed_copy`,
-`layer.payload_provenance`).
+starts from that copy too, the only one that claims for the session. Claude Code
+installs each update as a new copy and keeps a running process on the copy it loaded
+until `/reload-plugins`, or until a new process of the session, such as a resume or
+a background job's wake, loads the update. Codex and Pi each keep one copy and
+update it in place, so the session's next hook runs the update. A path names no
+version there, so Leaf identifies a copy by its path and commit
+(`state.installed_copy`, `layer.payload_provenance`).
 
 Each hook records the root of the Leaf it runs (`leases.mark_skill`). At the
 session's next hook, a page at an older protocol is renewed (`layer-registry.md`,
@@ -291,19 +291,19 @@ hook, and that Leaf ships another skill, the agent is told to read it again
 (`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
 restarts a page's server under that one at the same address (`hosting.start_page`).
 
-Another Leaf, such as a checkout's `bin/leaf`, runs only the command it was given
-and any page server that command starts; nothing else of the session moves to it.
-It reads and writes the session's records in the state home beside the Leaf the
-session's hooks run. Where the two keep a record in different shapes
-(`state.Record`), each reads the other's as absent and replaces it, so a claim one
-makes can lapse at the other's next write. Where they agree and speak one page
-protocol, it serves, claims and initializes the session's pages as the session's
-Leaf would. At another protocol it neither claims a page for the session nor takes
-a page the session holds to its own protocol (`service.refuse_unheard`), since the
-session's hooks read a page only at theirs. They would take a page at an earlier
-protocol up to theirs and serve it with their own Leaf, and refuse one at a later
-protocol, which no Leaf takes back down. It still serves a page without claiming
-it, which its own `leaf wait` hears.
+A command from a Leaf other than the one the session's hooks run, such as a
+checkout's `bin/leaf` run from the session's shell, acts for no session, as a
+command from a bare shell does (`harness.session_harness`). The user chose that
+developing Leaf works as developing any project does, so that Leaf's version, page
+protocol included, never reaches the session: it claims nothing, writes none of the
+session's records, and serves a page unclaimed, which its own `leaf wait` hears. A
+page the session holds it treats as another session's. Where it keeps the session's
+records in another shape (`state.Record`), it reads them as absent, and so takes
+the session's pages for pages no live session holds.
+
+Whichever Leaf asks, a page a live session holds isn't taken to a later protocol
+than the one that session's hooks run (`vendoring._refuse_unheard`), since those
+hooks would refuse it from then on and no Leaf takes a page back down.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):

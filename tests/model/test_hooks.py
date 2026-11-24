@@ -67,6 +67,7 @@ from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Rejected
 from leaf.json_block import read_json_block
+from leaf.refusals import Refused
 from leaf.registry.storage import LAYER, layer_record
 from leaf.served_state import context as context_model
 
@@ -2298,7 +2299,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
 
 def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     """Have session s1's hooks last run another Leaf, one at `protocol`, and return
-    its root (`leases.mark_skill`, `state.protocol_at`)."""
+    its root (`leases.mark_skill`, `registry.kernel.installed_protocol`)."""
     root = tmp_path / f"leaf at {protocol}"
     registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
         cleanup_model.PLUGIN_ROOT
@@ -2311,64 +2312,57 @@ def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
     return root
 
 
-def test_a_leaf_ahead_of_its_sessions_hooks_leaves_a_page_they_read_alone(
+@pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])
+def test_a_leaf_other_than_its_sessions_hooks_acts_for_no_session(
+    claimed, tmp_path, ahead
+):
+    """A command from a Leaf other than the one its session's hooks run, as from a
+    checkout's `bin/leaf` in the session's shell, acts as one from a bare shell does,
+    whatever that Leaf's page protocol: it finds no harness, so it claims nothing for
+    the session and writes none of the session's records. The Leaf the hooks run,
+    and any Leaf before a hook has run, acts for the session."""
+    assert harness_model.session_harness() is not None
+    hooks_run_leaf_at(tmp_path, LAYER.since - ahead)
+    lifecycle = cleanup_model.session_record("s1")
+
+    assert harness_model.session_harness() is None
+    with pytest.raises(Refused, match="only the Leaf an agent session's hooks run"):
+        service_model.cmd_claim(claimed, manual_delivery=True)
+    assert cleanup_model.session_record("s1") == lifecycle
+
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    harness = harness_model.session_harness()
+    assert harness is not None and harness.session == "s1"
+
+
+def test_no_leaf_takes_a_held_page_past_the_protocol_its_sessions_hooks_run(
     claimed, tmp_path
 ):
-    """A Leaf at a later page protocol than the one its session's hooks run, as a
-    checkout's `bin/leaf` on a branch that bumps it, takes a page the session holds
-    to its own neither by renewal nor by `page init`: the hooks could then no longer
-    read the page, and no Leaf takes a page back down. Its refusal names the
-    session's own Leaf. At the hooks' protocol it renews the page as they would, and
-    a page already at its protocol it initializes again whatever the hooks run,
-    since that moves no protocol."""
+    """A page a live session holds is never taken to a later page protocol than the
+    one the Leaf its session's hooks run speaks, whatever Leaf asks, a checkout's
+    `bin/leaf` or a terminal's: those hooks could then no longer read the page, and
+    no Leaf takes a page back down. With the page's server running, its restart
+    refuses first (`hosting.restarting_server`), so this holds where the server is
+    down. Such a Leaf doesn't renew a page another session holds either. At the
+    hooks' protocol it initializes the page, and a page already at its protocol it
+    initializes again whatever the hooks run, since that moves no protocol."""
     older = vendored_at_another_protocol(claimed)
     hooks = hooks_run_leaf_at(tmp_path, older)
 
-    found = vendoring_model.renew_layer(claimed, harness_model.session_harness())
-
-    assert found is not None and found.code == "renewal-refused"
-    assert f"`{hooks}/bin/leaf`" in str(found)
+    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    refusal = event_contracts_model.write_refusal(claimed)
+    assert refusal is not None and refusal.code == "foreign-layer"
     with pytest.raises(Rejected) as refused:
         vendoring_model.cmd_init(claimed)
     assert [finding.code for finding in refused.value.findings] == ["unheard-protocol"]
-    refusal = event_contracts_model.write_refusal(claimed)
-    assert refusal is not None and refusal.code == "foreign-layer"
+    assert f"`{hooks}/bin/leaf`" in str(refused.value)
 
     hooks_run_leaf_at(tmp_path, LAYER.since)
-    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    assert vendoring_model.cmd_init(claimed)["packages"]
     assert event_contracts_model.write_refusal(claimed) is None
 
     hooks_run_leaf_at(tmp_path, older)
     assert vendoring_model.cmd_init(claimed, ())["packages"] == []
-
-
-def refused_claim(page_dir) -> str:
-    """The words of the refusal of `leaf page claim` of `page_dir` for session s1."""
-    with pytest.raises(Rejected) as refused:
-        service_model.cmd_claim(page_dir, manual_delivery=True)
-    assert [finding.code for finding in refused.value.findings] == ["unheard-protocol"]
-    return str(refused.value)
-
-
-def test_a_leaf_claims_for_its_session_only_at_the_protocol_its_hooks_run(
-    claimed, tmp_path
-):
-    """A claim for a session whose hooks run another Leaf at another page protocol,
-    as from a checkout's `bin/leaf` or a `leaf-dev preview --user` on a branch
-    behind or ahead of the plugin, is refused at the command. Behind, the hooks
-    would take the page up to theirs and serve it with their own Leaf, so the
-    refusal says to merge main. Ahead, the hooks couldn't read it, so it says to
-    serve the page unclaimed and hear it with this Leaf's `leaf wait`. At the hooks'
-    protocol the claim proceeds."""
-    hooks_run_leaf_at(tmp_path, LAYER.since + 1)
-    assert "Merge main into this checkout" in refused_claim(claimed)
-
-    hooks_run_leaf_at(tmp_path, LAYER.since - 1)
-    words = refused_claim(claimed)
-    assert f"`{cleanup_model.PLUGIN_ROOT}/bin/leaf wait {claimed}`" in words
-
-    hooks_run_leaf_at(tmp_path, LAYER.since)
-    assert service_model.cmd_claim(claimed, manual_delivery=True) == {"session": "s1"}
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(

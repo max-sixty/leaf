@@ -308,7 +308,7 @@ _ENDED = "a to-do's recorded outcome stays as its first end gave it"
 _ONCE = "each gesture is taken back once, and the agent hears of it once"
 _UNDONE = "an undo the page accepts changes what the user sees"
 _READ_AS_WRITTEN = "the user's recorded decisions are read as they were written"
-_HEARD = "the session hears each page it holds, served by the Leaf that took it"
+_HEARD = "the session holding a page can go on reading it"
 _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
@@ -2331,27 +2331,17 @@ _TEXT = {
         f"{v['page']} is at an older page protocol, and this Leaf could not take it"
         f" to its own: {v['error']}"
     ),
-    # A claim for a session whose hooks run a Leaf at another page protocol, or a
-    # renewal or `page init` that would take a page it holds to this Leaf's
-    # (`service.refuse_unheard`).
+    # A renewal or `page init` that would take a page a live session holds to a
+    # later page protocol than the one the session's hooks run
+    # (`vendoring._refuse_unheard`).
     "unheard-protocol": _refuses(
         _HEARD,
         lambda at, v: (
-            f"session {v['session']}'s hooks run a Leaf at page protocol {v['heard']}"
-            f" ({v['hooks']}), and this one ({v['leaf']}) speaks {v['protocol']}, so "
-            + (
-                f"those hooks would take {v['page']} to their protocol and serve it"
-                " with their own Leaf in place of this one. Merge main into this"
-                f" checkout so that it speaks protocol {v['heard']}, then run the"
-                " command again."
-                if v["protocol"] < v["heard"]
-                else f"those hooks couldn't read {v['page']} at this Leaf's protocol."
-                " Serve the page without claiming it, as `server start --lifetime"
-                f" persistent` does, and hear it with `{v['leaf']}/bin/leaf wait"
-                f" {v['page']}`. To work on a page the session already holds, run"
-                f" `{v['hooks']}/bin/leaf`. In Claude Code, /reload-plugins moves the"
-                " session to the installed copy, if that has caught up."
-            )
+            f"{v['page']} is held by session {v['session']}, whose hooks run a Leaf at"
+            f" page protocol {v['heard']} ({v['hooks']}). Taken to this Leaf's"
+            f" protocol, {v['protocol']} ({v['leaf']}), it would be a page those hooks"
+            " refuse, and no Leaf takes a page back down. Work on this page with"
+            f" `{v['hooks']}/bin/leaf`, that session's own Leaf."
         ),
     ),
     "server-stays-stopped": lambda at, v: (

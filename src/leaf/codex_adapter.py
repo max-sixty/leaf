@@ -54,16 +54,16 @@ one, environment included, so an adapter left running would load each module it
 imports later from the new copy, beside the old modules it already holds. So the
 adapter asks each pass which copy should run it now (`state.LoadedCopy.successor`),
 as a page server does (`server.stop_when_service_ends`), and once that names one,
-hands its task to an adapter from that copy (`_hand_over`). An adapter starts
-from the copy the task's hooks run, whichever Leaf claims (`preparing_adapter`).
-One running Codex's copy moves to the copy Codex puts at its path, and one whose
-task's hooks have since run another installed copy moves to that one. An update
-that moves the page protocol leaves the task's pages at the old one, which the
-restart of each page's server renews (`hosting.follow_copy`), and the successor
-delivers their input once it does. An adapter from a checkout, as where the task's
-hooks run one, follows no copy: it keeps the modules it loaded and imports any
-later one from the checkout as it stands, since whoever runs a checkout decides
-when it changes.
+hands its task to an adapter from that copy (`_hand_over`). Only the Leaf the
+task's hooks run claims for the task (`harness.session_harness`), so an adapter
+starts from that copy. One running Codex's copy moves to the copy Codex puts at its
+path, and one whose task's hooks have since run another installed copy moves to
+that one. An update that moves the page protocol leaves the task's pages at the old
+one, which the restart of each page's server renews (`hosting.follow_copy`), and
+the successor delivers their input once it does. An adapter from a checkout, as
+where the task's hooks run one, follows no copy: it keeps the modules it loaded
+and imports any later one from the checkout as it stands, since whoever runs a
+checkout decides when it changes.
 
 Restarting the adapter from the task's prompt hook would leave it on its deleted
 copy until the task's next prompt, which can come hours later. Replacing the process
@@ -144,7 +144,6 @@ from .state import (
     described,
     ensure_session,
     flocked,
-    hooks_launcher,
     object_schema,
     session_file,
     session_record,
@@ -1075,8 +1074,7 @@ def preparing_adapter(harness: CodexHarness):
     The same task start lock serializes adapter startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
     claim exists, without an adapter retiring in that gap. A new adapter captures
-    the launching harness's canonical session generation before subscribing to turns,
-    and runs the copy of Leaf the task's hooks run (`state.hooks_launcher`).
+    the launching harness's canonical session generation before subscribing to turns.
     """
     executable = shutil.which("codex")
     if executable is None:
@@ -1106,7 +1104,7 @@ def preparing_adapter(harness: CodexHarness):
         # lend an ended session their former authority.
         if not owned_pages(session_id):
             ensure_session(session_id, harness.lifetime())
-        _start_adapter(harness, executable, app_server, hooks_launcher(session_id))
+        _start_adapter(harness, executable, app_server, None)
         yield
 
 

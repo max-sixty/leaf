@@ -1555,16 +1555,15 @@ sequenceDiagram
               </tbody>
             </table>
             <p id="leaf-copy-checkout">
-              A checkout of Leaf, run through its own <code>bin/leaf</code>, runs only
-              that command and any page server the command starts. The session's hooks,
-              the following of its pages, its bare <code>leaf</code> and a Codex task's
-              delivery adapter stay on the copy the session loaded. A checkout that
-              speaks that copy's page protocol and keeps the session's records in the
-              same shapes serves, claims and initializes the session's pages as the copy
-              would. A checkout at another protocol neither claims a page for the
-              session nor takes a page the session holds to its own, since the session's
-              hooks read pages only at theirs; it serves a page without claiming it, and
-              its own <code>leaf wait</code> hears it. Only a server from an installed
+              Developing Leaf works as developing any project does. A checkout of Leaf,
+              run through its own <code>bin/leaf</code> from inside a session, acts for
+              no session, as from a bare shell: it claims nothing and writes none of the
+              session's records, so its version, page protocol included, never reaches
+              the session. It serves a page without claiming it, and its own
+              <code>leaf wait</code> hears it. The session's hooks, the following of its
+              pages, its bare <code>leaf</code> and a Codex task's delivery adapter stay
+              on the copy the session loaded. No Leaf takes a page a live session holds
+              to a later protocol than its hooks read. Only a server from an installed
               copy moves, and only to an installed copy, so a checkout's servers stay as
               they are, and no server moves onto a checkout.
             </p>

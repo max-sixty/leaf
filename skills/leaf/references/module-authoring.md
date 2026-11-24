@@ -192,11 +192,10 @@ script", lists.
 
 A custom element builds behind a guard that passes only on its first connection, since
 `connectedCallback` runs again each time a revision or a thread puts the element back.
-The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, an
-element that imports nothing keeps a flag of its own, and a `LeafElement` builds in its
-`setup()` (`module-plain-elements.md`, "`LeafElement`"). Use `disconnectedCallback`
-only for teardown that must happen at once, such as cancelling a grab or removing
-hoisted UI.
+The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, and an
+element that imports nothing keeps a flag of its own. Use `disconnectedCallback` only
+for teardown that must happen at once, such as cancelling a grab or removing hoisted
+UI.
 
 A widget inside an element whose `exhibit` declaration applies (including its optional
 `when` condition), such as `lf-sample`, is quoted, and Leaf marks that element

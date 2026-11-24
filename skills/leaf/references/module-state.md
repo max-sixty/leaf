@@ -66,10 +66,10 @@ isn't available, throws for a verb the widget doesn't declare, and otherwise ret
 The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with the Undo
 row in the leaf's menu.
 
-A widget says asynchronous preparation the page should wait for, such as a renderer
-loading, with a `pending-task` event (`module-plain-elements.md`, "Drawing"). Where a
-parent prepares for a member that has no controller of its own, it passes the promise
-to its `widgetController(owner)`'s `present(promise)`.
+A widget says its own drawing under way, such as a renderer loading, with a
+`pending-task` event (`module-plain-elements.md`, "Drawing"). Where a parent prepares
+for a member that has no controller of its own, it passes the promise to its
+`widgetController(owner)`'s `present(promise)`.
 
 ### State only this tab keeps
 
@@ -130,12 +130,20 @@ A widget reads a bound data source through the property its input (`inputs`) nam
 ([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)),
 `"property": "value"` for most widgets. Before each update the delivery moves, Leaf
 sets that property to the source's value, or `null` while there is no readable value,
-including when the value doesn't fit the contract. Define the property as a setter that
-draws, or as a Lit property, as a widget would take a value any host sets:
+including when the value doesn't fit the contract. On a `LeafElement`, declare it as a
+Lit property and read it in `render()`, as a widget would read a value any host sets; a
+plain element defines a setter that draws:
 
 ```js
-set value(builds) {
-  render(builds ? html`…` : html`<p>No builds.</p>`, this);
+static properties = { value: { attribute: false } };
+
+constructor() {
+  super();
+  this.value = null;
+}
+
+render() {
+  return this.value ? html`…` : html`<p>No builds.</p>`;
 }
 ```
 

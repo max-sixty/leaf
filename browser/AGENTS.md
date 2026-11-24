@@ -476,6 +476,12 @@ Leaf composes into a page is not library code, and stays in its owner behind
   loads in a document Leaf didn't compose (lint, the library's block in
   `../eslint.config.mjs`). Where it needs a stateless helper of the runtime's, the
   helper's module joins the library, and the runtime imports the helper from there.
+- A library module may read what the browser and the page's stylesheet say, such as a
+  media query or a custom property on the cascade, since any document can answer
+  those: `lib/motion.js` reads its durations there, and the hold `base.css` states
+  until the page presents (`--lf-before-presentation`). It reads no attribute Leaf
+  stamps on the page. Lint cannot see either kind of read, so a review of a library
+  module reads its bodies.
 - The runtime imports a library module by relative path. A package, a page and a
   render check import it by its served path, `/runtime/lib/<module>.js`.
   `$public-modules` in `runtime/kernel-registry.json` admits a package's or a page's

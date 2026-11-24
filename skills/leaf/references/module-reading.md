@@ -32,12 +32,15 @@ document around it, as a contents list does, reads it with
 (`views`, `module-authoring.md`), whose holder Leaf marks `data-lf-views`, else the
 `main` holding it, else null.
 
-### Naming elements
+### Naming
 
-To name an element elsewhere, such as in a feed row, use `addressableLabel(element)`,
-the name Leaf's chrome gives it: its title, caption or label; failing those, a
-paragraph or list item is named by its first words, and another element by the nearest
-named element around it. A registered widget with no name gets an empty label: say the
+To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name
+Leaf's own surfaces show for it, so a widget's words for it match the panel's,
+Threads' and On Me's. It names an element, the page (`document`), a thread from
+`readThreads()` and a row from `readQueues()`, and returns "" where Leaf shows no name.
+An element's name is its title, caption or label; failing those, a paragraph or list
+item is named by its first words, and another element by the nearest named element
+around it. A registered widget with no name gets an empty name: say the
 word for its kind instead, which the library gives (`module-authoring.md`, "Shared web
 code"). That word is the element's `aria-roledescription`, which the module that
 builds the element writes along with a role for it, since ARIA ignores the attribute
@@ -49,8 +52,8 @@ its structure, as a rewrite's old and new text don't, its `lfSays()` returns the
 words that describe it. A widget's name is its `label` attribute, as an option
 card's, a board card's or a column's is, which names its element on every widget
 that takes it (the registry's `$attributes`), whether or not the widget draws it.
-`authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
-while the tab's title counts what waits on the user in front of it.
+The page's name is its own `<title>`, which `document.title` doesn't give while the
+tab's title counts what waits on the user in front of it.
 
 `titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
 or `article` that opens with it, alone or in that `hgroup`, and a heading inside a
@@ -238,7 +241,7 @@ the nearest element holding it that its author named, such as a captioned figure
 question or section stands in the part around it, past its own heading. A module that
 counts items per heading as the reader moves through them, as `lf-toc` does, gives
 each heading the stretch of the page from the element it titles (`titledElement`,
-"Naming elements") to the next heading's, and counts each item in the stretch holding
+"Naming") to the next heading's, and counts each item in the stretch holding
 its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
@@ -256,8 +259,8 @@ the row stands: the agent has it in hand while its `state` is `running`, and a r
 `done` ended as its `outcome` and `end` say. An obligation's row lists in `also` the ids
 of the other obligations the user answers at the same place, such as the agent's answer
 in a thread about it.
-`queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
-its title. `queueActions.open(key)` goes to a row; an obligation is answered only
+`queueItemKey(row)` names a row across moves between lists, and `nameOf(row)` gives
+the words On Me names it by ("Naming"). `queueActions.open(key)` goes to a row; an obligation is answered only
 through its widget or thread. Act on a collection only when its `phase` is `ready`.
 
 ### Work hierarchies

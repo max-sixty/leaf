@@ -128,8 +128,8 @@ the visual shows.
 `readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a render
 that calls it redraws when it changes. A thread the user just started is there at once;
 only `phase === "ready"` means every saved thread is. `threadTurns(thread)` returns a
-Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and its
-`latest` activity.
+Thread's turns, and `nameOf(thread)` its name in words (`module-reading.md`,
+"Naming").
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, and

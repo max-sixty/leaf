@@ -75,7 +75,7 @@ import {
   placeOf,
   openingView,
   viewMembers,
-  queueTitle,
+  nameOf,
   readObligations,
   readQueues,
   scrollIntoView,
@@ -640,7 +640,7 @@ customElements.define(
     // The end frame once the pass is over: how many still wait, the step back in (a
     // retained node), and the record of the pass, a row for each card that asks
     // something. A row names its question as On Me does, by the runtime's own rule
-    // (`queueTitle` on the question's row there), so the two lists never call one
+    // (`nameOf` the question's row there), so the two lists never call one
     // question two things: a widget set among words, such as a suggestion, asks in no
     // group and so has no prompt words, and On Me names it by the words it suggests. The row
     // links to where the user answers it (`prompt.target`), so a card with no id of
@@ -666,7 +666,7 @@ customElements.define(
         if (!first) return nothing;
         const target = first.prompt.target ?? each.id;
         const item = listed.get(first.id);
-        const question = (item && queueTitle(item)) || first.prompt.text || target;
+        const question = (item && nameOf(item)) || first.prompt.text || target;
         const [words, voice] = this.#ending(held);
         return html`<li>
           <a href=${target ? `#${target}` : nothing}>${question}</a

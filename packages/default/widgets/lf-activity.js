@@ -12,10 +12,10 @@ import { createActivity } from "./activity-view.js";
  * the document it was made in, under that document's declaration of the widget. A
  * version that rewords or removes an option therefore leaves the row as the user made
  * it. This module words those facts and names the places on the page it links to; a
- * thread goes by its name in words (`threadSummary`).
+ * thread goes by its name in words (`nameOf`).
  *
  * A place is named on the page the user is reading, since that is where the row leads,
- * and as the rest of the chrome names it (`addressableLabel`), else by its word. A
+ * and as the rest of the chrome names it (`nameOf`), else by its word. A
  * quoted passage is named as Threads names its anchor (`anchorLabel`).
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
@@ -38,17 +38,16 @@ import { createActivity } from "./activity-view.js";
 import {
   HeldReading,
   tabStore,
-  addressableLabel,
   ago,
   anchorLabel,
   elementById,
   fragmentTarget,
   layerFact,
   LeafElement,
+  nameOf,
   threadActions,
   readThreads,
   readHistory,
-  threadSummary,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -59,12 +58,10 @@ const NAME = 60;
 
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
-function nameOf(id) {
+function placeNamed(id) {
   const element = id ? elementById(id) : null;
   if (!element) return id || "the page";
-  return (
-    excerptWords(addressableLabel(element), NAME) || `the ${addressableWord(element)}`
-  );
+  return excerptWords(nameOf(element), NAME) || `the ${addressableWord(element)}`;
 }
 
 // A comment's place: a passage, a drawing's part, a datum, or a design subject as
@@ -77,7 +74,7 @@ function placeName(anchor, about) {
     return quoted(excerptWords(anchor.quote, NAME));
   if (anchor?.visual || anchor?.datum || about === "design")
     return excerptWords(anchorLabel(anchor, about), NAME);
-  return nameOf(anchor?.section ?? null);
+  return placeNamed(anchor?.section ?? null);
 }
 
 /** @param {string} token */
@@ -96,13 +93,13 @@ const quoted = (words) => `“${words}”`;
 /** @param {string} words */
 const named = (words) => quoted(excerptWords(words, NAME));
 
-// The thread's name in words (`threadSummary`), read from the thread as
+// The thread's name in words (`nameOf`), read from the thread as
 // it stands now, as every way there is. A thread Threads does not list, a bare
 // reaction, has no name there and no way to it, so it goes as a thread.
 /** @param {import("../../../browser/types/contract.js").ServedHistoryRow["thread"]} served */
 const topicOf = (served) => {
   const thread = served && readThreads().threads.find(({ id }) => id === served.id);
-  return thread ? excerptWords(threadSummary(thread).topic, 48) : "a thread";
+  return thread ? excerptWords(nameOf(thread), 48) : "a thread";
 };
 
 /** @param {import("../../../browser/types/contract.js").ServedGesture} gesture */
@@ -141,7 +138,7 @@ function describe(row) {
           widget: row.anchor?.section ?? null,
           label: placeName(row.anchor, row.about),
         };
-      if (row.holds) return thread("paused", nameOf(row.holds));
+      if (row.holds) return thread("paused", placeNamed(row.holds));
       return thread(
         row.drawing && !row.excerpt ? "drew on" : "commented on",
         placeName(row.anchor, row.about),
@@ -263,7 +260,7 @@ customElements.define(
       // Hold the complete drawn reading, including an undo or a changed title:
       // those may wrap too. The reactive reading supplies the authoritative history.
       for (const row of current) {
-        if (row.widget || row.label) row.label ??= nameOf(row.widget);
+        if (row.widget || row.label) row.label ??= placeNamed(row.widget);
       }
       const wanted = JSON.stringify(current);
       if (this.#closedReading === null) this.#closedReading = wanted;

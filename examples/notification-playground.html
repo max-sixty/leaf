@@ -211,7 +211,6 @@
     </style>
     <script type="module">
       import {
-        generatedElement,
         once,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
@@ -264,8 +263,10 @@
         const feed = figure.querySelector(".notification-demo-feed");
         const metric = figure.querySelector(".notification-demo-metric");
         // Event cards and their measurements are this module's words.
-        generatedElement(feed, { says: true });
-        generatedElement(metric, { says: true });
+        for (const box of [feed, metric]) {
+          keeps(box, "data-lf-gen", "1");
+          box.toggleAttribute("data-lf-said", true);
+        }
         return { feed, metric };
       }
 

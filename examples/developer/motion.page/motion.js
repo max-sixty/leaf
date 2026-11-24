@@ -1,9 +1,4 @@
-import {
-  PAGE_INTERFACE,
-  frameFor,
-  sizeObserver,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { frameFor, sizeObserver, whileConnected } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 // Illustrative source timings and alternatives, not recordings. The optional
@@ -71,7 +66,7 @@ function arrival(nodes, alternative, time) {
 }
 
 // A revision edits inside a study in place, so the drawing reads the parts the study
-// holds as it draws, and each PAGE_INTERFACE fits and draws them again.
+// holds as it draws, and each `lf-page-interface` fits and draws them again.
 const fits = new WeakMap();
 await customElements.whenDefined("lf-motion");
 function mount() {
@@ -115,4 +110,4 @@ function mount() {
   }
 }
 mount();
-document.addEventListener(PAGE_INTERFACE, mount);
+document.addEventListener("lf-page-interface", mount);

@@ -110,9 +110,10 @@ script", lists.
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
-  mark the words they write with `generatedElement()` (`module-controls.md`).
+- Build injected controls with `offer()`, `offered` or `selectableOffer()`, and a press
+  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role
+  (`module-controls.md`). Mark words the widget writes apart from the author's with
+  `data-lf-gen` (`module-plain-elements.md`, "Words it writes").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value
@@ -235,16 +236,16 @@ loading declares `ready()` on its scope, row or route, the most specific winning
 it returns false, that key and every later one keep waiting. A row with
 `decision: true` waits until the page's saved state has loaded.
 
-A module can listen on `document` for two startup events. `PRESENTATION` fires once,
+A module can listen on `document` for two startup events. `lf-presentation` fires once,
 when the page's complete layout is first in place; UI drawn from element geometry takes
-its first measurements there. `PAGE_INTERFACE` fires at startup and again when a new
+its first measurements there. `lf-page-interface` fires at startup and again when a new
 revision is applied in place; UI built from the authored structure rebuilds there and
 passes any asynchronous preparation to `detail.present(promise)`.
 
 A page script reaches a widget's methods only once the widget has upgraded.
 `whileInterfaceConnected(element, {declare, connect})` runs `declare()` once, for what
 the widget accepts once per lifetime, then `connect(signal)` at the first
-`PAGE_INTERFACE`, holding presentation until it returns, and again at once on each
+`lf-page-interface`, holding presentation until it returns, and again at once on each
 reconnection; the cleanup `connect` returns runs as the element leaves. A playground's
 page script is the worked example (the playground package's author instructions,
 "Stateful previews").

@@ -339,11 +339,13 @@ class Harness:
         """What the harness itself says about this session right now, or None where it
         says nothing a reader can take.
 
-        `{"state": "busy" | "waiting" | "idle", "since": <iso>}`, dated by the
-        harness's own last change: `idle` once no turn runs, `waiting` while a turn
-        holds a dialog open in the session's own window. `activity.claimant_turn`
-        weighs it by that date against the claim's turn stamps, which the hooks
-        write and so cannot see a turn end that runs no hook."""
+        `{"state": "busy" | "waiting" | "idle", "since": <iso>, "command": bool}`,
+        dated by the harness's own last change: `idle` once no turn runs, `waiting`
+        while a turn holds a dialog open in the session's own window, and `command`
+        while no turn runs but a command the session left running in the background
+        still runs (`activity.start_holds`). `activity.claimant_turn` weighs it by
+        that date against the claim's turn stamps, which the hooks write and so
+        cannot see a turn end that runs no hook."""
         return None
 
     def session_name(self) -> str | None:
@@ -1248,8 +1250,11 @@ def claude_code_current_record(records: list[dict]) -> dict:
 def claude_code_live_turn(records: list[dict]) -> dict | None:
     """A session's live status from its current registry record
     (`claude_code_current_record`): `waiting` while a turn holds a dialog open (a
-    permission prompt, a question), `idle` once no turn runs (`shell` too, which
-    is idle with a background command running), and `busy` otherwise.
+    permission prompt, a question), `busy` while a turn runs or an agent the
+    session started works in the background, and `idle` otherwise. Where it would
+    say `idle` while a command of the session's runs, a background command or a
+    Monitor among them, Claude Code says `shell`, which reads `idle` with
+    `command` (read in 2.1.331's source).
 
     Its `idle` is the one reading of a turn's end that an interrupt moves: Escape
     ends a turn without running the Stop hook, and the record turns `idle` at that
@@ -1268,6 +1273,7 @@ def claude_code_live_turn(records: list[dict]) -> dict | None:
         "since": datetime.fromtimestamp(record["statusUpdatedAt"] / 1000)
         .astimezone()
         .isoformat(),
+        "command": record["status"] == "shell",
     }
 
 

@@ -282,7 +282,8 @@ nested widgets in authored order, so users can quote those words; the render che
 refuses a page where they changed. Declare it on a wrapper round authored content, and
 leave it off a widget whose module rewrites or reorders what it holds. Whatever the
 module adds to a verbatim widget stands inside a box it built with `offer`, with no
-words marked `says: true`, which would make them the page's (`module-controls.md`).
+words marked `data-lf-said`, which would make them the page's
+(`module-plain-elements.md`, "Words it writes").
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

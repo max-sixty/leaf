@@ -908,7 +908,11 @@ def test_a_watch_leaves_input_to_a_later_turn_while_it_runs(
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     cleanup_model.close_session_turn("s1")
-    live = {"state": "busy", "since": datetime.now().astimezone().isoformat()}
+    live = {
+        "state": "busy",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
     # The watch asks Claude Code only of pending input in a turn opened after it.
     asked = threading.Event()
 

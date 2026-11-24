@@ -381,7 +381,6 @@ FACTS: dict[str, dict] = {
     "bound": {"enum": ["start", "end"]},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
-    "prepaint": _ATTRIBUTE_NAME,
     "inputs": DATA_INPUTS_SCHEMA,
     # Each output's name is the element property holding it (data.js).
     "outputs": {
@@ -614,17 +613,6 @@ OPTIONAL_LAYER_FACTS = {
         "additionalProperties": False,
     },
 }
-# The facts whose value names attributes of the widget's own schema, in whichever shape
-# each carries the names: a list, a mapping keyed by them, or one name. One rule for all
-# of them, because the failure is one — the attribute is absent, so the pass reading the
-# fact finds nothing and does nothing, and the widget is simply missing from it with no
-# error anywhere (validate_registry holds every fact here to the entry's attributes).
-# `retired-when`, of the same shape, is not in it: it names an outcome rather than an
-# attribute, and sharing a spelling is no reason to share a check. `awaits` and
-# `inputs` name attributes too and keep their own loops, having more to say about each
-# than that it exists.
-ATTRIBUTE_FACTS = ("prepaint", "refers")
-
 # The kernel compiled from ASSETS's modules (`runtime_selection.read_runtime`).
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
 BUNDLED_PACKAGES = PLUGIN_ROOT / "packages"

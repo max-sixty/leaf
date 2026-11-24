@@ -13,7 +13,7 @@ import { render as motionTemplate } from "./motion-view.js";
  * `renderFrame` carry on, and the browser's scroll anchoring keeps the reader's place
  * among the previews, which a study replaced whole would lose. A recording a revision
  * adds joins the clock once its metadata loads. A renderer holding nodes the revision
- * replaced is the page module's to assign again when `PAGE_INTERFACE` fires.
+ * replaced is the page module's to assign again when `lf-page-interface` fires.
  *
  * Playback, speed and scrubbing are local inspection, never page events. The
  * clock starts still, stops on disconnect/inspection, and resumes only on Play.

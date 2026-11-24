@@ -964,12 +964,12 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     # Exercise the generic contribution trace with a real public registration;
     # the screenshot's own endpoint actions live in its native control rail.
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'review-capture',
         target: document.querySelector('#rn-console-shot'),
-        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
-          label: 'Review capture'})]}), activate: () => {},
+        read: () => ({entries: [{key: 'review', glyph: 'R',
+          label: 'Review capture'}]}), activate: () => {},
       });
     }""")
     margins_laid_out(page)

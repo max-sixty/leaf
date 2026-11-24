@@ -62,11 +62,8 @@ import {
   holdFocus,
   inChrome,
   landingInsets,
-  LAYOUT,
   LeafElement,
   obligationsIn,
-  PAGE_INTERFACE,
-  PRESENTATION,
   readObligations,
   readThreads,
   scrollerFor,
@@ -248,9 +245,9 @@ customElements.define(
           capture: true,
           signal,
         });
-      this.#main.addEventListener(LAYOUT, this.#scheduleMeasure, { signal });
-      document.addEventListener(PRESENTATION, this.#onPresentation, { signal });
-      document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
+      this.#main.addEventListener("lf-layout", this.#scheduleMeasure, { signal });
+      document.addEventListener("lf-presentation", this.#onPresentation, { signal });
+      document.addEventListener("lf-page-interface", this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
       matchMedia("print").addEventListener("change", this.#onPresentation, {
         signal,

@@ -33,7 +33,7 @@
  * new aim (`lf-preview` with `aim`), so a point the pointer or a key reaches after
  * Escape put the preview away shows its own. The ring goes when the aim leaves, the
  * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
- * page puts the preview away (`PREVIEW_ENDED`), as Escape and a press do and as the
+ * page puts the preview away (`lf-preview-ended`), as Escape and a press do and as the
  * next touch does after a held finger lifts. A finger slides across the drawing to read
  * along it, and scrolls the page up and down it.
  *
@@ -74,7 +74,6 @@
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
 import {
-  PREVIEW_ENDED,
   PendingTaskEvent,
   beginWalk,
   bodyText,
@@ -215,7 +214,7 @@ customElements.define(
     /** @type {Point | null} */
     #away = null;
     // What the page's preview last read of the chart, while it stands, which names the
-    // reading a preview that ends had (`PREVIEW_ENDED`), and how many times a finger
+    // reading a preview that ends had (`lf-preview-ended`), and how many times a finger
     // has pressed on the chart.
     /** @type {object | null} */
     #declared = null;
@@ -335,7 +334,7 @@ customElements.define(
         // finger presses that point again. A press is an aim, not a reading: a tap that
         // ends without a hold leaves the ring to go with the finger (`#leave`).
         this.addEventListener(
-          PREVIEW_ENDED,
+          "lf-preview-ended",
           (event) => {
             const { declared } = /** @type {CustomEvent} */ (event).detail;
             if (!declared || declared !== this.#declared) return;
@@ -739,7 +738,7 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does one whose preview stands, which the page puts away, and the ring with it
-    // (`PREVIEW_ENDED`), once the pointer is on neither the drawing nor the preview, or
+    // (`lf-preview-ended`), once the pointer is on neither the drawing nor the preview, or
     // at the next touch after a held finger lifts (preview.js); back on the drawing, it
     // reads from where it comes. A point no preview has shown yet goes with the pointer.
     #leave() {

@@ -97,9 +97,7 @@ export { saying } from "./keyboard/control-keys.js";
 export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
-export { contributionItemKey } from "./contribution-model.js";
 export {
-  contributionEntry,
   presentContributionEntry,
   presentContributionReceipts,
 } from "./contribution-controls.js";
@@ -140,8 +138,6 @@ export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.
 // `whenNear` for the reader to near a node, then each starts the work;
 // `deferredArrival` counts work the widget has already started.
 export {
-  PAGE_INTERFACE,
-  PRESENTATION,
   afterPresentation,
   deferredArrival,
   whenNear,

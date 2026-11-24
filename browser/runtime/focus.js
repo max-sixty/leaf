@@ -68,7 +68,8 @@
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
-import { afterScript, nextRender } from "./rendering.js";
+import { afterScript } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./lib/keeps.js";

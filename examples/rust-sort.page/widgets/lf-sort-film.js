@@ -6,15 +6,10 @@
 // whose `for` names the film marks those lines where it quotes them, so one value lights
 // only the block that holds them.
 
-import {
-  frameFor,
-  layoutChanged,
-  offer,
-  once,
-  sizeObserver,
-  whileConnected,
-  pageLinks,
-} from "/runtime/widget-api.js";
+import { frameFor, whileConnected, pageLinks } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
@@ -102,7 +97,9 @@ customElements.define(
     #relayout = frameFor(this, () => {
       this.#layout();
       this.#paint();
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     });
 
     connectedCallback() {
@@ -372,7 +369,9 @@ customElements.define(
           this.dispatchEvent(new Event("change"));
         }
         // The stack and the clauses move as runs push and merge; re-read their geometry.
-        layoutChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       }
     }
 

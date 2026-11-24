@@ -417,11 +417,13 @@ an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
 question", below, indexes the owners a caller asks, and `keyboard/AGENTS.md` covers the
 keyboard's.
 
-`runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
-through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
-the browser's own, except `requestAnimationFrame` in a package, which is for motion
-that may run until the user stops it, such as playback, and which the settled reading
-doesn't count. A rendering callback does its layout reads before its writes, since
+`runtime/lib/frame-pass.js` runs every rendering callback in one pass per frame, the
+runtime's and each package's alike, and `runtime/rendering.js` counts that work in the
+settled reading. Schedule through the pass's `nextRender`, `nextFrame`, `cancelRender`
+and `sizeObserver`; lint refuses the browser's own, except `requestAnimationFrame` in a
+package, which is for motion that may run until the user stops it, such as playback,
+and which the settled reading doesn't count. Nothing schedules a second pass beside it:
+callbacks on two passes would paint a frame apart. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
 in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
 forced style also lays out whatever in `body` is out of date, a closed tab's panel
@@ -588,11 +590,11 @@ holds the measurement.
   `test_layout_style_and_widgets_never_read_each_other`.
 - **A control wears its role's face.** Code builds a control by its role, with
   `offerAction` or `offeredAction`, and never names a face's classes, so two controls
-  of one kind can't look different (`runtime/control-faces.js`, `ACTION_FACES`, lists the
-  roles). Only the role's rules in `controls.css` draw a press's ink, ground, frame and
-  lift; a difference between two presses of a role is a variant the role declares, an
-  attribute on the press, and a surface sets only its type and density. A new role
-  needs a difference in the user's task, not only in a widget's taste. Checks:
+  of one kind can't look different (`runtime/lib/control-faces.js`, `ACTION_FACES`,
+  lists the roles). Only the role's rules in `controls.css` draw a press's ink, ground,
+  frame and lift; a difference between two presses of a role is a variant the role
+  declares, an attribute on the press, and a surface sets only its type and density. A
+  new role needs a difference in the user's task, not only in a widget's taste. Checks:
   `test_controls_are_built_by_role_and_never_by_face`,
   `test_every_press_is_built_by_role`, `test_a_press_wears_its_role_s_face_alone`.
 - **Leaf's elements wear only Leaf's names.** A class or data attribute the runtime
@@ -772,7 +774,7 @@ block names what a package answers with the browser's own call instead.
 | What a target draws, its list marker included, and where the marks round it stand                     | `geometry.js` `inkedBox`, `markedBox`                                                  |
 | The room the marks round a target take beside it, a named box's round it included                     | `mark-room.js` `markRoom`                                                              |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `geometry.js` `shownRectHeld`                                                          |
-| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                          |
+| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`, `contentsBox`                                      |
 | How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`                  |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                                |
 | What the page shows where the glides under way land, each box put back within the task                | `scrolling.js` `whereGlidesLand`                                                       |
@@ -807,7 +809,7 @@ block names what a package answers with the browser's own call instead.
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                    |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                    |
 | Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                             |
-| Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                      |
+| Paint on the next frame, or watch a size                                                              | `lib/frame-pass.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                 |
 | Write a DOM value only when it changed; a style property needs no guard (`lib/keeps.js` header)       | `lib/keeps.js` `keeps`                                                                 |
 | A number that names an object in a key built of strings, the same at every ask                        | `ids.js` `objectIds`                                                                   |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                                   |
@@ -905,7 +907,7 @@ Use a boolean only when false has one clear meaning; otherwise declare named val
 Add a fact only where some part of Leaf, such as the server, `page check` or the first
 paint, must act on it without running the widget's module, and the module can't keep
 the same rule itself. A rule about one widget's markup that its module can check as it
-draws stays in the module, which reports a breach with `reportFailure`, even where
+draws stays in the module, which reports a breach with an `error` event, even where
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the
 thread. Keep a rule static where a breach would otherwise reach the log or a stored

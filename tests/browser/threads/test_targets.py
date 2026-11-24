@@ -587,13 +587,12 @@ def test_a_target_a_reply_widget_redraws_keeps_its_mark(browser, serve):
     # Read once the pass the signal asked for has painted, and before anything else
     # (the clock's next tick) would paint the targets again.
     remarked = page.evaluate("""async () => {
-      const { layoutChanged } = await window.__lfWidgetApi();
       const { whenDocumentPresented } = await window.__lfCheckApi();
       const old = document.querySelector('.lf-fp-view #tv-redis');
       const replacement = old.cloneNode(true);
       replacement.classList.remove('lf-mark-el');
       old.replaceWith(replacement);
-      await layoutChanged(document.querySelector('.lf-fp-view #tv-decision'));
+      await document.querySelector('.lf-fp-view #tv-decision').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
       await whenDocumentPresented();
       await new Promise((resolve) => requestAnimationFrame(() => resolve()));
       return replacement.classList.contains('lf-mark-el');

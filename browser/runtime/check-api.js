@@ -44,6 +44,7 @@ export { uiInside } from "./ui-marks.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { NOTICE_MS, notice } from "./notifications.js";
+export { raiseError } from "./errors.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -73,7 +74,11 @@ export {
   textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
-export { commandDeclarationsWithin, paintKeys } from "./keyboard/scopes.js";
+export {
+  commandDeclarationsWithin,
+  commandsUnread,
+  paintKeys,
+} from "./keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,
@@ -137,7 +142,6 @@ export {
   onFrameVisibility,
   readSampleVisibility,
 } from "./frame-visibility.js";
-export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";

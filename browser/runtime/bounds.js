@@ -54,7 +54,7 @@
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
 import { skipped } from "./lib/shadow-tree.js";
-import { sizeObserver } from "./rendering.js";
+import { sizeObserver } from "./lib/frame-pass.js";
 import { followEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";

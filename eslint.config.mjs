@@ -26,7 +26,6 @@ const runtimePrimitives = [
   "pointer.js",
   "rendering.js",
   "frame-visibility.js",
-  "queued-work.js",
   "repaint.js",
   "root-state.js",
   "thread/identity.js",
@@ -155,13 +154,13 @@ const browserGlobals = Object.fromEntries(
 );
 
 const RENDERING_MESSAGE =
-  "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+  "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/lib/frame-pass.js) so the settled reading counts it.";
 const RENDERING_NAMES = [
   "requestAnimationFrame",
   "cancelAnimationFrame",
   "ResizeObserver",
 ];
-// The one of them a package still reaches through runtime/rendering.js alone.
+// The one of them a package still reaches through runtime/lib/frame-pass.js alone.
 const PACKAGE_RENDERING_NAMES = ["ResizeObserver"];
 /** @param {string[]} names */
 const renderingProperties = (names) =>
@@ -1729,11 +1728,16 @@ export default [
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it
-    // counts, so the layer and its packages reach both through runtime/rendering.js. The
+    // counts, so the layer and its packages reach both through the library's pass
+    // (runtime/lib/frame-pass.js), which the reading hears (runtime/rendering.js). The
     // packages' block below names the calls a package makes itself.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     // Prepaint runs before the module graph, so it cannot call the scheduler.
-    ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
+    ignores: [
+      "browser/runtime/lib/frame-pass.js",
+      "browser/runtime/rendering.js",
+      "browser/runtime/prepaint.js",
+    ],
     rules: {
       "no-restricted-globals": [
         "error",

@@ -207,7 +207,8 @@ import {
   repeat,
   signal,
 } from "/runtime/framework.js";
-import { el, offeredAction, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { offeredAction } from "./lib/controls.js";
 import { actionTemplate, iconTemplate } from "./lib/icons.js";
 import { actionName } from "./lib/icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
@@ -365,13 +366,8 @@ import {
   REPLY_HINT,
 } from "./words.js";
 import { coarsePointer } from "./pointer.js";
-import {
-  afterScript,
-  afterSettling,
-  holdRendering,
-  nextRender,
-  sizeObserver,
-} from "./rendering.js";
+import { afterScript, afterSettling, holdRendering } from "./rendering.js";
+import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";

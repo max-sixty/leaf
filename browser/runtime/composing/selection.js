@@ -23,7 +23,8 @@
    The response surface (composing/surface.js) constructs the command owner with its bar's
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
-import { el, offerAction, responseAction } from "../widget-elements.js";
+import { el, responseAction } from "../widget-elements.js";
+import { offerAction } from "../lib/controls.js";
 import { COMMENT_HINT } from "../words.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
@@ -59,7 +60,7 @@ import {
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { applicationState } from "../semantic-state.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 
 import { elementById } from "../passages.js";
 

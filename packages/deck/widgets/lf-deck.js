@@ -65,18 +65,14 @@ import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
   answerWords,
-  nameAction,
   dragging,
   focusDestination,
   keepView,
-  layoutChanged,
   LeafElement,
   motion,
   obligationActions,
   obligationsByRegion,
   obligationsIn,
-  offer,
-  offerAction,
   placeOf,
   openingView,
   viewMembers,
@@ -86,8 +82,8 @@ import {
   scrollIntoView,
   signal,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -198,7 +194,9 @@ customElements.define(
         ],
       };
       this.lfCommands = commands;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       for (const card of this.#cards) {
         card.addEventListener("beforematch", () => this.#show(card));
       }
@@ -247,7 +245,9 @@ customElements.define(
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.
@@ -426,7 +426,9 @@ customElements.define(
         keeps(next, "data-lf-deck-settling", "");
         setTimeout(() => keeps(next, "data-lf-deck-settling", null), SETTLE_MS);
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       carry(next, answered ? SETTLE_MS : 0);
       if (above) scrollIntoView(this, { block: "start", behavior: "smooth" });
     }

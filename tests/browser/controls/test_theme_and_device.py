@@ -210,7 +210,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 
     page.emulate_media(reduced_motion="no-preference")
 
-    # A glide shares a frame the page already asked for (rendering.js), so with none
+    # A glide shares a frame the page already asked for (lib/frame-pass.js), so with none
     # asked for, its frames are the ones held here.
     rendered(page)
     page.evaluate(
@@ -688,7 +688,7 @@ CONTRAST = """([selector, property]) => {
 # `offer`), into the page's `#controls`: Leaf's own controls, which wear their faces
 # with a theme or without one.
 LEAF_CONTROLS = """async () => {
-    const {offerAction, offer} = await window.__lfWidgetApi();
+    const {offerAction, offer} = await import("/runtime/lib/controls.js");
     const press = offerAction('word', '', 'Recompute');
     press.id = 'press';
     const field = offer('input', '', undefined, 'text');
@@ -735,7 +735,7 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, readin
     )
     page.evaluate(LEAF_CONTROLS)
     page.evaluate("""async () => {
-      const {offerAction} = await window.__lfWidgetApi();
+      const {offerAction} = await import("/runtime/lib/controls.js");
       const commit = offerAction('commit', '', 'Commit');
       commit.id = 'commit';
       const done = offerAction('commit', '', 'Done');

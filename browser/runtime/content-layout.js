@@ -2,7 +2,7 @@
  * document owner reads the sticky header height shared with landing geometry and
  * notifies annotation geometry after the document's native layout has changed. */
 import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
-import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
+import { nextFrame, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-upgrade.js";
 import { layoutBox, layoutParts, pageDocument } from "./passages.js";

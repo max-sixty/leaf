@@ -851,7 +851,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             },
         }
         modules["widgets/lf-controller-stage.js"] = """\
-import { once, shadowStage } from '/runtime/widget-api.js';
+import { shadowStage } from '/runtime/widget-api.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-controller-stage', class extends HTMLElement {
   connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
 });

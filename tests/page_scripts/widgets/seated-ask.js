@@ -1,6 +1,7 @@
 /* A seated obligation whose press paints optimistically before dispatching settlement. */
 import { nothing } from "/vendor/lit.js";
-import { offer, offerAction, threadSurface, LeafElement } from "/runtime/widget-api.js";
+import { threadSurface, LeafElement } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 export function defineSeatedObligation() {

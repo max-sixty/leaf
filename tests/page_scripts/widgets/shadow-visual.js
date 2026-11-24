@@ -1,6 +1,7 @@
 /* A clipped shadow-root visual whose drawn surface extends past its host.
  * The fixture preserves separate SVG and host bounds for visual-aim checks. */
-import { once, shadowStage } from "/runtime/widget-api.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 customElements.define(
   "lf-test-shadow-visual",

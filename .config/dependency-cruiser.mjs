@@ -37,7 +37,6 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // (`eslint.config.mjs`), so a root may reach one without naming it here.
 const library = `^${runtime}lib/`;
 const exactClosures = {
-  "queued-work.js": [],
   "ui-marks.js": [],
   "control-selectors.js": ["inputs.js", "document-inputs.js"],
   "contribution-model.js": ["words.js", "kernel-facts.js"],
@@ -57,7 +56,7 @@ const exactClosures = {
     "voice.js",
   ],
   "projection/model.js": ["kernel-facts.js", "kept.js"],
-  "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
+  "projection/state.js": ["semantic-state.js", "version-signal.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "kept.js",
@@ -68,7 +67,6 @@ const exactClosures = {
   "thread/state.js": [
     "semantic-state.js",
     "version-signal.js",
-    "queued-work.js",
     "thread/model.js",
     "anchor-coordinate.js",
     "kept.js",
@@ -78,12 +76,11 @@ const exactClosures = {
   ],
   "thread/workflow.js": ["voice.js"],
   "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
-  "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
+  "pending/state.js": ["semantic-state.js", "version-signal.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
     "version-signal.js",
-    "queued-work.js",
     "focus.js",
     "dom-move.js",
     "control-selectors.js",
@@ -97,7 +94,6 @@ const exactClosures = {
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",
-    "role-button-press.js",
     "pointer.js",
     "user-intent.js",
     "registry.js",

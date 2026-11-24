@@ -3,9 +3,9 @@
    plain HTML page that maps `/runtime/` with its own import map (portable-api.js).
 
    A module defines its custom element once and makes `connectedCallback` safe to run
-   after reconnection, using `once(el)` for generated chrome so reconnecting does not
-   duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
-   a blank page.
+   after reconnection, using `once(el)` (lib/once.js) for generated chrome so
+   reconnecting does not duplicate it. A failed upgrade becomes a visible error box
+   (`failSoft`) rather than a blank page.
 
    The widget tells its host what Leaf needs to hear through standard events, which Leaf
    reads from outside and a plain page may ignore. That it has connected and wants what
@@ -16,46 +16,21 @@
    `pending-task` event (`PendingTaskEvent`), the Web Components Community Group's draft
    protocol for a component's asynchronous work, whose `complete` promise Leaf holds the
    widget's presentation on (widget-controller.js). A rearrangement inside an unchanged
-   box is `lf-layout` (`layoutChanged`), which the readers that measure what a widget
+   box is `lf-layout` (`LAYOUT`), which the readers that measure what a widget
    holds hear. And the keys an element binds are data on it, `lfCommands`, which the
-   widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
+   widget says it set or changed with `lf-commands` (`COMMANDS`): Leaf reads them
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
    key and advertises none. Words for a listener are `lf-announce` on the window, which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
+   Words telling the user that something they did has not taken are `lf-error` on the
+   window, which a Leaf page keeps in its Errors list (errors.js).
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
    when that changes with `lf-preview`, as the user's aim moves from
    one of a chart's points to the next, or a grip's words stop being true once its card
    is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
 import { describeFailure, exceptionError } from "./lib/exception.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { version } from "./kept.js";
-
-/** @type {WeakSet<Element>} */
-const initialized = new WeakSet();
-
-// Whether `el` stands in this window's document, the only one where an element
-// initializes. A copy in a document of its own stays markup in every engine but one:
-// Firefox (160), asked for the contents of a selection a drag carried through a shadow
-// root (`Range.cloneContents`), copies the Document itself, and upgrades and connects
-// the custom elements it copies into that copy before it throws. Highlighter extensions
-// read each selection the user makes that way. The check goes once Firefox clones the
-// range alone (`test_firefox_s_copy_of_a_group_builds_no_add_field`).
-/** @param {Element} el */
-export const inWindowDocument = (el) => el.ownerDocument === document;
-
-// One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
-// already-upgraded child) must be harmless. A clone starts its own lifetime even when
-// it copied the painted upgrade mark; that mark never owns initialization, and a copy
-// connected outside the window's document (`inWindowDocument`) never initializes.
-/** @param {Element} el */
-export function once(el) {
-  if (initialized.has(el) || !inWindowDocument(el)) return false;
-  initialized.add(el);
-  if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done))
-    el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
-  return true;
-}
 
 // A data widget's body: the <pre> the content model requires, never the element's own
 // textContent. The two differ once the element holds a
@@ -111,18 +86,21 @@ export class HoldEvent extends Event {
 }
 
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while
-// rearranging descendants, so the widget states that geometry change explicitly, and
-// geometry readers listen for it instead of watching every DOM mutation.
+// rearranging descendants, so the widget states that geometry change explicitly, with a
+// bubbling, composed event on the element whose parts moved, and geometry readers
+// listen for it instead of watching every DOM mutation.
 export const LAYOUT = "lf-layout";
-// How many times a widget has said its layout changed, which a reader of what widgets
-// draw that the page's reading doesn't hear reads (kept.js, `version`).
+// How many times an element in the page has said its layout changed, which a reader of
+// what widgets draw that the page's reading doesn't hear reads (kept.js, `version`).
+// The count is taken as the event starts down from the window, so it has moved before
+// any listener the event reaches reads it.
 const layouts = version();
 export const layoutsChanged = () => layouts.read();
-/** @param {Element} el */
-export const layoutChanged = (el) => {
-  layouts.move();
-  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
-};
+addEventListener(LAYOUT, () => layouts.move(), { capture: true });
+/** Say `el`'s layout changed, as Leaf says for an element it drives.
+ * @param {Element} el */
+export const layoutChanged = (el) =>
+  void el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 
 // That what pointing at an element reads, its `lfPreview`, changed: a composed
 // CustomEvent the widget dispatches at the element. `detail.aim` true says the user
@@ -135,43 +113,18 @@ export const PREVIEW = "lf-preview";
 // reading that ended (preview.js): a mark the widget drew for that reading, as a chart's
 // ring on its point, comes off then, and one for a reading declared since stays.
 export const PREVIEW_ENDED = "lf-preview-ended";
-export const COMMANDS = "lf-commands";
-const CHANGED = Symbol("element whose commands changed");
-const WITHIN = Symbol("whether the element drew what its scopes read");
-const REFUSED = Symbol("why Leaf refused the declaration");
-/** @typedef {Event & {[CHANGED]: Element, [WITHIN]: boolean, [REFUSED]?: unknown}} CommandsChangedEvent */
-// That an element's `lfCommands`, or anything its rows read, changed. An element out of
-// the document, such as a control built before it is placed, has no way out to the
-// window, so its event is dispatched there directly, carrying the element, as a failure's
-// is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
-// it, since a listener's exception never reaches the dispatcher. `within: true` says the
+// That an element's `lfCommands`, or anything its rows read, changed: a bubbling,
+// composed CustomEvent the element dispatches on itself while it stands in the page,
+// since nothing hears one from an element out of it. `detail.within` true says the
 // element drew, so the keys declared on it and on anything under it may read differently
 // from the nodes it drew, where the plain form speaks for the element's own rows alone.
-/** @param {Element} el @param {{within?: boolean}} [options] */
-export function commandsChanged(el, { within = false } = {}) {
-  /** @type {CommandsChangedEvent} */
-  const event = Object.assign(new Event(COMMANDS, { bubbles: true, composed: true }), {
-    [CHANGED]: el,
-    [WITHIN]: within,
-  });
-  (el.isConnected ? el : window).dispatchEvent(event);
-  if (event[REFUSED]) throw event[REFUSED];
-}
+// Leaf reads the element the event began at (keyboard/scopes.js).
+export const COMMANDS = "lf-commands";
 // Words a listener should hear now, such as where a step put the reader: a widget
 // dispatches an `lf-announce` CustomEvent on the window carrying them as its `detail`.
 // Leaf says them in the page's live region; a page without Leaf hears nothing unless it
 // listens.
 export const ANNOUNCE = "lf-announce";
-
-// The element a `commandsChanged` event names, and the refusal its reader hands back.
-/** @param {CommandsChangedEvent} event */
-export const commandsChangedOn = (event) => event[CHANGED];
-/** @param {CommandsChangedEvent} event */
-export const commandsChangedWithin = (event) => event[WITHIN];
-/** @param {CommandsChangedEvent} event @param {unknown} error */
-export const refuseCommands = (event, error) => {
-  event[REFUSED] = error;
-};
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure
 // may failSoft its own element, or a part of it, so the rest of the page and Threads
@@ -189,8 +142,10 @@ export function failSoft(el, err, source) {
   );
 }
 
-// The report alone, for a widget that shows a part's failure its own way, such as a
-// diff file whose patch it cannot draw beside the files it can. It is dispatched on the
+// The report alone, as Leaf makes it for a failure it caught itself, such as a setter
+// that threw or a declaration it refused. A widget that shows a part's failure its own
+// way, such as a diff file whose patch it cannot draw beside the files it can,
+// dispatches the same `error` event on itself. It is dispatched on the
 // element, so it reaches the element's listeners and, through the document, the
 // window's; an element out of the document, such as a cached message body while its
 // thread is shut, has no way out to the window, so its failure is dispatched there
@@ -214,14 +169,17 @@ export function reportFailure(el, err) {
 const FAILURE = Symbol("failure");
 
 // The failure an `error` event reports, as Leaf reads it: the element and reason
-// `reportFailure` gave it, or, for one another element dispatched, that element, where
+// `reportFailure` gave it, or, for one an element dispatched, that element, where
 // the event began rather than the shadow host it reached the document by, and the
-// event's error. Null for an error that is the window's own, such as an exception.
+// event's error, or its message where it carries no error. Null for an error that is
+// the window's own, such as an exception.
 /** @param {ErrorEvent & {[FAILURE]?: {element: Element, reason: unknown}}} event */
 export function failureOf(event) {
   if (event[FAILURE]) return event[FAILURE];
   const [origin] = event.composedPath();
-  return origin instanceof Element ? { element: origin, reason: event.error } : null;
+  return origin instanceof Element
+    ? { element: origin, reason: event.error ?? event.message }
+    : null;
 }
 
 // How a failure names its widget to the agent: by tag and id, since that is how the

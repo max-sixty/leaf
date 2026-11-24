@@ -57,15 +57,14 @@
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import {
+  COMMANDS,
   CONNECT,
   HoldEvent,
   PendingTaskEvent,
-  commandsChanged,
   failSoft,
-  inWindowDocument,
-  once,
   placesFailure,
 } from "./widget-upgrade.js";
+import { inWindowDocument, once } from "./lib/once.js";
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.
 class UpdateBoundary extends LitElement {
@@ -184,7 +183,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   connectedCallback() {
-    // A copy connected in another document neither sets up nor draws (widget-upgrade.js).
+    // A copy connected in another document neither sets up nor draws (lib/once.js).
     if (!inWindowDocument(this)) return;
     // A paint that mounts the element connects it inside that paint, and what the
     // element reads to connect is its own to follow, never that paint's.
@@ -341,7 +340,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     super.updated(changed);
     const root = this.renderRoot;
     untracked(() =>
-      commandsChanged(root instanceof Element ? root : this, { within: true }),
+      (root instanceof Element ? root : this).dispatchEvent(
+        new CustomEvent(COMMANDS, {
+          bubbles: true,
+          composed: true,
+          detail: { within: true },
+        }),
+      ),
     );
   }
 }

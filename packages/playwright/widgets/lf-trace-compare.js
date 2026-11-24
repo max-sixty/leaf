@@ -9,19 +9,16 @@
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
 import {
-  actionClass,
-  cancelRender,
   el,
   keepView,
-  layoutChanged,
-  nextRender,
-  once,
-  offer,
   openingView,
   viewMembers,
-  sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer } from "/runtime/lib/controls.js";
+import { cancelRender, nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import "./lf-trace.js";
 
@@ -131,7 +128,9 @@ customElements.define(
         if (member !== this.#selected) recording.pause();
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

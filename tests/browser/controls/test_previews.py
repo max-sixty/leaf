@@ -133,7 +133,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
 # A range and a select built the way Leaf builds its own, whose faces say no name.
 LEAF_SETTINGS = """<p id="settings"></p>
 <script type="module">
-import {offer} from '/runtime/widget-api.js';
+import {offer} from '/runtime/lib/controls.js';
 const rows = offer('input', 'probe-rows', undefined, 'range');
 rows.id = 'rows';
 rows.setAttribute('aria-label', 'Rows shown');
@@ -245,7 +245,8 @@ def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serv
 # A widget's worded control that `f` presses, as its command row names it (`lfCommands`,
 # `control`).
 KEYED = """import { nothing } from "/vendor/lit.js";
-import { LeafElement, commandsChanged, offerAction } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { offerAction } from "/runtime/lib/controls.js";
 customElements.define("lf-keyed", class extends LeafElement {
   setup() {
     const feedback = offerAction("word", "keyed-feedback", "Add feedback");
@@ -255,7 +256,7 @@ customElements.define("lf-keyed", class extends LeafElement {
       rows: [{ id: "keyed.feedback", title: "Add feedback", keys: ["f"],
         control: feedback, run: () => {} }],
     };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
   }
   render() {
     return nothing;
@@ -3919,12 +3920,11 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
         # holds a close watcher for the gesture to reach.
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const step = document.getElementById('step');
               step.lfCommands = { title: 'The step', rows: [{id: 'test.step',
                 keys: ['Escape'], title: 'Take the step',
                 when: () => !step.dataset.fired, run: () => (step.dataset.fired = '')}] };
-              commandsChanged(step);
+              step.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               step.focus();
             }"""
         )

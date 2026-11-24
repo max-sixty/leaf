@@ -38,7 +38,7 @@ import { paintKeys } from "../keyboard/scopes.js";
 import { focusDestination, focused, handBack, closeLayer } from "../focus.js";
 import { keeps, keepsHidden, keepsText } from "../lib/keeps.js";
 import { runtime } from "../context.js";
-import { nextRender } from "../rendering.js";
+import { nextRender } from "../lib/frame-pass.js";
 import { clamp } from "../rect.js";
 import { layoutWindow } from "../geometry.js";
 import { notice } from "../notifications.js";

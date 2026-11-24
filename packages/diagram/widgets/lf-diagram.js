@@ -33,13 +33,12 @@
 import {
   PendingTaskEvent,
   bodyText,
-  once,
   failSoft,
   frameFor,
-  layoutChanged,
-  sizeObserver,
   whileConnected,
 } from "/runtime/portable-api.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 
 // Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
 // classic track consume this same padding, retaining 1px around the marks.
@@ -257,7 +256,9 @@ customElements.define(
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);
       this.toggleAttribute("data-lf-scroll", true);
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

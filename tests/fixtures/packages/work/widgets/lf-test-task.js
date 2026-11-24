@@ -2,12 +2,11 @@
 import { nothing } from "/vendor/lit.js";
 import {
   LeafElement,
-  offer,
-  offerAction,
   readWork,
   threadSurface,
   workAncestor,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-task",

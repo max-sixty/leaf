@@ -13,7 +13,7 @@
  */
 
 import { watchScrolls } from "./arrivals.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsOnOne, keepsText } from "./lib/keeps.js";

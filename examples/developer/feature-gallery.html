@@ -178,13 +178,12 @@
     <script type="module">
       import {
         afterPresentation,
-        commandsChanged,
         connection,
         generate,
-        once,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
 
       document.addEventListener("lf-page-interface", () => {
@@ -274,7 +273,9 @@
           },
         ],
       };
-      commandsChanged(localShortcuts);
+      localShortcuts.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',

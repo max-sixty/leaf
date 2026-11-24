@@ -75,13 +75,9 @@ import {
   commandScope,
   motion,
   returnDuration,
-  offered,
-  offeredAction,
   LeafElement,
-  offer,
   TEXT_FIELD,
   sendDraft,
-  raiseError,
   saveDraft,
   loadDraft,
   clearDraft,
@@ -90,14 +86,14 @@ import {
   reachedForWords,
   dressCode,
   focusDestination,
-  nextRender,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
   worksInside,
-  commandsChanged,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -244,6 +240,11 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
+        // An editor a refused save reopened while the draft was out of the page says
+        // its keys as the draft returns.
+        this.#editor?.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
         if (this.#editor && !this.#resumeProjection && this.#available())
           this.#resumeProjection = this.defer();
         return () => {
@@ -354,7 +355,9 @@ customElements.define(
         },
       ]);
       this.lfCommands = this.#commandScope;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} key @returns {HTMLButtonElement | null} */
@@ -386,7 +389,9 @@ customElements.define(
           )}`,
         this.#tools,
       );
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #available() {
@@ -414,7 +419,11 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish saving");
+        window.dispatchEvent(
+          new CustomEvent("lf-error", {
+            detail: "Wait for the current edit to finish saving",
+          }),
+        );
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.defer();
@@ -439,8 +448,10 @@ customElements.define(
       // behind it and closing a panel too.
       this.#editor = editor;
       editor.lfCommands = this.#commandScope;
-      commandsChanged(editor);
       this.#body.after(editor);
+      editor.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(
         (/** @type {EventTarget[]} */ path) => !path.includes(this),

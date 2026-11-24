@@ -39,14 +39,11 @@ import {
   setChildLists,
   setChildren,
   focusDestination,
-  offer,
-  offerAction,
-  reportFailure,
-  sizeObserver,
-  nextFrame,
   afterPresentation,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
 import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
 import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
@@ -1041,7 +1038,10 @@ class TextDocument extends LeafElement {
         this.colours?.clear();
         this.colours = language
           ? new RunColours(language, (error) => {
-              if (this.isConnected) reportFailure(this, error);
+              if (this.isConnected)
+                this.dispatchEvent(
+                  new ErrorEvent("error", { error, bubbles: true, composed: true }),
+                );
             })
           : null;
       }

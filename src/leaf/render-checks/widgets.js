@@ -4,6 +4,7 @@ import {
   textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,
+  commandsUnread,
   pageDocument,
   inPage,
   TEXT_BOX,
@@ -457,6 +458,20 @@ export function heldScrollers(tags) {
         });
     }
   return found;
+}
+
+// Each element that holds an `lfCommands` Leaf never read, since no `lf-commands` event
+// reached Leaf from it, as where the element said so before it was placed. Its keys
+// bind nothing and the buttons its rows name do nothing, and nothing else reports it.
+// One walk of the document and every open root.
+export function unreadCommands() {
+  return openRoots(document.documentElement)
+    .flatMap((root) => [
+      ...(root instanceof Element ? [root] : []),
+      ...root.querySelectorAll("*"),
+    ])
+    .filter(commandsUnread)
+    .map((element) => ({ code: "unread-commands", at: locate(element) }));
 }
 
 // Each command in one of `tags`' widgets that declares context keys and no

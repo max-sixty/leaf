@@ -27,7 +27,7 @@ import { render as motionTemplate } from "./motion-view.js";
  * plays, and the transport draws it `aria-disabled` while there is nothing to play.
  * Leaf reads the Play command, which binds no key, from `lfCommands`, and names the
  * button by it in its command reference. A playback failure says so in the
- * clock's place, on any page, and reaches Leaf as the `error` event `reportFailure`
+ * clock's place, on any page, and reaches Leaf as the `error` event the element
  * dispatches. A failure to draw shows the fail-soft box beside the transport, with the
  * study still standing under it, and stops the clock: the box stays until a draw
  * succeeds. The input that pauses playback is the user's own (a press, key, wheel,
@@ -35,14 +35,12 @@ import { render as motionTemplate } from "./motion-view.js";
  * focus), read from the window as Leaf's prepaint counts input. */
 import { render } from "/vendor/lit.js";
 import {
-  commandsChanged,
   failSoft,
-  once,
   placesFailure,
-  reportFailure,
   tabStore,
   whileConnected,
 } from "/runtime/portable-api.js";
+import { once } from "/runtime/lib/once.js";
 
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];
 // A user who asked for less motion is shown the study's end rather than its playback.
@@ -101,7 +99,9 @@ class MotionStudy extends HTMLElement {
       throw new TypeError("renderFrame must be a function");
     this.#draw = draw;
     this.#paint();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   connectedCallback() {
@@ -154,7 +154,9 @@ class MotionStudy extends HTMLElement {
         },
       ],
     };
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     ui.play.addEventListener("click", () => {
       if (this.#playable) this.#toggle();
     });
@@ -205,7 +207,9 @@ class MotionStudy extends HTMLElement {
           if (reducedMotion.matches && this.#playing) this.currentTime = this.duration;
           else {
             this.#paintControls();
-            commandsChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
           }
         },
         { signal },
@@ -218,7 +222,9 @@ class MotionStudy extends HTMLElement {
         () => {
           this.#seekVideos();
           this.#paintControls();
-          commandsChanged(this);
+          this.dispatchEvent(
+            new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+          );
         },
         { capture: true, signal },
       );
@@ -302,7 +308,13 @@ class MotionStudy extends HTMLElement {
         if (error.name === "AbortError") return;
         this.#failure = "Failed";
         this.#pause();
-        reportFailure(this, new Error(`Playback failed: ${error.message}`));
+        this.dispatchEvent(
+          new ErrorEvent("error", {
+            error: new Error(`Playback failed: ${error.message}`),
+            bubbles: true,
+            composed: true,
+          }),
+        );
       });
     }
     this.#frame = requestAnimationFrame(() => this.#tick());

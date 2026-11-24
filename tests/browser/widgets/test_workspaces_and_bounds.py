@@ -868,7 +868,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
-            return [id, {scroll_behavior: leaf.regionScrollBehavior(id),
+            const pane = leaf.readingRegions().find(region => region.body === body);
+            return [id, {scroll_behavior: pane && leaf.regionScrollBehavior(pane),
                          scroller: leaf.scrollerFor(document.getElementById(id)) === host,
                          fits: body.scrollHeight <= body.clientHeight}];
           }).concat([['host', host.scrollHeight > host.clientHeight]]));

@@ -199,6 +199,9 @@ On Me and admits the ids its buttons mark:
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
   parts").
+- **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
+  with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
+  regions").
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,
   never shows them as a change. To set apart words it writes, such as a count after an

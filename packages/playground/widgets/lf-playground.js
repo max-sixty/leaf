@@ -65,14 +65,12 @@ import { createPlayground, same } from "./playground-view.js";
 import { render } from "/vendor/lit.js";
 import {
   aimedAt,
-  compoundReadingRegionId,
   copyControl,
   focusDestination,
   holdFocus,
   onCurrentLocation,
   onPress,
   LeafElement,
-  registerReadingRegion,
   says,
   wear,
   whileConnected,
@@ -181,20 +179,17 @@ customElements.define(
     #drawn = undefined;
     #ready = false;
     #interactive = false;
-    /** @type {(PlaygroundView["regions"][number] & {id: string})[]} */
-    #regions = [];
 
     // A build that throws leaves the playground showing its failure (LeafElement).
     setup() {
       this.#build();
       this.#ready = true;
       whileConnected(this, (signal) => {
-        const stops = this.#regions.map((region) => registerReadingRegion(region));
-        stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
+        const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar. A
         // quoted playground draws only its authored markup, with neither.
-        const controls = this.#regions.find((region) => region.name === "controls");
+        const controls = this.#view.controls;
         /** @type {HTMLElement | null} */
         const split = this.querySelector(":scope > .lf-playground-split");
         const observer = sizeObserver((entries) => {
@@ -208,7 +203,7 @@ customElements.define(
             return;
           }
         });
-        if (controls) observer.observe(controls.host);
+        if (controls) observer.observe(controls);
         // The instruction is a glance at the window's middle; a window changing width
         // puts it away rather than reflowing it under the user, which also kept Web
         // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
@@ -234,7 +229,7 @@ customElements.define(
         if (this.#unsent.size) this.#recordLater();
         return () => {
           observer.disconnect();
-          for (const stop of stops) stop();
+          stopPress();
           clearTimeout(this.#pause);
         };
       });
@@ -303,10 +298,6 @@ customElements.define(
       this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
-      this.#regions = initial.regions.map((region) => ({
-        ...region,
-        id: compoundReadingRegionId(this, region.name),
-      }));
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {

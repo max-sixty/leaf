@@ -51,7 +51,7 @@ import { keeps, keepsHidden, keepsText } from "./lib/keeps.js";
 import { reducedMotion } from "./motion.js";
 import { motionTime } from "./lib/motion-timing.js";
 import { says } from "./passages.js";
-import { plainPress } from "./pointer.js";
+import { plainPress } from "./lib/keys.js";
 import { holdRendering } from "./rendering.js";
 
 // Page media is whatever a reference names under this directory. The name a file there

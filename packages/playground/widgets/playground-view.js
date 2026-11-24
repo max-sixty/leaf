@@ -308,6 +308,9 @@ export function createPlayground(host) {
     );
   const pageActions = Boolean(pageSubmit);
   const interactive = !host.closest("[data-lf-exhibit]");
+  // Each pane hosts a reading region, whose body is the box in it that may scroll. The
+  // controls pane's is the author's first aside, or the presets where they wrote none.
+  if (interactive) keeps(asides[0], "data-lf-scroll", "controls");
   const authored = [...host.childNodes];
   const kept = new Set([...presets, output, ...asides]);
   const stage = authored.filter((node) => !kept.has(/** @type {HTMLElement} */ (node)));
@@ -439,6 +442,7 @@ export function createPlayground(host) {
             class="lf-playground-presets"
             role="group"
             aria-label="Starting points"
+            data-lf-scroll="controls"
           >
             ${presets}
           </div>`;
@@ -446,6 +450,7 @@ export function createPlayground(host) {
     html` <div
       class="lf-playground-controls-region"
       data-lf-reading-role="pane"
+      data-lf-scroll-host="controls"
       data-lf-generated
       role="region"
       aria-label="Controls"
@@ -488,34 +493,13 @@ export function createPlayground(host) {
         presets.map((preset) => [preset, preset.querySelector(":scope > button")]),
       );
     },
-    get regions() {
-      /** @type {[string, string, string | null][]} */
-      const regions = [
-        [
-          "controls",
+    /** @returns {HTMLElement | null} */
+    get controls() {
+      return (
+        split()?.querySelector(
           ":scope > .lf-playground-controls-region, :scope > .lf-playground-rail > .lf-playground-controls-region",
-          asides.length ? ":scope > aside" : ".lf-playground-presets",
-        ],
-        [
-          "instruction",
-          ":scope > .lf-playground-rail > .lf-playground-instruction-region",
-          ".lf-playground-actions",
-        ],
-        ["rail", ":scope > .lf-playground-rail", null],
-        [
-          "preview",
-          ":scope > .lf-playground-preview-region",
-          ".lf-playground-preview-body",
-        ],
-      ];
-      return regions.flatMap(([name, selector, body]) => {
-        const region = split()?.querySelector(selector);
-        if (!region) return [];
-        const readingBody = body ? region.querySelector(body) : region;
-        if (!readingBody)
-          throw new Error(`The playground ${name} region needs its reading body`);
-        return [{ name, host: region, body: readingBody }];
-      });
+        ) ?? null
+      );
     },
     /** @param {Element | null} element */
     isField: (element) => Boolean(element && fieldByControl.has(element)),
@@ -609,11 +593,12 @@ export function createPlayground(host) {
       const instructionPane = html`<div
         class="lf-playground-instruction-region"
         data-lf-reading-role="pane"
+        data-lf-scroll-host="instruction"
         data-lf-generated
         role="region"
         aria-label="Instruction to agent"
       >
-        <footer class="lf-playground-actions">
+        <footer class="lf-playground-actions" data-lf-scroll="instruction">
           <button ${resetOffer}></button>
           <button
             ${revealOffer}
@@ -656,7 +641,7 @@ export function createPlayground(host) {
       // actions and writes no aside leaves it out.
       const rail =
         asides.length || !pageActions
-          ? html`<div class="lf-playground-rail" data-lf-track>
+          ? html`<div class="lf-playground-rail" data-lf-track data-lf-scroll="rail">
               ${asides.length ? controlsPane() : nothing}
               ${pageActions ? nothing : instructionPane}
             </div>`
@@ -666,11 +651,12 @@ export function createPlayground(host) {
           <div
             class="lf-playground-preview-region"
             data-lf-reading-role="pane"
+            data-lf-scroll-host="preview"
             data-lf-generated
             role="region"
             aria-label="Preview"
           >
-            <div class="lf-playground-preview-body">
+            <div class="lf-playground-preview-body" data-lf-scroll="preview">
               <div class="lf-playground-stage">${stage}</div>
             </div>
           </div>

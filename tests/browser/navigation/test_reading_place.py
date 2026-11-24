@@ -52,11 +52,13 @@ def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
             )
         ),
     )
+    # The region is read in the task that marks its box.
     page.evaluate("""async () => {
       const api = await window.__lfWidgetApi();
+      const {readingRegionFor} = await window.__lfCheckApi();
       const host = document.querySelector('#reading');
-      const region = {id:'reading', host, body:host};
-      window.reading = {api, host, region, stop:api.registerReadingRegion(region)};
+      host.setAttribute('data-lf-scroll', 'reading');
+      window.reading = {api, host, region: readingRegionFor(host)};
     }""")
     expect(page.locator("#reading")).to_have_attribute("data-lf-more-below", "")
     page.evaluate("""() => {
@@ -78,10 +80,8 @@ def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
         p.api.restorePlace(p.place, p.region);
         queueMicrotask(() => {
           observer.disconnect();
-          const result = {top:p.host.scrollTop,
-            more:p.host.hasAttribute('data-lf-more-below')};
-          p.stop();
-          resolve(result);
+          resolve({top:p.host.scrollTop,
+            more:p.host.hasAttribute('data-lf-more-below')});
         });
       });
       observer.observe(p.host);

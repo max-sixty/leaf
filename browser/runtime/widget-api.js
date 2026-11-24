@@ -19,7 +19,6 @@
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
-export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
@@ -76,7 +75,6 @@ export { readThreads } from "./thread/state.js";
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { labelOf } from "./keyboard/bindings.js";
-export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
 export { presentContributionEntry } from "./contribution-controls.js";
@@ -87,9 +85,7 @@ export { scopedMediaUrl } from "./media.js";
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
-  compoundReadingRegionId,
   preserveReadingRegions,
-  registerReadingRegion,
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";

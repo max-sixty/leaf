@@ -19,8 +19,9 @@ import { keeps } from "./lib/keeps.js";
 // Leaf's or a package's, with `data-lf-scroll`, a name a page's own CSS can't reach by
 // accident. Their CSS owns overflow, including changes at breakpoints; the shared rule
 // contains positioned descendants. Style discovery measures only these surfaces. Stop
-// eligibility still checks the rendered controls inside them. Reading-region
-// registration opts its body in.
+// eligibility still checks the rendered controls inside them. A reading region's body
+// is one: a module's wears the mark with the region's name (reading-regions.js), and
+// registration marks the runtime's own.
 /** @typedef {Document | Element | ShadowRoot} Scope
  * @typedef {Pick<CSSStyleDeclaration, "overflowX" | "overflowY" | "position" | "direction">} ScrollStyle */
 const SCROLL_SURFACE = ".lf-scroll, [data-lf-scroll]";

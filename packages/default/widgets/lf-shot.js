@@ -67,8 +67,6 @@ import {
   scopedMediaUrl,
   move,
   whileConnected,
-  registerReadingRegion,
-  compoundReadingRegionId,
 } from "/runtime/widget-api.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
@@ -175,6 +173,8 @@ export class Shot extends HTMLElement {
       this.append(box);
       return true;
     });
+    // The shot hosts its stage's reading region (shot-view.js marks the stage).
+    keeps(this, "data-lf-scroll-host", "capture");
     const drawing = this.#drawing;
     drawing.view = this.getAttribute("view") ?? drawing.view;
     drawing.metadata = this.#metadata();
@@ -227,24 +227,9 @@ export class Shot extends HTMLElement {
       // Pair's bound in flow is the screen's height, which the stage doesn't track.
       const refit = () => this.#fit();
       window.addEventListener("resize", refit, { passive: true });
-      const unregister = [
-        registerReadingRegion({
-          id: compoundReadingRegionId(this, "capture"),
-          host: this,
-          body: this.#drawing.stage,
-        }),
-        ...this.#drawing.viewports.map((body, index) =>
-          registerReadingRegion({
-            id: compoundReadingRegionId(this, index === 0 ? "before" : "after"),
-            host: index === 0 ? drawing.frames[0] : drawing.frames[1],
-            body,
-          }),
-        ),
-      ];
       return () => {
         observer.disconnect();
         window.removeEventListener("resize", refit);
-        for (const release of unregister) release();
       };
     });
     this.#loadImages();

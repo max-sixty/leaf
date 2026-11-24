@@ -14,7 +14,7 @@ import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
 import { reducedMotion } from "./motion.js";
 import { motionTime } from "./lib/motion-timing.js";
-import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { projectCommandScope, statedScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,
   commandBinding,
@@ -52,20 +52,23 @@ export const contributionOwnsCommand = (record) =>
   record !== undefined && commandEntries.has(record);
 // The key this module projects an entry's scope onto its control under.
 const CONTRIBUTION_ENTRY = Symbol("contribution entry");
+// An entry's scope: the one kept for its record, or the one its `scope` states, which
+// a package gives as the object its element holds as `lfCommands` (`statedScope`).
+/** @param {EntryInput} declared */
+const scopeOf = (declared) =>
+  commandScopes.get(declared) ??
+  (declared.scope == null ? undefined : statedScope(declared.scope));
 /** @template {object} R @param {R} record @param {EntryInput} declared */
 function bindScope(record, declared) {
-  const scope = commandScopes.get(declared) ?? declared.scope;
-  if (scope != null) commandScopes.set(record, scope);
+  const scope = scopeOf(declared);
+  if (scope) commandScopes.set(record, scope);
   if (contributionOwnsCommand(declared)) commandEntries.add(record);
   return record;
 }
 
 /** @param {EntryInput} offered */
 export function contributionEntry(offered) {
-  const scope = commandScopes.get(offered) ?? offered.scope;
-  if (scope != null && !isCommandScope(scope))
-    throw new TypeError("A margin entry scope needs a commandScope capability");
-  const command = entryCommand(scope, offered.activation);
+  const command = entryCommand(scopeOf(offered), offered.activation);
   if (command) commandEntries.add(offered);
   return bindScope(
     normalizeContributionEntry(
@@ -126,7 +129,7 @@ export function normalizeReading(reading, owner, previous = null) {
       prior &&
       contributionOwnsCommand(prior) &&
       entry.activation === prior.activation &&
-      (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)
+      scopeOf(entry) === commandScopes.get(prior)
     )
       commandEntries.add(entry);
     if (!isContributionEntry(entry)) return contributionEntry(entry);

@@ -86,15 +86,12 @@ import {
 } from "/vendor/lit.js";
 import {
   alreadyShown,
-  compoundReadingRegionId,
-  registerReadingRegion,
   el,
   focusDestination,
   holdFocus,
   LeafElement,
   move,
   onUserInput,
-  signal,
   scopedMediaUrl,
   retainUserIntent,
   scrollIntoView,
@@ -440,16 +437,11 @@ export class Trace extends LeafElement {
   /** @type {boolean | null} */
   #playIntent = null;
   // The playhead's time from the scope origin when it stands between captures,
-  // after scrubbing or playback. Null when it stands on the selected capture. A
-  // signal, because the step and event commands' liveness reads it.
-  /** @type {import("@preact/signals-core").Signal<number | null>} */
-  #cursor = signal(null);
-  get #cursorTime() {
-    return this.#cursor.value;
-  }
-  set #cursorTime(time) {
-    this.#cursor.value = time;
-  }
+  // after scrubbing or playback. Null when it stands on the selected capture.
+  // The step and event commands' liveness reads it, so drawing it says the keys
+  // changed (`#drawTime`).
+  /** @type {number | null} */
+  #cursorTime = null;
   // The user's hold through a scrub, settled as the pointer lets go.
   /** @type {PromiseWithResolvers<void> | null} */
   #scrubbing = null;
@@ -663,27 +655,11 @@ export class Trace extends LeafElement {
       const stopInput = onUserInput(this.#reviewGesture);
       const resizer = sizeObserver(this.#resize);
       resizer.observe(this.#nodes.viewport);
-      const stopReading = [
-        { name: "recording", host: this, body: this.#nodes.body },
-        {
-          name: "point-details",
-          host: this.#nodes.metadata,
-          body: this.#nodes.metadata,
-        },
-        { name: "saved-elements", host: this.#nodes.tree, body: this.#nodes.tree },
-      ].map(({ name, host, body }) =>
-        registerReadingRegion({
-          id: compoundReadingRegionId(this, name),
-          host,
-          body,
-        }),
-      );
       // A returning recording draws the picture its departure closed.
       if (this.#trace) this.#draw();
       return () => {
         this.pause(false);
         stopInput();
-        for (const stop of stopReading.toReversed()) stop();
         resizer.disconnect();
         this.#closePicture();
       };
@@ -721,6 +697,9 @@ export class Trace extends LeafElement {
     // Authored bookmarks remain outside the live view's one Lit root.
     const view = el("div", "lf-trace-view");
     keeps(view, "data-lf-gen", "1");
+    // The recording hosts its body's reading region; the point's details and its saved
+    // elements are regions of their own (`#template` marks all three).
+    keeps(this, "data-lf-scroll-host", "recording");
     this.#renderedView = view;
     this.append(this.#view);
     render(this.#template(...this.#drawing), this.#view, this.renderOptions);
@@ -2133,6 +2112,10 @@ export class Trace extends LeafElement {
     this.#nodes.selectionLabel.lfPreview = () =>
       selection ? { name: selection } : null;
     this.#drawInput();
+    // The commands read the playhead, the selected capture and whether it plays.
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   /** @param {Moment} moment */
@@ -2285,7 +2268,11 @@ export class Trace extends LeafElement {
         </div>
       </section>
     </div>`;
-    return html`<div class="lf-trace-body" ${ref(this.#body)}>
+    return html`<div
+      class="lf-trace-body"
+      data-lf-scroll="recording"
+      ${ref(this.#body)}
+    >
       <div
         class="lf-trace-evidence"
         @click=${{ handleEvent: (/** @type {Event} */ event) => this.#inspect(event), capture: true }}
@@ -2507,9 +2494,11 @@ export class Trace extends LeafElement {
           tabindex="0"
           role="group"
           aria-label="Selected point details"
+          data-lf-scroll="point-details"
         >
           <details
             class="lf-trace-tree"
+            data-lf-scroll="saved-elements"
             ${ref(this.#tree)}
             @toggle=${() => this.#draw()}
           >
@@ -2645,14 +2634,10 @@ export class Trace extends LeafElement {
     this.#drawPicture(image);
     // Saved trees replace each other under their archive phase identity, and the
     // reader's place in each is kept through empty frames and returns.
-    showReadingSubject(
-      compoundReadingRegionId(this, "saved-elements"),
-      treeScope,
-      () => {
-        this.#drawing = [point, evidence, rows];
-        render(this.#template(...this.#drawing), this.#view, this.renderOptions);
-      },
-    );
+    showReadingSubject(this.#nodes.tree, treeScope, () => {
+      this.#drawing = [point, evidence, rows];
+      render(this.#template(...this.#drawing), this.#view, this.renderOptions);
+    });
     this.#missingImage.toggleAttribute("hidden", !!this.#pictureId);
     keepsText(
       this.#missingImage,
@@ -2737,9 +2722,6 @@ export class Trace extends LeafElement {
     this.#marked = marked;
     this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
-    this.dispatchEvent(
-      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-    );
   }
 }
 customElements.define("lf-trace", Trace);

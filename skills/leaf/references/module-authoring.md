@@ -41,9 +41,7 @@ argument.
 
 `/vendor/lit.js` is Lit's own module, the one path its names come from, such as
 `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`,
-`classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. From Preact Signals
-`widget-api.js` exports `signal`, for private state a command's `when` reads
-(`module-input.md`, "Command rows").
+`classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`.
 
 ### Shared web code
 
@@ -162,9 +160,10 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
-    // For a widget that scrolls a box of its own (module-scroll-and-motion.md,
-    // "Reading regions"): the registration's function is this connection's cleanup.
-    return registerReadingRegion({ id: this.id, host: this, body: this.body });
+    // What the signal can't end is this connection's cleanup.
+    const sizes = sizeObserver(this.schedulePaint);
+    sizes.observe(this.body);
+    return () => sizes.disconnect();
   });
 }
 ```
@@ -175,7 +174,8 @@ it again. `whileConnected` returns a function that ends the registration for goo
 
 Moving an element within the page doesn't count as leaving. When a revision replaces a
 widget, the old element's cleanup runs before the new one's `start`, so a registration
-only one element may hold, such as `registerReadingRegion`, passes to the replacement.
+only one element may hold, such as `registerThreadPresentation`, passes to the
+replacement.
 
 A `LeafElement` draws nothing while it is away and draws the current reading once on
 return, keeping unchanged template nodes. Have `start` restore what its cleanup removed,

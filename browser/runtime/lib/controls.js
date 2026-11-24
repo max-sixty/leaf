@@ -5,6 +5,11 @@
  * writers do not name. They load in any document; a host without Leaf simply does not
  * interpret the marks.
  *
+ * A press the user activates, such as a button, is built by its role (`offerAction`,
+ * `offeredAction`, `selectableOffer` with a face), so it wears the face Leaf draws for
+ * that kind of press. `offer`, `offered` and `offerElement` mark a field, a box of
+ * controls, or a press whose look the module draws itself.
+ *
  * The marks are attributes and classes Leaf reads off the element. A module that marks
  * its own words writes the same attributes itself (module-plain-elements.md, "Words it
  * writes"):

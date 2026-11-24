@@ -19,7 +19,6 @@
  */
 import { render } from "/vendor/lit.js";
 import {
-  commandScope,
   focusDestination,
   navigateToDatum,
   LeafElement,
@@ -169,21 +168,25 @@ class FileTreeWidget extends LeafElement {
           missing: `${file.path} is no longer available.`,
         });
     };
-    const fileActions = commandScope("In files", [
-      {
-        id: "files.open",
-        title: "Open file or toggle folder",
-        keys: PRESS,
-        when: focusedRow,
-        run: () => activate(true),
-      },
-      {
-        id: "files.walk",
-        title: "Move among files and folders",
-        keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
-        when: focusedRow,
-      },
-    ]);
+    /** @type {HTMLElement["lfCommands"]} */
+    const fileActions = {
+      title: "In files",
+      rows: [
+        {
+          id: "files.open",
+          title: "Open file or toggle folder",
+          keys: PRESS,
+          when: focusedRow,
+          run: () => activate(true),
+        },
+        {
+          id: "files.walk",
+          title: "Move among files and folders",
+          keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
+          when: focusedRow,
+        },
+      ],
+    };
     this.lfCommands = fileActions;
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),

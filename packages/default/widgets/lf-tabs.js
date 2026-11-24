@@ -111,7 +111,6 @@ import {
   fragmentTarget,
   scrollIntoView,
   landingInsets,
-  signal,
   LeafElement,
 } from "/runtime/widget-api.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
@@ -174,9 +173,9 @@ export class TabSet extends LeafElement {
   /** @type {{panel: Element, group: string | null, panels: Element[]}[]} */
   #runs = [];
   #down = false;
-  // The open panel, a signal because the strip's Enter row reads which tab is open.
-  /** @type {import("@preact/signals-core").Signal<Element | null>} */
-  #active = signal(null);
+  // The open panel, which the strip's Enter row reads too.
+  /** @type {Element | null} */
+  #active = null;
   #root = false;
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
@@ -340,7 +339,7 @@ export class TabSet extends LeafElement {
     // measures final geometry.
     this.#activate(openingView(this) ?? null, "arrival");
     if (this.#root) {
-      this.#replaceLocation(this.#active.value);
+      this.#replaceLocation(this.#active);
     }
     whileConnected(this, (signal) => {
       this.#watchRootContext();
@@ -436,7 +435,7 @@ export class TabSet extends LeafElement {
   }
 
   #currentButton() {
-    const active = this.#active.value;
+    const active = this.#active;
     return active ? this.#buttons.get(active) : undefined;
   }
 
@@ -488,9 +487,9 @@ export class TabSet extends LeafElement {
       })}
       aria-controls=${panel.id}
       aria-label=${panel.getAttribute("label")}
-      aria-selected=${panel === this.#active.value}
+      aria-selected=${panel === this.#active}
       aria-description=${description || nothing}
-      tabindex=${panel === this.#active.value ? 0 : -1}
+      tabindex=${panel === this.#active ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", event.detail !== 0)}
       ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
@@ -531,11 +530,11 @@ export class TabSet extends LeafElement {
     if (!active || !activeButton) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
     // scrolling the row away.
-    if (active === this.#active.value) {
+    if (active === this.#active) {
       this.#showTab(this.#buttons.get(active));
       return;
     }
-    const previous = this.#active.value;
+    const previous = this.#active;
     const order = [...this.#buttons.keys()];
     const travels =
       pointer &&
@@ -574,10 +573,11 @@ export class TabSet extends LeafElement {
         // tabindex, so explicitly exclude closed panels from the tab order.
         keeps(panel, "tabindex", panel === active ? 0 : -1);
       }
-      this.#active.value = active;
-      // Selection changes in this task. Lit's scheduled update then
-      // keeps its dependency subscription current without replacing any nodes.
+      this.#active = active;
+      // Selection changes in this task. The update asked for then replaces no
+      // node, and has Leaf read the strip's keys again.
       render(this.render(), this.#strip);
+      this.requestUpdate();
       const button = activeButton;
       this.#showTab(button);
       this.#revealMotion?.cancel();
@@ -642,8 +642,8 @@ export class TabSet extends LeafElement {
     );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
-    if (wasFlow !== this.#pageFlow && this.#active.value) {
-      const child = soleSubstantiveElement(this.#active.value);
+    if (wasFlow !== this.#pageFlow && this.#active) {
+      const child = soleSubstantiveElement(this.#active);
       if (child)
         child.dispatchEvent(
           new CustomEvent("lf-layout", { bubbles: true, composed: true }),
@@ -675,8 +675,7 @@ export class TabSet extends LeafElement {
   // none of it. Which the list is follows the window, so the strip's size observer asks
   // again.
   #declareHeader() {
-    const over =
-      !this.#parts || Boolean(this.#active.value && this.#listOver(this.#active.value));
+    const over = !this.#parts || Boolean(this.#active && this.#listOver(this.#active));
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
     this.#strip.toggleAttribute("data-lf-root-header", header);
   }
@@ -794,7 +793,7 @@ export class TabSet extends LeafElement {
       (url) => {
         if (!this.#root) return null;
         const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
-        return view && view !== this.#active.value
+        return view && view !== this.#active
           ? async () => {
               const placesPage = this.#pageFlow;
               await this.#activate(view, "history");

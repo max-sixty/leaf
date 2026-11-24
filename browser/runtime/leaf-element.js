@@ -299,6 +299,18 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     super.update(changed);
     this.#box?.remove();
     this.#box = null;
+    // Said here, since a subclass overrides `updated()`: one that left out
+    // `super.updated()` would draw and keep stale key hints, which nothing reports.
+    const root = this.renderRoot;
+    untracked(() =>
+      (root instanceof Element ? root : this).dispatchEvent(
+        new CustomEvent(COMMANDS, {
+          bubbles: true,
+          composed: true,
+          detail: { within: true },
+        }),
+      ),
+    );
   }
 
   // An update that fails anywhere, its gate and `updated` included, reports once and
@@ -329,20 +341,5 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  here either, so one whose `setup()` threw keeps showing that failure. */
   redraw() {
     if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
-  }
-
-  /** @param {Parameters<LitElement["updated"]>[0]} changed */
-  updated(changed) {
-    super.updated(changed);
-    const root = this.renderRoot;
-    untracked(() =>
-      (root instanceof Element ? root : this).dispatchEvent(
-        new CustomEvent(COMMANDS, {
-          bubbles: true,
-          composed: true,
-          detail: { within: true },
-        }),
-      ),
-    );
   }
 }

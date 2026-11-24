@@ -15,7 +15,10 @@
    widget keeps importing from here.
 
    Shared web code that reaches none of Leaf's is no part of this surface: it is the
-   library's (lib/; browser/AGENTS.md, "The library of shared web code"). */
+   library's (lib/; browser/AGENTS.md, "The library of shared web code").
+
+   Each export is a name every package author learns, so one joins this file only
+   after the questions in packages/AGENTS.md, "A widget's need of Leaf". */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 import { growthIsSeen } from "./geometry.js";

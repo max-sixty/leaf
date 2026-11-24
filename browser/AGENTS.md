@@ -284,8 +284,14 @@ concrete and playable").
   of them, so a preview there would cover it and take their next Escape, and `K` reads
   it there on demand, inside a modal dialog too, as an editor's hover key does
   (check:
-  `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). A preview the user put
-  away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
+  `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). `K` also reads where
+  the caret stands, inside what focus is on or anywhere while nothing has focus.
+  Caret browsing in Chromium and Firefox walks the caret through words that take no
+  focus, so there an element such as an age previews to the keyboard without a Tab
+  stop of its own (check: `test_k_reads_the_caret_where_no_tab_reaches`). Safari has
+  no such caret (`../notes/browser-support.md`, "A keyboard caret in Safari"). A
+  preview the user put away stays away until they aim again, whatever the element
+  declares meanwhile. A `title` is its writer's: the
   browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
   so two tooltips never stand together. Leaf's own controls declare their words to the
   preview and write no title on Leaf.
@@ -474,7 +480,8 @@ interface. `runtime/lib/` is that home. It holds code that keeps none of the pag
 state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
 thrown value. A function that reads the page's state, the registry or anything else
 Leaf composes into a page is not library code, and stays in its owner behind
-`widget-api.js`.
+`widget-api.js`, which gains a name only as `../packages/AGENTS.md`, "A widget's need of
+Leaf", says.
 
 - A library module imports only `/vendor/` bundles and the modules beside it, so it
   loads in a document Leaf didn't compose (lint, the library's block in

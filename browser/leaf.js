@@ -85,7 +85,6 @@ import {
 } from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
-import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import { createThreadAddress } from "./runtime/thread/address.js";
@@ -281,7 +280,6 @@ async function boot() {
     targetPaint: createVisualMarkPaint(),
     pointer: pointerAt,
     currentLocationThreadId,
-    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -455,7 +453,6 @@ async function boot() {
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
     annotationCommands: {
-      currentLocationObligation: () => items.currentLocationIn(),
       designModeActive: designMode.active,
       pointerModeActive: () =>
         designMode.active() || drawing.drawModeActive() || regionCapture.active(),
@@ -689,18 +686,12 @@ async function boot() {
       app.threadDestinations.openThreadDraft(context, intent, route),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
-  const rewriteRestore = createRewriteRestore({
-    revealInThread: (context, intent) =>
-      app.threadDestinations.openThreadDraft(context, intent),
-    holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
-  });
   const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
       writingResume.command,
-      rewriteRestore,
       passageSelection.command,
       navigation.alignTop,
       app.read.firstUnreadCommand,

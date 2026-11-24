@@ -12,10 +12,13 @@ from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_DRAWN, JOURNEY_V1, _publish
 from render_harness import (
     CHROME_ROOT,
+    available_commands,
     compare_with,
     consume_browser_errors,
     draft_control,
     example_media,
+    expect_panel_says,
+    field_press,
     hold_selection,
     holding,
     http_error_console,
@@ -26,6 +29,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    undo,
     write,
 )
 
@@ -983,6 +987,82 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     expect(editor).to_have_count(0)
 
 
+def test_a_discarded_draft_edit_comes_back(browser, serve):
+    """A press on Discard can be a stray one, aimed at the words under the toolbar, so
+    it loses nothing for good: ⌘Z takes it back as it takes back any gesture of the
+    user's, opening the draft again on the discarded words and sending nothing. The
+    discard's notice offers that Undo at the panel field's end, and leaves once the
+    words are back. After a newer gesture, ⌘Z takes that one back first, then the
+    discard. Discarding words the draft already says leaves nothing to take back."""
+    url = serve(
+        leaf_page(
+            "Discarded draft",
+            "<h1>Discarded draft</h1>"
+            '<lf-draft id="note"><pre>Saved words.</pre></lf-draft>'
+            '<lf-draft id="other"><pre>Other words.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url)
+    editor = page.locator("#note leaf-text")
+    edit = draft_control(page, "edit", "note")
+    typed = "Words typed, then thrown away."
+
+    def edits():
+        return [
+            e["detail"]["value"]
+            for e in events_model.read_events(serve.page_dir)
+            if e.get("action") == "edit"
+        ]
+
+    # By pointer: Discard, then the notice's Undo.
+    page.locator("#note .lf-draft-body").click()
+    write(editor, typed)
+    press_draft_control(page, "cancel", "note")
+    expect(editor).to_have_count(0)
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Saved words.")
+    expect_panel_says(page, "Edit discarded")
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Undo")
+    expect(press.locator("kbd")).to_have_text(re.compile(r"^(⌘z|Ctrl\+z)$"))
+    press.click()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+    # Named as the rest of the chrome names the draft: nothing holding it has a name.
+    expect_panel_says(page, "Undone: discarded an edit of the draft")
+    expect_panel_says(page, "Edit discarded", says=False)
+
+    # By keyboard: Escape, then ⌘Z from the Edit control it lands on.
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    expect(edit).to_be_focused()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+    assert edits() == []
+
+    # A newer gesture takes ⌘Z, so ⌘Z takes that one back first, then the discard.
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    other = page.locator("#other leaf-text")
+    draft_control(page, "edit", "other").click()
+    write(other, "Other words, saved.")
+    with sending(page, "the save"):
+        press_draft_control(page, "save", "other")
+    expect(page.locator("#other .lf-draft-body")).to_have_text("Other words, saved.")
+    edit.focus()
+    undo(page)
+    expect(page.locator("#other .lf-draft-body")).to_have_text("Other words.")
+    expect(editor).to_have_count(0)
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+
+    write(editor, "Saved words.")
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert "history.undo" not in available_commands(page)
+
+
 def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
     """An open editor's words come back on reload whenever they differ from the
     current text, words that walk a saved edit back to the authored text included."""
@@ -1230,13 +1310,17 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, se
         page.get_by_role("heading", name="Release note").hover()
         rendered(page)
         controls = draft.locator("[data-lf-draft-action]:visible")
-        before = controls.evaluate_all(
-            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
-        )
         button = draft_control(page, action, "note")
         box = button.bounding_box()
         x = box["x"] + (2 if edge == "left" else box["width"] - 2)
         page.mouse.move(x, box["y"] + box["height"] / 2)
+        # Typing put the toolbar away, and it takes presses once the pointer has
+        # rested on it (draft.css).
+        expect(draft.locator(".lf-draft-tools")).to_have_css("pointer-events", "auto")
+        rendered(page)
+        before = controls.evaluate_all(
+            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+        )
         page.mouse.down()
         expect(button).to_be_focused()
         rendered(page)

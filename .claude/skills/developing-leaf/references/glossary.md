@@ -246,7 +246,7 @@ its link's preview counts them.
 | **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--lf-focus-ring` in `styles/tokens.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
-| **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |
+| **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus, or where the caret stands inside focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |
 
 Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `g H`
 toggles what the page shows without changing what input means. Commands have stable

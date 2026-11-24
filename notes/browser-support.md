@@ -810,6 +810,22 @@ Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
 
+### A keyboard caret in Safari
+
+Safari has no caret browsing, so a keyboard user there can't put the caret on words
+that take no focus. `K` (`preview.js`, `here`) then can't read an element that
+previews without a Tab stop, such as an age, and the keyboard can't select words to
+comment on (`browser.caret` in `keyboard/page.js`). A pointer and a finger's hold
+still read the preview. On 2026-11-24, in Playwright WebKit 27.2 (build 2388), F7,
+ArrowRight and Shift+ArrowRight each left a collapsed caret where a script had put it
+in a paragraph's words, while arrows walked it into an age's words in Playwright
+Chromium 159.0.8154.6 (build 1255) with `--enable-caret-browsing` and Firefox 159.0
+(build 1572) with `accessibility.browsewithcaret`.
+A route every engine has, such as Go-to hints on elements that preview, is a decision
+for the maintainer.
+Recheck in WebKit: collapse the selection in a paragraph's text, press F7 and then
+ArrowRight, and read whether `getSelection().focusOffset` moved.
+
 ### A control's own arrows after focus leaves it in Chromium and WebKit
 
 A key pressed at a control the user has scrolled away from lets go of it first

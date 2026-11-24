@@ -3244,11 +3244,12 @@ export function createVersionController({
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
-    // The handoff prepaint read for a reload of its address. It stays in the tab until
-    // this arrival has put back what it carries (history.js, `settled`), so a document
-    // that goes before then, as by a second reload Leaf asks for, leaves the next one
-    // the same handoff (`pagehide`); then it is dropped. One that isn't this document's
-    // is dropped as the document arrives, however it arrived.
+    // The handoff prepaint read for a reload of its address. It stays in the tab while
+    // this arrival owes what it carries, until it has put that back (history.js,
+    // `settled`) or an input of the user's has ended it (bootstrap.js, `holdEarlyKeys`),
+    // so a document that goes before then, as by a second reload Leaf asks for, leaves
+    // the next one the same handoff (`pagehide`); then it is dropped. One that isn't
+    // this document's is dropped as the document arrives, however it arrived.
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
       return currentRevision !== null &&

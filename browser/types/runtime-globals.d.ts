@@ -7,7 +7,7 @@ interface DocumentInputs {
   readonly count: number;
   readonly steps: number;
   holdKeys(
-    hold: { holds(event: KeyboardEvent): boolean; counted(): void } | null,
+    hold: { holds(event: KeyboardEvent): boolean; counted(step: boolean): void } | null,
   ): void;
   observe(read: (event: Event) => void): () => boolean;
 }

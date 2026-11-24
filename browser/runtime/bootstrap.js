@@ -592,18 +592,22 @@
     // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
     // replays, so it doesn't stop the hand-back it waits for, and neither is a bare
     // modifier, which acts on nothing, as the Shift before a capital the hold keeps.
-    // Any other input the document's clock counts, a scroll or a step Back or Forward as
-    // much as a press, ends that hand-back, so the keys held for the place it would put
-    // back go at once (`counted`), and a document that goes then leaves none of them.
-    // The run's own presses, once the place is back, are the clock's inputs too, and
-    // let go of nothing (`taken`). On any other load a held key still counts, so a key
-    // typed while the page starts still stops arrival work, such as reopening a comment
-    // box, as it always did.
+    // Any other input the document's clock counts, a scroll as much as a press, ends
+    // that hand-back (history.js, `owes`), so the keys held for the place it would put
+    // back go at once, and so does the handoff, which the tab keeps only while the
+    // arrival owes it (version.js, `installArrival`): a document that goes after leaves
+    // neither to the next, whichever reload follows. A step Back or Forward lets the
+    // keys go, typed for the entry the user left, but leaves the handoff, whose arrival
+    // goes on at the entry the step reached. The run's own presses, once the place is
+    // back, are the clock's inputs too, and let go of nothing (`taken`). On any other
+    // load a held key still counts, so a key typed while the page starts still stops
+    // arrival work, such as reopening a comment box, as it always did.
     if (handedBack)
       holdKeys({
         holds: (event) => HALF_PRESSES.has(event.key) || holds(event),
-        counted: () => {
+        counted: (step) => {
           if (!taken) letGo();
+          if (!step) window.lfStorage.handOff(null);
         },
       });
     window.addEventListener("keydown", hold, true);

@@ -749,14 +749,23 @@ def test_a_value_typed_before_leaf_starts_outlasts_the_one_the_reload_carries(
     expect(page.locator("#who")).to_have_value("Grace")
 
 
-def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve):
-    """Words the user types on as the tab reloads, into the reply box they were writing
-    in, reach that box though a second reload Leaf asks for comes before the first
-    document has put the box back, as typed words survive every path (SOUL.md)."""
+def scroll_away(page):
+    """Scroll the page with the wheel, and wait until the document has heard it: an
+    input of the user's, as its clock counts them (document-inputs.js). A document
+    that has not painted yet may not hear a wheel at all."""
+    page.mouse.move(400, 300)
+    page.mouse.wheel(0, 200)
+    page.wait_for_function('Reflect.get(window, Symbol.for("leaf.inputs")).count > 0')
+
+
+def writing_a_reply(browser, serve, form=""):
+    """A page with `form` above a paragraph a thread is about, open at the user's reply
+    to the thread in its card, which holds the words "Hold" and has focus."""
     url = serve(
         leaf_page(
             "Restarted",
-            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+            f"<h1>Rehearsal</h1>{form}"
+            '<p id="result">The backfill copied 310 million rows.</p>',
         )
     )
     append_carried_log_record(
@@ -777,6 +786,14 @@ def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve
         ".lf-thread-reply leaf-text"
     )
     write(reply, "Hold")
+    return page, reply
+
+
+def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve):
+    """Words the user types on as the tab reloads, into the reply box they were writing
+    in, reach that box though a second reload Leaf asks for comes before the first
+    document has put the box back, as typed words survive every path (SOUL.md)."""
+    page, reply = writing_a_reply(browser, serve)
     reload_in_a_row(page, serve, [lambda: page.keyboard.type(" the resend")])
     expect(reply).to_have_js_property("value", "Hold the resend")
 
@@ -813,30 +830,7 @@ def test_keys_still_held_as_another_reload_comes_follow_the_first_into_the_reply
     hands back one key at a time. Another reload coming after the first key has gone in
     hands the box back again, and the keys still to go follow there, rather than going
     with the document that was pressing them."""
-    url = serve(
-        leaf_page(
-            "Restarted",
-            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
-        )
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "id": "rows",
-            "text": "Which rows?",
-            "anchor": {"section": "result"},
-        },
-    )
-    page = open_page(browser, live_url(url))
-    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
-    reply = page.locator(
-        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
-        ".lf-thread-reply leaf-text"
-    )
-    write(reply, "Hold")
+    page, reply = writing_a_reply(browser, serve)
     page.add_init_script(RELOAD_AS_X_REPLAYS)
     module = []
     page.route("**/leaf.js", lambda route: module.append(route))
@@ -863,41 +857,23 @@ def test_keys_still_held_as_another_reload_comes_follow_the_first_into_the_reply
 
 def test_a_key_held_through_a_reload_goes_with_a_scroll_across_another(browser, serve):
     """A key typed while a reload's arrival waits is meant for the place it puts back.
-    Scrolling the page then ends that arrival, and lets the key go with it, though a
-    second reload Leaf asks for comes before the document's anchoring is ready, and so
-    before it has put anything back: the next document holds the key no more."""
-    url = serve(
-        leaf_page(
-            "Restarted",
-            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
-        )
+    Scrolling the page ends that arrival and lets the key go with it, so a second
+    reload Leaf asks for, which hands back where the user has gone instead, a field of
+    the page's own, brings the key back no more: a word typed there is the only one."""
+    page, _ = writing_a_reply(
+        browser, serve, '<p><input id="who" aria-label="Name" autocomplete="off"></p>'
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "id": "rows",
-            "text": "Which rows?",
-            "anchor": {"section": "result"},
-        },
-    )
-    page = open_page(browser, live_url(url))
-    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
-    reply = page.locator(
-        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
-        ".lf-thread-reply leaf-text"
-    )
-    write(reply, "Hold")
 
     def type_then_scroll():
         page.keyboard.type("x")
-        page.mouse.move(400, 300)
-        page.mouse.wheel(0, 200)
+        scroll_away(page)
+        page.focus("#who")
 
-    reload_in_a_row(page, serve, [type_then_scroll], slow={1})
-    expect(reply).to_have_js_property("value", "Hold")
+    reload_in_a_row(page, serve, [type_then_scroll])
+    who = page.locator("#who")
+    expect(who).to_be_focused()
+    page.keyboard.type("y")
+    expect(who).to_have_value("y")
 
 
 def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
@@ -907,30 +883,7 @@ def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
     document's hold. Letting it go there, as Escape does, ends it for good: a third
     reload, coming before that document's anchoring is ready, brings it back no more
     (bootstrap.js, `holdEarlyKeys`)."""
-    url = serve(
-        leaf_page(
-            "Restarted",
-            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
-        )
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "id": "rows",
-            "text": "Which rows?",
-            "anchor": {"section": "result"},
-        },
-    )
-    page = open_page(browser, live_url(url))
-    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
-    reply = page.locator(
-        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
-        ".lf-thread-reply leaf-text"
-    )
-    write(reply, "Hold")
+    page, reply = writing_a_reply(browser, serve)
     reload_in_a_row(
         page,
         serve,
@@ -938,6 +891,63 @@ def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
         slow={2},
     )
     expect(reply).to_have_js_property("value", "Hold")
+
+
+def test_a_reload_the_user_asks_for_after_moving_on_returns_where_they_went(
+    browser, serve
+):
+    """A reload Leaf asks for hands back the reply the user was writing. Scrolling
+    away while the server is slow to answer ends that return, so a reload the user
+    then asks for comes back to where they went, as the entry's record says, rather
+    than into the reply: the tab keeps the handoff only while its arrival owes it. The
+    thread the address names opens again, as on any reload."""
+    page, reply = writing_a_reply(browser, serve)
+    # The first document a reload brings waits on its answers, as a slow server's; the
+    # documents before and after it are answered, the one before as by a server
+    # restarted under another Leaf, which asks for the reload.
+    documents = {"count": 0}
+    held = []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def answer(route):
+        if documents["count"] == 0:
+            response = route.fetch()
+            route.fulfill(
+                response=response,
+                headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
+            )
+        elif documents["count"] == 1 and "/api/" in route.request.url:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/api/**", answer)
+    page.route("**/registry.json", answer)
+    with page.expect_navigation(wait_until="commit"):
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+        )
+    holding(page, held, 1, "the arriving document's first answer")
+    # The panel mounts in the task that begins the document's arrival (leaf.js).
+    page.wait_for_function("document.querySelector('.lf-floating-panel') !== null")
+    scroll_away(page)
+    page.reload(wait_until="commit")
+    for route in held:
+        try:
+            route.continue_()
+        except Exception:
+            pass
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    expect(reply).to_have_js_property("value", "Hold")
+    expect(reply).not_to_be_focused()
 
 
 def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):

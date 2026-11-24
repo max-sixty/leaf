@@ -935,6 +935,11 @@ class TextDocument extends LeafElement {
   }
 
   setup() {
+    // The document is a bounded block: its listing, or each tab of its preview,
+    // scrolls inside it (text-document.css, `build`), and Leaf keeps the reader's place
+    // there. An occurrence that states its own bound (`data-bound`) arrives marked.
+    if (!this.hasAttribute("data-lf-bound"))
+      this.setAttribute("data-lf-bound", "start");
     this.language = codeLanguage(this);
     // A departure abandons the rendering in flight and its frame's wait, and the
     // colour of the runs it drew, which a return draws again as they show.

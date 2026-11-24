@@ -116,7 +116,7 @@ edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` t
 the trim, which would otherwise take its first item's margin and not its neighbours'.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
-writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
+writes onto each element as `[data-lf-space]`, `[data-lf-height]`,
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
 largest width and height among its images, so a widget can size its frame before they
@@ -137,15 +137,19 @@ as a pane's body or a card, and `--lf-box-cap` stands in where there is none, as
 live sample. In a narrower box the widget then scrolls sideways rather than widening the
 page.
 
-Choose vertical bounds as `page-layout.md`, "Bounds and widths", describes. Where a
-bounded widget should scroll a box inside it, such as a listing under a caption that
-stays in view, move the bound to that box under `[data-lf-bound]`. On the bounded host,
-declare `--lf-bound-box` as a selector within it, such as `.listing`.
-Leaf scrolls and keeps the user's place in the first match outside nested bounds,
-or in the host while no match exists. The declaration does not inherit. Declare
-`--lf-holds-height: 1` on the scrolling box (`packages.md`, "Seeing it",
-`grows-with-content`). A box that scrolls sideways
-needs nothing: Leaf fades its content at any edge with more beyond.
+Choose vertical bounds as `page-layout.md`, "Bounds and widths", describes. A widget
+that holds its own height, such as a feed, bounds itself as a page's `data-bound`
+bounds a block: its module writes `data-lf-bound="start"` or `"end"` on the element
+when it first connects, unless the attribute is already there, which is the page's own
+`data-bound` as Leaf delivers it. Leaf then bounds the element and keeps the user's
+place in it. Where a bounded widget should scroll a box inside it, such as a listing
+under a caption that stays in view, move the bound to that box under
+`[data-lf-bound]`. On the bounded host, declare `--lf-bound-box` as a selector within
+it, such as `.listing`. Leaf scrolls and keeps the user's place in the first match
+outside nested bounds, or in the host while no match exists. The declaration does not
+inherit. Declare `--lf-holds-height: 1` on the scrolling box (`packages.md`, "Seeing
+it", `grows-with-content`). A box that scrolls sideways needs nothing: Leaf fades its
+content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it, and its
 own word and symbol presses one band inside their edge. A box

@@ -205,6 +205,11 @@ customElements.define(
     #ready = false;
 
     setup() {
+      // The feed is a bounded block: its list scrolls inside it (activity.css), and
+      // Leaf keeps the reader's place there. An occurrence that states its own bound
+      // (`data-bound`) arrives marked.
+      if (!this.hasAttribute("data-lf-bound"))
+        this.setAttribute("data-lf-bound", "start");
       const drawing = this.#drawing;
       render(drawing.render(), this, { host: this });
       const notice = drawing.notice;

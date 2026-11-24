@@ -1167,6 +1167,37 @@ def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
     assert page.evaluate(regions) == {"outer": "replacement", "inner": "inner"}
 
 
+def test_a_widget_states_its_own_bound_and_keeps_one_the_page_states(browser, serve):
+    """A feed and a captured document hold their own height. Each one's module states
+    the bound on its element, as an occurrence's `data-bound` does on a page's block, so
+    Leaf holds the box that scrolls inside it as a reading region: the feed's list and
+    the document's listing. A bound the page states on the occurrence stands."""
+    url = serve(
+        leaf_page(
+            "Bounded widgets",
+            '<h1>Run</h1><lf-activity id="feed"></lf-activity>'
+            '<lf-text-document id="log" source="log-text"></lf-text-document>'
+            '<lf-text-document id="tail" source="log-text" data-bound="end">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "Run log line\n" * 5)
+    page = open_page(browser, url)
+    rendered(page)
+    held = page.evaluate("""async () => {
+      const { readingRegions } = await window.__lfCheckApi();
+      return Object.fromEntries(readingRegions()
+        .filter(({host}) => ['feed', 'log', 'tail'].includes(host.id))
+        .map(({id, host, body}) => [host.id,
+          [id, host.getAttribute('data-lf-bound'), body.localName]]));
+    }""")
+    assert held == {
+        "feed": ["lf-region:feed:bound", "start", "ol"],
+        "log": ["lf-region:log:bound", "start", "pre"],
+        "tail": ["lf-region:tail:bound", "end", "pre"],
+    }, held
+
+
 def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
     """A bounded log in a tab the user is not viewing grows, and another arrives,
     without Leaf styling or measuring either while the tab is hidden. Opening the tab

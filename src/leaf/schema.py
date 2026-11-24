@@ -378,7 +378,6 @@ FACTS: dict[str, dict] = {
     # A default height in CSS pixels, or `true` for a widget that has none
     # and reserves only what an occurrence's data-height states.
     "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-    "bound": {"enum": ["start", "end"]},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,

@@ -1,6 +1,7 @@
-/* A block Leaf bounds (`bound`, or data-bound on an occurrence, painted as
-   data-lf-bound) holds its own height and scrolls inside it. The theme bounds the box;
-   this module makes the box a reading region and keeps an `end` bound's place.
+/* A block Leaf bounds (data-lf-bound, which delivery paints for an occurrence's
+   data-bound and a widget's module writes on its own element) holds its own height
+   and scrolls inside it. The theme bounds the box; this module makes the box a reading
+   region and keeps an `end` bound's place.
 
    Every bounded block is a registered reading region (`reading-regions.js`), so every
    question that names the box scrolling a node gets the block rather than the page:
@@ -33,7 +34,8 @@
 
    A block is held while it stands in the page, whoever painted its bound: delivery
    paints a page's, and a revision patched in arrives painted the same way, while
-   `markDeclared` paints a message's markup as the thread renders it. So one watch
+   `markDeclared` paints a message's markup as the thread renders it, and a widget's
+   module writes its own as it connects. So one watch
    (`holdArrivingBounds` on arrivals.js, started at boot) holds what the page opens
    with, every block added since in the document or a declared shadow root, and any
    element whose bound is painted or taken away in place, and lets go of a block that

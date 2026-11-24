@@ -172,10 +172,12 @@ export function paintDeclaredWords(root) {
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
 // read a registry, asks it the same thing.
 //
-// Two more complete the set: `bound`, a block that holds its own height and scrolls
-// inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
-// keeps an `end` bound on its newest entry), and `reading-role`, the structure the
-// theme and the workspace Layout lay out, so every package's pane takes the same rules.
+// `reading-role` completes the set: the structure the theme and the workspace Layout
+// lay out, so every package's pane takes the same rules. One mark is no declaration's:
+// `bound`, a block that holds its own height and scrolls inside it, which an occurrence
+// states (`data-bound`) or a widget's module writes on its own element (`bounds.js`
+// holds each bounded block that arrives as a reading region, and keeps an `end` bound
+// on its newest entry).
 //
 // An attribute, because the theme cannot read the registry. Which declarations are marks, the attribute
 // each is painted as, the attribute an occurrence overrides it with, and whether it

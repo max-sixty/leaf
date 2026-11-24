@@ -190,7 +190,7 @@ lf-text-document .lf-text-document-run:only-child {
      the mark changes nothing its rows inherit. Firefox styles the rows of runs it
      skips too (notes/browser-support.md, "Styling content Firefox skips"), so a mark
      that changed the values would restyle every row of a long listing. */
-  lf-text-document:not([preview])[data-lf-bound] pre {
+  lf-text-document:not([preview]) pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;

@@ -144,7 +144,7 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: a page Layout on the content frame only, `layout-tiles` on any block |
 | **Frame** | A box whose size comes from outside it, such as `main`, a root tab panel, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--lf-wide`, `available` all of it |
-| **Bounded block** | A block that keeps its own height and scrolls inside it (`bound`, `data-bound`), which makes it a reading region |
+| **Bounded block** | A block that keeps its own height and scrolls inside it (`data-bound`, or `data-lf-bound` where a widget's module writes it), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
 | **Margin sidebar** | An `aside > .layout-track` beside a `.layout-column` body in `.layout-sidebar`: supporting material in the left margin where both fit, stacked otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |

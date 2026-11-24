@@ -38,7 +38,6 @@ export { actionClass } from "./control-faces.js";
 
 export {
   offerElement,
-  generatedElement,
   offer,
   offerAction,
   offerActionElement,
@@ -46,7 +45,6 @@ export {
   offered,
   offeredAction,
   selectableOffered,
-  generated,
 } from "./element-markers.js";
 
 export { shadowStage } from "./shadow-stage.js";

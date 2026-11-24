@@ -84,7 +84,6 @@ import {
   move,
   offer,
   offerAction,
-  generatedElement,
   quoted,
   labelOf,
   layoutChanged,
@@ -286,7 +285,7 @@ customElements.define(
     //
     // The heading is written here too, because it is two things at once: the words a
     // user selects to comment on the column, and the list's accessible name, so the
-    // tree hears them once, as the name. It is the page speaking (`says: true`) and
+    // tree hears them once, as the name. It is the page speaking (`data-lf-said`) and
     // generated, so the diff looks away, and it isn't .lf-ui, so the anchor pass
     // doesn't.
     #structure() {
@@ -297,7 +296,8 @@ customElements.define(
         if (col.querySelector(":scope > .lf-column-name")) continue;
         const heading = document.createElement("span");
         heading.className = "lf-column-name";
-        generatedElement(heading, { says: true });
+        keeps(heading, "data-lf-gen", "1");
+        heading.toggleAttribute("data-lf-said", true);
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
         // select them, and the theme's generated copy is left to the no-script case.
@@ -309,7 +309,7 @@ customElements.define(
         // list already tells a screen reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
-        generatedElement(count, { says: false });
+        keeps(count, "data-lf-gen", "1");
         count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
         heading.after(count);
@@ -602,7 +602,7 @@ customElements.define(
       group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
       const label = document.createElement("span");
       label.className = "lf-board-destinations-label";
-      generatedElement(label, { says: false });
+      keeps(label, "data-lf-gen", "1");
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {

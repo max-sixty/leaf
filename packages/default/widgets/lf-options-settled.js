@@ -7,7 +7,6 @@ import { html, nothing, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
   comparisonChanges,
-  generated,
   selectableOffer,
   tabStore,
   commandsChanged,
@@ -89,7 +88,7 @@ export class SettledOptions {
     // alternatives are inside. The user chose this over a right-aligned
     // count of the options.
     render(
-      html`<span ${generated({ says: true })}
+      html`<span data-lf-gen="1" data-lf-said
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
         >${changes ? html`<span class="lf-settled-diff lf-chip lf-change-count">Δ${changes}</span>` : nothing}`,
       this.#row,

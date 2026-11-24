@@ -1,4 +1,4 @@
-import { generatedElement, titledElement } from "/runtime/widget-api.js";
+import { titledElement } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
@@ -12,7 +12,7 @@ import { keeps } from "/runtime/lib/keeps.js";
  * and take no room; what they count, threads and On Me items alike, the row's link
  * previews (`lfPreview`) in place of its name, which its face already says, and that
  * preview describes the link to a screen reader where focus lands on it. */
-import { html, nothing, ref, repeat } from "/vendor/lit.js";
+import { html, nothing, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
 /** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean}} HeadingReading */
@@ -68,8 +68,6 @@ export function drawToc(host, headingReading) {
   let outline = { start: null, items: [] };
   const href = (/** @type {Element | undefined} */ destination) =>
     destination?.id ? `#${destination.id}` : nothing;
-  const generated = (/** @type {boolean} */ says) =>
-    ref((node) => node && generatedElement(node, { says }));
   /** @type {ReadonlyMap<Element | null, SectionMarks>} */
   let marks = new Map();
   // One preview for each row's link, kept as long as its heading, which reads the row's
@@ -158,10 +156,11 @@ export function drawToc(host, headingReading) {
       const { start, items } = outline;
       const first = marks.get(start?.heading ?? null);
       return html`
-        <nav class="lf-toc-nav lf-ui" aria-label="On this page" ${generated(false)}>
+        <nav class="lf-toc-nav lf-ui" aria-label="On this page" data-lf-gen="1">
           <p
             class="lf-toc-heading lf-label"
-            ${generated(true)}
+            data-lf-gen="1"
+            data-lf-said
             ?data-lf-toc-changed=${Boolean(first?.changes)}
             data-lf-toc-mark=${markKind(first)}
             .lfPreview=${beforeFirst}
@@ -171,7 +170,8 @@ export function drawToc(host, headingReading) {
           <details class="lf-toc-disclosure" ?open=${open}>
             <summary
               class="lf-toc-toggle lf-label lf-disclosure-marker"
-              ${generated(true)}
+              data-lf-gen="1"
+              data-lf-said
               ?data-lf-toc-changed=${Boolean(first?.changes)}
               data-lf-toc-mark=${markKind(first)}
               .lfPreview=${beforeFirst}

@@ -86,7 +86,6 @@ import {
 } from "/vendor/lit.js";
 import {
   alreadyShown,
-  generatedElement,
   dragging,
   compoundReadingRegionId,
   registerReadingRegion,
@@ -729,7 +728,9 @@ export class Trace extends LeafElement {
       },
     );
     // Authored bookmarks remain outside the live view's one Lit root.
-    this.#renderedView = generatedElement(el("div", "lf-trace-view"), { says: false });
+    const view = el("div", "lf-trace-view");
+    keeps(view, "data-lf-gen", "1");
+    this.#renderedView = view;
     this.append(this.#view);
     render(this.#template(...this.#drawing), this.#view, this.renderOptions);
     // Viewer owns the viewport's figures and the timeline module its own

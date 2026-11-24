@@ -47,50 +47,44 @@ export function nameAction(control, action, { label, className } = {}) {
   showAction(control, action, className);
 }
 
-// A control's label, and which kind of word it is. Most are things to do — "Save",
+// A label a widget writes, and which kind of word it is. Most are things to do — "Save",
 // "choose", a grip — and go with the rest of the UI on paper, out of reach of a
 // quote. Some are the page speaking: a pick mark reading "selected" is the only place
 // the page says which option it carries, and a tab's name is the panel's only name
-// once the strip exists. One element wears both over its life, so the kind is
-// restated on every write rather than settled at birth.
+// once the strip exists. One element wears both over its life, so its writer restates
+// the kind on every write rather than settling it at birth.
 //
-// This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
-// `.lf-ui` box around it — that box is a look, the chrome face, and would be standing
-// in for a permission the user has no category for — and paper reads it beside
-// data-lf-offer to keep a control whose label is one of the page's own words.
-// data-lf-gen goes on either way, because no label is words the author wrote, which
-// is what the `wrote` reading keeps (passages.js).
+// The page-speaking marker is data-lf-said. Anchoring takes it over the `.lf-ui` box
+// around it — that box is a look, the chrome face, and would be standing in for a
+// permission the user has no category for — and paper reads it beside data-lf-offer
+// to keep a control whose label is one of the page's own words. data-lf-gen goes on
+// either way, because no label is words the author wrote, which is what the `wrote`
+// reading keeps (passages.js).
 //
 // Those are two questions with one answer until a label is a copy of words the page
 // says somewhere else — a roster row naming a worker, a generated index entry, any
 // route built out of its target's own words. Such a label must not anchor, because two
 // passages carrying the same text and the same empty context cannot be told apart and
 // both detach; and it must still print, because it is the only thing naming the row it
-// stands in. `says: "echo"` is that third answer, and it writes data-lf-echo: no
-// passage, and the same bargain on paper that data-lf-said strikes — the press goes,
+// stands in. data-lf-echo is that third answer: the label stays chrome, so no passage,
+// and paper strikes the same bargain with it as with data-lf-said — the press goes,
 // the words stay. Paper is the medium that bargain holds in.
 //
-// It leaves data-lf-offer alone. That attribute is what `offer`
-// made: this is a control a widget injected, true for the mark's whole life however it
-// is worded, and four passes ask it (print, the drag guard above, the render gate, and
-// the theme's one pressable rule, which reads the value to tell a press from the rest of
-// what a widget builds).
-// Clearing it here would make "paper drops this" the meaning and leave the others unable
-// to see a control — a drag across a picked card's mark would be a press again, and only
-// lf-options' own guard on the card would stand between that and clearing the pick.
+// Neither marker touches data-lf-offer. That attribute is what `offer` made: this is a
+// control a widget injected, true for the mark's whole life however it is worded, and
+// four passes ask it (print, the drag guard above, the render gate, and the theme's
+// one pressable rule, which reads the value to tell a press from the rest of what a
+// widget builds). Clearing it with the label's kind would make "paper drops this" the
+// meaning and leave the others unable to see a control — a drag across a picked card's
+// mark would be a press again, and only lf-options' own guard on the card would stand
+// between that and clearing the pick.
 //
-// `says` has no default, because the answer a caller doesn't give is the one that
-// costs a printed page its words, and silently. Refusing throws where the widget
-// upgrades, which the console reports and the render gate reads back as a finding
-// — the loud direction, in front of whoever wrote the label.
-//
-// `generatedElement(node, {says})` writes those markers without the words: for a box
-// whose contents the widget writes, or words it fills in some other way.
-// Widgets write the markers only through it and the offers, so the two stay
-// consistent. Words a module writes unmarked are the page's: the version
-// comparison reads sources (`version.js`), so they never read as a change, but `wrote`
-// keeps them and a quote can run across them. `generated({says})` is its template form:
-// `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
-// they do something it doesn't: the datum projection (projection/data.js) marks and
-// unmarks authored nodes as their data comes and goes, page-markdown.js serializes its
-// media button as HTML, and revision_delivery.py writes prepaint faces on the server.
+// A module writes these markers on its own nodes (module-plain-elements.md, "Words it
+// writes"), and the runtime marks a box whose contents it writes with
+// `generatedElement` (element-markers.js). Words a module writes unmarked are the
+// page's: the version comparison reads sources (`version.js`), so they never read as
+// a change, but `wrote` keeps them and a quote can run across them. Three of the
+// runtime's writers write the attributes themselves: the datum projection
+// (projection/data.js) marks and unmarks authored nodes as their data comes and goes,
+// page-markdown.js serializes its media button as HTML, and revision_delivery.py writes
+// prepaint faces on the server.

@@ -337,7 +337,8 @@ import {
 } from "./errors.js";
 import { stanceWords, statusContextReading } from "./keyboard/status-context.js";
 import { passingWords, readField } from "./field-readings.js";
-import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
+import { motionPlays, playMotion } from "./motion.js";
+import { motionEasing, motionTime } from "./lib/motion-timing.js";
 import { pagePresented } from "./page-paint.js";
 import {
   claimReleaseClick,

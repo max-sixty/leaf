@@ -88,7 +88,8 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
-import { flashDuration, motion } from "../motion.js";
+import { motion } from "../motion.js";
+import { motionTime } from "../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
 
@@ -743,7 +744,7 @@ export function messageReading(
 // answers for restoration and reduced motion.
 /** @param {Element} node */
 export const arrivalTint = (node) =>
-  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], flashDuration());
+  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], motionTime("--lf-motion-flash"));
 
 export class MessageView {
   #commands;

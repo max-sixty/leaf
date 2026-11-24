@@ -16,6 +16,7 @@
       "/runtime/lib/keeps.js",
       "/runtime/lib/keys.js",
       "/runtime/lib/markdown.js",
+      "/runtime/lib/motion-timing.js",
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/once.js",
       "/runtime/lib/queued-work.js",

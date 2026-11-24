@@ -119,7 +119,7 @@ export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export { declarationFor, layerFact, matchesWhen } from "./registry.js";
-export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.js";
+export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;

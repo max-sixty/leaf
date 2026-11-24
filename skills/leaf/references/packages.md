@@ -150,8 +150,9 @@ contribution. Inherited values cross every widget boundary. Adjust another widge
 internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet through a `LeafElement` that says `static shadow`, or through
-`shadowStage` for an imperative renderer. Use theme inputs for changes across
+the composed shared stylesheet when its element says `lf-connect`, or through
+`shadowStage` for an imperative renderer (`module-authoring.md`, "Shadow stages and
+styles"). Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
 
@@ -254,8 +255,9 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
 }
 ```
 
-The merged registry's `$keys` entry defines each fact by its name; `$verbs` defines the members of `verbs`, and `$awaits` an
-obligation's answer. What the module alone can answer stays in the module, as a word
+The merged registry's `$keys` entry defines each fact by its name and the values it
+takes (`leaf page vocabulary PAGE | jq '."$keys"'`); `$verbs` defines the members of
+`verbs`, and `$awaits` an obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
 widget's markup that no declared fact states: the module checks it as it draws and
 reports a breach with an `error` event
@@ -271,11 +273,12 @@ an author needs them. `page-authoring.md`, "Read the registry", owns loading bot
 each version.
 
 A `boolean` attribute works as in HTML. Name it for what its presence means and make
-absence the default, as in `lf-diff collapsed`.
+absence the default, as in `lf-diff collapsed`. Every other attribute's value is a
+string, so the schema of one that holds a number is a string with a `pattern`.
 
 A tag that stands only inside another widget, as `lf-option` does inside `lf-options`,
 is declared like any other and lists the tags that may hold it in `owners`; the holder
-declares `content: members`.
+declares `content: members`, and the tag's `example` writes it inside a holder.
 
 `verbatim: true` says the upgraded element still shows its authored words, with its
 nested widgets in authored order, so users can quote those words; the render check
@@ -334,8 +337,9 @@ The presentation checks:
 - `example`: no worked example shows the tag, so no other check can read it.
 - `keeps-first-box`: the widget's box changed size between first paint, before its
   module loaded, and presentation, so what follows it moved (`module-authoring.md`,
-  "First paint"). Reserve the room of what the module adds in `defaults.css`, from the
-  theme's tokens (`package-themes.md`, "Theme tokens"): an empty `::before` block on
+  "First paint"). A custom element is inline until a rule gives it a `display`, so give
+  the tag its `display` in `defaults.css`, and reserve there the room of what the module
+  adds, from the theme's tokens (`package-themes.md`, "Theme tokens"): an empty `::before` block on
   `lf-rating:not(:defined)` with `block-size: var(--lf-line)` holds one row of
   controls. A drawing the markup can't size declares `height`: a number where the
   module draws at any height, or `true` to reserve the `data-height` each occurrence

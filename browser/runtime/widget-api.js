@@ -70,7 +70,7 @@ export {
 } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-export { readWork, workAncestor } from "./work.js";
+export { readWork } from "./work.js";
 export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
@@ -127,7 +127,7 @@ export {
 export { copyControl } from "./copy-control.js";
 export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
-export { readHistory, reportSequence, reportsReady } from "./reports.js";
+export { readHistory, readReports } from "./reports.js";
 export { el, reachedForWords, worksInside } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module

@@ -258,7 +258,7 @@ The merged registry's `$keys` entry defines each fact by its name; `$verbs` defi
 obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
 widget's markup that no declared fact states: the module checks it as it draws and
-reports a breach with `reportFailure`
+reports a breach with an `error` event
 ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
 card whose `shows` names a widget with no answer. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
@@ -282,7 +282,8 @@ nested widgets in authored order, so users can quote those words; the render che
 refuses a page where they changed. Declare it on a wrapper round authored content, and
 leave it off a widget whose module rewrites or reorders what it holds. Whatever the
 module adds to a verbatim widget stands inside a box it built with `offer`, with no
-words marked `says: true`, which would make them the page's (`module-controls.md`).
+words marked `data-lf-said`, which would make them the page's
+(`module-plain-elements.md`, "Words it writes").
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

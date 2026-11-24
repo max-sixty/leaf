@@ -163,8 +163,6 @@
     <script type="module">
       import {
         frameFor,
-        generatedElement,
-        layoutChanged,
         offer,
         offerAction,
         once,
@@ -217,8 +215,10 @@
             // Each candidate's title and measurement are this module's words.
             for (const words of this.querySelectorAll(
               ".code-candidate-title, .code-measurement",
-            ))
-              generatedElement(words, { says: true });
+            )) {
+              keeps(words, "data-lf-gen", "1");
+              words.toggleAttribute("data-lf-said", true);
+            }
           }
 
           #connect(signal) {
@@ -296,7 +296,9 @@
                 `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
               );
             }
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           });
         },
       );

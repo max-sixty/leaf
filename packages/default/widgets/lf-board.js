@@ -84,10 +84,7 @@ import {
   move,
   offer,
   offerAction,
-  generatedElement,
-  quoted,
   labelOf,
-  layoutChanged,
   saying,
   dragging,
   motion,
@@ -99,8 +96,6 @@ import {
   declarationFor,
   authoredScope,
   widgetController,
-  commandsChanged,
-  reportFailure,
 } from "/runtime/widget-api.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -250,7 +245,7 @@ customElements.define(
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.#allCards()) {
         this.#grip(card);
@@ -286,7 +281,7 @@ customElements.define(
     //
     // The heading is written here too, because it is two things at once: the words a
     // user selects to comment on the column, and the list's accessible name, so the
-    // tree hears them once, as the name. It is the page speaking (`says: true`) and
+    // tree hears them once, as the name. It is the page speaking (`data-lf-said`) and
     // generated, so the diff looks away, and it isn't .lf-ui, so the anchor pass
     // doesn't.
     #structure() {
@@ -297,7 +292,8 @@ customElements.define(
         if (col.querySelector(":scope > .lf-column-name")) continue;
         const heading = document.createElement("span");
         heading.className = "lf-column-name";
-        generatedElement(heading, { says: true });
+        keeps(heading, "data-lf-gen", "1");
+        heading.toggleAttribute("data-lf-said", true);
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
         // select them, and the theme's generated copy is left to the no-script case.
@@ -309,7 +305,7 @@ customElements.define(
         // list already tells a screen reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
-        generatedElement(count, { says: false });
+        keeps(count, "data-lf-gen", "1");
         count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
         heading.after(count);
@@ -568,7 +564,6 @@ customElements.define(
         },
       ];
       grip.lfCommands = { title: "On a card grip", rows };
-      commandsChanged(grip);
       return rows;
     }
     /** @param {BoardCard} card */
@@ -591,6 +586,9 @@ customElements.define(
         });
       });
       card.append(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {BoardCard} card */
@@ -602,7 +600,7 @@ customElements.define(
       group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
       const label = document.createElement("span");
       label.className = "lf-board-destinations-label";
-      generatedElement(label, { says: false });
+      keeps(label, "data-lf-gen", "1");
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {
@@ -965,7 +963,13 @@ customElements.define(
         if (fault === null) this.#reported.delete(card);
         else if (this.#reported.get(card) !== fault) {
           this.#reported.set(card, fault);
-          reportFailure(card, new Error(fault));
+          card.dispatchEvent(
+            new ErrorEvent("error", {
+              error: new Error(fault),
+              bubbles: true,
+              composed: true,
+            }),
+          );
         }
       }
     }
@@ -1063,9 +1067,15 @@ customElements.define(
           if (played) movements.push(played.finished);
         }
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       if (movements.length)
-        void Promise.allSettled(movements).then(() => layoutChanged(this));
+        void Promise.allSettled(movements).then(() =>
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          ),
+        );
     }
   },
 );

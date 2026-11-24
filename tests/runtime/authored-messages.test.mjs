@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
-import { loadMarkdown } from "/runtime/markdown.js";
+import { loadMarkdown } from "/runtime/lib/markdown.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   islandChange,

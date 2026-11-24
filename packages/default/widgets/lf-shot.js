@@ -62,7 +62,6 @@ import { ShotView } from "./shot-view.js";
 // A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
-  setScroll,
   afterPresentation,
   once,
   offer,
@@ -71,7 +70,6 @@ import {
   placesFailure,
   focusDestination,
   nextFrame,
-  layoutChanged,
   scopedMediaUrl,
   widgetController,
   move,
@@ -79,10 +77,10 @@ import {
   sizeObserver,
   registerReadingRegion,
   compoundReadingRegionId,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -216,15 +214,8 @@ export class Shot extends HTMLElement {
         () => {
           if (this.#drawing.view !== "pair" || !this.#drawing.actual) return;
           const peer = index === 0 ? drawing.viewports[1] : drawing.viewports[0];
-          if (
-            peer.scrollLeft !== viewport.scrollLeft ||
-            peer.scrollTop !== viewport.scrollTop
-          )
-            setScroll(peer, {
-              left: viewport.scrollLeft,
-              top: viewport.scrollTop,
-              behavior: "instant",
-            });
+          const at = { left: viewport.scrollLeft, top: viewport.scrollTop };
+          if (scrollMoves(peer, at)) peer.scrollTo({ ...at, behavior: "instant" });
         },
         { passive: true },
       );
@@ -375,7 +366,7 @@ export class Shot extends HTMLElement {
       this.#drawing.paper ??= paperOf(shown);
     this.#drawing.fit();
     this.#paint();
-    layoutChanged(this);
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
   /** @param {string} view @param {string} label */
@@ -459,8 +450,10 @@ export class Shot extends HTMLElement {
           },
         ],
       };
-      commandsChanged(comparison);
       this.#drawing.canvas.append(comparison);
+      comparison.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.#comparison = comparison;
       void comparison.updateComplete.then(() => this.#paintHandle());
     }
@@ -484,7 +477,9 @@ export class Shot extends HTMLElement {
     if (!this.#drawingOwner) return;
     render(this.#drawing.render(), this, { host: this });
     this.#paintHandle();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   /** @param {Capture} capture */

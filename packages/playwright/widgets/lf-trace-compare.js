@@ -12,15 +12,12 @@ import {
   actionClass,
   cancelRender,
   el,
-  generatedElement,
   keepView,
-  layoutChanged,
   nextRender,
   once,
   offer,
   openingView,
   viewMembers,
-  quoted,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -55,7 +52,7 @@ customElements.define(
       const opening = openingView(this);
       this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
-      generatedElement(header, { says: false });
+      keeps(header, "data-lf-gen", "1");
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";
       choices.name = `${this.id}-recording`;
@@ -86,7 +83,7 @@ customElements.define(
         choice.value = String(index);
         // An attribute, so the theme seats it as a chooser from its first paint.
         choice.setAttribute("appearance", "button");
-        choice.disabled = quoted(this);
+        choice.disabled = this.matches("[data-lf-exhibit] *");
         choices.append(choice);
       }
       choices.value = String(this.#selected?.index ?? -1);
@@ -133,7 +130,9 @@ customElements.define(
         if (member !== this.#selected) recording.pause();
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

@@ -121,19 +121,17 @@ import {
   inChrome,
   LeafElement,
   landInThread,
-  markdownWords,
   offer,
   offerAction,
   placePreview,
-  quoted,
   reachedForWords,
   rowWalk,
   worksInside,
   named,
   focusDestination,
   scrollIntoView,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
@@ -256,7 +254,7 @@ customElements.define(
     // alternatives, but owns no selection, so it has no reading. Only a live or
     // settled decision has one.
     setup() {
-      this.#wire(quoted(this));
+      this.#wire(this.matches("[data-lf-exhibit] *"));
     }
 
     connectedCallback() {
@@ -508,7 +506,9 @@ customElements.define(
             },
           ],
         };
-        commandsChanged(mark);
+        mark.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
       }
       const input = this.#addition.input;
       if (input)
@@ -543,7 +543,9 @@ customElements.define(
           run: () => this.#answer(),
         });
       this.lfCommands = { title: SECTION, rows: answerRows };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the

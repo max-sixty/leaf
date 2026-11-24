@@ -23,7 +23,6 @@ import {
   reachedForWords,
   worksInside,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
@@ -119,7 +118,9 @@ customElements.define(
     #pin(pinned) {
       this.#pinned = pinned;
       keeps(this.#mark, "aria-expanded", pinned);
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #sync() {

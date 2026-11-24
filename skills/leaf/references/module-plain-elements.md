@@ -124,6 +124,29 @@ On Me and admits the ids its buttons mark:
   set Leaf makes meanwhile counts as drawn only once it has, so the element may leave
   that set undrawn until then, and Leaf reads the page again as the gesture ends,
   since the nodes changed outside any drawing it waited for.
+- **`lf-commands`.** An element's keys are its `lfCommands` property
+  (`module-input.md`, "Commands and keyboard routes"). Leaf reads the property each
+  time the element dispatches a bubbling, composed `lf-commands` event on itself, so
+  the element dispatches one after it sets or replaces `lfCommands`, and after anything
+  its rows read changes. Like every event an element dispatches on itself, it is heard
+  only while the element stands in the page, so an element built before it is placed
+  dispatches once it is placed. A `detail` of `{ within: true }` has Leaf read again
+  the rows of every scope already declared on the element or inside it, as after a
+  redraw of the nodes those rows read; it declares no scope. Leaf reports a
+  declaration it refuses as the element's failure.
+- **`lf-layout`.** An element that rearranges what it holds without changing its own
+  size, as a view swap does, dispatches a bubbling, composed `lf-layout` event on
+  itself. Leaf then reads again whatever it measured or read inside the element, such
+  as where a margin entry stands and which parts are comment targets.
+- **`error`.** An element that shows a failure its own way reports it by dispatching a
+  bubbling, composed `ErrorEvent` named `error` on itself, whose `error` property is
+  the failure. Leaf reports it to the agent as a page error naming the widget, which
+  fails `page check`.
+- **`lf-error`.** To tell the user that something they did has not taken, such as a
+  value the server refused, dispatch an `lf-error` event on the window whose `detail`
+  is the words, as `lf-announce` is dispatched (`module-scroll-and-motion.md`,
+  "Notices and spoken words"). The Leaf panel shows them until the user has dealt with
+  them. A failure in the widget itself is an `error`, never an `lf-error`.
 - **`redraw()`.** `page check --render` calls this method on an element that has one,
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** `connectedCallback` runs again each time a revision or a thread puts
@@ -131,7 +154,20 @@ On Me and admits the ids its buttons mark:
   module that imports it.
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
-  target (`module-annotations.md`, "Visual parts").
+  target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
+  parts").
+- **Words it writes.** Words the element writes into the page are the page's: the user
+  can comment on them, and a version comparison, which reads each version's source,
+  never shows them as a change. To set apart words it writes, such as a count after an
+  authored sentence, it marks the element holding them `data-lf-gen="1"`. `named()`
+  then leaves them out, and a comment's quote doesn't run across them into the
+  author's words. Words in a box built with `offer` (`module-controls.md`), such as a
+  control's label, are apparatus: they take no comment, and a printed page drops the
+  box. Marked `data-lf-said`, the box keeps words that are the page speaking, as a
+  pick mark reading "selected" does: they take comments and print. Marked
+  `data-lf-echo`, it keeps words that copy what the page says elsewhere, such as a
+  worker's name: they print and take no comment, which the user leaves where the page
+  says them.
 
 `LeafElement` (`module-authoring.md`, "Drawing what a widget reads") is a Lit element
 on this protocol. It says `lf-connect`, announces each of its updates with

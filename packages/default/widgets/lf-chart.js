@@ -55,7 +55,7 @@
  * the chart draws round a dot or a line's vertex, and travels to it. The chart is where
  * Leaf puts the reader for a point, its reading moved to that point (`focus`), as
  * travel to a comment on it and the hand back from one do. So Leaf learns of only
- * those points (`registerVisualParts`, with `find` and `at`), and the cost grows with
+ * those points (`lfParts`, with `find` and `at`), and the cost grows with
  * the comments rather than the data: a drawing holds no element for each dot, a line
  * none at all, and a list of every point would cost Leaf's picker a hint for each and
  * offer the reader nothing they could aim at, so the chart lists none. A comment whose
@@ -77,7 +77,6 @@ import {
   PendingTaskEvent,
   beginWalk,
   bodyText,
-  commandsChanged,
   listWalkPosition,
   whileConnected,
   failSoft,
@@ -85,7 +84,6 @@ import {
   measure,
   nextRender,
   once,
-  registerVisualParts,
   sizeObserver,
 } from "/runtime/portable-api.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
@@ -227,8 +225,6 @@ customElements.define(
     /** @type {Map<string, {point: Point, part: Part} | null>} */
     #marks = new Map();
     #asked = false;
-    /** @type {{update: () => void} | null} */
-    #parts = null;
     #telling = false;
 
     // What the point the reader is on says, standing above its ring, on every route,
@@ -250,13 +246,14 @@ customElements.define(
       if (!once(this)) return;
       // The chart lists no point for a reader to pick from a list: its own aim and keys
       // reach each point, and Leaf finds a comment's point by its id.
-      this.#parts = registerVisualParts(this, () => [], {
-        find: (id) => this.#find(id),
-        at: (node) => this.#partAt(node),
-        focus: (id) => this.#focusOn(id),
-        label: (id) =>
+      this.lfParts = {
+        read: () => [],
+        find: (/** @type {string} */ id) => this.#find(id),
+        at: (/** @type {Element} */ node) => this.#partAt(node),
+        focus: (/** @type {string} */ id) => this.#focusOn(id),
+        label: (/** @type {string} */ id) =>
           id.startsWith(POINT) ? datumWords(id.slice(POINT.length)) : null,
-      });
+      };
       whileConnected(this, (signal) => {
         // The pointer and a finger read the point nearest them on the drawing, by
         // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
@@ -504,7 +501,9 @@ customElements.define(
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       if (reading && at) this.#choose(again(at), this.#by);
       else if (at)
         this.dispatchEvent(
@@ -609,7 +608,9 @@ customElements.define(
       this.#telling = true;
       nextRender(() => {
         this.#telling = false;
-        this.#parts?.update();
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       });
     }
 

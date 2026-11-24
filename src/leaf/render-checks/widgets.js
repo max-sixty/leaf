@@ -1,4 +1,4 @@
-import { inChrome, quoted } from "/runtime/widget-api.js";
+import { inChrome } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
   textNodesUnder,
@@ -224,7 +224,7 @@ export function retiredSlots(holders) {
   };
   for (const h of holders) {
     const el = find(h.id);
-    if (!el || inChrome(el) || quoted(el)) continue;
+    if (!el || inChrome(el) || el.matches("[data-lf-exhibit] *")) continue;
     const mark = el.getAttribute("data-lf-state");
     const at = locate(el);
     if (mark !== (h.outcome ?? null)) {

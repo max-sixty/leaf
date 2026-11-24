@@ -80,11 +80,8 @@
 import {
   LeafElement,
   alreadyShown,
-  setScroll,
   bodyText,
-  commandsChanged,
   failSoft,
-  layoutChanged,
   nameAction,
   offer,
   offerAction,
@@ -427,8 +424,12 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
-          layoutChanged(this);
+          // Wrapped, the block stood at its start, so only an offset it had is put back.
+          if (!wrapped && horizontal)
+            pre.scrollTo({ left: horizontal, behavior: "instant" });
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         };
         this.lfCommands = {
           title: "On a code block",
@@ -451,16 +452,22 @@ customElements.define(
                       notesShown = !notesShown;
                       tabStore.set(notesKey, notesShown ? "shown" : "hidden");
                       paintNotes();
-                      layoutChanged(this);
+                      this.dispatchEvent(
+                        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+                      );
                     },
                   },
                 ]
               : []),
           ],
         };
-        commandsChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
         this.#mark();
-        layoutChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       } catch (err) {
         failSoft(this, err, source);
       }

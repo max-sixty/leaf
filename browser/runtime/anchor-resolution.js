@@ -155,7 +155,7 @@ function suppliedDatum(source, key) {
 // The elements under a referenced widget that a key addresses, in the one key space
 // every `refers` verb reads. A widget whose parts have a private address (a code
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
-// registered visual part's id or a projected datum's key. Only elements under the
+// visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
 /** @param {Element} source @param {string} key */
 export function addressedElements(source, key) {
@@ -180,7 +180,7 @@ export const addressedFocus = (source, key) =>
 
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
-// `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every
+// a visual's `lfParts.reveal` promises; a lazy datum answers with its hydration promise. Every
 // travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
 // module's `navigateToDatum` key alike, so neither route reaches a part the other
 // cannot.

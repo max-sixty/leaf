@@ -261,7 +261,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(widget.get_by_role("menuitemcheckbox", name="Compare")).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
-    # The page's own keys wait while the reader stands in the menu.
+    # The page's letters wait while the reader stands in the menu, as in any ARIA menu.
     page.keyboard.press("c")
     expect(menu).to_be_visible()
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()

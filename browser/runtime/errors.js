@@ -6,6 +6,8 @@
    text field it concerns, where there is one (`subject`), such as the box a refused
    send's words came back to, and hands back a handle whose `clear()` takes it down
    once it no longer holds. An error nobody clears stays until the user dismisses it.
+   A package's widget raises one with an `lf-error` event on the window, which carries
+   only words.
    A condition that stands while a reading says so, such as the server refusing this
    tab's key or the agent's latest save failing its check, holds an error through
    `holdingError`, which raises it when the condition begins and clears it when it
@@ -132,6 +134,18 @@ function raise(message, subject, speak, replaced, press = null) {
   if (!subject) gesture("error");
   return Object.freeze({ id, clear: () => dismissError(id) });
 }
+
+// A widget raises an error about no text field from outside Leaf's helpers: an
+// `lf-error` event on the window whose `detail` is the words, as `lf-announce` carries
+// words for a listener. A detail that is no words throws here, so the page reports it
+// rather than leave the user untold.
+addEventListener("lf-error", (event) => {
+  if (typeof event.detail !== "string" || !event.detail)
+    throw new TypeError(
+      "leaf: an lf-error event's detail is the words to tell the user",
+    );
+  raiseError(event.detail);
+});
 
 /** The user edited past these errors where the field said them. */
 /** @param {readonly number[]} ids */

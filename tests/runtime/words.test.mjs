@@ -24,16 +24,17 @@ test("an excerpt of a long value says what one of all of it would", () => {
 });
 
 test("a label collapses the whitespace a passage collapses", () => {
-  // The library reads JavaScript's own whitespace class, and a passage the kernel
-  // registry's list (`$passages.collapse`), which spells that class out for Python. A
-  // label cut from a quote would otherwise keep a space the quote folded.
+  // A label names words a passage read, as a thread's name is cut from its quote, so
+  // the two fold the same characters and the name says the quote's own words. The
+  // library folds JavaScript's own whitespace class, and a passage the kernel
+  // registry's list (`$passages.collapse`), which spells that class out for Python.
   const passage = new RegExp(`^(?:${COLLAPSE.source})$`);
   const differing = [];
   for (let point = 0; point <= 0x10ffff; point += 1) {
     const character = String.fromCodePoint(point);
-    if (/^\s$/u.test(character) !== passage.test(character))
+    const folded = labelWords(`a${character}b`) === "a b";
+    if (folded !== passage.test(character))
       differing.push(`U+${point.toString(16).toUpperCase().padStart(4, "0")}`);
   }
   assert.deepEqual(differing, []);
-  assert.equal(labelWords(" a \n﻿ b　"), "a b");
 });

@@ -14,8 +14,8 @@
    that also carries the agent's words, where Leaf says them (glossary.md,
    "Reader-facing words"; field-readings.js). An empty box's
    words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…
-   (`COMMENT_HINT` and its kin, below), and a search's prompt, such as Find
-   text…, which every search box marks as Leaf's (control-labels.js, `searchField`).
+   (`REPLY_HINT`, `COMMENT_HINT`), and a search's prompt, such as Find text…, which
+   every search box marks as Leaf's (control-labels.js, `searchField`).
    So a seat never decides a voice: each word reaches it with its speaker, or as the
    interface's own. */
 import { html } from "/vendor/lit.js";

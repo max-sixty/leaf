@@ -71,6 +71,7 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
+  aimedAt,
   commandScope,
   motion,
   LeafElement,
@@ -81,13 +82,11 @@ import {
   clearDraft,
   watchDraft,
   whileConnected,
-  reachedForWords,
   dressCode,
   focusDestination,
   retainUserIntent,
   scrollIntoView,
   onPressAway,
-  worksInside,
   pageLinks,
 } from "/runtime/widget-api.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
@@ -214,18 +213,12 @@ customElements.define(
       );
 
       // A click opens the exact source at its rendered caret. A control or link inside
-      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // the draft and a completed word selection own their own gestures (`aimedAt`);
       // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
-        if (
-          ev.detail === 0 ||
-          ev.button !== 0 ||
-          (ev.target instanceof Element && worksInside(ev.target, this))
-        )
-          return;
-        if (reachedForWords(this)) return;
+        if (ev.detail === 0 || ev.button !== 0 || aimedAt(ev, this) !== this) return;
         if (!this.#available()) return;
         ev.preventDefault();
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));

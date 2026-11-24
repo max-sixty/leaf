@@ -38,7 +38,7 @@
  * second tab converges rather than drifting. A click the whole option takes is one
  * nothing in the option wanted: a drag that ended here is that selection's, and a press
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
- * to follow — belongs to what it landed on (`worksInside`).
+ * to follow — belongs to what it landed on (`aimedAt`).
  *
  * The last cell of a page's group is the option the user writes. Submitting it
  * sends an `add` naming the new option and its words, then selects it through the same
@@ -114,6 +114,7 @@ import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
+  aimedAt,
   authoredScope,
   elementById,
   threadInput,
@@ -121,9 +122,7 @@ import {
   LeafElement,
   landInThread,
   placePreview,
-  reachedForWords,
   rowWalk,
-  worksInside,
   named,
   focusDestination,
   scrollIntoView,
@@ -301,15 +300,14 @@ customElements.define(
         if (!(target instanceof Element)) return;
         const option = target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (e.detail !== 0 && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
-        // rather than choosing between the options. `worksInside` is the whole of that
+        // rather than choosing between the options. `aimedAt` is the whole of that
         // question, and what it cannot answer is which of the controls in here this
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
-        const inner = worksInside(target, option);
-        if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
+        const at = aimedAt(e, option);
+        if (at !== option && !at?.matches(".lf-pick, .lf-key-badge")) return;
         if (!this.#available("choose")) return;
         e.preventDefault();
         const was = this.#picked();

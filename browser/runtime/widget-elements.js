@@ -22,14 +22,16 @@ export { generatedElement } from "./element-markers.js";
    class alone. The theme's one pressable rule reads that value, and `PRESSABLE` reads
    it for the passes written in JavaScript.
 
-   `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements, inside the container or pressed around it, as their
-   own controls and uses `owners` to distinguish a container's declared member widgets
-   from nested widgets that own their own interaction. What it cannot know is which of the controls it finds the
-   container's own module put there — an option's pick mark, a gloss's own mark — so the
-   caller names that apparatus, which is the container's to press. The answer otherwise
-   fails closed: declining one ambiguous container gesture is safer than recording a
-   choice while the user operates nested evidence. */
+   `aimedAt` answers what a click on a container that takes a gesture on its whole box
+   was for: the container, something working inside it or pressed around it, or the
+   selection of words the click ended. It treats platform interactive elements, inside
+   the container or pressed around it, as their own controls and uses `owners` to
+   distinguish a container's declared member widgets from nested widgets that own their
+   own interaction (`worksInside`). What it cannot know is which of the controls it
+   finds the container's own module put there — an option's pick mark, a gloss's own
+   mark — so the caller names that apparatus, which is the container's to press. The
+   answer otherwise fails closed: declining one ambiguous container gesture is safer
+   than recording a choice while the user operates nested evidence. */
 import { pageRange, selectionBackward } from "./native-selection.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
@@ -38,6 +40,7 @@ import { paintKeysWithin } from "./keyboard/scopes.js";
 import { HOLD } from "./widget-upgrade.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
+import { onPress, pressRecords } from "./focus.js";
 import { actionTemplate } from "./lib/icons.js";
 import {
   closestAcross,
@@ -221,6 +224,20 @@ export function worksInside(node, container) {
   return closestAcross(container.parentNode, PRESSES);
 }
 
+// What a click on such a container was for, asked once so that no caller holds two
+// checks and their order: null where the click ended a selection of the container's
+// words, which a click made with Enter or Space never does (`reachedForWords`); else
+// what works inside or around the container (`worksInside`); else the container. A
+// double click asks `worksInside` alone, since the word it selects is its own doing
+// (thread/messages.js).
+/** @param {MouseEvent} event @param {Element} container @returns {Element | null} */
+export function aimedAt(event, container) {
+  if (!pressIsKeyboardActivation(event) && reachedForWords(container)) return null;
+  const { target } = event;
+  if (!isElement(target)) return null;
+  return worksInside(target, container) ?? container;
+}
+
 /** What else the user could aim at, at `node`, at any point on the page, marked words
  * or not: the nearest element around it, as the page renders it (`renderedParent`, so
  * through the slot that draws it), that takes the pointer itself, or null where nothing
@@ -296,15 +313,37 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // which presses can be a drag is each caller's own question. A click carries the answer
 // in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
 // read.
-/** @param {Element} el */
-export function reachedForWords(el) {
+//
+// It reads the selection as the click's press was released, not as the click arrives.
+// A press on words already selected leaves them selected through its release in every
+// engine, but Firefox collapses them before the click and Chromium only after it. Read
+// at the click, the same press would be the selection's in Chromium and the
+// container's in Firefox, where a press on a comment's mark inside an option's
+// selected words would pick the option rather than open the thread. A click with no
+// press behind it, as one a script dispatches, reads the selection as it stands.
+/** @type {import("./focus.js").PressRecords<{focus?: Node | null}>} */
+const releases = pressRecords();
+onPress((start) => {
+  const release = releases.keep(start, {});
+  return () => {
+    release.focus = selectionFocus();
+  };
+});
+
+// The node the selection's focus end stands in, or null where no words are selected.
+function selectionFocus() {
   const sel = getSelection();
-  if (!sel?.rangeCount) return false;
+  if (!sel?.rangeCount) return null;
   const range = pageRange(sel);
-  const focus = selectionBackward(sel, range)
-    ? range.startContainer
-    : range.endContainer;
-  return !range.collapsed && renderedUnder(focus, el);
+  if (range.collapsed) return null;
+  return selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+}
+
+/** @param {Element} el */
+function reachedForWords(el) {
+  const released = releases.kept()?.focus;
+  const focus = released === undefined ? selectionFocus() : released;
+  return focus !== null && renderedUnder(focus, el);
 }
 
 document.addEventListener(

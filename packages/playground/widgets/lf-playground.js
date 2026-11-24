@@ -64,6 +64,7 @@ import { createPlayground, same } from "./playground-view.js";
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
 import {
+  aimedAt,
   compoundReadingRegionId,
   copyControl,
   focusDestination,
@@ -72,11 +73,9 @@ import {
   onPress,
   LeafElement,
   registerReadingRegion,
-  reachedForWords,
   says,
   wear,
   whileConnected,
-  worksInside,
   widgetController,
 } from "/runtime/widget-api.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -318,7 +317,7 @@ customElements.define(
           if (!(target instanceof Element)) return;
           const pick = initial.candidate(target);
           if (!pick) return;
-          if (reachedForWords(pick.box) || worksInside(target, pick.box)) return;
+          if (aimedAt(event, pick.box) !== pick.box) return;
           event.preventDefault();
           focusDestination(pick.radio, "press");
           pick.radio.click();

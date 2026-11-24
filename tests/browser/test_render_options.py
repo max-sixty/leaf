@@ -55,6 +55,7 @@ from render_harness import (
     rgb_pixels,
     root_overflow,
     round_trip,
+    select,
     sending,
     stamp_page,
     suggestion_control,
@@ -1902,6 +1903,81 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["ro-column"]]
+
+
+MARKED_OPTION_PAGE = leaf_page(
+    "marked option",
+    """
+<h1 id="h">The retry</h1>
+<lf-group id="retry-decision" label="Should the run retry?"><h2 id="retry-decision-h">Should the run retry?</h2>
+<lf-options id="retry">
+  <lf-option id="rt-retry" label="Retry until it lands"><strong>Retry until it lands</strong>
+    <p id="rt-retry-p">When the deploy fails again in the night, the run is retried until it lands.</p></lf-option>
+  <lf-option id="rt-stop" label="Stop at the first failure"><strong>Stop at the first failure</strong>
+    <p id="rt-stop-p">A failure pages the owner at once.</p></lf-option>
+</lf-options></lf-group>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
+    engine, request, serve
+):
+    """The option takes a click anywhere on its card, and a comment's mark on its words
+    opens the comment's thread. Where the user has just selected those words, both
+    gestures land in the same box, and neither is a pick: the drag's own click ended a
+    selection, and the press inside the words it took is the mark's.
+
+    In both engines, because they part between a press's release and its click: Firefox
+    collapses the words the press landed in before the click, Chromium after it. Read at
+    the click, the press picked the option in Firefox and opened the thread in
+    Chromium."""
+    url = serve(MARKED_OPTION_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the retry.",
+            "anchor": {
+                "section": "rt-retry-p",
+                "quote": "the run is retried until it lands",
+            },
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    option = page.locator("#rt-retry")
+    picked = "el => el.hasAttribute('selected')"
+    run = page.evaluate(
+        """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
+                   return {left: r.left, right: r.right, y: r.top + r.height / 2}; }"""
+    )
+    width = run["right"] - run["left"]
+
+    select(
+        page,
+        (run["left"] + 4, run["y"]),
+        (run["left"] + width * 0.75, run["y"]),
+        steps=10,
+    )
+    held = page.evaluate("() => getSelection().toString()")
+    assert held.strip(), f"the drag selected nothing, so this says nothing: {held!r}"
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    assert not option.evaluate(picked), "the drag across the option's words picked it"
+
+    page.mouse.click(run["left"] + width * 0.4, run["y"])
+    assert not option.evaluate(picked), (
+        "the press on the mark inside the selected words picked the option"
+    )
+    expect(page.locator(".lf-page-thread:focus-within")).to_contain_text(
+        "About the retry."
+    )
+    assert [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ] == [], "a gesture on the option's words sent a pick"
 
 
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):

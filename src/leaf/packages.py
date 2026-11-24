@@ -406,37 +406,40 @@ def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
         compose_layer(checked_layer_inputs(roots))
 
 
-def init_starter_widget(
+def init_starter_widgets(
     package: Path,
     protected: list,
     composition: LayerComposition,
-    widget: str,
+    widgets: tuple[str, ...],
 ) -> None:
-    """Add the tag's starter widget, all of it or none: its declaration to
+    """Add each tag's starter widget, all of them or none: its declaration to
     `registry.json`, its rule to the end of `defaults.css`, and its module, which
     replaces no file the package holds. The whole candidate is checked first."""
-    if re.fullmatch(WIDGET_NAME, widget) is None:
-        raise Refused(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
-    module_name = f"{widget}.js"
-    module_path = package / "widgets" / module_name
-    if widget in composition.vocabulary.registry:
-        raise Refused(f"widget tag <{widget}> already exists in the composed layer")
-    if (
-        module_path.exists()
-        or module_path.is_symlink()
-        or module_name in composition.vocabulary.widgets
-    ):
-        raise Refused(
-            f"widget module widgets/{module_name} already exists in the composed layer"
-        )
-
     registry_path = package / "registry.json"
     styles_path = package / "defaults.css"
     registry = read_json(registry_path) or {}
-    registry[widget] = starter_element_declaration(widget)
     styles = [styles_path.read_bytes().rstrip()] if styles_path.is_file() else []
-    styles.append(starter_widget_styles(widget).rstrip())
-    modules = {module_path: starter_widget_module(widget)}
+    modules = {}
+    for widget in widgets:
+        if re.fullmatch(WIDGET_NAME, widget) is None:
+            raise Refused(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
+        module_name = f"{widget}.js"
+        module_path = package / "widgets" / module_name
+        if widget in composition.vocabulary.registry:
+            raise Refused(f"widget tag <{widget}> already exists in the composed layer")
+        if (
+            module_path.exists()
+            or module_path.is_symlink()
+            or module_name in composition.vocabulary.widgets
+        ):
+            raise Refused(
+                f"widget module widgets/{module_name} already exists in the "
+                "composed layer"
+            )
+        registry[widget] = starter_element_declaration(widget)
+        styles.append(starter_widget_styles(widget).rstrip())
+        modules[module_path] = starter_widget_module(widget)
+
     replaces = {
         registry_path: json_bytes(registry, indent=2),
         styles_path: b"\n\n".join(filter(None, styles)) + b"\n",
@@ -462,12 +465,14 @@ def init_starter_widget(
         raise
 
 
-def cmd_package_init(package: Path, widget: str | None = None) -> dict:
+def cmd_package_init(package: Path, widgets: tuple[str, ...] = ()) -> dict:
     with package_write_lock(package):
         package, protected, composition = check_package(package, require_exists=False)
-        if widget is not None:
-            init_starter_widget(package, protected, composition, widget)
-            return {"package": str(package), "widget": widget}
+        if widgets:
+            # A tag named twice means it once.
+            widgets = tuple(dict.fromkeys(widgets))
+            init_starter_widgets(package, protected, composition, widgets)
+            return {"package": str(package), "widgets": list(widgets)}
 
         refuse_package_overlap(
             [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],

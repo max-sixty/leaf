@@ -17,14 +17,15 @@ from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
 from leaf.revision_delivery import json_script
 
 
-def test_the_starter_widget_leaves_the_render_check_nothing_to_advise(
+def test_the_starter_widgets_leave_the_render_check_nothing_to_advise(
     tmp_path, browser
 ):
-    """What `package init --widget` writes is right as written: the render check
-    draws the starter's example and finds nothing to advise."""
+    """What `package init --widget` writes is right as written, for each tag named:
+    the render check draws every starter's example and finds nothing to advise."""
     package = tmp_path / "package"
     made = CliRunner().invoke(
-        cli_model.cli, ["package", "init", str(package), "--widget", "lf-one"]
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-one", "--widget", "lf-two"],
     )
     assert made.exit_code == 0, made.output
     assert widget_findings(browser.unwatched, package) == []

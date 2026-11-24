@@ -927,7 +927,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     installed package in place of the bundled one whose name it takes. `default`, on
     every page already, is not listed."""
     team = tmp_path / "src" / "team-charts"
-    packages_model.cmd_package_init(team, "lf-trend")
+    packages_model.cmd_package_init(team, ("lf-trend",))
     (team / "instructions").mkdir(exist_ok=True)
     (team / "instructions" / "author.md").write_text(
         "## When to select it\n\n"

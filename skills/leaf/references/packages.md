@@ -28,7 +28,7 @@ leaf package list
 leaf package run NAME SCRIPT [ARGS]...
 ```
 
-`package init` creates the package's `registry.json` and `defaults.css`.
+`package init` creates the package's `registry.json` and `defaults.css`. Each
 `--widget TAG` adds a working starter under that tag, a yes-or-no choice: its
 declaration, its module at `widgets/<tag>.js` and its rule in `defaults.css`. The
 starter is the smallest widget that records what the user does

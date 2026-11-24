@@ -90,9 +90,9 @@
    * scrolls on its own where it holds more names than that leaves it, a height it holds
    * on purpose (`--lf-holds-height`), as a sticking block does. The package that draws
    * the parts sets only how the list looks (the default package's tabs.css, "A page's
-   * parts"). `page check` refuses parts in a `main` that carries a Layout
-   * (`parts-in-layout`), so a live page never has one, and these rules and that
-   * package find the column as the parts in the page's `main`, naming no Layout.
+   * parts"), and finds the column where the parts stand, as a child of the page's
+   * `main`: `page check` refuses parts in a `main` that carries a Layout
+   * (`parts-in-layout`), so no package needs to know the Layouts' names.
    * So the column stands still whichever part is open
    * and wherever it is read, the rubber band at the page's end included: every engine
    * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
@@ -123,7 +123,11 @@
     initial-value: 0;
   }
   @media screen {
-    html[data-lf-interactive] body > main:has(> [data-lf-views="parts"]) {
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+        > [data-lf-views="parts"]
+      ) {
       --lf-parts-list: 15rem;
       --lf-holds-parts: 1;
       display: grid;
@@ -154,10 +158,17 @@
         --lf-parts-title: 1;
       }
     }
-    html[data-lf-interactive] body > main > [data-lf-views="parts"] {
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"] {
       display: contents;
     }
-    html[data-lf-interactive] body > main > [data-lf-views="parts"] > [role="tablist"] {
+    html[data-lf-interactive]
+      body
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+      > [data-lf-views="parts"]
+      > [role="tablist"] {
       grid-column: 1;
       grid-row: 2;
       position: fixed;
@@ -174,7 +185,7 @@
     }
     html[data-lf-interactive]
       body
-      > main
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
       > [data-lf-views="parts"]
       > :not([role="tablist"]) {
       grid-column: 2;
@@ -182,7 +193,7 @@
     }
     html[data-lf-interactive]
       body
-      > main
+      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
       > [data-lf-views="parts"]
       > :not([role="tablist"], [hidden]) {
       align-self: stretch;
@@ -192,14 +203,14 @@
     @media (min-width: 720px) and (min-height: 480px) {
       html[data-lf-interactive]
         body
-        > main
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
         > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
         contain: size;
       }
       html[data-lf-interactive]
         body
-        > main
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
         > :not([role="tablist"], [hidden])
         > .layout-workspace {
@@ -207,7 +218,11 @@
       }
     }
     @container lf-shell (width < 640px) {
-      html[data-lf-interactive] body > main:has(> [data-lf-views="parts"]) {
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+          > [data-lf-views="parts"]
+        ) {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: none;
         min-block-size: 0;
@@ -220,12 +235,12 @@
       }
       html[data-lf-interactive]
         body
-        > main
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
         > [role="tablist"],
       html[data-lf-interactive]
         body
-        > main
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
         > :not([role="tablist"]) {
         grid-column: 1;
@@ -233,7 +248,7 @@
       }
       html[data-lf-interactive]
         body
-        > main
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
         > [role="tablist"] {
         position-anchor: normal;
@@ -257,7 +272,7 @@
       }
       html[data-lf-interactive]
         body
-        > main
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
         > :not([role="tablist"], [hidden]) {
         align-self: start;
@@ -267,14 +282,14 @@
       @media (min-width: 720px) and (min-height: 480px) {
         html[data-lf-interactive]
           body
-          > main
+          > main:not(.layout-column, .layout-sidebar, .layout-workspace)
           > [data-lf-views="parts"]
           > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
           contain: none;
         }
         html[data-lf-interactive]
           body
-          > main
+          > main:not(.layout-column, .layout-sidebar, .layout-workspace)
           > [data-lf-views="parts"]
           > :not([role="tablist"], [hidden])
           > .layout-workspace {

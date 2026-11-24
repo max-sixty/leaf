@@ -164,8 +164,9 @@ lf-shot {
   grid-area: actions;
 }
 .lf-shotoptions .lf-shot-scale-options > :where(button) {
-  /* Selection changes the face, never the width of its words. Two classes' weight, so
-     the rule outranks the font a thread gives the presses in it (controls.css). */
+  /* Selection changes the face, never the width of its words. At two classes' weight
+     the rule ties the font a thread gives the presses in it (controls.css), and wins
+     by standing after it. */
   font: var(--lf-font-choice);
   white-space: nowrap;
 }

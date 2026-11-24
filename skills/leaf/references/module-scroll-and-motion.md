@@ -286,8 +286,9 @@ them in its live region, and a page without Leaf leaves them unsaid. Words that 
 the page, as ones naming keys with `saying(rows)` do, are a function returning the
 words, which Leaf reads as it says them.
 
-An `lf-error` event tells the user that something they did has not taken, such as a
-value the server refused (`module-plain-elements.md`, "`lf-error`").
+An `lf-error` event, dispatched the same way, tells the user that something they did
+has not taken, such as a value the server refused (`module-plain-elements.md`,
+"`lf-error`").
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and

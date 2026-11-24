@@ -17,8 +17,7 @@ whose own Escape step comes before every step outside it.
 Leaf reads the declaration when it hears the event, binds its keys, lists them in
 the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
-widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
-stands in the page.
+widget that also runs off Leaf") binds no key. Declare at upgrade.
 
 Assigning a new object to `lfCommands` and dispatching the event replaces the
 scope, and Leaf checks the new rows then, reporting a malformed one as the element's

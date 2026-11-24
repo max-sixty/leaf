@@ -210,6 +210,9 @@ interface WindowEventMap {
   "lf-announce": CustomEvent<
     import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
   >;
+  /** A widget's words for something the user did that has not taken, which Leaf keeps
+   * in its Errors list (`errors.js`). */
+  "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -257,8 +260,6 @@ interface DocumentEventMap {
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
   /** A hold a widget has on its own nodes through a gesture (`widget-upgrade.js`). */
   "lf-hold": import("../runtime/widget-upgrade.js").HoldEvent;
-  /** A widget's words for something the user did that has not taken (`errors.js`). */
-  "lf-error": CustomEvent<string>;
   /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
    * sets `delivery` on each it sends (`widget-controller.js`). */
   "lf-action": CustomEvent<{

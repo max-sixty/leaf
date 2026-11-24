@@ -22,8 +22,8 @@
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
    key and advertises none. Words for a listener are `lf-announce` on the window, which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
-   Words telling the user that something they did has not taken are `lf-error`, which a
-   Leaf page keeps in its Errors list (errors.js).
+   Words telling the user that something they did has not taken are `lf-error` on the
+   window, which a Leaf page keeps in its Errors list (errors.js).
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
    when that changes with `lf-preview`, as the user's aim moves from
    one of a chart's points to the next, or a grip's words stop being true once its card

@@ -240,6 +240,11 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
+        // An editor a refused save reopened while the draft was out of the page says
+        // its keys as the draft returns.
+        this.#editor?.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
         if (this.#editor && !this.#resumeProjection && this.#available())
           this.#resumeProjection = this.defer();
         return () => {
@@ -414,10 +419,8 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        this.dispatchEvent(
+        window.dispatchEvent(
           new CustomEvent("lf-error", {
-            bubbles: true,
-            composed: true,
             detail: "Wait for the current edit to finish saving",
           }),
         );

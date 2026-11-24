@@ -332,7 +332,7 @@ test("a drawing an element announces by itself holds its region until it is in",
   element.remove();
 });
 
-test("an element says its failure with `error` and an error for the user with `lf-error`", async () => {
+test("an element says its failure with `error`, and `lf-error` on the window tells the user", async () => {
   const { errorsReading, dismissErrors } = await import("/runtime/errors.js");
   const host = document.body.appendChild(document.createElement("section"));
   const part = host
@@ -356,10 +356,8 @@ test("an element says its failure with `error` and an error for the user with `l
       { element: host, reason: "no rows" },
     ]);
     dismissErrors();
-    part.dispatchEvent(
+    window.dispatchEvent(
       new CustomEvent("lf-error", {
-        bubbles: true,
-        composed: true,
         detail: "Wait for the current edit to finish saving",
       }),
     );

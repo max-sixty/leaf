@@ -23,9 +23,9 @@ assert:
     metric: judgment
     value: |
       Pass only if the snippet declares the classifier's commands through the public
-      interface, as its `lfCommands` with an `lf-commands` event dispatched on it, the
-      scope written there or a `commandScope` value imported from
-      /runtime/widget-api.js, and declares one command per existing action.
+      interface: the scope is the classifier's `lfCommands`, written there or built with
+      `commandScope` imported from /runtime/widget-api.js, and an `lf-commands` event is
+      dispatched on the classifier. It declares one command per existing action.
       Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
       ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
       controls, requested bindingBadge seats or explicit null, canClassify availability,

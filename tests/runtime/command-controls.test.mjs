@@ -2491,9 +2491,9 @@ test("a widget's commands stand from when it says them until it withdraws them",
   // from inside it.
   owner.lfCommands = { title: "Declared", rows };
   say(owner);
-  assert.deepEqual(declared(owner), []);
   document.body.append(owner);
   try {
+    assert.deepEqual(declared(owner), []);
     say(owner);
     assert.deepEqual(declared(owner), ["declared.run"]);
     owner.lfCommands = null;

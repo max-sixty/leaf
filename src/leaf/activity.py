@@ -311,14 +311,17 @@ def start_holds(start: dict, present: dict, *, ended: datetime | None) -> bool:
     The user decided that a session which starts a message and gives its work to a
     background agent is not reminded of it while that agent works, from whichever
     turn, and is reminded once the session's background work has ended with the
-    message still owed. The user asked the same of a command the session leaves
-    running. Leaf can't tell which agent or command works on which item, so any of
-    them keeps every start its unbroken run covers. Two readings a later change
-    might reach for fail. A start's own turn alone reminds the session, in its next
-    turn, of a message its fork is still answering, and the session then starts it
-    again or does the work itself. `busy` alone, undated, holds through every turn
-    the session runs, so a start from an earlier turn would never lapse while any
-    turn runs, not even in the turn a reminder opens for it.
+    message still owed. A command the session leaves running keeps a start the same
+    way. That extends the user's decision rather than being one they made: the
+    command carries on the start's turn as an agent does, and without it the agent
+    is reminded of a message while the command answering it still runs. Leaf can't
+    tell which agent or command works on which item, so any of them keeps every
+    start its unbroken run covers. Two readings a later change might reach for
+    fail. A start's own turn alone reminds the session, in its next turn, of a
+    message its fork is still answering, and the session then starts it again or
+    does the work itself. `busy` alone, undated, holds through every turn the
+    session runs, so a start from an earlier turn would never lapse while any turn
+    runs, not even in the turn a reminder opens for it.
 
     While the start's turn is still the claimant's, the record need only say the
     session has worked on since that turn ended: `idle` with `command`, or a `busy`

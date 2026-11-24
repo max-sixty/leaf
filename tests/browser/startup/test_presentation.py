@@ -571,7 +571,8 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           late.remove();
 
           // A region is named after the nearest element with an id, one in a shadow
-          // tree included, and a region in a message by this document alone.
+          // tree included, and a region in a message by this document alone, where a
+          // box that is bounded too holds two regions.
           const idOf = (box) => leaf.readingRegions().find(({body}) => body === box)?.id;
           const staged = document.createElement('section');
           staged.id = 'stage-host';
@@ -579,13 +580,17 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
             `<div id="${id}"><div data-lf-scroll="list"></div></div>`).join('');
           const message = document.createElement('div');
           message.className = 'lf-msg-body';
-          message.innerHTML = '<section id="in-message" data-lf-scroll="list"></section>';
+          message.innerHTML =
+            '<section id="in-message" data-lf-scroll="list" data-lf-bound></section>';
           main.append(staged, message);
           staged.dispatchEvent(new CustomEvent('lf-connect',
             {bubbles: true, composed: true, cancelable: true}));
           const stagedIds = [...staged.shadowRoot.querySelectorAll('[data-lf-scroll]')]
             .map(idOf);
           const messageId = idOf(message.firstElementChild);
+          await frames();
+          const messageRegions = leaf.readingRegions()
+            .filter(({body}) => body === message.firstElementChild).length;
           staged.remove();
           message.remove();
 
@@ -609,7 +614,7 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           style.remove();
           return {outerId, previewId, flow, held, previewFlows, shifts, hiddenBounds,
                   kept, twinId, reclaimed, unhosted, hosted, stagedIds, messageId,
-                  phases};
+                  messageRegions, phases};
         }"""
     )
     outer, preview = "lf-region:outer-host:pane", "lf-region:preview-host:preview"
@@ -647,6 +652,7 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
     )
     assert readings["stagedIds"] == ["lf-region:first:list", "lf-region:second:list"]
     assert re.fullmatch(this_document, readings["messageId"]), readings
+    assert readings["messageRegions"] == 2
     assert readings["phases"] == [
         ["before", False],
         ["before", True],

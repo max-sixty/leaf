@@ -172,25 +172,17 @@ const regionRecord = (region) => ({
 // The id of the region `name` that `owner` names, whose body is `box` (the header says
 // what an id is for). An element with an id names its regions in the page's own
 // document for good. A box no such element names, or one in a message's markup, whose
-// ids repeat the page's, takes an id that names it in this document alone
-// (`documentId`): its region answers every geometry question and keeps its place while
-// the box stands, and a replacement document starts it afresh rather than guess which
-// region it was.
+// ids repeat the page's, takes a fresh id that names its region in this document
+// alone: the region answers every geometry question and keeps its place while it
+// stands, and a replacement document starts it afresh rather than guess which region
+// it was.
 const THIS_DOCUMENT = `lf-region:${performance.timeOrigin}`;
-/** @type {WeakMap<Element, string>} */
-const documentIds = new WeakMap();
 let unnamed = 0;
-/** @param {Element} box */
-const documentId = (box) => {
-  let id = documentIds.get(box);
-  if (!id) documentIds.set(box, (id = `${THIS_DOCUMENT}:${(unnamed += 1)}`));
-  return id;
-};
 /** @param {Element | null} owner @param {string} name @param {Element} box */
 export const regionId = (owner, name, box) =>
   owner?.id && authoredScope(box) === pageDocument()
     ? `lf-region:${owner.id}:${name}`
-    : documentId(box);
+    : `${THIS_DOCUMENT}:${(unnamed += 1)}`;
 
 /** @param {{id: string, host: Element, body: Element,
  * paintContinuation?: (above: boolean) => void}} options */
@@ -635,8 +627,9 @@ addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 //   widget's regions are named after the widget wherever it stands, a shadow tree
 //   included.
 // - A name a standing box already holds under that element is no refusal: the later
-//   box is a region under an id of this document alone, so each answers for what it
-//   scrolls, and only the earlier one's place is found again in a replacement document.
+//   box is a region under an id of this document alone, and keeps that id while it
+//   stands. Each answers for what it scrolls, and only the earlier one's place is found
+//   again in a replacement document.
 const BODY = PAGE_PAINT_ATTRIBUTE.scrollSurface;
 const HOST = PAGE_PAINT_ATTRIBUTE.scrollHost;
 /** @type {Map<Element, {name: string, host: Element, stop: () => void}>} */
@@ -657,7 +650,7 @@ function readBody(body) {
   stated.delete(body);
   if (!name) return;
   const named = regionId(closestAcross(host, "[id]"), name, body);
-  const id = live(regions.get(named)) ? documentId(body) : named;
+  const id = live(regions.get(named)) ? regionId(null, name, body) : named;
   stated.set(body, { name, host, stop: registerReadingRegion({ id, host, body }) });
 }
 // A host's mark can be written after its body's region is registered, or taken off

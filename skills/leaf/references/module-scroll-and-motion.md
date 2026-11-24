@@ -53,17 +53,17 @@ as long as it stands in the page: Leaf keeps the user's place in it, and knows t
 region in the task that marks the box. Where focus beside the box should count as being
 in the region, as in a pane's header, mark the box around both
 `data-lf-scroll-host="NAME"`. Leaf looks for that host between the box and the next
-region around it.
+box around it that wears `data-lf-scroll` with a name.
 
 To return the user to their place after a revision, Leaf knows a region by `NAME` and
 the id of the nearest element with an id, starting at the host, or at the box where it
-has no host, and going outward. So give each box of a widget its own name, and require
-an `id` in the declaration of a widget that marks one. Where two boxes take one name
-under one such element, both are regions, but only the first one's place survives a
-revision that replaces it. A box in a thread message is a region whose place Leaf keeps
-only while the message stands. Leaf finds the marks in the page, in a stage
-`shadowStage` builds and in the open shadow root of an element that has said
-`lf-connect` (`module-plain-elements.md`).
+has no host, and going outward. An id the module writes counts as one. So give each box
+of a widget its own name, and require an `id` in the declaration of a widget that marks
+one. Where two boxes take one name under one such element, both are regions, but a
+revision that replaces the two returns the user to their place in one of them alone.
+A box in a thread message is a region whose place Leaf keeps only while the box stands.
+Leaf finds the marks in the page, in a stage `shadowStage` builds and in the open
+shadow root of an element that has said `lf-connect` (`module-plain-elements.md`).
 
 Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of

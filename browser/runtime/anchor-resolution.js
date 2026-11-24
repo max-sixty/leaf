@@ -51,7 +51,6 @@ import {
   quoteFrom,
   spanIn,
   DATUM,
-  authoredScope,
   elementById,
   excerpt,
   findQuote,
@@ -62,6 +61,7 @@ import {
   settledAway,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { authoredElement } from "./references.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { layoutsChanged } from "./widget-upgrade.js";
@@ -1101,39 +1101,25 @@ export function resolveAnchor(anchor) {
   });
 }
 
-// The element an id names: in the markup of the agent's message `message`, where one is
-// given, and then on the page, read as the anchor `{section}` is. Content a revision
-// settled away names nothing in either.
-/** @param {string} id @param {Element | null} message */
-function namedElement(id, message) {
-  const own = message && elementById(id, message);
-  return own && !settledAway(own) ? own : targetElement(resolveAnchor({ section: id }));
-}
+/** @param {string} id */
+const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
 
-// What an address names (anchor-coordinate.js, `fragmentKey`): an id, or a widget's id
-// and a key, spelled as a fragment (`#…`, encoded as a URL holds it) or bare. First the
-// element whose id it spells; failing that, a widget and a key, whose `place` is the
-// element the key addresses under the widget (`addressedElements`) or null until the
-// widget draws it (`revealAddressed`). `from` is the element the address was written
-// on: an address in an agent's message names that message's own element before the
-// page's, as references.js reads a `refers` id. A fresh load's arrival, a followed
-// link, Back and Forward, and a reply's reference all read their destination through
-// this with no `from`, and a package module reads any address through it
-// (widget-api.js, `elementById`).
-/** @param {string | null | undefined} address @param {Node | null} [from]
+// What a fragment names (anchor-coordinate.js, `fragmentKey`): the element whose id it
+// spells, as `named` finds one, which by default reads the id as the anchor `{section}`
+// is, so content a revision settled away names nothing. Failing that, a widget and a
+// key, whose `place` is the element the key addresses under the widget
+// (`addressedElements`) or null until the widget draws it (`revealAddressed`). A fresh
+// load's arrival, a followed link, Back and Forward, and a reply's reference all read
+// their destination through this.
+/** @param {string | null | undefined} fragment
+ * @param {(id: string) => Element | null} [named]
  * @returns {{element: Element, key: string | null, place: Element | null} | null} */
-export function fragmentAddress(address, from = null) {
-  if (!address) return null;
-  // A bare address is read as the fragment that spells it, each `%` kept.
-  const fragment = address.startsWith("#")
-    ? address
-    : `#${address.replaceAll("%", "%25")}`;
-  const scope = from && authoredScope(from);
-  const message = scope === pageDocument() ? null : scope;
-  const named = namedElement(fragmentId(fragment), message);
-  if (named) return { element: named, key: null, place: named };
+export function fragmentAddress(fragment, named = pageElement) {
+  if (!fragment) return null;
+  const whole = named(fragmentId(fragment));
+  if (whole) return { element: whole, key: null, place: whole };
   const keyed = fragmentKey(fragment);
-  const element = keyed && namedElement(keyed.id, message);
+  const element = keyed && named(keyed.id);
   if (!keyed || !element) return null;
   return {
     element,
@@ -1142,11 +1128,32 @@ export function fragmentAddress(address, from = null) {
   };
 }
 
-// The element an address names: for a widget's key, the part the widget has drawn for
-// it, else the widget itself, so a reader that needs only an element lands on the
+// The page element a fragment names: for a widget's key, the part the widget has drawn
+// for it, else the widget itself, so a reader that needs only an element lands on the
 // widget.
+/** @param {string | null | undefined} fragment */
+export function fragmentTarget(fragment) {
+  const address = fragmentAddress(fragment);
+  return address ? (address.place ?? address.element) : null;
+}
+
+// The element an address a package module holds names (widget-api.js, `elementById`):
+// an id, or a widget's id and key, spelled as a fragment (`#…`, encoded as a URL holds
+// it) or bare, as `fragmentTarget` reads it. Each id is looked up as `from` gives it
+// (references.js, `authoredElement`), in `from`'s own message first and then the page,
+// and with no `from` on the page alone, so neither Leaf's own surfaces nor another
+// message answer for the page. Content a revision settled away names nothing, as for a
+// fragment.
 /** @param {string | null | undefined} address @param {Node | null} [from] */
-export function fragmentTarget(address, from = null) {
-  const found = fragmentAddress(address, from);
+export function elementNamed(address, from = null) {
+  if (!address) return null;
+  // A bare address is read as the fragment that spells it, each `%` kept.
+  const fragment = address.startsWith("#")
+    ? address
+    : `#${address.replaceAll("%", "%25")}`;
+  const found = fragmentAddress(fragment, (id) => {
+    const element = authoredElement(id, from ?? pageDocument());
+    return element && !settledAway(element) ? element : null;
+  });
   return found ? (found.place ?? found.element) : null;
 }

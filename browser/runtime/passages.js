@@ -955,7 +955,10 @@ export function textNodesUnder(
 // registry declares after it, so the walk sees what the capture saw.
 //
 // `root` narrows the search to one authored document (`authoredScope`), with the roots
-// declared inside it.
+// declared inside it. The first element with the id in `root`'s tree answers where it
+// stands under `root` and is accepted, so a lookup costs a walk of `root`'s elements
+// only where another element with the id stands before the answer, as a message's copy
+// of a page id can.
 /** @param {string | null | undefined} id @param {Document | Element | null} [root] */
 export const elementById = (id, root = document) => {
   pageVersion.read();
@@ -964,9 +967,15 @@ export const elementById = (id, root = document) => {
   /** @param {Element | null | undefined} node */
   const accepts = (node) =>
     node && (!page || (!leafSurface(node) && authoredScope(node) === root));
+  const tree = /** @type {Document | DocumentFragment | Element} */ (
+    root.getRootNode()
+  );
+  const first = "getElementById" in tree ? tree.getElementById(id) : undefined;
   const found =
-    root === document
-      ? document.getElementById(id)
+    root === document ||
+    first === null ||
+    (first && root.contains(first) && accepts(first))
+      ? first
       : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
   if (found && accepts(found)) return found;
   for (const shadow of shadowRootsIn(root)) {

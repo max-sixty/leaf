@@ -548,8 +548,8 @@ customElements.define(
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the
-    // name the chrome gives it (`nameOf`), else by its word, and by the id
-    // only where no block in the option's document answers to it. After § a kind word
+    // name the chrome gives it (`nameOf`), else by its word, and by the id only where no
+    // block in the option's message or on the page answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone, and pointing at it
     // previews the block, as a link into the page does (`placePreview`). It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.

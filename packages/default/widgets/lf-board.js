@@ -125,8 +125,8 @@ const showsId = (card) => card.getAttribute("shows") || null;
 /** The widget whose answer a card shows, with the verb that writes the answer and
  * that verb's record; `{fault}`, telling the author what to write instead, where the
  * card's `shows` names no answer a board can show; or null for a card that shows none.
- * A board can show the answer of a widget in the card's own page or message whose
- * `awaits.value` verb records a value or members. */
+ * A board can show the answer of a widget whose `awaits.value` verb records a value or
+ * members, in the card's own message first, then on the page. */
 /** @param {Element} card */
 function shownWidget(card) {
   const id = showsId(card);
@@ -135,8 +135,8 @@ function shownWidget(card) {
   if (!owner)
     return {
       fault:
-        `shows="${id}" names no element beside the card; a card shows a widget in` +
-        " the same page, or in the same message",
+        `shows="${id}" names no element beside the card; a card shows a widget on` +
+        " the page, or in the message that holds it",
     };
   const declaration = layerFact(owner.localName);
   const verb = declaration?.awaits?.value;
@@ -326,7 +326,9 @@ customElements.define(
     // one shared reading on the card rather than another suffix in this control's name.
     #names() {
       this.#counts();
-      for (const col of this.#columns()) {
+      const columns = [...this.#columns()];
+      const byId = new Map(columns.map((col) => [col.id, col]));
+      for (const col of columns) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
@@ -342,7 +344,7 @@ customElements.define(
               button.getAttribute("data-lf-board-target") === col.id ||
                 !this.#takes(
                   card,
-                  elementById(button.getAttribute("data-lf-board-target"), this),
+                  byId.get(button.getAttribute("data-lf-board-target") ?? "") ?? null,
                 ),
             );
           // With no button to show, the group's "Move to" would name no destination.

@@ -63,7 +63,6 @@ import {
   onUserInput,
 } from "./focus.js";
 import { seenAhead } from "./scroll-containers.js";
-import { inChrome } from "./passages.js";
 import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
 import { isReaction } from "./thread/model.js";
 import { threadNamed } from "./thread/state.js";
@@ -82,6 +81,7 @@ import {
 } from "./lib/shadow-tree.js";
 import { eventSource } from "./pointer.js";
 import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
+import { inChrome } from "./ui-marks.js";
 
 // Each side's reading, and whether it shows its target beside the page.
 /** @type {Map<(node: Element) => Element | null, boolean>} */

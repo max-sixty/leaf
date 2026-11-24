@@ -112,13 +112,7 @@ import { advertisesKeys } from "../keyboard/bindings.js";
 import { commandKeysNow } from "../keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
-import {
-  elementById,
-  inChrome,
-  pageWords,
-  passageStart,
-  rangeOf,
-} from "../passages.js";
+import { elementById, pageWords, passageStart, rangeOf } from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -160,6 +154,7 @@ import { livePoint } from "../pointed-place.js";
 import { keeps } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {{intent: ReturnType<typeof retainUserIntent>}} FabFocusHandoff */
 

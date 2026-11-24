@@ -13,8 +13,8 @@ import { sampleNotice } from "../sample-child.js";
    Page Map's rung — so `declareCurrentLocation` is the one export, and the boot entry calls it
    once those owners stand. */
 import { letGo, release, focused } from "../focus.js";
-import { inChrome, pageQueryAll } from "../passages.js";
-import { inUi } from "../ui-marks.js";
+import { pageQueryAll } from "../passages.js";
+import { inUi, inChrome } from "../ui-marks.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";

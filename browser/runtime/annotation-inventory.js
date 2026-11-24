@@ -26,7 +26,6 @@ import {
   elementById,
   findEach,
   GENERATED,
-  inChrome,
   quoteFrom,
   readsElement,
   textNodesUnder,
@@ -73,6 +72,7 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
+import { inChrome } from "./ui-marks.js";
 
 // The words of every obligation's row, one reading for all of them, so a collection
 // finds each row's words unchanged by identity rather than by reading them

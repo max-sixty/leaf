@@ -36,7 +36,7 @@
    (`reserve`, `paint`): a chip can move somewhere legible, so it keeps off every pixel of
    the chrome, the side of a view included, but for the surface holding its control,
    whose own controls' chips stand on it (geometry.js, `coverBoxes`). */
-import { elementFromPointAcross, inChrome } from "../passages.js";
+import { elementFromPointAcross } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
   coverBoxes,
@@ -48,6 +48,7 @@ import {
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder, closestAcross } from "../lib/shadow-tree.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {NonNullable<ReturnType<typeof rect>>} VisibleBox

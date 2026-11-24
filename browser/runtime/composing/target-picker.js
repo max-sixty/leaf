@@ -11,7 +11,6 @@ import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,
-  inChrome,
   pageMatches,
   pageReadingVersion,
   readingHolding,
@@ -55,6 +54,7 @@ import {
   pageScope,
   pageScopes,
 } from "../keyboard/register.js";
+import { inChrome } from "../ui-marks.js";
 
 // Hints and the active search result are paint only. The floating panel seats the
 // search's own native field and match controls in its main row, keeping the comment

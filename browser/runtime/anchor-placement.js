@@ -57,7 +57,6 @@ import { resolvedInMessage, targetElement } from "./resolved-target.js";
 import {
   catchUpWords,
   hearPageWords,
-  inChrome,
   quotesChanged,
   rangeOf,
   segmentBounds,
@@ -71,6 +70,7 @@ import { messageHolding } from "./thread/messages.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "./version-signal.js";
 import { version as keptVersion } from "./kept.js";
+import { inChrome } from "./ui-marks.js";
 
 /** @typedef {import("../types/domain.js").Anchor} Anchor */
 /** @typedef {ReturnType<typeof import("./thread/state.js").allThreads>[number]} Thread */

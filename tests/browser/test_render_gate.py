@@ -1799,7 +1799,7 @@ def other_pages(page):
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
   const {focused} = await window.__lfCheckApi();
-  const {closestAcross} = await window.__lfCheckApi();
+  const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
   const {seenRect} = await window.__lfCheckApi();
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
@@ -2073,7 +2073,8 @@ def into_the_page(page):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
             const {focused} = await window.__lfCheckApi();
-            const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
+            const {availableCommandRoutes} = await window.__lfCheckApi();
+            const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
             const at = focused();
             if (!at || !closestAcross(at, 'main')) return false;
             for (const [row, keys] of availableCommandRoutes())

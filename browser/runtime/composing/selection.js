@@ -67,7 +67,7 @@ import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { applicationState } from "../semantic-state.js";
 import { bindQueuedWork } from "../queued-work.js";
 
-import { elementById, inChrome } from "../passages.js";
+import { elementById } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { sentDrawing } from "./drawing-record.js";
@@ -76,6 +76,7 @@ import { commitPoint } from "../pointed-place.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer, closestAcross } from "../lib/shadow-tree.js";
+import { inChrome } from "../ui-marks.js";
 
 // The comment field keeps Send or Dictate as its primary action. Other responses
 // open in one anchored picker from a ⋯ in the field's corner, Tab, or e. The same

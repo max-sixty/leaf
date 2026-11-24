@@ -133,7 +133,6 @@ import { objectIds } from "../ids.js";
 import { offerActionElement } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { registry } from "../registry.js";
-import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
   anchorBox,
@@ -148,6 +147,7 @@ import {
   scrollMisplacesAnchors,
   scrollsWith,
 } from "../css-anchors.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {import("../resolved-target.js").ResolvedTarget} ResolvedTarget

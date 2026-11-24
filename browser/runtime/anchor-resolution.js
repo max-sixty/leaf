@@ -21,7 +21,7 @@ import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { declaredRoot, queryAllUnder } from "./shadow.js";
 import { shadowHost, under, upFrom, closestAcross } from "./lib/shadow-tree.js";
-import { inUi } from "./ui-marks.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -55,7 +55,6 @@ import {
   excerpt,
   findQuote,
   fileModelsPassage,
-  inChrome,
   leafSurface,
   pageQueryAll,
   settledAway,

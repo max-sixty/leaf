@@ -90,7 +90,6 @@ import {
 } from "./current-target.js";
 import { readingBlock } from "./reading-place.js";
 import { readingRegionFor } from "./reading-regions.js";
-import { inChrome } from "./passages.js";
 import { byRenderedOrder, under, closestAcross } from "./lib/shadow-tree.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
@@ -109,6 +108,7 @@ import { agentName } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { notice } from "./notifications.js";
+import { inChrome } from "./ui-marks.js";
 
 /** @typedef {import("./queue-api.js").CurrentQueueItem} QueueItem
  * @typedef {import("./obligations/answer.js").AnswerableObligation} Obligation

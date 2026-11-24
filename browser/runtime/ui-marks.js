@@ -1,8 +1,8 @@
 /* Which layer a node stands in: Leaf's chrome, a label a widget declared as the page
    speaking, or the document. Every reading that climbs out of a widget asks it, so it is
-   answered here, from the marks Leaf's chrome wears, where geometry.js and
-   widget-elements.js can ask it without importing the passage readings back. The climb
-   itself is the library's (lib/shadow-tree.js). */
+   answered here, from the marks Leaf's chrome wears, where geometry.js and the passage
+   readings both ask it and neither imports the other for it. The climb itself is the
+   library's (lib/shadow-tree.js). */
 import { closestAcross, isElement, overIn } from "./lib/shadow-tree.js";
 
 // Which document an element is in is not a question about looks at all, so the class

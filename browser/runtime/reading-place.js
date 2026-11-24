@@ -92,11 +92,10 @@ import {
   upFrom,
   closestAcross,
 } from "./lib/shadow-tree.js";
-import { inUi } from "./ui-marks.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   blockAt,
   HEADING,
-  inChrome,
   pageDocument,
   readsDocument,
   pageRuns,

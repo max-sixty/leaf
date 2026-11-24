@@ -30,6 +30,7 @@ const runtimePrimitives = [
   "repaint.js",
   "root-state.js",
   "thread/identity.js",
+  "ui-marks.js",
 ];
 
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an

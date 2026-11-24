@@ -122,7 +122,6 @@ import {
 import { inChrome, SAID, UI_MARKS, inUi, uiInside } from "./ui-marks.js";
 import { keptEach, unkept, version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
-export { inChrome } from "./ui-marks.js";
 import {
   declaredRoot,
   refuseShadowRoot,

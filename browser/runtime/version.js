@@ -135,7 +135,6 @@ import {
   authored,
   elementById,
   focusInPage,
-  inChrome,
   inPage,
   LEAF_SURFACE,
   leafSurface,
@@ -239,6 +238,7 @@ import {
 } from "./reading-place.js";
 import { holdingError, raiseError } from "./errors.js";
 import { tick } from "./version-signal.js";
+import { inChrome } from "./ui-marks.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 

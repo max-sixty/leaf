@@ -38,7 +38,6 @@ import { commandScope } from "./keyboard/scopes.js";
 import {
   authoredScope,
   elementById,
-  inChrome,
   pageDocument,
   pageQueryAll,
   readingElements,
@@ -54,6 +53,7 @@ import { keeps, keepsText } from "./lib/keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 import { raiseError } from "./errors.js";
+import { inChrome } from "./ui-marks.js";
 
 const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';

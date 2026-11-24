@@ -2950,14 +2950,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         },
         layer_widgets={
             "lf-preparation.js": """
-import {widgetController} from '/runtime/widget-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    widgetController(this).present(fetch('/preparation-content').then(() => {
+    this.dispatchEvent(new PendingTaskEvent(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
-    }));
+    })));
   }
 });
 """

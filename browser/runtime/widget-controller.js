@@ -4,9 +4,10 @@
    immutable publisher selections and commands validated against the newest selection;
    the owner DOM is never a semantic store. A widget draws as a custom element Leaf
    sets its `state` on (element-integration.js), which owns the widget's render
-   region; the controller owns its asynchronous preparation region (`present`), which
+   region; the controller owns its asynchronous preparation region (`prepare`), which
    removal pauses and reconnection restores. Registered preparation also holds full
-   rendering readiness until completion or removal.
+   rendering readiness until completion or removal. A package reaches `read` and
+   `dispatch` (`widgetController`), and says preparation only with the event below.
 
    A widget's element reaches the controller through events Leaf hears at the
    document. It says it has drawing under way with `pending-task`
@@ -31,7 +32,8 @@ import { showFailure } from "./lib/failure.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
-/** @typedef {ReturnType<typeof createWidgetController>} WidgetController
+/** @typedef {ReturnType<typeof createWidgetController>} Controller
+ * @typedef {Pick<Controller, "read" | "dispatch">} WidgetController
  * @typedef {import('./framework/application.js').WidgetDescriptor} WidgetDescriptor
  * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
  * @typedef {{completion: Promise<unknown[]>}} Preparation
@@ -90,20 +92,19 @@ function createWidgetController(owner) {
       ? selected.read()
       : unavailable(selected.read());
 
-  const prepared = () => {
-    if (!preparationHandle && owner.isConnected)
-      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation");
-    return preparationHandle;
-  };
+  const prepared = () =>
+    (preparationHandle ??= attachWidgetPresentation(descriptor.id, "preparation"));
 
+  // The owner stands in the page at every call: `prepare` is reached by an event
+  // heard at the document, and `connect` as the owner returns.
   /** @param {PromiseLike<unknown>} promise */
   const holdPreparation = (promise) => {
     if (pendingPreparations.has(promise)) {
-      if (owner.isConnected && !pendingPreparations.get(promise))
+      if (!pendingPreparations.get(promise))
         pendingPreparations.set(promise, holdRendering());
       return;
     }
-    pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
+    pendingPreparations.set(promise, holdRendering());
     // A failed child reports immediately, but its siblings can still commit DOM.
     // Superseded batches can also still report failure into this connected owner.
     const settled = () => {
@@ -124,10 +125,8 @@ function createWidgetController(owner) {
     untracked(() => {
       if (!owner.isConnected) return;
       for (const promise of pendingPreparations.keys()) holdPreparation(promise);
-      if (preparation && !preparationHandle) {
-        const handle = prepared();
-        if (handle) presentPreparation(handle, preparation);
-      }
+      if (preparation && !preparationHandle)
+        presentPreparation(prepared(), preparation);
     });
 
   const disconnect = () => {
@@ -150,8 +149,11 @@ function createWidgetController(owner) {
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
     },
-    /** @template {PromiseLike<unknown>} P @param {P} promise @returns {P} */
-    present(promise) {
+    // Hold the widget's preparation region on drawing announced from inside it
+    // (`pending-task`, below). Promises announced under one reading are one
+    // requirement: a later one joins the earlier rather than superseding it.
+    /** @param {PromiseLike<unknown>} promise */
+    prepare(promise) {
       const value = read();
       if (!preparationBatch || preparationBatch.value !== value) {
         preparationBatch = { value, promises: [] };
@@ -162,34 +164,37 @@ function createWidgetController(owner) {
       batch.completion = completion;
       preparation = { completion };
       holdPreparation(promise);
-      const handle = prepared();
-      if (handle) presentPreparation(handle, preparation);
+      presentPreparation(prepared(), preparation);
       const clear = () => {
         if (preparationBatch?.completion === completion) preparationBatch = null;
       };
       completion.then(clear, clear);
-      // Package code may await the concrete renderer result; the coordinator's
-      // aggregate is mechanical bookkeeping, not a replacement value.
-      return promise;
     },
   });
 }
 
-/** @param {Element} owner @returns {WidgetController} */
+// A custom element constructed with document.createElement receives its authored id
+// only after its constructor and field initializers run. The descriptor is resolved
+// on first use, which is normally connectedCallback, so a data renderer can build a
+// replacement with the same revision-bound identity as the authored node.
+/** @type {WeakMap<Element, Controller>} */
+const created = new WeakMap();
+/** @param {Element} owner */
+function controllerOf(owner) {
+  let controller = created.get(owner);
+  if (!controller) created.set(owner, (controller = createWidgetController(owner)));
+  return controller;
+}
+
+/** What a package reads and records of a widget: `read` and `dispatch`.
+ * @param {Element} owner @returns {WidgetController} */
 export function widgetController(owner) {
   let controller = controllers.get(owner);
   if (!controller) {
-    // A custom element constructed with document.createElement receives its authored
-    // id only after its constructor and field initializers run. Resolve the descriptor
-    // on first use, which is normally connectedCallback, so a data renderer can build
-    // a replacement with the same revision-bound identity as the authored node.
-    /** @type {WidgetController | null} */
-    let implementation = null;
-    const resolve = () => (implementation ??= createWidgetController(owner));
     controller = Object.freeze({
-      read: () => resolve().read(),
-      dispatch: (command) => resolve().dispatch(command),
-      present: (promise) => resolve().present(promise),
+      read: () => controllerOf(owner).read(),
+      /** @param {import("./pending/dispatch.js").WidgetCommand} command */
+      dispatch: (command) => controllerOf(owner).dispatch(command),
     });
     controllers.set(owner, controller);
   }
@@ -264,14 +269,14 @@ const drawingsTaken = new WeakSet();
 export const takeDrawing = (event) => drawingsTaken.add(event);
 
 // Drawing announced anywhere else: the nearest widget the event passed through on its
-// way out holds its presentation on it, as `present` does. Where it passed through
-// none, as from an element with no id or one of Leaf's own surfaces, the page holds a
-// region of that element's on it, so the page still reads as presented only once the
-// drawing is in.
+// way out holds its preparation on it (`prepare`). Where it passed through none, as
+// from an element with no id or one of Leaf's own surfaces, the page holds a region of
+// that element's on it, so the page still reads as presented only once the drawing is
+// in.
 document.addEventListener(PENDING_TASK, (event) => {
   if (drawingsTaken.has(event)) return;
   const owner = widgetOn(event);
-  if (owner) return void widgetController(owner).present(event.complete);
+  if (owner) return void controllerOf(owner).prepare(event.complete);
   const [origin] = event.composedPath();
   if (!(origin instanceof Element)) return;
   const held = holdsOn(origin);

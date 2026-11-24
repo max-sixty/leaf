@@ -47,7 +47,7 @@ declaration alone decides, such as hiding a suggestion's `lf-old` once it is acc
 (`retired-when`).
 
 `widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read`, `dispatch` and `present`. `read()` is a page
+own or another's, through `read` and `dispatch`. `read()` is a page
 reading (`module-authoring.md`, "Drawing what a widget reads"), so a `LeafElement`
 whose `render()` calls it draws again when it changes. Another element's `state`
 property is not a page reading, and nothing tells a widget that read it when Leaf
@@ -86,11 +86,10 @@ widget the user drags, grabs or scrubs also says `lf-hold` for the whole gesture
 (`module-plain-elements.md`, "`lf-hold`").
 
 Say asynchronous preparation the page should wait for, such as a renderer loading,
-with a `pending-task` event (`module-plain-elements.md`, "Drawing"). Where a parent
-prepares for a member that has no controller of its own, it passes the promise to its
-`widgetController(owner)`'s `present(promise)`. Drawing that finishes a draw, such as
-highlighting what `render()` placed, starts in `updated()` and extends the element's
-`updateComplete`, as any Lit element's completion waits for work its update starts:
+with a `pending-task` event (`module-plain-elements.md`, "Drawing"). Drawing that
+finishes a draw, such as highlighting what `render()` placed, starts in `updated()` and
+extends the element's `updateComplete`, as any Lit element's completion waits for work
+its update starts:
 
 ```js
 updated(changed) {

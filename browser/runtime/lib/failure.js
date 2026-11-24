@@ -2,26 +2,25 @@
 /* A widget's failure: a box where the user is looking, and an `error` event its host
    hears.
 
-   `failSoft(el, err, source)` does both, for an upgrade or a part of one that failed,
-   so the rest of the page stays usable rather than blank. It does not convert a partial
-   state read into a committed one. `showFailure` draws the box alone, for a host that
-   reports the failure itself, and `reportFailure` dispatches the event alone, for a
-   widget that shows the failure its own way, such as a diff file whose patch it cannot
-   draw beside the files it can.
+   A widget calls `failSoft(el, err, source)` for an upgrade or a part of one that
+   failed, which does both, so the rest of the page stays usable rather than blank. A
+   widget that shows a failure its own way dispatches the event itself
+   (module-plain-elements.md, "`error`"). `showFailure` and `reportFailure`, the box
+   alone and the event alone, are for a host that catches a failure on an element it
+   drives, as Leaf does for a setter that threw.
 
    The box names the widget and the failure, with `source` beneath it when given. Where
    it goes is `placesFailure`'s, below; by default it replaces the element's children,
    and the widget's next draw of them replaces it, a template render into the element
    included.
 
-   The event is the one a widget that reports by itself dispatches
-   (module-plain-elements.md, "`error`"): an `ErrorEvent` named `error`, bubbling and
-   composed, on the element. An element out of the document, such as a cached message
-   body while its thread is shut, has no way out to the window, so its failure is
-   dispatched there directly. Every listener gets an Error: a reason thrown as something
-   else is wrapped. A Leaf page reports the failure to the agent as the page's error,
-   naming the widget (`failureOf`, `failureContext`), which `page check` fails on; a
-   page that hears nothing still shows the box. */
+   The event is an `ErrorEvent` named `error`, bubbling and composed, on the element. An
+   element out of the document, such as a cached message body while its thread is shut,
+   has no way out to the window, so its failure is dispatched there directly. Every
+   listener gets an Error: a reason thrown as something else is wrapped. A Leaf page
+   reports the failure to the agent as the page's error, naming the widget (`failureOf`,
+   `failureContext`), which `page check` fails on; a page that hears nothing still shows
+   the box. */
 import { describeFailure, exceptionError } from "./exception.js";
 
 /** Show `err` where `el` stands and dispatch it as `el`'s `error` event.

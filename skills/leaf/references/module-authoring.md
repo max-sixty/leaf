@@ -54,7 +54,8 @@ part of Leaf's interface: a library module keeps none of the page's state and ca
 nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
 module works off Leaf too. Like `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
-header and comments say what it exports. These references describe none of them.
+header and comments say what it exports. These references name a module where a task
+needs it and describe none of its functions.
 
 ### A widget that also runs off Leaf
 
@@ -69,13 +70,10 @@ reads") or extend `HTMLElement`; a plain element that only records state and rea
 bound data needs no import at all (`module-plain-elements.md`). Leaf adds its services
 through events and element declarations that a plain host can ignore:
 
-- Drawing under way: a `pending-task` event, the Web Components Community Group's
-  protocol, which the library's
-  [`pending-task.js`](../../../browser/runtime/lib/pending-task.js) builds. Leaf holds
-  the page's presentation until its `complete` promise settles, as it does for
-  `present(promise)` (`module-state.md`, "The widget controller").
-- A failure: an `error` event ("Upgrade"). Leaf reports it to the author as the page's
-  error.
+- Drawing under way: a `pending-task` event (`module-plain-elements.md`, "Drawing"),
+  which the library's [`pending-task.js`](../../../browser/runtime/lib/pending-task.js)
+  builds.
+- A failure: an `error` event (`module-plain-elements.md`, "`error`").
 - Keys: an element's `lfCommands` and its `lf-commands` event (`module-input.md`,
   "Commands and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
@@ -146,10 +144,11 @@ A widget inside an element whose `exhibit` declaration applies (including its op
 input back, it asks `this.matches("[data-lf-exhibit] *")`. Its presentation and view
 state still work.
 
-When an upgrade or one part of it fails, the widget shows the failure where it stood
-rather than a blank, and dispatches the `error` event (`module-plain-elements.md`,
-"`error`"). The library's [`failure.js`](../../../browser/runtime/lib/failure.js) does
-both, and its header says where the box goes and what removes it.
+When an upgrade or one part of it fails, the widget shows the failure in place of what
+failed rather than a blank, and dispatches the `error` event
+(`module-plain-elements.md`, "`error`"). The library's
+[`failure.js`](../../../browser/runtime/lib/failure.js) does both, and its header says
+where the box goes and what removes it.
 
 ## Connection lifetimes
 
@@ -254,8 +253,8 @@ nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wa
 the page wait for the work each has started; `page check --render` starts what
 `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, pass the work to the widget controller's
-`present(promise)` instead, so it lands before presentation.
+now would move what the user sees, say the work with a `pending-task` event instead
+("A widget that also runs off Leaf"), so it lands before presentation.
 
 ### First paint
 
@@ -309,7 +308,7 @@ the widget draws nothing after it.
 `render()` reads `this.state` (`module-plain-elements.md`, "`state`"), each property a
 bound source sets, which the class declares as a Lit reactive property
 (`static properties = { value: { attribute: false } }`; `module-state.md`, "Bound data
-and projections"), and page readings such as `readObligations`, `reportSequence` or
+and projections"), and page readings such as `readObligations`, `readReports` or
 `ago`. The element redraws when Leaf sets its `state` or a bound property, and whenever
 a page reading it read synchronously changes; DOM reads and reads after an `await` are
 not tracked. A new `state` is drawn before Leaf's set returns, a parent's before a

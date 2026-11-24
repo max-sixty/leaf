@@ -1299,7 +1299,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
 
     def asked():
         return page.locator(cards).evaluate_all(
-            "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
+            "nodes => nodes.map(node => node.dataset.lfKey)"
         )
 
     assert identities("main > lf-group", "id") == [

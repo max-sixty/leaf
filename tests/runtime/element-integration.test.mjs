@@ -103,7 +103,7 @@ test("a plain element is set nothing until the page has read its data, then each
   element.remove();
 });
 
-test("a reading becomes a state saying what the user may do and take back", () => {
+test("a reading becomes a state saying what the user may do, why not, and what they may take back", () => {
   const picked = (candidate) => ({
     action: "pick",
     value: null,
@@ -119,11 +119,13 @@ test("a reading becomes a state saying what the user may do and take back", () =
     actions: {
       decide: {
         available: true,
+        unavailable: null,
         inForce: [{ unit: "verdict", event: { id: "e1" } }],
         undo: [{ id: "e1" }],
       },
       pick: {
         available: false,
+        unavailable: "no agent or server is available",
         inForce: [
           { unit: "ada", event: { id: "e2" } },
           { unit: "grace", event: { id: "e3" } },
@@ -134,15 +136,26 @@ test("a reading becomes a state saying what the user may do and take back", () =
   };
   const state = widgetState(reading);
   assert.deepEqual(state, {
-    decide: { ...reading.state.decide, undoable: true, available: true },
+    decide: {
+      ...reading.state.decide,
+      undoable: true,
+      available: true,
+      unavailable: null,
+    },
     pick: {
       units: {
         ada: { ...picked("ada"), undoable: false },
         grace: { ...picked("grace"), undoable: true },
       },
       available: false,
+      unavailable: "no agent or server is available",
     },
-    status: { ...reading.state.status, undoable: false, available: false },
+    status: {
+      ...reading.state.status,
+      undoable: false,
+      available: false,
+      unavailable: null,
+    },
   });
   assert.ok(Object.isFrozen(state.pick.units.ada), "the element can't write its state");
 });

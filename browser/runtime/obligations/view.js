@@ -44,7 +44,7 @@ import { whereGlidesLand } from "../scrolling.js";
 import { keeps } from "../lib/keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
-import { obligationEntry, readObligations } from "./model.js";
+import { obligationEntry } from "./model.js";
 import { focused } from "../focus.js";
 import {
   commandDeclarationsWithin,
@@ -63,7 +63,7 @@ import { bindQueuedWork } from "../lib/queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { showHeld } from "../thread/held-news.js";
-import { obligationPlace } from "./place.js";
+import { obligationPlace, readObligations } from "./place.js";
 import { inChrome } from "../ui-marks.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.

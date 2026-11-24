@@ -1,11 +1,6 @@
 /* A local consumer exercises declaration-driven reports without shipping a task UI. */
 import { nothing } from "/vendor/lit.js";
-import {
-  LeafElement,
-  readWork,
-  threadSurface,
-  workAncestor,
-} from "/runtime/widget-api.js";
+import { LeafElement, readWork, threadSurface } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
@@ -50,9 +45,7 @@ customElements.define(
     render() {
       keeps(this, "status", this.state.status.value);
       keepsText(this.statusLine, this.state.status.value ?? "");
-      const row = readWork(
-        workAncestor(this, "scope") ?? this.parentElement,
-      ).goals.find((row) => row.element === this);
+      const row = readWork(this).goals.find((row) => row.element === this);
       keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
       this.comment?.toggleAttribute(
         "hidden",

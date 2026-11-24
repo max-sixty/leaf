@@ -63,7 +63,6 @@ import {
   inChrome,
   landingInsets,
   LeafElement,
-  obligationsIn,
   readObligations,
   readThreads,
   scrollerFor,
@@ -195,7 +194,7 @@ customElements.define(
         main
           ? sectionMarks(main, standing, {
               threads: readThreads().threads,
-              onMe: obligationsIn(main, readObligations().user),
+              onMe: readObligations(main).user,
               changes: comparisonChanges(main),
             })
           : new Map(),

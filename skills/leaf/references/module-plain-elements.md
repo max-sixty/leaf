@@ -75,7 +75,9 @@ On Me and admits the ids its buttons mark:
   changes, whether this tab, another one, Undo or a new version changed it. It is
   immutable, and holds each declared verb by name, in the shape `module-state.md`,
   "Declared widget state", gives. Beside that shape each verb holds `available`,
-  whether the user may act on it now, which a quoted widget's never is, and
+  whether the user may act on it now, which a quoted widget's never is;
+  `unavailable`, why they may not, as a phrase the widget can show, such as
+  `no agent or server is available`, or `null` where Leaf gives no reason; and
   `undoable`, whether `lf-undo` would take back the action in force. A verb with a
   per-part unit holds `undoable` on each of its `units` instead. The setter draws the
   whole state, and Leaf may set an equal state twice.
@@ -121,9 +123,9 @@ On Me and admits the ids its buttons mark:
   whose drawing finishes later dispatches a bubbling, composed `pending-task` event
   whose `complete` property is a promise of that drawing. A setter that throws is the
   widget's failure: Leaf reports it as an `error` (below), stands an error box after
-  the element's content, and sets the property again with the next change. Where one change moves the state of several widgets, Leaf sets
-  a widget's before the state of any widget inside it, so a setter that moves a member
-  runs before that member draws.
+  the element's content, and sets the property again with the next change. Where one
+  change moves the state of several widgets, Leaf sets a widget's before the state of
+  any widget inside it, so a setter that moves a member runs before that member draws.
 - **Drawing again unasked.** An element that redraws by itself, as for a timer or a
   value it holds, dispatches the same `pending-task` on itself, and the page waits for
   that drawing too. Leaf promises it no order among the page's other drawing.

@@ -1,27 +1,19 @@
-/* The upgrade lifecycle every behavior module shares, in a form any document can load:
-   it imports nothing Leaf composes into a page, so a widget built on it also runs on a
-   plain HTML page that maps `/runtime/` with its own import map (portable-api.js).
+/* The events with which a widget tells its host what Leaf needs to hear, by name. The
+   module imports nothing Leaf composes into a page, so `LeafElement`
+   (leaf-element.js), which dispatches them, loads in a plain HTML page that maps
+   `/runtime/` with its own import map too (portable-api.js).
 
-   A module defines its custom element once and makes `connectedCallback` safe to run
-   after reconnection, using `once(el)` (lib/once.js) for generated chrome so
-   reconnecting does not duplicate it. A failed upgrade becomes a visible error box
-   (lib/failure.js) rather than a blank page.
-
-   The widget tells its host what Leaf needs to hear through standard events, which Leaf
-   reads from outside and a plain page may ignore. That it has connected and wants what
-   its host sets on it is `lf-connect` (`CONNECT`), a hold it has on its own drawing is
-   `lf-defer` (`DeferEvent`), and the user's hold on something in it is `lf-hold`
-   (`HOLD`). A failure is an `error` ErrorEvent, bubbling and composed, which a Leaf
-   page reports to the agent as the page's error, naming the widget (lib/failure.js,
-   heard in layer-client.js). Drawing still under way is a `pending-task` event
-   (lib/pending-task.js), the Web Components Community Group's draft protocol for a
-   component's asynchronous work, whose `complete` promise Leaf holds the widget's
-   presentation on (widget-controller.js). A rearrangement inside an unchanged
-   box is `lf-layout` (`LAYOUT`), which the readers that measure what a widget
-   holds hear. And the keys an element binds are data on it, `lfCommands`, which the
-   widget says it set or changed with `lf-commands` (`COMMANDS`): Leaf reads them
-   then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
-   key and advertises none. Words for a listener are `lf-announce` on the window, which a
+   Leaf reads each event from outside, and a plain page may ignore it. That the widget
+   has connected and wants what its host sets on it is `lf-connect` (`CONNECT`), a hold
+   it has on its own drawing is `lf-defer` (`DeferEvent`), and the user's hold on
+   something in it is `lf-hold` (`HOLD`). A failure is an `error` event
+   (lib/failure.js), and drawing still under way a `pending-task` event
+   (lib/pending-task.js). A rearrangement inside an unchanged box is `lf-layout`
+   (`LAYOUT`), which the readers that measure what a widget holds hear. And the keys an
+   element binds are data on it, `lfCommands`, which the widget says it set or changed
+   with `lf-commands` (`COMMANDS`): Leaf reads them then and binds them
+   (keyboard/scopes.js), and a plain page, reading nothing, binds no key and advertises
+   none. Words for a listener are `lf-announce` on the window, which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
    Words telling the user that something they did has not taken are `lf-error` on the
    window, which a Leaf page keeps in its Errors list (errors.js).

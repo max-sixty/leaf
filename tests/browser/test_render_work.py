@@ -93,6 +93,13 @@ def test_public_work_roles_preserve_scope_remit_and_reports(browser, serve):
     told(page)
     assert reading(page, "outer")["done"] == 1
     assert ["leaf", "done", "Leaf work"] in reading(page, "outer")["goals"]
+    # Any element of a scope reads the scope's work, and a goal outside every scope
+    # reads the page's, which no scope's goals join.
+    assert reading(page, "worker") == reading(page, "outer")
+    page.evaluate(
+        "() => document.getElementById('outer').after(document.getElementById('other'))"
+    )
+    assert reading(page, "other")["leaves"] == ["other"]
 
 
 def test_a_page_owned_goal_joins_the_public_projection(browser, serve):

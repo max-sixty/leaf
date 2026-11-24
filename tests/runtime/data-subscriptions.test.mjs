@@ -461,6 +461,28 @@ test("an output's readers follow the element under their bound id, in their own 
   await settleOutput();
 });
 
+test("a reader that read before its producer's class was defined reads what the class holds", async () => {
+  const readings = [];
+  const { producerTag, consumerTag } = outputScene((element, value) =>
+    readings.push(value),
+  );
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;
+  await settleOutput();
+  assert.deepEqual(readings, [null]);
+  // The class holds a value from its construction and says no `change` for it, as a
+  // form control says none for its first value.
+  customElements.define(
+    producerTag,
+    class extends HTMLElement {
+      rows = { rows: ["held"] };
+    },
+  );
+  await settleOutput();
+  assert.deepEqual(readings, [null, { rows: ["held"] }]);
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
 test("a producer arriving or leaving under another name leaves a reader's reading alone", async () => {
   const { producerTag, consumerTag } = outputScene(() => {});
   document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;

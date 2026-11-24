@@ -132,7 +132,9 @@ this.dispatchEvent(hold);
   own. The `state` Leaf sets is how the element learns the user may not act: Leaf
   neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
-  the action in Leaf's own words (`module-state.md`, "The widget controller").
+  the action in Leaf's own words (`module-state.md`, "The widget controller"). The
+  tag may also declare the property an output for other widgets to read, and the
+  element needs no code for that either (`package-data.md`, "Widget outputs").
 - **A third-party component.** A component from a third-party library keeps its own
   tag, since the library's styles and the component's own children find it by that
   tag. The page writes it inside the element the registry declares, as in

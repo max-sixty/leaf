@@ -74,7 +74,7 @@ def test_check_requires_an_initialized_page(tmp_path):
     (d / "index.html").write_text(PAGE)
     result = check(d)
     assert result.exit_code == 1
-    assert f"run `leaf page init {d}`" in result.output
+    assert f"{d} is not an initialized page" in result.output
 
 
 def test_check_rejects_an_invalid_bound_and_advises_on_loose_pane_text(page_dir):

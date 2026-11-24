@@ -5,6 +5,7 @@ interface DocumentInputs {
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
   readonly count: number;
+  holdKeys(holds: ((event: KeyboardEvent) => boolean) | null): void;
   observe(read: (event: Event) => void): () => boolean;
 }
 
@@ -109,6 +110,9 @@ interface Window {
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
+    /** The place handed to this document by the reload that loaded it (version.js). */
+    readonly handoff: { readonly url?: unknown; readonly typing?: unknown } | null;
+    handOff(value: unknown): boolean;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };
@@ -251,6 +255,16 @@ interface DocumentEventMap {
   >;
   /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
+  /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
+   * sets `delivery` on each it sends (`widget-controller.js`). */
+  "lf-action": CustomEvent<{
+    verb: string;
+    detail?: Record<string, unknown>;
+    says?: string;
+  }> & { delivery?: PromiseLike<unknown> };
+  "lf-undo": CustomEvent<{ verb: string; unit?: string }> & {
+    delivery?: PromiseLike<unknown>;
+  };
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests

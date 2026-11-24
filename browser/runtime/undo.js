@@ -6,9 +6,9 @@
    marks it `newest`, the user's newest gesture, so a gesture the list doesn't hold,
    such as a move a later revision's markup places, ends the walk. The one gesture ⌘Z takes from outside the
    list is an action still in this page's ledger (below). A widget's Undo, a reaction chip, and a
-   reaction strip each name an exact entry, and a notice's Undo takes the gesture it
-   reports by ⌘Z's rules (`offerUndo`). All of them withdraw
-   through `withdraw`.
+   reaction strip each name an exact entry, and a notice's Undo is ⌘Z's own press,
+   offered while ⌘Z would take the gesture the notice reports (`offerUndo`). All of
+   them withdraw through `withdraw`.
 
    ⌘Z says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
@@ -74,16 +74,18 @@
    for a reading being applied, for an older action still being presented, and for a
    held drag.
 
-   A settlement takes the user's view of its thread away, so it leaves with this page
-   the reader the user had the thread in, the page or the panel (`retainGesture`,
-   `settled`, thread/folding.js), and taking it back returns the user there once the
-   page presents the withdrawal, so undoing a settlement gives back the view it took,
-   even where its landing carried them from the thread.
+   A settlement takes the user's view of its thread away, so this page notes that it
+   made one (`retainGesture`, `settled`, thread/folding.js), and taking it back returns
+   the user to the thread once the page presents the withdrawal, even where its landing
+   carried them from the thread. The thread opens where every route opens it
+   (thread/destination.js), by the user's choice of where threads open. Rejected:
+   keeping with the gesture the reader the settlement was made in, a second record of
+   where the thread opens beside the user's choice.
 
    A widget's gesture leaves, by its attempt, the words the widget named it by
    (`retainGesture`, `says`, pending/dispatch.js), and while this page holds them its
    undo is said in them, the name its own announcement used: "Chose “Fast”",
-   then "Undone: Chose “Fast” just now". Those words and a settlement's reader live
+   then "Undone: Chose “Fast” just now". Those words and a settlement's mark live
    with the page that made the gesture, so after a reload or from another tab a thread
    opens where a route to it opens it.
 
@@ -113,7 +115,6 @@ import { PENDING } from "./thread/identity.js";
 import { threadIdNamed, threadNamed } from "./thread/state.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { elementById, inChrome } from "./passages.js";
-import { focusDestination } from "./focus.js";
 import { placeBox, placeHolder } from "./geometry.js";
 import { seenLanded } from "./scroll-containers.js";
 import { messageHolding, threadName } from "./thread/messages.js";
@@ -124,7 +125,7 @@ import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 import { dragHeld } from "./widget-elements.js";
-import { backgroundFlash, flashDuration } from "./motion.js";
+import { backgroundFlash } from "./motion.js";
 import { giveBackWords, PAGE_DRAFT, replyContext, rewriteContext } from "./drafts.js";
 import { commentDraft } from "./composing/selection.js";
 import { threadKey } from "./thread/model.js";
@@ -137,7 +138,6 @@ import { threadKey } from "./thread/model.js";
  * @typedef {typeof runtime.undo[number]} UndoEntry
  * @typedef {import("../types/contract.js").ServedGesture} Gesture
  * @typedef {ReturnType<typeof retainUserIntent>} UserIntent
- * @typedef {NonNullable<Parameters<OpenThread>[1]>["reader"]} Reader
  * @typedef {ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"]} OpenThread
  * @typedef {{thread: string | null, message?: string, nodes: (Element | null)[], fragment?: never}
  * | {fragment: string, nodes: (Element | null)[], thread?: never, message?: never}} UndoPlace
@@ -307,7 +307,7 @@ export function createUndo({
     ]);
   }
   // Kept while its gesture can still be taken back.
-  /** @typedef {{says?: string, settled?: {reader: Reader}}} GestureFacts */
+  /** @typedef {{says?: string, settled?: boolean}} GestureFacts */
   /** @type {Map<string, GestureFacts>} */
   const gestures = new Map();
   /** @param {string} attempt @param {GestureFacts} facts */
@@ -430,30 +430,37 @@ export function createUndo({
     return place !== null && !inView(place);
   }
 
-  // Put the user on a thread, under the intent of the gesture that asked for it: in the
-  // reader a settlement named (thread/folding.js), else where they see it drawn on the
-  // page, which needs no travel, else where a route to it opens it.
-  /** @param {string} id @param {UserIntent} intent @param {Reader} [reader] */
-  async function returnToThread(id, intent, reader = null) {
-    if (reader) return openThread(id, { part: "thread", intent, reader });
-    const seated = drawingsOf(id).find((node) => node && !inChrome(node) && seen(node));
-    if (!seated) return openThread(id, { part: "thread", intent });
-    intent.handoff(() => focusDestination(seated, "move"));
-    return seated;
+  // Put the user on a thread, under the intent of the gesture that asked for it, where a
+  // route to it opens it (thread/destination.js), which reads the user's choice of
+  // where threads open. Where the user sees the thread drawn on the page, as in a
+  // widget's seat, the route doesn't travel. `travel` and `history` are the route's
+  // too: a return no gesture of the user's began, as after the log refuses a
+  // settlement, adds no Back step (history.js).
+  /** @param {string} id @param {UserIntent} intent
+   * @param {{travel?: boolean, history?: boolean}} [route] */
+  function returnToThread(id, intent, { travel = true, history = true } = {}) {
+    const drawn = drawingsOf(id).some((node) => node && !inChrome(node) && seen(node));
+    return openThread(id, {
+      part: "thread",
+      intent,
+      travel: travel && !drawn,
+      history,
+    });
   }
 
-  // A settlement this page made, with the reader it was made in.
+  // Whether this page made the settlement `event` is.
   /** @param {UndoEvent} event */
   const settledHere = (event) =>
-    event.attempt ? gestures.get(event.attempt)?.settled : undefined;
+    Boolean(event.attempt && gestures.get(event.attempt)?.settled);
 
-  // Go to what the gesture changed, under the intent of the press that asked for it: a
-  // thread in the `reader` its settlement was made in, where it was made here.
-  /** @param {UndoEvent} event @param {UserIntent} intent @param {Reader} [reader] */
-  function show(event, intent, reader) {
+  // Go to what the gesture changed, under the intent of the press that asked for it,
+  // travelling there where `travel` says the place stood out of view.
+  /** @param {UndoEvent} event @param {UserIntent} intent @param {boolean} [travel] */
+  function show(event, intent, travel = true) {
     const place = placeOf(event);
-    if (place?.message) return openThread(place.message, { part: "message", intent });
-    if (place?.thread) return returnToThread(place.thread, intent, reader);
+    if (place?.message)
+      return openThread(place.message, { part: "message", intent, travel });
+    if (place?.thread) return returnToThread(place.thread, intent, { travel });
     if (place?.fragment === undefined || !intent()) return;
     // A fragment link's own navigation step (anchor-travel.js, `followFragment`), so
     // Back returns to where the user was reading.
@@ -475,7 +482,7 @@ export function createUndo({
       place.thread ??
       (event.kind === "reply" && event.parent ? threadIdNamed(event.parent) : null);
     for (const node of new Set(drawn.length ? drawn : thread ? drawingsOf(thread) : []))
-      if (node) backgroundFlash(node, flashDuration());
+      if (node) backgroundFlash(node);
   }
 
   // The walk needs the page settled, not only the gesture it takes back: an
@@ -488,19 +495,22 @@ export function createUndo({
     return false;
   }
   // Take back `event`, then leave the user at its place: for a settlement this page
-  // made, its thread in the reader it was made in, else the place where it stood out of
-  // view when they pressed. Both are read before the withdrawal, which takes the
-  // settlement's reader with it. What it changed is tinted once the user is there.
+  // made, its thread, else the place where it stood out of view when they pressed. Both
+  // are read before the withdrawal, which takes the settlement's mark with it. What it
+  // changed is tinted once the user is there. Only a place out of view is travel there,
+  // a Back step by travel's rule (anchor-travel.js, `prepareNavigationStep`); a thread
+  // in view opens where the user stands. Undo keeps no history of its own.
   /** @param {UndoEvent} event */
   function walkTo(event) {
     const settled = settledHere(event);
-    const travels = Boolean(settled) || outOfView(event);
+    const away = outOfView(event);
+    const travels = settled || away;
     const intent = retainUserIntent();
     const answer = withdraw(event);
     if (!answer) return null;
     void whenDocumentPresented()
       .then(async () => {
-        if (travels) await show(event, intent, settled?.reader);
+        if (travels) await show(event, intent, away);
         tint(event);
       })
       .catch(() => {});
@@ -516,18 +526,18 @@ export function createUndo({
 
   // The press a notice of the gesture made under `attempt` offers (notifications.js,
   // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
-  // Undo (thread/folding.js, `nextStep`). It takes
-  // back that gesture as ⌘Z takes the list's head, never what ⌘Z would take by then,
-  // and stands while the page can still take the gesture back, so the log refusing it,
-  // or its withdrawal by any route, takes the notice away.
+  // Undo (thread/folding.js, `nextStep`). It names ⌘Z's command only while ⌘Z would
+  // take that gesture: once another gesture of the user's is the newest, it names no
+  // command, and the notice keeps its words without a press. The notice stands
+  // while the page can still take the gesture back (`stands`), so the log refusing it,
+  // or its withdrawal by any route, takes the notice away. The user chose dropping the
+  // press over keeping one that took back its own gesture while the ⌘Z it showed took
+  // the newer one: a press showing ⌘Z does what ⌘Z does.
   /** @param {string} attempt @returns {import("./notifications.js").NoticePress} */
   const offerUndo = (attempt) => ({
     action: "undo",
-    command: "history.undo",
-    run() {
-      if (!settled()) return null;
-      const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
-      return entry ? walkTo(entry.event) : null;
+    get command() {
+      return next()?.attempt === attempt ? "history.undo" : null;
     },
     stands: () => takeable()?.has(attempt) ?? true,
   });

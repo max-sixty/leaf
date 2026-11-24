@@ -127,7 +127,6 @@ import {
   offer,
   offerAction,
   placePreview,
-  pressIsKeyboardActivation,
   quoted,
   reachedForWords,
   rowWalk,
@@ -308,7 +307,7 @@ customElements.define(
         if (!(target instanceof Element)) return;
         const option = target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
+        if (e.detail !== 0 && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
@@ -390,6 +389,9 @@ customElements.define(
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       const host = offer(DONE_TAG, "lf-options-done");
+      // Done fills its cell, a joined run of one press that takes the cell's corners
+      // (controls.css, `data-lf-joined`), which options.css states for each form.
+      host.dataset.lfJoined = "";
       const button = offerAction("commit", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");

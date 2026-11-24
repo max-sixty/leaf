@@ -88,21 +88,16 @@ import {
   alreadyShown,
   generatedElement,
   dragging,
-  cancelAnimation,
-  nextAnimation,
   compoundReadingRegionId,
   registerReadingRegion,
-  keepsHidden,
   el,
   focusDestination,
-  closeNativeLayer,
   holdFocus,
   actionTemplate,
   iconTemplate,
   inBaseLayer,
   offered,
   offeredAction,
-  pressIsKeyboardActivation,
   keeps,
   keepsText,
   LeafElement,
@@ -113,7 +108,6 @@ import {
   registerVisualParts,
   scopedMediaUrl,
   retainUserIntent,
-  scrollBehavior,
   scrollIntoView,
   setChildren,
   showReadingSubject,
@@ -1078,7 +1072,7 @@ export class Trace extends LeafElement {
     if (!this.#playing && !this.#scrubbing) return;
     // A playing film is continuous mechanical motion, outside resting proof.
     // Pausing keeps the playhead where it stands.
-    if (this.#playFrame) cancelAnimation(this.#playFrame);
+    if (this.#playFrame) cancelAnimationFrame(this.#playFrame);
     this.#playFrame = 0;
     this.#playing = false;
     this.#playbackWanted = null;
@@ -1131,7 +1125,7 @@ export class Trace extends LeafElement {
       const waiting = this.#pendingPicture || this.#playbackWanted;
       if (waiting && (!shown || time - shown.timestamp > MAX_LAG)) {
         previousTick = now;
-        this.#playFrame = nextAnimation(tick);
+        this.#playFrame = requestAnimationFrame(tick);
         return;
       }
       time = Math.min(
@@ -1152,9 +1146,9 @@ export class Trace extends LeafElement {
       } else this.#drawTime();
       this.#revealTime("page");
       if (time === end) this.pause();
-      else this.#playFrame = nextAnimation(tick);
+      else this.#playFrame = requestAnimationFrame(tick);
     };
-    this.#playFrame = nextAnimation(tick);
+    this.#playFrame = requestAnimationFrame(tick);
   }
   // Fetch and decode the next captures playback will show.
   #warmed = new Set();
@@ -1341,43 +1335,33 @@ export class Trace extends LeafElement {
 
   #indexTargets() {
     this.#targets.clear();
-    for (const action of this.#recording.actions) {
-      const firstPhase = this.#phases(action)[0];
-      const pageId = action.pageId;
-      const firstPageId = checkpointOf(action, firstPhase)?.pageId ?? pageId;
-      const scope = this.#targetScope(action.stream, firstPageId);
-      this.#targets.set(this.#id("action", action.id), {
-        action,
-        scope,
-        pageId: firstPageId,
-        phase: firstPhase,
-        label: action.title,
-      });
-      for (const phase of this.#phases(action)) {
-        this.#targets.set(this.#phaseId(action, phase), {
+    for (const action of this.#recording.actions)
+      for (const [index, phase] of this.#phases(action).entries()) {
+        const checkpoint = checkpointOf(action, phase);
+        const pageId = checkpoint?.pageId ?? action.pageId;
+        const at = {
           action,
-          pageId: checkpointOf(action, phase)?.pageId ?? pageId,
-          scope: this.#targetScope(
-            action.stream,
-            checkpointOf(action, phase)?.pageId ?? pageId,
-          ),
+          pageId,
+          scope: this.#targetScope(action.stream, pageId),
           phase,
+        };
+        // An action's own target takes its first phase's page and scope.
+        if (index === 0)
+          this.#targets.set(this.#id("action", action.id), {
+            ...at,
+            label: action.title,
+          });
+        this.#targets.set(this.#phaseId(action, phase), {
+          ...at,
           label: `${action.title} · ${PHASES[phase]}`,
         });
-        for (const node of checkpointOf(action, phase)?.tree?.nodes ?? [])
+        for (const node of checkpoint?.tree?.nodes ?? [])
           this.#targets.set(this.#nodeId(action, phase, node), {
-            action,
-            pageId: checkpointOf(action, phase)?.pageId ?? pageId,
-            scope: this.#targetScope(
-              action.stream,
-              checkpointOf(action, phase)?.pageId ?? pageId,
-            ),
-            phase,
+            ...at,
             node,
             label: `${action.title} · ${PHASES[phase]} · ${nodeName(node)} · path ${node.path}`,
           });
       }
-    }
     for (const image of this.#recording.images)
       this.#targets.set(this.#id("image", image.id), {
         image,
@@ -1464,21 +1448,21 @@ export class Trace extends LeafElement {
     if (!travel) return;
     await this.#pendingPicture?.ready;
     if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
+    const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "instant"
+      : "smooth";
     // A saved element's row stands in the tree's own scroll box, which can hide it
     // inside the window. A nearest landing reveals it there and the tree in the page,
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) scrollIntoView(row, { block: "nearest", behavior: scrollBehavior() });
+      if (row) scrollIntoView(row, { block: "nearest", behavior });
       return;
     }
     // The moment's picture comes to the middle of the window where the user does not
     // already see it whole, as a pane or the floating panel can keep it from them.
     if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
-      scrollIntoView(this.#nodes.stage, {
-        block: "center",
-        behavior: scrollBehavior(),
-      });
+      scrollIntoView(this.#nodes.stage, { block: "center", behavior });
   }
 
   #stream() {
@@ -1678,7 +1662,7 @@ export class Trace extends LeafElement {
         // the same place and scale (defaults.css, `--lf-trace-capture`), so a hit on
         // it reaches the canvas part.
         move(this.#imageSurface(this.#pictureId).canvas, layer);
-        keepsHidden(layer, false);
+        layer.toggleAttribute("hidden", false);
         this.#draw();
       },
       () => {
@@ -1691,7 +1675,7 @@ export class Trace extends LeafElement {
     this.#playbackWanted = null;
     if (this.#playbackId === null) return;
     this.#playbackId = null;
-    keepsHidden(this.#playbackImage, true);
+    this.#playbackImage.toggleAttribute("hidden", true);
   }
 
   #closePicture() {
@@ -1953,7 +1937,7 @@ export class Trace extends LeafElement {
     const read = input && image ? this.#inputRelation(image, input) : null;
     const relation = read === "before" ? null : read;
     const action = relation ? input : null;
-    keepsHidden(this.#inputBadge, !action || !imageReady);
+    this.#inputBadge.toggleAttribute("hidden", !action || !imageReady);
     const span = action
       ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
       : "";
@@ -1986,7 +1970,7 @@ export class Trace extends LeafElement {
       imageReady &&
       image.pageId === action.pageId &&
       this.#picture?.viewed;
-    keepsHidden(this.#inputPoint, !visible);
+    this.#inputPoint.toggleAttribute("hidden", !visible);
     if (visible) {
       keeps(this.#inputPoint, "data-lf-x", String(coordinate.x / viewport.width));
       keeps(this.#inputPoint, "data-lf-y", String(coordinate.y / viewport.width));
@@ -2316,7 +2300,7 @@ export class Trace extends LeafElement {
                       const pressed = this.#pressedPlay;
                       this.#playIntent =
                         pressed &&
-                        !pressIsKeyboardActivation(event) &&
+                        event.detail !== 0 &&
                         event.pointerId === pressed.pointerId
                           ? pressed.pause
                           : null;
@@ -2460,7 +2444,7 @@ export class Trace extends LeafElement {
                     aria-label=${label}
                     @click=${() => {
                       run();
-                      closeNativeLayer(this.#nodes.imageScaleOptions);
+                      this.#nodes.imageScaleOptions.hidePopover();
                       focusDestination(this.#nodes.imageScale, "move");
                     }}
                   >
@@ -2648,7 +2632,7 @@ export class Trace extends LeafElement {
         render(this.#template(...this.#drawing), this.#view, this.renderOptions);
       },
     );
-    keepsHidden(this.#missingImage, !!this.#pictureId);
+    this.#missingImage.toggleAttribute("hidden", !!this.#pictureId);
     keepsText(
       this.#missingImage,
       !this.#trace

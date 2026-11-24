@@ -104,7 +104,7 @@ vars:
 
     ---
 
-    Write the page in the initialized Leaf page directory.
+    Write the page in the Leaf page directory.
 assert:
   - type: llm-rubric
     metric: skim-reads-coherently

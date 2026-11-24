@@ -1,7 +1,9 @@
-import { pageScroller } from "/runtime/widget-api.js";
 import {
+  elementBorderFrame,
+  innerBox,
   layoutBox,
   pageDocument,
+  pageScroller,
   inPage,
   readingRegions,
   regionScrollBehavior,
@@ -12,6 +14,7 @@ import {
   uiInside,
   userScrollport,
 } from "/runtime/check-api.js";
+import { says } from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { drawnPage, openRoots } from "./open-roots.js";
@@ -360,16 +363,14 @@ export function misplacedBoxes() {
   // The shell the Layout's box stands in: `body`, or a `main` holding it.
   const shell = main.parentElement ?? document.body;
   const shellStyle = getComputedStyle(shell);
-  const shellBox = shell.getBoundingClientRect();
   // Inside the shell's border, scrollbar gutters and padding, which are in the shell's
-  // own pixels, scaled to the window's by any transform on the shell or around it.
-  const scale = shellBox.width / shell.offsetWidth || 1;
-  const roomLeft =
-    shellBox.left + (shell.clientLeft + parseFloat(shellStyle.paddingLeft)) * scale;
-  const roomRight =
-    shellBox.left +
-    (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) *
-      scale;
+  // own pixels, carried to the window's through any transform on the shell or around it.
+  const { left: roomLeft, right: roomRight } = innerBox(shell, {
+    left: shell.clientLeft + parseFloat(shellStyle.paddingLeft),
+    top: shell.clientTop,
+    right: shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight),
+    bottom: shell.clientTop + shell.clientHeight,
+  });
   const { isMarginContent, left, marginElements, right } = marginReading(
     main,
     roomLeft,
@@ -457,9 +458,19 @@ export function misplacedBoxes() {
     const s = getComputedStyle(el);
     if (draws(el) || s.boxShadow !== "none") return box;
     if (!parseFloat(s.paddingLeft) && !parseFloat(s.paddingRight)) return box;
-    const scale = box.width / /** @type {HTMLElement} */ (el).offsetWidth || 1;
-    let left = box.left + parseFloat(s.paddingLeft) * scale;
-    let right = box.right - parseFloat(s.paddingRight) * scale;
+    // In from the border box's edges, which an inline box has where it has no client box.
+    const frame = elementBorderFrame(el, box);
+    const content =
+      frame &&
+      innerBox(el, {
+        left: parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft),
+        top: 0,
+        right:
+          frame.width - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight),
+        bottom: frame.height,
+      });
+    if (!content) return box;
+    let { left, right } = content;
     const range = document.createRange();
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) continue;
@@ -765,7 +776,7 @@ export function misplacedBoxes() {
 // left edge, in the table's reading direction, and named by the first column heading
 // standing on it, a head's outranking a foot's; a heading's name is what it says, so
 // a comment badge the mark pass put in it stays out, through the runtime's own
-// `uiInside`. A cell that says `colspan`, whatever the number, belongs to no column,
+// `says`. A cell that says `colspan`, whatever the number, belongs to no column,
 // and the sheet leaves it wrapping — one predicate for both, since a `colspan="1"`
 // read as a column by one and left wrapping by the other would go unreported: a note
 // across the whole table wraps because it is long, says nothing about a squeeze, and
@@ -794,15 +805,6 @@ export function misplacedBoxes() {
 export function squeezedTables() {
   const page = pageDocument();
   if (!page) return [];
-  // What a heading says, for the column's name.
-  /** @param {Element} cell */
-  const says = (cell) => {
-    let text = "";
-    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    for (let node; (node = walker.nextNode());)
-      if (!uiInside(node.parentElement, cell)) text += node.textContent;
-    return text.trim().replace(/\s+/g, " ");
-  };
   // The element whose visible words stand outside the table's inner box, or null. Every
   // character counts: spaces a cell keeps hold its column open and wrap the prose beside
   // it, which is the squeeze this reports.
@@ -922,15 +924,6 @@ export function squeezedTables() {
 export function brokenNames() {
   const page = pageDocument();
   if (!page) return [];
-  // A cell's words, leaving out what Leaf drew in it, such as a comment's badge.
-  /** @param {Element} cell */
-  const cellWords = (cell) => {
-    let text = "";
-    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    for (let node; (node = walker.nextNode());)
-      if (!uiInside(node.parentElement, cell)) text += node.textContent;
-    return text.trim();
-  };
   const found = [];
   const range = document.createRange();
   for (const table of page.querySelectorAll("table")) {
@@ -943,7 +936,7 @@ export function brokenNames() {
       const cell = code.closest("td, th");
       if (!cell || cell.closest("table") !== table) continue;
       const name = code.textContent?.trim() ?? "";
-      if (!name || /\s/.test(name) || cellWords(cell) !== name) continue;
+      if (!name || /\s/.test(name) || says(cell) !== name) continue;
       if (!code.checkVisibility()) continue;
       range.selectNodeContents(code);
       const drawn = [...range.getClientRects()].filter((rect) => rect.width > 1);

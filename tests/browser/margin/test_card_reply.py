@@ -75,7 +75,9 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
         browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
     )
     resized(page, 1440, 900)
-    page.locator("#open").scroll_into_view_if_needed()
+    # The paragraph stands mid-window, so the page has room to scroll either way at the
+    # thread's edges.
+    page.locator("#open").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
@@ -130,7 +132,9 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     )
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
-    page.locator("#open").scroll_into_view_if_needed()
+    # The paragraph stands mid-window, so the page has room to scroll either way at the
+    # thread's edges.
+    page.locator("#open").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card.locator("leaf-text")).to_be_focused()
@@ -237,7 +241,7 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
 def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     """The card is the thread's one frame. The thread the keyboard opens a card onto
     fills it with no tint and no ring of its own, and the card wears the ring, whole,
-    at its own edge. The reply field keeps its box, standing at the card's padding.
+    at its own edge. The reply field keeps its box, running to the card's sides.
 
     It doesn't ring and tint the thread inside the card's border, a frame in a frame
     with the reply field a third box inside that.
@@ -282,10 +286,34 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     # The thread paints no ground, so the card's paper shows through it.
     assert frame["ground"] == "rgba(0, 0, 0, 0)", frame
     assert frame["fieldBorder"] == "solid", frame
-    # The field's box stands at the card's padding; words share the conversation's
-    # reading inset, rather than gaining a second frame.
-    assert frame["field"][0] - frame["card"] == 13, frame
-    assert frame["inset"] == frame["field"][0] - frame["card"] + 13, frame
+    # The field's box runs to the card's sides, inside its border; words share the
+    # conversation's reading inset, rather than gaining a second frame.
+    assert frame["field"][0] - frame["card"] == 1, frame
+    assert frame["inset"] == 15, frame
+
+
+def test_a_card_reply_s_ring_stands_over_an_error_about_it(browser, serve):
+    """The ring the card's reply box wears while it holds the caret stands one band
+    inside the box's edge, so an error about the box, which covers its words to that
+    edge, leaves the ring whole."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    resized(page, 1440, 900)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    page.keyboard.press("Tab")  # keyboard modality, so the box's focus is visible
+    marker.focus()
+    page.keyboard.press("Enter")
+    reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    reply.focus()
+    expect(reply).to_be_focused()
+    reply.evaluate(
+        "async (subject) => (await window.__lfWidgetApi())"
+        ".raiseError('That writing place is unavailable', {subject})"
+    )
+    expect(page.locator(".lf-margin-preview .lf-compose-error")).to_be_visible()
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert any(".lf-compose-field" in seen["rule"] for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "under an error")), "\n".join(faults)
 
 
 def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
@@ -1059,7 +1087,8 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     field = preview.locator(".lf-thread-reply .lf-compose-field")
     before = field.bounding_box()
     ring = field.evaluate(
-        "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
+        "node => getComputedStyle(node, '::after').outlineColor"
+        ".match(/\\d+/g).map(Number)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("Shift+Enter")
@@ -1097,9 +1126,10 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
             for seen in row
         ) / len(row)
 
-    # The ring stands two pixels outside the field's box: its top band ends at the
-    # field's top, 4 px into the clip, and its bottom band starts at the field's foot.
-    edges = {"top": ringed(3), "bottom": ringed(stood["height"] + 5)}
+    # The ring stands one band inside the field's box, which runs to the card's sides
+    # and foot: its top band starts at the field's top, 4 px into the clip, and its
+    # bottom band ends at the field's foot.
+    edges = {"top": ringed(5), "bottom": ringed(stood["height"] + 3)}
     page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
     assert min(edges.values()) > 0.8, edges
 
@@ -1310,18 +1340,22 @@ def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visi
     clearance = image.evaluate(
         """image => {
           const field = image.closest('.lf-thread-reply').querySelector('.lf-compose-field');
-          const ring = Math.max(...[field, field.querySelector('leaf-text')].map(box => {
-            const style = getComputedStyle(box);
-            return style.outlineStyle === 'none'
-              ? 0 : parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-          }));
+          // The field draws its ring on its ::after, which stands out from the
+          // field by its negative inset.
+          const worn = [getComputedStyle(field, '::after'),
+            getComputedStyle(field.querySelector('leaf-text'))]
+            .filter(style => style.outlineStyle !== 'none');
+          const ring = Math.max(0, ...worn.map(style =>
+            -(parseFloat(style.top) || 0) + parseFloat(style.outlineWidth)
+              + parseFloat(style.outlineOffset)));
           const shelf = getComputedStyle(image.closest('.lf-composer-media'));
-          return {ring, gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
+          return {worn: worn.length, ring,
+                  gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
                   clear: field.getBoundingClientRect().top - ring
                     - image.getBoundingClientRect().bottom};
         }"""
     )
-    assert clearance["ring"] > 0, clearance
+    assert clearance["worn"], clearance
     assert clearance["clear"] >= clearance["gap"] - 0.5, clearance
     write(
         editor, "\n".join(f"A reply with several lines, line {n}." for n in range(30))
@@ -2740,6 +2774,46 @@ def test_an_answer_a_card_followed_says_new_reply_once_its_picture_outgrows_it(
     words = asked.bounding_box()
     assert transcript.bounding_box()["y"] <= head["y"], head
     assert words["y"] + words["height"] <= press.bounding_box()["y"], words
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_s_turn_glided_into_sight_stays_there_as_the_transcript_above_grows(
+    engine, request, serve
+):
+    """A reader at the card's end whose answer arrives too long to show with their turn
+    has the card glide their turn into sight above New reply (thread-card.js,
+    `#fitAnswer`), and the turn stands there though a message above it grows 150px as
+    the card glides."""
+    page, preview, transcript = open_long_thread(request.getfixturevalue(engine), serve)
+    page.emulate_media(reduced_motion="no-preference")
+    press = preview.locator(".lf-new-reply")
+    preview.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text("And over the weekend?")
+    with sending(page, "the turn"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    # The first message grows in the task that sets the glide off, after New reply
+    # joins the card.
+    transcript.evaluate(
+        """list => new MutationObserver((records, observer) => {
+          if (!list.closest('.lf-margin-preview').querySelector('.lf-new-reply'))
+            return;
+          observer.disconnect();
+          list.querySelector('.lf-msg').style.paddingBottom = '150px';
+        }).observe(list.closest('.lf-margin-preview'), { subtree: true, childList: true })"""
+    )
+    agent_says(
+        page,
+        serve.page_dir,
+        "It would. " + "Someone stays on call through Sunday. " * 60,
+    )
+    expect(press).to_have_text("New reply")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    asked = transcript.locator(".lf-msg", has_text="And over the weekend?")
+    words = asked.bounding_box()
+    assert transcript.bounding_box()["y"] <= words["y"], words
+    assert words["y"] + words["height"] <= press.bounding_box()["y"] + 1, words
 
 
 def test_an_edit_landing_as_a_card_s_last_turn_grows_shows_at_its_end(browser, serve):

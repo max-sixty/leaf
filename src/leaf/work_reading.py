@@ -1,7 +1,6 @@
 """`WorkReading`: the to-dos, obligations, plan and workflows one document and its log hold.
 
-Its readings come from the event log, one revision's document and registry, and
-the current validated data publications for record obligations.
+Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
 sent the event (`event_meaning.AdmissionReadings`), serving against
 the active revision (`served_state.work`), and a view pinned to an older revision
@@ -31,12 +30,10 @@ class WorkReading:
         within=None,
         thread=None,
         log=None,
-        data=None,
     ):
         self.events = events
         self.registry = registry
         self.page = page
-        self.data = data or {"sources": {}}
         # The published page's containment, which every fold of the threads takes,
         # whichever revision's document this reading reads them beside.
         self.within = (
@@ -60,7 +57,6 @@ class WorkReading:
             page,
             within=self.within,
             log=self.log,
-            data=self.data,
         )
 
     @cached_property
@@ -85,7 +81,6 @@ class WorkReading:
             self.threads,
             self.log,
             reading=self.thread,
-            data=self.data,
         )
 
     @cached_property
@@ -100,7 +95,7 @@ class WorkReading:
     @cached_property
     def document(self):
         return (
-            read_document(self.page, self.threads, self.log, data=self.data)
+            read_document(self.page, self.threads, self.log)
             if self.page is not None
             else None
         )
@@ -131,20 +126,9 @@ class WorkReading:
         on it is owed."""
         return self._handover.records
 
-    @cached_property
-    def plan(self) -> dict | None:
+    def plan(self, records: list[dict]) -> dict | None:
+        """The plan in force, its steps reading the page's `records`: this reading's
+        obligations and the to-dos, standing as `activity` reads them."""
         return plan_reading(
-            self.events, self.log.withdrawn, self.log.todos, self.all_obligations["all"]
+            self.events, self.log.withdrawn, [*self.all_obligations["all"], *records]
         )
-
-    def page_todos(self, aged: list[dict]) -> list[dict]:
-        """Every to-do, open and ended, with its thread, and an open one's activity
-        as `aged` (`activity._canonical_todos`) reads it."""
-        by_id = {todo["id"]: todo for todo in aged}
-        return [
-            {
-                **by_id.get(todo["id"], todo),
-                "thread": self.thread.subject_thread(todo["subject"]),
-            }
-            for todo in self.log.todos
-        ]

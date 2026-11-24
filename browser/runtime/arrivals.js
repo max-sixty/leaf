@@ -35,8 +35,9 @@
    evicts a replaced widget before its replacement connects, and a registration only
    one element may hold passes from one to the other. A connection also ends the
    batch, so an element removed before it and put back after it leaves and returns.
-   The runtime's own subscriptions (data, projections, widget controllers) and
-   LeafElement rendering hold it directly.
+   The runtime's own subscriptions (data, projections, widget controllers),
+   LeafElement rendering and the host of other declared elements
+   (element-integration.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
@@ -44,7 +45,9 @@
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
    scroll or scroll end crosses one either, so this module hears the document's and
-   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`).
+   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). Its
+   writes include the reading of the page with boxes scrolled elsewhere and put back in
+   one task (`readScrolled`).
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
@@ -420,6 +423,43 @@ const moves = (box, { top, left }) => {
     along(top, box.scrollTop, range.top) || along(left, box.scrollLeft, range.left)
   );
 };
+
+// Read the page with each box in `at` scrolled to the offset it names: every box is
+// written, `read` runs, and every box goes back where it stood before the task ends, so
+// no frame draws it there. The browser lays a box's content out as a scroll write
+// lands, sticky boxes, their holders' ends, transforms and nested scrollers included,
+// so a read just after is exact (Chromium 159, Firefox 159), where a model of that
+// layout needs a stuck box's own place, which Firefox can't read (geometry.js,
+// `stuckShift`). A box Leaf anchors (css-anchors.js) takes a write only at the next
+// frame (notes/browser-support.md, "A reveal of an anchored fixed box before the next
+// frame in Chromium"), so past one its anchor's holder is what to read
+// (scroll-containers.js, `carrying`). `read` only reads: a write of its own would be
+// undone.
+//
+// Each box costs a write and a write back, a few hundredths of a millisecond with the
+// read, and one `scroll` and one `scrollend` at the next rendering update. A write also
+// stops a smooth scroll a script set going in the box (Chromium and Firefox) and
+// Firefox's rubber band of a flick into its edge, though not a key's, as PageDown's. So
+// the only boxes written are those a glide of Leaf's is moving (scrolling.js,
+// `whereGlidesLand`), which nothing else moves: their events fold into those of the
+// glide's own writes, or read as a frame of the glide that moved nothing, and the
+// glide holds the box's scroll sequence open (`holdScroll`), so they end nothing.
+/** @template T @param {Iterable<readonly [Element, number]>} at @param {() => T} read @returns {T} */
+export function readScrolled(at, read) {
+  /** @type {[Element, number][]} */
+  const stood = [];
+  try {
+    for (const [box, top] of at) {
+      if (!moves(box, { top })) continue;
+      stood.push([box, box.scrollTop]);
+      box.scrollTo({ top, behavior: "instant" });
+    }
+    return read();
+  } finally {
+    for (const [box, top] of stood)
+      if (box.scrollTop !== top) box.scrollTo({ top, behavior: "instant" });
+  }
+}
 // The positions a box's scroll takes on each axis, as the browser clamps a write: from
 // zero to the side where the box's content flows from, the negative one where that is
 // the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;

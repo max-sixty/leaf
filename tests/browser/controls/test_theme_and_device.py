@@ -170,8 +170,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
-      const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
+      const {agentArrivalDuration} = await window.__lfCheckApi();
+      const animation = owner.backgroundFlash(document.querySelector('#subject'));
       const played = animation.effect.getTiming().duration;
       animation.finish();
       arrival.remove();
@@ -190,16 +190,15 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
-    reading = """() => window.__lfWidgetApi().then(
-      motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
-    assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
+    assert not page.evaluate(
+        "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
+    ), "the page loaded under reduced motion, so the change below is none"
 
     page.emulate_media(reduced_motion="reduce")
-    assert page.evaluate(reading) == {"reduced": True, "scroll": "instant"}
     step = page.evaluate(
-        "() => { const s = getComputedStyle(document.scrollingElement); return ("
+        "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
@@ -210,7 +209,6 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     ), "the navigation factory kept its load-time motion preference"
 
     page.emulate_media(reduced_motion="no-preference")
-    assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
     # A glide shares a frame the page already asked for (rendering.js), so with none
     # asked for, its frames are the ones held here.
@@ -226,6 +224,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     )
     page.keyboard.press("d")
     assert page.evaluate("() => window.__lfFrames.length") > 0
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
+        "the step landed at once after the user asked for motion again"
+    )
     page.emulate_media(reduced_motion="reduce")
     page.evaluate(
         """() => {
@@ -704,8 +705,8 @@ FACE = (
 )
 
 
-@pytest.mark.parametrize("theme", [None, False])
-def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme):
+@pytest.mark.parametrize("reading", [True, False])
+def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, reading):
     """Where the page's theme turns on markup's reading face, a bare button, a submit
     button, a pressed submit button and a text field the page writes wear the faces of
     Leaf's own word, commit, pressed commit and field (controls.css, "The faces of
@@ -729,7 +730,7 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
                 ' <label id="own-nested"><span><input id="own-mark" type="checkbox">'
                 "</span>Include images</label></p>",
             ),
-            theme=theme,
+            reading=reading,
         ),
     )
     page.evaluate(LEAF_CONTROLS)
@@ -753,13 +754,13 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
         for own, leaf in pairs.items()
     }
     for own, (drawn, leaf) in faces.items():
-        if theme is False:
+        if not reading:
             assert drawn["paddingLeft"] != leaf["paddingLeft"], (own, drawn)
         else:
             assert drawn == leaf, own
     mark = page.locator("#own-mark")
     style = "(el, p) => getComputedStyle(el)[p]"
-    if theme is False:
+    if not reading:
         assert mark.evaluate(style, "appearance") == "auto"
         return
     assert mark.evaluate(style, "appearance") == "none"
@@ -774,8 +775,8 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
     assert mark.evaluate(style, "outlineStyle") == "none"
 
 
-@pytest.mark.parametrize("theme", [None, False])
-def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
+@pytest.mark.parametrize("reading", [True, False])
+def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, reading):
     """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
     the neutral colours Leaf draws in step from the one toward the other
     (styles/tokens.css), with a theme or without one. Were each neutral a colour stated
@@ -790,7 +791,7 @@ def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
                 head="<style>:root { color-scheme: dark; --lf-paper: #101828;"
                 " --lf-ink: #e2e8f0; } html { background: var(--lf-paper); }</style>",
             ),
-            theme=theme,
+            reading=reading,
         ),
     )
     page.evaluate(LEAF_CONTROLS)

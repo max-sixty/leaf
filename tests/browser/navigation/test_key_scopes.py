@@ -752,12 +752,9 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 
     outside = page.locator("#outside")
     outside.focus()
-    page.evaluate("""async () => {
-      const {showNativeLayer} = await window.__lfWidgetApi();
-      showNativeLayer(document.querySelector('#scripted-list'), {
-        source: document.querySelector('#scripted-control'),
-      });
-    }""")
+    page.evaluate("""() => document.querySelector('#scripted-list').showPopover({
+      source: document.querySelector('#scripted-control'),
+    })""")
     opener = page.locator("#scripted-control")
     expect(page.locator("#scripted-list")).to_be_visible()
     expect(opener).to_have_attribute("aria-expanded", "true")
@@ -778,13 +775,17 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     letting go of a control is what Leaf does with an Escape nothing else took, read
     after every listener the page has.
 
-    Every other key Leaf reads on the root element, after a listener on any element and
-    before the page's on the document and the window. So a command declared on a
-    focused element runs before a page-wide shortcut for the same key, which hears only
-    what Leaf leaves; Escape leaves Design mode before a page listener that prevents
-    every Escape hears it, from a focused page control too, and that listener hears the
-    next Escape. Go-to owns the keyboard while it is armed, so its Escape closes it before
-    that listener hears the key."""
+    Every other key, printed letters included, Leaf reads on the root element, after a
+    listener on any element and before the page's on the document and the window. So a
+    page widget that answers a letter Leaf's page also uses, as a film plays on `k`,
+    keeps it while focus is in the widget, and a letter it leaves unprevented goes on to
+    Leaf's page command. With nothing focused, a key is aimed at the page itself, and
+    Leaf's command for it runs first, so a listener on `body` that prevents the letter
+    neither hears it nor acts beside Leaf. A command declared on a focused element runs before a page-wide
+    shortcut for the same key, which hears only what Leaf leaves; Escape leaves Design
+    mode before a page listener that prevents every Escape hears it, from a focused page
+    control too, and that listener hears the next Escape. Go-to owns the keyboard while it
+    is armed, so its Escape closes it before that listener hears the key."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -915,6 +916,94 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     assert page.evaluate("() => window.arrows") == 0
     page.keyboard.press("ArrowLeft")
     assert page.evaluate("() => window.arrows") == 1
+
+    # A page widget's own listener, declaring nothing.
+    page.evaluate("""() => {
+      const film = document.createElement('section');
+      film.id = 'film';
+      film.tabIndex = 0;
+      film.textContent = 'A film';
+      window.played = 0;
+      film.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.played += 1;
+      });
+      document.querySelector('main').append(film);
+      window.ran = [];
+      document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+      film.focus();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, []]
+    page.keyboard.press("j")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, ["scroll.down"]]
+
+    # With nothing focused, a listener on `body` that prevents the letter.
+    page.evaluate("""() => {
+      window.heard = 0;
+      document.body.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.heard += 1;
+      });
+      window.ran = [];
+      document.activeElement.blur();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.heard, window.ran]") == [0, ["scroll.up"]]
+
+
+def test_a_widget_in_a_message_keeps_a_key_it_answers(browser, serve):
+    """A message's markup is a document its writer authored, though the panel showing
+    it stands outside `body`, so a widget there keeps a key its own listener answers
+    and prevents, as it would on the page, and Leaf's command for the key doesn't act
+    beside it. Where the key was aimed is read as it is pressed, so the widget keeps it
+    even where its answer redraws the element the key was aimed at."""
+    url = serve(LONG_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-film",
+            "author": "user",
+            "revision": 1,
+            "text": "Show me the film.",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "c-film",
+            "revision": 1,
+            "text": "Here it is.",
+        },
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, "c-film")
+    view.locator(".lf-msg-body").last.evaluate("""(body) => {
+      const film = document.createElement('section');
+      film.tabIndex = 0;
+      film.textContent = 'A film';
+      window.played = 0;
+      film.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.played += 1;
+        const redrawn = film.cloneNode();
+        redrawn.textContent = 'A film, playing';
+        film.replaceWith(redrawn);
+        redrawn.focus();
+      });
+      body.append(film);
+      window.ran = [];
+      document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+      film.focus();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, []]
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
@@ -1079,8 +1168,8 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { showNativeLayer, commandsChanged } = await window.__lfWidgetApi();
-          const { shadowStage } = await window.__lfWidgetApi();
+          const { commandsChanged, shadowStage } = await window.__lfWidgetApi();
+          const { showNativeLayer } = await window.__lfCheckApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
           const dialog = document.createElement('dialog');
@@ -1602,12 +1691,14 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     says whether it repeats and the default is no.
 
     No gesture Playwright makes carries the repeat flag, so the press is dispatched with
-    it set. That is the event a held key sends and the handler under test is the one the
-    page installed; the tap below it, dispatched the same way and answered, is what says
-    so rather than leaving the held press to pass for want of reaching anything."""
+    it set, at the focused element as a real key is. That is the event a held key sends
+    and the handler under test is the one the page installed; the tap below it,
+    dispatched the same way and answered, is what says so rather than leaving the held
+    press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=3))
-    press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
+    press = """([key, repeat, shiftKey = false]) =>
+      (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent('keydown',
           {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
 

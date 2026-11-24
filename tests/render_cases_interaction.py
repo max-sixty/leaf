@@ -457,8 +457,14 @@ HOLD_MOTION = """
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
     // A scroll timeline owns its progress; assigning an absolute time to it throws.
-    // The hold is for gesture animations on the document timeline.
-    if (motion.timeline !== document.timeline) return motion;
+    // The hold is for gesture animations on the document timeline that end. An endless
+    // one has no last frame to step to or finish, as a glide's hold on scroll anchoring
+    // has none (scrolling.js, `holdBox`).
+    if (
+      motion.timeline !== document.timeline ||
+      motion.effect?.getComputedTiming().endTime === Infinity
+    )
+      return motion;
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);
@@ -1065,7 +1071,6 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-visual-review id="ab-visual" source="ab-run"></lf-visual-review>
 """,
 )
 
@@ -1089,11 +1094,6 @@ ACTIONS_IN_FORCE = [
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),
     ("ab-triage", "answer", {}),
-    (
-        "ab-visual",
-        "review",
-        {"case": "status-column", "approved": True},
-    ),
     ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
@@ -1307,9 +1307,7 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "attributes": {
         "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "asks": {"type": "boolean"},
-            "restated": {"type": "boolean"},
         },
         "required": ["id"],
         "additionalProperties": False,

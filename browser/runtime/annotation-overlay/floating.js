@@ -4,9 +4,9 @@
    Each places a box beside something on the page, and each leaves the browser's
    coordinate spaces to Floating UI. `computePosition` maps what the box stands against
    into the box's own positioning space: a containing block, a frame, or WebKit's
-   visual-viewport offset for a fixed box under pinch zoom. `autoUpdate`
-   follows every scroll container, resize, visual-viewport change, and layout shift that
-   can move it. Which side a surface takes and how far it stands is stated as its
+   visual-viewport offset for a fixed box under pinch zoom. `autoUpdate` follows every
+   resize and layout shift that can move it, and `floatingPlacement` every scroll
+   (below). Which side a surface takes and how far it stands is stated as its
    middleware, by comment-placement.js for both.
 
    `floatingPlacement` is one box's lifecycle around those two calls: it watches the
@@ -17,22 +17,31 @@
 
    A fixed box stands in the plane of whatever holds it, so the scroll that moves that
    holder carries the box and a placement after it finds the same insets: the `page`'s
-   where it stands beside what it is about, a `region`'s where the edge of a reading
-   region it stands in holds it in, and the `window`'s where the window's edge does. The
-   surface names the plane from the constraint that bound its answer (`planeOf`), not
-   from where the box landed. In the page's plane the box is
-   anchored (CSS anchor positioning) to the element it stands beside, with its spot
-   written as insets from that anchor, so the browser carries it through every scroll
-   that moves the anchor, in step with the words, as every box that follows scrolled
-   content is carried (css-anchors.js). Words standing directly in a box that scrolls
+   where it stands beside what it is about, a `region`'s where the edge of a box around
+   it, such as a reading region it stands in, holds it in, and the `window`'s where the
+   window's edge does. The surface names the plane from the constraint that bound its
+   answer (`planeOf`), the holding box included, not from where the box landed. In the
+   page's plane the box is anchored (CSS anchor positioning) to the element it stands
+   beside, with its spot written as insets from that anchor, so the browser carries it
+   through every scroll that moves the anchor, in step with the words, as every box that
+   follows scrolled content is carried (css-anchors.js). Words standing directly in a box that scrolls
    them anchor to the nearest element beside them in that box, or to the start of what
    it holds, which the same scroll carries (`anchorFor`), and words in a widget's shadow
    tree to their own element, which the document names through a part. The surface is
    not cut at a scroller's edge, since it reaches past the words it is about, so it
-   stands in no frame. In a region's plane the box is anchored to the region's body, the
-   box whose edges bound it, which the outer scrolls carry and the region's own scroll
-   does not. In the region's and the window's planes the answer depends on where the
-   words stand inside what holds the box in, so each scroll around them solves it again.
+   stands in no frame. In a region's plane the box is anchored to the box whose edge
+   holds it, which the outer scrolls carry and that box's own scroll does not. Each
+   scroll around the words solves the box again, whichever surface it is: the
+   placement listens to every scroller around the element it watches, and once an
+   answer stands the box beside the words, around them, one inside the tree of a
+   reference whose host does not move included (`watch`). In
+   the page's plane the answer writes nothing until an edge takes the box in; in the
+   region's and the window's planes it moves the box as the words move inside the box
+   that holds it in. Rejected: holding a box in by CSS alone, its inset clamped between
+   the window's edge and its anchor's (`clamp()` over `anchor()`). Chromium 159 solves
+   that at every frame, but Firefox 159 solves it once and then carries the box by the
+   scroll, as it does any anchored box, and WebKit 27.2 does the same under the wheel,
+   so there a box beside a tall element rode off the window's top.
    The box stays fixed, so native focus never scrolls the page under it.
    Unlike the margin's rows and Copy, the surface stays over the sticky headers a page
    declares rather than passing under them (css-anchors.js, `headerLevels`): it is where
@@ -69,15 +78,12 @@ import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { focused, onCurrentLocation } from "../focus.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
-import { shownBand } from "../geometry.js";
-import { containingReadingRegionFor } from "../reading-regions.js";
-import { upFrom, renderedParent } from "../shadow-tree.js";
+import { renderedParent } from "../shadow-tree.js";
 
 /** @typedef {import("@floating-ui/dom").MiddlewareState} MiddlewareState */
 /** @typedef {import("@floating-ui/dom").ComputePositionReturn} Position */
 /** @typedef {import("@floating-ui/dom").Side} Side */
 /** @typedef {{x: number, y: number}} Point */
-/** @typedef {{edge: Side, at: number}} HoldingEdge */
 /** @typedef {"page" | "window" | "region"} Plane */
 /** @typedef {import("@floating-ui/dom").VirtualElement & {
  * contextNode?: Node | null, geometry?: ReturnType<typeof floatingGeometry>
@@ -135,31 +141,6 @@ const anchorAt = (reference) => ({
     };
   },
 });
-
-// The box whose edge holds a surface in: of the scrollers and reading regions around what
-// it stands by, innermost first, the one whose box or visible band has that edge on the
-// client line `at`. The window's edges and its head room are none of theirs, which
-// leaves the surface in the window's plane.
-/** @param {HoldingEdge} holding @param {Element} context @param {ReturnType<typeof import("@floating-ui/dom").getOverflowAncestors>} overflowAncestors */
-function holderOf({ edge, at }, context, overflowAncestors) {
-  const candidates = overflowAncestors.filter(
-    /** @returns {source is Element} */
-    (source) => source instanceof Element && source !== document.scrollingElement,
-  );
-  /** @type {ReturnType<typeof containingReadingRegionFor> | null} */
-  let region = containingReadingRegionFor(context);
-  while (region) {
-    if (!candidates.includes(region.body)) candidates.push(region.body);
-    region = upFrom(region.host) && containingReadingRegionFor(upFrom(region.host));
-  }
-  return (
-    candidates.find((box) =>
-      [box.getBoundingClientRect(), shownBand(box)].some(
-        (rect) => rect && Math.abs(rect[edge] - at) < 1,
-      ),
-    ) ?? null
-  );
-}
 
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
@@ -229,10 +210,6 @@ function readFloatingEditor() {
   );
 }
 onCurrentLocation(readFloatingEditor);
-
-/** @param {Node | null | undefined} context */
-const physicalContext = (context) =>
-  context instanceof Element ? context : context?.parentElement;
 
 // A surface anchors to `context` (css-anchors.js, `anchorFor`). A presenter can retain
 // this reading beside its reference rectangle before a module load: the anchor boxes
@@ -342,8 +319,25 @@ export function floatingPlacement({ floating, update }) {
   // stands it at another (`position`).
   /** @type {WeakMap<Position, Position>} */
   const atStoodSize = new WeakMap();
-  /** @type {(() => void) | null} */
-  let stopScrollInvalidation = null;
+  // The scrollers around the element the box is watched against, or around the words
+  // the last answer stood it beside, each of whose scrolls solves it again.
+  /** @type {{context: Node | null, stop: () => void} | null} */
+  let scrolls = null;
+  /** @param {Node | null} context
+   * @param {typeof import("@floating-ui/dom").getOverflowAncestors} overflowAncestors */
+  const hearScrolls = (context, overflowAncestors) => {
+    if (scrolls?.context === context) return;
+    scrolls?.stop();
+    const sources = context ? [...new Set(overflowAncestors(context))] : [];
+    for (const source of sources)
+      source.addEventListener("scroll", update, { passive: true });
+    scrolls = {
+      context,
+      stop: () => {
+        for (const source of sources) source.removeEventListener("scroll", update);
+      },
+    };
+  };
   // Where an answer stands the box, in client coordinates, from the measurement it was
   // solved against rather than read off the box, which may not yet be laid out where a
   // scroll the browser carried it through has put it, or, just taken into its anchor's
@@ -363,17 +357,24 @@ export function floatingPlacement({ floating, update }) {
   }
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
-    // for; `autoUpdate` declares which mechanical changes invalidate its placement.
+    // for; `autoUpdate` declares which other mechanical changes invalidate its
+    // placement. Scrolls are this placement's own: each scroller around `element`
+    // solves the box again from the watch on, a box no placement has stood yet
+    // included, and each placement listens around the words it stood the box beside.
     /** @template {import("@floating-ui/dom").ReferenceElement} R
      * @param {Element} element @param {R} reference
-     * @param {(reference: R, floating: HTMLElement, update: () => void) => () => void} autoUpdate */
-    watch(element, reference, autoUpdate) {
+     * @param {(reference: R, floating: HTMLElement, update: () => void, options: {ancestorScroll: false}) => () => void} autoUpdate
+     * @param {typeof import("@floating-ui/dom").getOverflowAncestors} overflowAncestors */
+    watch(element, reference, autoUpdate, overflowAncestors) {
       if (element === watched && autoUpdate === observer) return;
       stopWatching?.();
       watched = element;
       observer = autoUpdate;
       tenure = Object.freeze({});
-      const stopGeometry = autoUpdate(reference, floating, update);
+      hearScrolls(element, overflowAncestors);
+      const stopGeometry = autoUpdate(reference, floating, update, {
+        ancestorScroll: false,
+      });
       // Visibility can change without moving or resizing a box. Observe the subject's
       // composed ancestry alongside Floating UI's geometry watch, including while the
       // surface is withheld. A `display: contents` subject has no box of its own, so its
@@ -413,21 +414,19 @@ export function floatingPlacement({ floating, update }) {
     /** @param {number} placement */
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the constraint
-    // `planeOf` reads as binding it: `"page"`, `"window"`, or the edge that holds it in
-    // (`{edge, at}`), whose holder names the plane; or `"page"` itself, for a box its
-    // owner keeps in the page's plane whatever the answer. `beside` is the element the
-    // box stands beside in the page's plane. `stand` then writes that answer's spot in
-    // its plane. An answer a later placement superseded while it was computed is null,
-    // and writes nothing.
+    // `planeOf` reads as binding it: `"page"`, `"window"`, or the box whose edge holds it
+    // in, which names the region's plane. `beside` is the element the box stands beside
+    // in the page's plane. `stand` then writes that answer's spot in its plane. An
+    // answer a later placement superseded while it was computed is null, and writes
+    // nothing.
     /** @param {typeof import("@floating-ui/dom").computePosition} computePosition
      * @param {FloatingReference} reference
      * @param {Partial<import("@floating-ui/dom").ComputePositionConfig> & {middleware: import("@floating-ui/dom").Middleware[]}} options
-     * @param {((answer: Position) => "page" | "window" | HoldingEdge) | "page"} planeOf
+     * @param {(answer: Position) => "page" | "window" | Element} planeOf
      * @param {Element} beside */
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
-      const physical = physicalContext(context);
       const anchor = anchorFor(context ?? null);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
@@ -449,11 +448,8 @@ export function floatingPlacement({ floating, update }) {
       });
       if (placement !== epoch) return null;
       const { offset, scale } = answer.middlewareData.anchorAt;
-      const wanted = planeOf === "page" ? planeOf : planeOf(answer);
-      const holder =
-        offset && physical && typeof wanted === "object"
-          ? holderOf(wanted, physical, getOverflowAncestors(physical))
-          : null;
+      const wanted = planeOf(answer);
+      const holder = offset && wanted instanceof Element ? wanted : null;
       const plane =
         wanted === "page" && anchorStood && offset
           ? "page"
@@ -470,23 +466,7 @@ export function floatingPlacement({ floating, update }) {
       };
       keeps(floating, "data-lf-plane", plane);
       readFloatingEditor();
-      stopScrollInvalidation?.();
-      stopScrollInvalidation = null;
-      if (plane !== "page") {
-        // Off the page's plane the answer depends on where the words stand in what holds
-        // the box in, so every scroll around them solves it again, a scroll inside the
-        // tree of a reference whose host does not move included.
-        // A listener of its own: `watch` registers `update` on these same scrollers,
-        // and a target keeps one registration per function, so removing `update` here
-        // would end that watch's scroll invalidation in the page's plane too.
-        const sources = context ? [...new Set(getOverflowAncestors(context))] : [];
-        const solve = () => update();
-        for (const source of sources)
-          source.addEventListener("scroll", solve, { passive: true });
-        stopScrollInvalidation = () => {
-          for (const source of sources) source.removeEventListener("scroll", solve);
-        };
-      }
+      hearScrolls(context, getOverflowAncestors);
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.
@@ -497,14 +477,9 @@ export function floatingPlacement({ floating, update }) {
       // at that size too, which its motion takes as where the box would have stood had
       // it kept its size (box-motion.js, `placed`). It is solved after the surface has
       // read its answer (`planeOf`), from the room its middleware keeps from the last
-      // solve, and without sizing, which writes the box's size. A box its owner keeps
-      // in the page's plane has no such spot: the open comment box rides its words and
-      // is never placed again for a scroll (composing/floating-response.js,
-      // `watchFabPosition`), so its next placement catches up with every scroll since,
-      // which is the box's own move.
+      // solve, and without sizing, which writes the box's size.
       const { width, height } = answer.middlewareData.held;
       if (
-        planeOf !== "page" &&
         stoodSize &&
         (Math.abs(width - stoodSize.width) >= 0.5 ||
           Math.abs(height - stoodSize.height) >= 0.5)
@@ -630,8 +605,8 @@ export function floatingPlacement({ floating, update }) {
       stand = placedAt;
       lastAnchorStand = null;
       stopWatching?.();
-      stopScrollInvalidation?.();
-      stopScrollInvalidation = null;
+      scrolls?.stop();
+      scrolls = null;
       stopWatching = null;
       watched = null;
       observer = null;

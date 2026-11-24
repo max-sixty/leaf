@@ -123,7 +123,6 @@ import { seenRect } from "../geometry.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { pressCommand } from "../keyboard/dispatch.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -384,10 +383,9 @@ export class MessageEditor {
   #settling = null;
   #follow;
 
-  /** @param {string} id @param {MessageView} view @param {EditorCommands} commands */
+  /** @param {string} id @param {EditorCommands} commands */
   constructor(
     id,
-    view,
     { wireInput, said, base: currentBase, send, land, saved, paint, previous, reveal },
   ) {
     const ctx = rewriteContext(id);
@@ -475,7 +473,6 @@ export class MessageEditor {
         press: {
           action: "restore-edit",
           command: RESTORE,
-          run: () => pressCommand(RESTORE),
           stands: () => discarded === thrown,
         },
       });
@@ -613,7 +610,7 @@ export class MessageEditor {
     this.#reveal(this.foot);
     this.#settling?.disconnect();
     const mayReveal = retainUserIntent();
-    this.#settling = sizeObserver((entries, observer) => {
+    this.#settling = sizeObserver((_entries, observer) => {
       if (!mayReveal() || !this.node.isConnected) return observer.disconnect();
       this.#reveal(this.foot);
     });

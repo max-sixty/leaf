@@ -14,7 +14,7 @@ presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a sc
 whose own Escape step comes before every step outside it.
 
 Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
-the command reference and hints, and is the only writer of `aria-keyshortcuts`. A page
+the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
 widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
 exists; it may still be out of the page.
@@ -112,19 +112,22 @@ a widget's state or the threads. For any other state it reads, hold the value in
 
 ### How scopes compose
 
-A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A key pressed inside an outlet Leaf fills with a Thread
+A key reaches listeners on the focused element and around it before Leaf's scopes: the
+focused control's, the widgets' around it, then the page's. A listener keeps a key,
+even a page key, by preventing its default. Listeners on the document and the window
+hear only keys Leaf leaves, and Escape lets go of a focused control after them unless
+one prevented it. Leaf hears first only while Go-to or reactions are armed, with
+nothing focused, and while focus is scrolled out of sight, where a key other than
+typing or Escape lets go of it.
+
+Among scopes, a key pressed inside an outlet Leaf fills with a Thread
 (`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
 presentation") skips the widgets around the outlet: it goes to the scopes inside the
-outlet and on it, then to the page. A scope takes only keys whose rows make a press, by a `run` or by
-naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
-different meaning further out; an unavailable Escape, though, passes on to the next
-Escape. Text fields keep their editing keys ahead of every widget scope. A key other
-than typing or Escape, pressed while the user has scrolled the focused control out of
-sight, lets go of the control first and goes to the page, so neither a widget's command
-nor the browser's own Enter and Space acts on what the user can't see. That key stops at
-the document, so a listener on the control or the widget doesn't hear it, and a script's
-own listener on the document or window hears it only in capture.
+outlet and on it, then to the page. A scope takes only keys whose rows make a press, by
+a `run` or by naming a `control` Leaf clicks, so other keys pass outward. A row keeps
+its key while unavailable, so the key never falls through to a different meaning further
+out; an unavailable Escape, though, passes on to the next Escape. Text fields keep their
+editing keys ahead of every widget scope.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the
@@ -176,9 +179,8 @@ End reach the ends, and a step shows its position in Leaf's panel, such as `Entr
 7`, where the list runs past the window. `rows()` returns the list at each press, `landed(row)`
 runs after a move, and `scroll: false` keeps the page still.
 
-A row whose press carries the user along a list of its own, as a timeline's arrows
-carry a user on its step list to the new step's row, declares `lands(from)` ("Command
-rows") rather than moving focus in its `run`.
+A row whose press carries the user along a list of its own declares `lands(from)`
+("Command rows") rather than moving focus in its `run`.
 
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
@@ -186,8 +188,7 @@ as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usua
 from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
 such as a chart's points or a tab strip, gives `list()`, its first and last stops;
 Leaf's panel then says nothing while both stand in view, since the focus ring shows
-where the step landed. A walk that comes round at its ends steps with
-`cycledRow(items, current, direction)`, which returns the item it lands on.
+where the step landed.
 
 ### Go-to targets
 
@@ -201,7 +202,7 @@ Move focus with `focusDestination(element, cause)`. The cause tells Leaf why foc
 moved:
 
 - `"move"`: a route taking the user somewhere, such as to the next row, whose landing
-  previews nothing ("Previews");
+  previews nothing (`module-previews.md`);
 - `"return"`: putting them back, as a widget's Escape does, or a redraw handing them to
   the control that replaced theirs;
 - `"step"`: the widget's own Tab loop, whose landing previews as Tab's does;
@@ -228,6 +229,7 @@ user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
+For a control in a widget's shadow root, that ancestor is the widget.
 
 `focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
@@ -241,13 +243,12 @@ of controls the user moves through with arrow keys offers one Tab stop with
 `rove(items, stop)`.
 
 `onPress(begin)` follows the primary pointer's press through its native compatibility
-events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
-it with `completed: true`; cancellation, a native context menu, or leaving the document
-calls it with `false`. The function returned by `end` runs when that press is over,
-after any compatibility mouseup and click it owes. Keep press-local work in these
-callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
-presses, and the connection's abort signal ends any work still running when the widget
-disconnects.
+events. `begin(pointerdown, path)`, a passive listener, may return
+`end(event, completed)`: release calls it with `completed: true`; cancellation, a
+native context menu, or leaving the document calls it with `false`. The function `end`
+returns runs when that press is over, after any compatibility mouseup and click it
+owes. Register inside `whileConnected`; the returned unsubscribe stops new presses, and
+the connection's abort signal ends work still running when the widget disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;
@@ -271,20 +272,18 @@ Chromium that makes every focus move restyle the page.
 
 ### Layers
 
-A widget opening its own layer, such as a list over its contents, calls
-`openLayer(layer)`, which records where focus was, and closes it with
-`closeLayer(close, land)`. `close` hides it, and `land` puts the user where closing takes
-them, usually `() => handBack(openerOf(layer))`. `handBack(...destinations)` lands on the
-first destination that can take focus. The layer's Escape is an ordinary command row.
-
-Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
-`modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.
-Inside a live sample they suppress the browser's own focus moves, so place the arrival
-with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or a
-dialog modal.
+A widget's own layer, such as a list over its contents, is a native popover or dialog,
+opened and closed with the browser's own methods (`showPopover`, `hidePopover`,
+`showModal`, `close`) or with `popovertarget` in markup. Closing a dialog, or an auto
+popover (`popover="auto"`) opened while no other was showing, returns the user to where
+they stood as it opened, but only while focus is inside it, and a pointer press in
+Safari or Firefox on macOS leaves the button it pressed unfocused. So a widget that
+closes its own layer from a choice in it, or closes any other popover, puts the user
+back on its opener with `focusDestination(opener, "return")`. A manual popover's Escape
+is an ordinary command row.
 
 A control that opens a popover, such as a menu of choices, names it with
-`popovertarget`, or passes itself as the source of `showNativeLayer(popover, {source})`.
+`popovertarget`, or passes itself as the popover's source, `showPopover({source})`.
 Leaf puts the user on a `popovertarget` control as the popover opens, so closing it
 returns them there. Every such control declares `aria-expanded="false"`, and Leaf keeps
 it current as the popover opens and closes, however it opened. To land the user on a
@@ -304,114 +303,16 @@ the navigation then opens or closes a surface that moves focus, wrap that change
 returns false if the change had already moved focus. `threadActions.open` handles this
 itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 
-### Previews
-
-Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
-pointer rests on it, when Tab brings the keyboard to it or something inside it, and when
-a finger holds it, beside the element over the page, in one face: a name with key chips,
-then lines of detail. A command's landing, such as a walk's, previews nothing, since
-what the user asked the command for is in front of them ("Focus and layers"). The preview holds no control, so a control the user presses stays
-on the widget; a pointer may cross onto it to read it, and a finger's long press reads
-it and presses nothing, so a widget's click answers a tap alone.
-
-A control needs no declaration. It previews its accessible name where its face shows a
-symbol or doesn't say that name, and as chips each key that presses it from where the
-user is, as the attribute `aria-keyshortcuts` says it. A control whose face says its name
-and that no key reaches previews nothing. Its
-`aria-description` stays a screen reader's; a line the eye should read too goes in
-`detail`.
-
-A widget adds to that, or previews an element that isn't a control, by declaring the
-element's `lfPreview(route)`, with no import, as it declares `lfCommands`. Leaf calls it
-once each time the preview shows, with the route that asked: `"pointer"`, `"focus"` or
-`"hold"`, and again for each new presentation of the document while the preview
-stands, so what it says follows the page without tracking its own inputs; words that
-come back the same leave the preview as it is. It returns:
-
-- `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
-  replaces the control's accessible name in the preview, or names an element that has
-  none. `keys`
-  lists presses the register can't see, each as the steps its chips draw, as a control's
-  own activation keys a drag grip names. `detail` is lines under the name, each words or
-  an `html` template; a falsy line is left out. `at` is where the preview stands, the
-  declaring element by default: another element, as a message stands its preview by
-  the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
-  a `DOMRect`) inside the element, as a chart's value stands over its point, which the
-  preview stands above and takes no pointer, so the pointer goes on reading the element
-  beneath it. Readings standing by one element redraw in place as the aim moves among
-  them. `about` is the element the preview is about, which Leaf leaves
-  in view as it places the preview, as a margin entry's passage or a time's message;
-  the box it stands by is always left in view, and the preview shows only while some
-  of that box does, so a point scrolled out of view takes its preview with it, though
-  its element still shows, and a focus preview comes back as it returns.
-  `excerpt: true` gives a preview that quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
-  lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
-  the element opens says the rest. `list: {items, more}` is items under the lines, each
-  words or a template, as the threads standing at one place: Leaf shows as many as the
-  room holds, through every resize, and under them `more(count)`'s words for the rest,
-  such as "and 26 more threads", so the items need no measuring of their own; the rest
-  are hidden from sight and from a screen reader alike. `unseen: true` keeps the face
-  from sight where the element draws its own; its words still describe what has
-  focus.
-- `null` where the element adds nothing now, including where the words it would say
-  already show on it or beside it: a control keeps its own preview, and the search goes
-  on to what holds the element.
-- `false` where nothing should preview here or around it, as a pinned card already
-  shows what its phrase would.
-
-What it throws is reported, and nothing shows. Where what an element previews changes
-while the user's aim stays on it, as a chart's pointer, key or finger reaches another
-point, or a grip's words stop being true once its card is grabbed, the widget calls
-`previewChanged(element)`, from `portable-api.js` (`widget-api.js` re-exports it): Leaf
-calls `lfPreview` again and redraws a standing preview where it stands, or shows the
-new one to a pointer resting on the element or a finger holding it, and off Leaf the
-call does nothing. It never brings back a preview the user put away, nor opens one on
-focus: only the user aiming again does. Where the user aimed at something new inside the
-element, as a chart's pointer or arrow key reaching another point, the widget says so,
-`previewChanged(element, {aim: true})`, and the new target shows its preview whatever
-put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
-reads, as a chart's ring on the point it names, comes off when Leaf dispatches
-`PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
-`CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
-reading that ended, as the preview goes for any reason: the pointer or focus leaving,
-the pointer leaving the window, the next touch after a finger's hold, Escape, or
-another target's preview taking its place. A focus preview hidden while the box it
-stands by is out of sight hasn't ended, so the mark stays. `lfPreview` returns a new
-object for each reading, since that object is how a widget tells the reading that ended
-from one it has returned since. A redraw with new words is no ending. A widget that has returned a
-newer reading since, as focus arriving reads the point a pointer's preview had, keeps
-the mark for that one.
-
-A `title` stays the browser's: a pointer over an element with one, or inside one, gets
-the browser's tooltip and no preview, and focus and a finger, which the browser's
-tooltip never reaches, read its words in the preview. Leaf neither writes nor removes
-it. A widget that wants Leaf's face for the pointer too, its key chips included,
-declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
-`lfPreview`.
-
-A thread's words preview the thread to a pointer or a finger only where nothing else
-there takes the pointer: a control, native or ARIA, an element with a `title` or an
-`lfPreview`, or a widget that draws its content itself (`content` `data` or
-`empty`). There the element's own preview shows, or none, and the thread is reached
-by its margin entry. Words a widget holds of the author's markup, outside any control
-in it, preview their thread.
-
-A link an author wrote to a place on the page previews that place with no declaration.
-A link a widget draws previews nothing of the place unless the widget declares it,
-since only the widget knows whether its words already say what the place holds; to
-show the place, return `placePreview(element)`, the name, first lines, answer and
-threads Leaf shows for an authored link.
-
 ### Pointer presses
 
 A handler that takes over a click, such as a link that opens a source line, acts only on
-`plainPress(event)`, the primary button with no modifier, so a modified click keeps its
-usual meaning.
+the primary button with no modifier held, so a modified click keeps its usual meaning.
 
 A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a
-click made with Enter or Space through, checking `pressIsKeyboardActivation(event)`
-first. A container that takes a click anywhere on it, as an option card does, asks
+click made with Enter or Space through, checking `event.detail === 0` first, which
+only a keyboard or script click has. A container that takes a click anywhere on it,
+as an option card does, asks
 `worksInside(event.target, container)` for the control the click was aimed at, inside
 the container or around it, and leaves the click to that control.
 

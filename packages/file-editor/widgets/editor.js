@@ -6,6 +6,7 @@ import {
   langForPath,
   leafEditorView,
   sizeObserver,
+  syntaxNow,
 } from "/runtime/widget-api.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {
@@ -19,6 +20,8 @@ import {
   StateField,
   Transaction,
   EditorView,
+  ViewPlugin,
+  countColumn,
   keymap,
   lineNumbers,
   highlightActiveLineGutter,
@@ -30,14 +33,13 @@ import {
   history,
   historyKeymap,
   defaultKeymap,
-  LanguageSupport,
-  markdownLanguage,
   HighlightStyle,
+  StreamLanguage,
+  Tag,
   syntaxHighlighting,
   indentOnInput,
   placeholder,
   bracketMatching,
-  tags,
 } from "/vendor/codemirror.esm.js";
 import {
   diff,
@@ -57,7 +59,8 @@ const theme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
   ".cm-content": { caretColor: "var(--lf-accent)" },
-  ".cm-line": { padding: "0 .85rem" },
+  // Its wrapped rows' mark stands past this padding (`hangs`).
+  ".cm-line": { padding: "0 .85rem", "--lf-pre-line-inset": ".85rem" },
   // A line another writer changed (`written`), tinted and barred in the accent.
   ".cm-line.lf-written": {
     background:
@@ -115,73 +118,135 @@ const theme = EditorView.theme({
   ".cm-deletedLineGutter": { backgroundColor: "var(--lf-danger)" },
 });
 
-// The theme's code tokens, as code blocks and diffs colour the same names (Leaf's
-// token theme, build/entries/syntax/entry.mjs): a key, a type or a tag in
-// `--lf-syn-type`, a comment in italic `--lf-syn-comment`.
-const highlighting = HighlightStyle.define([
-  { tag: tags.heading, color: "var(--lf-accent)", fontWeight: "650" },
-  { tag: tags.strong, fontWeight: "650" },
-  { tag: tags.emphasis, fontStyle: "italic" },
-  {
-    tag: [tags.link, tags.url],
-    color: "var(--lf-accent)",
-    textDecoration: "underline",
-  },
-  { tag: [tags.monospace, tags.string], color: "var(--lf-syn-string)" },
-  { tag: [tags.keyword, tags.modifier], color: "var(--lf-syn-keyword)" },
-  { tag: [tags.number, tags.bool], color: "var(--lf-syn-number)" },
-  { tag: tags.comment, color: "var(--lf-syn-comment)", fontStyle: "italic" },
-  { tag: [tags.meta, tags.processingInstruction], color: "var(--lf-syn-comment)" },
-  {
-    tag: [tags.propertyName, tags.typeName, tags.labelName],
-    color: "var(--lf-syn-type)",
-  },
-]);
-
-// Each language the editor highlights, by the name a file's path selects
-// (`langForPath`). Markdown comes with the editor core; every other language is a
-// module of the file-editor package, loaded the first time a file of it opens
-// (build/vendor.mjs, "file-editor"). A file in any other language reads as plain text.
-/** @type {Record<string, () => Promise<import("@codemirror/state").Extension>>} */
-const languages = {
-  markdown: async () => new LanguageSupport(markdownLanguage),
-  yaml: async () => {
-    const { yaml } = await import("/vendor/codemirror-yaml.esm.js");
-    const support = yaml();
-    // Code blocks colour YAML's plain values as strings. The YAML grammar calls them
-    // content, which Markdown's prose is too, so the colour is scoped to YAML.
-    return [
-      support,
-      syntaxHighlighting(
-        HighlightStyle.define([{ tag: tags.content, color: "var(--lf-syn-string)" }], {
-          scope: support.language,
-        }),
+// Each language a file's path names (`langForPath`, the registry's `$languages`), coloured
+// by Leaf's one tokenizer and token theme (`syntaxNow`), as code blocks, diffs and
+// lf-code are, so a value, a key or a heading reads in the editor as it does in a code
+// block of its file. CodeMirror's StreamLanguage keeps the grammar state each line ends
+// in and colours only the lines up to those it draws, each from the state the line
+// before ended in, so an edit colours again from near its line to the window's foot,
+// whatever the file holds past it. Each declaration a token's style can hold, a colour
+// or a font style, is a tag, and a token takes the tags its style holds, which the
+// editor's highlighter styles as the theme does. A language loads with its grammar the
+// first time a file of it opens; a file in any other language reads as plain text.
+/** @typedef {ReturnType<Awaited<ReturnType<typeof syntaxNow>>["tokenize"]>} Tokenized
+ * @typedef {{grammar: Tokenized["state"] | undefined, line: Tokenized["tokens"]}} LineState */
+/** @param {string} lang @returns {Promise<import("@codemirror/state").Extension>} */
+const colouredAs = async (lang) => {
+  const { tokenize, declarations } = await syntaxNow(lang);
+  // The tokenizer runs inside CodeMirror's update, where a throw would take the
+  // keystroke that reached the line with it, and every one after. A line it fails on
+  // stays plain instead, and the failure is said once, where the render gate reads it.
+  let failed = false;
+  /** @param {string} line @param {LineState["grammar"]} grammar @returns {Tokenized} */
+  const lineTokens = (line, grammar) => {
+    try {
+      return tokenize(line, grammar);
+    } catch (error) {
+      if (!failed) console.error(`leaf: the ${lang} tokenizer failed`, error);
+      failed = true;
+      return /** @type {Tokenized} */ ({ tokens: [], state: grammar });
+    }
+  };
+  const named = new Map(
+    declarations.map(([property, value], n) => [`${property}: ${value}`, `t${n}`]),
+  );
+  /** @type {Record<string, Tag>} */
+  const tokenTable = {};
+  for (const name of named.values()) tokenTable[name] = Tag.define();
+  return [
+    StreamLanguage.define({
+      name: lang,
+      /** @returns {LineState} */
+      startState: () => ({ grammar: undefined, line: [] }),
+      /** @param {LineState} state */
+      copyState: ({ grammar, line }) => ({ grammar, line: [...line] }),
+      /** @param {import("@codemirror/language").StringStream} stream @param {LineState} state */
+      token(stream, state) {
+        if (stream.sol())
+          ({ tokens: state.line, state: state.grammar } = lineTokens(
+            stream.string,
+            state.grammar,
+          ));
+        const token = state.line.shift();
+        if (!token) {
+          stream.skipToEnd();
+          return null;
+        }
+        stream.pos += token.text.length;
+        const names = Object.entries(token.style).map(([property, value]) =>
+          named.get(`${property}: ${value}`),
+        );
+        return names.filter(Boolean).join(" ") || null;
+      },
+      /** @param {LineState} state */
+      blankLine(state) {
+        state.grammar = lineTokens("", state.grammar).state;
+      },
+      tokenTable,
+    }),
+    syntaxHighlighting(
+      HighlightStyle.define(
+        declarations.map(([property, value], n) => ({
+          tag: /** @type {Tag} */ (tokenTable[`t${n}`]),
+          [property]: value,
+        })),
       ),
-    ];
-  },
+    ),
+  ];
 };
 /** @type {Map<string, Promise<import("@codemirror/state").Extension>>} */
 const loading = new Map();
 /** @type {Map<string, import("@codemirror/state").Extension>} */
 const loaded = new Map();
-// The language a file's name selects among those the editor highlights, or null.
-/** @param {string} filename */
-const languageFor = (filename) => {
-  const name = langForPath(filename);
-  return name && name in languages ? name : null;
-};
 /** @param {string} name */
 const loadLanguage = (name) => {
   let pending = loading.get(name);
   if (!pending) {
-    pending = /** @type {() => Promise<import("@codemirror/state").Extension>} */ (
-      languages[name]
-    )();
+    pending = colouredAs(name);
     loading.set(name, pending);
     void pending.then((extension) => loaded.set(name, extension));
   }
   return pending;
 };
+// Each line in view is a line of code whose wrapped rows hang from its indent behind a
+// mark, as a code block's are (marks.css, `[data-lf-pre-line]`), so a row a long line
+// wraps onto reads as the rest of that line: started at the editor's edge, it read as a
+// line of its own, and in YAML as a new top-level key. The line states its indent
+// (`--lf-code-indent`), which CSS can't read: its leading spaces and tabs, in the
+// columns CodeMirror counts for them.
+/** @param {EditorView} view */
+const indents = (view) => {
+  const marks = [];
+  for (const { from, to } of view.visibleRanges)
+    for (let at = from; at <= to;) {
+      const { text, from: start, to: end } = view.state.doc.lineAt(at);
+      const indent = countColumn(text, view.state.tabSize, text.search(/[^ \t]|$/));
+      marks.push(
+        Decoration.line({
+          attributes: {
+            "data-lf-pre-line": "",
+            ...(indent && { style: `--lf-code-indent: ${indent}` }),
+          },
+        }).range(start),
+      );
+      at = end + 1;
+    }
+  return Decoration.set(marks);
+};
+const hangs = ViewPlugin.fromClass(
+  class {
+    /** @param {EditorView} view */
+    constructor(view) {
+      this.decorations = indents(view);
+    }
+    /** @param {import("@codemirror/view").ViewUpdate} update */
+    update(update) {
+      if (update.docChanged || update.viewportChanged)
+        this.decorations = indents(update.view);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
 // The lines the last write from elsewhere changed, such as an agent's: shown until
 // the next one replaces them, and each until the reader edits that line, so a reader
 // whose file changed under them sees where. A file's first reading marks nothing.
@@ -404,7 +469,6 @@ export function createEditor(
         keymap.of([...defaultKeymap, ...historyKeymap]),
         language.of([]),
         hint.of([]),
-        syntaxHighlighting(highlighting),
         theme,
         // Only the primary editor needs line coordinates and an active line.
         // The read-only comparison presents both versions through text decorations.
@@ -432,6 +496,7 @@ export function createEditor(
         }),
         editable.of(readonlyExtension()),
         EditorView.lineWrapping,
+        hangs,
         // A comparison is created with the disk version it shows and only ever moves
         // to a later one (`setConflict`); the primary editor never shows one.
         original === null
@@ -461,14 +526,14 @@ export function createEditor(
     });
   // Highlight in `name`'s language: at once where it has loaded, else plain until it
   // has, unless the editor has moved on to another file's language by then.
-  /** @param {string | null} name */
+  /** @param {string | null | undefined} name */
   const showLanguage = (name) => {
     if (name === shownLanguage) return;
     dispatch({ effects: languageEffect(name) });
   };
   // The effect that gives the state shown `name`'s language where it has loaded, or
   // none until then, loading it to follow.
-  /** @param {string | null} name */
+  /** @param {string | null | undefined} name */
   const languageEffect = (name) => {
     shownLanguage = name;
     const ready = name && loaded.get(name);
@@ -507,7 +572,7 @@ export function createEditor(
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
-  showLanguage(languageFor(filename));
+  showLanguage(langForPath(filename));
   const revealCaret = () =>
     dispatch({
       effects: EditorView.scrollIntoView(reading().selection.main.head, {
@@ -577,7 +642,7 @@ export function createEditor(
     },
     /** @param {string} label */
     setLabel(label) {
-      showLanguage(languageFor(label));
+      showLanguage(langForPath(label));
     },
     /** @param {string} value */
     setConflict(value) {
@@ -613,7 +678,7 @@ export function createEditor(
         effects: [
           editable.reconfigure(readonlyExtension()),
           hint.reconfigure(shownHint ? placeholder(shownHint) : []),
-          languageEffect(languageFor(name)),
+          languageEffect(langForPath(name)),
         ],
       }).state;
       if (!view) retained = settings;

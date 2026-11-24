@@ -57,7 +57,6 @@ import { sectionMarks } from "./toc-marks.js";
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
 import {
-  atLayoutPrecision,
   atScrollEnd,
   comparisonChanges,
   frameFor,
@@ -66,7 +65,6 @@ import {
   keeps,
   landingInsets,
   LAYOUT,
-  layoutPx,
   LeafElement,
   obligationsIn,
   PAGE_INTERFACE,
@@ -74,7 +72,6 @@ import {
   readObligations,
   readThreads,
   scrollerFor,
-  scrollLimit,
   sizeObserver,
   whileConnected,
   named,
@@ -609,7 +606,7 @@ customElements.define(
     // length or landing band has changed; a scroll alone reaches the early return.
     /** @param {{top: number, bottom: number}} clear @param {Element} scroller */
     #standLens(clear, scroller) {
-      const reach = scrollLimit(scroller);
+      const reach = scroller.scrollHeight - scroller.clientHeight;
       const band = scroller.clientHeight - clear.top - clear.bottom;
       const inputs = `${reach} ${band} ${clear.top}`;
       if (inputs === this.#lensInputs) return;
@@ -622,10 +619,11 @@ customElements.define(
           size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
         };
       };
+      // Both at layout's 1/64px, so a measure that jitters below it writes nothing new.
       const transform = (
         /** @type {{start: number, size: number}} */ { start, size },
       ) =>
-        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
+        `translateY(${Math.round(start * 64) / 64}px) scaleY(${Math.round(Math.max(floor, size) * 64) / 64})`;
       if (reach <= 0) {
         this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;

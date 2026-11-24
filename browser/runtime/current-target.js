@@ -119,12 +119,8 @@ export function obligationHolding(items, node, inventory = items) {
   /** @type {Map<T, number>} */
   const near = new Map();
   for (let at = /** @type {Node | null} */ (node); at; at = composedParentNode(at)) {
-    if (!isElement(at)) continue;
-    const datum = at.getAttribute("data-lf-datum");
-    const owner = at.getAttribute("data-lf-projection");
-    for (const name of [at.id && `#${at.id}`, datum !== null && `@${owner} ${datum}`])
-      for (const [order, item] of (name && names.get(name)) || [])
-        near.set(item, order);
+    if (!isElement(at) || !at.id) continue;
+    for (const [order, item] of names.get(at.id) || []) near.set(item, order);
   }
   /** @param {Element | null} element */
   const holds = (element) => element && under(node, element);
@@ -138,13 +134,11 @@ export function obligationHolding(items, node, inventory = items) {
   return held?.item ?? null;
 }
 
-// The obligations of a list that could stand at an element, by what names their places
-// (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
-// which stands only at its datum, the widget's id with the datum's key, as the datum
-// carries them (`data-lf-projection`, `data-lf-datum`). Each name keeps the list's
-// order. Read from the records alone, once per list (kept.js), so it holds however the
-// document changes; a name finds candidates, and placing each says whether it stands
-// there.
+// The obligations of a list that could stand at an element, by the ids that name their
+// places (`obligationPlace`): the id of a widget's source and of its context. Each id
+// keeps the list's order. Read from the records alone, once per list (kept.js), so it
+// holds however the document changes; an id finds candidates, and placing each says
+// whether it stands there.
 const placeNames = keptEach(
   /** @param {readonly import("./framework/application.js").ObligationRecord[]} items */
   (items) => {
@@ -159,11 +153,9 @@ const placeNames = keptEach(
     };
     items.forEach((item, order) => {
       const { source } = item;
-      if (source.kind === "widget" && source.unit) {
-        add(`@${source.id} ${source.unit}`, order, item);
-      } else if (source.kind === "widget") {
-        add(`#${source.id}`, order, item);
-        if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
+      if (source.kind === "widget") {
+        add(source.id, order, item);
+        if (item.prompt.target) add(item.prompt.target, order, item);
       }
     });
     return names;
@@ -224,7 +216,7 @@ export function questionAsked(node) {
     obligationsIn(whole, asked),
     (item) => obligationPlace(item, all).source,
   );
-  return drawn.find((item) => item.status === "open") ?? null;
+  return drawn.find((item) => item.state !== "done") ?? null;
 }
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited

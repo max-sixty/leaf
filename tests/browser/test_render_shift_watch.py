@@ -2183,6 +2183,63 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
     assert page.lf_errors == []
 
 
+def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
+    browser, serve
+):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
+    landing draws in, after that frame's tick. The motion is the input's though the
+    server's reading lands after that delivery and before the next tick, as it can
+    when a pasted image lands in an open thread. The growing box stands after the
+    control, so only the carry moves it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></lf-group>'
+                '<button id="control" style="display:block">Control</button>'
+                '<div id="after"></div>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfWidgetApi();
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const control = document.querySelector('#control');
+      const after = document.querySelector('#after');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      new ResizeObserver(() => {
+        if (!after.offsetHeight || window.carry) return;
+        control.style.translate = 'var(--carry)';
+        window.carry = control.animate(
+          [{'--carry': '0px 60px'}, {'--carry': '0px 0px'}], {duration: 300});
+        document.body.setAttribute('data-lf-reading', 'news');
+      }).observe(after);
+      document.querySelector('#press').addEventListener('click', () => {
+        widgetController(widget).present(gate.promise.then(() => {
+          after.style.height = '40px';
+        }));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate("release()")
+    page.wait_for_function("window.carry !== undefined")
+    page.evaluate("carry.finished")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+
 @pytest.mark.parametrize(
     "input_at",
     ["outside", "same-widget", "same-disclosure-attr-node"],
@@ -4373,6 +4430,84 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         assert errors == [], (before, after, errors)
 
 
+# A row in a carrier anchored to words the document scrolls, as Leaf's margin carries a
+# row whose target scrolls in a box short of the document. As margin-layout.js does,
+# `place` writes the carrier at the window's origin as it measures the anchor, and the
+# row level with the anchor's top, `by` pixels lower.
+CARRIED_ROW = """<!doctype html><body style="margin:0;height:3000px">
+<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>
+<div id="carrier" style="position:fixed;position-anchor:--words;left:0;top:0;width:0;height:0;display:grid;grid-template:0px/0px;position-visibility:always">
+<button id="row" style="grid-area:1/1;align-self:start;justify-self:start;margin-left:260px">Row</button></div>
+<script>function place(by = 0) {
+  const at = anchor.getBoundingClientRect().top;
+  carrier.style.top = `calc(anchor(top) - ${at}px)`;
+  row.style.marginTop = `${at + by}px`;
+}
+scrollTo(0, 600);
+place();</script>"""
+
+
+@pytest.mark.parametrize(
+    ("scroll", "fault"),
+    [
+        ("step", ""),
+        ("step", "row"),
+        ("twice", ""),
+        ("twice", "row"),
+        ("smooth", ""),
+        ("smooth", "row"),
+    ],
+)
+def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault):
+    """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
+    frame callback can read the words moved and the row not yet. A row its script places
+    again in that frame, by the same offset from the words, a row whose words scroll
+    again before it catches up, and a row through a smooth scroll no input makes, are
+    credited; a row placed elsewhere still fails."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CARRIED_ROW))
+    paint(page)
+    paint(page)
+    moved = "5" if fault else "0"
+    if scroll == "step":
+        page.evaluate(f"scrollBy(0, -9); place({moved})")
+    elif scroll == "twice":
+        # A second scroll from another script, as `scrollIntoView` and then `scrollBy`
+        # make, in the task after the frame that carries the row to the first. A
+        # user-blocking task posted from that frame's callbacks runs ahead of the
+        # delivery of its painted shifts, so the watch's reading of that paint finds
+        # the words moved by the second scroll and the row caught up to the first.
+        page.evaluate(
+            """by => new Promise((done) => {
+              scrollBy(0, -9);
+              place();
+              requestAnimationFrame(() => scheduler.postTask(() => {
+                scrollBy(0, -40);
+                place(by);
+                done();
+              }, {priority: 'user-blocking'}));
+            })""",
+            int(moved),
+        )
+    else:
+        page.evaluate(
+            """by => new Promise((done) => {
+              addEventListener('scrollend', done, {once: true});
+              scrollBy({top: -300, behavior: 'smooth'});
+              setTimeout(() => place(by), 80);
+            })""",
+            int(moved),
+        )
+    paint(page)
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "button#row"), errors
+    else:
+        assert errors == [], errors
+
+
 @pytest.mark.parametrize(
     "fault", ["", "passive", "finished", "local", "ancestor_x", "ancestor_y"]
 )
@@ -5207,12 +5342,12 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
-      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
+      owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place(); const first=selected();
       if(!first||first.plane!=='page')throw Error('First placement was not supported page');
       const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
       host.style.removeProperty('transform');plane='window';await place();const second=selected();
       if(!second)throw Error('Supported window placement missing');
-      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
+      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place();const third=selected();
       window.reviewOwner=owner;window.reviewPlace=place;
       return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
     }""")
@@ -5881,7 +6016,7 @@ def test_real_floating_plane_retains_local_motion(
               {placement:'right-start',middleware:[]}, ()=>plane, subject);
             if (placed) {owner.stand(placed); answer = placed;}
           }
-          owner.watch(subject, subject, ui.autoUpdate);
+          owner.watch(subject, subject, ui.autoUpdate, ui.getOverflowAncestors);
           await place();
           holder.style.removeProperty('visibility');
           const original = selection();

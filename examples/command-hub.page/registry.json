@@ -109,7 +109,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -133,7 +132,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -161,9 +159,6 @@
         "talk": {
           "type": "boolean",
           "description": "The row takes comments: it shows the conversations about it at its foot, above a Comment control that starts one. The comment box there offers a second send, Send & pause, whose comment holds the goal until its conversation is resolved."
-        },
-        "overruled": {
-          "type": "boolean"
         }
       },
       "required": ["id", "status"],
@@ -186,26 +181,17 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "state": {
           "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
         },
-        "on": { "type": "string" },
-        "overruled": {
-          "type": "boolean"
-        }
+        "on": { "type": "string" }
       },
       "required": ["id", "state"],
       "additionalProperties": false
     },
     "owners": ["lf-atlas-plan", "lf-atlas-task"],
     "refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "verbs": {
       "state": {
@@ -224,7 +210,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "source": { "type": "string" }
       },
       "required": ["id", "source"],

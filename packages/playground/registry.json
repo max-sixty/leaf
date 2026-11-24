@@ -4,18 +4,12 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "contract": {
           "type": "string"
         },
         "submit-label": {
           "type": "string",
           "minLength": 1
-        },
-        "restated": {
-          "type": "boolean"
         }
       },
       "required": ["id"],
@@ -82,9 +76,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "label": {
           "type": "string",
           "minLength": 1
@@ -114,9 +105,6 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "unique": {
-      "for": "lf-playground-preset"
-    },
     "owners": ["lf-playground-preset"],
     "instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, and a radio's or option's value."
   },
@@ -124,11 +112,6 @@
     "description": "The task instruction displayed by a playground and sent with the chosen configuration; an `<output for>` inside shows a field's value.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
       "additionalProperties": false
     },
     "owners": ["lf-playground"]

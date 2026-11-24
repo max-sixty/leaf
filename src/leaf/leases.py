@@ -25,6 +25,7 @@ from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     MODULE_SUFFIX,
+    SKILL_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
     flocked_descriptor,
@@ -242,6 +243,33 @@ def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
     session_file(session_id, HOOKS_SUFFIX).touch()
+
+
+def mark_skill(session_id: str, mark: str) -> str | None:
+    """Record `mark`, the Leaf this hook runs and the skill it ships
+    (`hooks.skill_mark`), as the session's hooks' latest, and return the mark it
+    replaced, or None where the mark is unchanged or the session's first.
+
+    Unlike the hooks mark, this one outlives the harness instance while a claim
+    names the session (`state._retire`), so the first hook of a resumed or woken
+    process compares its mark with the mark of the process before. An unchanged
+    mark costs one read. Hooks that run at once, as PreToolUse's registrations do,
+    change the mark under its lock, so only one of them returns the mark it
+    replaced."""
+    path = session_file(session_id, SKILL_SUFFIX)
+    try:
+        if path.read_text() == mark:
+            return None
+    except FileNotFoundError:
+        pass
+    with flocked(path) as held:
+        held.seek(0)
+        before = held.read().decode()
+        if before == mark:
+            return None
+        held.truncate(0)
+        held.write(mark.encode())
+    return before or None
 
 
 def mark_module(session_id: str, pid: int) -> None:

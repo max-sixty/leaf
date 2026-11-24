@@ -3,7 +3,8 @@ both. A playground can have just one choice: the candidate to build. Write each
 candidate in the preview with its own radio, so the user selects the actual example
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
 that needs no playground controls or composed preview. To critique a document or
-source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
+source, use Leaf's comments, suggestions or `lf-diff` instead, and for a visible
+change, before-and-after captures with a question beside each.
 
 Put the playground in the `lf-group` whose label asks its question, with any context that
 lives outside it (`references/authoring-on-me.md`, "On the page"). Keep

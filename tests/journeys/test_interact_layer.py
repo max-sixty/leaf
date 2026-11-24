@@ -402,7 +402,6 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
     packages_model.cmd_package_init(registry_alias)
     (registry_alias / "registry.json").unlink()
     (registry_alias / "registry.json").symlink_to(package / "registry.json")
-    (registry_alias / "widgets").rmdir()
     (registry_alias / "widgets").symlink_to(
         package / "widgets", target_is_directory=True
     )
@@ -504,13 +503,18 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert created.exit_code == 0, created.output
 
     package = tmp_path / ".leaf"
+    # Only the registry and the sheet a theme's or a widget's rules go in; the author
+    # adds any other part of the layout when it has something to hold.
+    assert sorted(path.name for path in package.iterdir()) == [
+        "defaults.css",
+        "registry.json",
+    ]
     assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "overrides.css").is_file()
-    assert list((package / "instructions").iterdir()) == []
-    assert (package / "widgets").is_dir()
-    assert (package / "vendor").is_dir()
 
     entry = add_test_widget(package, "lf-callout", upgrade=True)
+    (package / "overrides.css").write_text(".callout-note { font-weight: bold; }\n")
+    (package / "instructions").mkdir()
+    (package / "vendor").mkdir()
     (package / "instructions" / "author.md").write_text(
         "# Callouts\n\nUse them for short notices.\n"
     )
@@ -748,7 +752,6 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     assert sorted(path.name for path in stored.iterdir()) == [
         "defaults.css",
         "instructions",
-        "overrides.css",
         "registry.json",
         "runtime",
         "vendor",
@@ -776,10 +779,12 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     assert initialized.exit_code == 0, initialized.output
     existing = add_test_widget(package, "lf-existing")
     instructions = package / "instructions" / "author.md"
+    instructions.parent.mkdir()
     instructions.write_text("Keep this package instructions.\n")
     helper = package / "runtime" / "existing-helper.js"
+    helper.parent.mkdir()
     helper.write_text("export const existing = true;\n")
-    theme = (package / "overrides.css").read_bytes()
+    theme = (package / "defaults.css").read_bytes()
 
     result = runner.invoke(
         cli_model.cli,
@@ -790,7 +795,7 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    assert (package / "overrides.css").read_bytes() == theme
+    assert (package / "defaults.css").read_bytes() == theme
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
@@ -917,7 +922,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     package under a name of its own beside the bundled ones, described by the first
     paragraph of its author instructions and its entries' descriptions, and an
     installed package in place of the bundled one whose name it takes. `default`, on
-    every page already, and the theme `theme list` offers are not listed."""
+    every page already, is not listed."""
     team = tmp_path / "src" / "team-charts"
     packages_model.cmd_package_init(team, "lf-trend")
     (team / "instructions").mkdir(exist_ok=True)
@@ -955,4 +960,3 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     assert packages["playwright"]["installed"] is False
     assert "lf-trace" in packages["playwright"]["entries"]
     assert "default" not in packages
-    assert "reading" not in packages

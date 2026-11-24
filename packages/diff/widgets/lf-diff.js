@@ -36,7 +36,6 @@ import {
   announce,
   beginWalk,
   failSoft,
-  describeFailure,
   ensureSyntaxLanguage,
   focusDestination,
   generated,
@@ -55,19 +54,16 @@ import {
   offerAction,
   LeafElement,
   PendingTaskEvent,
-  publishOutput,
   threadSurface,
   releaseOutlets,
   reportFailure,
   retainUserIntent,
-  scrollBehavior,
   searchField,
   setChildren,
   shadowStage,
   sizeObserver,
   whileConnected,
   scrollIntoView,
-  layoutPx,
   focused,
   currentLocationIn,
   commandsChanged,
@@ -320,8 +316,8 @@ function pathTemplate(path) {
 }
 
 // While a file's row cuts its path short, the row's preview is the whole path, which a
-// resting pointer, the keyboard and a held press read (`lfPreview`, module-input.md,
-// "Previews"). A path the row shows whole previews nothing, since it would repeat it.
+// resting pointer, the keyboard and a held press read (`lfPreview`,
+// module-previews.md). A path the row shows whole previews nothing, since it would repeat it.
 // Whether the row cuts the path changes only with the width
 // of a part of it, the folders or the name (at a new window width, face or press beside
 // it), so each part's size is watched rather than polled. A part is cut where its words
@@ -979,7 +975,8 @@ function fileError(view, error) {
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
+  const message = error instanceof Error ? error.message || error.name : String(error);
+  box.textContent = `That file's diff cannot be shown: ${message}`;
   setChildren(details, [header, box]);
   restore?.(header);
 }
@@ -1141,7 +1138,7 @@ customElements.define(
       commandsChanged(this);
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, (signal) => {
+      whileConnected(this, () => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -1378,22 +1375,18 @@ customElements.define(
               : operation === "rename"
                 ? "renamed"
                 : null;
-      publishOutput(
-        this,
-        "files",
-        this.fileEntries
-          ? {
-              ...(this.singleFile ? { current: this.activePath } : {}),
-              files: this.fileEntries.map(({ record }) => ({
-                path: record.path,
-                key: diffDatumKey({ path: record.path, file: true }),
-                ...(status(record.operation)
-                  ? { status: status(record.operation) }
-                  : {}),
-              })),
-            }
-          : null,
-      );
+      // The `files` output: held here, and `change` says it moved.
+      this.files = this.fileEntries
+        ? {
+            ...(this.singleFile ? { current: this.activePath } : {}),
+            files: this.fileEntries.map(({ record }) => ({
+              path: record.path,
+              key: diffDatumKey({ path: record.path, file: true }),
+              ...(status(record.operation) ? { status: status(record.operation) } : {}),
+            })),
+          }
+        : null;
+      this.dispatchEvent(new Event("change"));
     }
 
     /** @param {SourceRecord} source @param {string | null | undefined} renderKey @returns {Promise<EntryPreparation>} */
@@ -1699,8 +1692,10 @@ customElements.define(
       const coordinate = readDiffCoordinate(key);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      if (this.singleFile) this.selectFile(entry);
-      else if (entry.filtered) this.clearFilter();
+      // Leaf can ask again for a part it has shown, so each step does nothing once done.
+      if (this.singleFile && this.activePath !== entry.record.path)
+        this.selectFile(entry);
+      else if (!this.singleFile && entry.filtered) this.clearFilter();
       if (!entry.details) return null;
       if (!entry.details.open) entry.details.open = true;
       if (entry.loaded || entry.refused) return null;
@@ -1800,7 +1795,7 @@ customElements.define(
       if (this.filesBody) {
         const { top, height } = this.filesBody.getBoundingClientRect();
         const hold = needle
-          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
+          ? `${Math.round(Math.max(0, Math.min(height, innerHeight - top)) * 64) / 64}px`
           : "";
         if (this.filesBody.style.minBlockSize !== hold)
           this.filesBody.style.minBlockSize = hold;
@@ -2042,7 +2037,9 @@ customElements.define(
     land(box, node = box) {
       scrollIntoView(box, {
         block: "start",
-        behavior: scrollBehavior(),
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
         sideways: false,
       });
       focusDestination(node, "move");

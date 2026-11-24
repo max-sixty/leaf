@@ -47,8 +47,8 @@ measured in the tab:
   its contents take unwrapped, the measure (`cardMeasure`), its room, which runs
   from the card's inner edge to the far edge of the placement boundary
   (`commentBoundary`) beside its subject, and is the boundary's width above or below,
-  or, for a card that declares it stands slim (`data-lf-widens`), the least width
-  (`cardMinimum`);
+  or, for a card that declares it stands slim (`data-lf-widens`), the width it starts
+  at: the least width (`cardMinimum`), or the comment box's where Send opened it;
 - how much wider the card stands than its contents take unwrapped;
 - the part of its subject's block it covers, and whether it covers the quoted words,
   a fault where card and block would fit in the boundary together, side by side for a
@@ -69,7 +69,7 @@ import click
 from playwright.sync_api import Page
 
 from leaf.event_log import read_events
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, wait_until_ready
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import (
     PageClient,
@@ -478,9 +478,12 @@ READ = """async () => {
     boundary: box(placement.commentBoundary()),
     card: box(shown(card)?.getBoundingClientRect()),
     natural: shown(card) && natural(card),
-    // A card at the least width declares it (`data-lf-widens`) until a message it shows
+    // A card at the width it starts at, the least width or the box's Send opened it
+    // from (`by_comment`), declares it (`data-lf-widens`) until a message it shows
     // stands tall enough to widen it.
-    least: shown(card)?.hasAttribute('data-lf-widens') ? placement.cardMinimum() : null,
+    least: shown(card)?.hasAttribute('data-lf-widens')
+      ? Math.max(placement.cardMinimum(), window.lfSentBoxWidth ?? 0)
+      : null,
     side: shown(card)?.getAttribute('data-lf-thread-placement') ?? null,
     panel: box(shown(panel)?.getBoundingClientRect()),
     block: box((target.element ?? target.place).getBoundingClientRect()),
@@ -561,6 +564,11 @@ def by_comment(page: Page, case: Case, window: Window) -> float:
     )
     page.keyboard.press("c")
     page.keyboard.insert_text(case.typed)
+    # The box's width, which the card Send opens starts at (the reading's `least`).
+    page.evaluate(
+        "() => { window.lfSentBoxWidth ="
+        " document.querySelector('.lf-fab-bar').getBoundingClientRect().width; }"
+    )
     before = page.evaluate("scrollY")
     page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function(OPEN_CARD)
@@ -580,7 +588,11 @@ def answer(words: str, leaves: str) -> None:
     """The agent answers the reader's message as an agent does: from its delivery,
     declaring what the answer leaves (`--done` or `--obligation`)."""
     served = served_page.get()
-    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    delivery = json.loads(
+        served.leaf(
+            "wait", str(served.directory), timeout=SERVED_TIMEOUT_MS / 1000
+        ).stdout
+    )
     ref = next(
         event["answer"]["ref"]
         for batch in delivery["batches"]
@@ -705,7 +717,7 @@ def findings(reading: dict) -> dict:
         }.get(side, boundary["right"] - boundary["left"]),
     }
     if reading["least"]:
-        limits["the least width, until a message stands tall"] = reading["least"]
+        limits["the width it starts at, until a message stands tall"] = reading["least"]
     limit = min(limits, key=lambda name: limits[name])
     window = {
         "left": 0,

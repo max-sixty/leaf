@@ -94,10 +94,12 @@
  * Every reading is taken in the box's own plane: a box the page's scroll or its
  * placement carries whole is read from the edges that hold it (`held`), so only a change
  * of its layout moves anything. A box a placement stands (`placement`) is read once that
- * placement has stood it, since a change of the box's size can move it too, as a line
+ * placement has stood it, since a change of the box's height can move it too, as a line
  * taking it past the window's foot holds it by that foot: the change asks the placement
  * first, and the placement's landing reads it (`placed`). Read first, the box would set
- * out for where its old placement stood it and turn back a frame later.
+ * out for where its old placement stood it and turn back a frame later. A change of
+ * widths alone, as a comment box's words widening it make, moves nothing a placement
+ * stands by, so it is read at once.
  *
  * A send is the user's change joining a stream ("send" from `theirs()`, read where
  * the stream starts from with `stream`), and news joins it as the agent's turn, in
@@ -133,7 +135,7 @@
 import { inlineStyle, keeps } from "./keeps.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
-import { onUserInput } from "./focus.js";
+import { VISIBLE_FOCUS_MARKS, onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides, laidOutHeight } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
@@ -190,21 +192,28 @@ function listen() {
 }
 
 // The parts of every box a placement stands are observed by one observer, made as
-// this module loads, which asks each box's placement first (`placed`). The placement
+// this module loads, which asks each box's placement first for a change of a part's
+// height (`changed`, `placed`). The placement
 // lands in this delivery, so it may move the box but not resize the box or anything
 // holding it: another observer of that box, delivered before this one or at a shallower
 // depth, would miss the new size, and the browser reports that as a loop. A placement
 // whose fit would change a size makes that change in the next frame, before layout.
-// We could consider, in future, making this the only observer that asks a placed box's
-// placement for a change of its size: Floating UI's watch (`autoUpdate`'s
-// `elementResize`) asks too, and observes the reference with the same option, so its
-// owners would have to observe the reference another way. The order observers are
-// made in would then stop mattering.
-/** @type {WeakMap<Element, () => void>} */
+// It is the only observer that asks the comment box's placement for a change of the
+// open box's size: that box's watch leaves the box it follows to it
+// (annotation-overlay/composing/floating-response.js). The card's watch, Floating UI's
+// `autoUpdate` with its `elementResize`, asks too, so the order observers are made in
+// still matters there. We could consider, in future, giving the card's watch the
+// comment box's.
+/** @type {WeakMap<Element, (parts: Element[]) => void>} */
 const readers = new WeakMap();
 const placedParts = sizeObserver((entries) => {
-  for (const read of new Set(entries.map(({ target }) => readers.get(target))))
-    read?.();
+  /** @type {Map<(parts: Element[]) => void, Element[]>} */
+  const changes = new Map();
+  for (const { target } of entries) {
+    const read = readers.get(target);
+    if (read) changes.set(read, [...(changes.get(read) ?? []), target]);
+  }
+  for (const [read, parts] of changes) read(parts);
 });
 
 // How far a lift of the theme's (`--lf-raise-N`, styles/tokens.css) paints past the box it raises,
@@ -246,16 +255,31 @@ const between = (from, to, progress) => ({
   right: from.right + (to.right - from.right) * progress,
   bottom: from.bottom + (to.bottom - from.bottom) * progress,
 });
-/** @param {Insets} sides @param {number} [radius] */
-const insetOf = ([top, right, bottom, left], radius = 0) =>
-  `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
-/** @param {readonly number[]} sides @param {number} [radius] @returns {Keyframe} */
-const clipFrame = (sides, radius = 0) => ({
-  clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
+/** A box's corner radii, top-left, top-right, bottom-right and bottom-left, the order
+ * `inset()` rounds them in. A box inside a frame is square at the corners it doesn't
+ * share with the frame (browser/AGENTS.md, "Visual treatment carries meaning"), so an
+ * outline drawn for it keeps each corner's own rounding.
+ * @typedef {readonly number[]} Radii */
+/** @type {Radii} */
+const SQUARE = [0, 0, 0, 0];
+/** @param {Radii} radii */
+const roundOf = (radii) => radii.map((corner) => `${corner}px`).join(" ");
+/** @param {Insets} sides @param {Radii} [radii] */
+const insetOf = ([top, right, bottom, left], radii = SQUARE) =>
+  `inset(${top}px ${right}px ${bottom}px ${left}px round ${roundOf(radii)})`;
+/** @param {readonly number[]} sides @param {Radii} [radii] @returns {Keyframe} */
+const clipFrame = (sides, radii = SQUARE) => ({
+  clipPath: `inset(var(--lf-box-cut) round ${roundOf(radii)})`,
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
-/** @param {CSSStyleDeclaration} style */
-const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+/** @param {CSSStyleDeclaration} style @returns {Radii} */
+const radiiOf = (style) =>
+  [
+    style.borderTopLeftRadius,
+    style.borderTopRightRadius,
+    style.borderBottomRightRadius,
+    style.borderBottomLeftRadius,
+  ].map((corner) => Number.parseFloat(corner) || 0);
 /** @param {string} color */
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 /** @param {CSSStyleDeclaration} style */
@@ -267,8 +291,24 @@ const paints = (style) =>
     (side) => Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0,
   );
 /** @param {CSSStyleDeclaration} style */
-const rings = (style) =>
+const outlines = (style) =>
   style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
+// The ring `element` wears: its own outline, or the one on the box laid over it, its
+// ::after, where something it holds would cover its own (surfaces.css, "A focused box
+// whose band something would cover"). That box stands inset from the element's edge
+// alike on every side, so `outside` is how far it reaches past that edge.
+/** @typedef {{style: CSSStyleDeclaration, pseudo: string | null, outside: number}} Ring */
+/** @param {Element} element @param {CSSStyleDeclaration} style @returns {Ring | null} */
+const ringOf = (element, style) => {
+  if (outlines(style)) return { style, pseudo: null, outside: 0 };
+  const over = getComputedStyle(element, "::after");
+  if (over.content === "none" || !outlines(over)) return null;
+  return {
+    style: over,
+    pseudo: "::after",
+    outside: -(Number.parseFloat(over.top) || 0),
+  };
+};
 
 // root: the element whose parts move, the box among them, and only what moves with the
 // box: a part with a job of its own beside it, such as a grip whose clip leaves its
@@ -301,9 +341,21 @@ export function boxMotion({
 }) {
   const held = () => placement?.held() ?? null;
   const observer = given ?? placedParts;
-  // A change the placement answers is read in its landing (`placed`).
-  const changed = () => {
-    if (!placement?.place()) follow();
+  // A change the placement answers is read in its landing (`placed`). A placement
+  // stands the box by the heights of the parts it read: their widths are its own to
+  // set, or grow inside the room it gave them, as a comment box's words widen it. So a
+  // change that leaves each changed part as tall as it was read is read where the box
+  // stands, and a part not read yet, such as an attachment hung over the box, asks the
+  // placement.
+  /** @param {Element[]} parts */
+  const changed = (parts) => {
+    const widths = parts.every((part) => {
+      const was = rests?.get(part);
+      return (
+        was !== undefined && near(height(was), part.getBoundingClientRect().height)
+      );
+    });
+    if (widths || !placement?.place()) follow();
   };
   listen();
   // The surface: a ring and a fill inside it, cut to the box's outline, under one
@@ -768,23 +820,25 @@ export function boxMotion({
     );
 
     const space = boxOf(room.getBoundingClientRect());
-    /** @param {Box} at @param {number} grow @param {number} radius @returns {[Insets, number]} */
-    const outline = (at, grow, radius) => [
+    // An outline grown past a rounded corner rounds by as much more, as the browser
+    // draws a ring; a square corner stays square.
+    /** @param {Box} at @param {number} grow @param {Radii} radii @returns {[Insets, Radii]} */
+    const outline = (at, grow, radii) => [
       [
         at.top - space.top - grow,
         space.right - at.right - grow,
         space.bottom - at.bottom - grow,
         at.left - space.left - grow,
       ],
-      radius + grow,
+      radii.map((corner) => (corner > 0 ? Math.max(0, corner + grow) : 0)),
     ];
     const boxStyle = getComputedStyle(box);
-    const boxRadius = radiusOf(boxStyle);
+    const boxRadii = radiiOf(boxStyle);
     for (const [layer, reach, paint] of surface())
       keeps(
         layer,
         "style",
-        `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
+        `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadii))}`,
       );
     const previousBox = was?.get(box);
     if (!was || !previousBox) {
@@ -797,26 +851,34 @@ export function boxMotion({
     rtl = getComputedStyle(box).direction === "rtl";
     // Every part moves on one clock, through the one door for motion; it plays here,
     // since this reading found that it does.
-    /** @param {Element} element @param {Keyframe[]} keyframes */
-    const start = (element, keyframes) => {
-      const animation = playMotion(element, keyframes, { duration, easing });
+    /** @param {Element} element @param {Keyframe[]} keyframes @param {string | null} [pseudoElement] */
+    const start = (element, keyframes, pseudoElement = null) => {
+      const animation = playMotion(element, keyframes, {
+        duration,
+        easing,
+        pseudoElement,
+      });
       if (animation) running.push(animation);
       return animation;
     };
-    /** @param {Box} from @param {Box} to @param {number} grow @param {number} radius @param {boolean} [compact] */
-    const contour = (from, to, grow, radius, compact = false) => {
-      const frames = [clipFrame(...outline(from, grow, radius))];
+    /** @param {Box} from @param {Box} to @param {number} grow @param {Radii} radii @param {boolean} [compact] */
+    const contour = (from, to, grow, radii, compact = false) => {
+      const frames = [clipFrame(...outline(from, grow, radii))];
       if (compact)
         frames.push({
-          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radius)),
+          ...clipFrame(...outline(interpolate(from, to, shapeUntil), grow, radii)),
           offset: shapeUntil,
         });
-      frames.push(clipFrame(...outline(to, grow, radius)));
+      frames.push(clipFrame(...outline(to, grow, radii)));
       return frames;
     };
-    /** @param {Element} element @param {string} property @param {string} value */
-    const hold = (element, property, value) =>
-      start(element, [{ [property]: value }, { [property]: value }]);
+    /** @param {Element} element @param {string} property @param {string} value @param {string | null} [pseudo] */
+    const hold = (element, property, value, pseudo = null) =>
+      start(element, [{ [property]: value }, { [property]: value }], pseudo);
+    // Each element whose ring the tween stands in for: the box, and each part it
+    // resizes. A ring that comes back on one's ::after waits for the tween's end.
+    /** @type {Set<Element>} */
+    const ringWaits = new Set();
     const translated = new Set();
     /** @param {Element} element @param {number} dx @param {number} dy */
     const move = (element, dx, dy) => {
@@ -834,9 +896,9 @@ export function boxMotion({
       inlineStyle(element).setProperty("translate", `var(${CARRY})`);
       start(element, [{ [CARRY]: `${dx}px ${dy}px` }, { [CARRY]: "0px 0px" }]);
     };
-    /** @param {Element} element @param {readonly number[]} cut @param {number} [radius] */
-    const cutFrom = (element, cut, radius = 0) =>
-      start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
+    /** @param {Element} element @param {readonly number[]} cut @param {Radii} [radii] */
+    const cutFrom = (element, cut, radii = SQUARE) =>
+      start(element, [clipFrame(cut, radii), clipFrame([0, 0, 0, 0], radii)]);
 
     // Moved whole, from where it was drawn.
     /** @param {Part} part @param {Box} from */
@@ -906,7 +968,7 @@ export function boxMotion({
       if (!editor || (!inside && gesture !== "typing")) {
         motions.set(part.element, { from, to, carries });
         move(part.element, dx, dy);
-        cutFrom(part.element, cut(), radiusOf(part.style));
+        cutFrom(part.element, cut(), radiiOf(part.style));
         return;
       }
       // A field the change lets stop scrolling, as deleting lines below its cap does,
@@ -970,7 +1032,7 @@ export function boxMotion({
           to.bottom - from.bottom,
           from.left - to.left,
         ].map((inset) => Math.max(0, inset)),
-        radiusOf(part.style),
+        radiiOf(part.style),
       );
     }
 
@@ -1111,15 +1173,15 @@ export function boxMotion({
     // The surface draws a ring that changes size while it moves, in the ring's own
     // colour, the box's own ring among them, and inside it the part's own ground, which
     // the part stands without meanwhile.
-    /** @param {Element} element @param {CSSStyleDeclaration} style @param {Box} from @param {Box} to @param {boolean} [compact] */
-    function drawRing(element, style, from, to, compact = false) {
-      const offset = Number.parseFloat(style.outlineOffset);
-      const reach = Number.parseFloat(style.outlineWidth) + offset;
-      const radius = radiusOf(style);
+    /** @param {Element} element @param {CSSStyleDeclaration} style @param {Ring} ring @param {Box} from @param {Box} to @param {boolean} [compact] */
+    function drawRing(element, style, ring, from, to, compact = false) {
+      const offset = Number.parseFloat(ring.style.outlineOffset) + ring.outside;
+      const reach = Number.parseFloat(ring.style.outlineWidth) + offset;
+      const radii = radiiOf(style);
       const colour = seeThrough(style.backgroundColor) ? null : style.backgroundColor;
-      keeps(ringLayer, "style", `background: ${style.outlineColor}`);
+      keeps(ringLayer, "style", `background: ${ring.style.outlineColor}`);
       keeps(ringFill, "style", colour && `background: ${colour}`);
-      hold(element, "outlineColor", "transparent");
+      hold(element, "outlineColor", "transparent", ring.pseudo);
       if (colour) hold(element, "backgroundColor", "transparent");
       /** @type {[Element, number][]} */
       const layers = [
@@ -1128,7 +1190,7 @@ export function boxMotion({
         [ringFill, offset],
       ];
       for (const [layer, grown] of layers)
-        start(layer, contour(from, to, grown, radius, compact));
+        start(layer, contour(from, to, grown, radii, compact));
     }
 
     /** @param {Part} part */
@@ -1160,7 +1222,9 @@ export function boxMotion({
         }
         if (part.whole) return carryContent(part, from);
         if (!same(from, to)) within = { from, to };
-        if (!sized && rings(style)) drawRing(element, style, from, to);
+        if (!sized) ringWaits.add(element);
+        const ring = sized ? null : ringOf(element, style);
+        if (ring) drawRing(element, style, ring, from, to);
         else if (!sized && paints(style) && !part.holdsWindow) carryContent(part, from);
         if (!same(from, to))
           motions.set(element, { from, to, ...motions.get(element), frames: true });
@@ -1183,16 +1247,45 @@ export function boxMotion({
     if (running.length === 0 && same(boxFrom, boxAt)) return;
     motions.set(box, { from: boxFrom, to: boxAt });
     for (const [layer, reach] of surface())
-      start(layer, contour(boxFrom, boxAt, reach, boxRadius, compact));
+      start(layer, contour(boxFrom, boxAt, reach, boxRadii, compact));
     // A ring the box comes to wear while it moves, as focus reaching the card a
     // comment's Send opened does, would stand at the box's rest size over an outline
     // still travelling, so it waits for the tween's end.
-    if (rings(boxStyle)) drawRing(box, boxStyle, boxFrom, boxAt, compact);
+    const boxRing = ringOf(box, boxStyle);
+    if (boxRing) drawRing(box, boxStyle, boxRing, boxFrom, boxAt, compact);
     else hold(box, "outlineColor", "transparent");
+    ringWaits.add(box);
+    holdArrivingRing();
     // The box stands transparent over the surface's own fill while everything moves,
     // and lets what it carries stand past its rest outline on the way.
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
+    // A ring the box or a part it resizes wears on its ::after can't be held before it
+    // arrives: that box exists only while the focus paint marks the element or the one
+    // it shows focus for, and a motion started for it before then never reaches it, nor
+    // one started for the ::after a focus leaving took away when focus comes back. So
+    // each time the paint marks one during the tween, its hold starts again, before the
+    // frame that would draw the ring, and ends with the tween.
+    function holdArrivingRing() {
+      const animations = running;
+      const clock = animations[0];
+      if (!clock) return;
+      const watch = new MutationObserver(() => {
+        if (running !== animations) return watch.disconnect();
+        for (const element of ringWaits) {
+          const ring = ringOf(element, getComputedStyle(element));
+          if (!ring?.pseudo) continue;
+          const held = hold(element, "outlineColor", "transparent", ring.pseudo);
+          if (held) held.currentTime = clock.currentTime;
+        }
+      });
+      watch.observe(box.getRootNode(), {
+        subtree: true,
+        attributeFilter: VISIBLE_FOCUS_MARKS,
+      });
+      const stop = () => watch.disconnect();
+      clock.finished.then(stop, stop);
+    }
     const animations = running;
     const last = animations.at(-1);
     if (last)

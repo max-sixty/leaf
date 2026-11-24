@@ -2,7 +2,6 @@
 import { nothing } from "/vendor/lit.js";
 import {
   keeps,
-  keepsHidden,
   keepsText,
   offer,
   offerAction,
@@ -54,7 +53,10 @@ export function defineSeatedObligation() {
           keepsText(this.press, "Accept");
           keeps(this.press, "aria-pressed", false);
         }
-        keepsHidden(this.comment, this.writing || !threadSurface(this).open);
+        this.comment.toggleAttribute(
+          "hidden",
+          this.writing || !threadSurface(this).open,
+        );
         return nothing;
       }
     },

@@ -31,10 +31,12 @@ export function TEXT_ENTRY(binding) {
 // focus is on the widget or its item, and anything inside an application, which takes
 // the keyboard whole. Focus there claims those characters, alone or shifted, so Leaf's
 // page letters wait until focus leaves, as they do in a select (`takesLetters`, which
-// also covers an editable combobox's text box). Only these keys need a claim: Leaf reads
-// printed characters before the page's listeners (controller.js), and every other key
-// after the page's elements have heard it. Leaf's own file tree types into its search
-// this way.
+// also covers an editable combobox's text box). Leaf reads a key after the page's
+// elements have heard it (controller.js), so a widget that prevents each letter it
+// handles keeps it without a claim. A typeahead widget needs one all the same, since it
+// prevents only a letter some name starts with, as Web Awesome's dropdown does, or none,
+// and Leaf would otherwise offer page letters the widget answers. Leaf's own file tree
+// types into its search this way.
 const TYPES_AHEAD = [
   ...["listbox", "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio"],
   ...["tree", "treeitem", "combobox", "application"],

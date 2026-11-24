@@ -24,11 +24,12 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import page_at_rest, rings_drawn, solid_png
+from render_cases_layout import page_at_rest, ring_faults, rings_drawn, solid_png
 from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
+    FAKE_RECOGNITION,
     LONG_PAGE,
     PREVIEW,
     accessible_node,
@@ -67,7 +68,7 @@ from render_harness import (
 )
 from render_harness import leaf_page as titled_page
 
-from browser.threads import dispatch_paste, paste_image
+from browser.threads import choose_threads_in_panel, dispatch_paste, paste_image
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
@@ -451,12 +452,10 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's notice of a Resolve and its press name one gesture. A Resolve that
     leaves no thread open says so and, once the log has it, offers the Undo that takes
-    it back. The log refusing that Resolve takes the notice away with it, and its press
-    takes back that Resolve even once another
-    gesture of the user's is the newest, the one ⌘Z would take: a press that ran ⌘Z
-    would take back an earlier gesture once its own was refused. The agent having picked
-    that Resolve up changes nothing: the press still takes that Resolve, not the
-    newest gesture."""
+    it back. The log refusing that Resolve takes the notice away with it. The agent
+    picking that Resolve up leaves the Undo standing, and once another gesture of the
+    user's is the newest, the one ⌘Z would take, the notice keeps its words and offers
+    no Undo: a press showing ⌘Z does what ⌘Z does."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -521,12 +520,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(page.locator(panel_view("threads"))).to_be_visible()
     expect(said).to_have_text("All threads resolved")
     expect(undo).to_contain_text("Undo")
-    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
-    )
-    # The agent picks that Resolve up, and the notice's press still takes it back.
+    # The agent picks that Resolve up, and the notice still offers to take it back.
     (resolved,) = (
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -544,13 +538,15 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
         },
     )
     told(page)
-    with sending(page, "the undo"):
-        undo.click()
-    events = events_model.read_events(serve.page_dir)
-    assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
-        resolved
-    ]
-    expect(title).to_have_text(first)
+    expect(undo).to_contain_text("Undo")
+    # Another tab of the user's reopens one of the others, so ⌘Z would take that.
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "unresolve", "author": "user", "parent": roots[others[0]]},
+    )
+    told(page)
+    expect(undo).to_have_count(0)
+    expect(said).to_have_text("All threads resolved")
 
 
 def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
@@ -952,6 +948,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
     page = floating(browser, url)
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="About this bit.").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
@@ -1448,6 +1445,7 @@ def test_whatever_the_field_holds_the_row_keeps_its_line(browser, serve, touch):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-search")).to_be_hidden()
 
+    choose_threads_in_panel(page)
     rows = threads_rows(page)
     page.get_by_role("button", name="Find a thread or message").click()
     expect(page.locator("input.lf-fp-search")).to_be_visible()
@@ -2987,8 +2985,8 @@ def test_floating_status_records_feedback_only_when_its_words_show(
 
 def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     """The row's status and errors remain inline; its menu carries the full reading.
-    The leaf's preview names what it opens, and says the status under that only when
-    the leaf is folded."""
+    The leaf's preview names what it opens and the key that presses it, and says the
+    status under that only when the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
     peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
@@ -2996,7 +2994,9 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
     leaf.hover()
-    expect(peek).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-word")).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-keys")).to_have_text("o")
+    expect(peek.locator(".lf-preview-detail")).to_have_count(0)
     seat.hover()
     rendered(page)
     expect(peek).to_be_hidden()
@@ -3037,7 +3037,8 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    expect(peek).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-word")).to_have_text("Page menu")
+    expect(peek.locator(".lf-preview-detail")).to_have_count(0)
 
 
 # A status longer than the panel's field holds on its one line at any width.
@@ -3557,6 +3558,37 @@ def test_an_open_thread_s_reply_stands_only_while_its_key_enters_the_field(
     expect(key).to_have_text("c")
 
 
+END_KEY = """() => {
+  const keys = [...document.querySelectorAll('.lf-fp-field kbd')].filter(
+    (k) => k.textContent && k.checkVisibility({ visibilityProperty: true }));
+  return keys.length ? keys.at(-1).getBoundingClientRect().right : null;
+}"""
+
+
+def test_the_field_s_end_press_stands_one_place_beside_the_leaf(browser, serve):
+    """The empty field's end press, its word and key, stands as far from the leaf in an
+    open thread as on the page, and as far once the user has written in the thread's
+    reply and stepped out of it: the field keeps the room of its corner only while
+    Dictate or Send stands there, which is never beside the end press."""
+    url = serve(OBLIGATION_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    on_page = page.evaluate(END_KEY)
+    assert on_page is not None, "the page's field ends in a press and its key"
+    page.keyboard.press("t")
+    expect(field(page)).to_have_attribute("placeholder", "Reply… c")
+    assert page.evaluate(END_KEY) == on_page, "Reply stands where the page's press does"
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).not_to_be_focused()
+    expect(field(page)).to_have_attribute("placeholder", "Reply… c")
+    assert page.evaluate(END_KEY) == on_page, (
+        "Reply stands there once the user has stepped out of the reply"
+    )
+
+
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
     """The leaf opens its menu in the place of the view open above the row, however
     tall that stood, above the leaf, and within a short window it keeps every row
@@ -3587,24 +3619,29 @@ def test_a_toggle_s_notice_shows_only_where_no_standing_words_say_it(browser, se
     page = floating(browser, serve(LONG_PAGE, comments=1))
     hidden = page.locator(".lf-chrome[data-lf-annotations-hidden]")
     page.locator("body").focus()
-    page.keyboard.press("o")
-    expect_panel_says(page, "Annotations hidden · Show annotations o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
+    expect_panel_says(page, "Annotations hidden · Show annotations g H")
     expect(page.locator(".lf-live")).to_have_text("Annotations hidden")
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     # Read once the press has drawn, while its notice's moment still stands.
     rendered(page)
     assert field(page).get_attribute("data-lf-says") == "status"
     assert "Annotations" not in (field(page).get_attribute("placeholder") or "")
     expect(page.locator(".lf-live")).to_have_text("Annotations shown")
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(hidden).to_have_count(1)
     page.locator(".lf-fp-field .lf-compose-press").click()
     expect(hidden).to_have_count(0)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect_panel_says(page, "Annotations hidden")
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect_panel_says(page, "Annotations shown")
 
 
@@ -3638,7 +3675,8 @@ def test_a_gesture_s_notice_with_a_press_stays_until_the_next_input(browser, ser
     )
     moment = page.evaluate("async () => (await window.__lfCheckApi()).NOTICE_MS")
     page.locator("body").focus()
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(offered).to_have_count(1)
     page.keyboard.press("ArrowDown")
     page.clock.run_for(moment * 2)
@@ -4064,9 +4102,13 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     page.mouse.move(card["x"] + 20, card["y"] + 6)
     expect(page.get_by_role("button", name="Fold to the leaf")).to_be_visible()
     button = minimize.bounding_box()
-    # It rides the corner: its centre sits on the box's top-left edge.
-    assert abs(button["x"] + button["width"] / 2 - card["x"]) <= 2
-    assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    # It rides the corner, standing out past it as every corner mark does.
+    overhang = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-mark-overhang'))"
+    )
+    assert button["x"] == pytest.approx(card["x"] - overhang, abs=1)
+    assert button["y"] == pytest.approx(card["y"] - overhang, abs=1)
     # A view opening carries the corner up, away from the still pointer, and the
     # button with it goes; putting the view away brings the corner back to it.
     page.locator("body").focus()
@@ -4925,8 +4967,8 @@ def test_a_layer_a_menu_row_opened_closes_back_to_the_leaf(browser, serve):
 
 
 def test_tab_from_the_field_reaches_dictate(browser, serve):
-    """Dictate stands beside the field while the user writes in the panel and is gone at
-    rest, so Tab from the field lands on it rather than hiding it as the field lets go.
+    """Dictate stands beside the field while the user writes in it and is gone at rest,
+    and Tab from the field lands on it rather than hiding it as the field lets go.
     """
     page = floating(browser, serve(LONG_PAGE))
     dictate = page.locator(".lf-fp-box .lf-compose-dictate")
@@ -4940,6 +4982,68 @@ def test_tab_from_the_field_reaches_dictate(browser, serve):
     )
     expect(dictate).to_be_visible()
     expect(dictate).to_be_focused()
+
+
+def test_stop_stands_while_its_dictation_runs(browser, serve):
+    """A dictation running in the field is writing there, wherever focus goes on to:
+    its Stop keeps the corner, and the field keeps saying where the words go rather
+    than offering a press at its end beside Stop."""
+    page = open_page(browser, serve(LONG_PAGE), init_script=FAKE_RECOGNITION)
+    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
+    field(page).click()
+    page.keyboard.press("Tab")
+    expect(dictate).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(dictate).to_have_attribute("aria-pressed", "true")
+    in_panel = "() => document.querySelector('.lf-floating-panel').contains(document.activeElement)"
+    for _ in range(4):
+        page.keyboard.press("Tab")
+        if not page.evaluate(in_panel):
+            break
+    assert not page.evaluate(in_panel), "Tab took focus out of the panel"
+    expect(dictate).to_be_visible()
+    expect(dictate).to_have_attribute("aria-pressed", "true")
+    expect(field(page)).to_have_attribute("data-lf-says", "destination")
+
+
+def test_words_another_tab_writes_bring_no_send_under_a_resting_pointer(browser, serve):
+    """Words another tab writes in the page's empty field bring no Send into its corner,
+    where a pointer may rest, until the user's own move: a press there places the caret
+    in the words rather than sending them (browser/AGENTS.md, "Controls stay where the
+    user aims"), and Send stands once they write there."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, url)
+    other = floating(browser, url)
+    box = field(page).bounding_box()
+    page.mouse.move(box["x"] + box["width"] - 12, box["y"] + box["height"] / 2)
+    write(field(other), "Written in the other tab")
+    expect(field(page)).to_have_js_property("value", "Written in the other tab")
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    expect(send).to_be_hidden()
+    page.mouse.down()
+    page.mouse.up()
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_js_property("value", "Written in the other tab")
+    expect(page.locator(".lf-fp-opened")).to_be_hidden()
+    expect(send).to_be_visible()
+
+
+def test_closing_a_view_leaves_dictate_beside_the_caret(browser, serve):
+    """A pointer on an open view's Close leaves the caret in the page's field, which
+    the user is still writing in, so Dictate keeps its corner."""
+    page = open_page(browser, serve(OBLIGATION_PAGE), init_script=FAKE_RECOGNITION)
+    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
+    page.locator("body").focus()
+    page.keyboard.press("o")
+    close = page.locator(".lf-fp-close").first
+    expect(close).to_be_visible()
+    field(page).click()
+    expect(field(page)).to_be_focused()
+    expect(dictate).to_be_visible()
+    close.click()
+    expect(close).to_be_hidden()
+    expect(field(page)).to_be_focused()
+    expect(dictate).to_be_visible()
 
 
 ROW_CENTRES = """() => {
@@ -5050,13 +5154,13 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
 
 
 @pytest.mark.parametrize("touch", [False, True])
-def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
+def test_the_panel_s_band_at_the_foot_is_as_tall_as_the_row_stands_up(
     browser, serve, touch
 ):
-    """The theme reserves the panel's row at the window's foot, with the gap it stands
-    above the window's edge again above it, so the page's last line scrolls clear of the
-    row and no further. A reserve stated as a number of its own can stand taller than
-    the row, under a mouse and under a finger alike."""
+    """The band the panel's row takes at the window's foot, which a landing stops
+    above, is the row with the gap it stands above the window's edge again above it,
+    and no more. A band stated as a number of its own can stand taller than the row,
+    under a mouse and under a finger alike."""
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )
@@ -5244,8 +5348,9 @@ def test_a_thread_s_messages_read_alike_in_its_card_and_the_panel(browser, serve
     card.locator(".lf-msg-edit").click()
     assert card.locator(".lf-msg-editor leaf-text").evaluate(face) == message
     card.locator(".lf-msg-edit-cancel").click()
-    open_threads(page)
-    page.locator(f"{panel_view('threads')} .lf-fp-thread").click()
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Open in panel"
+    ).click()
     reader = page.locator(f"{panel_view('thread')} .lf-msg")
     expect(reader).to_contain_text("Which job should come first?")
     assert reader.locator(".lf-msg-body").evaluate(face) == message
@@ -5439,7 +5544,7 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     while it is open, holding the caret. Its
     comment sent, the panel opens the thread it started, which the page draws
     nowhere, and the field is back in the row."""
-    page = floating(browser, serve(PAGE_ANNOTATED))
+    page = open_page(browser, serve(PAGE_ANNOTATED), init_script=FAKE_RECOGNITION)
     response = page.locator(".lf-fp-response")
     row = page.locator(".lf-fp-row")
     rest = row.bounding_box()["height"]
@@ -5450,6 +5555,9 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     expect(box).to_be_focused()
     assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)
     expect(page.locator(".lf-fp-field")).to_be_hidden()
+    # The box keeps its own corner, Dictate while it is empty, as every comment box
+    # does, rather than the panel field's.
+    expect(response.locator(".lf-compose-dictate")).to_be_visible()
     page.keyboard.type("Is this paragraph needed?")
     # Send stands in the field's end corner, as in every comment box, not on a line
     # of its own under the field.
@@ -5731,6 +5839,46 @@ def test_a_line_the_field_gives_up_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
 
 
+def test_a_ring_the_field_comes_back_to_mid_tween_waits_for_its_end(browser, serve):
+    """The panel's field wears its ring on its ::after (floating-panel.css), which
+    exists only while the focus paint marks the field's row. The field is a part of the
+    box that moves, and focus leaving it and coming back while a line it gave up still
+    travels makes that ::after anew. Its ring waits for the tween's end, as the one the
+    motion drew from the tween's start does (box-motion.js): drawn at once, it would
+    stand at the field's rest size inside a box still travelling."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A first line")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("x")
+    settled(page)
+    box = page.locator(".lf-fp-field")
+    ring = "node => getComputedStyle(node, '::after').outlineColor"
+    content = "node => getComputedStyle(node, '::after').content"
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).to_be_focused()
+    worn = box.evaluate(ring)
+    assert box.evaluate(content) != "none"
+    assert worn != "rgba(0, 0, 0, 0)", worn
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fp-ground'))"
+    )
+    page.keyboard.press("Tab")
+    expect(field(page)).not_to_be_focused()
+    assert box.evaluate(content) == "none"
+    page.keyboard.press("Shift+Tab")
+    expect(field(page)).to_be_focused()
+    assert page.evaluate("() => __lfHeld.some(motion => motion.playState === 'paused')")
+    assert box.evaluate(ring) == "rgba(0, 0, 0, 0)"
+    page.evaluate("() => __lfHeld.splice(0).forEach(motion => motion.finish())")
+    assert box.evaluate(ring) == worn
+
+
 # How far the field's first line of words and the more-room mark stand below the box's
 # top edge as drawn, and how opaque the mark is.
 BELOW_THE_EDGE = r"""() => {
@@ -5897,15 +6045,15 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
     Escape hands the user back to the attachment: they never left what they were
     writing, so the page's field keeps Send in its corner and the counts aside, behind
     the viewer, after it and as they press back into the words, and a rewrite keeps
-    its thread view's height."""
+    its thread view's height. The draft's picture stands above the box's top-left
+    corner, so the panel's fold, which a pointer at that corner shows, stands clear of
+    the picture, and a pointer on the picture shows no fold."""
     page = floating(browser, serve(LONG_PAGE))
     viewer = page.locator("dialog.lf-media-viewer")
 
     def look_at(picture):
-        # Its foot's middle, clear of the removal mark on its top corner and of the
-        # fold mark that a pointer near the box's top-left shows over its foot's start.
-        box = picture.bounding_box()
-        picture.click(position={"x": box["width"] / 2, "y": box["height"] - 3})
+        # Its foot's start, clear of the removal mark on its top corner.
+        picture.click(position={"x": 3, "y": picture.bounding_box()["height"] - 3})
         expect(viewer).to_be_visible()
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
@@ -5913,11 +6061,23 @@ def test_looking_at_an_attached_image_keeps_the_draft_where_it_stands(browser, s
 
     write(field(page), "A draft long enough to wrap once the counts stand beside it")
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
-    host = page.locator(".lf-floating-panel")
-    expect(host).to_have_attribute("data-lf-drafted", "")
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    expect(send).to_be_visible()
     words = field(page).bounding_box()
-    look_at(page.locator(".lf-fp-box .lf-composer-media-open"))
-    expect(host).to_have_attribute("data-lf-drafted", "")
+    picture = page.locator(".lf-fp-box .lf-composer-media-open")
+    fold = page.locator(".lf-fp-minimize")
+    card = page.locator(".lf-fp-card").bounding_box()
+    page.mouse.move(card["x"] + 20, card["y"] + 6)
+    expect(fold).to_be_visible()
+    foot = picture.bounding_box()
+    assert picture.evaluate(
+        "(picture, [x, y]) => picture.contains(document.elementFromPoint(x, y))",
+        [foot["x"] + 3, foot["y"] + foot["height"] - 1],
+    )
+    page.mouse.move(foot["x"] + 3, foot["y"] + foot["height"] - 3)
+    expect(fold).to_be_hidden()
+    look_at(picture)
+    expect(send).to_be_visible()
     assert field(page).bounding_box() == words
     field(page).click()
     assert field(page).bounding_box() == words
@@ -6129,11 +6289,11 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(field(page)).to_be_focused()
     face = page.locator(".lf-fp-field").evaluate(
         """box => {
-          const style = getComputedStyle(box);
+          const ring = getComputedStyle(box, '::after');
           const card = document.querySelector('.lf-fp-card');
           const at = box.getBoundingClientRect(), edge = card.getBoundingClientRect();
-          return [style.outlineStyle, style.outlineWidth, style.outlineOffset,
-            style.backgroundColor !== getComputedStyle(card).backgroundColor,
+          return [ring.outlineStyle, ring.outlineWidth, ring.outlineOffset,
+            getComputedStyle(box).backgroundColor !== getComputedStyle(card).backgroundColor,
             [at.top - edge.top, at.left - edge.left, edge.bottom - at.bottom]
               .map(Math.round)];
         }"""
@@ -6159,6 +6319,67 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     # The resume has drawn whatever it decided, an error included.
     rendered(page)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
+
+
+def test_the_field_s_ring_stands_over_what_covers_its_words(browser, serve):
+    """The ring the field wears while it holds the caret stands one band inside the
+    box's edge, where Send stands, so what paints the field's paper over the words
+    leaves it whole: Send shown over words that run under its corner, under a resting
+    pointer, and an error about the field."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    for word in ("the words run on toward the corner where Send stands " * 4).split():
+        page.keyboard.insert_text(f"{word} ")
+        rendered(page)
+        if field(page).evaluate("(node) => node.matches(':state(corner-taken)')"):
+            break
+    else:
+        raise AssertionError("the words never reached Send's corner")
+    send = page.locator(".lf-fp-field .lf-compose-submit").bounding_box()
+    assert send is not None
+    page.mouse.move(send["x"] + send["width"] / 2, send["y"] + send["height"] / 2)
+    expect(page.locator(".lf-fp-field .lf-compose-field")).to_have_attribute(
+        "data-lf-send-armed", ""
+    )
+    rendered(page)
+    assert not (faults := ring_faults(rings_drawn(page), "with Send over the words")), (
+        "\n".join(faults)
+    )
+
+    field(page).evaluate(
+        "async (subject) => (await window.__lfWidgetApi())"
+        ".raiseError('That writing place is unavailable', {subject})"
+    )
+    expect(page.locator(".lf-fp-field .lf-compose-error")).to_be_visible()
+    rendered(page)
+    assert not (faults := ring_faults(rings_drawn(page), "under an error")), "\n".join(
+        faults
+    )
+
+
+def test_a_press_inside_the_field_s_ring_keeps_its_words_focused(browser, serve):
+    """Holding the caret, the field's slot runs to the panel's edges and wears the ring
+    one band inside them, so a press between the ring and the words' box is a press on
+    the field, and the words keep the focus."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    expect(field(page)).to_be_focused()
+    page.keyboard.insert_text("A comment being written")
+    slot = page.locator(".lf-fp-field").bounding_box()
+    words = page.locator(".lf-fp-field .lf-compose-field").bounding_box()
+    assert slot is not None and words is not None
+    # The band the slot's padding holds, beside the words' box and above and below it.
+    for x, y in (
+        (slot["x"] + 3, slot["y"] + slot["height"] / 2),
+        (words["x"] + words["width"] / 2, slot["y"] + 3),
+        (words["x"] + words["width"] / 2, slot["y"] + slot["height"] - 3),
+    ):
+        assert words["x"] > x or y < words["y"] or y > words["y"] + words["height"]
+        page.mouse.click(x, y)
+        expect(field(page)).to_be_focused()
 
 
 def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve):

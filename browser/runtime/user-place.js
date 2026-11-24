@@ -74,6 +74,7 @@ import {
   showsContents,
   shownWindow,
   stuckBox,
+  whenChanges,
 } from "./geometry.js";
 import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling.js";
 import {
@@ -94,7 +95,7 @@ import {
 } from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
 import { CARRY } from "./box-motion.js";
-import { browserScrolls, watchScrollEnds } from "./arrivals.js";
+import { browserScrolls } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
@@ -141,10 +142,10 @@ const boxStoodAt = (node) => {
 // Tab there: the user chose this. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
 // every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
-// `stuckBox`). Its
-// box is asked of what clips it out to that stuck box, then the window and the chrome,
-// since a sticky header reads as under the slot it stands in itself (`seenRect`,
-// `headerInset`). A row
+// `stuckBox`). Its box is asked of what clips it out to that stuck box, then of the
+// window and the chrome, since a sticky header reads as under the slot it stands in
+// itself (`seenRect`, `headerInset`). The chrome is read where it comes to rest, as
+// `seenAhead` reads it. A row
 // scrolled out of a list of Leaf's own chrome, such as Threads, is still where they are
 // while the list shows: its arrows move on from that row into view, so it is the list
 // that must leave the screen. It reads the page as it stands, with no record of how
@@ -165,17 +166,17 @@ export function focusPlace() {
   return left &&
     left.left < layoutWindow().right &&
     left.right > 0 &&
-    inFront(left, node)
+    inFront(left, node, true)
     ? node
     : null;
 }
 declareFocusPlace(focusPlace);
-// A scroll's end can take the control out of sight or bring it back, which changes where
-// `c` goes (composing/surface.js, `focusedPlace`), with no focus move to paint it.
-watchScrollEnds(() => {
-  const node = focused();
-  if (node && node !== document.body) repaint();
-});
+// A scroll can take the control out of sight or bring it back, which changes where `c`
+// goes and whether the comment box waits beside the control (composing/surface.js,
+// `focusedPlace`, `restingTarget`), with no focus move to paint it. So the page is
+// painted again in the frame where that changes, while the scroll still moves, as a
+// trackpad's momentum carries the control back in.
+whenChanges(focusPlace, () => repaint());
 // Whether a finite animation moves a box holding `node`, as the slide a moved card makes
 // from where it stood to where layout put it, or a floating box's part box-motion.js
 // carries from where it was drawn (`CARRY`), as the thread card's list travels from the

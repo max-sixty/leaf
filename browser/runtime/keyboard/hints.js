@@ -87,23 +87,6 @@ export function codedHints(members, alphabet = HINT_KEYS.join("")) {
   }));
 }
 
-// Lit sees only an opaque primitive. The native row or target remains controller state,
-// while an unchanged owner retains its seat, chip and keycaps across paint-only updates.
-export function renderKeys() {
-  /** @type {WeakMap<object, number>} */
-  const keys = new WeakMap();
-  let next = 1;
-  /** @param {object} owner */
-  return (owner) => {
-    let key = keys.get(owner);
-    if (key === undefined) {
-      key = next++;
-      keys.set(owner, key);
-    }
-    return key;
-  };
-}
-
 /** @param {HintBox} box @param {number} left @param {number} top @returns {HintBox} */
 const movedTo = (box, left, top) => ({
   left,

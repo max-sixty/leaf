@@ -52,7 +52,7 @@
    wait out a release's click each its own way, by a timer the next press could outrun
    or a flag held until the next press, and a flag a stopped release left standing.
 
-   And it owns the widget primitives built on these: closing a layer and handing the user
+   And it owns the primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
 
@@ -601,6 +601,13 @@ export const onFocusVisibility = (read) => {
   visibilityReaders.add(read);
   return () => visibilityReaders.delete(read);
 };
+// The marks the paint writes while the focus is visible, which every rule drawing a
+// focus ring on a box's ::after keys on, so a reader that must see such a ring arrive
+// watches for them (box-motion.js).
+export const VISIBLE_FOCUS_MARKS = [
+  "data-lf-focus-visible",
+  "data-lf-control-focus-visible",
+];
 /** @param {Element} node @param {string} name @param {boolean} present */
 function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
@@ -1077,8 +1084,8 @@ addEventListener(
   },
   { capture: true, passive: true },
 );
-// The user's inputs, counted: a key, a press, a wheel, a touch, text entered, or the
-// window losing focus, as find-in-page takes it. Delayed work compares the count it
+// The user's inputs, counted: a key, a press, a wheel, a touch, text entered, the
+// window losing focus, as find-in-page takes it, or a step Back or Forward. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
 

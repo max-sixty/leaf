@@ -93,7 +93,7 @@
  * minutes on each ⋯.
  *
  * The sheets are the dial's preview, drawn by the dial while Leaf keeps its own preview
- * face unseen (`unseen`, module-input.md, "Previews"). Leaf's preview stands clear of the
+ * face unseen (`unseen`, module-previews.md). Leaf's preview stands clear of the
  * controls on the page, so where a link sat under the dial a chart in it stood beside
  * the dial, away from the buttons it compares; hanging each sheet under its own button
  * is an exception to one preview face the maintainer chose. Leaf still opens and ends
@@ -124,7 +124,6 @@ import {
   PAGE_INTERFACE,
   phrasing,
   onPress,
-  plainPress,
   previewChanged,
   PREVIEW_ENDED,
   readingAt,
@@ -158,6 +157,12 @@ const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
+// Whether a press is the primary button with no modifier held, which the dial takes; a
+// modified one keeps its usual meaning.
+/** @param {MouseEvent} event */
+const plainPress = (event) =>
+  event.button === 0 &&
+  !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
 /** @param {Element} heading */

@@ -13,6 +13,7 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
+from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
@@ -23,6 +24,7 @@ from render_harness import (
     draft_control,
     expect_obligations_answered,
     field_press,
+    gesture_writes,
     leaf_page,
     open_page,
     open_versions,
@@ -34,6 +36,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    scroll_followers,
     scroll_settled,
     select,
     sending,
@@ -461,6 +464,50 @@ def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("Which route?")
 
 
+def test_a_comment_box_is_the_frame_of_the_card_it_becomes(browser, serve):
+    """The box stands at the card Send opens, as wide, and inside its one-pixel edge as
+    tall as that card's reply box, the height a box written in at a frame's edge takes
+    (browser/AGENTS.md, "Shared containers determine control dimensions")."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.type("Take the left one")
+    box = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    reply = card.locator(".lf-thread-reply .lf-compose-field")
+    expect(reply).to_be_visible()
+    frame = card.bounding_box()
+    assert (box["x"], box["width"]) == pytest.approx(
+        (frame["x"], frame["width"]), abs=0.5
+    )
+    assert box["height"] - 2 == pytest.approx(reply.bounding_box()["height"], abs=0.5)
+
+
+def test_a_comment_box_s_ring_stands_over_an_error_about_it(browser, serve):
+    """The ring the box wears while it holds the caret stands one band inside its edge,
+    as its card's reply box's does, so an error about the box, which covers its words,
+    leaves the ring whole."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    field.evaluate(
+        "async (subject) => (await window.__lfWidgetApi())"
+        ".raiseError('That writing place is unavailable', {subject})"
+    )
+    expect(page.locator(".lf-fab-bar .lf-compose-error")).to_be_visible()
+    rendered(page)
+    drawn = rings_drawn(page)
+    assert any(".lf-compose-field" in seen["rule"] for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "under an error")), "\n".join(faults)
+
+
 def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, serve):
     """Without a margin the box at rest would lie on the page's own controls, where the
     next press would open it, so it waits for `c`, which opens it as ever."""
@@ -472,6 +519,83 @@ def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, ser
     expect(page.locator(".lf-fab-rest")).to_be_hidden()
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
+
+
+A_TALL_ASK = AN_ASK_THEN_READING.replace(
+    "</lf-options></lf-group>",
+    '</lf-options><div style="height:3000px">Why each route</div></lf-group>',
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("box", ["resting", "open"])
+def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll(
+    engine, request, serve, box
+):
+    """Beside a target whose top has left the window, the comment box, at rest or open,
+    stands at the window's top through the scroll rather than once it ends
+    (placement-rules.json, `scroll-held-in`). Each scroll solves it again, as it does
+    its card, and an answer writes the box only where an edge takes it in or lets it
+    go, so no write follows the scroll. Scrolled past the target's foot and back, the
+    box returns beside the foot while that scroll still moves, a box at rest included,
+    since whether focus is in sight is read at each scroll (user-place.js). A scroll's
+    event comes after the frame that drew it, so the frame in which an edge crosses
+    draws the box as the frame before left it, as it does the card."""
+    page = open_page(request.getfixturevalue(engine), serve(A_TALL_ASK))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    page.keyboard.press("m")
+    expect(page.locator(".lf-fab-rest")).to_be_visible()
+    if box == "open":
+        page.keyboard.press("c")
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.type("Take the left one")
+    rendered(page)
+    stood = page.locator(".lf-fab-bar").bounding_box()["y"]
+    writes, frames, samples = gesture_writes(
+        page,
+        1500,
+        sample="""() => ({
+          box: document.querySelector('.lf-fab-bar').getBoundingClientRect().top,
+          target: document.getElementById('route').getBoundingClientRect().top,
+        })""",
+    )
+    held = samples[-1]["read"]["box"]
+    assert 0 <= held < stood, (stood, samples)
+    past = [sample["read"] for sample in samples if sample["read"]["target"] < held]
+    assert len(past) >= frames - 2, samples
+    carried = [read for read in past[1:] if abs(read["box"] - held) > 0.5]
+    assert not carried, samples
+    box_writes = [
+        write for write in writes if any("lf-fab" in step for step in write["target"])
+    ]
+    assert not scroll_followers(box_writes, frames), box_writes
+    foot = page.evaluate(
+        "() => document.getElementById('route').getBoundingClientRect().bottom"
+    )
+    gesture_writes(page, round(foot) + 200)
+    _, frames, back = gesture_writes(
+        page,
+        -400,
+        sample="""() => {
+          const bar = document.querySelector('.lf-fab-bar');
+          return {
+            shown: bar.checkVisibility({visibilityProperty: true}),
+            box: bar.getBoundingClientRect().top,
+            foot: document.getElementById('route').getBoundingClientRect().bottom,
+          };
+        }""",
+    )
+    returned = [sample["read"] for sample in back if sample["read"]["foot"] > 0]
+    assert len(returned) >= frames // 3, back
+    beside = [
+        read for read in returned[1:] if read["shown"] and read["box"] < read["foot"]
+    ]
+    assert len(beside) == len(returned) - 1, back
+    if box == "open":
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_js_property(
+            "value", "Take the left one"
+        )
 
 
 def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):

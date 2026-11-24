@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
-from browser.threads import append_agent_reply
+from browser.threads import append_agent_reply, choose_threads_in_panel
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -167,10 +167,11 @@ def thread_page(serve):
         d, notes, "A short first paragraph.\n\nThe paragraph being read. " + WORDS * 2
     )["id"]
     # The first two steps take a line each, so with `read` at the reading line the
-    # last message starts inside the window and the reply box below it.
+    # last message starts inside the window. The last runs long, so the reply box
+    # under it lies below the window whatever the platform's line height.
     for n in range(3):
         user(notes, f"And then {n}?")
-        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
+        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS * 8 if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
     user(long, "Show me the lines.")
     lines = append_agent_reply(d, long, LINES)["id"]
@@ -878,8 +879,10 @@ def put_card(thread, *, words=False, on=None, tabbed=False, left=False):
 
 def put_panel(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
-        """Open `thread` in the floating panel from Threads."""
+        """Open `thread` in the floating panel from Threads, with the panel chosen for
+        threads about a passage."""
         scroll_to(page, "#p-20", 300)
+        choose_threads_in_panel(page)
         go_to_threads(page)
         topic = {"told": "paragraph 20", "asked": "paragraph 22"}[thread]
         page.locator(".lf-fp-thread", has_text=topic).click()

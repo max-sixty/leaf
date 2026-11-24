@@ -18,22 +18,18 @@ const { wireInput } = createCompositionInputs({
 });
 
 function discard(id, text, said = "Original words") {
-  const editor = new editing.MessageEditor(
-    id,
-    {},
-    {
-      wireInput,
-      said: () => said,
-      base: () => "revision-1",
-      send: () => {
-        throw new Error("Discard must not send");
-      },
-      land: () => {},
-      paint: () => {},
-      previous: () => null,
-      reveal: () => {},
+  const editor = new editing.MessageEditor(id, {
+    wireInput,
+    said: () => said,
+    base: () => "revision-1",
+    send: () => {
+      throw new Error("Discard must not send");
     },
-  );
+    land: () => {},
+    paint: () => {},
+    previous: () => null,
+    reveal: () => {},
+  });
   editor.input.value = text;
   editor.input.dispatchEvent(new Event("input", { bubbles: true }));
   editor.actions.querySelector(".lf-msg-edit-cancel").click();
@@ -87,7 +83,12 @@ test("g D restores the discarded rewrite", (t) => {
   });
   const door = { shows: () => false, press: () => {} };
   const goTo = createGoToSequence({
-    doors: { threads: door, queue: door, leaves: door },
+    doors: {
+      threads: door,
+      queue: door,
+      agent: { ...door, name: () => "On Agent" },
+      leaves: door,
+    },
     hintChrome: { barriers: () => [] },
     directDestinations: () => [restore],
     openPageMap: () => {},

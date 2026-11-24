@@ -21,7 +21,7 @@ const obligation = (id) => ({
 
 const inventoryOf = (user = []) =>
   createAnnotationInventory({
-    readObligations: () => ({ user }),
+    readObligations: () => ({ all: user, user }),
     placedAt: () => null,
     openThread() {},
     goToObligation() {},
@@ -120,7 +120,7 @@ test("a quoted passage is keyed once while its target's words are unchanged", ()
     point: null,
   };
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: () => placement,
     openThread() {},
     goToObligation() {},
@@ -317,7 +317,7 @@ test("each part of a picture threads are about stands its own entry, named and m
     }),
   );
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: (/** @type {keyof typeof anchors} */ id) =>
       id === "pointed"
         ? {
@@ -369,7 +369,7 @@ test("a saved draft on a part stands its own entry, named and marked by the part
   const anchor = { section: "plot", visual: "point:q" };
   saveDraft(context, "Why here?", { anchor });
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: () => null,
     savedAt: (/** @type {string} */ saved) =>
       saved === context ? placed(anchor) : null,

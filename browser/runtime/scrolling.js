@@ -35,6 +35,7 @@ import { cancelRender, nextFrame, sizeObserver } from "./rendering.js";
 import {
   browserScrolls,
   holdScroll,
+  readScrolled,
   readerScrolls,
   scrollDrawn,
   setScroll,
@@ -548,9 +549,27 @@ export const reachable = (box, top, from = box.scrollTop) =>
 // typed slowly, and Home takes the page back to the top though `d` hasn't moved it.
 // Stopped where it stood, the glide left PageDown paging from the page mid-way. It
 // stands down too the moment the box moves under any other hand, such as a scrollbar's
-// drag, and a return takes the box from it (history.js).
+// drag, and a return takes the box from it (history.js). A clamp's move is no hand's, as
+// the box's end comes up past where the glide put it, so the glide goes on from there
+// (`holding`). A landing's glide asks the landing at each frame where the box now goes,
+// so a destination layout moves still lands where the landing puts it (`aimed`). A
+// placement that glides the box on past that destination, as a card opening under its
+// passage does to make its room, reads its distance again at each frame from there
+// (`glideBy`), until the next placement or landing takes the glide.
+//
+// Scroll anchoring stays off in a box while a glide moves it (`holdBox`), so the glide
+// is the one thing moving the box besides a clamp and a hand. Content that grows or
+// shrinks above what the reader sees then moves under the moving box, and a landing's
+// glide finds its destination where that left it at the next frame. With anchoring on,
+// a glide had to tell anchoring's move from a hand's by how far the box's scroll height
+// changed, which two changes partly cancelling defeat: a second step pressed on the
+// merge film at phone width redraws the film's parts and the steps by different
+// amounts, and the glide took anchoring's move for a hand's and stopped with the film
+// out of view. A glide toward a distance, as `d`'s, lands at the same offset either way.
+// browser/AGENTS.md ("What the reader reads stays put") states this exception to
+// keeping anchoring on.
 const SCROLL_MS = 140;
-/** @typedef {{goal: number, end: boolean, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: (landed?: boolean) => void}} Glide */
+/** @typedef {{goal: number, base: number, end: boolean, wrote: number | null, aim: (() => number | null) | null, by: (() => number | null) | null, raf: ReturnType<typeof nextFrame>, release: (landed?: boolean) => void}} Glide */
 // The glide under way in each box, which holds the box's scroll sequence open from its
 // press to its end, so every frame it writes makes one scroll (arrivals.js,
 // `holdScroll`).
@@ -594,7 +613,7 @@ export function landForKey(event) {
 /** @param {Element} box */
 function landGlide(box) {
   const glide = holding(box);
-  if (glide) setScroll(box, { top: glide.goal, behavior: "instant" });
+  if (glide) setScroll(box, { top: aimed(box, glide), behavior: "instant" });
   stopGlide(box);
 }
 // A spatial command takes the page where it is now, so it stops a glide in the box even
@@ -608,23 +627,65 @@ export function stopGlide(box, landed = false) {
   glideIn.delete(box);
   glide.release(landed);
 }
-// A glide's claim on its box: it holds only while the box is where the glide last wrote
-// it. The tick asks before every write, and a press asks the same question before
-// trusting the goal — the user can take the box between frames, and a press landing in
-// that gap otherwise measures from a goal the box has already left. A glide taking over
-// the browser's motion holds the box through whatever that motion does until the
-// glide's own write first moves it (`glideTo`).
+// A glide's claim on its box: it holds while the box stands where the glide last wrote
+// it, or where a clamp has moved it since, back to the end its scroll height gives once
+// that end no longer reaches where the glide put it. Any other move is a hand's, such
+// as the browser's scroll to an element a script focuses, since anchoring moves no box a
+// glide holds (`holdBox`). A hand's scroll back to exactly the end a shrink left in the
+// frame of the shrink reads as the clamp's. The tick asks
+// before every write, and a press asks the same question before trusting the goal —
+// the user can take the box between frames, and a press landing in that gap otherwise
+// measures from a goal the box has already left. A glide taking over the browser's
+// motion holds the box through whatever that motion does until the glide's own write
+// first moves it (`glideTo`).
 /** @param {Element} box */
 const holding = (box) => {
   const glide = glideIn.get(box);
-  return glide && (glide.wrote === null || Math.abs(box.scrollTop - glide.wrote) <= 1)
-    ? glide
-    : null;
+  if (!glide || glide.wrote === null) return glide ?? null;
+  const moved = box.scrollTop - glide.wrote;
+  const end = box.scrollHeight - box.clientHeight;
+  const clamped = moved < 0 && Math.abs(box.scrollTop - end) <= 1;
+  return Math.abs(moved) <= 1 || clamped ? glide : null;
 };
+// What a glide holds in its box from its press to its end: the box's scroll sequence
+// (arrivals.js, `holdScroll`), and scroll anchoring off (see the header). An animation
+// holds `overflow-anchor`, as box-motion.js holds it for a ride, so the hold writes
+// nothing to the author's markup and ends with the glide.
+/** @param {Element} box @returns {(landed?: boolean) => void} */
+function holdBox(box) {
+  const scroll = holdScroll(box);
+  const none = { overflowAnchor: "none" };
+  const anchoring = box.animate([none, none], {
+    duration: SCROLL_MS,
+    iterations: Infinity,
+  });
+  // Cancelling is the release, which rejects `finished`.
+  anchoring.finished.catch(() => {});
+  return (landed) => {
+    anchoring.cancel();
+    scroll(landed);
+  };
+}
+// Whether a glide of Leaf's holds `box`, though it may stand at its goal.
+/** @param {Element} box */
+export const gliding = (box) => holding(box) !== null;
 // Where `box` is headed: the goal of the glide holding it, else where it stands.
 /** @param {Element} box */
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
+// Read `read` with each of `boxes` that a glide is moving at its goal, as the page will
+// stand once the glides under way land, though none has (arrivals.js, `readScrolled`).
+// Only a box a glide holds is written, so no scroll the browser drives is stopped and
+// the write's events fold into those the glide sends every frame.
+/** @template T @param {Iterable<Element>} boxes @param {() => T} read @returns {T} */
+export const whereGlidesLand = (boxes, read) =>
+  readScrolled(
+    [...boxes].flatMap((box) => {
+      const goal = scrollGoal(box);
+      return holding(box) && goal !== box.scrollTop ? [[box, goal]] : [];
+    }),
+    read,
+  );
 // Whether `box` stands at its end with no glide taking it away. A glide a press has just
 // started may not have moved the box yet, since its first frame can write where the box
 // already stands. A keeper that read that box as following its end would put it back
@@ -655,6 +716,63 @@ export function afterBrowserScroll(box, then) {
   });
   return true;
 }
+// A glide's goal as its landing and its placement now read it. Its base is where a
+// landing puts the box from the page as it stands, with its destination where layout has
+// moved it, its alignment and its band, or the offset a glide toward a distance asked
+// for; the base stays where it was while the landing no longer finds its destination.
+// The landing reads the page with the box at the base, where its own destination puts
+// it, so a nearest landing doesn't take a placement's distance for its own. A
+// placement's distance (`glideBy`), read with the box at the base, takes the goal on
+// from there; once its placement has ended it asks nothing more. The glide asks at each
+// frame and as a key lands it. Anything else that reads the goal between frames, as a
+// step pressed on does, reads the last frame's.
+/** @param {Element} box @param {Glide} glide */
+function aimed(box, glide) {
+  glide.goal = goalAt(box, glide.base);
+  const top = glide.aim?.();
+  if (top !== null && top !== undefined) glide.base = goalAt(box, top);
+  const from = goalAt(box, glide.base);
+  const further = glide.by ? readScrolled([[box, from]], glide.by) : 0;
+  if (further === null) glide.by = null;
+  glide.goal = goalAt(box, from + (further ?? 0));
+  return glide.goal;
+}
+// Give the glide under way in `box`, where one holds it, to the landing whose `aim` says
+// where the box now goes, as a landing takes every box that scrolls its destination
+// (landing-scroll.js, `scrollIntoView`). The landing's destination is the whole goal.
+/** @param {Element} box @param {() => number | null} aim */
+export function steerGlide(box, aim) {
+  const glide = holding(box);
+  if (!glide) return;
+  glide.aim = aim;
+  glide.by = null;
+}
+// Glide `box` on by the distance `by` reads with the box at the glide's base, read again
+// at each frame (`aimed`), as a card makes its room under or over its passage. It takes
+// the place of any placement before it in the glide under way, and with none under way
+// glides from where the box stands, where `by`, read there, asks for a move. `by`
+// returns null once its placement has ended, as when its card closes.
+/** @param {Element} box @param {() => number | null} by */
+export function glideBy(box, by) {
+  if (!holding(box)) {
+    const further = by();
+    if (!further) return;
+    const base = goalAt(box, box.scrollTop);
+    glideTo(box, box.scrollTop + further);
+    const started = holding(box);
+    if (started) started.base = base;
+  }
+  const glide = holding(box);
+  if (!glide) return;
+  glide.by = by;
+  aimed(box, glide);
+}
+// A glide's goal for `top`, clamped to the box and at whole pixels (`glideTo`).
+/** @param {Element} box @param {number} top */
+const goalAt = (box, top) => {
+  const limit = scrollLimit(box);
+  return top >= limit ? limit : Math.max(0, Math.min(limit, Math.round(top)));
+};
 // The goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed. The goal and
 // every write are whole pixels, where the box stands, since a write within a pixel of
@@ -667,12 +785,20 @@ export function afterBrowserScroll(box, then) {
 // take, is this glide's to take over, and stops where the box stands. Otherwise the
 // glide holds the box from the press, and a hand that moves it before the glide's first
 // frame wins. A glide with nothing to move or take over is none.
-/** @param {Element} box @param {number} top */
-export function glideTo(box, top) {
+//
+// Each frame covers the eased share of the way left, from where the glide last had the
+// box before the box rounded it to a pixel, so a short glide moves from its first
+// frames. Where layout has moved the box since, the glide goes on from where layout
+// left it, and still lands on time. Until a glide taking over the browser's motion has
+// moved the box, it eases from wherever that motion has taken the box, read at each
+// frame rather than at the press: Firefox's smooth scroll runs on ahead of a busy page,
+// whose next frame is the first to say where the stop left the box. A landing passes
+// `aim`, which reads where it now puts the box, and its glide heads there (`aimed`).
+/** @param {Element} box @param {number} top @param {(() => number | null) | null} [aim] */
+export function glideTo(box, top, aim = null) {
   const replaced = glideIn.get(box);
   const takesOver = replaced ? replaced.wrote === null : browserScrolls(box);
-  const limit = scrollLimit(box);
-  const goal = top >= limit ? limit : Math.max(0, Math.min(limit, Math.round(top)));
+  const goal = goalAt(box, top);
   if (!replaced && !takesOver && Math.abs(goal - box.scrollTop) < 0.5) return;
   startScroll(box);
   if (takesOver) stopWhereItStands(box);
@@ -682,8 +808,10 @@ export function glideTo(box, top) {
     return;
   }
   cancelRender(replaced?.raf);
-  let start = box.scrollTop;
   const t0 = performance.now();
+  // Where the glide has the box, and how far through the glide its last frame was.
+  let at = box.scrollTop;
+  let was = 0;
   /** @param {number} now */
   const tick = (now) => {
     const current = holding(box);
@@ -692,37 +820,36 @@ export function glideTo(box, top) {
       return;
     }
     if (reducedMotion()) {
-      setScroll(box, { top: current.goal, behavior: "instant" });
+      setScroll(box, { top: aimed(box, current), behavior: "instant" });
       stopGlide(box);
       return;
     }
+    if (current.wrote === null) [at, was] = [box.scrollTop, 0];
+    else if (box.scrollTop !== current.wrote) at = box.scrollTop;
+    const goal = aimed(box, current);
     // Floored as well as capped: a rAF timestamp is its frame's start, which can precede
     // the press that scheduled the tick, and an unfloored t walks the ease out past the
     // start — to a write the box clamps, which the next tick then read as another hand.
-    const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
-    // Until the glide taking over the browser's motion has moved the box, it starts from
-    // wherever that motion has taken it, read at each frame rather than at the press:
-    // Firefox's smooth scroll runs on ahead of a busy page, whose next frame is the first
-    // to say where the stop left the box.
-    if (current.wrote === null) start = box.scrollTop;
+    const t = Math.max(was, Math.min(1, (now - t0) / SCROLL_MS));
+    at = goal - (goal - at) * ((1 - t) / (1 - was)) ** 3;
+    was = t;
     const from = box.scrollTop;
-    setScroll(box, {
-      top: Math.round(goal - (goal - start) * (1 - t) ** 3),
-      behavior: "instant",
-    });
+    setScroll(box, { top: Math.round(at), behavior: "instant" });
     // Where the write left the box, not what it asked for: the box clamps at its ends
     // and snaps to pixels, and the claim the next tick tests is about the box.
-    if (current.wrote !== null || box.scrollTop !== start)
-      current.wrote = box.scrollTop;
+    if (current.wrote !== null || box.scrollTop !== from) current.wrote = box.scrollTop;
     if (t < 1) current.raf = nextFrame(tick);
     else stopGlide(box, box.scrollTop === from);
   };
   glideIn.set(box, {
     goal,
+    base: goal,
     end: goal === scrollLimit(box),
     wrote: takesOver ? null : box.scrollTop,
+    aim,
+    by: null,
     raf: nextFrame(tick),
-    release: replaced?.release ?? holdScroll(box),
+    release: replaced?.release ?? holdBox(box),
   });
 }
 

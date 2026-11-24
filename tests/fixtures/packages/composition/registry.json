@@ -3,12 +3,6 @@
     "description": "A review checklist with a recorded pass or fail result, keeping authored evidence and nested widgets readable.",
     "attributes": {
       "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "restated": {
-          "type": "boolean"
-        }
-      },
       "required": ["id"],
       "additionalProperties": false
     },

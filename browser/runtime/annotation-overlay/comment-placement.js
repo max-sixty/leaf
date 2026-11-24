@@ -30,8 +30,8 @@
    editing state until it returns. An explicit open can request the unanchored window
    posture while retaining the hidden subject as its semantic anchor. A drawn target's
    geometry may have zero area; its whole extent still supplies the fallback seat.
-   The editing surface uses this solver for its initial attachment, then retains
-   browser-owned following (`composing/floating-response.js`).
+   The comment box is solved again at each scroll, as the card is
+   (`composing/floating-response.js`).
 
    Both stand in one boundary (`commentBoundary`), the room the rules' `room-*` rows
    give: the part of the window the page shows, within the region whose flow holds the
@@ -143,21 +143,24 @@
 import { scrollAxes } from "../element-frame.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
+  carried,
   shellRight,
   shownWindow,
   visualViewport,
   shownExtent,
   shownParts,
   shownRect,
+  shownRectHeld,
 } from "../geometry.js";
+import { markRoom } from "../mark-room.js";
 import { clamp, union } from "../rect.js";
 import {
-  glideTo,
+  glideBy,
+  gliding,
   moveScrollerBy,
   pageScroller,
-  scrollGoal,
-  scrollLimit,
   scrollStarts,
+  whereGlidesLand,
 } from "../scrolling.js";
 import { inputs } from "../inputs.js";
 
@@ -175,28 +178,52 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {import("@floating-ui/dom").MiddlewareState} MiddlewareState */
 /** @typedef {import("@floating-ui/dom").ComputePositionReturn} Position */
 /** @typedef {readonly [number, number, number, number]} BoundaryKey */
-/** @typedef {DOMRectReadOnly & {across: (columns: Columns | null) => DOMRectReadOnly,
+/** @typedef {DOMRectReadOnly & {holders: {top: Element | null, bottom: Element | null}}} Room */
+/** @typedef {Room & {across: (columns: Columns | null) => Room,
  * cut: Box | null, scroller: Element, key: BoundaryKey}} Boundary */
 /** @typedef {{side: Side | null, boundary: BoundaryKey | null, moved: boolean}} CapturedPlacement */
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
 /** @typedef {{top: number, foot: number}} HeldBox */
-/** @typedef {{clear: Extent | null, row: number, lastRow?: number,
+/** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
- * stood: number, stationary: boolean, fromSubject: boolean,
+ * stood: number, stationary: boolean, widens: boolean,
  * scale: {x: number, y: number}}) => void,
  * edge?: "top" | "foot", rises?: boolean}} PlacementRequest */
 /** @typedef {{reference: DOMRect,
  * placement: import("@floating-ui/dom").Placement,
  * middleware: import("@floating-ui/dom").Middleware[],
- * plane: (answer: Position) => "page" | "window" | {edge: "top" | "bottom", at: number}}} PlacementOptions */
+ * plane: (answer: Position) => "page" | "window" | Element}} PlacementOptions */
+/** @typedef {import("../mark-room.js").MarkRoom} MarkRoom */
+/** @typedef {{element: Element, clear: Extent, extent: Extent, room: MarkRoom}} Clearance */
 /** @typedef {{element: Element, contextNode: Node,
- * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent,
+ * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent, room: MarkRoom,
  * row: number, lastRow: number, column: number | null,
  * margin: ReturnType<typeof marginSpot>, scroller: Element}} Attachment */
 /** @typedef {{target: Element | null, point?: Element | null,
  * passage?: {range?: Range, contextNode?: Node | null, attachment?: Extent | null} | null,
  * boundary?: ReturnType<typeof commentBoundary> | null}} AttachmentRequest */
+// What a surface attached to `target`, or to the row `point` names in it, stands clear
+// of (`clear`) and beside (`extent`), read where the page stands; null where the target
+// isn't drawn. A surface making its room reads this alone (`makeRoom`).
+/** @param {Element} target @param {Element | null} [point] @returns {Clearance | null} */
+export function attachmentClearance(target, point = null) {
+  if (!visibleTargetParts(target).length) return null;
+  const clips = new Map();
+  const shown = union(
+    shownParts(target)
+      .map(/** @param {Element} part */ (part) => shownRect(part, clips))
+      .filter((box) => box !== null),
+  );
+  const whole = shownExtent(target) ?? target.getBoundingClientRect();
+  const extent = point ? pointBand(whole, point) : whole;
+  return {
+    element: point ?? target,
+    clear: point ? extent : (shown ?? whole),
+    extent,
+    room: markRoom(target, whole, COMMENT_GAP),
+  };
+}
 /** @overload @param {AttachmentRequest & {target: null}} options @returns {Attachment} */
 /** @overload @param {AttachmentRequest & {target: Element}} options @returns {(Attachment & {clear: Extent}) | null} */
 /** @overload @param {AttachmentRequest} options @returns {Attachment | null} */
@@ -218,6 +245,7 @@ export function commentAttachment({
       geometry: floatingGeometry([element]),
       clear: null,
       extent,
+      room: NO_ROOM,
       row: extent.top,
       lastRow: extent.top,
       column: null,
@@ -229,30 +257,18 @@ export function commentAttachment({
   // returns; an explicit Resume can request the window posture above without changing
   // that target. A drawn target may have a zero-area box, as an SVG line does, and
   // still supplies the geometry fallback below.
-  if (!visibleTargetParts(target).length) return null;
-  const margin = marginSpot(target, point, passage?.range);
+  const near = attachmentClearance(target, point);
+  if (!near) return null;
+  const { element, extent } = near;
   const context = point ?? passage?.contextNode ?? target;
-  const element = point ?? target;
-  const geometry = floatingGeometry([element, context]);
-  const clips = new Map();
-  const shown = union(
-    shownParts(target)
-      .map(/** @param {Element} part */ (part) => shownRect(part, clips))
-      .filter((box) => box !== null),
-  );
-  const whole = shownExtent(target) ?? target.getBoundingClientRect();
-  const extent = point ? pointBand(whole, point) : whole;
-  const clear = point ? extent : (shown ?? whole);
   return {
-    element,
+    ...near,
     contextNode: context,
-    geometry,
-    clear,
-    extent,
+    geometry: floatingGeometry([element, context]),
     row: (passage?.attachment ?? extent).top,
     lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
-    margin,
+    margin: marginSpot(target, point, passage?.range),
     scroller: scrollerFor(element),
   };
 }
@@ -272,6 +288,9 @@ export function commentReference(place, reference) {
 // The gap a surface keeps from the edge of its room, and beside its text, from above
 // the text's first line.
 export const COMMENT_GAP = 8;
+// The room no mark takes, round a surface with no subject.
+/** @type {MarkRoom} */
+const NO_ROOM = { left: 0, top: 0, right: 0, bottom: 0 };
 // The least room a surface stands in: a floor chosen to hold the comment box's words
 // and its controls over a few lines, which the room under the words must reach for a
 // touch screen to prefer it, and a reading region must show for a surface to stand in it.
@@ -287,30 +306,43 @@ const AXES = ["x", "y"];
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
 // which carries the surface rather than withdrawing a draft the user is writing. The
 // boundary names the box that scrolls that room (`scroller`), which makes room for a
-// surface, and the edges that cut the card (`cut`), or null where none do: the region's,
-// and each edge of a bounded block around the row that the attachment `at` (the row's
-// line and column) has crossed. Its top cuts once the card's own top, a gap above the
-// line, has passed it, so the cut grows from nothing. Crossing an edge cuts the card
-// and never moves it: bounding the room there pushed a card hanging past a log's foot
-// up over its row once the row's line passed the foot. Its `key` is what holds the side
-// (`choose`): the window's edges, or the region's whole box size and the window's,
-// since a scroll of the page moves and clips a region's shown bounds without changing
-// the room it has, and a resize changes it.
+// surface, and the edges that cut the card (`cut`), or null where none do: the
+// region's, and each edge of a bounded block around the row that the attachment `at`
+// (the row's line and column) has crossed. Its top cuts once the card's own top, a gap
+// above the line, has passed it, so the cut grows from nothing. Crossing an edge cuts
+// the card and never moves it: bounding the room there pushed a card hanging past a
+// log's foot up over its row once the row's line passed the foot. Its
+// `key` is what holds the side (`choose`): the window's edges, or the region's whole box
+// size and the window's, since a scroll of the page moves and clips a region's shown
+// bounds without changing the room it has, and a resize changes it.
 // It spans every column the surface could stand in, so the side is chosen from it;
 // `across(columns)` is the same room for a surface standing in those columns, where
 // chrome beside them, such as the floating panel's row under the page column, takes
-// none of its height (`shownWindow`).
+// none of its height (`shownWindow`). Each room names the box holding its top and its
+// foot (`holders`): the region, or a box whose band clips the region there
+// (`shownRectHeld`), where that edge cuts the room further in than the window and the
+// chrome's covers alone do, and null where they bound it.
 /** @param {{scroller?: Element | undefined, at?: {x: number, y: number} | null}} [options] @returns {Boundary} */
 export function commentBoundary({ scroller = pageScroller, at = null } = {}) {
-  /** @param {Partial<Box>} within */
+  /** @param {Partial<Box> & {holders?: import("../geometry.js").Holders}} within */
   const room = (within) => {
-    /** @param {Columns | null} columns */
-    const across = (columns) =>
-      shownWindow({ within, gap: COMMENT_GAP, across: columns });
+    /** @param {Columns | null} columns @returns {Room} */
+    const across = (columns) => {
+      const shown = shownWindow({ within, gap: COMMENT_GAP, across: columns });
+      const held = within.holders;
+      if (!held) return Object.assign(shown, { holders: { top: null, bottom: null } });
+      const open = shownWindow({ gap: COMMENT_GAP, across: columns });
+      return Object.assign(shown, {
+        holders: {
+          top: shown.top > open.top ? held.top : null,
+          bottom: shown.bottom < open.bottom ? held.bottom : null,
+        },
+      });
+    };
     return Object.assign(across(null), { across });
   };
   const { blocks, flow } = flowOf(scroller);
-  const bounds = flow !== pageScroller ? shownRect(flow, new Map()) : null;
+  const bounds = flow !== pageScroller ? shownRectHeld(flow, new Map()) : null;
   const region = bounds ? { bounds, room: room(bounds) } : null;
   const inRegion =
     region &&
@@ -358,81 +390,109 @@ const sameBoundary = (a, b) =>
 /** @param {Side | null} side */
 const vertical = (side) => side === "top" || side === "bottom";
 
-// Vertical room is read in viewport pixels, while the browser scrolls in local CSS
-// pixels. Project available travel through the scroller's actual transformed axis;
-// an inverted axis reverses which local end can expose room on the requested side.
-// The travel is counted from `from`, the scroller's offset where it stands unless the
-// caller reads it where it is headed.
-/** @param {Side} side @param {Element} scroller @param {number} [from] */
-function roomTravel(side, scroller, from = scroller.scrollTop) {
+// How far, in viewport pixels, scrolling `scroller` toward the end that brings room in
+// on `side` carries `element` before it first stops riding (geometry.js, `carried`).
+// The browser scrolls in local CSS pixels, which the scroller's transformed axis
+// projects; an inverted axis reverses which local end brings room in on that side.
+/** @param {Side} side @param {Element} scroller @param {Element} element */
+function roomTravel(side, scroller, element) {
   const projection = scrollAxes(scroller).y.y;
-  const direction = side === "top" ? -1 : 1;
-  const localDirection = direction * Math.sign(projection);
-  const local = localDirection < 0 ? from : Math.max(0, scrollLimit(scroller) - from);
-  return { projection, direction, available: local * Math.abs(projection) };
+  const way = (side === "top" ? -1 : 1) * Math.sign(projection);
+  return Math.abs(carried(element, scroller, way * scroller.scrollHeight) * projection);
 }
 
-// The room on `side` of `extent` the page can make: what shows there plus the scroll
-// travel `scroller` has left that way, never more than the boundary holds.
-/** @param {Side} side @param {Extent} extent @param {Boundary} boundary @param {Element} scroller */
-function reachableRoom(side, extent, boundary, scroller) {
-  const gap = subjectGap();
+// The room on `side` of `extent` the page can make: what shows there plus the room a
+// scroll of `scroller` brings in (`roomTravel`), never more than the boundary holds.
+// It is read where the page stands, not where a glide under way would leave it: a
+// walk's card chooses its side before the walk's own landing moves the page, and a
+// side read where an earlier glide was headed opened `t`'s card, pressed as `m` set
+// off, on the other side of its passage, which the walk's landing then left out of
+// the window.
+/** @param {"top" | "bottom"} side @param {Extent} extent @param {MarkRoom} room @param {Boundary} boundary @param {Element} scroller @param {Element} element */
+function reachableRoom(side, extent, room, boundary, scroller, element) {
+  const gap = subjectGap(room, side);
   const shown =
     side === "top"
       ? extent.top - boundary.top - gap
       : boundary.bottom - extent.bottom - gap;
-  const { available: travel } = roomTravel(side, scroller);
   return {
     shown,
     reachable: Math.max(
       0,
-      Math.min(boundary.height - extent.height - gap, shown + travel),
+      Math.min(
+        boundary.height - extent.height - gap,
+        shown + roomTravel(side, scroller, element),
+      ),
     ),
   };
 }
 
-// Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
-// under or over it, as far as the scroller travels; whether it moved. Where `extent`
-// and this surface cannot show together, no scroll makes that room. The boundary
-// then holds the surface over its subject instead of scrolling the subject away. The
-// room is read where the scroller is headed (scrolling.js, `scrollGoal`), as a key
-// pressed while the page glides acts as though the glide had landed, and a glide under
-// way takes the move into its goal (`glideTo`), so the page lands once, with the room
-// made.
-/** @param {Side} side @param {Extent} clear @param {Extent} extent @param {number} height @param {Boundary} boundary @param {Element} scroller */
-export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  const gap = subjectGap();
-  if (extent.height + gap + height > boundary.height) return false;
-  const goal = scrollGoal(scroller);
-  const { available: travel, projection, direction } = roomTravel(side, scroller, goal);
-  // How far the glide under way will still carry `clear` up the window.
-  const ahead = (goal - scroller.scrollTop) * projection;
-  const overflow =
-    side === "top"
-      ? boundary.top - (clear.top - ahead - gap - height)
-      : clear.bottom - ahead + gap + height - boundary.bottom;
-  const movement = Math.max(0, Math.min(overflow, travel));
-  if (movement <= 0.5) return false;
-  const by = (direction * movement) / projection;
-  if (goal !== scroller.scrollTop) {
-    glideTo(scroller, goal + by);
-    return true;
+// Scrolls `scroller` to make the room a surface `height` tall needs on `side` of what it
+// is about, under or over it, as far as the scroller travels; whether it asked for a
+// move. `read` reads what the surface stands clear of (`attachmentClearance`) where the
+// page stands: null while its subject isn't drawn, and false once the surface has
+// closed. Where the subject's `extent` and this surface cannot show together, no scroll
+// makes that room. The boundary then holds the
+// surface over its subject instead of scrolling the subject away. The room is read where
+// the scroller is headed (scrolling.js, `whereGlidesLand`), as a key pressed while the
+// page glides acts as though the glide had landed. A glide under way takes the room
+// into its goal and reads it again at each frame, though the room asks for no move yet
+// (scrolling.js, `glideBy`), so the page lands once, with the room made, wherever layout
+// moves the subject meanwhile. The move carries `clear` only until its `element` first
+// stops riding it (geometry.js, `carried`), so a subject in a sticky box the scroll can't
+// carry asks for no move.
+/** @param {"top" | "bottom"} side @param {() => Clearance | null | false} read @param {number} height @param {Boundary} boundary @param {Element} scroller */
+export function makeRoom(side, read, height, boundary, scroller) {
+  // The move left to make, read with the scroller where it stands.
+  const further = () => {
+    const near = read();
+    if (near === false) return null;
+    if (!near) return 0;
+    const { clear, extent, room, element } = near;
+    const gap = subjectGap(room, side);
+    const projection = scrollAxes(scroller).y.y;
+    if (!projection || extent.height + gap + height > boundary.height) return 0;
+    const overflow =
+      side === "top"
+        ? boundary.top - (clear.top - gap - height)
+        : clear.bottom + gap + height - boundary.bottom;
+    if (overflow <= 0.5) return 0;
+    return carried(
+      element,
+      scroller,
+      ((side === "top" ? -1 : 1) * overflow) / projection,
+    );
+  };
+  const by = whereGlidesLand([scroller], further) ?? 0;
+  const asks = Math.abs(by * scrollAxes(scroller).y.y) > 0.5;
+  if (gliding(scroller)) {
+    glideBy(scroller, further);
+    return asks;
   }
+  if (!asks) return false;
   const before = scroller.scrollTop;
   moveScrollerBy(scroller, by);
-  return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
+  return scroller.scrollTop !== before;
 }
 
 // The side a comment's surface takes, as a Floating UI side.
-/** @param {{clear: Extent, extent: Extent, boundary: Boundary, width: number, scroller: Element, coarse: boolean}} reading @returns {Side} */
-export function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
-  /** @param {number} room */
-  const fits = (room) => Math.ceil(room) >= Math.ceil(width);
-  const gap = subjectGap();
-  if (fits(boundary.right - clear.right - gap)) return "right";
-  if (fits(clear.left - boundary.left - gap)) return "left";
-  const below = reachableRoom("bottom", extent, boundary, scroller);
-  const above = reachableRoom("top", extent, boundary, scroller);
+/** @param {{clear: Extent, extent: Extent, room: MarkRoom, boundary: Boundary, width: number, scroller: Element, element: Element, coarse: boolean}} reading @returns {Side} */
+export function commentSide({
+  clear,
+  extent,
+  room,
+  boundary,
+  width,
+  scroller,
+  element,
+  coarse,
+}) {
+  /** @param {number} space */
+  const fits = (space) => Math.ceil(space) >= Math.ceil(width);
+  if (fits(boundary.right - clear.right - subjectGap(room, "right"))) return "right";
+  if (fits(clear.left - boundary.left - subjectGap(room, "left"))) return "left";
+  const below = reachableRoom("bottom", extent, room, boundary, scroller, element);
+  const above = reachableRoom("top", extent, room, boundary, scroller, element);
   // Prefer a side that already shows the compact surface. Reachable room breaks
   // the tie; a fresh card may then use makeRoom to open clear of its target.
   const fitsBelow = below.shown >= LEAST_HEIGHT;
@@ -446,9 +506,8 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
 }
 
 // The minimum width chooses the side: a side whose room holds less stands nothing. The
-// measure is the width a card takes once a message outgrows the minimum, or where its
-// start stands away from its text (`size-width`), and decides whether clearing the
-// margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
+// measure is the widest a box or card stands (`size-width`), and decides whether
+// clearing the margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
 // card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
@@ -474,12 +533,14 @@ export const standsTall = (texts) => {
   }
   return false;
 };
-// How far a surface stands from what it is about (`place-clear`): the room a mark on a
-// region takes (`--lf-focus-region-room`), then the gap it keeps from the edge of its room,
-// so the mark's line and the surface's edge have that gap between them too. It holds
-// whether or not a mark shows, since one comes and goes under the pointer and the
-// surface stays where it stands.
-export const subjectGap = () => rootLength("--lf-focus-region-room") + COMMENT_GAP;
+// How far a surface on `side` stands from what it is about (`place-clear`): the room the
+// marks round it take past its box on that side (the attachment's `room`, mark-room.js
+// `markRoom`), their gap and band and any reach over a list marker, then the gap the
+// surface keeps from the edge of its room, so the mark's line and the surface's edge
+// have that gap between them too. It holds whether or not a mark shows, since one
+// comes and goes under the pointer and the surface stays where it stands.
+/** @param {MarkRoom} room @param {Side} side */
+export const subjectGap = (room, side) => room[side] + COMMENT_GAP;
 
 // The block edge a surface on `side` is attached by, which it holds as it grows unless
 // asked to hold another (`edge`): its foot above what it is about, its top elsewhere.
@@ -515,7 +576,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale, stationary, fromSubject })` sizes the surface for the room its
+   `fit({ side, width, height, room, stood, scale, stationary, widens })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
    is the height a held surface caps no lower than, or 0. `stationary` says its
@@ -523,13 +584,17 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    boundary, never by its passage's column. Under or over, it stands at the intended
    inline start, which reserves that width (`size-width`). On the left, it instead holds
    its right edge clear of the target, so a change of its room moves its far edge and
-   never carries it across the words it comments on. `fromSubject` says its inline
-   start stands by what it is about: beside it on the right, under or over quoted words
-   at their first character, or at the room's edge with nothing to stand by. A surface
-   narrower than the measure, as the box and a slim card are, stands by its subject
-   and widens away from it only there. Elsewhere its start is the measure's far end
-   from its subject, where a narrower surface would stand apart from it and widen by
-   moving its words, so the box and card take the measure there. */
+   never carries it across the words it comments on. `widens` says it may stand
+   narrower than the measure, as the box and a slim card do, and widen with its words:
+   the edge the placement holds still is the one its words start from, its left left to
+   right and its right right to left, and that edge stands by what it is about or where
+   the user carried it. The placement holds a surface beside its subject on the left
+   by its right edge, and any other, carried ones included, by its left (`hold`). So
+   left to right it widens beside its subject on the right, under or over quoted words
+   from their first character, at the room's left edge with nothing to stand by, and
+   where the user carried it; right to left, only beside its subject on the left.
+   Elsewhere a narrower surface would widen by moving its words, or stand apart from
+   its subject, so the box and card take the measure there. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
@@ -578,6 +643,7 @@ export function commentPlacement() {
     ui,
     {
       clear,
+      room = NO_ROOM,
       row,
       lastRow = row,
       column = null,
@@ -591,8 +657,9 @@ export function commentPlacement() {
     const minimumWidth = cardMinimum();
     const across = vertical(side);
     const unanchored = !clear;
-    // A surface with no subject stands by the room's edge, which wears no mark.
-    const gap = unanchored ? COMMENT_GAP : subjectGap();
+    // A surface with no subject stands by the room's edge, which wears no mark
+    // (`NO_ROOM`).
+    const gap = subjectGap(room, side);
     // Floating UI reads a window attachment point for the unanchored posture,
     // sharing the same sizing, shift and coordinate conversion as an anchored box.
     clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
@@ -621,11 +688,20 @@ export function commentPlacement() {
       const span = Math.min(cardMeasure() * scale.x, boundary.width);
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
-    /** @param {{x: number}} scale */
-    const fromSubject = (scale) =>
-      unanchored ||
-      side === "right" ||
-      (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
+    // The placement holds the surface by its right edge beside its subject on the
+    // left, and by its left edge elsewhere, carried included (`hold`).
+    const holdsLeft = () => side !== "left" || carriedInline !== null;
+    /** @param {{x: number}} scale @param {boolean} rtl */
+    const widens = (scale, rtl) => {
+      if (rtl) return !holdsLeft();
+      return (
+        holdsLeft() &&
+        (!across ||
+          unanchored ||
+          carriedInline !== null ||
+          (column !== null && Math.abs(inlineStart(scale) - column) < 0.5))
+      );
+    };
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -674,18 +750,40 @@ export function commentPlacement() {
     // (`position`), and that solve writes it again. We could consider, in future,
     // returning `shown` and `heldIn` in the answer's middleware data, so `plane` reads
     // the answer it is given and the order of the two solves stops mattering.
-    /** @type {DOMRectReadOnly} */
+    /** @type {Room} */
     let shown = boundary;
+    // The room from the edge the surface is held by to the boundary, in client pixels.
+    /** @param {{x: number}} scale */
+    const lane = (scale) =>
+      carriedInline !== null
+        ? boundary.right - (column ?? clear.left) - carriedInline
+        : across
+          ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
+          : side === "right"
+            ? boundary.right - box.right - gap
+            : clear.left - boundary.left - gap;
+    // A surface may widen away from its held edge, to the measure or its lane where
+    // that is narrower, without being placed again (`size-width`), so it stands clear
+    // of chrome across every column it may widen into, as of the window's foot.
     /** @param {MiddlewareState} state */
     const overflow = (state) => {
       const { scale } = measure(state);
       const width = state.rects.floating.width * scale.x;
+      const reach = Math.min(
+        Math.max(width, Math.min(cardMeasure() * scale.x, lane(scale))),
+        boundary.width,
+      );
       const left = clamp(
         box.left + (state.x - state.rects.reference.x) * scale.x,
         boundary.left,
         boundary.right - width,
       );
-      shown = boundary.across({ left, right: left + width });
+      const start = clamp(
+        holdsLeft() ? left : left + width - reach,
+        boundary.left,
+        boundary.right - reach,
+      );
+      shown = boundary.across({ left: start, right: start + reach });
       return { boundary: [], rootBoundary: shown, padding: 0 };
     };
     const spot = held ?? initialHold;
@@ -733,25 +831,20 @@ export function commentPlacement() {
               tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
             ) / scale.y
           : 0;
-        const lane =
-          carriedInline !== null
-            ? boundary.right - (column ?? clear.left) - carriedInline
-            : across
-              ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
-              : side === "right"
-                ? boundary.right - box.right - gap
-                : clear.left - boundary.left - gap;
         fit({
           side,
           width: Math.max(
             Math.min(minimumWidth, boundary.width) / scale.x,
-            Math.min(state.availableWidth, lane / scale.x),
+            Math.min(state.availableWidth, lane(scale) / scale.x),
           ),
           height: rises ? shown.height / scale.y : state.availableHeight,
           room: shown,
           stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
           stood,
-          fromSubject: fromSubject(scale),
+          widens: widens(
+            scale,
+            getComputedStyle(state.elements.floating).direction === "rtl",
+          ),
           scale,
         });
       },
@@ -860,11 +953,10 @@ export function commentPlacement() {
         if (unanchored) return "window";
         const shift = middlewareData.shift?.y ?? 0;
         if (!heldIn || Math.abs(shift) < 0.5) return "page";
-        // Held in, it stands in the plane of the edge holding it, which floating.js
-        // finds from that edge's client line: the boundary's, less its gap.
-        return shift > 0
-          ? { edge: "top", at: shown.top - COMMENT_GAP }
-          : { edge: "bottom", at: shown.bottom + COMMENT_GAP };
+        // Held in, it stands in the plane of the box whose edge holds it, which the
+        // room it stood in names, and in the window's where the window or the chrome
+        // bounds the room there (`commentBoundary`).
+        return shown.holders[shift > 0 ? "top" : "bottom"] ?? "window";
       },
     };
   }
@@ -883,14 +975,16 @@ export function commentPlacement() {
     scrolled() {
       input = null;
     },
-    /** @param {{clear: Extent | null, extent?: Extent | null, boundary: Boundary, row?: number, column?: number | null, scroller: Element, coarse: boolean}} request */
+    /** @param {{clear: Extent | null, extent?: Extent | null, room?: MarkRoom, boundary: Boundary, row?: number, column?: number | null, scroller: Element, element: Element, coarse: boolean}} request */
     choose({
       clear,
       extent = clear,
+      room = NO_ROOM,
       boundary,
       row = clear?.top ?? boundary.top,
       column = null,
       scroller,
+      element,
       coarse,
     }) {
       // No visible attachment puts the editor in the window. The authored subject
@@ -959,9 +1053,11 @@ export function commentPlacement() {
         : commentSide({
             clear,
             extent,
+            room,
             boundary,
             width: cardMinimum(),
             scroller,
+            element,
             coarse,
           });
       if (fresh && !unanchored)

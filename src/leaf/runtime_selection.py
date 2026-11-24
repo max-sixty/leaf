@@ -73,7 +73,6 @@ from .schema import (
     RUNTIME_ENTRY,
 )
 from .state import PLUGIN_ROOT, json_bytes
-from .themes import with_theme
 
 # Non-CSS core inputs. Core stylesheet identity comes
 # from the same composition that delivers them, including its imports and roles.
@@ -335,7 +334,7 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     ).removeprefix("sha256:")[:16]
     # Samples re-compose in their own directory. Keep just the local package
     # copies this selection needs, using the same file inventory as page init.
-    names = with_theme(tuple(record["packages"]), record["theme"])
+    names = tuple(record["packages"])
     copies = {
         root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(
             package_files(root)

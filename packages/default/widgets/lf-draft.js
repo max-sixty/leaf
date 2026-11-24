@@ -88,7 +88,6 @@ import {
   clearDraft,
   watchDraft,
   whileConnected,
-  pressIsKeyboardActivation,
   reachedForWords,
   paintMarkdown,
   dressCode,
@@ -203,7 +202,7 @@ customElements.define(
           this.#cancelSize = null;
           if (
             event.button !== 0 ||
-            pressIsKeyboardActivation(event) ||
+            event.detail === 0 ||
             !(
               event.target instanceof Element &&
               event.target.closest('[data-lf-draft-action="cancel"]')
@@ -224,7 +223,7 @@ customElements.define(
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
-          pressIsKeyboardActivation(ev) ||
+          ev.detail === 0 ||
           ev.button !== 0 ||
           (ev.target instanceof Element && worksInside(ev.target, this))
         )
@@ -311,6 +310,8 @@ customElements.define(
       if (quoted(this) || this.#tools) return;
       this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
+      // Its marks join into one toolbar (controls.css, `data-lf-joined`).
+      this.#tools.dataset.lfJoined = "";
       this.append(this.#tools);
       // Leaf stands Copy last in the toolbar (`lfBar`), so Tab from the editor reaches
       // Save first. It copies the source the box shows, the editor's while it is open.
@@ -372,7 +373,7 @@ customElements.define(
       const editing = Boolean(this.#editor);
       if (this.#editor) this.#editor.readOnly = !this.#available();
       render(
-        html`<span ${offered("lf-draft-status")} role="status"
+        html`<span ${offered("lf-draft-status")} role="status" ?hidden=${!this.#failed}
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
           ${TOOLS.map(

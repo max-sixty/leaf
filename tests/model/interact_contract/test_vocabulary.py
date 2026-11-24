@@ -208,9 +208,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
     with the layer's, an unstated writer as the user's."""
     layer = registry_storage.load_registry(page_dir)
     declaration = element_declaration("lf-local", upgrade=True)
-    declaration["attributes"]["properties"] |= {
-        name: {"type": "boolean"} for name in ("overruled", "restated")
-    } | {"reading": {"type": "string"}}
+    declaration["attributes"]["properties"]["reading"] = {"type": "string"}
     declaration["verbs"] = {
         "set": {
             "unit": "widget",

@@ -26,6 +26,10 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import pytest
+
+# The suite's own page primitives, so a navigation here waits on what every other
+# navigation waits on. tests/AGENTS.md, "Waits".
+from browser.threads import choose_threads_in_panel
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server, wait_for
 from PIL import Image
@@ -56,9 +60,6 @@ from render_harness import (
 )
 
 import leaf_website as website_server
-
-# The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
 from leaf import data as data_model
 from leaf import files as files_model
@@ -758,22 +759,28 @@ def test_the_published_notification_example_runs_its_authored_module(
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
 
 
-def test_published_visual_evidence_loads_from_its_page(served_example, browser):
-    """Typed media paths resolve under the same page as authored media."""
-    _, url = served_example("visual-review-gallery")
+def test_published_typed_media_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media: the image a
+    recorded trace shows, and every image its source names."""
+    _, url = served_example("playwright-trace-gallery")
     page = open_page(browser, url)
-    review = page.locator("#visual-review-run")
-    for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        review.locator(
-            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
-        ).click()
-        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
-        expect(comparison).to_be_visible()
-        images = comparison.locator("img")
-        expect(images).to_have_count(2)
-        for image in images.all():
-            expect(image).to_have_js_property("complete", True)
-            assert image.evaluate("image => image.naturalWidth") > 0
+    trace = page.locator("#release-trace")
+    shown = trace.locator(".lf-trace-image img").first
+    expect(shown).to_have_js_property("complete", True)
+    assert shown.evaluate("image => image.naturalWidth") > 0
+    widths = trace.evaluate(
+        """async trace => {
+          const {scopedMediaUrl} = await window.__lfWidgetApi();
+          const urls = [...new Set(trace.value.images.map(image => image.url))];
+          return Promise.all(urls.map(url => new Promise(resolve => {
+            const image = new Image();
+            image.onload = () => resolve(image.naturalWidth);
+            image.onerror = () => resolve(0);
+            image.src = scopedMediaUrl(url);
+          })));
+        }"""
+    )
+    assert len(widths) > 1 and all(widths), widths
 
 
 def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser):
@@ -1540,7 +1547,11 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "agent": "Agent",
         "install_url": "/#install",
     }
-    assert state["browser"]["todos"] == []
+    assert not any(
+        item["source"]["kind"] == "todo"
+        for view in state["browser"]["views"].values()
+        for item in view["obligations"]
+    )
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()
@@ -1595,6 +1606,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         has_text="One reconnect in forty is worse"
     )
     expect(row).to_have_count(1)
+    choose_threads_in_panel(page)
     row.click()
     thread = page.locator(PANEL_THREAD)
     expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")

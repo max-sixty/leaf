@@ -13,18 +13,19 @@
 // runs, so a first look (or a capture) reads the setup at once. Play continues from
 // the displayed moment; Replay restarts a finished film.
 //
-// Every paint dispatches `film-frame` with the chapter, its caption and the run's status,
-// so the page can tell the current step beside the film.
+// Every paint holds the moment it shows in `frame`, the film's declared output (the
+// chapter, its caption and the run's status per step), and says `change`, so the page
+// can tell the current step beside the film; Leaf passes it on only where it differs.
+// A `--seek` command, such as a step button's `commandfor` press, holds the result of
+// the step its button's value names.
 
 import {
   compoundReadingRegionId,
   generatedElement,
   holdFocus,
   keeps,
-  keepsHidden,
   keepsText,
   layoutChanged,
-  layoutPx,
   offer,
   once,
   preserveReadingRegions,
@@ -114,6 +115,13 @@ customElements.define(
         if (e.pointerType !== "touch") this.#inspect(null);
       });
       this.addEventListener("keydown", (e) => this.#key(e));
+      this.addEventListener("command", (e) => {
+        const key = e.source?.value;
+        if (e.command !== "--seek" || this.#film.starts[key] === undefined) return;
+        this.#hold(key);
+        this.#paint();
+        this.#reveal();
+      });
 
       this.parts = registerVisualParts(this, () =>
         this.painter.parts().map(({ id, element, label }) => ({ id, element, label })),
@@ -210,20 +218,8 @@ customElements.define(
       this.scrub.max = this.#film.total;
     }
 
-    // Dispatch film-frame for the current moment, for a listener that arrived late.
-    announce() {
-      this.#paint();
-    }
-
     seek(t) {
       this.#pauseAt(Math.max(0, Math.min(this.#film.total, t)));
-      this.#paint();
-      this.#reveal();
-    }
-
-    seekChapter(key) {
-      if (this.#film.starts[key] === undefined) return;
-      this.#hold(key);
       this.#paint();
       this.#reveal();
     }
@@ -239,11 +235,11 @@ customElements.define(
       this.#inspect(null);
     }
 
+    // Narrow, the film stands above its steps, so holding a moment brings it into view.
     #reveal() {
-      if (this.hasAttribute("data-phone")) {
-        if (this.settings.open) this.settings.open = false;
-        scrollIntoView(this, { block: "start", behavior: "smooth" });
-      }
+      if (!this.hasAttribute("data-phone")) return;
+      if (this.settings.open) this.settings.open = false;
+      scrollIntoView(this, { block: "start", behavior: "smooth" });
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.
@@ -310,13 +306,13 @@ customElements.define(
       for (const p of parts)
         p.element.classList.toggle("film-picked", p.id === this.#inspected);
       if (!part) {
-        keepsHidden(this.inspector, true);
+        this.inspector.toggleAttribute("hidden", true);
         if (this.#inspected) this.#inspect(null);
         return;
       }
       keepsText(this.inspectorTitle, part.label);
       keepsText(this.inspectorBody, part.info);
-      keepsHidden(this.inspector, false);
+      this.inspector.toggleAttribute("hidden", false);
       const { x, y } = await computePosition(part.element, this.inspector, {
         placement: "right-start",
         middleware: [
@@ -331,8 +327,8 @@ customElements.define(
       });
       // A later frame, inspection or disconnection retires this pending placement.
       if (paint !== this.#inspectorPaint || !this.isConnected) return;
-      this.inspector.style.left = layoutPx(x);
-      this.inspector.style.top = layoutPx(y);
+      this.inspector.style.left = `${Math.round(x * 64) / 64}px`;
+      this.inspector.style.top = `${Math.round(y * 64) / 64}px`;
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already
@@ -465,17 +461,13 @@ customElements.define(
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
       this.parts.update();
-      this.dispatchEvent(
-        new CustomEvent("film-frame", {
-          bubbles: true,
-          detail: {
-            chapter: fr.chapter,
-            caption: fr.caption,
-            captionTone: fr.captionTone,
-            status: this.#film.status,
-          },
-        }),
-      );
+      this.frame = {
+        chapter: fr.chapter,
+        caption: fr.caption,
+        captionTone: fr.captionTone,
+        status: this.#film.status,
+      };
+      this.dispatchEvent(new Event("change"));
       // The composition replaces controls, so hand the user's place across under
       // the same line identity; the focus owner handles an already-moved user.
       if (

@@ -417,7 +417,7 @@ def test_a_host_draws_each_widget_as_a_leaf_page_does(browser, serve):
                 layout=None,
             ),
             packages=tuple(sorted({w.package for w in PORTABLE} - {"default"})),
-            theme=False,
+            reading=False,
         ),
     )
     for widget in PORTABLE:

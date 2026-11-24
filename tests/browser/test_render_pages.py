@@ -154,6 +154,85 @@ def test_sort_film_readout_and_narration(browser, serve):
     expect(note.locator("code")).to_have_text("buf")
 
 
+def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
+    browser, serve
+):
+    """The film's playhead output lights the slice.rs line a step runs in the one
+    excerpt quoting it, and the source pane brings that line to its middle without
+    moving the page. Once the reader scrolls the pane, a new line out of view leaves it
+    where they put it, until they act on the film again; the last step lights nothing."""
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
+    )
+    page = open_page(browser, serve(named_source("rust-sort")), context=context)
+    # The end of the first step that runs insert_head's first test, of the first that
+    # chooses a merge's direction, and of the last step.
+    times = page.evaluate(
+        """async () => {
+          const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+          const source = new URL('../page/sort.js', new URL(imports['/runtime/'], location.href));
+          const {makeInput, trace} = await import(source);
+          const steps = trace(makeInput('random', 7)).steps;
+          const end = (step) => step.start + step.dur - 0.01;
+          return {
+            insert: end(steps.find(step => step.line === 'ih-test')),
+            merge: end(steps.find(step => step.line === 'm-choose')),
+            last: end(steps.at(-1)),
+          };
+        }"""
+    )
+    scrub = page.locator("#sort-film .sort-scrub")
+    pane = page.locator("#sort-source")
+    marked = pane.locator("[data-lf-at]")
+
+    # A seek, as the playback clock sets it: no input the reader made.
+    def seek(time):
+        scrub.evaluate(
+            "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+            time,
+        )
+
+    seek(times["insert"])
+    expect(marked).to_have_count(1)
+    expect(page.locator("#code-insert-head [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1313"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    scroll_settled(page, "#sort-source")
+    # Brought to the middle, with room for the lines before it and after.
+    room = page.evaluate(
+        """() => {
+          const pane = document.getElementById('sort-source').getBoundingClientRect();
+          const line = document.querySelector('#sort-source [data-lf-at]').getBoundingClientRect();
+          return {above: line.top - pane.top, below: pane.bottom - line.bottom, pane: pane.height};
+        }"""
+    )
+    assert min(room["above"], room["below"]) >= room["pane"] / 4, room
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+
+    box = pane.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, -5000)
+    page.wait_for_function("document.getElementById('sort-source').scrollTop === 0")
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert pane.evaluate("element => element.scrollTop") == 0
+    expect(marked).not_to_be_in_viewport()
+
+    scrub.press("ArrowRight")
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1416"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+
+    seek(times["last"])
+    expect(marked).to_have_count(0)
+
+
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
@@ -606,7 +685,8 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
     versions = page.locator(panel_view("versions"))
-    row = versions.locator(".lf-fp-version .lf-fp-item").first
+    # The key lands on the version before the one shown.
+    row = versions.locator(".lf-fp-version > .lf-fp-item").last
     expect(row).to_be_focused()
 
     broken = []
@@ -777,7 +857,8 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.get_by_role("radio", name="Slider", exact=True).click()
-    shot.scroll_into_view_if_needed()
+    # Clear of the floating panel at the window's foot, which stands over the page.
+    shot.evaluate("node => node.scrollIntoView({block: 'center'})")
     box = shot.bounding_box()
     clip = {
         "x": math.floor(box["x"]) - 8,
@@ -864,7 +945,8 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     resized(page, 1200, 900)
     margins_laid_out(page)
     shot = page.locator("#rn-console-shot")
-    shot.scroll_into_view_if_needed()
+    # Clear of the floating panel at the window's foot, which stands over the page.
+    shot.evaluate("node => node.scrollIntoView({block: 'center'})")
     box = shot.bounding_box()
     # Room for the trace, which stands at the region's gap outside the target.
     room = 12
@@ -2296,38 +2378,20 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
-def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
-    """The panel stands over the foot of the document, so the document leaves it room.
-    The panel is not on a sheet — the runtime's whole layer is withheld from print — but
-    chrome's room written as body's own padding would print as a blank strip under the
-    last line.
-
-    The reservations belong to the document box whose chrome they make room for,
-    rather than to the scroll container. The same CSS disappears with the chrome in
-    print, so paper cannot inherit an empty screen-only strip.
-
-    The screen half is read as room rather than as a covered last line, which is where a
-    user would meet it, because the column's own bottom padding is taller than the line:
-    nothing is covered either way today, so an assertion about the last block would pass
-    with the reservation deleted. The room is what the runtime answers for; the column's
-    padding is the theme's to change."""
+def test_the_document_holds_no_room_for_the_chrome_on_screen_or_paper(browser, serve):
+    """The floating panel stands over the foot of the document, which keeps no room
+    for it, so the document ends where its own content does, under a mouse, under a
+    finger and on paper, which prints no chrome."""
     page = open_page(browser, serve(LONG_PAGE))
     for width in (1440, 390):
         resized(page, width, 844)
         room = page.evaluate(CHROME_ROOM)
-        assert room["panel"] > 0, f"no panel is shown to reserve for: {room}"
-        assert room["head"] <= 1, f"the document starts {room['head']:.0f}px down"
-        assert room["foot"] >= room["panel"] - 1, (
-            f"at {width}px the document ends {room['foot']:.0f}px short of its own "
-            f"end, under a {room['panel']:.0f}px panel"
-        )
+        assert room["panel"] > 0, f"no panel stands over the page: {room}"
+        assert room["head"] <= 1 and room["foot"] <= 1, (width, room)
 
     page.emulate_media(media="print")
     printed = page.evaluate(CHROME_ROOM)
-    assert printed["head"] <= 1 and printed["foot"] <= 1, (
-        f"a sheet held {printed['head']:.0f}px over the first line and "
-        f"{printed['foot']:.0f}px under the last, for chrome it does not print"
-    )
+    assert printed["head"] <= 1 and printed["foot"] <= 1, printed
 
 
 def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, serve):
@@ -3086,9 +3150,8 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
     the left, and lays the open part out beside them from the top of the page, as a page
     of its own with that part's Layout: a column part takes the column, contents map and
     breakouts a column page takes in a window as wide as the room beside
-    the list, and a workspace part fills that room from the top of the window to the
-    floating panel's row, so neither it nor a short part leaves the page anything to
-    scroll. The row's room is the part's own end, so the part reaches the window's foot. On a phone
+    the list, and a workspace part fills that room from the top of the window to its
+    foot, so neither it nor a short part leaves the page anything to scroll. On a phone
     the title, the list and the part stack."""
     column_body = """
 <h1>Migration plan</h1>
@@ -3156,9 +3219,8 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
           const {layoutBox} = await window.__lfCheckApi();
           const work = document.getElementById('work').getBoundingClientRect();
           const main = document.querySelector('main').getBoundingClientRect();
-          const room = getComputedStyle(document.getElementById('queue')).paddingBlockEnd;
           return {width: Math.round(work.width), top: Math.round(work.top),
-                  bottom: Math.round(work.bottom + parseFloat(room)),
+                  bottom: Math.round(work.bottom),
                   mainBottom: Math.round(main.bottom), window: innerHeight,
                   box: layoutBox().id};
         }"""

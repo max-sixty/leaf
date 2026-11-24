@@ -17,13 +17,11 @@ export function requireReference(verb, owner, attribute) {
     );
 }
 
-// The element a `refers` attribute names. A keyed contract names the member
-// whose key holds the value inside the owner's nearest enclosing scope, the scope the
-// member's `unique` declares for that key. Any other names an id: in the owner's
-// own authored document first, so a widget in a message finds its message's element
-// before a page element with the same id, as the server's request check does, and then
-// in the page beside it, which a message's widget may name. A mounted input supplies
-// its captured value: its binding stays fixed while the producer instance may change.
+// The element a `refers` attribute names, by id: in the owner's own authored document
+// first, so a widget in a message finds its message's element before a page element
+// with the same id, as the server's request check does, and then in the page beside
+// it, which a message's widget may name. A mounted input supplies its captured value:
+// its binding stays fixed while the producer instance may change.
 /** @param {Element} owner @param {string} attribute @param {string | null} [id] */
 export function referencedProjection(
   owner,
@@ -31,18 +29,6 @@ export function referencedProjection(
   id = owner.getAttribute(attribute),
 ) {
   if (!id) return null;
-  const { tag, key } = registry[owner.localName].refers[attribute];
-  if (tag) {
-    const within = registry[tag].unique[key];
-    /** @param {Element} element */
-    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
-    const scope = scopeOf(owner);
-    return (
-      [...(scope?.querySelectorAll(tag) ?? [])].find(
-        (member) => scopeOf(member) === scope && member.getAttribute(key) === id,
-      ) ?? null
-    );
-  }
   const scope = authoredScope(owner);
   const page = pageDocument();
   return (

@@ -1,7 +1,10 @@
 """The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), evidence
-that its harness supports hook delivery (`Harness.hooks_carry`). An explicit
+that its harness supports hook delivery (`Harness.hooks_carry`), and the Leaf it
+runs with the skill that Leaf ships (`leases.mark_skill`). The first hook to run
+another Leaf, shipping another skill, queues a notice telling the agent to read the
+skill again (`skill_changed`). An explicit
 `leaf wait` always prints the envelope; it does not depend on another hook
 running after it. SessionEnd retires the harness instance without reading pages;
 persisted desktop chats retain their generation across instance unloads.
@@ -21,8 +24,8 @@ The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
 that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
-as the Interrupt from Pi's extension does, and then leaves a turn opened or
-renewed since open.
+as the Interrupt from Pi's extension does (`state.close_session_turn` says which
+turns such a close leaves as they are).
 
 Most sessions with the plugin installed never claim a page, so in a session
 holding no claim the launcher answers each hook registered `--if-claimed`
@@ -53,7 +56,7 @@ records the receipt of what its transcript shows entered the model's context
 (`ClaudeCodeHarness.hook_payload`).
 
 Before it opens its turn, the prompt hook serves again each page the session still
-means to serve whose ownership or server is down, as a resumed session's are, and the
+means to serve whose ownership or server is down, as a resumed session's are. The
 turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
 turn and claims nothing; after a compaction it tells an agent holding a page which of
 Leaf's instructions the compaction removed (`reload_skill`). Claude Code runs Leaf's
@@ -68,15 +71,20 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 import json
 import os
 import time
+from pathlib import Path
+from typing import NoReturn
 
-from .leases import first_hook_for_tool, mark_hooks
+from .leases import first_hook_for_tool, mark_hooks, mark_skill
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
+    PLUGIN_ROOT,
+    CopyReplaced,
     advance_turn,
     close_session_turn,
     flocked,
     held_claims,
+    installed_copy,
     prompt_turn,
     session_lock_path,
     session_record,
@@ -98,6 +106,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
+    if (before := mark_skill(sid, now := skill_mark())) is not None:
+        skill_changed(sid, before, now)
     assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
@@ -218,6 +228,69 @@ def reload_skill(session_id: str) -> str | None:
         "instructions` printed are gone, and the skill may be too. Before you next "
         f"reply or run a leaf command, read {SKILL_FILE} again, then the references "
         "and widget instructions your work in progress needs."
+    )
+
+
+def skill_mark() -> str:
+    """The Leaf this hook runs, by its plugin root, and the leaf skill it ships, by
+    the identity of every file under `skills/leaf/` (`layer.files_identity`), which
+    names the skill however its copy was made or updated. Each hook reads and hashes
+    the skill's files to take it (`leases.mark_skill`)."""
+    from .layer import files_identity
+    from .schema import SKILL_FILE
+
+    directory = SKILL_FILE.parent
+    skill = files_identity(
+        {
+            path.relative_to(directory).as_posix(): path.read_bytes()
+            for path in directory.rglob("*")
+            if path.is_file()
+        }
+    )
+    return f"{PLUGIN_ROOT}\n{skill}"
+
+
+def skill_changed(session_id: str, before: str, now: str) -> None:
+    """Queue a notice telling the session's agent to read the leaf skill again, where
+    `now`, the mark this hook took (`skill_mark`), names another Leaf than `before`,
+    the previous hook's, and another skill.
+
+    The Leaf a session's hooks run changes when Claude Code loads another copy, which
+    it does as a process starts, on a resume or a background job's wake, and at
+    `/reload-plugins`; when Codex replaces its copy in place, which the next hook
+    runs; and when `session_runtime` hands the session's delivery to another Leaf.
+    The transcript carries over, so the agent still holds the skill and references
+    it read under the old Leaf, while its hooks and `leaf` commands run the new one.
+    Two versions whose skills match byte for byte, as an update that changed only code
+    leaves them, need no notice. An installed copy at the same root is another Leaf
+    once its skill changed, since only its harness writes it
+    (`state.installed_copy`). A checkout at the same root is the same Leaf: a
+    session whose hooks run a checkout is developing Leaf, and its edits to the
+    skill are changes it makes rather than instructions it missed.
+
+    The notice joins the lines the next prompt or tool boundary carries beside the
+    input it hands over (`clerk.queue`, `hook_transport.carry_turn`), so the agent
+    reads it once. Those hooks carry it only in a session holding a page, as
+    `reload_skill` sends its notice only there. The hook that prints the notice
+    asks whether the session holds a page, rather than this one, since a resumed
+    session's claims stay inactive until its first prompt serves its pages again
+    (`reconnect`), after this hook marked the skill."""
+    root, _, skill = before.rpartition("\n")
+    here, _, shipped = now.rpartition("\n")
+    if skill == shipped or (root == here and not installed_copy(PLUGIN_ROOT)):
+        return
+    from .clerk import queue
+    from .schema import SKILL_FILE
+
+    queue(
+        session_id,
+        [
+            "This session's hooks and leaf commands now run a Leaf with a different "
+            "skill, so the leaf skill and references you read earlier may describe "
+            "commands and rules that have changed. Before you next reply or run a "
+            f"leaf command, read {SKILL_FILE} again, then the references your work "
+            "in progress needs."
+        ],
     )
 
 
@@ -431,10 +504,22 @@ def main(
 
     The Click hook command is the caller.
     A watch owns leases, so it releases them when the harness terminates it.
+
+    A watch whose harness replaced the installed copy it loaded
+    (`state.CopyReplaced`) goes on as the watch of the copy now at that path, which
+    this process becomes through that copy's launcher, with the payload it started
+    with; an Interrupt it answers again leaves the turn its predecessor closed as it
+    was (`state.close_session_turn`). The harness started this process and waits on
+    it: Pi's extension reads the line it prints and stops it by its pid, so the
+    watch carries on under the new copy with no change to the extension, as a hook
+    handed to a selected checkout does. Exiting for the extension to start the
+    watch again would need the extension to tell that exit from a watch with
+    nothing to say. A new copy that can't start, as one whose environment can't be
+    built, leaves the session unwatched until the extension starts the watch again
+    after the next run, as any failed watch does; the session's hooks can't run
+    until that copy can start either.
     """
-    import os
     import sys
-    import tempfile
 
     from .session_runtime import delivering_launcher, own_launcher
 
@@ -455,29 +540,14 @@ def main(
 
         hook_harness(harness, sid).escape_sandbox()
     launcher = delivering_launcher(sid)
+    flags = [
+        flag
+        for flag, given in (("--watch", watch), ("--pages", pages), ("--fork", fork))
+        if given
+    ]
     if launcher != own_launcher():
-        # Delegate the whole hook before publishing lifecycle or pickup. Keeping
-        # the stdin as a file avoids a pipe-size limit on large tool payloads;
-        # exec retains cancellation and the watch's exact lifetime.
-        with tempfile.TemporaryFile() as incoming:
-            incoming.write(json.dumps(payload).encode())
-            incoming.seek(0)
-            os.dup2(incoming.fileno(), 0)
-        environment = dict(os.environ)
-        environment.pop("LEAF_HOST_LAUNCHER", None)
-        os.execve(
-            launcher,
-            [
-                str(launcher),
-                "hook",
-                "--harness",
-                harness,
-                *(["--watch"] if watch else []),
-                *(["--pages"] if pages else []),
-                *(["--fork"] if fork else []),
-            ],
-            environment,
-        )
+        # Delegate the whole hook before publishing lifecycle or pickup.
+        _run_hook(launcher, harness, flags, payload)
     if pages:
         cmd_pages(payload)
         return
@@ -489,10 +559,35 @@ def main(
             print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
-        from .leases import release_on_termination
+        from .leases import end_if_terminated, release_on_termination
 
         release_on_termination()
-        if woke := cmd_watch(harness, payload):
+        try:
+            woke = cmd_watch(harness, payload)
+        except CopyReplaced:
+            # A stop that arrived as the watch let go, whose raise a finalizer
+            # discarded, ends it here rather than the successor never hearing it.
+            end_if_terminated()
+            _run_hook(own_launcher(), harness, flags, payload)
+        if woke:
             print(woke, flush=True)
         return
     cmd_hook(harness, payload)
+
+
+def _run_hook(
+    launcher: Path, harness: str, flags: list[str], payload: dict
+) -> NoReturn:
+    """Replace this process with `launcher`'s `leaf hook` for `harness` with
+    `flags`, given `payload` on its stdin. The harness's process handle then
+    reaches the hook wherever it runs, so cancellation and a watch's lifetime hold.
+    The stdin is a file rather than a pipe, which a large tool payload would fill."""
+    import tempfile
+
+    from .session_runtime import run_under
+
+    with tempfile.TemporaryFile() as incoming:
+        incoming.write(json.dumps(payload).encode())
+        incoming.seek(0)
+        os.dup2(incoming.fileno(), 0)
+    run_under(launcher, ["hook", "--harness", harness, *flags])

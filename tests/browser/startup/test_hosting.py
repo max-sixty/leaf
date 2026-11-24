@@ -20,7 +20,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -398,6 +398,93 @@ def test_a_sample_the_reader_would_see_arrive_holds_presentation(browser, serve)
     assert page.evaluate("presentedAtSampleReady") is False
 
 
+# A sample document's registry, which its upgrade reads after the document loads.
+SAMPLE_REGISTRY = re.compile(r"/api/samples/[^/]+/revisions/[^/]+/registry\.json$")
+
+# A board sample whose recorded moves, which its page applies after upgrading, take two
+# of the four cards in its taller column to the other, so the page arrives shorter than
+# it upgrades.
+MOVED_BOARD = (
+    '<script id="moves" type="application/json">['
+    + ",".join(
+        '{"kind": "action", "author": "user", "widget": "board", "action": "move",'
+        f' "detail": {{"unit": "card-{card}", "value": "done", "rank": "{rank}"}}}}'
+        for card, rank in ((1, "a"), (2, "b"))
+    )
+    + "]</script>"
+    + live_sample(
+        "practice",
+        content='<lf-board id="board"><lf-column id="ready" label="Ready">'
+        + "".join(
+            f'<lf-card id="card-{card}" label="Card {card}">Card {card}</lf-card>'
+            for card in range(1, 5)
+        )
+        + '</lf-column><lf-column id="done" label="Done">'
+        '<lf-card id="card-5" label="Card 5">Card 5</lf-card></lf-column></lf-board>',
+    ).replace("data-sample>", 'data-sample data-sample-events="moves">')
+)
+
+
+def held_block_sample(browser, serve):
+    """A page with `MOVED_BOARD` half a window below the window's foot, within a window
+    of it, so it starts off screen, its page loaded and its registry held so that page
+    doesn't upgrade. Returns the page, the frame, its page and the held requests."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    page.route(SAMPLE_REGISTRY, lambda request_route: held.append(request_route))
+    page.goto(
+        serve(
+            leaf_page(
+                "Sample below",
+                '<h1>Containing page</h1><div style="height: 150vh"></div>'
+                + MOVED_BOARD
+                + "<p id=after>After the sample</p>",
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the sample's registry")
+    frame = page.locator("#practice iframe")
+    child = frame.element_handle().content_frame()
+    assert child is not None
+    child.wait_for_load_state("load")
+    rendered(page)
+    return page, frame, child, held
+
+
+def test_a_block_sample_out_of_view_keeps_the_page_arriving_until_it_has_its_height(
+    browser, serve
+):
+    """A block sample that starts just below the window takes its page's height as that
+    page arrives, moving what follows it, so the containing page reads as arriving
+    until then though the frame is off screen, and a reader that waits for the page
+    finds the frame at the height the page arrived at, not the one it upgraded at."""
+    page, frame, child, held = held_block_sample(browser, serve)
+    assert readiness(page) == "arrived"
+    page.unroute(SAMPLE_REGISTRY)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
+    body = "() => Math.ceil(document.body.getBoundingClientRect().height)"
+    assert frame.evaluate("frame => frame.clientHeight") == child.evaluate(body)
+
+
+def test_a_check_asking_for_near_work_takes_over_a_block_sample_s_wait(browser, serve):
+    """A check that asks for all near work brings each frame whose page the containing
+    page stopped counting into view itself (`start_near_work`), so once it asks, the
+    page stops waiting for an off-screen block sample's height and marks its frame for
+    the check."""
+    page, frame, _, held = held_block_sample(browser, serve)
+    evaluate_probe(page, "startNearWork")
+    rendered(page)
+    assert readiness(page) is None
+    assert frame.evaluate("frame => frame.hasAttribute('data-lf-unseen')")
+    page.unroute(SAMPLE_REGISTRY)
+    for each in held:
+        each.continue_()
+
+
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
     browser, serve
 ):
@@ -447,3 +534,60 @@ def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
     expect(status.locator("details")).to_have_attribute("open", "")
     assert not summary.evaluate(clipped)
     assert page.evaluate(places) == before
+
+
+# Hold each command the page sends a sample's document over the private port the
+# host publishes on the entry script (sample.js, `connect`), so the document's own
+# arrival lands before any answer: `heldCommands` sends them on.
+HOLD_COMMANDS = """entry => {
+  window.heldCommands = [];
+  const binding = Object.getOwnPropertyDescriptor(
+    HTMLScriptElement.prototype, 'lfDocumentPort');
+  Object.defineProperty(entry, 'lfDocumentPort', {
+    configurable: true,
+    get() { return binding.get.call(this); },
+    set(port) {
+      binding.set.call(this, port);
+      const post = port.postMessage;
+      port.postMessage = function (message, ...rest) {
+        if (message?.method === undefined) return post.call(this, message, ...rest);
+        heldCommands.push(() => post.call(this, message, ...rest));
+      };
+    },
+  });
+}"""
+
+
+def test_a_reset_sample_has_drawn_its_new_page_once_the_page_reads_arrived(
+    browser, serve
+):
+    """A sample the reader resets in view draws its new page's arrival, Reset
+    available again and its status clear, before the page reads arrived, however
+    late the child answers a command the containing page sends it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sample reset", "<h1>Containing page</h1>" + live_sample("practice")
+            )
+        ),
+    )
+    page.locator("script[data-lf-entry]").evaluate(HOLD_COMMANDS)
+    allocated = []
+    page.on(
+        "request",
+        lambda request: (
+            request.method == "POST"
+            and request.url.endswith("/api/samples")
+            and allocated.append(request)
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.get_by_role("button", name="Reset").click()
+    wait_until_ready(page)
+    drawn = sample.evaluate("""sample => [
+        sample.querySelector('.lf-sample-action').getAttribute('aria-disabled'),
+        sample.querySelector('.lf-sample-status').textContent]""")
+    page.evaluate("() => heldCommands.forEach(send => send())")
+    assert len(allocated) == 1
+    assert drawn == [None, ""]

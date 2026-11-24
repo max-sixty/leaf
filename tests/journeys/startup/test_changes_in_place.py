@@ -17,6 +17,7 @@ from render_harness import (
     expect_panel_says,
     open_page,
     panel_field,
+    show_changes,
     stamp_page,
     wait_for_revision,
 )
@@ -24,13 +25,13 @@ from render_harness import (
 from leaf.render_checks import rendered
 
 
-def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
+def test_g_V_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     browser, serve
 ):
-    """`v` compares with the newest version older than the one being read, and takes
-    any comparison off again, one a Compare in Versions started included. The field's
-    standing words say the comparison, and a notice that none is marked goes as soon
-    as one marks some."""
+    """`g V v` compares with the newest version older than the one being read, and
+    takes any comparison off again, one another Compare in Versions started included,
+    since Versions opens on the version compared with. The field's standing words say the
+    comparison, and a notice that none is marked goes as soon as one marks some."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -46,7 +47,7 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     # Since v2, not v1: only Delta changed. The field's standing words say the
     # comparison at once, and a listener hears it; no notice repeats them, read once
     # the press has drawn, while its notice's moment still stands.
-    page.keyboard.press("v")
+    show_changes(page)
     expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
     assert marked_ids(page) == ["d"]
     rendered(page)
@@ -55,7 +56,7 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     ), panel_field(page).get_attribute("placeholder")
     expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
     expect(page.locator(".lf-live")).to_have_text("1 change since v2")
-    page.keyboard.press("v")
+    show_changes(page)
     expect(marked).to_have_count(0)
     # A screen reader hears the marks go.
     expect(page.locator(".lf-live")).to_have_text("Changes hidden")
@@ -63,5 +64,5 @@ def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
     compare_with(page, 1)
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
-    page.keyboard.press("v")
+    show_changes(page)
     expect(marked).to_have_count(0)

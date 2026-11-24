@@ -49,37 +49,40 @@
  * documents. Drafts and chrome preferences use their own stores.
  *
  * A fresh-document install is a reload, so it returns the user to the entry's record as
- * every reload does (history.js, `beginArrival`): the page's place, the thread view
- * and where they were in it, which reader the margin's rule opens it in where its
- * passage is gone (thread/address.js, `claim`), the panel's list, focus, and the
- * selection. A reload Leaf asks for (layer-client.js, `reloadDocument`), as a
- * fresh-document install does and as a delivery that moved on does, such as a server
- * restarted under another Leaf (`reloadNow`), also stores a page-scoped, one-use handoff
- * as the document goes (`handOff`) of what the record doesn't hold: each reading
- * region's place, the values typed into authored controls, but for one the user has
- * changed since the document started, with focus and its caret where it was in one,
- * back in the replacement turn so typing goes on before the page presents, the
- * words being written with their native editing session, the comparison
- * and the pointer. The document that reload loads consumes it, at that revision or a
- * newer one, once its arrival has put back what it carries; one that goes before then,
- * as by a second reload Leaf asks for, leaves it to the next (`installArrival`). Where the user was belongs to the entry they left, so an arrival
- * at another, as after Back taken before Leaf starts, takes from the handoff only what
- * it carries of the document: the values, disclosures, comparison and pointer, which a
- * Back within one document keeps too. Since it describes the moment the document went,
- * a reload that ends the document later, as after the user stays at a page's own leave
- * prompt, hands over the place they then left; any other reload or history travel
- * finds none. Until the arriving document has returned the user to the entry, printed
- * keys wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put
- * back, as text in the reply box they were writing in. Waiting keys are no input
- * (document-inputs.js, `holdKeys`), so they don't end the return; any other input
- * does, and drops them. The keys not yet pressed when the document goes carry to the
- * next reload Leaf asks for of the address (bootstrap.js, `holdEarlyKeys`). An in-place patch is no navigation, so it restores the page's
- * place, the margin's and the panel's thread location, focus, and the selected
- * obligation by id itself; it gives an unnamed replaced control no guessed focus.
- * Explicit historical travel carries reading position and the decision landmark,
- * without mechanical carry or obligation location. State application serializes
- * responses and remains pending after navigation starts until the old document is
- * discarded.
+ * every reload does (history.js, `beginArrival`): the page's place, the thread view and
+ * where they were in it, which reader the margin's rule opens it in where its passage
+ * is gone (thread/address.js, `claim`), the panel's list, focus, and the selection. A
+ * reload Leaf asks for (layer-client.js, `reloadDocument`), as a fresh-document install
+ * does and as a delivery that moved on does, such as a server restarted under another
+ * Leaf (`reloadNow`), also stores a page-scoped, one-use handoff as the document goes
+ * (`handOff`) of what the record doesn't hold: each reading region's place, the values
+ * typed into authored controls, but for one the user has changed since the document
+ * started, with focus and its caret where it was in one, back in the replacement turn
+ * so typing goes on before the page presents, the words being written with their native
+ * editing session, the comparison and the pointer. The document that reload loads
+ * consumes it, at that revision or a newer one, once its arrival has put back what it
+ * carries; one that goes before then, as by a second reload Leaf asks for, leaves it to
+ * the next. One that goes after the user's own input has ended its arrival hands a
+ * reload Leaf asks for what it holds then, with its place only where the page's words
+ * are anchored, and leaves nothing to any other reload (`installArrival`). Where the
+ * user was belongs to the entry they left, so an arrival at another, as after Back
+ * taken before Leaf starts, takes from the handoff only what it carries of the
+ * document: the values, disclosures, comparison and pointer, which a Back within one
+ * document keeps too. Since it describes the moment the document went, a reload that
+ * ends the document later, as after the user stays at a page's own leave prompt, hands
+ * over the place they then left; any other reload or history travel finds none. Until
+ * the arriving document has returned the user to the entry, printed keys wait
+ * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back, as
+ * text in the reply box they were writing in. Waiting keys are no input
+ * (document-inputs.js, `holdKeys`), so they don't end the return; any other input does,
+ * and drops them. The keys not yet pressed when the document goes carry to the next
+ * reload Leaf asks for of the address (bootstrap.js, `holdEarlyKeys`). An in-place
+ * patch is no navigation, so it restores the page's place, the margin's and the panel's
+ * thread location, focus, and the selected obligation by id itself; it gives an unnamed
+ * replaced control no guessed focus. Explicit historical travel carries reading
+ * position and the decision landmark, without mechanical carry or obligation location.
+ * State application serializes responses and remains pending after navigation starts
+ * until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
@@ -3296,7 +3299,9 @@ export function createVersionController({
         return null;
       }
     })();
+    let gone = false;
     addEventListener("pagehide", () => {
+      gone = true;
       // The arrival still owes the user the handoff's place, so the tab keeps that
       // handoff for the next document.
       if (handoff && arrival.owes()) return;
@@ -3308,6 +3313,14 @@ export function createVersionController({
       window.lfStorage.handOff(null);
       if (anchoringIsReady() && !pendingRestoration()?.owes())
         tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
+    });
+    // A page hidden once the arrival no longer owes the handoff keeps none either: a tab
+    // the browser discards while hidden goes with no `pagehide`, and its next load is a
+    // reload that would find the old one. A document's own departure fires its
+    // `pagehide` before the hide that follows it, and has handed on what it hands on.
+    document.addEventListener("visibilitychange", () => {
+      if (gone || document.visibilityState !== "hidden") return;
+      if (handoff && !arrival.owes()) window.lfStorage.handOff(null);
     });
     // The handoff is part of the document's arrival (history.js, `beginArrival`), whose
     // one intent its every step runs under, the early focus of an authored control among

@@ -216,9 +216,10 @@ package's own lists neither. An element that another widget's verb names by id, 
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
 `awaits.answered` separately says when the obligation is complete: `{}` once the
-verb has a state, `when` for instances with matching attributes, and `empty` while the
-one container of the verb's position record (`within`) whose attributes match its
-`when` has no members. A page-owned queue can declare:
+verb has a state, which a starting value the page's markup writes gives it too, `when`
+for instances with matching attributes, and `empty` while the one container of the
+verb's position record (`within`) whose attributes match its `when` has no members. A
+page-owned queue can declare:
 
 ```json
 {

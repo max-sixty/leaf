@@ -1,13 +1,15 @@
 # Generated controls
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
-Build each control the widget injects, and each box of controls, with the library's
-control constructors (`module-authoring.md`, "Shared web code"). Each builds the native
-element, so the browser keeps its activation, focus and accessibility. Each also marks
-the element as Leaf-generated, which tells Leaf the widget's apparatus from the
-author's words. A press that looks like Leaf's own controls is built by its role, so
+Build each control the widget injects, and each box of controls, with the control
+constructors in the library's
+[`controls.js`](../../../browser/runtime/lib/controls.js), whose header lists them.
+Each builds the native element, so the browser keeps its activation, focus and
+accessibility. Each also marks the element as Leaf-generated, which tells Leaf the
+widget's apparatus from the author's words. A native control the module draws without
+them still works, in the theme's look for its element, and its words read as the
+page's. A press that looks like Leaf's own controls is built by its role, so
 every control of one kind wears one face, and a press that shows a symbol names its
 action (`module-reading.md`, "Icons"). Use a symbol where a standard symbol for the
 action exists, one readers know from other software, and words where none does. A

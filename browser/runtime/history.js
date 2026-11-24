@@ -68,11 +68,14 @@
  * the values typed, the words being written with their native editing session, the
  * comparison and the pointer. Both hold where the user was writing, and the handoff's
  * is the newer, since words typed through the reload move its caret (bootstrap.js,
- * `typeBack`). The record's return leaves focus on a control of the page's own to the
- * handoff (`returnTo`). In a draft's box it returns the user to the box, and the
- * handoff's restore, which runs after it, puts the caret where the handoff has it,
- * while the draft still holds the words the handoff read (version.js,
- * `restoreEditingContinuity`). The record's thread opens where the user stands, moving
+ * `typeBack`). Focus on a control of the page's own is the handoff's to put back, with
+ * its caret where the control has one; the record's return leaves focus there and
+ * returns only the selection (`returnTo`). A draft's box stays the record's: its return
+ * reopens the box and puts the user in it, and the handoff's restore, which runs after,
+ * moves the caret to where the handoff has it (version.js, `restoreEditingContinuity`).
+ * The two aren't one rule because that restore declines once another tab has rewritten
+ * the draft, while the record's return, which doesn't check the draft, still puts the
+ * user in the box, with the caret where the record had it. The record's thread opens where the user stands, moving
  * no scroller, so a card whose passage the revision hid opens in the floating panel
  * (thread/address.js, `claim`). The panel's hold of where the user stepped in from
  * (`readPlace`) reads the same page place, focus identity and thread reading, and stays
@@ -445,15 +448,14 @@ function readingIndex(reading, node, offset) {
 // claim has shown standing on its row (thread/address.js). The return settles once they
 // are there, so a command acting on the returned place awaits it. Where the arrival's
 // handoff puts focus back on a control of the page's own itself (`returnsFocus`
-// false), the return stops once the thread's reading is shown: focus, its caret, the
-// selection and the landing at the reading place are the handoff's (version.js,
-// `installArrival`).
+// false), focus and its caret are the handoff's, so the return leaves focus where the
+// handoff put it and returns the selection only where no caret is the selection
+// (version.js, `installArrival`).
 /** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
 async function returnTo(record, intent, returnsFocus = true) {
   const open = threadParts?.open() ?? null;
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   if (record.thread && drawing) showReading(drawing, record.thread);
-  if (!returnsFocus) return;
   const key = record.focus;
   /** @param {string} id */
   const drawingOf = (id) => threadParts?.focusTarget(id, "thread") ?? null;
@@ -464,8 +466,9 @@ async function returnTo(record, intent, returnsFocus = true) {
     return;
   }
   const thread = key?.thread === null ? (open?.id ?? null) : key?.thread;
-  const focus =
-    key && thread !== null
+  const focus = !returnsFocus
+    ? deepFocus()
+    : key && thread !== null
       ? focusByKey(
           /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
           drawingOf,

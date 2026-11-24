@@ -2158,6 +2158,35 @@ def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve
     assert page.evaluate("() => window.lfSameDocument") is None
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reload_returns_a_selection_beside_focus_on_a_control_of_the_page(
+    request, serve, engine
+):
+    """A passage the user selected on the page comes back after a reload Leaf asks
+    for, though focus stands on a checkbox of the page's own, which holds no caret: the
+    handoff puts focus back on the checkbox, and the entry's record the selection."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>'
+            '<p><label>Checked <input id="tick" type="checkbox"></label></p>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    page.evaluate(
+        """() => {
+          const words = document.querySelector('#result').firstChild;
+          getSelection().setBaseAndExtent(words, 4, words, 12);
+          document.querySelector('#tick').focus();
+        }"""
+    )
+    expect(page.locator("#tick")).to_be_focused()
+    assert page.evaluate("getSelection().toString()") == "backfill"
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#tick")).to_be_focused()
+    page.wait_for_function("getSelection().toString() === 'backfill'", timeout=20000)
+
+
 # Where the user is writing a reply, and the page's address: its live root or a
 # version's own.
 @pytest.mark.parametrize(

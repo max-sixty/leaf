@@ -25,12 +25,17 @@ stands in the column of a pick, declares `shows` instead: its module reads the
 owner's state and records the owner's verb through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
 
-Packages declare no dependency on each other, so two that share a contract each
-declare it in their own `$data.contracts`, word for word; a page composing both keeps
-one copy, and `page check --render` holds what the producer holds to it. What a
-producer of the contract must take as commands goes in the contract's `instructions`,
-under `producer`: `leaf page instructions --use` returns it for a widget on either
-side of the contract.
+Packages declare no dependency on each other. A widget that holds a value names a
+contract that its own package or Leaf's `default` package declares in
+`$data.contracts`. So does a widget whose input takes a `source`, since `leaf data
+set` validates a source's value against the contract. A widget whose input binds only
+by `reference` names the producer's contract, and its package doesn't declare it:
+`page check` matches the input to the output by the contract's name, and `page check
+--render` holds what the producer holds to the contract. Two packages that both
+declare a contract declare it word for word, and a page composing both keeps one copy.
+What a producer of the contract must take as commands goes in the contract's
+`instructions`, under `producer`: on a page that selects a package declaring the
+contract, `leaf page instructions --use` returns it for a widget on either side.
 
 `package check` reads one package, so check a pair on a page. Start one in a directory
 outside both packages that selects them by path, write both widgets into its

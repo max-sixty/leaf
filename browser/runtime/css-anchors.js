@@ -67,7 +67,7 @@ import {
   shadowHost,
 } from "./shadow-tree.js";
 import { watchArrivals } from "./arrivals.js";
-import { inlineStyle, keeps, layoutPx } from "./keeps.js";
+import { inlineStyle, keeps, layoutPx } from "./lib/keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
 

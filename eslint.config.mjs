@@ -24,7 +24,6 @@ const runtimePrimitives = [
   "inputs.js",
   "document-inputs.js",
   "shadow-tree.js",
-  "keeps.js",
   "pointer.js",
   "rendering.js",
   "frame-visibility.js",

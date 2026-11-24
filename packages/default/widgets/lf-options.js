@@ -119,8 +119,6 @@ import {
   elementById,
   threadInput,
   inChrome,
-  keeps,
-  keepsText,
   LeafElement,
   landInThread,
   markdownWords,
@@ -136,6 +134,7 @@ import {
   scrollIntoView,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
 // own words, which are all it has. `named` rather than `says`, because a picked option's

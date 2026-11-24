@@ -101,8 +101,6 @@
     <script type="module">
       import {
         generatedElement,
-        keeps,
-        keepsText,
         layoutChanged,
         offer,
         offerAction,
@@ -110,6 +108,7 @@
         setChildren,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },

@@ -71,7 +71,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {

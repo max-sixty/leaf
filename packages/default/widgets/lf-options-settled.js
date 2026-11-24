@@ -7,12 +7,12 @@ import { html, nothing, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
   comparisonChanges,
-  keeps,
   generated,
   selectableOffer,
   tabStore,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 const SETTLED_KEY = "lf-settled:";
 

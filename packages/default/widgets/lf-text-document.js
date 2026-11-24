@@ -33,10 +33,8 @@ import {
   codeLanguage,
   failSoft,
   ensureSyntaxLanguage,
-  keeps,
   LeafElement,
   whileConnected,
-  keepsText,
   setRenderedChildren,
   setChildLists,
   setChildren,
@@ -53,6 +51,7 @@ import {
   MAX_EDIT_LENGTH,
   afterPresentation,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { textWidth } from "/runtime/lib/text-width.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -858,10 +857,7 @@ class TextDocument extends LeafElement {
         firstBox -
         this.getBoundingClientRect().height;
     else return;
-    panel.style.setProperty(
-      "--lf-preview-block",
-      `${Math.round(measured * 64) / 64}px`,
-    );
+    panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
   // The press shows only while the box cuts lines off, as a thread's quote label does.
   measureCut() {

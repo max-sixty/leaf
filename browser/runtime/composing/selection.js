@@ -26,7 +26,7 @@
 import { el, offerAction, responseAction } from "../widget-elements.js";
 import { COMMENT_HINT } from "../words.js";
 import { anchorKey } from "../anchor-coordinate.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 
 import {
   clearDraft,

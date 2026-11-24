@@ -126,7 +126,7 @@ import {
 import { clamp, clippingAxes, overlaps, shifted, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
-import { layoutPx, inlineStyle } from "../keeps.js";
+import { layoutPx, inlineStyle } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { objectIds } from "../ids.js";
 import { offerActionElement } from "../widget-elements.js";
@@ -1710,7 +1710,7 @@ export function unregisterMarginRow(row) {
 }
 
 // A style property written, or removed for null. The platform makes no write of a
-// value the property already holds (keeps.js).
+// value the property already holds (lib/keeps.js).
 /** @param {Element} row @param {string} property @param {string | null} value */
 function setStyle(row, property, value) {
   if (value === null) inlineStyle(row).removeProperty(property);

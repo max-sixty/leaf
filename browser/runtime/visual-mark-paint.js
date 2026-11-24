@@ -6,7 +6,7 @@
  * `data-lf-mark` (surfaces.css), and each target wears `data-lf-projected-mark`, so the focus
  * floor leaves the mark to say where focus is. Importing this module writes nothing. */
 
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { readMarkerSides, shownParts } from "./geometry.js";
 
 const PROJECTED = "data-lf-projected-mark";

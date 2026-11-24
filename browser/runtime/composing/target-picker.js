@@ -45,7 +45,7 @@ import {
   progressSteps,
 } from "../keyboard/key-sequence.js";
 import { announce, notice } from "../notifications.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { beginWalk, walkPosition, walkPositionLabel } from "../walk-position.js";
 
 import {

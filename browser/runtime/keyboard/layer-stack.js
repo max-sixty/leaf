@@ -95,7 +95,7 @@ import {
   nativeLayerKind,
 } from "../shadow-tree.js";
 import { watchOwner } from "../arrivals.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 
 // A host styles its own chrome when a modal carries it into another shadow tree.
 // Layer ordering and native opening need no stylesheet from the page.

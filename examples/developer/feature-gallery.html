@@ -181,13 +181,13 @@
         commandsChanged,
         connection,
         generate,
-        keepsText,
         once,
         PAGE_INTERFACE,
         quoted,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
+      import { keepsText } from "/runtime/lib/keeps.js";
 
       document.addEventListener(PAGE_INTERFACE, () => {
         const section = document.querySelector("#bg-http");

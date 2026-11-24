@@ -28,7 +28,7 @@ import { declareRanges, pointRange } from "./preview.js";
 import { holds } from "./rect.js";
 import { renderedParent, shadowHost, upFrom } from "./shadow-tree.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
-import { keepsOnOne } from "./keeps.js";
+import { keepsOnOne } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const MARK = "lf-mark";

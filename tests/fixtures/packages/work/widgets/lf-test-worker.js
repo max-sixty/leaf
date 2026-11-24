@@ -4,13 +4,13 @@ import { html, noChange } from "/vendor/lit.js";
 import {
   generatedElement,
   ago,
-  keeps,
   LeafElement,
   readWork,
   reportSequence,
   reportsReady,
   workAncestor,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-worker",
   class extends LeafElement {

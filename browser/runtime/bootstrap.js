@@ -385,9 +385,9 @@
   const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
-  // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words of a run
-  // typed through Leaf's reload that the hold let go (`letGo`), which is also the event
-  // that tells the runtime of them.
+  // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words of runs
+  // typed through Leaf's reload that the hold let go, each with its box (`letGo`), which
+  // is also the event that tells the runtime of them.
   const HELD_KEYS = "lf-held-keys";
   const HELD_WORDS = "lf-held-words";
   const HALF_PRESSES = new Set([
@@ -408,35 +408,64 @@
     // and the hold takes keys whatever the single-key preference.
     const { handoff, tabStore, placesUser } = window.lfStorage;
     const typingBack = () => placesUser() && handoff?.typing === true;
+    // The box the reload hands back, as the runtime named it (version.js,
+    // `captureHandoff`), which the words of a run typed through the reload are for.
+    const box = handoff?.draftEditing ?? null;
+    /** @param {string} key */
+    const read = (key) => {
+      try {
+        return JSON.parse(tabStore.get(key) || "null");
+      } catch {
+        return null;
+      }
+    };
+    // The words the tab keeps for their boxes until the runtime types them in
+    // (`letGo`), in the order they were typed.
+    /** @returns {{box: unknown, words: string}[]} */
+    const keptWords = () => {
+      const kept = read(HELD_WORDS);
+      return Array.isArray(kept) ? kept : [];
+    };
+    /** @param {unknown} into @param {string} words */
+    const keepWords = (into, words) =>
+      tabStore.set(HELD_WORDS, JSON.stringify([...keptWords(), { box: into, words }]));
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's
     // run starts with those keys, even where the document before it had put its own
-    // place back and was pressing them as it went; any other load starts a run of its
-    // own. Words a document before it let go as it gave up the run (`letGo`) lead the
-    // run, since the place they were typed for is back; any other load leaves them to
-    // the runtime, which types them into their box's draft.
+    // place back and was pressing them as it went, and with any words a document
+    // before it let go as it gave up the run (`letGo`) ahead of them, since the place
+    // they were typed for is back. Any other load starts a run of its own and leaves
+    // those words to the runtime, which types them into their box's draft, and the
+    // words of a run of writing left with them, which it keeps for its box.
+    const stored = read(HELD_KEYS);
+    /** @type {KeyboardEventInit[]} */
+    const storedKeys = Array.isArray(stored?.keys) ? stored.keys : [];
     /** @type {KeyboardEvent[]} */
     const held = (() => {
-      if (!placesUser()) return [];
-      const left = [...(tabStore.get(HELD_WORDS) ?? "")].map((key) => ({ key }));
-      tabStore.set(HELD_WORDS, null);
-      /** @type {KeyboardEventInit[]} */
-      let kept = [];
-      try {
-        const stored = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
-        if (Array.isArray(stored)) kept = stored;
-      } catch {
-        // An unreadable run leaves the words alone.
+      if (!placesUser()) {
+        if (stored?.writing && storedKeys.length)
+          keepWords(stored.box, storedKeys.map(({ key }) => key).join(""));
+        return [];
       }
-      return [...left, ...kept].map((init) => new KeyboardEvent("keydown", init));
+      const left = keptWords().flatMap(({ words }) => [...words]);
+      tabStore.set(HELD_WORDS, null);
+      return [...left.map((key) => ({ key })), ...storedKeys].map(
+        (init) => new KeyboardEvent("keydown", init),
+      );
     })();
+    // Whether the run is the user writing in the box Leaf's reload hands back
+    // (`typingBack`), read as its first key is held, so a step that takes them to
+    // another entry leaves it their writing.
+    let writing = held.length > 0 && typingBack();
     const save = () =>
       tabStore.set(
         HELD_KEYS,
         held.length
-          ? JSON.stringify(
-              held.map(
+          ? JSON.stringify({
+              writing,
+              box: writing ? box : null,
+              keys: held.map(
                 ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
                   key,
                   code,
@@ -447,14 +476,10 @@
                   metaKey,
                 }),
               ),
-            )
+            })
           : null,
       );
     save();
-    // Whether the run is the user writing in the box Leaf's reload hands back
-    // (`typingBack`), read as its first key is held, so a step that takes them to
-    // another entry leaves it their writing.
-    let writing = held.length > 0 && typingBack();
     /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
     /** @type {(() => boolean) | null} */
@@ -507,8 +532,7 @@
     // into the box where it puts the user back there, and into the draft otherwise.
     const letGo = (tell = true) => {
       if (writing && held.length) {
-        const typed = held.map(({ key }) => key).join("");
-        tabStore.set(HELD_WORDS, (tabStore.get(HELD_WORDS) ?? "") + typed);
+        keepWords(box, held.map(({ key }) => key).join(""));
         if (tell) document.dispatchEvent(new Event(HELD_WORDS));
       }
       held.length = 0;

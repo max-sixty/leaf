@@ -1762,6 +1762,37 @@ def test_words_typed_through_a_reload_stay_in_the_reply_across_a_step_back(
     ]
 
 
+def test_words_typed_through_a_reload_reach_the_reply_when_the_page_opens_anew(
+    browser, serve
+):
+    """Words the user types on as a reload Leaf asked for comes are words for the reply
+    they were writing in. Leaving the page before the reload has put them back there,
+    and opening it again at an entry of its own, which puts the user back nowhere,
+    finds them in the reply's draft, where Resume writing takes the user to their
+    end."""
+    page, _ = writing_a_reply(browser, serve)
+    url = page.url
+    reload_with_its_answers_held(page, serve)
+    page.keyboard.type(" more")
+    expect(page.locator(".lf-held-key").first).to_be_visible()
+    page.goto("about:blank")
+    page.goto(url, wait_until="commit")
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    wait_for(
+        lambda: reply_draft(serve),
+        lambda words: words == "Hold more",
+        failure=lambda: f"the reply's draft reads {reply_draft(serve)!r}",
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    resumed = page.locator("leaf-text:focus")
+    expect(resumed).to_have_js_property("value", "Hold more")
+    page.keyboard.type(" now")
+    expect(resumed).to_have_js_property("value", "Hold more now")
+
+
 def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
     browser, serve
 ):

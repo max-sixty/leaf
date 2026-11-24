@@ -754,12 +754,10 @@ def declare_data_input(
     entry = {
         "description": "A test widget with one external-data input.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {input_name: {"contract": contract, "source": "source"}},

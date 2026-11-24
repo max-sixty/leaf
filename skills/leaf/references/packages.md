@@ -253,11 +253,7 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
 ```json
 "lf-merge-film": {
   "description": "A merge replayed frame by frame.",
-  "attributes": {
-    "type": "object",
-    "required": ["id"],
-    "additionalProperties": false
-  },
+  "attributes": { "required": ["id"] },
   "content": "members",
   "example": "<lf-merge-film id=\"film\">…</lf-merge-film>"
 }
@@ -295,6 +291,12 @@ leave it off a widget whose module rewrites or reorders what it holds. Whatever 
 module adds to a verbatim widget stands inside a box of controls the library built
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
 page's (`module-plain-elements.md`, "Words it writes").
+
+Composition writes `"type": "object"` and `"additionalProperties": false` into
+`attributes`, so a declaration leaves both out and names only its element's attributes,
+and `page check` refuses an attribute the schema doesn't name, such as a misspelt one.
+A declaration that writes either keeps its own: `"additionalProperties": true` admits
+any attribute.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

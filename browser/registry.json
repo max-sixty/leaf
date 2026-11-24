@@ -2,15 +2,13 @@
   "lf-suggestion": {
     "description": "One proposed change to content the user has already seen, with accept and reject controls.",
     "attributes": {
-      "type": "object",
       "properties": {
         "resolves": {
           "type": "string",
           "pattern": "^[a-z0-9]+$"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "members",
     "inline": true,
@@ -43,10 +41,7 @@
   },
   "lf-old": {
     "description": "The current markup a suggestion proposes to replace or delete.",
-    "attributes": {
-      "type": "object",
-      "additionalProperties": false
-    },
+    "attributes": {},
     "owners": ["lf-suggestion"],
     "inline": true,
     "retired-when": "accept",
@@ -54,10 +49,7 @@
   },
   "lf-new": {
     "description": "The proposed markup in a suggestion.",
-    "attributes": {
-      "type": "object",
-      "additionalProperties": false
-    },
+    "attributes": {},
     "owners": ["lf-suggestion"],
     "inline": true,
     "retired-when": "reject",
@@ -114,7 +106,7 @@
   },
   "$keys": {
     "description": "The meaning of each key an element declaration may carry, keyed by its name. Beside its `description`, a declaration holds the JSON Schema of its attributes under `attributes`, and each of its other facts beside them. A fact is declared rather than left to the widget's module because some part of Leaf needs it without running the module. The registry lint admits exactly these keys: it refuses a member for a key it does not admit, and a missing member for one it does. A layer may override a member to describe its own reading of a key, but cannot add a key. The site's registry reference is generated from this entry, in its order, so authors, the lint and the site read the same text.",
-    "attributes": "The JSON Schema of the element's attributes, as Draft 2020-12 has it (`type`, `properties`, `required`, `additionalProperties`, `dependentRequired`), which `page check` and message markup hold each occurrence to. Every declaration has one.",
+    "attributes": "The JSON Schema of the element's attributes, as Draft 2020-12 has it (`properties`, `required`, `dependentRequired`), which `page check` and message markup hold each occurrence to. Composing the vocabulary writes in `\"type\": \"object\"` and `\"additionalProperties\": false`, so a declaration leaves both out and its schema admits only the attributes it names. A declaration that writes either keeps its own, as one that admits any attribute writes `\"additionalProperties\": true`. Every declaration has one.",
     "content": "The element's content: `markup` (the author's markup), which is the default, `members` (only this element's declared member elements), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt;, which an element whose markup binds its `value` input leaves out), `markdown` (one <pre> escaped as for `data`, holding Markdown that Leaf renders as safe block Markdown read as a file, a soft line break reading as a space; a body record keeps the source, and passages read the rendered words), or `empty`. The server, `page check`, the passage reader and the first paint each read it.",
     "verbs": "Declares each verb of a widget that has state: the unit of state it changes, who writes it, and either its record (how the state reads in markup, $verbs.record) or the schema of its detail. A verb is the user's, sent from the page as `action` events, unless it declares `writer: \"agent\"`; the agent writes it with `leaf page report`, as `report` events. A user verb may create a child element (`creates`). An agent verb with `text: true` requires each report to carry a non-empty `detail.text`, a short note the report feed shows as written. The page marks a reported widget `data-lf-reported` until a version answers the report ($report). For each [widget, unit, verb] key, the latest action not taken back wins, and different verbs on one unit coexist. Leaf combines those actions with the authored values and hands the widget its complete state, keyed by verb, as `this.state`, which its `render()` reads. A past action keeps its key after the widget leaves the page. When an action makes the widget's `awaits.answered` condition hold, Leaf records `meaning.answer` on it: the thread named by the widget's `resolves` attribute in the document the action came from, which the answer closes, or null. A decision whose outcome is the one its verb `withdraws` also records null, and the page reads as if nothing had been proposed. A verb with `decides: true` selects which members leave the page (`retired-when`); its required `outcome` field names the choice. An `outcome` field on any other verb is ordinary domain data.",
     "awaits": "The widget asks the user for input while its authored attributes match `when`, which puts an obligation on their list, On Me. The obligation's id is `widget:<source-id>` and never changes. `value` names the verb (`verbs`) whose state is the typed answer, and `answered` says when the obligation is complete ($awaits); they are separate because a partial value can exist while the obligation is open, and an empty value can be a complete answer. `all` names the outcome one control can give every obligation of this kind at once. Once created, an obligation stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a widget inside an exhibit (`exhibit`). A `restated` event asks again. While the agent owes a reply in a thread about the obligation, anchored inside the widget, or inside the group the author declares round it but no other obligation, the agent is its next actor and the obligation stays unanswered. A widget in a thread message keeps its obligation after the thread closes. A question the user answers in words is an agent message's obligation, not a widget's (`--obligation`). Any widget may declare it, whether bundled, from a package or a page's own; the actions it names are how the user answers, and Leaf adds no answer of its own, such as a generic Done, to a widget or anything else On Me.",

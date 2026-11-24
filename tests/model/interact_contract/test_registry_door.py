@@ -447,6 +447,54 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
     assert {attr: properties[attr].get("pattern") for attr in expected} == expected
 
 
+def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
+    """A declaration names its element's attributes and leaves `type` and
+    `additionalProperties` out. The composed vocabulary carries both
+    (`registry.contract.complete_declarations`), so `page check` refuses an attribute
+    the schema doesn't name, such as a misspelt one, in the words it gives where a
+    declaration writes both itself. A schema that gives one of its own keeps it, as
+    one that admits any attribute does."""
+    registry = vocabulary(page_dir)
+    named = {"properties": {"tone": {"type": "string"}}}
+    written = {"type": "object", **named, "additionalProperties": False}
+    for tag, attributes in (
+        ("lf-unsaid", named),
+        ("lf-written", written),
+        ("lf-open", {**named, "additionalProperties": True}),
+    ):
+        registry[tag] = {"description": "A block.", "attributes": attributes}
+    declare_vocabulary(page_dir, registry)
+
+    composed = read_page_registry(page_dir).registry
+    assert composed["lf-unsaid"]["attributes"] == composed["lf-written"]["attributes"]
+    assert list(composed["lf-unsaid"]["attributes"]) == list(written)
+    assert composed["lf-open"]["attributes"]["additionalProperties"] is True
+
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            "".join(
+                f'<{tag} id="{tag}" tonne="warm">Words.</{tag}>'
+                for tag in ("lf-unsaid", "lf-written", "lf-open")
+            )
+            + "</main>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status != 0
+    refused = {
+        finding.at: finding.values for finding in found(findings, "attribute-schema")
+    }
+    assert refused.keys() == {"<lf-unsaid>", "<lf-written>"}
+    assert refused["<lf-unsaid>"]["keyword"] == "additionalProperties"
+    assert (
+        refused["<lf-unsaid>"]["reason"]
+        == refused["<lf-written>"]["reason"]
+        == "Additional properties are not allowed ('tonne' was unexpected)"
+    )
+
+
 @pytest.mark.parametrize("kind", [None, "string"])
 def test_action_detail_schemas_match_the_post_object_contract(page_dir, kind):
     registry = vocabulary(page_dir)
@@ -814,11 +862,7 @@ def test_an_asking_instance_needs_the_id_its_declaration_leaves_optional(page_di
     (widgets / "lf-idless-decision.js").write_text("export function upgrade() {}\n")
     registry["lf-idless-decision"] = {
         "description": "A decision without an address.",
-        "attributes": {
-            "type": "object",
-            "properties": {"open": {"type": "boolean"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"open": {"type": "boolean"}}},
         "content": "markup",
         "awaits": {
             "when": {"open": [True]},

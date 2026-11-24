@@ -366,12 +366,10 @@ contract").
 {
   "lf-builds": {
     "attributes": {
-      "type": "object",
       "properties": {
         "source": { "type": "string" }
       },
-      "required": ["id", "source"],
-      "additionalProperties": false
+      "required": ["id", "source"]
     },
     "content": "empty",
     "inputs": {

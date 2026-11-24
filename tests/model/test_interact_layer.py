@@ -75,7 +75,11 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
-from leaf.registry.contract import DECLARED_WORDS, stamp_grammars
+from leaf.registry.contract import (
+    DECLARED_WORDS,
+    complete_declarations,
+    stamp_grammars,
+)
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
@@ -3682,29 +3686,17 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     project_layer.mkdir(parents=True)
     user_entry = {
         "description": "user shape",
-        "attributes": {
-            "type": "object",
-            "properties": {"user-only": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"user-only": {"type": "string"}}},
         "content": "empty",
     }
     project_entry = {
         "description": "project shape",
-        "attributes": {
-            "type": "object",
-            "properties": {"project-only": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"project-only": {"type": "string"}}},
         "content": "empty",
     }
     project_only = {
         "description": "project-only shape",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "empty",
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
@@ -3730,7 +3722,9 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page)
     composed = stamp_grammars(
-        {"lf-local": project_entry, "lf-project-only": project_only}
+        complete_declarations(
+            {"lf-local": project_entry, "lf-project-only": project_only}
+        )
     )
     assert registry["lf-local"] == composed["lf-local"]
     assert registry["lf-project-only"] == composed["lf-project-only"]

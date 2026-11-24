@@ -57,10 +57,8 @@ question on On Me and admits the ids its buttons mark:
 "lf-verdict": {
   "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
   "attributes": {
-    "type": "object",
     "properties": { "verdict": { "type": "string", "enum": ["ship", "hold"] } },
-    "required": ["id"],
-    "additionalProperties": false
+    "required": ["id"]
   },
   "content": "empty",
   "verbs": {

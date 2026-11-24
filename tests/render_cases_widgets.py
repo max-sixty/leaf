@@ -70,12 +70,10 @@ PAGE_DECLARATION = {
     "lf-local": {
         "description": "A page-owned local widget.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "choice": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {
@@ -177,12 +175,10 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "visual": {"parts": "parts"},
@@ -250,12 +246,10 @@ SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,

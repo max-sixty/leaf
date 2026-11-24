@@ -724,19 +724,28 @@ export const openLayersRule = {
 // `scrollToEnd` and a relative move through `moveScrollerBy` (scrolling.js). A sum
 // written into `scrollTop` or `scrollLeft` is how a reveal is hand-rolled, with its own
 // reading of the band and the edge, so the rule refuses every assignment to either; a
-// script that sets an offset outright says so with `scrollTo`, instantly. The option
+// script that sets an offset outright says so with `scrollTo`, which the runtime hears
+// as a script's write whoever makes it (runtime/arrivals.js, `heardWrite`). The option
 // names the files that may still assign one.
-const scrollWritesRule = {
+//
+// Such a call says how it moves the box. With no `behavior`, the box's own
+// `scroll-behavior` decides, which a page is free to set to smooth on the box it
+// scrolls, and a writer that reads the page just after its write, as a tab set
+// putting a view back at its place does, would read it before the glide moved it. The
+// rule reads the options a `scrollTo`, `scroll` or `scrollBy` call writes out; options
+// it is handed are their writer's.
+export const scrollWritesRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
       .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
-    if ((context.options[0] ?? []).includes(file)) return {};
+    const assigns = (context.options[0] ?? []).includes(file);
     return {
       AssignmentExpression({ left }) {
         if (
+          !assigns &&
           left.type === "MemberExpression" &&
           !left.computed &&
           ["scrollTop", "scrollLeft"].includes(left.property.name)
@@ -744,7 +753,26 @@ const scrollWritesRule = {
           context.report({
             node: left,
             message:
-              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or move with scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
+              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or set an offset outright with scrollTo({top, left, behavior}), rather than assigning a scroll offset; the runtime's own moves go through scrollToEnd or moveScrollerBy (runtime/scrolling.js).",
+          });
+      },
+      CallExpression({ callee, arguments: [options] }) {
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          ["scrollTo", "scroll", "scrollBy"].includes(callee.property.name) &&
+          options?.type === "ObjectExpression" &&
+          !options.properties.some(
+            (property) =>
+              property.type === "SpreadElement" ||
+              (!property.computed &&
+                (property.key.name ?? property.key.value) === "behavior"),
+          )
+        )
+          context.report({
+            node: options,
+            message:
+              'Say how the write moves the box, as behavior: "instant" does: left out, the box\'s own scroll-behavior decides, which a page may set to smooth.',
           });
       },
     };
@@ -1771,13 +1799,9 @@ export default [
       "architecture/scroll-writes": [
         "error",
         [
-          // Restores, each returning a box to an offset it held: a carried node's in
-          // its replacement, the adopted message body's, and CodeMirror's own view.
+          // A carried node's offsets, kept in a record under their own names until
+          // its replacement takes them.
           "browser/runtime/carry.js",
-          "browser/runtime/annotation-overlay/thread-preview.js",
-          "packages/file-editor/widgets/editor.js",
-          // The trace's time axis is its scroll offset, which it sets and then expects.
-          "packages/playwright/widgets/timeline.js",
         ],
       ],
       "architecture/layer-returns": [
@@ -1984,8 +2008,10 @@ export default [
     // `activeElement` what is focused there, so both rules are off here whole. A package
     // opens and closes its popover or dialog with the browser's own methods, whose focus
     // return Leaf reads as a return, so the native-layers and layer-returns rules are
-    // off here too. Each other rule repeats what it keeps of the layer's, since a file takes a rule's
-    // options from the last block matching it.
+    // off here too. A package sets a box's scroll offset with the browser's own
+    // `scrollTo`, which the runtime hears as it is made (runtime/arrivals.js), under the
+    // scroll-writes rule the layer keeps. Each other rule repeats what it keeps of the
+    // layer's, since a file takes a rule's options from the last block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
       "no-restricted-globals": [

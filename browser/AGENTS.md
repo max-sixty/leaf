@@ -781,7 +781,7 @@ block names what a package answers with the browser's own call instead.
 | The box an input scrolls, along the chain native scrolling follows                                    | `scroll-containers.js` `inputScroller`, `scrollChainOf`                            |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
-| The positions a box's scroll takes on each axis, on whichever side of zero                            | `arrivals.js` `scrollRange`                                                        |
+| The positions a box's scroll takes on each axis, and whether a write would move it                    | `lib/scroll-range.js` `scrollRange`, `scrollMoves`                                 |
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | When the page shows a script's scroll, boxes anchored to what it moved included                       | `arrivals.js` `scrollDrawn`                                                        |
 | Whether the reader's input has set a box scrolling                                                    | `arrivals.js` `readerScrolls`                                                      |
@@ -794,6 +794,7 @@ block names what a package answers with the browser's own call instead.
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                            |
+| Set a box's offset outright: the runtime's own write, and a package's, which says its `behavior`      | `arrivals.js` `setScroll`; the browser's `scrollTo`, which it hears (_lint_)       |
 | Keep a reader who stands at a box's end there as it changes, and say whether they stand there         | `scrolling.js` `followEnd`                                                         |
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |

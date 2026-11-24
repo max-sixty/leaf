@@ -2,7 +2,6 @@
  * The surrounding widget alone owns file revisions and disk writes.
  */
 import {
-  setScroll,
   langForPath,
   leafEditorView,
   sizeObserver,
@@ -51,8 +50,14 @@ import {
   closeBracketsKeymap,
   completionKeymap,
 } from "/vendor/extensions.esm.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
 const LeafEditorView = leafEditorView(codemirror);
+// Put the editor's scroller where a file was left, unless it stands there.
+/** @param {Element} port @param {{top: number, left: number}} at */
+const placeScroll = (port, at) => {
+  if (scrollMoves(port, at)) port.scrollTo({ ...at, behavior: "instant" });
+};
 
 const theme = EditorView.theme({
   "&": { color: "var(--lf-ink)", backgroundColor: "var(--lf-card)" },
@@ -684,7 +689,7 @@ export function createEditor(
       if (!view) retained = settings;
       else {
         view.setState(settings);
-        setScroll(view.scrollDOM, scroll);
+        placeScroll(view.scrollDOM, scroll);
       }
     },
     // Put the caret at the start of line `number`, or the last line where the file is
@@ -708,7 +713,7 @@ export function createEditor(
     connect() {
       if (view) return;
       view = new LeafEditorView({ state: retained, parent });
-      setScroll(view.scrollDOM, { top: scroll.top, left: scroll.left });
+      placeScroll(view.scrollDOM, scroll);
       resize?.observe(view.scrollDOM);
     },
     disconnect,

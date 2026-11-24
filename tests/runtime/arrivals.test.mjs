@@ -22,11 +22,13 @@ const {
   browserScrolls,
   holdScroll,
   readerScrolls,
+  scrollDrawn,
   scrolling,
   setScroll,
   startReaderScroll,
   stopWhereItStands,
   watchScrollEnds,
+  watchScrolls,
 } = await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
@@ -534,4 +536,57 @@ test("an instant write reaches a box only where it moves it, and a stop writes w
   moving.box.dispatchEvent(new window.Event("scrollend"));
   assert.equal(browserScrolls(moving.box), false);
   moving.box.remove();
+});
+
+test("a write made with the browser's own call is a script's placement as it is made", () => {
+  // A plain box of this document, which stands wherever it is written here: the calls
+  // are the document's own, with nothing stated on the box in their place.
+  const box = document.createElement("div");
+  document.body.append(box);
+  /** @type {(Element | null)[]} */
+  const told = [];
+  /** @type {Element[]} */
+  const ended = [];
+  const stops = [
+    watchScrolls((at) => told.push(at)),
+    watchScrollEnds((at) => ended.push(at)),
+  ];
+  const end = () => box.dispatchEvent(new window.Event("scrollend"));
+  try {
+    box.scrollTop = 40;
+    assert.deepEqual(told, [box], "the write went untold");
+    assert.equal(browserScrolls(box), false, "the write read as the browser's motion");
+    assert.notEqual(scrollDrawn(), null);
+    // The browser's own events for the write follow it, and end the scroll it started.
+    box.dispatchEvent(new window.Event("scroll"));
+    assert.equal(browserScrolls(box), false);
+    end();
+    assert.deepEqual(ended, [box]);
+    // A write that leaves the box where it stands is no placement, and starts no scroll.
+    told.length = 0;
+    box.scrollTo({ top: 40 });
+    end();
+    assert.deepEqual(told, []);
+    assert.deepEqual(ended, [box]);
+    // One call is one write, though the document makes it of others: `scrollBy` here
+    // sets `scrollTop`.
+    box.scrollBy({ top: 10 });
+    box.scrollLeft = 5;
+    assert.deepEqual(told, [box, box]);
+    assert.deepEqual([box.scrollTop, box.scrollLeft], [50, 5]);
+    end();
+    // The runtime's own writer records its write itself, once.
+    told.length = 0;
+    Object.defineProperties(box, {
+      clientHeight: { value: 100 },
+      scrollHeight: { value: 400 },
+    });
+    setScroll(box, { top: 90 });
+    assert.deepEqual(told, [box]);
+    end();
+    assert.deepEqual(ended, [box, box, box]);
+  } finally {
+    for (const stop of stops) stop();
+    box.remove();
+  }
 });

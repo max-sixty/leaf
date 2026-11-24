@@ -755,7 +755,7 @@ def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_f
         page.evaluate("""async () => {
           const regions = await window.__lfCheckApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
-            if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
+            if (phase !== 'shift' || !shifted.some(({region}) => region?.host.id === 'reading'))
               return;
             stop();
             document.body.dispatchEvent(new WheelEvent('wheel', {deltaY: 500, bubbles: true}));

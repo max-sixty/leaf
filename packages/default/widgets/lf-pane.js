@@ -13,8 +13,6 @@ customElements.define(
   "lf-pane",
   class extends HTMLElement {
     static lfPatch = "members";
-    /** @type {Element | null} */
-    #body = null;
     #children = new MutationObserver(() => this.#mark());
 
     constructor() {
@@ -30,12 +28,8 @@ customElements.define(
     }
 
     #mark() {
-      const body =
-        [...this.children].find((child) => !child.matches("header, footer")) ?? null;
-      if (body === this.#body) return;
-      keeps(this.#body, "data-lf-scroll", null);
+      const body = [...this.children].find((child) => !child.matches("header, footer"));
       keeps(body, "data-lf-scroll", "body");
-      this.#body = body;
     }
   },
 );

@@ -49,16 +49,21 @@ keyboard focus counts the header's own inset as visible.
 
 Mark the pane's body, and any other box the widget may scroll,
 `data-lf-scroll="NAME"`. A box that wears the mark with a name is a reading region for
-as long as it stands in the page, and Leaf keeps the user's place in it. Where focus
-beside the box should count as being in the region, as in a pane's header, mark the box
-around both `data-lf-scroll-host="NAME"`. The module registers nothing and cleans
-nothing up: Leaf knows the region in the task that marks the box, and a box that
-replaces a marked one takes over its region. Leaf keeps the place across revisions
-under the name and the id of the nearest element that has one, starting from the host
-or, without one, from the box. So a name need only differ from the others under that
-element, and Leaf reports a second box that takes a name already in use there as the
-page's error. Leaf reads the marks in a shadow root whose host has said `lf-connect`
-(`module-plain-elements.md`).
+as long as it stands in the page: Leaf keeps the user's place in it, and knows the
+region in the task that marks the box. Where focus beside the box should count as being
+in the region, as in a pane's header, mark the box around both
+`data-lf-scroll-host="NAME"`. Leaf looks for that host between the box and the next
+region around it.
+
+To return the user to their place after a revision, Leaf knows a region by `NAME` and
+the id of the nearest element with an id, starting at the host, or at the box where it
+has no host, and going outward. So give each box of a widget its own name, and require
+an `id` in the declaration of a widget that marks one. Where two boxes take one name
+under one such element, both are regions, but only the first one's place survives a
+revision that replaces it. A box in a thread message is a region whose place Leaf keeps
+only while the message stands. Leaf finds the marks in the page, in a stage
+`shadowStage` builds and in the open shadow root of an element that has said
+`lf-connect` (`module-plain-elements.md`).
 
 Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of

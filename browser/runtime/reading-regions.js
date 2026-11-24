@@ -26,12 +26,15 @@
    something in it, or brackets its first change with `preserveReadingRegions`. A mark
    heard only at the watch's delivery would be a region none of those knew. A reading
    of the marks is one batch, which decides its departures first, so a box that replaces
-   another takes the id the other held. The runtime registers its own regions directly
+   another takes the id the other held. The watch is this module's own: reach's watch
+   of the same mark (reach.js) starts once the page has presented and gives back a
+   keyboard stop where a box leaves, which a reading in the middle of a task would do
+   to a box a script is only moving. The runtime registers its own regions directly
    (`registerReadingRegion`).
 
    A region's id has to name it in the next document too, since that is where a revision
-   restores its place, so it is composed from an id the page's author gave and the
-   region's name (`regionId`).
+   restores its place, so it is composed from the id of an element that holds the region
+   and the region's name (`regionId`).
 
    A region's scroller can change without any gesture: a window crossing the workspace
    threshold, a tab showing, a panel opening. A region whose width changes keeps its
@@ -75,11 +78,10 @@ import { stageOf, watchArrivals } from "./arrivals.js";
 import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import {
+  closestAcross,
   isElement,
-  isShadowRoot,
   skipped,
   under,
-  upFrom,
   renderedUnder,
   renderedParent,
 } from "./lib/shadow-tree.js";
@@ -167,19 +169,28 @@ const regionRecord = (region) => ({
   subject: region.subject,
 });
 
-// The id of the region `name` that `owner` names (the header says what an id is for).
-// An element of the page's own document with an id names its regions for good. Any
-// other, one with no id or one in a message's markup, whose ids repeat the page's,
-// gives an id that names the region in this document alone: the region answers every
-// geometry question and keeps its place while it stands, and a replacement document
-// starts it afresh rather than guess which region it was.
+// The id of the region `name` that `owner` names, whose body is `box` (the header says
+// what an id is for). An element with an id names its regions in the page's own
+// document for good. A box no such element names, or one in a message's markup, whose
+// ids repeat the page's, takes an id that names it in this document alone
+// (`documentId`): its region answers every geometry question and keeps its place while
+// the box stands, and a replacement document starts it afresh rather than guess which
+// region it was.
 const THIS_DOCUMENT = `lf-region:${performance.timeOrigin}`;
+/** @type {WeakMap<Element, string>} */
+const documentIds = new WeakMap();
 let unnamed = 0;
-/** @param {Element | null} owner @param {string} name */
-export const regionId = (owner, name) =>
-  owner?.id && authoredScope(owner) === pageDocument()
+/** @param {Element} box */
+const documentId = (box) => {
+  let id = documentIds.get(box);
+  if (!id) documentIds.set(box, (id = `${THIS_DOCUMENT}:${(unnamed += 1)}`));
+  return id;
+};
+/** @param {Element | null} owner @param {string} name @param {Element} box */
+export const regionId = (owner, name, box) =>
+  owner?.id && authoredScope(box) === pageDocument()
     ? `lf-region:${owner.id}:${name}`
-    : `${THIS_DOCUMENT}:${(unnamed += 1)}`;
+    : documentId(box);
 
 /** @param {{id: string, host: Element, body: Element,
  * paintContinuation?: (above: boolean) => void}} options */
@@ -613,12 +624,19 @@ sizes.observe(pageScroller);
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 
 // The regions the page's marks state (the header): each marked body with the name and
-// host it is registered under, so a body offered again as it stood costs one climb. The
-// host is the nearest box around the body that names the region, or the body where none
-// does. The region is named after the nearest element with an id, the host itself or
-// one around it, so a pane's region keeps its id whichever body the pane holds. An id
-// in a shadow tree is unique only there, so the climb passes it by and goes on from the
-// tree's host.
+// host it is registered under, so a body offered again as it stood costs one climb.
+//
+// - The host is the nearest box around the body that names the region, or the body
+//   where none does. The climb stops at a box that is another region's body: a region's
+//   host stands inside the region that holds it, so a host further out names some other
+//   widget's region of the same name.
+// - The region is named after the nearest element with an id, the host itself or one
+//   around it, so a pane's region keeps its id whichever body the pane holds, and a
+//   widget's regions are named after the widget wherever it stands, a shadow tree
+//   included.
+// - A name a standing box already holds under that element is no refusal: the later
+//   box is a region under an id of this document alone, so each answers for what it
+//   scrolls, and only the earlier one's place is found again in a replacement document.
 const BODY = PAGE_PAINT_ATTRIBUTE.scrollSurface;
 const HOST = PAGE_PAINT_ATTRIBUTE.scrollHost;
 /** @type {Map<Element, {name: string, host: Element, stop: () => void}>} */
@@ -629,28 +647,18 @@ const hosts = new WeakMap();
 function readBody(body) {
   const name = body.isConnected ? body.getAttribute(BODY) : null;
   let host = body;
-  for (let at = renderedParent(body); name && at; at = renderedParent(at))
-    if (at.getAttribute(HOST) === name) {
-      host = at;
-      break;
-    }
+  for (let at = renderedParent(body); name && at; at = renderedParent(at)) {
+    if (at.getAttribute(HOST) === name) host = at;
+    if (host === at || at.getAttribute(BODY)) break;
+  }
   const held = stated.get(body);
   if (held?.name === name && held.host === host) return;
   held?.stop();
   stated.delete(body);
   if (!name) return;
-  /** @type {Element | null} */
-  let owner = host;
-  while (owner && !(owner.id && !isShadowRoot(owner.getRootNode())))
-    owner = upFrom(owner);
-  try {
-    const stop = registerReadingRegion({ id: regionId(owner, name), host, body });
-    stated.set(body, { name, host, stop });
-  } catch (error) {
-    // Two boxes that one element names alike: the first keeps the region, and the page
-    // hears of the second as it hears of any failure in it.
-    reportError(error);
-  }
+  const named = regionId(closestAcross(host, "[id]"), name, body);
+  const id = live(regions.get(named)) ? documentId(body) : named;
+  stated.set(body, { name, host, stop: registerReadingRegion({ id, host, body }) });
 }
 // A host's mark can be written after its body's region is registered, or taken off
 // while the body stands, so each change to what a box hosts offers again the bodies it

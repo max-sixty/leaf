@@ -2,6 +2,8 @@
 and reduced motion beyond light DOM, reading regions, and the effective colour
 scheme."""
 
+import re
+
 import pytest
 from interact_support import wait_for
 from playwright.sync_api import expect
@@ -12,9 +14,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
-    said,
     stamp_page,
-    take_browser_errors,
     wait_for_revision,
     watched,
 )
@@ -541,12 +541,13 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           const { shownRegionBounds } = await window.__lfCheckApi();
           const hiddenBounds = shownRegionBounds(previewId);
 
-          // A second box the same host names alike is no region: the first keeps it.
+          // A second box the same host names alike is a region too, under an id of
+          // this document alone: the first keeps the name.
           const twin = document.createElement('div');
           twin.setAttribute('data-lf-scroll', 'pane');
           outer.querySelector('header').append(twin);
-          const kept = leaf.readingRegion(outerId).body === outerBody
-            && leaf.readingRegions().every(({body}) => body !== twin);
+          const twinId = leaf.readingRegions().find(({body}) => body === twin)?.id;
+          const kept = leaf.readingRegion(outerId).body === outerBody;
           twin.remove();
 
           // A box that replaces another takes the id the other held, in one task.
@@ -569,6 +570,25 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           const hosted = leaf.readingRegionFor(late.querySelector('button'))?.id;
           late.remove();
 
+          // A region is named after the nearest element with an id, one in a shadow
+          // tree included, and a region in a message by this document alone.
+          const idOf = (box) => leaf.readingRegions().find(({body}) => body === box)?.id;
+          const staged = document.createElement('section');
+          staged.id = 'stage-host';
+          staged.attachShadow({mode: 'open'}).innerHTML = ['first', 'second'].map(id =>
+            `<div id="${id}"><div data-lf-scroll="list"></div></div>`).join('');
+          const message = document.createElement('div');
+          message.className = 'lf-msg-body';
+          message.innerHTML = '<section id="in-message" data-lf-scroll="list"></section>';
+          main.append(staged, message);
+          staged.dispatchEvent(new CustomEvent('lf-connect',
+            {bubbles: true, composed: true, cancelable: true}));
+          const stagedIds = [...staged.shadowRoot.querySelectorAll('[data-lf-scroll]')]
+            .map(idOf);
+          const messageId = idOf(message.firstElementChild);
+          staged.remove();
+          message.remove();
+
           // A second composition change supersedes an unfinished first: both announce
           // their start, and only the newer one reports where it ended.
           const phases = [];
@@ -588,8 +608,8 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
           outer.remove();
           style.remove();
           return {outerId, previewId, flow, held, previewFlows, shifts, hiddenBounds,
-                  kept, reclaimed, unhosted, hosted, phases,
-                  left: leaf.readingRegion(outerId) === undefined};
+                  kept, twinId, reclaimed, unhosted, hosted, stagedIds, messageId,
+                  phases};
         }"""
     )
     outer, preview = "lf-region:outer-host:pane", "lf-region:preview-host:preview"
@@ -618,23 +638,15 @@ def test_reading_regions_read_scroll_behavior_from_the_stylesheet_and_announce_a
     ]
     assert readings["hiddenBounds"] is None
     assert readings["kept"] is True
-    # The page hears of the twin twice, as an uncaught error and in Leaf's report of it.
-    for _ in range(200):
-        if len(page.lf_errors) == 2:
-            break
-        page.wait_for_timeout(25)
-    refusals = [said(error) for error in take_browser_errors(page)]
-    assert len(refusals) == 2, refusals
-    assert all(
-        f"leaf: reading region {outer} is already live" in refusal
-        for refusal in refusals
-    ), refusals
+    this_document = r"lf-region:[\d.]+:\d+"
+    assert re.fullmatch(this_document, readings["twinId"]), readings
     assert readings["reclaimed"] is True
     assert (readings["unhosted"], readings["hosted"]) == (
         None,
         "lf-region:late-host:late",
     )
-    assert readings["left"] is True
+    assert readings["stagedIds"] == ["lf-region:first:list", "lf-region:second:list"]
+    assert re.fullmatch(this_document, readings["messageId"]), readings
     assert readings["phases"] == [
         ["before", False],
         ["before", True],

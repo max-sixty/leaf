@@ -100,7 +100,7 @@ function holdBlock(bounded) {
   /** @type {BoundHold} */
   const hold = {
     bounded,
-    id: regionId(bounded, "bound"),
+    id: regionId(bounded, "bound", bounded),
     bound: null,
     box: null,
     follow: null,

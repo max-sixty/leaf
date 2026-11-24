@@ -95,8 +95,6 @@ import {
   PRESS,
   rowArrows,
   rankAt,
-  keeps,
-  keepsText,
   focusDestination,
   scrollIntoView,
   whileConnected,
@@ -106,6 +104,7 @@ import {
   commandsChanged,
   reportFailure,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.

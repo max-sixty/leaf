@@ -9,7 +9,6 @@ import {
   whileConnected,
   tabStore,
   HeldReading,
-  keeps,
   threadActions,
   readThreads,
   quoted,
@@ -17,6 +16,7 @@ import {
   markdownReady,
   renderMarkdown,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 import { GitHubFeed } from "../github-feed.js";
 

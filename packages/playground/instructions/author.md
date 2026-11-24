@@ -336,7 +336,8 @@ structured data only subscribes; one without its own instruction keeps
 
 ```html
 <script type="module">
-  import { keepsText, whileInterfaceConnected } from "/runtime/widget-api.js";
+  import { whileInterfaceConnected } from "/runtime/widget-api.js";
+  import { keepsText } from "/runtime/lib/keeps.js";
 
   const FIRED = { 0.5: 31, 1: 12, 2: 4 };
   const playground = document.getElementById("alert-playground");

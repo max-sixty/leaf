@@ -83,7 +83,6 @@ import {
   el,
   focusDestination,
   iconTemplate,
-  keeps,
   LeafElement,
   offered,
   offeredAction,
@@ -94,6 +93,7 @@ import {
   whileConnected,
 } from "/runtime/widget-api.js";
 import { describeFailure } from "/runtime/lib/exception.js";
+import { keeps } from "/runtime/lib/keeps.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */

@@ -30,7 +30,7 @@ import {
 import { hasArea, intersect } from "./rect.js";
 import { move } from "./dom-move.js";
 import { objectIds } from "./ids.js";
-import { keeps, layoutPx } from "./keeps.js";
+import { keeps, layoutPx } from "./lib/keeps.js";
 
 /** @typedef {import("./rect.js").Box} Box
  * @typedef {import("./geometry.js").ClipCache} ClipCache

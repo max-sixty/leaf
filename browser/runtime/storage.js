@@ -2,7 +2,7 @@
  * by bootstrap and the runtime. Isolated samples keep stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
 import { registry } from "./registry.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { version } from "./kept.js";
 import { marks } from "./kernel-facts.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";

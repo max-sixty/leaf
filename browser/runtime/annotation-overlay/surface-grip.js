@@ -23,7 +23,7 @@ import { el } from "../widget-elements.js";
 import { translateAxes } from "../element-axes.js";
 import { clamp } from "../rect.js";
 import { cancelAnimation, nextAnimation } from "../rendering.js";
-import { layoutPx } from "../keeps.js";
+import { layoutPx } from "../lib/keeps.js";
 
 // Below this travel a press is not a move, and the surface goes back to where its
 // placement stands it.

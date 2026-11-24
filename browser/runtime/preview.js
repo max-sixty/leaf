@@ -324,7 +324,7 @@ import {
   under,
 } from "./shadow-tree.js";
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
-import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
+import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";
 import { atClock, clockNow } from "./presence.js";

@@ -439,7 +439,7 @@ that follows whether focus is in sight (`user-place.js`, through `geometry.js`
 `whenChanges`).
 
 Lit owns template bindings and skips unchanged values. For imperative writes outside
-those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant
+those bindings, use `keeps` in `runtime/lib/keeps.js`, whose header says what a redundant
 write costs. Give each value one writer, since two owners that set it in turn rewrite
 it whenever either paints. Checks: `tests/write_watch.js`
 fails a write that changes nothing, and `scroll_findings` in `test_page_fixture_renders` fails a
@@ -805,8 +805,9 @@ block names what a package answers with the browser's own call instead.
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
+| Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                         |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
-| Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
+| Write a DOM value only when it changed; a style property needs no guard (`lib/keeps.js` header)       | `lib/keeps.js` `keeps`                                                             |
 | A number that names an object in a key built of strings, the same at every ask                        | `ids.js` `objectIds`                                                               |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
 | What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                  |

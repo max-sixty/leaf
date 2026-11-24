@@ -3440,7 +3440,7 @@ def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
         ".getBoundingClientRect().toJSON()"
     )
     # Up to the window's edge, within a layout unit: Firefox lays boxes out in sixtieths
-    # of a pixel, and the owner writes its offsets in sixty-fourths (keeps.js,
+    # of a pixel, and the owner writes its offsets in sixty-fourths (lib/keeps.js,
     # `layoutPx`).
     assert 900 < drawn["right"] < 1200 - 8 + 1 / 60 and drawn["left"] < 932, drawn
 

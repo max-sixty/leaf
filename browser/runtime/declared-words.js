@@ -38,7 +38,7 @@ import { markViews } from "./storage.js";
 import { holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";

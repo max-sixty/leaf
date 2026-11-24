@@ -4,12 +4,11 @@ import { html, noChange, render, repeat } from "/vendor/lit.js";
 import {
   authoredScope,
   generatedElement,
-  keeps,
   HeldReading,
-  keepsText,
   LeafElement,
   readWork,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-plan",
   class extends LeafElement {

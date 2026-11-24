@@ -61,7 +61,6 @@ import {
   frameFor,
   holdFocus,
   inChrome,
-  keeps,
   landingInsets,
   LAYOUT,
   LeafElement,
@@ -75,6 +74,7 @@ import {
   whileConnected,
   named,
 } from "/runtime/widget-api.js";
+import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -628,7 +628,7 @@ customElements.define(
       const transform = (
         /** @type {{start: number, size: number}} */ { start, size },
       ) =>
-        `translateY(${Math.round(start * 64) / 64}px) scaleY(${Math.round(Math.max(floor, size) * 64) / 64})`;
+        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
       if (reach <= 0) {
         this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;

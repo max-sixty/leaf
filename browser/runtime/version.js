@@ -145,7 +145,7 @@ import {
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { registry, tagsDeclaring, upgrades } from "./registry.js";
+import { bodyIsData, registry, tagsDeclaring, upgrades } from "./registry.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
@@ -179,7 +179,7 @@ import { alignInlineText } from "./text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
 import { settleDocumentLayout } from "./content-layout.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
@@ -728,7 +728,7 @@ const diffBlockSel = () =>
 // versions of one passage and is already its own mark. Plus svg, drawn by either.
 const diffOpaqueSel = () =>
   [
-    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && e.content === "data"),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && bodyIsData(e)),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
     ...tagsDeclaring((e, tag) => upgrades(tag) && e.inputs),
@@ -2051,8 +2051,8 @@ export function createVersionController({
   // among its children, so the shell carries that content. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
   // including native attributes. A widget that draws its content itself
-  // (`content` `data` or `empty`) reads the text a revision would edit, so a
-  // revision that changes it replaces it whatever its class declares.
+  // (`content` `data`, `markdown` or `empty`) reads the text a revision would edit,
+  // so a revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)

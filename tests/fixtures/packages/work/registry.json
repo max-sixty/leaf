@@ -81,7 +81,6 @@
   },
   "lf-test-roster": {
     "description": "A view of multiple workers, their durable remits, and their current activity.",
-    "attributes": {},
     "content": "members",
     "space": "wide"
   },
@@ -114,7 +113,6 @@
   },
   "lf-test-tasks": {
     "description": "A hierarchy of work with ownership, status, and progress derived from its tasks.",
-    "attributes": {},
     "content": "members"
   },
   "lf-test-plan": {

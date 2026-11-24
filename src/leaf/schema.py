@@ -157,7 +157,10 @@ REFERENCE_SCHEMA = {
 # A custom detail carries exactly the keys its declaration spells. Field meanings
 # such as `resolves` read those declarations, so patternProperties and combinators
 # cannot admit unnamed keys. `registry.schema.check_schema` validates the nested
-# schemas and the standard keywords left unrestricted here.
+# schemas and the standard keywords left unrestricted here. A declaration may leave
+# out `type` and `additionalProperties`: composition writes them in
+# (`registry.contract.complete_declarations`), so every composed detail has both, and
+# one that writes another value for either is refused.
 _VERB_DETAIL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -414,16 +417,20 @@ DECLARATION_SCHEMA = {
     "type": "object",
     "properties": {
         "description": {"type": "string", "pattern": r"\S"},
-        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The two
-        # keywords Leaf's readers take an attribute's own schema and presence from are
-        # named, so the browser's types know them. A declaration may leave out `type`
-        # and `additionalProperties`, which composition writes in
-        # (`registry.contract.complete_declarations`).
+        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The keywords
+        # Leaf's readers read are named, so the browser's types know them: an
+        # attribute's own schema (`properties`), its presence (`required`), and whether
+        # the schema admits attributes it doesn't name (`additionalProperties`). A
+        # declaration may leave the schema out, or `type` and `additionalProperties`
+        # out of it. Composition writes them in
+        # (`registry.contract.complete_declarations`), so this schema, which reads a
+        # composed declaration, still requires `attributes`.
         "attributes": {
             "type": "object",
             "properties": {
                 "properties": {"type": "object"},
                 "required": {"type": "array", "items": {"type": "string"}},
+                "additionalProperties": {},
             },
         },
         "content": {"enum": ["markup", "members", "data", "markdown", "empty"]},

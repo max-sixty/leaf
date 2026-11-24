@@ -295,10 +295,16 @@ page's (`module-plain-elements.md`, "Words it writes").
 A declaration names each of its element's attributes in `properties`, and the schema's
 other keywords, such as `required`, constrain the attributes named there. `page check`
 refuses an attribute `properties` doesn't name, such as a misspelt one. Composition
-writes `"type": "object"` and `"additionalProperties": false` into the schema, so a
-declaration leaves both out, and one that writes either keyword keeps its own. The
-attributes any element takes (`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the
-page's own `data-*`) stand outside the schema unless it names one.
+writes `"type": "object"` and `"additionalProperties": false` into the attribute schema
+and into each verb's `detail` schema
+([package-data.md, "User state"](package-data.md#user-state)), so a declaration leaves
+both out of each. An attribute schema may write `"additionalProperties": true` to admit
+attributes it doesn't name, as a widget that passes them to an inner element does. A
+`detail` schema that writes any other value for either keyword is refused. A
+declaration with nothing to say about its element's attributes leaves `attributes` out,
+and the element then takes only an optional `id`. The attributes any element takes
+(`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand
+outside the schema unless it names one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

@@ -163,12 +163,14 @@ log but no longer place their members: that version's author writes each moved m
 where the user left it, and those moves can no longer be undone.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
-detail field holding the moved element. A verb with no record declares its own closed
+detail field holding the moved element. A verb with no record declares its own
 `detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
 naming what the verb's state is about, by element id or by data key, as a playground's
-submitted settings do. That schema itself holds only `type: "object"`, `properties`,
-`required` and `additionalProperties: false`, so a rule across fields, such as
-`if`/`then`, is refused; each property takes any schema.
+submitted settings do. That schema holds only `properties`, which names its fields, and
+`required`, so a rule across fields, such as `if`/`then`, is refused; each property
+takes any schema. Leaf writes the schema's `type` and `additionalProperties`
+(`packages.md`, "A widget"), so an action's detail holds only the fields `properties`
+names.
 
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$verbs.attention` in the registry). Changes to

@@ -66,7 +66,6 @@
   },
   "lf-gloss": {
     "description": "A short explanation the reader can open beside a phrase without leaving its sentence.",
-    "attributes": {},
     "inline": true,
     "verbatim": true,
     "instructions": "Write the phrase, then its explanation in a <span popover> after it, the last thing in the gloss: the reader opens it as a card beside the phrase, and print sets it after the phrase as a parenthetical note. Write a self-contained explanation at the first useful occurrence rather than on every repetition, and keep the phrase out of authored parentheses.",
@@ -234,7 +233,6 @@
       },
       "add": {
         "detail": {
-          "type": "object",
           "properties": {
             "option": { "type": "string" },
             "text": {
@@ -242,8 +240,7 @@
               "minLength": 1
             }
           },
-          "required": ["option", "text"],
-          "additionalProperties": false
+          "required": ["option", "text"]
         },
         "unit": "option",
         "creates": {
@@ -252,10 +249,7 @@
         }
       },
       "answer": {
-        "detail": {
-          "type": "object",
-          "additionalProperties": false
-        },
+        "detail": {},
         "unit": "widget"
       }
     },

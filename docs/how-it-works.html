@@ -2158,14 +2158,14 @@ flowchart TD
     "record": {"kind": "attribute", "attr": "selected"}
   },
   "add": {
-    "detail": {"type": "object",
-               "properties": {"option": {"type": "string"},
-                              "text": {"type": "string", "minLength": 1}},
-               "required": ["option", "text"], "additionalProperties": false},
+    "detail": {
+      "properties": {"option": {"type": "string"},
+                     "text": {"type": "string", "minLength": 1}},
+      "required": ["option", "text"]},
     "unit": "option",
     "creates": {"child": "lf-option", "words": "text"}
   },
-  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+  "answer": {"detail": {}, "unit": "widget"}
 },
 "awaits": {
   "value": "choose",
@@ -2175,38 +2175,38 @@ flowchart TD
   }
 }
 </code></pre>
-              <lf-note at="3"
+              <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
               >
-              <lf-note at="4"
+              <lf-note at="3"
                 >One unit for the whole <code>lf-options</code>, so every pick uses the
                 same coordinate and a later pick replaces an earlier one.</lf-note
               >
-              <lf-note at="5"
+              <lf-note at="4"
                 >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
                 next version.</lf-note
               >
-              <lf-note at="12"
+              <lf-note at="11"
                 >The unit is the value of <code>detail.option</code>, so each added
                 option has a coordinate of its own.</lf-note
               >
-              <lf-note at="13"
+              <lf-note at="12"
                 >The action adds an <code>lf-option</code> to the options, with
                 <code>detail.text</code> as its text.</lf-note
               >
-              <lf-note at="15"
+              <lf-note at="14"
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
-              <lf-note at="18"
+              <lf-note at="17"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
               >
-              <lf-note at="19"
+              <lf-note at="18"
                 >A single choice is answered when an option is selected. A multiple
                 choice is answered when the user presses Done. Undo can make the
                 obligation unanswered again.</lf-note

@@ -26,7 +26,6 @@
           "attribute": "contract"
         },
         "detail": {
-          "type": "object",
           "properties": {
             "values": {
               "type": "object",
@@ -41,14 +40,12 @@
               "minLength": 1
             }
           },
-          "required": ["values", "instruction"],
-          "additionalProperties": false
+          "required": ["values", "instruction"]
         },
         "unit": "widget"
       },
       "tune": {
         "detail": {
-          "type": "object",
           "properties": {
             "values": {
               "type": "object",
@@ -59,8 +56,7 @@
               "additionalProperties": {}
             }
           },
-          "required": ["values"],
-          "additionalProperties": false
+          "required": ["values"]
         },
         "unit": "widget",
         "unsent": true
@@ -103,7 +99,6 @@
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration; an `<output for>` inside shows a field's value.",
-    "attributes": {},
     "owners": ["lf-playground"]
   }
 }

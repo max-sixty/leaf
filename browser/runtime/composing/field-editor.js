@@ -1310,6 +1310,38 @@ function fieldEditor(
     const holds = holding(placed, line);
     const containers = placed.filter(container).filter(holds);
     const inner = containers.at(-1);
+    // On a blank line between blocks it leaves the caret on a blank line with a blank
+    // line on each side, where the next words make a paragraph of their own: words on
+    // a line beside a paragraph would join it.
+    /** @param {number} n */
+    const blankLine = (n) => /^[ \t]*$/.test(state.doc.line(n).text);
+    const inCode = placed.some(
+      ({ token, from: a, to: b }) => isCode(token) && a <= line.from && line.from < b,
+    );
+    // Before a paragraph's first words it opens a paragraph above, the caret in it, as
+    // after its last words it opens one below.
+    if (from === to && !inner && paragraph && !before && after) {
+      view.dispatch(
+        state.update(
+          { changes: { from, insert: "\n\n" }, selection: { anchor: from } },
+          { scrollIntoView: true, userEvent: "input" },
+        ),
+      );
+      return true;
+    }
+    if (from === to && !inner && !inCode && blankLine(line.number)) {
+      const above = line.number > 1 && !blankLine(line.number - 1);
+      const below = line.number < state.doc.lines && !blankLine(line.number + 1);
+      const insert = above && below ? "\n\n" : "\n";
+      const anchor = !above && below ? from : from + 1;
+      view.dispatch(
+        state.update(
+          { changes: { from, insert }, selection: { anchor } },
+          { scrollIntoView: true, userEvent: "input" },
+        ),
+      );
+      return true;
+    }
     if (inner && (!before || (!after && item(inner))) && continueBlocks(view, true))
       return true;
     if (!before) return insertNewline(view);

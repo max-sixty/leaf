@@ -955,6 +955,37 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     assert [e["detail"]["value"] for e in edits] == [exact]
 
 
+def test_return_beside_a_paragraph_leaves_the_caret_where_words_stand_alone(
+    browser, serve
+):
+    """Words on a line touching a paragraph join it, and Return there then writes hard
+    breaks, so Return on a blank line or before a paragraph's first words leaves the
+    caret with a blank line on each side."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return beside a paragraph",
+                "<h1>Return beside a paragraph</h1>"
+                '<lf-draft id="source"><pre>Alpha.</pre></lf-draft>',
+            )
+        ),
+    )
+    draft_control(page, "edit", "source").click()
+    editor = page.locator("#source leaf-text")
+    write(editor, "Alpha.\n\nBravo.")
+    # On the one blank line between two paragraphs.
+    editor.evaluate("field => field.setSelectionRange(7, 7)")
+    editor.press("Enter")
+    page.keyboard.insert_text("x")
+    expect(editor).to_have_js_property("value", "Alpha.\n\nx\n\nBravo.")
+    # Before a paragraph's first words.
+    editor.evaluate("field => field.setSelectionRange(11, 11)")
+    editor.press("Enter")
+    page.keyboard.insert_text("y")
+    expect(editor).to_have_js_property("value", "Alpha.\n\nx\n\ny\n\nBravo.")
+
+
 def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
     browser, serve
 ):

@@ -88,8 +88,7 @@ import {
   focusDestination,
   scrollIntoView,
   whileConnected,
-  declarationFor,
-  authoredScope,
+  layerFact,
   widgetController,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -126,20 +125,20 @@ const showsId = (card) => card.getAttribute("shows") || null;
 /** The widget whose answer a card shows, with the verb that writes the answer and
  * that verb's record; `{fault}`, telling the author what to write instead, where the
  * card's `shows` names no answer a board can show; or null for a card that shows none.
- * A board can show the answer of a widget in the card's own page or message whose
- * `awaits.value` verb records a value or members. */
+ * A board can show the answer of a widget whose `awaits.value` verb records a value or
+ * members, in the card's own message first, then on the page. */
 /** @param {Element} card */
 function shownWidget(card) {
   const id = showsId(card);
   if (id === null) return null;
-  const owner = elementById(id, authoredScope(card));
+  const owner = elementById(id, card);
   if (!owner)
     return {
       fault:
-        `shows="${id}" names no element beside the card; a card shows a widget in` +
-        " the same page, or in the same message",
+        `shows="${id}" names no element beside the card; a card shows a widget on` +
+        " the page, or in the message that holds it",
     };
-  const declaration = declarationFor(owner);
+  const declaration = layerFact(owner.localName);
   const verb = declaration?.awaits?.value;
   const record = verb ? declaration?.verbs?.[verb]?.record : undefined;
   if (!verb || (record?.kind !== "value" && record?.kind !== "attribute"))
@@ -159,8 +158,7 @@ function valuelessFault(card, { owner, record }) {
   if (record.kind !== "attribute") return null;
   const members = widgetController(owner).read().memberships?.[record.attr];
   if (!members?.length) return null;
-  const scope = authoredScope(owner);
-  return members.some((member) => elementById(member, scope)?.hasAttribute(VALUE))
+  return members.some((member) => elementById(member, owner)?.hasAttribute(VALUE))
     ? null
     : `shows="${showsId(card)}" names <${owner.localName}>, none of whose members ` +
         `carries a \`${VALUE}\`, so no pick puts the card in a column; give each ` +
@@ -187,11 +185,10 @@ function shownAnswer(card) {
   const reading = controller.read();
   const state = reading.state?.[verb];
   if (!state) return null;
-  const scope = authoredScope(owner);
   const valueOf =
     record.kind === "attribute"
       ? (/** @type {string} */ member) =>
-          elementById(member, scope)?.getAttribute(VALUE) ?? null
+          elementById(member, owner)?.getAttribute(VALUE) ?? null
       : null;
   const detailFor = (/** @type {string | null} */ value) => {
     if (!valueOf) return value === null ? null : { value };
@@ -329,7 +326,9 @@ customElements.define(
     // one shared reading on the card rather than another suffix in this control's name.
     #names() {
       this.#counts();
-      for (const col of this.#columns()) {
+      const columns = [...this.#columns()];
+      const byId = new Map(columns.map((col) => [col.id, col]));
+      for (const col of columns) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
@@ -345,7 +344,7 @@ customElements.define(
               button.getAttribute("data-lf-board-target") === col.id ||
                 !this.#takes(
                   card,
-                  elementById(button.getAttribute("data-lf-board-target")),
+                  byId.get(button.getAttribute("data-lf-board-target") ?? "") ?? null,
                 ),
             );
           // With no button to show, the group's "Move to" would name no destination.

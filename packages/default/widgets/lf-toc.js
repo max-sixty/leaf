@@ -60,7 +60,6 @@ import {
   comparisonChanges,
   frameFor,
   holdFocus,
-  inChrome,
   landingInsets,
   LeafElement,
   readObligations,
@@ -84,10 +83,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, {
-        label: named,
-        chrome: inChrome,
-      }));
+      return (this.#drawingOwner ??= drawToc(this, { label: named }));
     }
     get #nav() {
       return this.#drawing.nav;

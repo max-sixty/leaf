@@ -21,13 +21,24 @@ the author wrote, less a popover's, such as a gloss's explanation. Read a widget
 property instead, which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
-An agent's message can carry markup that repeats ids on the page, so look up an id
-another element gives within `authoredScope(element)`: the page's `body`, or, for markup
-in an agent's message, that message's own markup. `elementById(id, root)` finds an id
-within `root`, or the whole document, including the shadow trees `getElementById`
-misses. `inChrome(node)` says whether a node is in Leaf's own interface, as a widget in
-a Thread reply is. The library answers whether one node is inside another across shadow
-boundaries (`module-authoring.md`, "Shared web code"). A widget that acts on the
+`elementById(address, from)` returns the element an address names, or null. An
+address is an element's id, or a widget's id and a key (`id:key`), which names the part
+the widget has drawn for that key, else the widget. A link's fragment (`#…`) holds
+either form URL-encoded, and `elementById` decodes it; any other address is read as
+written.
+
+Pass the element that holds the address as `from`, as in
+`elementById(this.getAttribute("for"), this)`. An agent's message can repeat ids the
+page holds, so an address written in a message names that message's element first and
+the page's after it. An id neither holds can still name an element Leaf draws, such as
+a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
+which `getElementById` misses, and names nothing inside a member a decision has
+retired (`retired-when`, `package-data.md`).
+
+Leaf's floating panel, its dialogs and the margin's rows stand inside an element of
+class `lf-chrome`, and so does a widget in a reply the panel shows. The library's
+[`shadow-tree.js`](../../../browser/runtime/lib/shadow-tree.js) answers whether a node
+stands inside such an element across shadow boundaries. A widget that acts on the
 document around it, as a contents list does, reads it with
 `node.closest("[data-lf-views] > *, main")`: the view member holding the node
 (`views`, `module-authoring.md`), whose holder Leaf marks `data-lf-views`, else the
@@ -65,11 +76,14 @@ link preview counts a thread about any of them.
 
 ### Reading declarations
 
-Read the registry rather than repeating it. `declarationFor(element)` returns the
-widget's entry, each fact under its own name, as `declarationFor(element)?.awaits`
-reads a widget's `awaits`. `matchesWhen(element, when)` says whether the element's attributes
-satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
-declaration, such as `$reactions`.
+Read the registry rather than repeating it. `layerFact(name)` returns the registry's
+entry under a name, as the package's `registry.json` spells it: a widget's declaration
+under its tag, each fact under its own name, as `layerFact(element.localName)?.awaits`
+reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
+`$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
+guidance, so read the fact you need rather than whether an entry exists.
+`matchesWhen(element, when)` says whether the element's attributes satisfy
+a `when`, such as an `awaits`'s.
 
 ### Following a reference
 

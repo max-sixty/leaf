@@ -23,9 +23,9 @@ import { PendingTaskEvent } from "./lib/pending-task.js";
 export * from "./portable-api.js";
 export { widgetController } from "./widget-controller.js";
 
-// `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
-// arrivals and links read it.
-export { fragmentTarget } from "./anchor-resolution.js";
+// `elementById(address, from)`: the element an id, a widget's `id:key` or a fragment
+// names, in the message `from` was written in first, then on the page.
+export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
@@ -39,8 +39,6 @@ export { anchorLabel } from "./thread/messages.js";
 // The part of the page a node stands in, by the one rule On Me groups its items by and
 // a link's preview names a place by.
 export { partOver } from "./thread/placement.js";
-// The authored page body, or the body of the message whose markup a node stands in.
-export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
@@ -92,7 +90,7 @@ export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
-export { declarationFor, layerFact, matchesWhen } from "./registry.js";
+export { layerFact, matchesWhen } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and

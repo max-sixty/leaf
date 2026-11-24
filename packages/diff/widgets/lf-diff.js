@@ -35,7 +35,6 @@ import {
   beginWalk,
   focusDestination,
   holdFocus,
-  inChrome,
   langForPath,
   listWalkPosition,
   move,
@@ -55,6 +54,7 @@ import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -1125,8 +1125,8 @@ customElements.define(
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-        // the module answers it once with the layer's own predicate and paints the answer.
-        this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+        // the module answers it once from the chrome's own mark and paints the answer.
+        this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
           if (this.#showing) this.#shown = undefined;

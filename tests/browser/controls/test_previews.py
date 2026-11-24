@@ -2149,7 +2149,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     """Escape puts a focus preview away, and an element declaring its preview again,
     as a chart redrawing with the same point does, brings nothing back; nor does a
     grip whose words come back once its card is put down. The element hears that its
-    preview ended (`PREVIEW_ENDED`). A widget placing focus as a move after a
+    preview ended (`lf-preview-ended`). A widget placing focus as a move after a
     microtask shows it, since the cause is the placement's, and the user stepping
     back with the keyboard shows it again."""
     page = open_page(

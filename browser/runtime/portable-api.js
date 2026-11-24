@@ -5,7 +5,7 @@
    Leaf page the same widget gets Leaf's features through what Leaf reads from outside
    it, rather than through calls into Leaf: the events it dispatches (widget-upgrade.js),
    the keys it declares as `lfCommands`, what pointing at an element reads
-   (`lfPreview`, preview.js, `lf-preview` as that changes, and `PREVIEW_ENDED` as
+   (`lfPreview`, preview.js, `lf-preview` as that changes, and `lf-preview-ended` as
    the preview goes), the words it asks a
    listener to hear (`lf-announce`), the inventory of Comment targets it registers
    (`registerVisualParts`, visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
@@ -21,7 +21,6 @@
 export { whileConnected, frameFor } from "./arrivals.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 export {
-  LAYOUT,
   PendingTaskEvent,
   bodyText,
   commandsChanged,
@@ -29,7 +28,6 @@ export {
   layoutChanged,
   once,
   placesFailure,
-  PREVIEW_ENDED,
   reportFailure,
 } from "./widget-upgrade.js";
 export { measure } from "./shown-box.js";

@@ -93,13 +93,12 @@ hides what the reader is reading, as folding it does, anchoring can't hold it: r
 `const hold = holdPlace(column, standIn)` before the change and call `hold()` after
 it, in the same task. Leaf reads the words at the reading line, a quarter of the way
 down the window, in the middle of `column`, the box the change is made in, and
-`hold()` puts them back where they stood. Where the change hid or removed them,
-`hold()` calls `standIn(node)` and puts the node it returns in their place, as a
-section's gist takes the place of a paragraph folded behind it. `node` is the element
-that held the words, which may stand anywhere inside what the change hid, so find what
-was hidden from it, as with `node.closest`, rather than comparing it. For words a
-widget drew in its shadow tree, `node` is that widget. The change itself scrolls
-nothing.
+`hold()` puts them back where they stood. Where the change hid, removed or rewrote
+them, `hold()` calls `standIn(node)` and puts the node it returns in their place, as
+a section's gist takes the place of a paragraph folded behind it. `node` is the
+element that held the words, which may stand deep inside the block the change hid:
+look outward from it for that block, as `node.closest` does. For words a widget drew
+in its shadow tree, `node` is that widget. The change itself scrolls nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with

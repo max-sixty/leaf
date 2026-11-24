@@ -1162,7 +1162,13 @@ PLACES = [
         DIAL_WORDS,
         {"dial": None},
     ),
-    Place("dial-widget", "dial-diff", put_dial_widget, DIAL_WIDGET, {"skim": None}),
+    Place(
+        "dial-widget",
+        "dial-diff",
+        put_dial_widget,
+        DIAL_WIDGET,
+        {"skim": "impact-patch"},
+    ),
     Place("pane", "pane", put_pane, Found("#q-30"), {"pane above": "left-body"}),
     Place(
         "on-me-row",
@@ -1597,9 +1603,11 @@ def dial_turn(page, built, target, place):
 
 
 def dial_skim(page, built, target, place):
-    """Skim, which folds what the reader reads behind its section's gist."""
+    """Skim, which folds the block the reader reads behind its section's gist. The
+    gist lands where the block began, above the line read inside it, so the turn back
+    to Read, which keeps what then stands at the line, is the `dial` places' to hold."""
     turn(page, "Skim")
-    expect(page.locator("#incident-cause-1")).to_be_hidden()
+    expect(page.locator(f"#{target}")).to_have_attribute("data-lf-dial-folded", "")
 
 
 LATE_IMAGE = (

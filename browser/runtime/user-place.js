@@ -42,10 +42,10 @@
    of, left the keep to move what it opened.
    `holdPlaceOf(node)` reads where `node` stands and returns the step that, once the
    change has drawn, scrolls it back there; `holdPlace(column, standIn)` does so for
-   what stands at the reading line, or for what `standIn` names once the change hid
-   or removed it. The change itself scrolls nothing. A forced layout
+   what stands at the reading line, or for what `standIn` names once the change hid,
+   removed or rewrote it. The change itself scrolls nothing. A forced layout
    applies anchoring's correction first, so the hold pays only for what anchoring left.
-   It ends with its step, and a hold kept across tasks, as a reading's is, keeps
+   Each ends with its step, and a hold kept across tasks, as a reading's is, keeps
    nothing once a scroll was chosen since. Rejected: the hold inside every surface's
    focus hold, which had to guess whether each re-render answered the user's own input
    and whether each box followed its scroller's flow, and guessed wrong for a widget's
@@ -272,13 +272,16 @@ function returnPlace(held, top) {
 /** @param {Element | null | undefined} box */
 const stillDrawn = (box) => Boolean(box?.isConnected && showsContents(box));
 
-// Whether the words a range was made over are still the ones it holds: words a change
-// rewrote left the range, which the browser moved to their parent. An element holds no
-// words to lose.
+// Whether the words a range was made over are still the ones it holds, and drawn:
+// words a change rewrote left the range, which the browser moved to their parent, and
+// words it hid have no box, though every box around them may still draw, as when the
+// change hides an element that has no box of its own. An element holds no words to
+// lose.
 /** @param {Element | Range} node */
 const keepsWords = (node) => {
-  const words = node instanceof Range ? node.startContainer : null;
-  return () => !words || /** @type {Range} */ (node).startContainer === words;
+  if (!(node instanceof Range)) return () => true;
+  const words = node.startContainer;
+  return () => node.startContainer === words && node.getClientRects().length > 0;
 };
 
 // Read where `node`, an element or words a range holds (`readingAt`), stands and

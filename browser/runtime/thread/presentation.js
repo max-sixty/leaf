@@ -17,9 +17,7 @@
    may be a margin card, and runs independently: its selected route may itself need
    this renderer to finish. Its caret follows the actual returned editor; its failures
    reach the page's existing asynchronous error channel. */
-import { keeps } from "../lib/keeps.js";
 import { reportPageError } from "../layer-client.js";
-import { elementById } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
 import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
@@ -28,30 +26,6 @@ import { beginThreadSeats, commitThreadSeats, retainThreadSeats } from "./inline
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
 import { draftAnchor, draftsReading } from "../drafts.js";
-import { inChrome } from "../ui-marks.js";
-
-// Each held element names the thread holding it, decided whole before any is written, so
-// an element that stays held is not cleared and marked again. The pass clears the
-// elements the last pass marked rather than reading the page for the mark, so a pass
-// costs the threads, not the page's elements (root AGENTS.md, "Responsiveness"). That
-// finds every mark because this is the mark's one writer, and page check refuses an
-// authored `data-lf-*`.
-/** @type {Map<Element, string>} */
-let marked = new Map();
-/** @param {ReturnType<typeof threadState>["all"]} threads */
-function renderHolds(threads) {
-  /** @type {Map<Element, string>} */
-  const held = new Map();
-  for (const thread of threads) {
-    if (thread.resolved || !thread.root.holds || thread.root.pending) continue;
-    const target = elementById(thread.root.holds);
-    if (target && !inChrome(target)) held.set(target, thread.id);
-  }
-  for (const node of marked.keys())
-    if (!held.has(node)) node.removeAttribute("data-lf-held");
-  for (const [target, id] of held) keeps(target, "data-lf-held", id);
-  marked = held;
-}
 
 /** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */
 /** @typedef {import("../semantic-state.js").Resume} Resume */
@@ -149,7 +123,6 @@ export function createThreadPresentation({
       const { all: threads } = threadState();
       const collection = readThreads();
       const continueReplies = holdReplyCompositions(threads, continueThread);
-      renderHolds(threads);
       const readTargets = () => {
         const anchors = anchorPlacement.read({
           threads,

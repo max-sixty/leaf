@@ -53,7 +53,8 @@ In [module-state.md](module-state.md):
 - "The widget controller": `widgetController` reads what Leaf holds for a widget, the
   module's own or another's.
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
-  `viewMembers`, `openingView` and `keepView` keep which member a holder shows.
+  `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
+  which Leaf remembers, names in the address and returns the user to their place in.
 - "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
@@ -91,11 +92,9 @@ In [module-input.md](module-input.md):
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
 - "Reading regions": `scrollerFor`, `preserveReadingRegions` and `showReadingSubject`.
-- "Holding the reader's place": `holdPlace`, `capturePlace`, `restorePlace` and
-  `HeldReading`.
+- "Holding the reader's place": `holdPlace` and `HeldReading`.
 - "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
   `landingInsets` and `shownWindow`.
-- "Travel and history": `pushEntry`, `replaceEntry` and `claimTraversals`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):

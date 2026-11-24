@@ -12,6 +12,7 @@ import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { arrive, beginArrival, mountHistory } from "./runtime/history.js";
+import { entryView } from "./runtime/views.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -843,6 +844,7 @@ async function boot() {
   mountHistory({
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
+    view: entryView,
     thread: {
       claim: (url, record, intent) => threadAddress.claim(url, record, intent),
       open: () => openThreadView(),

@@ -18,7 +18,7 @@
    through its fold, so the card holds still while a gap stands above the box, and a
    mirrored draft stays in the box of the last native edit, clipped mid-glyph. */
 import { growthIsSeen, whenNone } from "../geometry.js";
-import { layoutPx } from "../keeps.js";
+import { layoutPx } from "../lib/keeps.js";
 
 // The room a box takes in its flow, its margins included; none once it has gone.
 /** @param {Element} node */

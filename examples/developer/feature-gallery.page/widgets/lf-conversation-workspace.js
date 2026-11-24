@@ -4,8 +4,6 @@ import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
-  keeps,
-  keepsText,
   offer,
   offerAction,
   LeafElement,
@@ -14,7 +12,6 @@ import {
   queueTitle,
   readObligations,
   answerWords,
-  answeredInWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -26,6 +23,7 @@ import {
   threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 customElements.define(
   "lf-conversation-workspace",
@@ -281,10 +279,7 @@ customElements.define(
       // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question asked in a message.
       const labels = items.all
-        .filter(
-          (item) =>
-            item.source.kind === "widget" && !answeredInWords(item) && item.answered,
-        )
+        .filter((item) => item.source.kind === "widget" && item.answered)
         .map(answerWords)
         .filter(Boolean);
       keepsText(

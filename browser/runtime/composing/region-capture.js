@@ -13,10 +13,11 @@ import { paintKeys } from "../keyboard/scopes.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { offlineInteractive } from "../context.js";
 import { retainUserIntent } from "../user-intent.js";
-import { leafSurface, closestAcross, elementFromPointAcross } from "../passages.js";
+import { leafSurface, elementFromPointAcross } from "../passages.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
 import { onCurrentLocation, pressHolds, pressRecords } from "../focus.js";
 import { raiseError } from "../errors.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @param {Omit<import("./region-selector.js").RegionSelectorOptions, "returnTo"> & {
  * refreshCrosshair: () => void, closeTargetPicker: () => void,

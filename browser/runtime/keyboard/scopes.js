@@ -78,12 +78,17 @@ import {
   isElement,
   composedParentNode,
   renderedParent,
-} from "../shadow-tree.js";
+} from "../lib/shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
-import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
+import {
+  COMMANDS,
+  commandsChangedOn,
+  commandsChangedWithin,
+  refuseCommands,
+} from "../widget-upgrade.js";
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandRoute} CommandRoute
@@ -864,14 +869,18 @@ export const commandsOn = directive(
 // binds no key. A declaration other than the one standing stands in its place, and none
 // withdraws it; the same one standing means a row's reading moved, so the element
 // reads its rows again (`mark`), and so does every reader of the register's
-// availability. A malformed declaration is refused where the widget made it, as `keys`
-// refuses one: the refusal goes back on the event, and `commandsChanged` throws it.
+// availability. An element that says it drew (`within`) has every scope at or under it
+// read its rows again instead (`paintKeysWithin`), since what they read from the nodes
+// it drew may have changed. A malformed declaration is refused where the widget made
+// it, as `keys` refuses one: the refusal goes back on the event, and `commandsChanged`
+// throws it.
 const declared = new WeakMap();
 addEventListener(COMMANDS, (event) => {
   const element = commandsChangedOn(event);
   const declaration = element.lfCommands ?? null;
   const standing = declared.get(element);
   if (declaration === (standing?.declaration ?? null)) {
+    if (commandsChangedWithin(event)) return paintKeysWithin(element);
     if (standing) mark(element);
     availabilityDirty = true;
     repaint();

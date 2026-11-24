@@ -7,8 +7,8 @@ import {
   offerActionElement,
   offeredAction,
   generatedElement,
-  keeps,
 } from "/runtime/widget-api.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {import("./image-difference.js").Difference} Difference */
@@ -155,7 +155,7 @@ function fitShotGeometry({
 /** @param {HTMLElement} host @param {ShotGeometry} geometry */
 function applyShotGeometry(host, geometry) {
   for (const [name, value] of Object.entries(geometry.vars))
-    host.style.setProperty(`--lf-shot-${name}`, `${Math.round(value * 64) / 64}px`);
+    host.style.setProperty(`--lf-shot-${name}`, layoutPx(value));
   keeps(host, "data-lf-shot-layout", geometry.layout);
   keeps(host, "data-lf-shot-crop", geometry.crop);
   keeps(host, "data-lf-shot-focus", geometry.focus);

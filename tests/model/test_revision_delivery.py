@@ -69,33 +69,6 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
     assert "data-lf-prepaint" in body.attrs
 
 
-def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
-    """A written <pre> whose notation an attribute names (`prepaint`) first paints
-    as the Markdown its module will draw: a file's soft breaks are spaces, not the
-    hard breaks Leaf's own words keep. Another notation, or no written text, paints
-    nothing."""
-    registry = {
-        "lf-doc": {
-            "prepaint": "preview",
-        }
-    }
-    written = "**Fixed** a crash\nwhen `--config` is missing."
-    source = (
-        f'<lf-doc id="md" preview="markdown"><pre>{written}</pre></lf-doc>'
-        '<lf-doc id="page" preview="html"><pre>&lt;p&gt;Hi&lt;/p&gt;</pre></lf-doc>'
-        '<lf-doc id="bound" preview="markdown" source="notes"></lf-doc>'
-    )
-    tree = SourceDocument(mark_declared(source, registry, {})).tree
-    [body] = tree.select("#md > .lf-markdown-body")
-    assert len(tree.select(".lf-markdown-body")) == 1
-    assert "data-lf-prepaint" in body.attrs
-    assert "data-lf-source-words" not in body.attrs
-    assert not body.find_all("br")
-    select_one_result = body.select_one("strong")
-    assert select_one_result is not None
-    assert select_one_result.text == "Fixed"
-
-
 def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
     source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
     delivered = mark_declared(
@@ -875,26 +848,24 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         ('<code class="language-markdown">**Fixed** a crash</code>', "Fixed a crash"),
         # A template's contents, which the browser keeps out of `textContent`.
         ("**Fixed**<template>**inert**</template> a crash", "Fixed a crash"),
+        # A soft break, which a Markdown file reads as a space, not a line.
+        ("**Fixed** a\ncrash", "Fixed a\ncrash"),
     ],
 )
-def test_a_written_markdown_file_first_paints_the_text_its_module_reads(body, painted):
-    """The first paint of a written Markdown file reads its `<pre>` as the module
-    will, the browser's `textContent`, so the page doesn't change words or size as the
-    module draws over it."""
+def test_a_markdown_body_first_paints_the_text_its_module_reads(body, painted):
+    """The first paint of a Markdown body reads its `<pre>` as the module will, the
+    browser's `textContent`, and as a Markdown file, so the page doesn't change words
+    or size as the module draws over it."""
     delivered = mark_declared(
-        '<lf-text-document id="notes" label="NOTES.md" preview="markdown">'
-        f"<pre>{body}</pre></lf-text-document>",
-        {
-            "lf-text-document": {
-                "prepaint": "preview",
-            }
-        },
+        f'<lf-editable id="notes"><pre>{body}</pre></lf-editable>',
+        {"lf-editable": {"content": "markdown"}},
         {},
     )
     rendering = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
     assert rendering is not None
     assert rendering.text.strip() == painted
     assert [strong.text for strong in rendering.find_all("strong")] == ["Fixed"]
+    assert not rendering.find_all("br")
 
 
 def test_source_fallback_marks_derive_from_open_registry_content_declarations():

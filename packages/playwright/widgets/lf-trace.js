@@ -93,14 +93,10 @@ import {
   el,
   focusDestination,
   holdFocus,
-  actionTemplate,
-  iconTemplate,
-  inBaseLayer,
   offered,
   offeredAction,
-  keeps,
-  keepsText,
   LeafElement,
+  PendingTaskEvent,
   move,
   onUserInput,
   signal,
@@ -116,6 +112,8 @@ import {
   commandsChanged,
   actionClass,
 } from "/runtime/widget-api.js";
+import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
@@ -129,7 +127,7 @@ import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 if (!document.querySelector("#lf-trace-library-styles")) {
   const styles = document.createElement("style");
   styles.id = "lf-trace-library-styles";
-  styles.textContent = inBaseLayer(`@scope (lf-trace) { ${imageCss} }`);
+  styles.textContent = `@layer lf-base {\n@scope (lf-trace) { ${imageCss} }\n}`;
   document.head.append(styles);
 }
 
@@ -1860,7 +1858,7 @@ export class Trace extends LeafElement {
         });
       }, failed);
     }
-    this.controller.present(ready);
+    this.dispatchEvent(new PendingTaskEvent(ready));
   }
 
   /** @param {TraceAction} action */

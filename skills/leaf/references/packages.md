@@ -134,8 +134,8 @@ state of its own.
 
 Leaf's chrome and comment marks are unlayered, so change their colours and type
 through the theme inputs below, and restyle the chrome's surfaces by part in
-`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
-`inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
+`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in
+`@layer lf-base { … }` (`module-authoring.md`, "Shadow stages and styles").
 
 Leaf places each sheet in its tier and changes none of its rules but `chrome.css`'s,
 which it nests in the chrome, so a sheet names
@@ -150,7 +150,7 @@ contribution. Inherited values cross every widget boundary. Adjust another widge
 internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet through `LeafElement` for `shadow`, or through
+the composed shared stylesheet through a `LeafElement` that says `static shadow`, or through
 `shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.

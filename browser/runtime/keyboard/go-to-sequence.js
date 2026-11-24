@@ -80,13 +80,14 @@ import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce } from "../notifications.js";
-import { closestAcross, inPage, pageQueryAll } from "../passages.js";
+import { inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc } from "./scopes.js";
 import { saying } from "./control-keys.js";
 import { repaint } from "../repaint.js";
 import { landGlides } from "../scrolling.js";
 import { counted } from "../words.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.

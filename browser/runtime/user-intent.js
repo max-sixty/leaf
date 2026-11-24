@@ -9,7 +9,7 @@
    wait. Which inputs supersede it is focus.js's count (`inputCount`), the one reading of
    the user's inputs. */
 import { carriedFrom, focused, inputCount } from "./focus.js";
-import { renderedUnder } from "./shadow-tree.js";
+import { renderedUnder } from "./lib/shadow-tree.js";
 
 // Focus a repaint took from the source and dropped on a container holding it, as a
 // list takes it from a card that folds, including where that container passed it on

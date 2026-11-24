@@ -1053,7 +1053,7 @@ export function createSemanticApplication({ presentation } = {}) {
     );
     const folded = threadsFrom(view?.thread.threads, ...gestures);
     const widgets = widgetsOf(document.authored, projection);
-    const { parents: widgetParents, memberships } = relationsOf(
+    const { memberships } = relationsOf(
       document.descriptors,
       widgets,
       projection.desired,
@@ -1303,7 +1303,6 @@ export function createSemanticApplication({ presentation } = {}) {
       view,
       coverage,
       memberships,
-      widgetParents,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
         .filter((entry) => SENDING.has(entry.state))

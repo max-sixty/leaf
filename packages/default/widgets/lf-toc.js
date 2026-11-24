@@ -61,13 +61,9 @@ import {
   frameFor,
   holdFocus,
   inChrome,
-  keeps,
   landingInsets,
-  LAYOUT,
   LeafElement,
   obligationsIn,
-  PAGE_INTERFACE,
-  PRESENTATION,
   readObligations,
   readThreads,
   scrollerFor,
@@ -75,6 +71,7 @@ import {
   whileConnected,
   named,
 } from "/runtime/widget-api.js";
+import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -248,9 +245,9 @@ customElements.define(
           capture: true,
           signal,
         });
-      this.#main.addEventListener(LAYOUT, this.#scheduleMeasure, { signal });
-      document.addEventListener(PRESENTATION, this.#onPresentation, { signal });
-      document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
+      this.#main.addEventListener("lf-layout", this.#scheduleMeasure, { signal });
+      document.addEventListener("lf-presentation", this.#onPresentation, { signal });
+      document.addEventListener("lf-page-interface", this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
       matchMedia("print").addEventListener("change", this.#onPresentation, {
         signal,
@@ -628,7 +625,7 @@ customElements.define(
       const transform = (
         /** @type {{start: number, size: number}} */ { start, size },
       ) =>
-        `translateY(${Math.round(start * 64) / 64}px) scaleY(${Math.round(Math.max(floor, size) * 64) / 64})`;
+        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
       if (reach <= 0) {
         this.#lensMotion?.animation.cancel();
         this.#lensMotion = null;

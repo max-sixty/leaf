@@ -89,14 +89,10 @@ import {
   addressableLabel,
   authoredTitle,
   setScroll,
-  actionTemplate,
   agentName,
-  PRESS,
   obligationsByRegion,
   regionsAwaiting,
   answerWords,
-  tally,
-  under,
   backgroundFlash,
   beginWalk,
   capturePlace,
@@ -104,7 +100,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   keepView,
-  keeps,
   layoutChanged,
   listWalkPosition,
   whileConnected,
@@ -123,7 +118,6 @@ import {
   tabStore,
   focusDestination,
   fragmentTarget,
-  rowArrows,
   scrollIntoView,
   fitsWhole,
   landingInsets,
@@ -131,6 +125,11 @@ import {
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { actionTemplate } from "/runtime/lib/icons.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
+import { under } from "/runtime/lib/shadow-tree.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
+import { tally } from "/runtime/lib/obligation-tally.js";
 
 const PLACE_KEY = "lf-tabs-place:";
 // The document's own scroller, which scrolls a page-flow set's views.
@@ -753,7 +752,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      run.style.setProperty("--lf-tab-group-size", `${Math.round(size * 64) / 64}px`);
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
       scrollIntoView(btn, { block: "nearest", within });
       return;
     }

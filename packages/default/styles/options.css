@@ -425,8 +425,8 @@ lf-option[selected] > .lf-pick {
   color: var(--lf-settled-ink);
 }
 /* The pick fills the box and cuts the layer's check out of it (`check`,
- * runtime/icon-paths.js), so the option's ground shows through the check. A ✓ glyph
- * needed a type size of its own, 8px, to stand clear of the ring. */
+ * runtime/lib/icon-paths.js), so the option's ground shows through the check. A ✓
+ * glyph needed a type size of its own, 8px, to stand clear of the ring. */
 lf-option[selected] > .lf-pick::before {
   border-color: var(--lf-settled);
   background: var(--lf-settled);

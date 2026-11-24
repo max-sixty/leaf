@@ -73,8 +73,9 @@ Each widget that asks puts one question on On Me and records its answer. A choic
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
 
-Write questions the user can answer independently in page order. If a later one depends
-on an earlier answer, pose it in the next turn rather than writing every branch.
+Ask each question when it costs the user least. One they can answer at a glance beside
+the one it depends on, as in “Merge the retry fix? If so, delete its branch?”, usually
+goes with it; one whose options would differ with an open answer usually waits for it.
 
 When the user decides several proposals independently, give each its own options to
 accept or reject it, beside that proposal's case. One choice can accept a batch
@@ -168,9 +169,6 @@ action and the evidence the user needs in the question's heading and prose:
   </lf-options>
 </lf-group>
 ```
-
-Other unanswered questions do not block it. When permission depends on an earlier
-choice, resolve that choice first, then ask for the resulting action.
 
 Approval of an editable proposal applies to the submitted values, while later edits
 remain a working copy. A playground records its complete values together on submission

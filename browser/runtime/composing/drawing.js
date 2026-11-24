@@ -54,7 +54,7 @@ import { mayShow } from "../reading-place.js";
 import { anchoringIsReady, sectionOf } from "../anchor-resolution.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
 import { pressHolds, pressRecords } from "../focus.js";
-import { under } from "../shadow-tree.js";
+import { under } from "../lib/shadow-tree.js";
 import { shownScheme } from "../color-scheme.js";
 import { BACK_OUT, pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import { saying } from "../keyboard/control-keys.js";

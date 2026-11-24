@@ -21,6 +21,7 @@ from .files import file_stamp
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
+from .rows import ROW, read_row, row_path
 from .schema import SERVER_LOCK, UNNAMED_AGENT
 from .server import running_server
 from .service import (
@@ -118,8 +119,6 @@ def neighbor_candidates() -> tuple:
             return _candidates[1]
         # Atomic producer publications move the directory stamp. Scan only when
         # it changes; the parsed rows retain their per-file stamps between scans.
-        from .server_rows import ROW
-
         current = set(rows.glob("*.json")) if rows.is_dir() else set()
         for path in _row_files.keys() - current:
             del _row_files[path]
@@ -177,8 +176,6 @@ def live_servers(among: set[Path] | None = None):
     checks. Every such server serves with this state home's key
     (`server.host_key`). The row of a page whose lease no process holds is deleted
     here (`other_leaves`)."""
-    from .server_rows import row_path
-
     for candidate, record in neighbor_candidates():
         if among is not None and candidate not in among:
             continue
@@ -200,8 +197,6 @@ def live_leaves(among: set[Path] | None = None) -> list:
     """Each live page that is not closed, by its directory, with its row entry, in
     title order (`other_leaves` says what each costs and holds); only those `among`
     resolved page directories, where given, whose leases alone it then checks."""
-    from .server_rows import read_row
-
     leaves = []
     for candidate, record, info in live_servers(among):
         try:

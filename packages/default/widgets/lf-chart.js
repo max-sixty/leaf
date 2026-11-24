@@ -30,10 +30,10 @@
  * the new drawing still holds it. The point the reader is on wears a ring, with a rule
  * to the axis it stands at, and its words stand beside it in the page's preview
  * (`lfPreview`), which the chart reads again as the aim moves to another point, each a
- * new aim (`previewChanged` with `aim`), so a point the pointer or a key reaches after
+ * new aim (`lf-preview` with `aim`), so a point the pointer or a key reaches after
  * Escape put the preview away shows its own. The ring goes when the aim leaves, the
  * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
- * page puts the preview away (`PREVIEW_ENDED`), as Escape and a press do and as the
+ * page puts the preview away (`lf-preview-ended`), as Escape and a press do and as the
  * next touch does after a held finger lifts. A finger slides across the drawing to read
  * along it, and scrolls the page up and down it.
  *
@@ -74,25 +74,21 @@
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
 import {
-  PREVIEW_ENDED,
   PendingTaskEvent,
-  announce,
   beginWalk,
   bodyText,
   commandsChanged,
-  keeps,
   listWalkPosition,
   whileConnected,
   failSoft,
   frameFor,
-  inBaseLayer,
   measure,
   nextRender,
   once,
-  previewChanged,
   registerVisualParts,
   sizeObserver,
 } from "/runtime/portable-api.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import {
   cross,
   datumOf,
@@ -219,7 +215,7 @@ customElements.define(
     /** @type {Point | null} */
     #away = null;
     // What the page's preview last read of the chart, while it stands, which names the
-    // reading a preview that ends had (`PREVIEW_ENDED`), and how many times a finger
+    // reading a preview that ends had (`lf-preview-ended`), and how many times a finger
     // has pressed on the chart.
     /** @type {object | null} */
     #declared = null;
@@ -339,7 +335,7 @@ customElements.define(
         // finger presses that point again. A press is an aim, not a reading: a tap that
         // ends without a hold leaves the ring to go with the finger (`#leave`).
         this.addEventListener(
-          PREVIEW_ENDED,
+          "lf-preview-ended",
           (event) => {
             const { declared } = /** @type {CustomEvent} */ (event).detail;
             if (!declared || declared !== this.#declared) return;
@@ -435,7 +431,7 @@ customElements.define(
         // drawing measures, and only its width moves the observer.
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";
-        this.drawing.style.blockSize = `${Math.round(height * 64) / 64}px`;
+        this.drawing.style.blockSize = layoutPx(height);
         this.replaceChildren(this.drawing);
         await this.paint(Math.round(width));
         this.classList.add("lf-rendered");
@@ -510,7 +506,10 @@ customElements.define(
       this.lfCommands = reading && points ? this.#keys(reading) : null;
       commandsChanged(this);
       if (reading && at) this.#choose(again(at), this.#by);
-      else if (at) previewChanged(this);
+      else if (at)
+        this.dispatchEvent(
+          new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+        );
       this.#placeAim();
     }
 
@@ -676,7 +675,13 @@ customElements.define(
         }
       }
       this.#placeAim();
-      previewChanged(this, { aim: aim && point !== null });
+      this.dispatchEvent(
+        new CustomEvent("lf-preview", {
+          bubbles: true,
+          composed: true,
+          detail: { aim: aim && point !== null },
+        }),
+      );
     }
 
     // The mark round the point a pointer on the drawing aims at (`#partAt`): the
@@ -723,12 +728,16 @@ customElements.define(
         },
       );
       const { name, detail } = sayPoint(point);
-      announce([name, ...detail, place].filter(Boolean).join(", "));
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: [name, ...detail, place].filter(Boolean).join(", "),
+        }),
+      );
     }
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does one whose preview stands, which the page puts away, and the ring with it
-    // (`PREVIEW_ENDED`), once the pointer is on neither the drawing nor the preview, or
+    // (`lf-preview-ended`), once the pointer is on neither the drawing nor the preview, or
     // at the next touch after a held finger lifts (preview.js); back on the drawing, it
     // reads from where it comes. A point no preview has shown yet goes with the pointer.
     #leave() {
@@ -773,7 +782,7 @@ customElements.define(
         node.matches("svg[aria-label]"),
       );
       // The drawing is one picture, whose points the chart says itself (`lfPreview`,
-      // `announce`), so nothing inside it needs to be reachable on its own to a screen
+      // `lf-announce`), so nothing inside it needs to be reachable on its own to a screen
       // reader. `role="img"` closes the tree under it, and
       // Plot names every group inside — `aria-label="bar"`, `"x-axis tick label"` — on
       // `<g>` elements carrying no role, which axe reports as a serious WCAG failure.
@@ -791,7 +800,7 @@ customElements.define(
       // face and paper remain stylesheet-owned; authored Plot style options keep
       // their inline priority, including legend styles.
       for (const style of built.querySelectorAll("style"))
-        style.textContent = inBaseLayer(style.textContent);
+        style.textContent = `@layer lf-base {\n${style.textContent}\n}`;
       // Plot writes a mark's `title` channel as each shape's <title>, the platform's
       // tooltip, which would stand beside the preview that says it.
       for (const title of drawing.querySelectorAll("title")) title.remove();

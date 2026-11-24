@@ -61,13 +61,12 @@ import { capitalized, counted } from "../words.js";
 import { describeFailure } from "../lib/exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import {
   advertisesKeys,
   ariaBindings,
   submitBindings,
   spell,
-  PRESS,
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, keepsNotice } from "../notifications.js";
@@ -106,6 +105,7 @@ import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
 import { offeredAction } from "../widget-elements.js";
+import { PRESS } from "../lib/keys.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField

@@ -181,15 +181,14 @@
         commandsChanged,
         connection,
         generate,
-        keepsText,
         once,
-        PAGE_INTERFACE,
         quoted,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
+      import { keepsText } from "/runtime/lib/keeps.js";
 
-      document.addEventListener(PAGE_INTERFACE, () => {
+      document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
         if (!section || quoted(section) || !once(section)) return;
         const button = section.querySelector("button");
@@ -217,7 +216,7 @@
         });
       });
 
-      document.addEventListener(PAGE_INTERFACE, () => {
+      document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-llm");
         if (!section || quoted(section) || !once(section)) return;
         const button = section.querySelector("button");

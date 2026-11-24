@@ -76,15 +76,14 @@
 import { html, nothing, render } from "/vendor/lit.js";
 import {
   allButCommandReference,
-  announce,
   boundFile,
   RequestError,
   commandsOn,
   deferredArrival,
   el,
   focusDestination,
-  iconTemplate,
   LeafElement,
+  PendingTaskEvent,
   offered,
   offeredAction,
   onCurrentLocation,
@@ -94,6 +93,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
@@ -366,7 +366,9 @@ customElements.define(
         if (!of.slow) return;
         of.slow = false;
         if (of === file && !of.failure && !of.latest && !dirty(of))
-          announce("Changes saved.");
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", { detail: "Changes saved." }),
+          );
       }
       // A failure or conflict arriving on a file the reader has left is news once, as
       // the open file's is (`#drawn`), and the file names itself.
@@ -375,10 +377,12 @@ customElements.define(
         const news = of.failure ?? of.latest;
         if (of === file || !news || news === of.spoken) return;
         of.spoken = news;
-        announce(
-          of.failure
-            ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
-            : `${label(of)} changed on disk. The draft is kept.`,
+        window.dispatchEvent(
+          new CustomEvent("lf-announce", {
+            detail: of.failure
+              ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
+              : `${label(of)} changed on disk. The draft is kept.`,
+          }),
         );
       }
       // A paint draws now, since what follows it reads the controls it drew.
@@ -429,10 +433,12 @@ customElements.define(
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)
-          announce(
-            of.failure
-              ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
-              : "The file changed on disk. The draft is kept.",
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", {
+              detail: of.failure
+                ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
+                : "The file changed on disk. The draft is kept.",
+            }),
           );
         of.spoken = news;
         if (of.comparing && of.latest) {
@@ -633,7 +639,9 @@ customElements.define(
             of.slow = true;
             of.slowTimer = null;
             if (of !== file) return;
-            announce("Saving changes.");
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", { detail: "Saving changes." }),
+            );
             paint();
           }, 1000);
         if (of === file) paint();
@@ -826,7 +834,9 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(Promise.race([opening, waited.promise]));
+          this.dispatchEvent(
+            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+          );
           deferredArrival(opening);
           initial = false;
         }

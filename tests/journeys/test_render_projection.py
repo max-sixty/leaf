@@ -652,11 +652,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
         """\
-import {keeps, LeafElement} from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-trial", class extends LeafElement {
   #presented;
   render() {
-    if (!this.reading.state) return;
+    if (!this.state) return;
     if (document.body.dataset.lfPresented === "1") {
       keeps(this, "data-lf-state", "shelve");
       return;

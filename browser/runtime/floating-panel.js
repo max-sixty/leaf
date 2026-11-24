@@ -208,10 +208,10 @@ import {
   signal,
 } from "/runtime/framework.js";
 import { el, offeredAction, reveal } from "./widget-elements.js";
-import { actionTemplate, iconTemplate } from "./icons.js";
-import { actionName } from "./icon-paths.js";
+import { actionTemplate, iconTemplate } from "./lib/icons.js";
+import { actionName } from "./lib/icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";
-import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
+import { atLayoutPrecision, keeps, keepsHidden } from "./lib/keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
@@ -221,7 +221,6 @@ import {
   advertisesKeys,
   cycledRow,
   parsed,
-  rowArrows,
   spell,
   titleOf as rowTitle,
 } from "./keyboard/bindings.js";
@@ -393,7 +392,12 @@ import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
-import { byRenderedOrder, renderedUnder, under } from "./shadow-tree.js";
+import {
+  byRenderedOrder,
+  renderedUnder,
+  under,
+  closestAcross,
+} from "./lib/shadow-tree.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { commandKeysNow, commandSteps } from "./keyboard/control-keys.js";
 import {
@@ -402,7 +406,7 @@ import {
   pressCommand,
   standingStances,
 } from "./keyboard/dispatch.js";
-import { closestAcross } from "./passages.js";
+import { rowArrows } from "./lib/keys.js";
 
 const prefs = () => window.lfChrome;
 // What the status says before the page has one (page-status.js, `statusReading`).

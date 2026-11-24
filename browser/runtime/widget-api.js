@@ -20,7 +20,6 @@ import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
-export { iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
 // The rank a position record carries for a unit dropped at an index in a container.
@@ -62,7 +61,7 @@ export { holdPlace, readingAt } from "./user-place.js";
 // user to write Markdown in.
 export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
-export { answeredInWords, readObligations } from "./obligations/model.js";
+export { readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them
 // reads, and which regions hold a widget that asks the user something, including one
 // whose obligation the inventory hasn't listed yet or lists as withdrawn.
@@ -91,18 +90,14 @@ export { threadSummary } from "./thread/messages.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { under } from "./shadow-tree.js";
-// `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
-export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
+export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 // The claim of a scope standing over the page: every key but the command reference's.
 export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
-export { contributionItemKey } from "./contribution-model.js";
 export {
-  contributionEntry,
   presentContributionEntry,
   presentContributionReceipts,
 } from "./contribution-controls.js";
@@ -144,25 +139,17 @@ export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.
 // `whenNear` for the reader to near a node, then each starts the work;
 // `deferredArrival` counts work the widget has already started.
 export {
-  PAGE_INTERFACE,
-  PRESENTATION,
   afterPresentation,
   deferredArrival,
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
+export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
-export {
-  dragging,
-  el,
-  motionPreview,
-  reachedForWords,
-  worksInside,
-} from "./widget-elements.js";
+export { dragging, el, reachedForWords, worksInside } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
@@ -184,9 +171,6 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
-// A region's open obligations by whose turn each is, in the words `lf-tally` and
-// `lf-deck` both show.
-export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";

@@ -53,7 +53,7 @@
  * landing (`block`): a box taller than its room is shown there only where that landing
  * would move nothing, so travel to a section the user is reading inside, or to a file
  * of a diff they have read down, still lands its opening. Its edges are compared at
- * layout precision (keeps.js, `atLayoutPrecision`): a box a landing put flush at an
+ * layout precision (lib/keeps.js, `atLayoutPrecision`): a box a landing put flush at an
  * edge reads back a float's rounding past it in Firefox, and a reading that counted it
  * unseen would land it again and enter travel's history. A box a glide under way is
  * carrying (scroll-containers.js, `glideTravel`) is shown only where it is seen both where it
@@ -105,7 +105,7 @@ import {
   shownWindow,
   visibleBand,
 } from "./geometry.js";
-import { atLayoutPrecision } from "./keeps.js";
+import { atLayoutPrecision } from "./lib/keeps.js";
 import { glideTravel, scrollersOf, seenGlided } from "./scroll-containers.js";
 import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
 import {
@@ -121,7 +121,7 @@ import {
 } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { cancelRender, nextRender } from "./rendering.js";
-import { renderedParent, renderedUnder } from "./shadow-tree.js";
+import { renderedParent, renderedUnder } from "./lib/shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 
 /** @typedef {Element | Range} Destination

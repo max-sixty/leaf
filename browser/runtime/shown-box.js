@@ -2,7 +2,7 @@
    document can load it, so a widget on a plain HTML page waits for its room as it does
    on a Leaf page (portable-api.js); geometry.js builds its readings of what the page
    shows on these. */
-import { skipped } from "./shadow-tree.js";
+import { skipped } from "./lib/shadow-tree.js";
 import { sizeObserver } from "./rendering.js";
 
 // What a node's contents are drawn in, read through the one range this module keeps.

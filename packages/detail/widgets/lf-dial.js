@@ -100,7 +100,7 @@
  * the preview on every route, makes it Escape's first step and gives a screen reader
  * each depth's description on focus. A plain click on the dial or an arrow key in its
  * depths, while the sheets hang, aims at the depth it reached, as a chart's key reaching
- * another point does (`previewChanged` with `aim`), so the sheets stay up and the frame
+ * another point does (`lf-preview` with `aim`), so the sheets stay up and the frame
  * can be seen gliding to the depth turned to, the maintainer's choice. Otherwise they go
  * as Leaf's preview goes, a tap on touch included, since a finger that lifted reads no
  * preview. A sheet holds no control, since a preview reads and never
@@ -113,25 +113,21 @@ import {
   focusDestination,
   foldDuration,
   holdPlace,
-  keeps,
-  keepsText,
   LeafElement,
   motion,
   move,
   nextRender,
   offer,
   offerAction,
-  PAGE_INTERFACE,
   phrasing,
   onPress,
-  previewChanged,
-  PREVIEW_ENDED,
   readingAt,
   registerRootHeader,
   shownWindow,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -419,7 +415,7 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
-        depth.addEventListener(PREVIEW_ENDED, this.#ended);
+        depth.addEventListener("lf-preview-ended", this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -439,12 +435,12 @@ customElements.define(
       // as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
-      this.addEventListener(PREVIEW_ENDED, this.#ended);
+      this.addEventListener("lf-preview-ended", this.#ended);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
         this.ownerDocument.addEventListener(
-          PAGE_INTERFACE,
+          "lf-page-interface",
           () => {
             this.#sizes = null;
             this.#apply(this.#depth, { moving: false });
@@ -529,7 +525,14 @@ customElements.define(
     // glides there with the sheets up (the maintainer's choice).
     /** @param {Element} at */
     #aim(at) {
-      if (this.#pointed) previewChanged(at, { aim: true });
+      if (this.#pointed)
+        at.dispatchEvent(
+          new CustomEvent("lf-preview", {
+            bubbles: true,
+            composed: true,
+            detail: { aim: true },
+          }),
+        );
     }
 
     // Read what pointing at a depth shows, as Leaf's preview of it does.

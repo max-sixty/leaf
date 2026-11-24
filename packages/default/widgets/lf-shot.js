@@ -84,6 +84,7 @@ import {
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { canvas2D } from "/runtime/lib/canvas.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -534,9 +535,7 @@ export class Shot extends HTMLElement {
   async #pixelMask(images) {
     const { width, height, data } = compareImagePixels(...images);
     const canvas = new OffscreenCanvas(width, height);
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("The browser could not create a 2D canvas context");
-    context.putImageData(new ImageData(data, width, height), 0, 0);
+    canvas2D(canvas).putImageData(new ImageData(data, width, height), 0, 0);
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));
     try {
       const image = document.createElement("img");

@@ -16,11 +16,8 @@
    widget-api.js re-exports all of it, so these are the same helpers by either path.
    Each home re-exported here must load, and work, in a document Leaf did not compose:
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
-   tests/smoke/test_plain_page.py holds the portable widgets to that.
-
-   A module of the library (lib/) loads in any document by the rule on its imports
-   (browser/AGENTS.md, "The library of shared web code"), so a portable widget imports
-   one by its own path and this file re-exports none. */
+   tests/smoke/test_plain_page.py holds the portable widgets to that. A portable widget
+   also imports the library's modules (lib/), each of which loads in any document. */
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 export {

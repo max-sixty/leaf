@@ -14,8 +14,8 @@
    so a widget that must also run off a Leaf page imports from there and every other
    widget keeps importing from here.
 
-   Shared web code that reaches none of Leaf's is the library's (lib/), which a module
-   imports by path. Neither file re-exports it. */
+   Shared web code that reaches none of Leaf's is no part of this surface: it is the
+   library's (lib/; browser/AGENTS.md, "The library of shared web code"). */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";

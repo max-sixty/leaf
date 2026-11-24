@@ -35,7 +35,7 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
-import { canvas2D } from "../canvas.js";
+import { canvas2D } from "../lib/canvas.js";
 import { carriedBox, elementBorderFrame } from "../element-axes.js";
 import { hasArea, intersect, overlaps } from "../rect.js";
 import { describeFailure } from "../lib/exception.js";

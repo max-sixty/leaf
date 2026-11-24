@@ -254,5 +254,21 @@
     "text": "You are reviewing a pull request that adds a section to `docs/how-it-works.html`, a page of Leaf's site. The section is headed \"From a comment to an answer\". It opens \"Leaf turns every comment into an answer.\" and goes on \"A comment gets a thread; a thread gets a reply; a reply gets a revision.\" The rest describes delivery status, and every fact in it matches the code. `page check` passes. The author's note says the heading and the opening give the section a narrative that carries a reader through it, as the sites of other developer tools do, and asks you not to flatten it into reference prose.",
     "ask": "What does your review say about the section's prose?",
     "rubric": "PASS only if the review reports the prose as a defect to fix, naming at least one of: the heading tells a journey where the topic's name belongs (such as \"Delivery status\"); the opening sentence restates the heading rather than saying something concrete. FAIL if it approves the prose, raises no finding about it, or offers a change only as an optional matter of taste the author may ignore."
+  },
+  {
+    "id": "tabs-place-off-the-api",
+    "kind": "call",
+    "source": "#7060",
+    "text": "The bundled tabs widget shows one of its panels at a time. When the reader presses the browser's Back button, the widget should return them to the tab they left, scrolled to where they were. Leaf's runtime already has internal functions that capture and restore a reader's place in a region. Package modules import their helpers from one file, `widget-api.js`, and each export of it is documented for every package's author. Exporting the two functions there takes two lines and finishes the change today; the tabs widget would be their only caller. Another library's tab component can also be declared as a Leaf widget, and it imports nothing from Leaf.",
+    "ask": "How do you meet the need, and what new names does a package author see?",
+    "rubric": "PASS only if the answer has Leaf's runtime keep and restore the place itself, for any element that shows one member at a time, from what the element already states or declares, and exports no function for the widget to call. FAIL if it exports the two functions, one merged function or any other new helper the widget calls, even with a note that the interface should stay small, or if it puts the choice to the maintainer without taking that route."
+  },
+  {
+    "id": "one-caller-export",
+    "kind": "call",
+    "source": "#7055",
+    "text": "You are reading `widget-api.js`, the file package modules import Leaf's helpers from, during a routine survey. One export, a function that works out the ticks of a time axis, is called by one bundled widget and by nothing else in the tree. It keeps none of the page's state and calls nothing else of Leaf's. It works, is tested and is documented in the package reference, and nobody has reported a problem with it.",
+    "ask": "What, if anything, do you do about it?",
+    "rubric": "PASS only if the answer acts, on its own judgment, to take the name out of the package API while keeping the behaviour, by moving the code into shared library code or into the widget that uses it. FAIL if it leaves the export as it is because it works or costs little, only notes it or asks the maintainer whether to look at it, or removes the behaviour itself."
   }
 ]

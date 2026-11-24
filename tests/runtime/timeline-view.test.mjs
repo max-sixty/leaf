@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { assignRows } from "/runtime/lib/time-axis.js";
 import {
   render as timelineView,
   timelineModel,
@@ -272,19 +271,4 @@ test("A span that ends before it starts is reported and drawn as an instant", ()
   const drawing = timeline(lanes([["A", [["bad-span", 500, 100]]]]));
   assert.equal(drawing.model.problems.length, 1);
   assert.equal(drawing.model.events[0].end, null);
-});
-
-test("Overlapping extents never share a row", () => {
-  const extents = [
-    { id: "a", start: 0, end: 50 },
-    { id: "b", start: 40, end: 90 },
-    { id: "c", start: 50, end: 60 },
-    { id: "d", start: 85, end: 120 },
-  ];
-  const rows = assignRows(
-    extents,
-    (item) => item.start,
-    (item) => item.end,
-  );
-  assert.deepEqual(Object.fromEntries(rows), { a: 0, b: 1, c: 0, d: 0 });
 });

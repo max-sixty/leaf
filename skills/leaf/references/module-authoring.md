@@ -85,9 +85,8 @@ In [module-input.md](module-input.md):
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `loadDraft`, `saveDraft`,
-  `watchDraft`, `sendDraft` and `clearDraft` keep its draft, and `leafEditorView` wraps
-  a CodeMirror editor.
+- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
+  `leafEditorView` wraps a CodeMirror editor.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
@@ -119,11 +118,11 @@ In [module-controls.md](module-controls.md):
 ### Shared web code
 
 `/runtime/lib/` is a library of web code that Leaf's runtime and its bundled packages
-share, such as the constructors of Leaf's controls, a move's rank, code's syntax
-colours and the words for a thrown value. It is not part of Leaf's interface: a library
-module keeps none of the page's state and calls nothing of Leaf's. A widget imports a
-module by its path, as it imports Lit, and the module works off Leaf too. Like
-`widget-api.js`, the library can change in any update.
+share, such as the constructors of Leaf's controls, a time axis, a move's rank, code's
+syntax colours and the words for a thrown value. It is not part of Leaf's interface: a
+library module keeps none of the page's state and calls nothing of Leaf's. A widget
+imports a module by its path, as it imports Lit, and the module works off Leaf too.
+Like `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
 header and comments say what it exports.
 

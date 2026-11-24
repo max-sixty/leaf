@@ -574,21 +574,41 @@ def answer_the_turn() -> None:
     )
 
 
-def plan_head(page: Page) -> None:
-    """On the agent's tab with the agent's plan disclosed from its head at the view's
-    foot, one of its steps waiting on the user."""
-    as_agent(
+def on_agent_plan(page: Page) -> None:
+    """On the agent's tab, headed by the agent's plan: one step done with what its end
+    said, one under way with its running line, one waiting on the user, one ahead."""
+    served = served_page.get()
+    made = served.leaf(
         "task",
         "plan",
+        str(served.directory),
         "--text",
-        '[{"depth": 0, "title": "Ship the resend", "state": "working"},'
-        ' {"depth": 1, "title": "Reproduce the stall", "state": "done"},'
+        '[{"depth": 0, "title": "Ship the resend"},'
+        ' {"depth": 1, "todo": "Reproduce the stall"},'
+        ' {"depth": 1, "todo": "Patch the retry loop"},'
         ' {"depth": 1, "item": "widget:off-release"},'
-        ' {"depth": 1, "title": "Write the release note", "state": "open"}]',
+        ' {"depth": 1, "todo": "Write the release note"}]',
     )
-    wait_until_ready(page, PageClient(served_page.get().address).state())
+    _, reproduce, patch, _, _ = json.loads(made.stdout.strip().splitlines()[-1])[
+        "steps"
+    ]
+    as_agent(
+        "task",
+        "end",
+        reproduce["item"],
+        "done",
+        "--text",
+        "Reproduced in tests/test_resend.py",
+    )
+    as_agent(
+        "task",
+        "start",
+        patch["item"],
+        "--text",
+        "Backing off the resend on a stalled socket",
+    )
+    wait_until_ready(page, PageClient(served.address).state())
     on_agent(page)
-    page.locator(".lf-fp-plan-head").click()
     expect(page.locator(".lf-fp-plan")).to_be_visible()
 
 
@@ -3392,7 +3412,7 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("panel-new-reply", "ship-review", panel_new_reply, region=".lf-fp-opened"),
-    State("plan-head", "ship-review", plan_head, region=PANEL),
+    State("on-agent-plan", "ship-review", on_agent_plan, region=PANEL),
     State(
         "playground-choice",
         "notification-playground",

@@ -279,17 +279,17 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             # Two tabs writing one draft keep the first write, so the other tab
             # writes over the composing words only once it has heard them.
             other.evaluate(
-                "async () => { window.loadDraft = (await window.__lfWidgetApi()).loadDraft; }"
+                "async () => { window.draft = (await window.__lfWidgetApi()).draft; }"
             )
             other.wait_for_function(
-                "parent => window.loadDraft('reply:' + parent)?.text === 'Composing'",
+                "parent => window.draft('reply:' + parent).read()?.text === 'Composing'",
                 arg=parent,
             )
         # The other tab's words reach this one through the page's server.
         other.evaluate(
             """async parent => {
-              const {saveDraft} = await window.__lfWidgetApi();
-              saveDraft('reply:' + parent, 'First line');
+              const {draft} = await window.__lfWidgetApi();
+              draft('reply:' + parent).save('First line');
             }""",
             parent,
         )

@@ -86,16 +86,19 @@ lf-event::before {
   font-weight: 600;
   white-space: nowrap;
 }
+/* The axis's ticks and gridlines (`timeAxis`, runtime/lib/time-axis.js) each stand in
+   a box as wide as the axis: the ticks in the ruler, and the gridlines in a layer
+   from the ruler's foot down every lane and run, as the playhead's is. */
 .lf-timeline-ruler {
   grid-row: 1;
   grid-column: 2;
+  position: relative;
 }
-/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
-   every lane and run, as the playhead does. */
 .lf-timeline-grid {
   grid-row: 2 / -1;
   grid-column: 2;
   position: relative;
+  pointer-events: none;
 }
 .lf-timeline-lane {
   grid-column: 2;

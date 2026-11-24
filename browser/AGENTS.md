@@ -761,7 +761,7 @@ block names what a package answers with the browser's own call instead.
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
 | Holding what the reader reads across a module's own change that hides it                              | `user-place.js` `holdPlace`                                                            |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
-| Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
+| Whether a press is a plain primary-button press with no modifier                                      | `lib/keys.js` `plainPress`                                                             |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                        |
 | Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                            |

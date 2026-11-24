@@ -296,6 +296,7 @@ _DECLARED = "each widget's declaration means one thing to every part of Leaf"
 _CAPTURED = "each revision draws every file it names, the same wherever it is shown"
 _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
+_STANDS = "each step of the agent's plan reads where its work stands"
 _PUBLISHES = "a reply reaches the user with the page edits saved before it"
 _PASSAGE = "each comment anchors to the one passage its quote or id names"
 _RESERVED = "each update gets one answer, from the writer that reserved it"
@@ -409,6 +410,20 @@ def _drawn_height(at: str, v: dict) -> str:
     )
 
 
+def _scroll_mark(v: dict) -> str:
+    """What scrolls a box sideways, for whoever wrote the box: the page's markup names
+    its own boxes `class="lf-scroll"`, and a module marks a box it builds
+    `data-lf-scroll`, with the overflow in its package's CSS
+    (`module-scroll-and-motion.md`). `built` says the page's source didn't write it."""
+    if v.get("built"):
+        return (
+            "with data-lf-scroll on it in the widget's module and overflow-x: auto in"
+            " its package's CSS, since the page's markup can't reach a box the module"
+            " builds"
+        )
+    return 'with overflow-x: auto and class="lf-scroll"'
+
+
 def _clipped_content(at: str, v: dict) -> str:
     cuts = []
     if v["down"]:
@@ -419,7 +434,7 @@ def _clipped_content(at: str, v: dict) -> str:
     if v["across"]:
         cuts.append(
             f"{v['across']}px of it past its width — let it wrap, or scroll it"
-            ' sideways with overflow-x: auto and class="lf-scroll"'
+            f" sideways {_scroll_mark(v)}"
         )
     return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
 
@@ -863,8 +878,8 @@ _TEXT = {
             else ""
         )
         + 'to give it more room, mark it data-width="wide" or "available" rather than'
-        " sizing it past the column, or scroll it sideways in a box of its own with"
-        ' overflow-x: auto and class="lf-scroll"'
+        " sizing it past the column, or scroll it sideways in a box of its own"
+        f" {_scroll_mark(v)}"
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — to widen"
@@ -1820,7 +1835,17 @@ _TEXT = {
     ),
     "answering-part": _declared(
         lambda v: _answering(
-            v, "folds on a part rather than the widget, so its condition needs `empty`"
+            v,
+            "folds on a part rather than the widget, so its condition needs"
+            " `empty` or `every`",
+        )
+    ),
+    "answering-every": _declared(
+        lambda v: _answering(
+            v,
+            f"requires every <{v['member']}>, but `every` needs a verb kept per"
+            " member with no position record and no `empty` beside it, and a"
+            " member that lists this widget in `owners` and requires `id`",
         )
     ),
     "answering-position": _declared(
@@ -2243,9 +2268,15 @@ _TEXT = {
     "unknown-plan-item": _refuses(
         _NAMES,
         lambda at, v: (
-            f"{v['item']!r} names no to-do or obligation on this page; name an id `leaf task"
-            " open` printed or an obligation id from `leaf page state`, or write a plain step"
-            " with a title and state"
+            f"{v['item']!r} names no to-do or obligation on this page; name an id from"
+            " `leaf page state`, or write a new step as a `todo` with its title"
+        ),
+    ),
+    "plan-empty-heading": _refuses(
+        _STANDS,
+        lambda at, v: (
+            f"plan heading {v['title']!r} has no step under it; write a step of work"
+            " as a `todo` with its title, or put steps one level below the heading"
         ),
     ),
     "unowed-start": _refuses(

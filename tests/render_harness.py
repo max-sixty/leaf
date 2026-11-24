@@ -1450,11 +1450,11 @@ def stored_draft_text(page, ctx: str) -> str | None:
 
 def heard_draft(page, ctx: str, text: str | None) -> None:
     """Wait until this tab holds `text` as the words of the draft at `ctx`, None for
-    none: until it has heard another tab's write or send there (`loadDraft`)."""
-    load = page.evaluate_handle("async () => (await window.__lfWidgetApi()).loadDraft")
+    none: until it has heard another tab's write or send there (`draft`)."""
+    draft = page.evaluate_handle("async () => (await window.__lfWidgetApi()).draft")
     page.wait_for_function(
-        "([load, ctx, text]) => (load(ctx)?.text ?? null) === text",
-        arg=[load, ctx, text],
+        "([draft, ctx, text]) => (draft(ctx).read()?.text ?? null) === text",
+        arg=[draft, ctx, text],
     )
 
 

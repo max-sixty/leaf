@@ -1276,6 +1276,35 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
     assert turn_record_9["turn_closed"] is not None
 
 
+def test_a_claude_code_turn_run_under_a_closed_prompt_hears_its_input(claimed, capsys):
+    """Another session's message that opens a turn as a Stop ends runs under the
+    prompt of the turn before it (Claude Code 2.1.330), whose turn Leaf holds closed.
+    Its tool boundaries and the prompt hook a wake joining it runs still hand over
+    the input waiting, and its Stop closes it, each time Claude Code runs another
+    turn under that prompt."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    hook("UserPromptSubmit")
+    hook("Stop")
+    for event in ("PostToolBatch", "UserPromptSubmit"):
+        record = cleanup_model.session_record("s1")
+        assert record is not None and record["turn_closed"] is not None
+        comment = append_carried_log_record(
+            claimed, {"kind": "comment", "author": "user", "text": "which first?"}
+        )
+        assert comment["id"] in hook(event)
+        record = cleanup_model.session_record("s1")
+        assert record is not None and record["turn_closed"] is None
+        receive_through(claimed, comment["seq"])
+        hook("Stop")
+
+
 def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     claimed, capsys
 ):

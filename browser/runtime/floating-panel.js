@@ -310,7 +310,7 @@ import { focusByKey, focusKey } from "./carry.js";
 import { focusPlace, holdPlaceOf, standsAt } from "./user-place.js";
 import { onUserCount, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
+import { groupingLabel, namedIn, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
 import {
   carriesObligation,
   emptyOnList,
@@ -1990,7 +1990,6 @@ export function createFloatingPanel({
    *   onPageSeat: boolean,
    *   openItem: string | null,
    *   seatHeights: Map<string, number>,
-   *   planShown: boolean,
    *   menuSeats: { key: string, draw: (gone: boolean) => unknown }[] | null,
    *   menuLines: { summary: number, explain: number } | null,
    * }} Opening
@@ -2006,7 +2005,6 @@ export function createFloatingPanel({
     onPageSeat: false,
     openItem: null,
     seatHeights: new Map(),
-    planShown: false,
     menuSeats: null,
     menuLines: null,
   });
@@ -3847,20 +3845,21 @@ export function createFloatingPanel({
   // fits more items and hides every answer behind a press.
   //
   // On <agent> is the agent's work list: in hand, queued and done, a line each with its
-  // stage and age, the plan's progress at the view's foot disclosing its steps. The
-  // user chose this over saying how much in the status alone and over a
-  // trace of the turn, which needs facts the served state lacks. A chooser shows it as
-  // this List or as a Summary in sentences: the user chose a menu of layouts for now,
-  // to live with several before settling one, against their rule that a layout is not
-  // picked from a menu.
+  // stage and age. The user chose this over saying how much in the status alone and
+  // over a trace of the turn, which needs facts the served state lacks. While the
+  // agent has a plan, its goals and steps head the list, and the list under them holds
+  // only what no step names, so each item stands once. The plan stands there without
+  // a press: behind one, as a disclosure at the view's foot, a returning user saw only
+  // its count. A chooser shows the work as this List or as a Summary in sentences: the
+  // user chose a menu of layouts for now, to live with several before settling one,
+  // against their rule that a layout is not picked from a menu.
   //
   // The opening keeps the item standing open, by its key (`openItem`), and the height
   // each card first stood at, which it keeps while open, so an answer that shortens it
-  // moves nothing below (`seatHeights`); and whether the plan's steps stand over On
-  // <agent>'s list (`planShown`). The items On Me seats, and what each card carries,
-  // stay out of it: a view opened over On clears them, and On Me fading out under that
-  // view seats again what still waits on the user, so going back to On keeps those in
-  // their seats, one answered in that view included.
+  // moves nothing below (`seatHeights`). The items On Me seats, and what each card
+  // carries, stay out of it: a view opened over On clears them, and On Me fading out
+  // under that view seats again what still waits on the user, so going back to On
+  // keeps those in their seats, one answered in that view included.
   /** @type {"you" | "agent"} */
   let queueTab = "you";
   /** @type {PanelQueueItem[] | null} */
@@ -3883,10 +3882,10 @@ export function createFloatingPanel({
     fromTop = true;
     return true;
   };
-  // A press that changes what the list shows, a tab, a grouping, a layout or the plan
-  // disclosed over it, shows it from its top, where the plan and the first group
-  // stand, rather than where the view stood scrolled in what it showed before, which
-  // scroll anchoring would otherwise keep in view.
+  // A press that changes what the list shows, a tab, a grouping or a layout, shows it
+  // from its top, where the plan and the first group stand, rather than where the view
+  // stood scrolled in what it showed before, which scroll anchoring would otherwise
+  // keep in view.
   let fromTop = false;
   function showFromTop() {
     if (!fromTop) return;
@@ -4085,7 +4084,11 @@ export function createFloatingPanel({
           ? html`<span class="lf-fp-running"
               >${voiced(agentSays(step.running.text))}</span
             >`
-          : nothing
+          : step.detail
+            ? html`<span class="lf-fp-plan-detail"
+                >${voiced(agentSays(step.detail))}</span
+              >`
+            : nothing
       }${
         step.steps.length
           ? html`<ol class="lf-fp-plan-steps">
@@ -4095,41 +4098,27 @@ export function createFloatingPanel({
       }
     </li>`;
   }
-  const planCards = () =>
-    (readPlan()?.steps ?? []).map(
-      (goal) =>
-        html`<section class="lf-fp-plan">
-          <h3 class="lf-fp-plan-goal">
-            <span>${goal.title ?? ""}</span
-            ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
-          </h3>
-          <ol class="lf-fp-plan-steps">
-            ${goal.steps.map(planStep)}
-          </ol>
-        </section>`,
+  // Each goal of the plan: a heading over its steps, with how many are done, or a
+  // to-do or obligation at the top, drawn as a step is, its own steps under it.
+  /** @param {readonly import("../types/contract.js").ServedPlanStep[]} goals */
+  const planCards = (goals) =>
+    goals.map((goal) =>
+      goal.item
+        ? html`<section class="lf-fp-plan">
+            <ol class="lf-fp-plan-steps">
+              ${planStep(goal)}
+            </ol>
+          </section>`
+        : html`<section class="lf-fp-plan">
+            <h3 class="lf-fp-plan-goal">
+              <span>${goal.title ?? ""}</span
+              ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
+            </h3>
+            <ol class="lf-fp-plan-steps">
+              ${goal.steps.map(planStep)}
+            </ol>
+          </section>`,
     );
-  // The plan's head at On <agent>'s foot: how far it has come, which discloses its
-  // steps over the list. It stands among the controls, which hold still as the view
-  // grows from its top edge, so the press moves nothing under the pointer.
-  /** @param {{done: number, total: number}} progress */
-  const planHead = ({ done, total }) =>
-    html`<button
-      type="button"
-      ${offeredAction("word", "lf-fp-plan-head")}
-      aria-expanded=${String(opening.planShown)}
-      @click=${() => {
-        opening.planShown = !opening.planShown;
-        refit();
-        fromTop = opening.planShown;
-        paint();
-      }}
-    >
-      Plan ${done} of ${total}<span
-        class="lf-fp-plan-bar"
-        style=${`--lf-fp-plan-done: ${total ? (100 * done) / total : 0}%`}
-      ></span>
-    </button>`;
-
   // ---------- an item's line, and its card ----------
   // What the agent's list calls an item: a to-do, or the reply or answer it owes.
   /** @typedef {ReturnType<typeof readQueues>["on_user"][number] | ReturnType<typeof readQueues>["done"][number]} PanelQueueItem */
@@ -4763,34 +4752,37 @@ export function createFloatingPanel({
       ),
     )}`;
   }
-  // On <agent>: the plan's steps while its head discloses them, then the work as the
-  // user chose to see it, a list or a summary. Its groups are states, not places: what
-  // the agent has in hand, what is up next, and what it finished, folded under Done.
+  // On <agent>: the work as the user chose to see it, a list or a summary. The list's
+  // groups are states, not places: what the agent has in hand, what is up next, and
+  // what it finished, folded under Done. While the agent has a plan, its goals head
+  // the list, which then holds only the items no step names.
   /** @param {ReturnType<typeof queueLists>} lists */
   function workView(lists) {
-    const held = lists.agent.filter((item) => inHand(item.obligation));
-    const queued = lists.agent.filter((item) => !inHand(item.obligation));
+    /** @param {ReturnType<typeof queueLists>["agent"]} items */
+    const held = (items) => items.filter((item) => inHand(item.obligation));
+    /** @param {ReturnType<typeof queueLists>["agent"]} items */
+    const queued = (items) => items.filter((item) => !inHand(item.obligation));
+    if (layoutOf() === "summary") {
+      forgetOpened([]);
+      return workSummary(held(lists.agent), queued(lists.agent), lists.done);
+    }
+    const goals = readPlan()?.steps ?? [];
+    const named = new Set(goals.flatMap(namedIn));
+    const agent = lists.agent.filter((item) => !named.has(item.id));
+    const done = lists.done.filter((item) => !named.has(item.id));
     const groups = [
-      { key: "in-hand", title: "In hand", items: held },
-      { key: "queued", title: "Up next", items: queued },
-      { key: "done:agent", title: "Done", items: lists.done, folds: true },
+      { key: "in-hand", title: "In hand", items: held(agent) },
+      { key: "queued", title: "Up next", items: queued(agent) },
+      { key: "done:agent", title: "Done", items: done, folds: true },
     ].filter((group) => group.items.length);
-    forgetOpened(
-      layoutOf() === "summary"
-        ? []
-        : [...lists.agent, ...(unfolded.has("done:agent") ? lists.done : [])],
-    );
-    return html`${opening.planShown ? planCards() : nothing}${
-      layoutOf() === "summary"
-        ? workSummary(held, queued, lists.done)
-        : html`${
-            held.length || queued.length
-              ? nothing
-              : html`<p class="lf-rows-empty">${emptyListText(agentName())}</p>`
-          }${groupedItems(groups, (item, group) =>
-            onItemCard(item, group.folds ? "done" : "agent"),
-          )}`
-    }`;
+    forgetOpened([...agent, ...(unfolded.has("done:agent") ? done : [])]);
+    return html`${planCards(goals)}${
+      goals.length || agent.length
+        ? nothing
+        : html`<p class="lf-rows-empty">${emptyListText(agentName())}</p>`
+    }${groupedItems(groups, (item, group) =>
+      onItemCard(item, group.folds ? "done" : "agent"),
+    )}`;
   }
   // The work said in a few sentences: how much the agent has in hand and for how long,
   // what is queued, what its newest step says, how far the plan has come, and what it
@@ -5051,8 +5043,7 @@ export function createFloatingPanel({
     };
   }
   function queueControls() {
-    const progress = queueTab === "agent" ? planProgress() : null;
-    // The view's chooser follows its tabs, with the plan's head before it on On <agent>.
+    // The view's chooser follows its tabs.
     return {
       crumb: onTabs(queueTab),
       aux:
@@ -5064,13 +5055,13 @@ export function createFloatingPanel({
               current: onMe.grouping(),
               choose: onMe.choose,
             })
-          : html`${progress ? planHead(progress) : nothing}${chooser({
+          : chooser({
               label: `Show On ${agentName()} as`,
               values: AGENT_LAYOUTS,
               name: capitalized,
               current: layoutOf(),
               choose: agentLayout.write,
-            })}`,
+            }),
     };
   }
   // A thread's parts of its head line: the place of its held news after its name, and

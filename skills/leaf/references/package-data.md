@@ -133,8 +133,7 @@ moving a card again replaces that card's position while other cards keep theirs.
 new version may change the authored markup freely; the user's decisions still apply
 over it until a `restated` event takes one back. A version takes a decision back by
 setting the boolean `restated` attribute on the element it rests on, and stamping that
-version records the retraction (the registry's `$restated`). A widget with a user verb
-whose `unit` is `"widget"` declares that attribute. The `$keys` entries in
+version records the retraction (the registry's `$restated`). The `$keys` entries in
 `browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:

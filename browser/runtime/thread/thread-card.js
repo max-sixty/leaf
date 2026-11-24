@@ -78,7 +78,6 @@
    of the floating panel's growth with it (floating-panel.js, which records it); the
    margin card takes it too, so one mechanism serves both, and that mechanism's rule at
    its end, under the user's request for one thread view (thread-preview.js). */
-import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { holdFocus, focusDestination, focused, currentLocationIn } from "../focus.js";
 import {
@@ -132,7 +131,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays, voiced, wordsText } from "../voice.js";
+import { leafSays, voiced, wordsText, REOPEN_HINT, REPLY_HINT } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { carried, growthIsSeen, shownRect } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";

@@ -24,7 +24,7 @@
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, offerAction, responseAction } from "../widget-elements.js";
-import { COMMENT_HINT } from "../words.js";
+import { COMMENT_HINT } from "../voice.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 

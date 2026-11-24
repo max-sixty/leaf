@@ -42,7 +42,7 @@ import {
   messageKey,
   turns,
 } from "./model.js";
-import { counted, excerptWords, labelWords } from "../words.js";
+import { counted, excerptWords, labelWords } from "../lib/words.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -80,7 +80,8 @@ import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById, says } from "../passages.js";
 import { designName } from "../design-readings.js";
-import { addressableWord, sectionLabel } from "../addressable-names.js";
+import { sectionLabel } from "../addressable-names.js";
+import { addressableWord } from "../lib/element-word.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";

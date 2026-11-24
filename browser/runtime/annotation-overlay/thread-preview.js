@@ -145,7 +145,7 @@ import { tick } from "../version-signal.js";
 import { afterScript } from "../rendering.js";
 import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { spokenSubject } from "../contribution-model.js";
-import { labelWords } from "../words.js";
+import { labelWords } from "../lib/words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { slotTop } from "../geometry.js";
 import {

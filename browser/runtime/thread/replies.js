@@ -39,7 +39,7 @@
    thread is still in the margin, and a hidden panel, keep their rows, since the user
    goes on there when they open again. Every view draws whichever row it holds, a
    primary reader's reply part (primary-reader.js) as a card does. */
-import { REPLY_HINT } from "../words.js";
+import { REPLY_HINT } from "../voice.js";
 import {
   captureDraftEditing,
   loadDraft,

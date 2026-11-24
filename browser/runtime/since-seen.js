@@ -71,7 +71,7 @@ import {
   showComparison,
   versionsShown,
 } from "./version.js";
-import { counted } from "./words.js";
+import { counted } from "./lib/words.js";
 
 const HANDOFF_KEY = "lf-seen-handoff";
 

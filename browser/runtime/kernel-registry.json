@@ -7,6 +7,7 @@
       "/runtime/portable-api.js",
       "/vendor/floating-ui.esm.js",
       "/runtime/lib/canvas.js",
+      "/runtime/lib/element-word.js",
       "/runtime/lib/exception.js",
       "/runtime/lib/frame-pass.js",
       "/runtime/lib/icon-paths.js",
@@ -24,7 +25,8 @@
       "/runtime/lib/syntax-tokens.js",
       "/runtime/lib/text-alignment.js",
       "/runtime/lib/text-width.js",
-      "/runtime/lib/time-axis.js"
+      "/runtime/lib/time-axis.js",
+      "/runtime/lib/words.js"
     ]
   },
   "$authored": {

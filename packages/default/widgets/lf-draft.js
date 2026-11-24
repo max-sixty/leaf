@@ -71,7 +71,6 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
-  addressableWord,
   commandScope,
   motion,
   returnDuration,
@@ -95,6 +94,7 @@ import {
   worksInside,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import {
   paintMarkdown,

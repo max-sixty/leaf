@@ -63,7 +63,7 @@ import { commandSteps } from "./keyboard/control-keys.js";
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
 import { loadDraft } from "./drafts.js";
-import { excerptWords } from "./words.js";
+import { excerptWords } from "./lib/words.js";
 import { threadHeading } from "./thread/messages.js";
 import { isHTML } from "./lib/shadow-tree.js";
 import { voiced, wordsText } from "./voice.js";

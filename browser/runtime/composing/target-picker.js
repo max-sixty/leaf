@@ -4,7 +4,7 @@ import { selectEnds } from "../native-selection.js";
 import { anchoringIsReady, captured } from "../anchor-resolution.js";
 import { bindings, cycledRow, hasRows } from "../keyboard/bindings.js";
 import { saying } from "../keyboard/control-keys.js";
-import { counted } from "../words.js";
+import { counted } from "../lib/words.js";
 import { el, offerAction, searchField } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { html, nothing, render, signal } from "/runtime/framework.js";

@@ -39,7 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
-import { labelWords } from "../words.js";
+import { labelWords } from "../lib/words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,

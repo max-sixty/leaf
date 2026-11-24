@@ -601,7 +601,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page.evaluate(RELEASE_FOCUS)
     fallback = page.evaluate(
         """async () => {
-          const {beginWalk} = await window.__lfWidgetApi();
+          const {beginWalk} = await window.__lfCheckApi();
           return beginWalk('thread', 'Thread', () => null) ?? 'Thread 1 of 1';
         }"""
     )

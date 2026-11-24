@@ -28,8 +28,9 @@ come back the same leave the preview as it is. It returns:
 - `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
-  lists presses the register can't see, each as the steps its chips draw, as a control's
-  own activation keys a drag grip names. `detail` is lines under the name, each words or
+  lists presses the register can't see, each a binding spelled as a command row's
+  `keys` are (`module-input.md`, "Command rows"), which Leaf draws as key chips, as a
+  control's own activation keys a drag grip names. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
   declaring element by default: another element, as a message stands its preview by
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as

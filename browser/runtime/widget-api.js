@@ -75,8 +75,6 @@ export { turns as threadTurns } from "./thread/model.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { labelOf } from "./keyboard/bindings.js";
-export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
 export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";

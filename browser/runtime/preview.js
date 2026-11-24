@@ -30,7 +30,9 @@
      and left as they are where they come back the same: `{name, keys, detail, list,
      at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
-     accessible name where that says more than the face should; `at` is where to stand,
+     accessible name where that says more than the face should; `keys` are presses the
+     register can't see, as bindings, which the face spells as it spells the control's
+     own (`lines`); `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `about` is what it
      is about, which it leaves in view as it does the box it stands by, as a margin
@@ -306,7 +308,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { drawnKeys } from "./keyboard/command-hints.js";
-import { advertisesKeys } from "./keyboard/bindings.js";
+import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
@@ -350,7 +352,7 @@ import { anchorBox } from "./css-anchors.js";
  * @typedef {readonly (readonly string[])[]} Presses
  * @typedef {Words | null | undefined | false} Line
  * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
+ * @typedef {{name?: Words | null, keys?: readonly string[], detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
@@ -851,10 +853,10 @@ function lines(declared, own) {
   const keys = advertisesKeys()
     ? [
         ...new Map(
-          [...(declared?.keys ?? []), ...(own.keys ?? [])].map((steps) => [
-            steps.join(" "),
-            steps,
-          ]),
+          [
+            ...(declared?.keys ?? []).map((binding) => [spell(binding)]),
+            ...(own.keys ?? []),
+          ].map((steps) => [steps.join(" "), steps]),
         ).values(),
       ]
     : [];

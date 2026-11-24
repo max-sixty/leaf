@@ -15,6 +15,7 @@ import {
   watchCommandScopes,
 } from "../../browser/runtime/keyboard/scopes.js";
 import { saying } from "../../browser/runtime/keyboard/control-keys.js";
+import { liveEl } from "../../browser/runtime/notifications.js";
 import {
   activeRows,
   commandAvailable,
@@ -2476,6 +2477,14 @@ test("a key is named beside a row only while its press would run the row", (t) =
   inner.focus();
   assert.equal(saying(rows), "Escape cancel, w or q leave");
   assert.equal(activeCommandBinding(["fixture.top"]), null);
+  // A widget's announcement that gives the rows is heard with the same keys after its
+  // words, read as the words are said.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  window.dispatchEvent(
+    new CustomEvent("lf-announce", { detail: { words: "Card grabbed", keys: rows } }),
+  );
+  t.mock.timers.runAll();
+  assert.equal(liveEl.textContent, "Card grabbed — Escape cancel, w or q leave");
 });
 
 test("an announced scope says no key on a touchscreen", (t) => {

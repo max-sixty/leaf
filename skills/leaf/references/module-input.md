@@ -153,9 +153,10 @@ A disclosure needs no row. On every `details > summary` and every button with
 arrow that opens or closes it, and lists the press in the command reference as open or
 close. In a thread's message only Enter and Space work one. The library names the keys
 that press a button and the arrows along a row in its text direction
-(`module-authoring.md`, "Shared web code"). `labelOf(row)` is a row's key text for a
-tooltip; `saying(rows)` names, for an announcement, the keys that would run the rows
-now.
+(`module-authoring.md`, "Shared web code"). Leaf spells and says keys itself: a
+preview draws a press the register can't see from its binding (`module-previews.md`),
+and an announcement names the keys of the rows it is given
+(`module-scroll-and-motion.md`, "Notices and spoken words").
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
 the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as
@@ -194,13 +195,30 @@ runs after a move, and `scroll: false` keeps the page still.
 A row whose press carries the user along a list of its own declares `lands(from)`
 ("Command rows") rather than moving focus in its `run`.
 
-A widget that steps through something itself, such as a diff's hunks, calls
-`beginWalk(key, noun, read, {list})` at each step and announces what it returns, such
-as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usually
-from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
-such as a chart's points or a tab strip, gives `list()`, its first and last stops;
-Leaf's panel then says nothing while both stand in view, since the focus ring shows
-where the step landed.
+A widget that steps through something itself, such as a diff's hunks, says where each
+step landed with a bubbling, composed `lf-walk` event on the stop. The step's `run`
+dispatches it, before or after focus moves to the stop:
+
+```javascript
+hunk.dispatchEvent(
+  new CustomEvent("lf-walk", {
+    bubbles: true,
+    composed: true,
+    detail: { noun: "Hunk", position: 3, total: 7, list: [firstHunk, lastHunk] },
+  }),
+);
+```
+
+`noun` names one stop, and `position` counts from 1. Leaf's panel says the place,
+`Hunk 3 of 7`, for a few seconds after the step. `list` gives the elements of the
+list's first and last stops. At a step taken while both stand in view the panel says
+nothing, since the focus ring shows where the step landed among stops the user sees;
+without `list` it says every step. The place goes sooner if the element it was said on
+leaves the page, as when a redraw replaces it, so a widget whose stops are not elements
+of their own dispatches on the part of its drawing that holds the stop. The panel
+shows the place and says nothing aloud: the widget announces it, with what else a
+listener should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken
+words"). Off Leaf, nothing hears the event.
 
 ### Go-to targets
 

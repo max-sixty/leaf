@@ -90,13 +90,11 @@ import {
   agentName,
   answerWords,
   backgroundFlash,
-  beginWalk,
   capturePlace,
   comparisonChanges,
   claimTraversals,
   compoundReadingRegionId,
   keepView,
-  listWalkPosition,
   whileConnected,
   openingView,
   viewMembers,
@@ -263,9 +261,19 @@ export class TabSet extends LeafElement {
       focusDestination(next, "move");
       next.click();
       queueMicrotask(() => this.#showTab(next, null));
-      beginWalk("tab", "Tab", () => listWalkPosition(tabs(), here()), {
-        list: () => [tabs()[0], tabs().at(-1)],
-      });
+      const all = tabs();
+      next.dispatchEvent(
+        new CustomEvent("lf-walk", {
+          bubbles: true,
+          composed: true,
+          detail: {
+            noun: "Tab",
+            position: all.indexOf(next) + 1,
+            total: all.length,
+            list: [all[0], all.at(-1)],
+          },
+        }),
+      );
     };
     // Across the row, back is the way the names run from.
     const arrows = rowArrows(this);

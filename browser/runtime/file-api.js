@@ -63,7 +63,8 @@ export function boundFile(binding) {
     },
     // Resolves the saved file, or a refusal in the server's own words, which wrote
     // nothing, with the newer file where the file had moved on from `revision`. It
-    // rejects only where no such answer came, when the save may have reached the file.
+    // rejects where the page can't write, and where no such answer came, when the save
+    // may have reached the file.
     /** @param {Pick<import("../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
      * @returns {Promise<import("../types/contract.js").ServedFileSnapshot | {refused: string, current: import("../types/contract.js").ServedFileSnapshot | null}>} */
     save: async (snapshot) => {

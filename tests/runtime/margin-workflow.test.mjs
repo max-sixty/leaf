@@ -75,8 +75,10 @@ test("an entry draws the receipts it is given and keeps those a seat painted", (
   presentContributionEntry(control, entry);
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
   assert.equal(control.getAttribute("data-lf-turn"), "user");
-  presentContributionEntry(control, entry, { receipt: null, awaitsUser: false });
+  presentContributionEntry(control, entry, { receipt: null });
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
+  assert.equal(control.getAttribute("data-lf-turn"), "user");
+  presentContributionEntry(control, entry, { awaitsUser: false });
   assert.equal(control.hasAttribute("data-lf-turn"), false);
 });
 

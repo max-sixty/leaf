@@ -256,7 +256,9 @@ writes only if the file is still at `revision`, and resolves the saved
 `{label, text, revision}`. Where the server refuses the save, which then wrote nothing,
 it resolves `{refused, current}` instead: `refused` is the server's reason, and
 `current` the newer file where the file was no longer at `revision`, else `null`. It
-rejects only where no answer came, when the save may have reached the file. `watch(callback)` calls
+rejects where the page isn't `writable`, and where no reason from the server came, as
+when the request went unanswered or a proxy answered in the server's place; then the
+save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`

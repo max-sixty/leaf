@@ -116,8 +116,9 @@ export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
-// `whenNear` for the reader to near a node, then each starts the work, or hands back
-// work the widget has already started.
+// `whenNear` for the reader to near a node, then each runs its callback. A callback
+// may return work the widget has already started, which `afterPresentation` counts
+// from its call.
 export {
   afterPresentation,
   whenNear,

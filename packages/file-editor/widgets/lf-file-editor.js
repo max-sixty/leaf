@@ -843,10 +843,11 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
+          const first = opening;
           this.dispatchEvent(
-            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+            new PendingTaskEvent(Promise.race([first, waited.promise])),
           );
-          void afterPresentation(() => opening);
+          void afterPresentation(() => first);
           initial = false;
         }
         watch();

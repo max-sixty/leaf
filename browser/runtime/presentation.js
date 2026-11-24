@@ -45,15 +45,15 @@
    widget keeps work off the presentation path without the page counting it.
    `afterPresentation` is the wait and the declaration together, for work the widget
    earns the right to start only once the user has the page, or work already running
-   that presentation need not wait for, which the widget hands back as its `work`: the
-   page presents without it, and `arrived` waits for it, counted from the call either
-   way. `whenNear` is the same for work it earns only once the reader comes near the
+   that presentation need not wait for, which its `work` callback returns: the page
+   presents without it, and `arrived` waits for it, counted from the call either way.
+   `whenNear` is the same for work it earns only once the reader comes near the
    node, such as a live sample's child page: the page counts the browser's first
    reading of the node, so a reader of its final boxes waits for whatever that reading
    starts, and a check that reads every document the page can show starts the rest
    (`startNearWork`), in each live sample's child too. Neither hands a package the bare
-   `presented` wait. `deferredArrival` is the declaration alone, which the runtime's own
-   owners use for work they have started. */
+   `presented` wait. `deferredArrival` is the declaration alone, which both routes
+   make and the runtime's own owners make for work they have started. */
 
 import { whileConnected } from "./arrivals.js";
 import { applicationPresented } from "./semantic-state.js";

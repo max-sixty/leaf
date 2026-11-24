@@ -91,12 +91,14 @@ as `setRenderedChildren` does for a subtree the module renders whole
 the one anchoring holds loses the place. Where a change
 hides what the reader is reading, as folding it does, anchoring can't hold it: read
 `const hold = holdPlace(column, standIn)` before the change and call `hold()` after
-it, in the same task. Leaf reads what stands at the reading line, a quarter of the
-way down the window, in the middle of `column`, the box the change is made in, and
-`hold()` puts it back where it stood. Where the change hid or removed it, `hold()`
-calls `standIn(node)` with the element it held and lands the node that returns there
-instead, as a section's gist stands for a paragraph folded behind it. The change
-itself scrolls nothing.
+it, in the same task. Leaf reads the words at the reading line, a quarter of the way
+down the window, in the middle of `column`, the box the change is made in, and
+`hold()` puts them back where they stood. Where the change hid or removed them,
+`hold()` calls `standIn(node)` with the element that held them, and the node that
+returns lands where what the change hid began, as a section's gist lands where a
+paragraph folded behind it stood. `node` stands in `column`'s own tree: for words a
+widget drew in its shadow tree, it is that widget. The change itself scrolls
+nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with

@@ -16,7 +16,12 @@ import test from "node:test";
 import { recentPlaceInput } from "/runtime/focus.js";
 import { pointerAt } from "/runtime/pointer.js";
 import { glideTo, startScroll, stopGlide } from "/runtime/scrolling.js";
-import { focusPlace, holdPlaceOf, holdUserPlace } from "/runtime/user-place.js";
+import {
+  focusPlace,
+  holdPlace,
+  holdPlaceOf,
+  holdUserPlace,
+} from "/runtime/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
@@ -398,4 +403,71 @@ test("a block folded until found holds its stand-in, though it keeps a box", () 
   hold();
   assert.equal(scrolled(), 980);
   scroller.remove();
+});
+
+// What stands at the reading line, as the platform answers for the point: an element
+// that holds no words.
+/** @param {Element | null} node */
+function readAt(node) {
+  document.elementFromPoint = () => node;
+  document.caretPositionFromPoint = () => null;
+}
+
+test("a module's hold lands the stand-in where the block its change hid began", () => {
+  const { scroller, item, scrolled, scrollTo } = laidOut();
+  const [gist, folded, line] = [
+    item("gist", 1000),
+    item("folded", 1100, 300),
+    item("line", 1250, 20),
+  ];
+  folded.append(line);
+  scroller.append(gist, folded);
+  /** @param {Element} node */
+  const standIn = (node) => (folded.contains(node) ? gist : null);
+  // The block began 40px down the window, with the line read 150px inside it.
+  scrollTo(1060);
+  readAt(line);
+  const hold = holdPlace(scroller, standIn);
+  folded.style.display = "none";
+  hold();
+  assert.equal(gist.getBoundingClientRect().top, 40);
+  // A block that began above the window: the stand-in lands where the line stood.
+  folded.style.display = "";
+  scrollTo(1200);
+  const begun = holdPlace(scroller, standIn);
+  folded.style.display = "none";
+  begun();
+  assert.equal(gist.getBoundingClientRect().top, 50);
+  assert.equal(scrolled(), 950);
+  scroller.remove();
+  readAt(null);
+});
+
+test("with no stand-in, a module's hold keeps the nearest box left drawn that showed its top", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const [above, disclosure, line] = [
+    item("above", 1000),
+    item("disclosure", 1100, 300),
+    item("line", 1250, 20),
+  ];
+  disclosure.append(line);
+  scroller.append(above, disclosure);
+  scrollTo(1060);
+  readAt(line);
+  const hold = holdPlace(scroller);
+  // The change closes the disclosure over the line, and what stands above it grows by
+  // 60px, which the browser's anchoring paid for none of.
+  line.style.display = "none";
+  at.set(disclosure, 1160);
+  hold();
+  assert.equal(disclosure.getBoundingClientRect().top, 40);
+  assert.equal(scrolled(), 1120);
+  // The line still drawn goes back itself.
+  line.style.display = "";
+  const still = holdPlace(scroller);
+  at.set(line, 1330);
+  still();
+  assert.equal(line.getBoundingClientRect().top, 130);
+  scroller.remove();
+  readAt(null);
 });

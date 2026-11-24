@@ -666,9 +666,10 @@ follow the browser's focus visibility. `geometry.js` decides whether the user ca
 box (`seenRect`), because Leaf's chrome covers the page without clipping it: each
 surface fixed over the page declares the one box it covers (`declareCover`), and a box
 is in front of the user where no scroller clips it and no such box covers it.
-`user-place.js` holds the user's place across one change (`holdPlaceOf`), because scroll
-anchoring holds the first box on screen: it can't keep still a control below growth
-on screen, the reading line below growth inside that box, or a place the change hides.
+`user-place.js` holds the user's place across one change (`holdPlaceOf`, and `holdPlace`
+around a module's own), because scroll anchoring holds the first box on screen: it
+can't keep still a control below growth on screen, the reading line below growth inside
+that box, or a place the change hides.
 
 ### One writer for each fact
 
@@ -757,7 +758,8 @@ block names what a package answers with the browser's own call instead.
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                                |
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                           |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                                  |
-| What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlaceOf`, `holdPlace`                                |
+| What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
+| Holding what the reader reads across a module's own change that hides it                              | `user-place.js` `holdPlace`                                                            |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |

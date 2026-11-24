@@ -189,7 +189,9 @@
   // as a live sample is, has the API with no entries and fires only `popstate`. The
   // Navigation API says whether the browser's own controls took the step
   // (`userInitiated`), rather than the page's script; `popstate` can't, so its step is
-  // taken as the user's. Firefox says no for every step it was measured on.
+  // taken as the user's. Firefox reports no step as the user's, the browser's own Back
+  // included (Gecko bug 1903552), so there a held run outlives the user's step and its
+  // keys run at the entry the step reached.
   /** @param {boolean} user */
   const step = (user) => {
     inputs++;

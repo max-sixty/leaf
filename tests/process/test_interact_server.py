@@ -92,6 +92,7 @@ from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import rows as rows_model
 from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -2860,7 +2861,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     publisher.refresh()
     activity = activity_reading(neighbor)
     assert activity["detail_source"] is not None
-    expected = server_rows_model.compact_activity(activity)
+    expected = rows_model.compact_activity(activity)
     reads = []
     read = server_model.SERVICE.read
 
@@ -2930,7 +2931,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         )
         presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
-    changed = server_rows_model.row_path(neighbor)
+    changed = rows_model.row_path(neighbor)
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}

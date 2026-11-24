@@ -566,10 +566,12 @@
     // A document that goes while the tab still keeps the handoff, its arrival not yet
     // having put the user back (version.js, `installArrival`), as when a second reload
     // Leaf asks for comes first, leaves its held keys with that handoff, so the next
-    // document holds them for the same place rather than losing words typed for it.
+    // document holds them for the same place rather than losing words typed for it. It
+    // leaves the queue as it stands, empty too: a key the run pressed, or one the user
+    // let go of, as by a press or Escape (`letGo`), is no longer held for that place.
     if (handedBack)
       addEventListener("pagehide", () => {
-        if (!held.length || !window.lfStorage.handoffKept()) return;
+        if (!window.lfStorage.handoffKept()) return;
         window.lfStorage.handOff({
           ...handoff,
           keys: held.map(

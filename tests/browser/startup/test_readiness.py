@@ -2,7 +2,9 @@
 wait for it, and the readable page a startup fault leaves."""
 
 import itertools
+import json
 import re
+from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_carried_log_record, append_command, wait_for
@@ -593,54 +595,65 @@ def restart_under_another_runtime(page, serve, answer=None):
     page.unroute("**/registry.json")
 
 
-# The page interface of the first document an init script runs in, the one the first
-# reload brings, never settles (`reload_twice`).
-HOLD_SECOND_INTERFACE = """(() => {
+# The page interfaces of the documents the reloads bring, numbered from the first
+# reload's, that never settle (`reload_in_a_row`).
+HOLD_INTERFACES = """((held) => {
   const loads = Number(sessionStorage.getItem("test-loads") || 0) + 1;
   sessionStorage.setItem("test-loads", String(loads));
-  if (loads === 1)
+  if (held.includes(loads))
     document.addEventListener("lf-page-interface", (event) =>
       event.detail.present(new Promise(() => {})),
     );
-})()"""
+})(%s)"""
 
 
-def reload_twice(page, serve, between=None, slow=False):
-    """Two reloads Leaf asks for in a row: the tab's server restarted under another
-    Leaf (`answer_as_another_runtime`), and so did the server the document that reload
-    brings first hears from, so that document reloads too, while its arrival still
-    waits for its first answer and so before it has put the user back. `between` runs
-    while that document waits. With `slow`, that document's page interface never
+def reload_in_a_row(page, serve, waits, slow=()):
+    """Reloads Leaf asks for in a row: the tab's server restarted under another Leaf
+    (`answer_as_another_runtime`), and so did the server each of the documents the
+    first reloads bring first hears from, so each reloads too, while its arrival still
+    waits for its first answer and so before it has put the user back. `waits` runs
+    one step in each of those documents while it waits, so there is one reload more
+    than steps. `slow` numbers those documents, from 1, whose page interface never
     settles (presentation.js, `settlePageInterface`), as a widget slow to upgrade holds
-    it, so its anchoring is not yet ready as it goes. Returns once the second reload
+    it, so their anchoring is not yet ready as they go. Returns once the last reload
     has landed."""
     if slow:
-        page.add_init_script(HOLD_SECOND_INTERFACE)
+        page.add_init_script(HOLD_INTERFACES % json.dumps(list(slow)))
     reloads = {"count": 0}
     replaced = {"documents": 0}
-    hold = {"on": True}
-    held = []
+    # The answers each document the reloads bring asks for, by its number from 1, held
+    # until it has taken its step.
+    held = {}
 
-    def navigated(frame):
-        if frame == page.main_frame:
+    # Each reload asks for a new document; a rename of the entry the page makes is no
+    # new document.
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
             replaced["documents"] += 1
 
-    def another_runtime(route):
-        if reloads["count"] >= 2:
-            route.continue_()
-            return
-        if hold["on"] and replaced["documents"] == 1 and reloads["count"] == 1:
-            held.append(route)
-            return
+    def answer(route):
         response = route.fetch()
         route.fulfill(
             response=response,
             headers={**response.headers, "Leaf-Runtime": "0123456789abcdef"},
         )
-        if route.request.url.endswith("/registry.json"):
-            reloads["count"] += 1
 
-    page.on("framenavigated", navigated)
+    # A document's probe of its source, the registry at the server's root, settles
+    # that the runtime moved on, and the document reloads; every other answer to a
+    # document still to take a step waits, its own layer's registry among them.
+    def another_runtime(route):
+        if reloads["count"] > len(waits):
+            route.continue_()
+            return
+        if urlsplit(route.request.url).path == "/registry.json":
+            answer(route)
+            reloads["count"] += 1
+        elif 1 <= replaced["documents"] == reloads["count"]:
+            held.setdefault(replaced["documents"], []).append(route)
+        else:
+            answer(route)
+
+    page.on("request", navigated)
     page.route("**/api/**", another_runtime)
     page.route("**/registry.json", another_runtime)
     with page.expect_navigation(wait_until="commit"):
@@ -648,18 +661,18 @@ def reload_twice(page, serve, between=None, slow=False):
             serve.page_dir,
             {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
         )
-    holding(page, held, 1, "the arriving document's first answer")
-    page.wait_for_function("() => document.readyState !== 'loading'")
-    if between:
-        between()
-    hold["on"] = False
-    with page.expect_navigation(wait_until="commit"):
-        while held:
-            another_runtime(held.pop(0))
+    for document, wait in enumerate(waits, start=1):
+        waiting = held.setdefault(document, [])
+        holding(page, waiting, 1, "the arriving document's first answer")
+        page.wait_for_function("() => document.readyState !== 'loading'")
+        wait()
+        with page.expect_navigation(wait_until="commit"):
+            while waiting:
+                answer(waiting.pop(0))
     wait_until_ready(page)
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
-    page.remove_listener("framenavigated", navigated)
+    page.remove_listener("request", navigated)
 
 
 def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
@@ -676,7 +689,7 @@ def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
     )
     page = open_page(browser, live_url(url))
     page.locator("#who").fill("Ada")
-    reload_twice(page, serve, slow=True)
+    reload_in_a_row(page, serve, [lambda: None], slow={1})
     expect(page.locator("#who")).to_have_value("Ada")
 
 
@@ -708,8 +721,48 @@ def test_words_typed_through_two_reloads_in_a_row_reach_the_reply(browser, serve
         ".lf-thread-reply leaf-text"
     )
     write(reply, "Hold")
-    reload_twice(page, serve, between=lambda: page.keyboard.type(" the resend"))
+    reload_in_a_row(page, serve, [lambda: page.keyboard.type(" the resend")])
     expect(reply).to_have_js_property("value", "Hold the resend")
+
+
+def test_a_key_let_go_during_an_arrival_stays_gone_across_another_reload(
+    browser, serve
+):
+    """A key typed while a reload's arrival waits rides a second reload to the next
+    document's hold. Letting it go there, as Escape does, ends it for good: a third
+    reload, coming before that document's anchoring is ready, brings it back no more
+    (bootstrap.js, `holdEarlyKeys`)."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Rehearsal</h1><p id="result">The backfill copied 310 million rows.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "id": "rows",
+            "text": "Which rows?",
+            "anchor": {"section": "result"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.locator('[data-lf-margin-for="result"] .lf-margin-marker').click()
+    reply = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-lf-thread="rows"] '
+        ".lf-thread-reply leaf-text"
+    )
+    write(reply, "Hold")
+    reload_in_a_row(
+        page,
+        serve,
+        [lambda: page.keyboard.type("x"), lambda: page.keyboard.press("Escape")],
+        slow={2},
+    )
+    expect(reply).to_have_js_property("value", "Hold")
 
 
 def test_a_tab_reloads_into_the_runtime_its_restarted_server_runs(browser, serve):

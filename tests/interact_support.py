@@ -62,7 +62,6 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
-from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
@@ -1512,8 +1511,8 @@ def trial_family(root: Path) -> None:
     """Declare the trial family in the project package at `root / ".leaf"`.
 
     Registry declarations relate its owners and slots, and each owner's module is the
-    product's starter, which renders nothing of its own: anything a test sees settle is
-    the layer's doing, and the holders' bodies are the authored words
+    wrapper's (`add_test_widget`), which renders nothing of its own: anything a test
+    sees settle is the layer's doing, and the holders' bodies are the authored words
     (`verbatim`).
     Only <lf-proposed> names two owners, for the selector case that needs one."""
     package = root / ".leaf"
@@ -2499,10 +2498,11 @@ def suggested(page_dir):
 def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     """Author one widget in a package, creating the package first if it is missing.
 
-    What a package author gets from `package init --widget`: the product's starter
-    declaration and, for an upgraded widget, its starter module, plus a framed block in
-    the theme. A test specializes the declaration in `registry.json` and rewrites the
-    module where its subject needs behavior of its own."""
+    The widget is a wrapper round authored content: its declaration
+    (`element_declaration`), a framed block in the theme and, for an upgraded widget,
+    a `LeafElement` module that draws nothing of its own. A test specializes the
+    declaration in `registry.json` and rewrites the module where its subject needs
+    behavior of its own."""
     created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
@@ -2524,8 +2524,12 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         )
     if upgrade:
         (package / "widgets").mkdir(exist_ok=True)
-        (package / "widgets" / f"{tag}.js").write_bytes(
-            packages_model.starter_widget_module(tag)
+        (package / "widgets" / f"{tag}.js").write_text(
+            'import { LeafElement } from "/runtime/lib/leaf-element.js";\n\n'
+            "customElements.define(\n"
+            f'  "{tag}",\n'
+            "  class extends LeafElement {},\n"
+            ");\n"
         )
     return declaration
 
@@ -2540,14 +2544,25 @@ def with_modules(registry: dict, *tags: str) -> dict:
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag` as a composed vocabulary holds it,
-    its defaults written in, or, without `upgrade`, the same markup block with no
-    module behind it."""
-    declaration = packages_model.starter_element_declaration(tag)
-    declaration["content"] = "markup"
-    if not upgrade:
-        del declaration["verbatim"]
-    return declaration
+    """A wrapper's declaration for `tag` as a composed vocabulary holds it, its defaults
+    written in: with `upgrade`, a block whose module keeps its authored words
+    (`verbatim`), and without, the same markup block with no module behind it."""
+    name = tag.removeprefix("lf-")
+    return {
+        "description": f"A dedicated block for {name.replace('-', ' ')} content. Use "
+        "it to keep one technical point with its supporting evidence or rationale. "
+        "Give the block a stable id.",
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        **({"verbatim": True} if upgrade else {}),
+        "example": f'<{tag} id="{name}"><p>The retry budget is three attempts '
+        f"before manual review.</p></{tag}>",
+        "content": "markup",
+    }
 
 
 class YamlDocument(str):

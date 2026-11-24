@@ -72,6 +72,11 @@ question on On Me and admits the ids its buttons mark:
 }
 ```
 
+`leaf package init --widget` writes a smaller widget of this kind to start from
+([packages.md, "Package reach"](packages.md#package-reach)). It draws from `state` and
+records with `lf-action` as this one does, under names of its own, and puts no question
+on On Me and marks no comment target.
+
 Each `lf-` event the element dispatches, and `pending-task` and `error`, bubbles and is
 composed, so Leaf hears it from inside any shadow tree. Where an entry says an event
 carries a promise, the promise is the event's `complete` property:
@@ -246,8 +251,7 @@ this.dispatchEvent(hold);
 
 A widget that draws with Lit usually extends `LeafElement`, the Lit element on this
 protocol in the library's
-[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js), as the starter that
-`leaf package init --widget` writes does. Its `render()` draws `this.state`, its Lit properties and the page readings it reads
+[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js). Its `render()` draws `this.state`, its Lit properties and the page readings it reads
 synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
 changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
 announces each update with `pending-task`, says `lf-commands` after each draw, defines

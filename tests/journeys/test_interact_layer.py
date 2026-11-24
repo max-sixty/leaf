@@ -795,7 +795,10 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    assert (package / "defaults.css").read_bytes() == theme
+    # The package keeps the rules it had, and the starter's rule follows them.
+    styles = (package / "defaults.css").read_bytes()
+    assert styles.startswith(theme.rstrip())
+    assert styles.endswith(packages_model.starter_widget_styles("lf-added-note"))
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
@@ -924,7 +927,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     installed package in place of the bundled one whose name it takes. `default`, on
     every page already, is not listed."""
     team = tmp_path / "src" / "team-charts"
-    packages_model.cmd_package_init(team, "lf-trend")
+    packages_model.cmd_package_init(team, ("lf-trend",))
     (team / "instructions").mkdir(exist_ok=True)
     (team / "instructions" / "author.md").write_text(
         "## When to select it\n\n"

@@ -1465,7 +1465,9 @@ def test_a_revision_that_replaces_a_pane_returns_the_reader_to_their_place_in_it
         "rename the left pane",
     )
     wait_for_revision(page, 2)
-    assert not replaced.evaluate("el => el.isConnected"), "the pane was patched in place"
+    assert not replaced.evaluate("el => el.isConnected"), (
+        "the pane was patched in place"
+    )
     assert page.evaluate(landmark) == pytest.approx(before, abs=2)
     assert body.evaluate("el => el.scrollTop") > 0
 

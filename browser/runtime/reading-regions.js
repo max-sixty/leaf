@@ -21,13 +21,13 @@
    the page wearing it, and `data-lf-scroll-host="<name>"` on a box around it makes that
    box the host. One watch (arrivals.js) keeps those regions registered. Every question
    asked of the registry first reads the mutations the watch has yet to deliver
-   (`readMarks`), because the questions come in the task that wrote the mark: a widget
-   builds a box and lands something in it, a tab set brackets a switch with
-   `preserveReadingRegions`, and a revision's handoff restores the reader's place in the
-   box its patch just put in. A mark heard only at the watch's delivery would be a
-   region none of them knew. A reading of the marks is one batch, which decides its
-   departures first, so a box that replaces another takes the id the other held. The
-   runtime registers its own regions directly (`registerReadingRegion`).
+   (`readMarks`), because a question can come in the task that wrote the mark: a widget
+   draws a box and shows its first subject in it (`showReadingSubject`), lands
+   something in it, or brackets its first change with `preserveReadingRegions`. A mark
+   heard only at the watch's delivery would be a region none of those knew. A reading
+   of the marks is one batch, which decides its departures first, so a box that replaces
+   another takes the id the other held. The runtime registers its own regions directly
+   (`registerReadingRegion`).
 
    A region's id has to name it in the next document too, since that is where a revision
    restores its place, so it is composed from an id the page's author gave and the

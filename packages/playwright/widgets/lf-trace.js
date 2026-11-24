@@ -2270,7 +2270,11 @@ export class Trace extends LeafElement {
         </div>
       </section>
     </div>`;
-    return html`<div class="lf-trace-body" data-lf-scroll="recording" ${ref(this.#body)}>
+    return html`<div
+      class="lf-trace-body"
+      data-lf-scroll="recording"
+      ${ref(this.#body)}
+    >
       <div
         class="lf-trace-evidence"
         @click=${{ handleEvent: (/** @type {Event} */ event) => this.#inspect(event), capture: true }}

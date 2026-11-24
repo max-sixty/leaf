@@ -73,11 +73,7 @@ import {
   aimedAt,
   nameOf,
   motion,
-  sendDraft,
-  saveDraft,
-  loadDraft,
-  clearDraft,
-  watchDraft,
+  draft,
   whileConnected,
   dressCode,
   focusDestination,
@@ -105,20 +101,6 @@ const TOOLS = [
   ["cancel", "discard"],
 ];
 
-// The store key for a draft's unsent edit. The page's port is its own origin, so
-// the id alone is unambiguous — the same scoping every composer draft relies on.
-// Presence and content are different for this widget, because deleting every character is
-// an unsent edit — and that is the shared store's own rule, so the text goes in bare and
-// the store's null is "nothing pending".
-/** @param {string} id */
-const ctx = (id) => "edit:" + id;
-/** @param {string} id @param {string} text */
-const saveEdit = (id, text) => saveDraft(ctx(id), text);
-/** @param {string} id */
-const clearEdit = (id) => clearDraft(ctx(id));
-/** @param {string} id */
-const loadEdit = (id) => loadDraft(ctx(id))?.text ?? null;
-
 // Carry a rendered caret into source; a padding press has no caret to transfer.
 /** @param {HTMLElement} body @param {number} x @param {number} y @returns {[number, number] | null} */
 function caretAt(body, x, y) {
@@ -145,6 +127,12 @@ customElements.define(
       if (typeof value !== "string")
         throw new Error("A draft reading must contain its Markdown text");
       return value;
+    }
+
+    // The unsent edit, kept under the draft's id. Deleting every character is an
+    // unsent edit too, so only a missing record means none is pending.
+    get #edit() {
+      return draft("edit:" + this.id);
     }
 
     /** @type {HTMLElement | undefined} */
@@ -268,14 +256,13 @@ customElements.define(
       // holds reopen that editor. They are not compared with the current text: this
       // first reading can precede the log's, and words walking a saved edit back to the
       // authored text are an edit all the same.
-      const pending = loadEdit(this.id);
-      if (pending !== null) this.#open(pending, undefined, false);
+      const pending = this.#edit.read();
+      if (pending) this.#open(pending.text, undefined, false);
     }
 
     #watchDraft() {
       if (this.matches("[data-lf-exhibit] *") || !this.#tools) return;
-      return watchDraft(
-        ctx(this.id),
+      return this.#edit.watch(
         (text) => {
           if (text === null) this.#close(false);
           else if (this.#editor && this.#editor.value !== text)
@@ -428,10 +415,10 @@ customElements.define(
       // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
       const effective = this.#savedText;
-      editor.value = seed ?? loadEdit(this.id) ?? effective;
+      editor.value = seed ?? this.#edit.read()?.text ?? effective;
       editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
-        saveEdit(this.id, editor.value);
+        this.#edit.save(editor.value);
         if (this.#failed) {
           this.#failed = false;
           this.#paintTools();
@@ -479,7 +466,7 @@ customElements.define(
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
           motionTime("--lf-motion-return"),
         );
-      if (discard) clearEdit(this.id);
+      if (discard) this.#edit.clear();
       this.#stopPressAway?.();
       this.#stopPressAway = null;
       // Only where the user was in it. A close this tab's own gesture made
@@ -521,8 +508,7 @@ customElements.define(
       this.#sending = true;
       this.#close(false);
       this.setAttribute("aria-busy", "true");
-      const ok = await sendDraft(
-        ctx(this.id),
+      const ok = await this.#edit.send(
         () => true,
         (attempt) => this.#dispatch(text, attempt),
       );
@@ -530,7 +516,7 @@ customElements.define(
       this.removeAttribute("aria-busy");
       this.#paintTools();
       if (!ok) {
-        const stored = loadEdit(this.id);
+        const stored = this.#edit.read();
         // Null means the same shared generation was settled by the other tab while
         // this one waited to send. Its action will replay this body, so do
         // not resurrect the editor as if a network failure had occurred. A stored
@@ -538,13 +524,13 @@ customElements.define(
         // editable. The outbox has already projected the authoritative body before
         // resolving this call, so opening the saved generation must not overwrite it
         // with the stale pre-send snapshot.
-        if (stored !== null) {
+        if (stored) {
           this.#failed = true;
           // A press away may have taken the user on to another place, such as the
           // next draft's editor, which keeps the focus.
           const here = document.activeElement;
           this.#open(
-            stored,
+            stored.text,
             undefined,
             !here || here === document.body || this.contains(here),
           );

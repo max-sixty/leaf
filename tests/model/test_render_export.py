@@ -258,7 +258,10 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         {
             "kind": "plan",
             "author": "agent",
-            "steps": [{"depth": 0, "title": "PLANWORD", "state": "working"}],
+            "steps": [
+                {"depth": 0, "title": "PLANWORD"},
+                {"depth": 1, "item": todo["id"]},
+            ],
         },
     )
     source.write_text(

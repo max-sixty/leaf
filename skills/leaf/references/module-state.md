@@ -77,8 +77,10 @@ a drag that moves them, calls `const resume = this.defer()` before its first cha
 the DOM, so no redraw puts the nodes back under the user. `render()` doesn't run while
 the hold stands, so a widget that shows a gesture's progress through `render()`, as a
 slider previewing its value does, leaves `defer()` alone. Call `resume()` once `record`
-has returned, or after cancelling has put the DOM back; it draws the newest state. A dragged widget (`dragging`, `module-input.md`, "Pointer
-presses") defers for the whole drag.
+has returned, or after cancelling has put the DOM back; it draws the newest state. The
+hold is on the widget's own drawing (`lf-defer`, `module-plain-elements.md`). A
+widget the user drags, grabs or scrubs also says `lf-hold` for the whole gesture
+(`module-plain-elements.md`, "`lf-hold`").
 
 Say asynchronous preparation the page should wait for, such as a renderer loading,
 with `this.dispatchEvent(new PendingTaskEvent(promise))` (`module-authoring.md`, "A

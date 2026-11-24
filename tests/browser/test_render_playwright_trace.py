@@ -1149,4 +1149,3 @@ def test_trace_reveal_of_a_part_it_lacks_draws_playback_stopped(browser, serve):
     widget.evaluate("widget => widget.lfParts.reveal('trace-0000-action-missing')")
     expect(play).not_to_have_attribute("data-lf-playing", "")
     expect(play).to_have_attribute("aria-label", "Play")
-    context.close()

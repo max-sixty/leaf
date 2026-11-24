@@ -327,10 +327,13 @@
   // it was read on (`entry`). Prepaint alone writes it to the tab and reads it back.
   // The tab holds it only from a document's departure, or its page going hidden, since
   // a tab the browser discards while hidden goes with no `pagehide`, to the next
-  // document's first script, which takes it on a reload and removes it on any
-  // navigation. A page shown again removes it too, so a live, visible document leaves
-  // none in the tab. A reload loads the entry the departing document showed, so a
-  // stored handoff is that document's.
+  // document's first script, which removes it and takes it only where that document
+  // stands at the entry it names (`entryId`): a reload, a discarded tab's return and
+  // Back to a document the browser didn't keep all keep the entry's id. A page shown
+  // again removes it too, so a live, visible document leaves none in the tab. A frame
+  // showing the same page shares the tab's key, so its departure can still put its own
+  // handoff over the page's, which the page's next document then drops as another
+  // entry's.
   //
   // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
   // that is the handoff it was handed, none of whose values has reached the page yet,
@@ -342,15 +345,14 @@
   // nothing over it; one put into the back/forward cache may come back, so its hide
   // writes, and its return removes what it wrote.
   const HANDOFF_KEY = "lf-revision-handoff";
-  const reloaded =
-    /** @type {PerformanceNavigationTiming | undefined} */
-    (performance.getEntriesByType("navigation")[0])?.type === "reload";
+  const entryId = () => window.navigation?.currentEntry?.id ?? null;
   /** @type {{carry?: {id: string}[], typing?: unknown} | null} */
   const handoff = (() => {
     const stored = tabStore.get(HANDOFF_KEY);
     tabStore.set(HANDOFF_KEY, null);
     try {
-      return reloaded ? JSON.parse(stored || "null") : null;
+      const value = JSON.parse(stored || "null");
+      return value && value.entryId === (entryId() ?? false) ? value : null;
     } catch {
       return null;
     }
@@ -364,7 +366,7 @@
     ...(inputs.holdsValue(node) && { value: node.value }),
     ...(inputs.holdsTick(node) && { checked: node.checked }),
   });
-  /** @type {() => unknown} */
+  /** @type {() => object | null} */
   let handingOn = () =>
     handoff && {
       ...handoff,
@@ -379,9 +381,12 @@
       ],
       ...(inputs.count !== inputs.away && { entry: null, typing: false }),
     };
-  /** @param {unknown} value */
+  /** @param {object | null} value */
   const handOn = (value) =>
-    tabStore.set(HANDOFF_KEY, value ? JSON.stringify(value) : null);
+    tabStore.set(
+      HANDOFF_KEY,
+      value ? JSON.stringify({ ...value, entryId: entryId() }) : null,
+    );
   let gone = false;
   addEventListener("pagehide", (event) => {
     gone = !event.persisted;
@@ -423,6 +428,9 @@
           (child) => !child.hasAttribute("data-lf-gen") && child.matches(selector),
         )
       : [];
+  const reloaded =
+    /** @type {PerformanceNavigationTiming | undefined} */
+    (performance.getEntriesByType("navigation")[0])?.type === "reload";
   /** @param {string} raw */
   const decoded = (raw) => {
     try {

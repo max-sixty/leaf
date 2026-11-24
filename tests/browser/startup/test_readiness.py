@@ -980,6 +980,59 @@ def test_a_reload_before_leaf_starts_carries_on_the_values_the_user_left(
     expect(page.locator("#who")).to_have_value("Grace")
 
 
+@pytest.mark.parametrize("arrives", ["back at its entry", "at another entry"])
+def test_a_handoff_written_as_the_page_hid_comes_back_only_to_its_entry(
+    browser, serve, arrives
+):
+    """The handoff a page writes as it hides, before Leaf has put back what a reload
+    carried, comes back to a document arriving at the same entry, as Back to a
+    document the browser didn't keep, or a discarded tab's return, brings, and to no
+    document at another entry of the page."""
+    url = live_url(serve(leaf_page("Restarted", NAME_AND_TOWN)))
+    page = open_page(browser, url)
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.evaluate(SHOW_AS, "hidden")
+        # The browser discards the tab: the document goes with no `pagehide`.
+        page.evaluate(
+            """() => addEventListener(
+              "pagehide", (event) => event.stopImmediatePropagation(), {capture: true})"""
+        )
+        page.goto("about:blank")
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            try:
+                route.continue_()
+            except Exception:
+                pass
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    if arrives == "back at its entry":
+        page.go_back()
+        assert (
+            page.evaluate("performance.getEntriesByType('navigation')[0].type")
+            == "back_forward"
+        )
+    else:
+        page.goto(url)
+    wait_until_ready(page)
+    expect(page.locator("#who")).to_have_value(
+        "Ada" if arrives == "back at its entry" else ""
+    )
+
+
 def test_a_page_hidden_before_leaf_starts_keeps_what_its_reload_carried(browser, serve):
     """A page hidden before Leaf has started, after the user clicked in its prose, keeps
     in the tab the values the reload Leaf asked for carried, which haven't reached the

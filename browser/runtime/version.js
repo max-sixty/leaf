@@ -3246,7 +3246,8 @@ export function createVersionController({
       performance.getEntriesByType("navigation")[0]
     )?.type;
     const currentRevision = runtime.currentRevision;
-    // The handoff the reload that loaded this document handed it (prepaint.js).
+    // The handoff a departure at this document's entry handed it (prepaint.js), read at
+    // a revision no newer than this one.
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
       return currentRevision !== null &&

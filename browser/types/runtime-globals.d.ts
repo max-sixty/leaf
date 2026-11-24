@@ -127,7 +127,7 @@ interface Window {
     /** The handoff the reload that loaded this document handed it (prepaint.js). */
     readonly handoff: { readonly typing?: unknown } | null;
     /** What this document hands on as it goes from now on (prepaint.js). */
-    handOnWith(handingOn: () => unknown): void;
+    handOnWith(handingOn: () => object | null): void;
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };

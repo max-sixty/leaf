@@ -441,7 +441,10 @@ its readers nothing while another output changes. Hold what changes often, such 
 selection, as a small output of its own beside the large one. Dispatch it on the
 element itself: a control inside the element says a bubbling `change` of its own,
 which Leaf doesn't count, and which a module listening on its own element tells apart
-by `event.target`.
+by `event.target`. Where a verb also records the property (`module-plain-elements.md`,
+"`record.property`"), its `record` names the event that reports a change, so Leaf
+also reads the property again at that event, even from a control inside the element,
+and after Leaf sets the recorded value.
 
 A consumer draws after the producer's `change`, in the same frame, not inside it.
 

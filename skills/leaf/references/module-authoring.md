@@ -86,9 +86,8 @@ In [module-input.md](module-input.md):
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `loadDraft`, `saveDraft`,
-  `watchDraft`, `sendDraft` and `clearDraft` keep its draft, and `leafEditorView` wraps
-  a CodeMirror editor.
+- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
+  `leafEditorView` wraps a CodeMirror editor.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 

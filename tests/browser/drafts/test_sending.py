@@ -741,7 +741,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     offered = page.evaluate(
         """async (ctx) => {
           const api = await window.__lfWidgetApi();
-          return api.loadDraft(ctx)?.text ?? null;
+          return api.draft(ctx).read()?.text ?? null;
         }""",
         f"reply:{root['id']}",
     )

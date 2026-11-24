@@ -42,7 +42,7 @@ const { stored } = window.lfStorage;
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while where they were writing here belongs to this page. tabStore is the only one on the helper
 // surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
-// collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
+// collapsed group) — a module reaches its drafts through `draft`, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for. tab-store.js owns the portable widget store, and views.js keeps
 // which member a widget shows.

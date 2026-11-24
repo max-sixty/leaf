@@ -19,13 +19,8 @@ customElements.define(
     }
 
     press(value) {
-      this.dispatchEvent(
-        new CustomEvent("lf-action", {
-          bubbles: true,
-          composed: true,
-          detail: { verb: "decide", detail: { value } },
-        }),
-      );
+      const action = { verb: "decide", detail: { value } };
+      this.dispatchEvent(new CustomEvent("lf-action", { detail: action }));
     }
   },
 );

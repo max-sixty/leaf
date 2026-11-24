@@ -187,6 +187,9 @@ _VERB_DETAIL_SCHEMA = {
 # user writes it. The writers differ in what their state may be, not its shape. The
 # served state hands the browser each admitted event's verb in this shape, and the
 # browser build generates its type from this schema (`build/browser/contract-types.mjs`).
+# A declaration may leave out `unit` and a record's `kind`: composition writes each
+# default in (`registry.contract.complete_declarations`), so this schema requires both
+# and every reader finds them.
 VERB_SCHEMA = {
     "type": "object",
     "properties": {
@@ -262,6 +265,9 @@ VERBS_SCHEMA = {
     "additionalProperties": VERB_SCHEMA,
 }
 # A widget's obligation is answered by its own state (`value` and `answered`).
+# Composition writes `answered` wherever a declaration names a `value` and leaves it
+# out (`registry.contract.complete_declarations`), so every reader finds it. This
+# schema doesn't require it, so that an `awaits` naming no `value` is refused for that.
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -271,7 +277,7 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["value", "answered"],
+    "required": ["value"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget

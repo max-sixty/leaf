@@ -219,7 +219,6 @@
     },
     "verbs": {
       "choose": {
-        "unit": "widget",
         "record": {
           "kind": "attribute",
           "attr": "selected"
@@ -243,8 +242,7 @@
         }
       },
       "answer": {
-        "detail": {},
-        "unit": "widget"
+        "detail": {}
       }
     },
     "instructions": "An `lf-options` asks with no attribute, and On Me holds it until the user picks. Put it in the `lf-group` whose label asks its question, with the shared premises and evidence (`references/authoring-on-me.md`, \"On the page\"), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). Option cards read down the list, each as wide as the `lf-options`. `across` on the `lf-options` sets them side by side, which suits options where what the user compares, each option's picture or the evidence above the list, still reads at a card's share of the row, and the question then fits the window. Cards set across share the `lf-options`' width, and a card of a title and a sentence reads at about 18rem, so give the `lf-options` the width its cards need: the column holds two, `data-width=\"wide\"` three, and `available` four or more, or cards that hold pictures. Keep them reading down where that share would shrink the pictures below the size at which their difference reads. The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` `lf-options` needs the user's Done even when `selected` is authored. When taking in an answer in a stamped version, write `selected` on exactly the picked `lf-option` elements you authored. Leave an option the user added out of the markup; the log keeps it. Once you have finished applying the decision, give the `lf-options` `settled`, which records it: it stops asking and collapses to the pick while keeping its options and anchors.",
@@ -383,7 +381,6 @@
     "space": "available",
     "verbs": {
       "move": {
-        "unit": "unit",
         "record": {
           "kind": "position",
           "within": "lf-column"
@@ -536,14 +533,10 @@
       "value": "edit",
       "when": {
         "required": [true]
-      },
-      "answered": {
-        "edit": {}
       }
     },
     "verbs": {
       "edit": {
-        "unit": "widget",
         "record": {
           "kind": "body"
         }

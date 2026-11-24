@@ -408,7 +408,7 @@ def test_init_advises_on_instructions_for_a_kind_no_batch_carries(
     assert advice.values["registry"] == str(overlay / "registry.json")
 
 
-@pytest.mark.parametrize("path", [("verbs", "decide", "unit")], ids="-".join)
+@pytest.mark.parametrize("path", [("verbs", "decide", "detail")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):

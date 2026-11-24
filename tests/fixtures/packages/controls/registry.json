@@ -17,11 +17,10 @@
     },
     "verbs": {
       "choose": {
-        "unit": "widget",
-        "record": { "kind": "value", "attr": "value", "property": "value" }
+        "record": { "attr": "value", "property": "value" }
       }
     },
-    "awaits": { "value": "choose", "answered": { "choose": {} } },
+    "awaits": { "value": "choose" },
     "outputs": { "value": { "contract": "choice" } },
     "example": "<lf-group id=\"plan\" label=\"Which plan?\"><lf-select id=\"plan-choice\"><wa-select placeholder=\"Choose a plan\"><wa-option value=\"starter\">Starter</wa-option><wa-option value=\"team\">Team</wa-option></wa-select></lf-select></lf-group>"
   },
@@ -50,9 +49,7 @@
     "content": "empty",
     "verbs": {
       "set": {
-        "unit": "widget",
         "record": {
-          "kind": "value",
           "attr": "value",
           "property": "value",
           "event": "level-change"

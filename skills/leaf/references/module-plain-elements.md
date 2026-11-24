@@ -36,13 +36,8 @@ customElements.define(
     }
 
     choose(value, label) {
-      this.dispatchEvent(
-        new CustomEvent("lf-action", {
-          bubbles: true,
-          composed: true,
-          detail: { verb: "decide", detail: { value }, says: `Chose “${label}”` },
-        }),
-      );
+      const action = { verb: "decide", detail: { value }, says: `Chose “${label}”` };
+      this.dispatchEvent(new CustomEvent("lf-action", { detail: action }));
     }
   },
 );
@@ -57,14 +52,14 @@ question on On Me and admits the ids its buttons mark:
 "lf-verdict": {
   "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
   "attributes": {
-    "properties": { "verdict": { "type": "string", "enum": ["ship", "hold"] } },
+    "properties": { "verdict": { "enum": ["ship", "hold"] } },
     "required": ["id"]
   },
   "content": "empty",
   "verbs": {
-    "decide": { "unit": "widget", "record": { "kind": "value", "attr": "verdict" } }
+    "decide": { "record": { "attr": "verdict" } }
   },
-  "awaits": { "value": "decide", "answered": { "decide": {} } },
+  "awaits": { "value": "decide" },
   "visual": { "prefixes": ["choice:"] },
   "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
 }
@@ -75,9 +70,11 @@ question on On Me and admits the ids its buttons mark:
 records with `lf-action` as this one does, under names of its own, and puts no question
 on On Me and marks no comment target.
 
-Each `lf-` event the element dispatches, and `pending-task` and `error`, bubbles and is
-composed, so Leaf hears it from inside any shadow tree. Where an entry says an event
-carries a promise, the promise is the event's `complete` property:
+Leaf hears `lf-action` and `lf-undo` on the widget's own element, where it sets
+`state`, so the element dispatches them on itself with no option but `detail`. Leaf
+hears every other `lf-` event here, and `pending-task` and `error`, at the document, so
+each bubbles and is composed, and reaches Leaf from inside any shadow tree. Where an
+entry says an event carries a promise, the promise is the event's `complete` property:
 
 ```js
 const hold = new Event("lf-hold", { bubbles: true, composed: true });
@@ -100,11 +97,16 @@ this.dispatchEvent(hold);
   describes. Leaf sets no property, `state` included, until the widget's state and the
   data a bound source names have both arrived. A data body the markup binds to nothing
   arrives with those first sets, so the element leaves its `<pre>` in place until then.
-- **`lf-action`.** The element, or a node inside it, records a gesture by dispatching
-  a `CustomEvent`. Its `detail` holds the `verb`, `detail`, `says`
-  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller");
+- **`lf-action`.** The element records a gesture by dispatching a `CustomEvent` on
+  itself. Its `detail` holds the `verb`, `detail`, `says`
+  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller").
+  The inner `detail` is the action's own, in the shape the verb declares: `{value}`
+  for a verb with a `record`, and for any other the fields its `detail` schema names.
+  Those fields are the package's to name, so they stay under `detail`, where none can
+  take the name of Leaf's `verb`, `says` or `attempt`.
   `attempt` is the id a draft's `send` hands its `deliver` (`module-input.md`, "Text
-  entry and drafts"), so a refusal returns the words to their draft. Leaf has
+  entry and drafts"), so a refusal returns the words to their draft. An event that
+  bubbles to the element from a node inside it is recorded the same way. Leaf has
   set the resulting `state` by the time `dispatchEvent` returns. On an event it sends,
   Leaf sets the event's `delivery` property, a promise of the event the server
   admitted, or of `null` where the server refuses it and Leaf sets the server's state
@@ -117,7 +119,7 @@ this.dispatchEvent(hold);
   event when the user changes it, as a form control does, records with no
   `lf-action`, so a component written without Leaf can be a widget. The verb's
   `record` names the property, as
-  `{ "kind": "value", "attr": "value", "property": "value" }` does, and the `event`
+  `{ "attr": "value", "property": "value" }` does, and the `event`
   that reports the user's change, where that event is not `change`. Leaf sets the
   property to the recorded value, which is a string, or to the empty string while
   there is none, so the property must take both. When Leaf hears the event on the

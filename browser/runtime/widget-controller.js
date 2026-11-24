@@ -9,15 +9,18 @@
    rendering readiness until completion or removal. A package reaches `read` and
    `dispatch` (`widgetController`), and says preparation only with the event below.
 
-   A widget's element reaches the controller through events Leaf hears at the
-   document. It says it has drawing under way with `pending-task`
+   A widget's element tells the controller of its drawing through events Leaf hears
+   at the document. It says it has drawing under way with `pending-task`
    (lib/pending-task.js). One an element Leaf drives dispatches on itself is that
    element's own drawing and holds its render claim (element-integration.js). Any
    other reaches the preparation region of the nearest widget the event passed
    through, or, where it passed through none, a region of the dispatching element's.
-   Either way it holds full rendering readiness until it is in. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
-   And it says it holds its own drawing with `lf-defer` (`DeferEvent`), at whose end
-   the document-wide renderers read the page again. */
+   Either way it holds full rendering readiness until it is in. And it says it holds
+   its own drawing with `lf-defer` (`DeferEvent`), at whose end the document-wide
+   renderers read the page again.
+
+   It records with `lf-action` and `lf-undo`, which Leaf hears on the element itself
+   (`hearRecords`) and which reach `dispatch`. */
 import { untracked } from "/runtime/framework.js";
 import {
   applicationState,
@@ -375,51 +378,65 @@ export const widgetState = ({ state, actions }) =>
     ),
   );
 
-// Recording announced from outside Leaf's helpers: a bubbling, composed `lf-action`
-// event whose detail is `{verb, detail, says?, attempt?}`, or `lf-undo` whose detail is
-// `{verb, unit?}`, naming the unit where the verb holds a state for each. `attempt` is
-// the id a draft minted for the words the action sends (`sendDraft`, drafts.js), so a
-// refusal gives them back to that draft. The nearest
-// widget declaring `verbs` that the event passed through on its way out sends it as
-// `dispatch` does, so that widget's reading holds the result before `dispatchEvent`
-// returns. Leaf sets `delivery` on an event it sends, which resolves to the event the
-// server admitted, or null once it refuses; an event Leaf sends nothing for, as while
-// the action is unavailable or no action in force can be taken back, has none.
-/** @param {DocumentEventMap["lf-action" | "lf-undo"]} event
- * @param {(reading: WidgetReading) => import("./pending/dispatch.js").WidgetCommand | null | undefined} command */
-function record(event, command) {
-  const owner = widgetOn(event, ({ declaration }) => declaration.verbs);
-  if (!owner) return;
-  const controller = widgetController(owner);
-  const sent = command(controller.read());
-  const delivery = sent && controller.dispatch(sent)?.delivery;
-  if (delivery) event.delivery = delivery;
+// What a widget records and takes back, heard on the element Leaf drives
+// (element-integration.js): an `lf-action` event whose detail is `{verb, detail, says?,
+// attempt?}`, or `lf-undo` whose detail is `{verb, unit?}`, naming the unit where the
+// verb holds a state for each. Leaf listens on the element, where it also sets `state`,
+// so an event the element dispatches on itself needs no options and is heard wherever
+// the element stands, in a thread message or another widget's shadow tree as on the
+// page. An event that bubbles to the element from a node inside it is heard too, as
+// any listener hears one. It belongs to the nearest widget declaring `verbs` that it
+// passed through, so the element records none that came up from such a widget inside
+// it. It records none once it has left the page.
+//
+// `detail` is the action's own detail, under the name the verb's declaration and the
+// log give it. It stays a member of its own: its fields are the package's to name, and
+// a field beside `verb`, `says` and `attempt` could take one of their names. `attempt`
+// is the id a draft minted for the words the action sends (`sendDraft`, drafts.js), so
+// a refusal gives them back to that draft.
+//
+// The widget's reading holds the result before `dispatchEvent` returns. Leaf sets
+// `delivery` on an event it sends, which resolves to the event the server admitted, or
+// null once it refuses; an event Leaf sends nothing for, as while the action is
+// unavailable or no action in force can be taken back, has none.
+/** @param {Element} owner A widget whose tag declares `verbs`. */
+export function hearRecords(owner) {
+  const controller = controllerOf(owner);
+  /** @param {ElementEventMap["lf-action" | "lf-undo"]} event
+   * @param {(reading: WidgetReading) => import("./pending/dispatch.js").WidgetCommand | null | undefined} command */
+  const record = (event, command) => {
+    if (!owner.isConnected) return;
+    if (widgetOn(event, ({ declaration }) => declaration.verbs) !== owner) return;
+    const sent = command(controller.read());
+    const delivery = sent && controller.dispatch(sent)?.delivery;
+    if (delivery) event.delivery = delivery;
+  };
+  owner.addEventListener("lf-action", (event) =>
+    record(event, () => {
+      const { verb, detail, says, attempt } = event.detail;
+      return {
+        kind: "action",
+        verb,
+        ...(detail && { detail }),
+        ...(says && { says }),
+        ...(attempt && { attempt }),
+      };
+    }),
+  );
+  owner.addEventListener("lf-undo", (event) =>
+    record(event, ({ state, actions }) => {
+      const { verb, unit } = event.detail;
+      const units = undoCandidates(actions[verb]);
+      const candidate =
+        state[verb] && "units" in state[verb]
+          ? units.get(unit ?? "")
+          : units.values().next().value;
+      return (
+        candidate && {
+          kind: "undo",
+          target: ("attempt" in candidate ? candidate.attempt : null) ?? candidate.id,
+        }
+      );
+    }),
+  );
 }
-document.addEventListener("lf-action", (event) =>
-  record(event, () => {
-    const { verb, detail, says, attempt } = event.detail;
-    return {
-      kind: "action",
-      verb,
-      ...(detail && { detail }),
-      ...(says && { says }),
-      ...(attempt && { attempt }),
-    };
-  }),
-);
-document.addEventListener("lf-undo", (event) =>
-  record(event, ({ state, actions }) => {
-    const { verb, unit } = event.detail;
-    const units = undoCandidates(actions[verb]);
-    const candidate =
-      state[verb] && "units" in state[verb]
-        ? units.get(unit ?? "")
-        : units.values().next().value;
-    return (
-      candidate && {
-        kind: "undo",
-        target: ("attempt" in candidate ? candidate.attempt : null) ?? candidate.id,
-      }
-    );
-  }),
-);

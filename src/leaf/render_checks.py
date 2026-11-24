@@ -412,6 +412,11 @@ class HandoverProgress:
         return True
 
 
+# The query marks `runtime/bootstrap.js` takes off a document's address before the user
+# sees it: a revision mark, startup recovery's mark (`asked_again`) and the host key.
+ADDRESS_MARKS = frozenset({"_leaf-revision", "_leaf-recovered", "t"})
+
+
 def asked_again(url: str) -> str:
     """`url` as the document startup recovery asks the server for once more
     (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for
@@ -508,7 +513,7 @@ def _refuse_unstarted(page) -> None:
 
 
 # Every box holding `frame` in its document, across shadow roots as `renderedParent`
-# walks them (shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
+# walks them (lib/shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
 # Written out here since it runs in each sample's own document, which no probe reaches.
 _HOLDERS = """frame => {
   const held = [];

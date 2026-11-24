@@ -967,8 +967,11 @@ DATA_PROJECTION_PAGE = leaf_page(
 
 DATA_PROJECTION_MODULE = """
 import { nothing } from '/vendor/lit.js';
-import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
+import { LeafElement, setChildren } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-feed', class extends LeafElement {
+  static properties = { value: { attribute: false } };
   render() {
     this.show(this.value);
     return nothing;
@@ -1000,7 +1003,6 @@ def data_projection_page(serve):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],

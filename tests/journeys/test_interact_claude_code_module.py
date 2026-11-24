@@ -10,6 +10,7 @@ from interact_support import (
 )
 from process.test_interact_claude_code_module import band_lines
 
+from leaf import rows as rows_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
@@ -40,7 +41,7 @@ def test_the_band_follows_the_pages_the_session_holds(
 
     server_id = read_record(page_dir / "service.json")["server_id"]
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
-    read_result = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
+    read_result = rows_model.ROW.read(rows_model.row_path(page_dir))
     assert read_result is not None
     published = read_result["row"]
     server = server_model.running_server(page_dir)

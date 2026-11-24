@@ -258,24 +258,6 @@ def version_descriptors(events: list, revisions: Collection[int]) -> list[dict]:
     ]
 
 
-def active_descriptor(page_dir: Path, events: list) -> dict | None:
-    """The exact immutable document shown at the live root, or None before one."""
-    from leaf.revision_artifact import read_revision
-
-    revision = latest_revision(page_dir)
-    if revision is None:
-        return None
-    reading = read_revision(page_dir, revision)
-    path = reading.marker
-    return document_descriptor(
-        revision,
-        events,
-        url=f"/revisions/{path.name}",
-        executable=reading.manifest["executable"],
-        activated_at=reading.activated_at,
-    )
-
-
 def document_descriptor(
     revision: int,
     events: list,

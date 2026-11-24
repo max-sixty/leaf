@@ -64,6 +64,8 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         "page",
         "init",
         "--package",
+        "reading",
+        "--package",
         "./custom",
         "--package",
         "diagram",

@@ -23,15 +23,13 @@ const runtimePrimitives = [
   "control-selectors.js",
   "inputs.js",
   "document-inputs.js",
-  "shadow-tree.js",
-  "keeps.js",
   "pointer.js",
   "rendering.js",
   "frame-visibility.js",
-  "queued-work.js",
   "repaint.js",
   "root-state.js",
   "thread/identity.js",
+  "ui-marks.js",
 ];
 
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
@@ -156,15 +154,20 @@ const browserGlobals = Object.fromEntries(
 );
 
 const RENDERING_MESSAGE =
-  "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+  "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/lib/frame-pass.js) so the settled reading counts it.";
 const RENDERING_NAMES = [
   "requestAnimationFrame",
   "cancelAnimationFrame",
   "ResizeObserver",
 ];
-const RENDERING_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
-  RENDERING_NAMES.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
-);
+// The one of them a package still reaches through runtime/lib/frame-pass.js alone.
+const PACKAGE_RENDERING_NAMES = ["ResizeObserver"];
+/** @param {string[]} names */
+const renderingProperties = (names) =>
+  ["window", "globalThis"].flatMap((object) =>
+    names.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
+  );
+const RENDERING_PROPERTIES = renderingProperties(RENDERING_NAMES);
 const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
   object: "history",
   property,
@@ -289,6 +292,12 @@ const ownerRuntimeSyntax = [
     message:
       "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
   },
+  {
+    selector:
+      ":matches(ExportNamedDeclaration, ExportAllDeclaration)[source.value=/(?:^|\\/)lib\\/[^\\/]+$/]",
+    message:
+      "Nothing re-exports the library: each module that uses a library module imports it by its own path (browser/AGENTS.md, “The library of shared web code”).",
+  },
 ];
 
 const ownerBoundary = {
@@ -316,6 +325,13 @@ const ownerBoundary = {
   ],
   "no-restricted-syntax": ["error", ...ownerRuntimeSyntax],
 };
+
+// What a module of the library (browser/runtime/lib/) may import: a /vendor/ bundle or
+// a module beside it in that flat directory, by a path with no `..`, written or
+// percent-encoded, to climb out of either.
+const librarySpecifier = "(?:/vendor/(?!.*(?:\\.\\.|%))|\\./[^/\\\\%]+$)";
+const LIBRARY_MESSAGE =
+  "The library imports only /vendor/ bundles and its own modules (browser/AGENTS.md, “The library of shared web code”): code that needs the runtime is not library code.";
 
 const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
 const runtimeName = (file) =>
@@ -533,17 +549,6 @@ const placementsRule = {
               message:
                 "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
             });
-          if (
-            ["showModal", "showPopover", "hidePopover"].includes(
-              callee.property.name,
-            ) &&
-            file !== "browser/runtime/keyboard/layer-stack.js"
-          )
-            context.report({
-              node,
-              message:
-                "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
-            });
         }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
           if (args.length < 2)
@@ -579,6 +584,36 @@ const placementsRule = {
   },
 };
 
+// The runtime opens and closes its native layers through `showNativeLayer` and
+// `closeNativeLayer` (keyboard/layer-stack.js), which inside a live sample keep the
+// browser's focusing steps from taking focus from the page around it or scrolling that
+// page. The option names the owner.
+const nativeLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          ["showModal", "showPopover", "hidePopover"].includes(callee.property.name)
+        )
+          context.report({
+            node,
+            message:
+              "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
+          });
+      },
+    };
+  },
+};
+
 // Where the user stands is read through `focused()` in focus.js, or `focused(tree)` for
 // the node representing it in one tree, as `tree.activeElement` retargets focus. A raw
 // `activeElement`, of the document or of a shadow root, misses a label press that holds
@@ -587,7 +622,7 @@ const placementsRule = {
 // other at exactly those edges. A frame's `contentDocument.activeElement` is the frame
 // page's own question. The option names the files that may still read it.
 const CURRENT_LOCATION_READ_MESSAGE =
-  "Read the user’s current location with focused() (runtime/focus.js; widget-api.js in a package), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
+  "Read the user’s current location with focused() (runtime/focus.js), or focused(tree) for the node representing it in one document or shadow root: a raw activeElement misses a label press holding them and focus inside shadow trees.";
 export const currentLocationReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -625,14 +660,14 @@ export const currentLocationReadsRule = {
           context.report({
             node,
             message:
-              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js; widget-api.js in a package): contains() stops at a shadow root.",
+              "Ask whether the user’s current location is in a scope with currentLocationIn(scope) (runtime/focus.js): contains() stops at a shadow root.",
           });
       },
     };
   },
 };
 
-// Whether a node is an open native layer, or stands in one, is asked of shadow-tree.js
+// Whether a node is an open native layer, or stands in one, is asked of lib/shadow-tree.js
 // (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), and which are open of keyboard/layer-stack.js
 // (`nativeLayers`). A selector naming the open state answers it again, and the copies
 // drift: a `dialog[open]` read once counted the auxiliary envelope, a nonmodal dialog
@@ -675,7 +710,7 @@ export const openLayersRule = {
           context.report({
             node,
             message:
-              "Ask shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
+              "Ask lib/shadow-tree.js whether a node is an open layer or stands in one (nativeLayerKind, isNativeLayer, nativeLayerHolding) rather than selecting the open state.",
           });
       },
     };
@@ -687,19 +722,29 @@ export const openLayersRule = {
 // `scrollToEnd` and a relative move through `moveScrollerBy` (scrolling.js). A sum
 // written into `scrollTop` or `scrollLeft` is how a reveal is hand-rolled, with its own
 // reading of the band and the edge, so the rule refuses every assignment to either; a
-// script that sets an offset outright says so with `scrollTo`, instantly. The option
+// script that sets an offset outright says so with `scrollTo`, which the runtime hears
+// as a script's write whoever makes it (runtime/arrivals.js, `heardWrite`). The option
 // names the files that may still assign one.
-const scrollWritesRule = {
+//
+// Such a call says how it moves the box. With no `behavior`, the box's own
+// `scroll-behavior` decides, which a page is free to set to smooth on the box it
+// scrolls, and a writer that reads the page just after its write, as a tab set
+// putting a view back at its place does, would read it before the glide moved it. The
+// rule reads a `scrollTo`, `scroll` or `scrollBy` call, on a box or bare, that writes
+// its options out without one, or gives two offsets, which can't name one; options a
+// call is handed are their writer's.
+export const scrollWritesRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
       .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
-    if ((context.options[0] ?? []).includes(file)) return {};
+    const assigns = (context.options[0] ?? []).includes(file);
     return {
       AssignmentExpression({ left }) {
         if (
+          !assigns &&
           left.type === "MemberExpression" &&
           !left.computed &&
           ["scrollTop", "scrollLeft"].includes(left.property.name)
@@ -707,7 +752,33 @@ const scrollWritesRule = {
           context.report({
             node: left,
             message:
-              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or move with scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
+              "Reveal with scrollIntoView(node, {block, within}) from runtime/landing-scroll.js, or set an offset outright, a package with scrollTo({top, left, behavior}) and the runtime with setScroll (runtime/arrivals.js), scrollToEnd or moveScrollerBy (runtime/scrolling.js), rather than assigning a scroll offset.",
+          });
+      },
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        const called =
+          callee.type === "Identifier"
+            ? callee.name
+            : callee.type === "MemberExpression" && !callee.computed
+              ? callee.property.name
+              : null;
+        if (!["scrollTo", "scroll", "scrollBy"].includes(called)) return;
+        const [options] = args;
+        const unsaid =
+          args.length === 2 ||
+          (options?.type === "ObjectExpression" &&
+            !options.properties.some(
+              (property) =>
+                property.type === "SpreadElement" ||
+                (!property.computed &&
+                  (property.key.name ?? property.key.value) === "behavior"),
+            ));
+        if (unsaid)
+          context.report({
+            node,
+            message:
+              'Say how the write moves the box, as scrollTo({top, left, behavior: "instant"}) does: left out, the box\'s own scroll-behavior decides, which a page may set to smooth.',
           });
       },
     };
@@ -882,9 +953,9 @@ export const movesRule = {
 // sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
 // return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding in the kernel (runtime/focus.js; a package takes closeLayer and handBack from widget-api.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
 const CLOSE_PLACES_MESSAGE =
-  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js, or widget-api.js in a package).";
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -1091,6 +1162,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
+    "native-layers": nativeLayersRule,
     "scroll-writes": scrollWritesRule,
     "scroll-ends": scrollEndsRule,
     "current-location-reads": currentLocationReadsRule,
@@ -1450,6 +1522,7 @@ export default [
       "tests/*_watch.js",
       "tests/watch_platform.js",
       "dev/leaf_dev/main_thread.js",
+      "dev/leaf_dev/frames.js",
     ],
     languageOptions: { globals: globals.browser },
   },
@@ -1605,8 +1678,9 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$)",
-              message: "Render checks use the public API or diagnostic adapter.",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$|lib/[^/\\\\%]+$)",
+              message:
+                "Render checks use the public API, the library or the diagnostic adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -1654,10 +1728,16 @@ export default [
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it
-    // counts, so the layer and its packages reach both through runtime/rendering.js.
+    // counts, so the layer and its packages reach both through the library's pass
+    // (runtime/lib/frame-pass.js), which the reading hears (runtime/rendering.js). The
+    // packages' block below names the calls a package makes itself.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     // Prepaint runs before the module graph, so it cannot call the scheduler.
-    ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
+    ignores: [
+      "browser/runtime/lib/frame-pass.js",
+      "browser/runtime/rendering.js",
+      "browser/runtime/prepaint.js",
+    ],
     rules: {
       "no-restricted-globals": [
         "error",
@@ -1706,11 +1786,18 @@ export default [
           "browser/runtime/preview.js",
         ],
       ],
+      "architecture/native-layers": [
+        "error",
+        [
+          // The owner.
+          "browser/runtime/keyboard/layer-stack.js",
+        ],
+      ],
       "architecture/open-layers": [
         "error",
         [
           // The owner.
-          "browser/runtime/shadow-tree.js",
+          "browser/runtime/lib/shadow-tree.js",
         ],
       ],
       "architecture/scroll-ends": [
@@ -1723,13 +1810,9 @@ export default [
       "architecture/scroll-writes": [
         "error",
         [
-          // Restores, each returning a box to an offset it held: a carried node's in
-          // its replacement, the adopted message body's, and CodeMirror's own view.
+          // A carried node's offsets, kept in a record under their own names until
+          // its replacement takes them.
           "browser/runtime/carry.js",
-          "browser/runtime/annotation-overlay/thread-preview.js",
-          "packages/file-editor/widgets/editor.js",
-          // The trace's time axis is its scroll offset, which it sets and then expects.
-          "packages/playwright/widgets/timeline.js",
         ],
       ],
       "architecture/layer-returns": [
@@ -1797,7 +1880,8 @@ export default [
     // subject to the same boundary. Nor is another primitive,
     // whose own imports this same rule holds: `rendering.js`, which every rendering
     // callback is counted through, or `focus.js`, which a primitive that moves the
-    // user's node asks to keep their current location on it.
+    // user's node asks to keep their current location on it. Nor is a module of the
+    // library (lib/), which its own block below keeps clear of every owner.
     files: runtimePrimitives.map((name) => `browser/runtime/${name}`),
     rules: {
       "no-restricted-imports": [
@@ -1805,11 +1889,11 @@ export default [
         {
           patterns: [
             {
-              regex: `^(?!/vendor/|\\.\\.?/(?:${runtimePrimitives
+              regex: `^(?!/vendor/|\\.\\.?/lib/[^/\\\\%]+$|\\.\\.?/(?:${runtimePrimitives
                 .map((name) => name.replaceAll(".", "\\."))
                 .join("|")})$)`,
               message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or another primitive may be imported.",
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle, a library module (lib/) or another primitive may be imported.",
             },
           ],
         },
@@ -1820,6 +1904,36 @@ export default [
           selector:
             "ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
           message: "Runtime primitives import statically and re-export nothing.",
+        },
+      ],
+    },
+  },
+  {
+    // The library of shared web code holds none of the page's state and reaches none
+    // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
+    // it names only a /vendor/ bundle and the modules beside it, whether it imports
+    // statically or lazily. That keeps out the runtime, and with it the framework's
+    // facade (/runtime/framework.js) and the kernel registry, neither of which is in
+    // the graph the import graph's check reads. So each module loads in a document
+    // Leaf did not compose. A module holds one concern, so none gathers the others'
+    // exports.
+    files: ["browser/runtime/lib/**/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [{ regex: `^(?!${librarySpecifier})`, message: LIBRARY_MESSAGE }] },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...ownerRuntimeSyntax,
+        {
+          selector: `ImportExpression[source.type="Literal"]:not([source.value=/^${librarySpecifier.replaceAll("/", "\\/")}/])`,
+          message: LIBRARY_MESSAGE,
+        },
+        {
+          selector: "ExportAllDeclaration, ExportNamedDeclaration[source]",
+          message:
+            "A library module re-exports nothing: its importer names the module that holds what it needs.",
         },
       ],
     },
@@ -1874,7 +1988,7 @@ export default [
     // Properties the layer and its packages reach only through their owner. A file
     // takes a rule's options from the last block matching it, not a merge of every
     // block's, so all of them stand in this one list, and the history owners' block
-    // below repeats the others.
+    // and the packages' block below repeat the others.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     rules: {
       "no-restricted-properties": [
@@ -1896,9 +2010,46 @@ export default [
     },
   },
   {
+    // Where a package writes the browser's own call, because the runtime's function
+    // adds nothing to it. Motion that may run until the user stops it, such as
+    // playback, calls the browser's frame, which the settled reading doesn't count; a
+    // size observer stays counted. The open-layers and current-location-reads rules hold
+    // the runtime to one reading of every node and of where the user is, and a package
+    // asks its own popover or dialog whether it is open, and its own tree's
+    // `activeElement` what is focused there, so both rules are off here whole. A package
+    // opens and closes its popover or dialog with the browser's own methods, whose focus
+    // return Leaf reads as a return, so the native-layers and layer-returns rules are
+    // off here too. A package sets a box's scroll offset with the browser's own
+    // `scrollTo`, which the runtime hears as it is made (runtime/arrivals.js), under the
+    // scroll-writes rule the layer keeps. Each other rule repeats what it keeps of the
+    // layer's, since a file takes a rule's options from the last block matching it.
+    files: ["packages/*/**/*.js"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...PACKAGE_RENDERING_NAMES.map((name) => ({
+          name,
+          message: RENDERING_MESSAGE,
+        })),
+      ],
+      "no-restricted-properties": [
+        "error",
+        ...renderingProperties(PACKAGE_RENDERING_NAMES),
+        ...HISTORY_PROPERTIES,
+        ...ID_PROPERTIES,
+      ],
+      "architecture/open-layers": "off",
+      "architecture/current-location-reads": "off",
+      "architecture/native-layers": "off",
+      "architecture/layer-returns": "off",
+    },
+  },
+  {
     // An import or binding nothing reads is a dependency edge the graph still carries
-    // and a name the next reader has to account for. Arguments and caught errors are
-    // left alone: a signature says what a callback is handed.
+    // and a name the next reader has to account for. Arguments are the type checks'
+    // (`noUnusedParameters`), which count a use in a JSDoc type where this rule
+    // doesn't. A callback keeps an argument it must take to reach a later one behind a
+    // `_`, so its signature still says what it is handed. Caught errors are left alone.
     files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-unused-vars": [

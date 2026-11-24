@@ -5,13 +5,13 @@ import { anchoringIsReady, captured } from "../anchor-resolution.js";
 import { bindings, cycledRow, hasRows } from "../keyboard/bindings.js";
 import { saying } from "../keyboard/control-keys.js";
 import { counted } from "../words.js";
-import { el, offerAction, searchField } from "../widget-elements.js";
+import { el, searchField } from "../widget-elements.js";
+import { offerAction } from "../lib/controls.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,
-  inChrome,
   pageMatches,
   pageReadingVersion,
   readingHolding,
@@ -22,7 +22,7 @@ import {
   segmentsBox,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
-import { skipped } from "../shadow-tree.js";
+import { skipped } from "../lib/shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { holds, intersect, union } from "../rect.js";
@@ -36,12 +36,8 @@ import {
   openLayer,
   openerOf,
 } from "../focus.js";
-import {
-  createHintSession,
-  HINT_KEYS,
-  codedHints,
-  renderKeys,
-} from "../keyboard/hints.js";
+import { createHintSession, HINT_KEYS, codedHints } from "../keyboard/hints.js";
+import { objectIds } from "../ids.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   keySequenceModel,
@@ -49,7 +45,7 @@ import {
   progressSteps,
 } from "../keyboard/key-sequence.js";
 import { announce, notice } from "../notifications.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { beginWalk, walkPosition, walkPositionLabel } from "../walk-position.js";
 
 import {
@@ -59,6 +55,7 @@ import {
   pageScope,
   pageScopes,
 } from "../keyboard/register.js";
+import { inChrome } from "../ui-marks.js";
 
 // Hints and the active search result are paint only. The floating panel seats the
 // search's own native field and match controls in its main row, keeping the comment
@@ -139,7 +136,6 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
- * @property {() => import("./selection.js").Anchor | null} fabAnchorAt
  * @property {() => boolean} pointerModeActive
  * @property {() => PickerTarget[]} readTargets
  * @property {() => unknown} armChanged
@@ -157,7 +153,6 @@ export function createTargetPicker({
   hintChrome,
   commentOnTarget,
   updateFab,
-  fabAnchorAt,
   pointerModeActive,
   readTargets,
   armChanged,
@@ -204,13 +199,11 @@ export function createTargetPicker({
   let searchReturnsToHints = false;
   /** @type {{query: string, index: number} | null} */
   let repeatedSearch = null;
-  /** @type {WeakMap<Text, number>} */
-  const matchNodeIds = new WeakMap();
-  let nextMatchNodeId = 1;
+  const matchNodeId = objectIds();
 
   // Target elements and text coordinates stay outside the immutable readings. Lit receives
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
-  const hintRenderKey = renderKeys();
+  const hintRenderKey = objectIds();
   // The open search's mark stands over its words in the frames that cut them, carried
   // by what carries the words (target-paint-geometry.js, `paintSet`), so no scroll
   // writes it.
@@ -436,10 +429,9 @@ export function createTargetPicker({
 
   /** @param {string} query @param {Match} segments */
   function matchIdentity(query, segments) {
-    const parts = segments.map(({ node, start, end }) => {
-      if (!matchNodeIds.has(node)) matchNodeIds.set(node, nextMatchNodeId++);
-      return `${matchNodeIds.get(node)}:${start}:${end}`;
-    });
+    const parts = segments.map(
+      ({ node, start, end }) => `${matchNodeId(node)}:${start}:${end}`,
+    );
     return `${query}\u0000${parts.join(",")}`;
   }
 

@@ -331,6 +331,13 @@ def panel_corner_hover(page: Page) -> None:
     settle(page)
 
 
+def page_comment_photo_corner(page: Page) -> None:
+    """The panel's fold shown at its top-left corner below a draft's attached
+    screenshot."""
+    page_comment_photo(page)
+    panel_corner_hover(page)
+
+
 def share_link(page: Page) -> None:
     """The page's link, focused by keyboard as read-only text in About this page,
     which the menu's Copy link opens when the clipboard refuses the copy."""
@@ -926,11 +933,10 @@ def card_next_unread(page: Page) -> None:
     settle(page)
 
 
-def card_new_reply(page: Page) -> None:
-    """A margin card after the user's own turn, read back up its transcript, with the
-    agent's answer arrived past the transcript's foot behind New reply."""
-    long_reply("7b3e0a41")
-    open_card(page, page.locator(RESYNC_MARKER))
+def own_turn_in_card(page: Page) -> tuple[Locator, int]:
+    """The card `card_next_unread` opens after the user's own turn in it: the card's
+    messages, and how many."""
+    card_next_unread(page)
     card = page.locator(".lf-margin-preview")
     messages = card.locator(".lf-msg")
     sent = messages.count() + 1
@@ -939,7 +945,14 @@ def card_new_reply(page: Page) -> None:
     page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(sent)
     settle(page)
-    card.locator(".lf-thread-transcript").hover()
+    return messages, sent
+
+
+def card_new_reply(page: Page) -> None:
+    """A margin card after the user's own turn, read back up its transcript, with the
+    agent's answer arrived past the transcript's foot behind New reply."""
+    messages, sent = own_turn_in_card(page)
+    page.locator(".lf-margin-preview .lf-thread-transcript").hover()
     page.mouse.wheel(0, -3000)
     page.wait_for_function(
         "() => document.querySelector('.lf-margin-preview .lf-thread-transcript')"
@@ -1002,16 +1015,7 @@ def card_next_unread_cluster(page: Page) -> None:
 def card_answer_at_cap(page: Page) -> None:
     """A margin card at its cap, the user at its end after their own turn, with an answer
     too long to show arrived: their turn stays in sight above New reply."""
-    long_reply("7b3e0a41")
-    open_card(page, page.locator(RESYNC_MARKER))
-    card = page.locator(".lf-margin-preview")
-    messages = card.locator(".lf-msg")
-    sent = messages.count() + 1
-    card.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.insert_text("And over the weekend?")
-    page.keyboard.press("ControlOrMeta+Enter")
-    expect(messages).to_have_count(sent)
-    settle(page)
+    messages, sent = own_turn_in_card(page)
     answer_the_turn()
     expect(messages).to_have_count(sent + 1)
     settle(page)
@@ -1396,8 +1400,8 @@ def seat_held_news(page: Page) -> None:
 
 def seat_comment_box(page: Page) -> None:
     """A goal's row with its comment box open under the conversation it holds, the
-    words of a second comment typed: the box stands in the row's own outlet, with the
-    send that holds the goal beside it."""
+    words of a second comment typed, long enough to wrap: the box stands in the row's
+    own outlet, with the send that holds the goal beside it."""
     as_agent(
         "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
@@ -1408,7 +1412,8 @@ def seat_comment_box(page: Page) -> None:
     control.click()
     box = goal.locator(":scope > .atlas-task-threads .lf-fab-input")
     expect(box).to_be_focused()
-    page.keyboard.insert_text("Park it once the hunk lands")
+    page.keyboard.insert_text(LONG_DRAFT)
+    page.mouse.move(0, 0)
 
 
 def option_picked(page: Page) -> None:
@@ -2309,10 +2314,10 @@ def chart_preview(page: Page) -> None:
     gallery_metrics(page)
     chart = page.locator("#bg-chart")
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
-    run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
+    run = chart.locator('[data-lf-plot="x-axis tick label"] text').get_by_text(
         "2", exact=True
     )
-    value = chart.locator('[data-lf-part="y-axis tick label"] text').get_by_text(
+    value = chart.locator('[data-lf-plot="y-axis tick label"] text').get_by_text(
         "6", exact=True
     )
     x, y = run.bounding_box(), value.bounding_box()
@@ -2552,6 +2557,29 @@ def diff_line_threads(page: Page) -> None:
     diff = page.locator("#dfg-lines")
     expect(diff.locator(".lf-page-thread")).to_have_count(2)
     diff.evaluate("diff => diff.scrollIntoView({block: 'start'})")
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_comment(page: Page) -> None:
+    """A line's comment box opened from its number under the long conversation the line
+    holds, a draft long enough to wrap typed in it: the box stands in the line's outlet
+    under the card."""
+    diff_line_threads(page)
+    # Clear of the panel at the window's foot, which would keep the box from a seat
+    # under it (composing/surface.js, `seatFab`).
+    page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it").evaluate(
+        "thread => scrollBy(0, thread.getBoundingClientRect().top - 120)"
+    )
+    scroll_settled(page)
+    number = page.locator("#dfg-lines").get_by_role(
+        "button", name="Comment on src/sync/retry.py · new line 16"
+    )
+    number.locator("..").hover()
+    number.click()
+    box = page.locator("#dfg-lines .lf-diff-thread-outlet .lf-fab-input")
+    expect(box).to_be_focused()
+    page.keyboard.insert_text(LONG_DRAFT)
     page.mouse.move(0, 0)
     settle(page)
 
@@ -2860,9 +2888,10 @@ def all_pages(page: Page) -> None:
             "session_cwd": f"/workspace/tend.{place}",
             "activity": {
                 **activity,
-                "kind": "working",
-                "dropped": None,
-                "awaiting": None,
+                "presence": "here",
+                "state": "running",
+                "reason": None,
+                "next_actor": "agent",
                 "detail": "Running the sandbox suite against both harnesses",
             },
         }
@@ -3062,12 +3091,6 @@ def playground_tall_stage(page: Page) -> None:
 def page_end(page: Page) -> None:
     """Scrolled to the page's end, where a rail beside a short window's stage stops."""
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
-
-
-def visual_review_inspection(page: Page) -> None:
-    """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator(".lf-vr-case:not([hidden]) .lf-vr-inspect").click()
-    page.mouse.move(0, 0)
 
 
 def code_reader_feedback(page: Page) -> None:
@@ -3410,6 +3433,7 @@ STATES = (
     ),
     State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
+    State("page-comment-photo-corner", "feature-gallery", page_comment_photo_corner),
     State(
         "share-link",
         "feature-gallery",
@@ -3513,11 +3537,6 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("image-preview", "feature-gallery", image_preview),
-    State(
-        "visual-review-inspection",
-        "visual-review-gallery",
-        visual_review_inspection,
-    ),
     State("diff-long-lines", "diff-thread-gallery", diff_long_lines),
     State(
         "diff-author-notes",
@@ -3562,6 +3581,12 @@ STATES = (
         "diff-thread-gallery",
         diff_line_thread_walked,
         region="#dfg-lines",
+    ),
+    State(
+        "diff-line-comment",
+        "diff-thread-gallery",
+        diff_line_comment,
+        region="#dfg-lines .lf-diff-thread-outlet:has(.lf-fab-bar)",
     ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),

@@ -284,10 +284,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:40 in the exact patch"
     )
     expect(added).to_be_focused()
-    # Each line already stood in the window once the diff revealed it, so neither
-    # trip departed: no history entry, and the address kept no fragment.
-    assert page.evaluate("history.length") == entries
-    expect(page).not_to_have_url(re.compile(r"#patch$"))
+    # Each trip lands the user on a line they weren't on, so each is a Back step, as a
+    # followed link is, though the diff had already brought the line into the window.
+    assert page.evaluate("history.length") == entries + 2
 
     data_model.cmd_data_set(
         serve.page_dir,

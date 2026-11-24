@@ -32,7 +32,7 @@
    and a thread's Next unread (thread-card.js), which goes to that thread's first, share
    the same exact-message arrival. Ordinary `u` remains
    paired with `d` in whichever reading region the user is in. */
-import { nextRender, sizeObserver } from "../rendering.js";
+import { nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { signal } from "/runtime/framework.js";
 import { layoutWindow, presented, seenRect, watchRoom } from "../geometry.js";
 import { intersect, hasArea } from "../rect.js";
@@ -41,7 +41,7 @@ import { sessionIsActive } from "../layer-client.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { renderedParent } from "../shadow-tree.js";
+import { renderedParent } from "../lib/shadow-tree.js";
 
 import { savedReadingSettled } from "../keyboard/bindings.js";
 import {

@@ -75,17 +75,21 @@ version as a file.
 
 A page records the packages it selects, and the Leaf serving, checking or exporting it
 composes their widgets, theme and vocabulary, as it supplies its runtime. A server
-keeps the Leaf it started under. `leaf server start` from another Leaf, such as an
-update, restarts it under that one at the same URL, and once the session runs an
-installed update, its next prompt does the same for each page the session holds; open
+keeps the Leaf it started under until the session holding its page runs an installed
+update, or the harness updates the server's own copy in place, as Codex and Pi do; it
+then restarts under the update at the same URL on its own. `leaf server start` from
+another Leaf, such as an update, restarts it under that one at the same URL. Open
 tabs reconnect, reloading where the runtime changed. Open pages keep working across
 updates except one that changes the page protocol.
 
-After a protocol change, the session holding the page takes it to the new protocol at
-its first `leaf` command or hook, keeping the log and source, and reports only a
-failure. While another live session holds the page, Leaf refuses to serve or write it,
-and `leaf page state` explains in `source.error`, naming the `leaf page init` command
-to run from the session that holds the page. A page a newer Leaf initialized is refused
+After a protocol change, Leaf takes the page to the new protocol for the session
+holding it, keeping the log and source, and tells you only of a failure. It does so
+at the session's next turn or at a `leaf` command that writes to the page. A command
+that only reads the page, such as `leaf page state`, leaves it at the old protocol.
+
+While another live session holds the page, Leaf refuses to serve or write it, and
+`leaf page state` explains in `source.error`, naming the `leaf page init` command to
+run from the session that holds the page. A page a newer Leaf initialized is refused
 as well; the refusal says how to load a newer Leaf.
 
 An update can change what a widget accepts or how it draws, and a page's own widgets

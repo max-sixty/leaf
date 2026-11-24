@@ -265,7 +265,7 @@
 // VERIFY = 1, which checks every frame.
 //
 // Skipped content. The browser draws nothing in the content it skips (`skipped`,
-// shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
+// lib/shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
 // an off-screen `content-visibility: auto` box. Nothing there can move on screen, and
 // asking any box there for its style or rect makes the browser style and lay out the
 // whole skipped subtree first. So a complete reading leaves skipped content out, as
@@ -2054,10 +2054,10 @@
   const renderings = [];
   const inputRenderings = new WeakMap();
   let open = null;
-  // Each frame's tick is counted, and the open rendering notes the frame it first
-  // draws in while news has not sealed it (`drawsIn`). A ResizeObserver delivery
-  // follows that tick in the same frame, so the effects it begins are the
-  // rendering's own as they begin (`deliveredBy`).
+  // Each frame's tick is counted, and the open rendering, like each preparation's
+  // landing, notes the frame it first draws in while news has not sealed it
+  // (`drawsIn`). A ResizeObserver delivery follows that tick in the same frame, so the
+  // effects it begins are the rendering's own as they begin (`deliveredBy`).
   let frameCount = 0;
   let delivering = 0;
   const NativeResizeObserver = window.ResizeObserver;
@@ -2074,7 +2074,12 @@
     }
   };
   const deliveredBy = () =>
-    delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
+    delivering > 0
+      ? [open, ...landing].filter(
+          (rendering) =>
+            rendering && !rendering.told && rendering.drawsIn === frameCount,
+        )
+      : [];
   // A carry draws its target back to where its layout puts it: a translation whose last
   // keyframe moves the target by nothing and whose first moves it by something.
   const carriesBack = (animation) => {
@@ -2115,9 +2120,10 @@
     const continuedStep = continuedSteps.get(animation);
     continuedSteps.delete(animation);
     if (!moves(animation)) return;
-    const owner = deliveredBy();
-    if (owner) owner.own.add(animation);
-    else if (
+    const owners = deliveredBy();
+    for (const owner of owners) owner.own.add(animation);
+    if (owners.length) return;
+    if (
       !(open && !open.told) &&
       !landing.size &&
       !renderings.some((rendering) => rendering.own.has(animation)) &&
@@ -2244,6 +2250,7 @@
     frameCount++;
     if (open?.first && !open.told) open.drawsIn = frameCount;
     for (const rendering of landing) {
+      if (rendering.first && !rendering.told) rendering.drawsIn = frameCount;
       if (!rendering.told)
         for (const animation of begun(rendering.start)) rendering.own.add(animation);
       if (rendering.last && settled()) landing.delete(rendering);
@@ -3277,15 +3284,21 @@
   // what it carries after the frame's callbacks, where the watch reads, so a reading
   // that finds the anchor scrolled can find the box where the anchor stood at the
   // reading before, whatever a script wrote to the box meanwhile. So the node at each
-  // end may stand by the anchor as it stood then, or as it stood before that reading
-  // moved it. The first pairing that keeps the node's offset, the anchor keeping its
-  // layout place, answers; null where the node or the anchor moved otherwise.
+  // end may stand by the anchor as it stood then, or as it stood before a reading
+  // moved it: the reading at that end, or the one that last placed the node, which
+  // precedes the end where the anchor scrolled again before the node caught up. The
+  // first pairing that keeps the node's offset, the anchor keeping its layout place,
+  // answers; null where the node or the anchor moved otherwise.
   const laggedTravel = (node, anchor, from, to, axis) => {
     const ends = (at) => {
       const samples = placed.get(anchor) ?? [];
-      const i = samples.findLastIndex((item) => item.at <= at);
-      const before = Math.max(samples[i - 1]?.at, retainedFrom);
-      return samples[i]?.at === at && before < at ? [at, before] : [at];
+      const times = [at];
+      for (const read of new Set([at, readingAt(node, at)?.at ?? at])) {
+        const i = samples.findLastIndex((item) => item.at <= read);
+        const before = Math.max(samples[i - 1]?.at, retainedFrom);
+        if (samples[i]?.at === read && before < read) times.push(before);
+      }
+      return times;
     };
     const offset = (at, by) => boxAt(node, at)?.[axis] - boxAt(anchor, by)?.[axis];
     const place = (at) => layoutAt(anchor, at)?.[axis];

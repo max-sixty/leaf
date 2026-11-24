@@ -1,8 +1,8 @@
 /* This module owns Design mode and legend geometry. Anchor resolution owns the
  * target reading shared by its direct presses, pointer promise, and keyboard picker. */
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { shownBox } from "./geometry.js";
-import { layoutPx } from "./keeps.js";
+import { layoutPx } from "./lib/keeps.js";
 import { paintSet } from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
 import { tabStore } from "./tab-store.js";
@@ -13,12 +13,13 @@ import {
   aimTargets,
   designPressAt,
 } from "./anchor-resolution.js";
-import { inChrome, leafSurface } from "./passages.js";
+import { leafSurface } from "./passages.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { BACK_OUT, pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 import { saying } from "./keyboard/control-keys.js";
+import { inChrome } from "./ui-marks.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one

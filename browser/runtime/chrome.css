@@ -92,11 +92,19 @@
    answers which item a press takes, and the hand over it that a press takes one.
    Derived at the paint from what refreshAim resolved, so cursor and mark cannot
    disagree. The hand stands on the element under the pointer (page-geometry.js), so
-   arming and a crossing restyle only what that element holds. Elsewhere a press takes
+   arming and a crossing restyle only what that element holds. Between the items an item
+   holds, the element under the pointer is the outer item itself, and a press there takes
+   it. That is how a comment takes a large item, such as a whole article, which the
+   maintainer requires. Between a page's sections the item is the article, so arming and
+   a crossing there restyle the whole page. The maintainer accepts that cost against
+   Responsiveness (root `AGENTS.md`), and a cheaper hand is welcome if a press there
+   still takes the article. An arrow there would say a press takes nothing. A hand on a
+   Leaf element under the pointer would cost less, but every reading of what lies under
+   the pointer would then have to look through that element. Elsewhere a press takes
    nothing (claimPress) and the page keeps its own cursor, the I-beam over words no item
    holds: an arrow declared on the body for them would restyle every element each time
-   the page arms or disarms, which can take Firefox over a second on a page of large
-   text documents. A control keeps its own cursor while armed. Only an armed page or
+   the page arms or disarms, which can take Firefox over a second on a page of large text
+   documents. A control keeps its own cursor while armed. Only an armed page or
    Design mode paints the hand, so the rule reads no mark on `body`, whose every change
    makes Firefox visit the whole page. Where the aim's press takes an item on the page,
    it takes it whatever cursor the page gives the item, so the hand covers that cursor,
@@ -1073,9 +1081,11 @@ html[data-lf-draw-mode] {
     background: color-mix(in srgb, var(--lf-accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--lf-accent) 72%, transparent);
   }
-  /* As wide as "99 of 99", so the field keeps its width as the count changes. */
+  /* As wide as "99 of 99", so the field keeps its width as the count changes, and
+     `--lf-clear` before the first step, so a hovered step's face doesn't touch it. */
   .lf-page-search-status {
     inline-size: 7ch;
+    margin-inline-end: var(--lf-clear);
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 1lh;

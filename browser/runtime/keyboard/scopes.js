@@ -10,7 +10,7 @@
 
    Core registers scopes through internal `keys(el, title, rows)`; a package widget
    declares the same scope as data on its element, `lfCommands`, which this module reads
-   when the widget says it changed (`commandsChanged`, widget-upgrade.js). A module
+   when the element says it changed (`lf-commands`, widget-upgrade.js). A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; the command reference gathers their section presentations.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
@@ -38,7 +38,12 @@
    name another button while out of the page, with no write reported, and is put back
    and pressed in one task, is found by the frame after its arrival, not by that press:
    the gap a getter that queries the document has wherever its writer reports nothing. */
-import { focusDestination, focusRevision, followingFocus } from "../focus.js";
+import {
+  focusDestination,
+  focusRevision,
+  followingFocus,
+  onCurrentLocation,
+} from "../focus.js";
 import {
   AsyncDirective,
   PartType,
@@ -73,12 +78,12 @@ import {
   isElement,
   composedParentNode,
   renderedParent,
-} from "../shadow-tree.js";
+} from "../lib/shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
-import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
+import { COMMANDS, reportFailure } from "../widget-upgrade.js";
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandRoute} CommandRoute
@@ -776,7 +781,7 @@ function declaredScope(title, rows, options) {
       `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
     );
   // `claims` takes the bindings it answers true for from every scope further out
-  // while the user is in this one, as a menu standing over the page does.
+  // while the user is in this one, as a view of the floating panel does.
   return {
     title,
     rows: checked(rows, title ?? "a scope", ready),
@@ -854,19 +859,45 @@ export const commandsOn = directive(
 
 // A package widget's keys are data on the element they apply in, `lfCommands`: the
 // scope's title, rows and options as `keys` takes them, or a `commandScope()` value. The
-// widget says when it sets or changes them, or anything its rows read, with
-// `commandsChanged` (widget-upgrade.js), so a page without Leaf, which hears nothing,
-// binds no key. A declaration other than the one standing stands in its place, and none
-// withdraws it; the same one standing means a row's reading moved, so the element
-// reads its rows again (`mark`), and so does every reader of the register's
-// availability. A malformed declaration is refused where the widget made it, as `keys`
-// refuses one: the refusal goes back on the event, and `commandsChanged` throws it.
+// element says when it sets or changes them, or anything its rows read, with an
+// `lf-commands` event it dispatches on itself (`COMMANDS`, widget-upgrade.js), so a page
+// without Leaf, which hears nothing, binds no key. The element is the one the event
+// began at, read off its path, since the window sees a shadow host as the target of an
+// event from inside its root; a closed root hides the element, and its host is read in
+// its place. A declaration other than the one standing stands in its
+// place, and none withdraws it; the same one standing means a row's reading moved, so
+// the element reads its rows again (`mark`), and so does every reader of the register's
+// availability. An element that says it drew (`detail.within`) has every scope at or
+// under it read its rows again instead (`paintKeysWithin`), since what they read from
+// the nodes it drew may have changed. A malformed declaration is refused as `keys`
+// refuses one, and since a listener's exception never reaches the element that
+// dispatched, the refusal is reported as that element's failure.
+//
+// Nothing hears an element that says its keys before it is placed, and they bind
+// nothing. Reading the property where it is needed instead would find it for a key,
+// along the key's path, but a declaration also acts before any key arrives, wherever
+// the user is: it wires the buttons its rows name and shows their availability, and
+// writes the element's `aria-keyshortcuts`; and the command reference lists every
+// scope in the page. Those need each declaration as it is made, and a property is
+// found only by a walk. Reading it as each element arrives would be such a walk on
+// every page at every mutation, and would still leave a later change to be said. So
+// the element says it, and the render check walks once for one never heard
+// (`commandsUnread`).
 const declared = new WeakMap();
+/** @type {WeakSet<Element>} */
+const heard = new WeakSet();
+/** Whether `element` holds an `lfCommands` this module never read.
+ * @param {Element} element */
+export const commandsUnread = (element) =>
+  element.lfCommands != null && !heard.has(element);
 addEventListener(COMMANDS, (event) => {
-  const element = commandsChangedOn(event);
+  const [element] = event.composedPath();
+  if (!(element instanceof Element)) return;
   const declaration = element.lfCommands ?? null;
+  if (declaration !== null) heard.add(element);
   const standing = declared.get(element);
   if (declaration === (standing?.declaration ?? null)) {
+    if (event.detail?.within) return paintKeysWithin(element);
     if (standing) mark(element);
     availabilityDirty = true;
     repaint();
@@ -886,7 +917,7 @@ addEventListener(COMMANDS, (event) => {
     );
     declared.set(element, { declaration, scope });
   } catch (error) {
-    refuseCommands(event, error);
+    reportFailure(element, error);
   }
 });
 
@@ -1068,9 +1099,39 @@ export function reflectFirstScopes() {
 // every element, and `paintKeysWithin(root)` the ones a renderer's paint touched. A
 // publication that moves nothing an element read, and no renderer whose output it reads,
 // leaves its reflection as it is.
+//
+// A package's rows ask the browser where focus is, as a tree's `activeElement`, which
+// no signal tracks. So each change in where the user is also marks the scoped elements
+// around the node they left and around the one they reached (`markAroundMove`): the
+// scopes on those paths, never the page's. The scopes around a node are also kept from
+// when the user arrived on it, since a change that takes the node out of the page, as a
+// drop does, takes the climb to them with it.
 let keysDirty = true;
 /** @type {Set<Element>} */
 const dirtyElements = new Set();
+/** @param {Node | null} node */
+function scopesAround(node) {
+  /** @type {Element[]} */
+  const found = [];
+  for (let at = node; at; at = renderedParent(at))
+    if (isElement(at) && scopeRefFor.has(at)) found.push(at);
+  return found;
+}
+/** @type {WeakRef<Element>[]} */
+let aroundArrival = [];
+/** @param {Element | null} node @param {unknown} _cause @param {Element | null} left */
+function markAroundMove(node, _cause, left) {
+  const around = scopesAround(node);
+  const marks = [
+    ...aroundArrival.map((ref) => ref.deref()),
+    ...scopesAround(left),
+    ...around,
+  ];
+  aroundArrival = around.map((scoped) => new WeakRef(scoped));
+  for (const scoped of marks) if (scoped) mark(scoped);
+  if (marks.length) repaint();
+}
+onCurrentLocation(markAroundMove);
 /** @type {WeakMap<Element, () => void>} */
 const tracked = new WeakMap();
 // Native buttons read the same predicates for their availability. A command may name a

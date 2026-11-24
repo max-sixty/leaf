@@ -41,8 +41,9 @@
  * (`alreadyShown`), so one that follows the user, a Tab's arrival, entering a reply or
  * returning to a thread, and one that takes them somewhere, travel and the walks, ask
  * one question. It is shown where a nearest landing would move nothing: the user sees
- * it (geometry.js, `seenRect`, which takes away the box the chrome covers, so a control
- * beside the floating panel stays put), out to its ring's room where the user is on or
+ * it (geometry.js, `seenRect`, which takes away the box the chrome covers where its
+ * motion leaves it, so a control beside the floating panel stays put, and one a view of
+ * the panel is opening over is not shown), out to its ring's room where the user is on or
  * inside it (see below), as far as the boxes between it and its reading region let that
  * room show (`landable`), along each axis where it fits its room; and where it is taller
  * than its room, a nearest landing's own moves bring no more of it in, so a box taller
@@ -52,7 +53,7 @@
  * landing (`block`): a box taller than its room is shown there only where that landing
  * would move nothing, so travel to a section the user is reading inside, or to a file
  * of a diff they have read down, still lands its opening. Its edges are compared at
- * layout precision (keeps.js, `atLayoutPrecision`): a box a landing put flush at an
+ * layout precision (lib/keeps.js, `atLayoutPrecision`): a box a landing put flush at an
  * edge reads back a float's rounding past it in Firefox, and a reading that counted it
  * unseen would land it again and enter travel's history. A box a glide under way is
  * carrying (scroll-containers.js, `glideTravel`) is shown only where it is seen both where it
@@ -104,7 +105,7 @@ import {
   shownWindow,
   visibleBand,
 } from "./geometry.js";
-import { atLayoutPrecision } from "./keeps.js";
+import { atLayoutPrecision } from "./lib/keeps.js";
 import { glideTravel, scrollersOf, seenGlided } from "./scroll-containers.js";
 import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
 import {
@@ -114,12 +115,13 @@ import {
   placeKept,
   scrollGoal,
   startScroll,
+  steerGlide,
   stopGlide,
   whereGlidesLand,
 } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
-import { cancelRender, nextRender } from "./rendering.js";
-import { renderedParent, renderedUnder } from "./shadow-tree.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
+import { renderedParent, renderedUnder } from "./lib/shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 
 /** @typedef {Element | Range} Destination
@@ -150,11 +152,19 @@ const snappedToward = (from, top) => {
 // reading region makes to reveal a box sideways (`innerMoves`), leaves the glide going,
 // so the region's landing after it still aims from the glide's goal. Stopped there, a
 // sideways reveal pressed during a glide landed from where the page stood. A `held`
-// landing keeps a box at the band's edge (`snappedToward`).
-/** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {boolean} [kept] @param {number} [from] @param {boolean} [held] */
-const land = (box, by, behavior, kept = false, from = box.scrollTop, held = false) => {
+// landing keeps a box at the band's edge (`snappedToward`). A glide asks `aim` at each
+// frame where the landing now puts the box (scrolling.js, `aimed`), so content drawn
+// above the destination after the landing starts, in the same task or during the glide,
+// still leaves the destination where the landing puts it.
+/** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {{kept?: boolean, from?: number, held?: boolean, aim?: (() => number | null) | undefined}} [options] */
+const land = (
+  box,
+  by,
+  behavior,
+  { kept = false, from = box.scrollTop, held = false, aim } = {},
+) => {
   const asked = from + (by.top ?? 0);
-  if (glides(box, behavior)) return glideTo(box, asked);
+  if (glides(box, behavior)) return glideTo(box, asked, aim);
   const top = held ? snappedToward(from, asked) : asked;
   const { scrollTop, scrollLeft } = box;
   if (by.top || from !== scrollTop) stopGlide(box);
@@ -163,6 +173,14 @@ const land = (box, by, behavior, kept = false, from = box.scrollTop, held = fals
   if (kept) placeKept(box);
   else startScroll(box);
 };
+
+// Whether `where` is still on the page to be landed: in the document and drawing a box,
+// since one removed or not rendered reads as an empty box at the window's corner.
+/** @param {Destination} where */
+function standsOnPage(where) {
+  const { x, y, width, height } = destinationBox(where);
+  return Boolean(holderOf(where)?.isConnected && (x || y || width || height));
+}
 
 // A destination's landing margin on one side. A range has none of its own and takes the
 // larger of those of the elements it starts and ends with, so a side list's run of a
@@ -331,7 +349,9 @@ export function alreadyShown(
   const shown = shownFor(where);
   const box = destinationBox(where);
   const out = on ? marginBox(where, box) : box;
-  const seen = seenRect(shown, new Map(), out);
+  // Past the chrome's covers where their motion leaves them, against which a landing
+  // places the box, so one a view is opening over counts as covered.
+  const seen = seenRect(shown, new Map(), out, true);
   if (!seen) return false;
   const room = landingRoom(where);
   const want = landable(shown, out);
@@ -470,20 +490,54 @@ export function landedBox(where) {
 
 // A region whose glide already heads where the landing would take it moves no further,
 // unless the landing is instant: then the glide lands at once, since an instant landing
-// shows its destination now, as a replaced view must, and not at the glide's end.
-/** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior @param {boolean} [kept] @param {boolean} [held] */
+// shows its destination now, as a replaced view must, and not at the glide's end. A
+// region's glide asks `aim` where the landing now puts it (`landingAim`).
+/** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior @param {{kept?: boolean, held?: boolean, aim?: (box: Element) => () => number | null}} [options] */
 function scrollIntoReadingBand(
   where,
   holder,
   block,
   behavior,
-  kept = false,
-  held = false,
+  { kept = false, held = false, aim } = {},
 ) {
   const { moves } = readingBandMoves(where, holder, block);
   for (const { box, local, moved, ahead } of moves)
     if (Math.abs(moved) >= 1 || (Math.abs(ahead) >= 1 && !glides(box, behavior)))
-      land(box, { top: local }, behavior, kept, scrollGoal(box), held);
+      land(box, { top: local }, behavior, {
+        kept,
+        from: scrollGoal(box),
+        held,
+        aim: aim?.(box),
+      });
+}
+
+// Where a landing now puts each box it moves, for the box's glide to ask at each frame
+// (scrolling.js, `aimed`), each read afresh as at the landing's start: a reading
+// region's move from where the glides under way land, a box the walk inside `within`
+// moves from where it stands, and nowhere further for a `nearest` landing whose
+// destination is already shown (`alreadyShown`). Null once the destination is removed or
+// not rendered (`standsOnPage`).
+/** @param {Destination} where @param {Destination} aligned @param {Element} holder @param {{block: ScrollLogicalPosition, within: Element | null, sideways: boolean, targetScroller: Element | null | undefined}} landing @returns {(box: Element) => () => number | null} */
+function landingAim(
+  where,
+  aligned,
+  holder,
+  { block, within, sideways, targetScroller },
+) {
+  return (box) => () => {
+    if (!standsOnPage(where)) return null;
+    if (block === "nearest" && aligned === where && alreadyShown(where))
+      return scrollGoal(box);
+    if (within) {
+      for (const move of innerMoves(where, targetScroller, within, sideways, block))
+        if (move.box === box) return box.scrollTop + (move.by.top ?? 0);
+      return null;
+    }
+    const move = readingBandMoves(aligned, holder, block).moves.find(
+      (move) => move.box === box,
+    );
+    return move ? scrollGoal(box) + move.local : null;
+  };
 }
 
 // Reveal inner overflow before aligning its owning reading region. The ancestry
@@ -495,8 +549,11 @@ function scrollIntoReadingBand(
 // prepare its inner overflow before its enclosing context lands in the reading band. A destination in a
 // fixed layer, such as a modal's list, has no reading region: its boxes reveal it
 // nearest, out to that layer. `within` ends the walk at that box, so only it and the
-// boxes inside it move, each revealing the destination nearest: an item comes into
-// its own strip or list while the page around it stays where the user reads. Native
+// boxes inside it move: an item comes into its own strip or list while the page around
+// it stays where the user reads. The boxes inside it reveal the destination nearest at
+// once, and the box itself places it at `block` with `behavior`, as a reading region
+// does, so a code block following a playhead glides its line to the middle of its pane
+// (lf-code.js). Native
 // `scrollIntoView({container: "nearest"})` is no substitute: Firefox still scrolls the
 // boxes around it (notes/browser-support.md, "Native reveal bounded to its scroller").
 // A reveal that returns the reader to a place they had, as a restore brings back the
@@ -520,23 +577,39 @@ export function scrollIntoView(
   const aligned = alignment ?? where;
   const holder = holderOf(aligned);
   if (!holder) return;
-  if (block === "nearest" && aligned === where && alreadyShown(where)) return;
   const targetScroller = within ? null : scrollersOf(holder).next().value;
+  const aim = landingAim(where, aligned, holder, {
+    block,
+    within,
+    sideways,
+    targetScroller,
+  });
+  // The landing takes the glides under way in the boxes it would move, even where it
+  // moves them no further, so each lands this destination rather than the one an
+  // earlier landing set it off for.
+  const moved = within
+    ? [...innerMoves(where, targetScroller, within, sideways, block)].map(
+        ({ box }) => box,
+      )
+    : scrollersOf(holder);
+  for (const box of moved) steerGlide(box, aim(box));
+  if (block === "nearest" && aligned === where && alreadyShown(where)) return;
   // Only a box that will move is asked to, as a first tab's ring room at its strip's
   // start moves nothing: a call that moves nothing still reads as a scroll the gesture
   // made (tests/shift_watch.js, "Scrolls a gesture makes").
-  for (const { box, by } of innerMoves(where, targetScroller, within, sideways))
-    if (by.left || by.top) land(box, by, "instant", kept);
+  for (const { box, by } of innerMoves(where, targetScroller, within, sideways, block))
+    if (by.left || by.top)
+      land(box, by, box === within ? behavior : "instant", { kept, aim: aim(box) });
   if (!targetScroller) return;
-  scrollIntoReadingBand(aligned, holder, block, behavior, kept);
+  scrollIntoReadingBand(aligned, holder, block, behavior, { kept, aim });
 }
 
 // The moves the walk before a destination's reading region makes (`scrollIntoView`),
 // each read when the caller asks for it, after it made the last: every box clipping the
 // destination reveals it across at the nearest edge, and each inside `targetScroller`
-// down too.
-/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways */
-function* innerMoves(where, targetScroller, within, sideways) {
+// down too, nearest, but for `within`, which places it at `block`.
+/** @param {Destination} where @param {Element | null | undefined} targetScroller @param {Element | null} within @param {boolean} sideways @param {ScrollLogicalPosition} [block] */
+function* innerMoves(where, targetScroller, within, sideways, block = "nearest") {
   // Horizontal inspection can belong to any ancestor, the owning region included.
   // Only inner scrollports prepare Y; the region and its outers glide below.
   let inside = true;
@@ -560,7 +633,7 @@ function* innerMoves(where, targetScroller, within, sideways) {
         ? placementBy(
             where,
             destination,
-            "nearest",
+            box === within ? block : "nearest",
             band,
             topMargin(where, box, band, start),
           )
@@ -599,7 +672,7 @@ function landsStill(where, block) {
 // and the clearance at once (thread/reply-landing.js, `revealWritingArea`).
 /** @param {Destination} where */
 export const keepInBand = (where) =>
-  scrollIntoReadingBand(where, holderOf(where), "nearest", "instant", false, true);
+  scrollIntoReadingBand(where, holderOf(where), "nearest", "instant", { held: true });
 
 // A Tab's arrival (see the header), read once the browser's own reveal has moved: at
 // the next render, or at the user's next key where that comes first. The key's readers

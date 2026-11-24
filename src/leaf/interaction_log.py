@@ -48,7 +48,7 @@ from pathlib import Path
 
 from .registry.schema import aware_instant
 from .schema import INTERACTIONS_FILE
-from .state import now_iso, session_record
+from .state import now_iso
 
 BATCH_SCHEMA = json.loads(
     Path(__file__).with_name("interaction-batch.schema.json").read_text()
@@ -112,6 +112,7 @@ def record_command(command: str, *, refused: str | None = None) -> None:
         return
     import psutil
 
+    from .event_log import initialized, session_context
     from .harness import session_harness
 
     try:
@@ -130,8 +131,6 @@ def record_command(command: str, *, refused: str | None = None) -> None:
         }
     except (OSError, psutil.Error):
         return
-    from .event_log import initialized
-
     for page_dir in pages:
         try:
             if initialized(page_dir):
@@ -144,9 +143,11 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
     """Record in each page a harness's watch between turns read when it started,
     the protocol its Leaf speaks, and how it `ended`: `woke` the session,
     `superseded` by a later watch, `server-down`, `no-pages` left to watch,
-    `harness-exited`, or `stopped` by a signal or an error. A watch that held a
-    page it couldn't read shows its older protocol, and one killed outright leaves
-    no record. Dropped where the page can't be written, as `record_command` is."""
+    `harness-exited`, `copy-replaced` by the copy now at its Leaf's path, whose
+    watch goes on in its place (`state.CopyReplaced`), or `stopped` by a signal or
+    an error. A watch that held a page it couldn't read shows its older protocol,
+    and one killed outright leaves no record. Dropped where the page can't be
+    written, as `record_command` is."""
     from .registry.kernel import kernel_protocol
 
     record = {
@@ -205,28 +206,6 @@ def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
         }
         for entry in entries
     ]
-
-
-def session_context(session: str | None, claim: dict | None = None) -> dict | None:
-    """Capture native session metadata as it stands at the write boundary."""
-    if session is None:
-        return None
-    from .harness import session_harness
-
-    owner = claim if claim and claim["id"] == session else None
-    writer = session_harness() if owner is None else None
-    lifecycle = session_record(session)
-    return {
-        "harness": owner["harness"]
-        if owner
-        else writer.name
-        if writer and writer.session == session
-        else None,
-        "cwd": owner.get("cwd") if owner else None,
-        "transcript_path": lifecycle.get("transcript_path") if lifecycle else None,
-        "turn": lifecycle["turn"] if lifecycle else None,
-        "provider": lifecycle["provider"] if lifecycle else None,
-    }
 
 
 def interaction_time(value: str) -> datetime:

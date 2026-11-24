@@ -154,6 +154,85 @@ def test_sort_film_readout_and_narration(browser, serve):
     expect(note.locator("code")).to_have_text("buf")
 
 
+def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
+    browser, serve
+):
+    """The film's playhead output lights the slice.rs line a step runs in the one
+    excerpt quoting it, and the source pane brings that line to its middle without
+    moving the page. Once the reader scrolls the pane, a new line out of view leaves it
+    where they put it, until they act on the film again; the last step lights nothing."""
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
+    )
+    page = open_page(browser, serve(named_source("rust-sort")), context=context)
+    # The end of the first step that runs insert_head's first test, of the first that
+    # chooses a merge's direction, and of the last step.
+    times = page.evaluate(
+        """async () => {
+          const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+          const source = new URL('../page/sort.js', new URL(imports['/runtime/'], location.href));
+          const {makeInput, trace} = await import(source);
+          const steps = trace(makeInput('random', 7)).steps;
+          const end = (step) => step.start + step.dur - 0.01;
+          return {
+            insert: end(steps.find(step => step.line === 'ih-test')),
+            merge: end(steps.find(step => step.line === 'm-choose')),
+            last: end(steps.at(-1)),
+          };
+        }"""
+    )
+    scrub = page.locator("#sort-film .sort-scrub")
+    pane = page.locator("#sort-source")
+    marked = pane.locator("[data-lf-at]")
+
+    # A seek, as the playback clock sets it: no input the reader made.
+    def seek(time):
+        scrub.evaluate(
+            "(element, time) => { element.value = time; element.dispatchEvent(new Event('input', {bubbles: true})); }",
+            time,
+        )
+
+    seek(times["insert"])
+    expect(marked).to_have_count(1)
+    expect(page.locator("#code-insert-head [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1313"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    scroll_settled(page, "#sort-source")
+    # Brought to the middle, with room for the lines before it and after.
+    room = page.evaluate(
+        """() => {
+          const pane = document.getElementById('sort-source').getBoundingClientRect();
+          const line = document.querySelector('#sort-source [data-lf-at]').getBoundingClientRect();
+          return {above: line.top - pane.top, below: pane.bottom - line.bottom, pane: pane.height};
+        }"""
+    )
+    assert min(room["above"], room["below"]) >= room["pane"] / 4, room
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+
+    box = pane.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, -5000)
+    page.wait_for_function("document.getElementById('sort-source').scrollTop === 0")
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert pane.evaluate("element => element.scrollTop") == 0
+    expect(marked).not_to_be_in_viewport()
+
+    scrub.press("ArrowRight")
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1416"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+
+    seek(times["last"])
+    expect(marked).to_have_count(0)
+
+
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
@@ -885,12 +964,12 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     # Exercise the generic contribution trace with a real public registration;
     # the screenshot's own endpoint actions live in its native control rail.
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'review-capture',
         target: document.querySelector('#rn-console-shot'),
-        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
-          label: 'Review capture'})]}), activate: () => {},
+        read: () => ({entries: [{key: 'review', glyph: 'R',
+          label: 'Review capture'}]}), activate: () => {},
       });
     }""")
     margins_laid_out(page)
@@ -3303,7 +3382,7 @@ def test_the_write_gate_rejects_unchanged_authored_style_writes(
 # The type of a word press Leaf builds by role, as a widget builds one
 # (`offerAction`), which the page's own controls are held to.
 LEAF_PRESS_TYPE = """async () => {
-  const {offerAction} = await window.__lfWidgetApi();
+  const {offerAction} = await import("/runtime/lib/controls.js");
   const press = document.querySelector('main').appendChild(
     offerAction('word', '', 'Leaf'));
   const s = getComputedStyle(press);
@@ -3361,12 +3440,13 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {inBaseLayer, once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 const sheet = new CSSStyleSheet();
-sheet.replaceSync(inBaseLayer(`
+sheet.replaceSync(`@layer lf-base {
   @layer library { .library { font: 18px Georgia; } }
   .own { font: 20px Georgia; }
-`));
+}`);
 customElements.define('lf-own-controls', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

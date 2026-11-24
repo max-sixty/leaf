@@ -49,6 +49,7 @@ from interact_support import (
     lock_contention,
     model_layer,
     obligations_on_user,
+    open_todos,
     publish,
     read_page_data,
     refused_on,
@@ -897,9 +898,8 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     registry: dict[str, dict] = with_modules(
         {
             "lf-draft": {
-                "content": "data",
+                "content": "markdown",
                 "verbatim": True,
-                "text-format": "markdown",
             }
         },
         "lf-draft",
@@ -1612,9 +1612,10 @@ def test_check_rejects_widget_violations(page_dir):
 
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
-    """A data widget's text is its <pre> or its bound input, never both, so text
-    written under a binding, which the widget would never show, is refused. Written
-    text names its origin with a label, as a bound document names its file."""
+    """A data widget's text is its <pre> or its bound `value` input, never both, so
+    text written under a binding, which the widget would never show, is refused. An
+    input with another property, as a code block's playhead, leaves the <pre> its text.
+    Written text names its origin with a label, as a bound document names its file."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1625,7 +1626,8 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
             '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
             '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
             "</lf-text-document>"
-            '<lf-code id="bare-code"></lf-code>',
+            '<lf-code id="bare-code"></lf-code>'
+            '<lf-code id="following" for="written"><pre>x = 1</pre></lf-code>',
         )
     )
     _, findings = check_findings(page_dir)
@@ -1667,7 +1669,8 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
-    holds, which a one-version corpus cannot earn.
+    holds, which a one-version corpus cannot earn — and `id`, which composition
+    gives every element and no declaration lists.
 
     Live samples are example pages too; their child documents contribute the
     attributes the reader can exercise there.
@@ -1695,7 +1698,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry["attributes"].get("properties", {}).items():
-            if attr in {"restated", "overruled", "resolves"}:
+            if attr in {"id", "restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
@@ -1721,7 +1724,6 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],
@@ -1959,6 +1961,102 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "Revise this"},
     )
     assert errors(markup.replace('resolves="plan"', 'resolves="c1"')) == []
+
+
+def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
+    """A wrong `commandfor` or `command` leaves a button doing nothing, with no error
+    from the browser, so a dead button would reach the user. A message's button may
+    name the page's widget, and a duplicate id, which the browser would resolve to
+    whichever element comes first, is refused before it can misdirect one."""
+    registry = load_registry(page_dir)
+    page = structure_model.SourceDocument(
+        PAGE.replace(
+            "</main>",
+            '<lf-code id="film"><pre>1</pre></lf-code><dialog id="more"></dialog></main>',
+        )
+    )
+
+    def message(markup):
+        return message_markup_findings(
+            page_dir,
+            structure_model.SourceDocument(markup),
+            events_model.read_events(page_dir),
+            registry,
+            page,
+            set(),
+            [],
+            {},
+            None,
+        )
+
+    def errors(target, command):
+        return message(f'<button commandfor="{target}" command="{command}">Go</button>')
+
+    assert errors("film", "--seek") == []
+    assert errors("more", "show-modal") == []
+    assert errors("more", "SHOW-MODAL") == []
+    assert found(
+        errors("flim", "--seek"), "unknown-reference", attr="commandfor", target="flim"
+    )
+    assert found(errors("film", "seek"), "unknown-command", command="seek")
+    assert found(
+        message('<button commandfor="film">Go</button>'), "unknown-command", command=""
+    )
+    assert found(
+        message(
+            '<lf-code id="film"><pre>1</pre></lf-code>'
+            '<button commandfor="film" command="--seek">Go</button>'
+        ),
+        "ids-taken",
+        ids=["film"],
+    )
+
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>", '<button commandfor="nowhere" command="seek">Go</button></main>'
+        )
+    )
+    assert found(
+        check_findings(page_dir)[1],
+        "unknown-reference",
+        attr="commandfor",
+        target="nowhere",
+    )
+
+
+def test_a_message_names_only_its_own_document_and_the_page(page_dir):
+    """A reference reads the message's document and then the page, so one naming an id
+    in another message would draw nothing; it is refused where the agent writes it."""
+    registry = load_registry(page_dir)
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "agent",
+            "revision": 1,
+            "text": 'Here\n\n<lf-code id="earlier"><pre>1</pre></lf-code>',
+        },
+    )
+
+    assert found(
+        message_markup_findings(
+            page_dir,
+            structure_model.SourceDocument(
+                '<lf-tally id="count" for="earlier"></lf-tally>'
+            ),
+            events_model.read_events(page_dir),
+            registry,
+            structure_model.SourceDocument(PAGE),
+            set(),
+            [],
+            {},
+            None,
+        ),
+        "unknown-reference",
+        attr="for",
+        target="earlier",
+    )
 
 
 def test_a_reply_carrying_a_suggestion_posts_and_says_what_deciding_it_changes(
@@ -2388,8 +2486,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         "thread", "reply", "t-store", "--text", "Weighing it.", "--todo", "Weigh"
     )
     assert promised.exit_code == 0, promised.output
-    [task] = json.loads(run("page", "state").output)["todos"]
-    assert (task["id"], task["subject"]) == (
+    [task] = open_todos(json.loads(run("page", "state").output))
+    assert (task["id"], task["source"]["subject"]) == (
         json.loads(promised.output)["id"],
         {"kind": "thread", "id": opened["id"]},
     )
@@ -3266,11 +3364,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "resolved": None,
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.
-            "attention": {
-                "kind": "waiting",
-                "reason": "workflow",
-                "workflow": opened["id"],
-            },
+            "attention": f"update:{opened['id']}",
         }
     ]
     history = CliRunner().invoke(
@@ -4169,7 +4263,9 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     )
     with fresh_process():
         state = agent_state_model.cmd_page_state(page_dir)
-    assert [item["status"] for item in state["obligations"]] == ["withdrawn"]
+    assert [(item["state"], item["outcome"]) for item in state["obligations"]] == [
+        ("done", "dropped")
+    ]
     assert set(authored) == {active.read_text()}
 
 
@@ -4225,7 +4321,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     with fresh_process():
         initial = read()
         assert len(parsed) == 4
-        assert initial["all"][0]["status"] == "withdrawn"
+        assert initial["all"][0]["outcome"] == "dropped"
         parsed.clear()
         assert read() == initial
         assert len(parsed) <= 1  # the first read's history parses evicted the active
@@ -4568,8 +4664,7 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     )
     registry: dict[str, dict] = {
         "lf-draft": {
-            "content": "data",
-            "text-format": "markdown",
+            "content": "markdown",
             "verbatim": True,
         }
     }
@@ -4596,7 +4691,7 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
-    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # A <br> parts the words around it, as Leaf reads them (lib/markdown.js,
     # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):
@@ -4742,7 +4837,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     [item] = [
         item for item in reading["obligations"] if item["source"]["kind"] == "widget"
     ]
-    assert item["status"] == "answered"
+    assert (item["state"], item["outcome"], item["end"]) == ("done", "done", None)
     assert item["answer"]["event"]["id"] == picked["id"]
 
 

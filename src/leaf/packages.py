@@ -49,7 +49,6 @@ from .schema import (
 )
 from .state import fsync_parents, json_bytes
 from .styles import set_properties, unguarded_reads
-from .themes import DEFAULT_THEME, themes_under
 
 
 def package_write_lock(*packages: Path):
@@ -120,7 +119,7 @@ def starter_element_declaration(tag: str) -> dict:
         "id.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -256,14 +255,9 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The layer a new page selecting this package composes: the mandatory layer, the
-    themes it composes under the package (`themes.themes_under`), so a theme composes
-    as a page taking it does, then this package, each once."""
+    """The layer a page selecting this package alone composes: the mandatory layer,
+    then this package, once."""
     inputs = layer_inputs()
-    for name in themes_under(package):
-        theme = named_package(name)
-        if theme is not None and not any(paths_same(theme, root) for root in inputs):
-            inputs.append(theme)
     if not any(paths_same(package, root) for root in inputs):
         inputs.append(package)
     return inputs
@@ -431,8 +425,8 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
         )
 
         # A theme's rules and a CSS-only widget's both go in defaults.css, beside the
-        # registry that declares the widget or names the theme's base; anything else a
-        # package holds, the author adds when there is something to put in it.
+        # registry that declares the widget; anything else a package holds, the
+        # author adds when there is something to put in it.
         files = {
             "registry.json": b"{}\n",
             "defaults.css": b"",
@@ -534,8 +528,7 @@ def cmd_package_install(source: Path) -> dict:
 
 def cmd_package_list() -> dict:
     """List the packages `page init --package NAME` can select by name
-    (`selectable_packages`), leaving out `default`, which every page composes, and
-    Leaf's theme, which `leaf theme list` offers.
+    (`selectable_packages`), leaving out `default`, which every page composes.
 
     A package is described in its own words, so one installed under a name of its own
     reaches an author as a bundled one does: its `description` is the first paragraph
@@ -547,7 +540,7 @@ def cmd_package_list() -> dict:
 
     packages = []
     for name, root in selectable_packages().items():
-        if name in {DEFAULT_PACKAGE.name, DEFAULT_THEME}:
+        if name == DEFAULT_PACKAGE.name:
             continue
         author = root / INSTRUCTIONS_DIR / "author.md"
         text = author.read_text(encoding="utf-8") if author.is_file() else ""

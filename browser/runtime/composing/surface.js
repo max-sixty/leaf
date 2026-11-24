@@ -54,7 +54,11 @@
    its placement, in the frame the field will have, so the press moves nothing; only its
    face stands (`.lf-fab-rest`), with no anchor or composer behind it. So it holds no
    revision back, takes no Escape step, closes no thread card and builds no editor, and
-   it goes with the focus that raised it.
+   it goes with the focus that raised it. It goes in the frame a scroll takes that focus
+   out of sight, though its placement would keep it on screen a little longer, carried
+   up by the target's foot (comment-placement.js, `scroll-held-in`). From that frame `c`
+   opens the panel's field, and a box still on screen would show a key that no longer
+   opens it.
 
    Boot may supply an actual physical placement. The default floating presentation
    owns collision geometry and off-flow reveals in floating-response.js. This owner
@@ -90,7 +94,7 @@ import { covered, outOfWindow, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { landGlides, stopGlide } from "../scrolling.js";
 import { carriersOf } from "../scroll-containers.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
@@ -108,14 +112,7 @@ import { advertisesKeys } from "../keyboard/bindings.js";
 import { commandKeysNow } from "../keyboard/control-keys.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
-import {
-  elementById,
-  closestAcross,
-  inChrome,
-  pageWords,
-  passageStart,
-  rangeOf,
-} from "../passages.js";
+import { elementById, pageWords, passageStart, rangeOf } from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -139,7 +136,7 @@ import {
   pressRecords,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { under, upFrom } from "../shadow-tree.js";
+import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldObligation } from "../current-target.js";
 import { focusPlace } from "../user-place.js";
@@ -154,9 +151,10 @@ import { anchorLabel } from "../thread/messages.js";
 import { seatOf } from "../thread/model.js";
 
 import { livePoint } from "../pointed-place.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {{intent: ReturnType<typeof retainUserIntent>}} FabFocusHandoff */
 
@@ -314,8 +312,7 @@ export function createResponseSurface({
   // editor stays at its home instead. The seat is judged, not the editor moved into it,
   // which measures no width until the outlet renders it; a boxless outlet is judged by
   // the box that lays out what it holds, by the same rule. So an outlet that shows only
-  // while it holds something still lays out where its editor will stand, as a visual
-  // case's discussion does (packages/visual-review/defaults.css).
+  // while it holds something still lays out where its editor will stand.
   //
   // A seat merely scrolled out of the window can take an editor as it opens, as a
   // file's comment below a long hunk: the opening's landing brings it in
@@ -324,8 +321,8 @@ export function createResponseSurface({
   // to the editor, and a resize's restore of the reader's place (version.js,
   // `restoreShifted`) can then scroll back to the place read while the editor stood
   // outside the page, which leaves the editor and the draft in it below the window, as
-  // when a window widened from a phone's width offers a visual case's discussion as the
-  // seat of the box floating beside the case.
+  // when a window widened from a phone's width offers a widget's outlet as the seat of
+  // the box floating beside its datum.
   //
   // The outlet the editor stands in keeps it wherever news, a scroll or a resize
   // carries the outlet, partly under the panel's row included. Sending the editor
@@ -1542,7 +1539,8 @@ export function createResponseSurface({
     placement?.release();
     keeps(fabBar, "data-lf-rest", null);
   }
-  // Read in each repaint, since where `c` goes follows focus, a scroll's end and the state.
+  // Read in each repaint, since where `c` goes follows focus, whether a scroll has taken
+  // it out of sight (user-place.js), and the state.
   function restFab() {
     const next = restingTarget();
     const key = next && commentKey;

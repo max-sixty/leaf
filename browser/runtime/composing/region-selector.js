@@ -32,13 +32,13 @@
  * remain the composition input's, including its protection against a draft changing
  * mid-upload.
  */
-import { describeFailure } from "../exception.js";
+import { describeFailure } from "../lib/exception.js";
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { focusDestination, focused, handBack, closeLayer } from "../focus.js";
-import { keeps, keepsHidden, keepsText } from "../keeps.js";
+import { keeps, keepsHidden, keepsText } from "../lib/keeps.js";
 import { runtime } from "../context.js";
-import { nextRender } from "../rendering.js";
+import { nextRender } from "../lib/frame-pass.js";
 import { clamp } from "../rect.js";
 import { layoutWindow } from "../geometry.js";
 import { notice } from "../notifications.js";

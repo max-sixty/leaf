@@ -98,7 +98,8 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
     ]
     assert pickup["events"] == [comment["id"]]
     assert pickup["phase"] == "opened"
-    assert owed_answers(page_dir)[0]["stage"] == "picked_up"
+    [owed_move] = owed_answers(page_dir)
+    assert (owed_move["state"], owed_move["seen"]) == ("waiting", True)
 
 
 def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
@@ -140,7 +141,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     for page in (page_dir, other):
         assert acknowledged_through(page) == 1
         obligations = owed_answers(page)
-        assert obligations[0]["stage"] == "picked_up"
+        assert (obligations[0]["state"], obligations[0]["seen"]) == ("waiting", True)
     assert page_state(other)["pending"] == 1
     assert (
         service_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]

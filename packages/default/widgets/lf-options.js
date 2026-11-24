@@ -119,24 +119,19 @@ import {
   elementById,
   threadInput,
   inChrome,
-  keeps,
-  keepsText,
   LeafElement,
   landInThread,
-  markdownWords,
-  offer,
-  offerAction,
   placePreview,
-  pressIsKeyboardActivation,
-  quoted,
   reachedForWords,
   rowWalk,
   worksInside,
   named,
   focusDestination,
   scrollIntoView,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { markdownWords } from "/runtime/lib/markdown.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
 // own words, which are all it has. `named` rather than `says`, because a picked option's
@@ -208,9 +203,7 @@ customElements.define(
     /** @param {unknown} value @param {Element} group */
     static answerWords(value, group) {
       const picked = new Set(choiceIds(value));
-      const added = additions(
-        group instanceof LeafElement ? group.reading?.state : null,
-      );
+      const added = additions(group instanceof LeafElement ? group.state : null);
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) =>
           picked.has(option.id) && !added.some((record) => record.id === option.id),
@@ -251,7 +244,7 @@ customElements.define(
           // A refused `add` answers the draft at once: its words go back to the box
           // while the pick behind it is still in the wire, and the door refuses that
           // pick too, since it names no option the group holds.
-          return add.delivery.then((added) => (added && pick ? pick.delivery : added));
+          return add.then((added) => (added && pick ? pick : added));
         },
       }));
     }
@@ -260,7 +253,7 @@ customElements.define(
     // alternatives, but owns no selection, so it has no reading. Only a live or
     // settled decision has one.
     setup() {
-      this.#wire(quoted(this));
+      this.#wire(this.matches("[data-lf-exhibit] *"));
     }
 
     connectedCallback() {
@@ -308,7 +301,7 @@ customElements.define(
         if (!(target instanceof Element)) return;
         const option = target.closest("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
+        if (e.detail !== 0 && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
@@ -339,19 +332,12 @@ customElements.define(
 
     /** @param {string} verb */
     #available(verb) {
-      return Boolean(this.reading?.actions[verb]?.available);
+      return Boolean(this.state?.[verb]?.available);
     }
 
     /** @param {string} verb @param {Record<string, unknown>} detail @param {string | null} [attempt] @param {string} [says] */
     #dispatch(verb, detail, attempt = null, says = "") {
-      if (!this.reading) return null;
-      return this.controller.dispatch({
-        kind: "action",
-        verb,
-        detail,
-        ...(attempt && { attempt }),
-        ...(says && { says }),
-      });
+      return this.record(verb, detail, { says, attempt });
     }
 
     /** @returns {NodeListOf<HTMLElement>} */
@@ -361,9 +347,7 @@ customElements.define(
 
     #picked() {
       const ids = new Set(
-        choiceIds(
-          this.reading?.state.choose?.detail?.value ?? this.#authoredChoice().value,
-        ),
+        choiceIds(this.state?.choose?.detail?.value ?? this.#authoredChoice().value),
       );
       return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
@@ -390,6 +374,9 @@ customElements.define(
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       const host = offer(DONE_TAG, "lf-options-done");
+      // Done fills its cell, a joined run of one press that takes the cell's corners
+      // (controls.css, `data-lf-joined`), which options.css states for each form.
+      host.dataset.lfJoined = "";
       const button = offerAction("commit", "lf-done", "Done");
       const bindingBadge = offer("span", "lf-key-badge");
       bindingBadge.setAttribute("aria-hidden", "true");
@@ -399,15 +386,10 @@ customElements.define(
       this.#done = { host, control: button, bindingBadge };
     }
 
-    #doneUndo() {
-      const answer = this.reading?.actions.answer;
-      const inForce = answer?.inForce[0]?.event;
-      return answer?.undo.find((event) => event.id === inForce?.id) ?? null;
-    }
-
     #doneAvailable() {
-      return isAnswered(this.reading?.state)
-        ? Boolean(this.#doneUndo())
+      const answer = this.state?.answer;
+      return isAnswered(this.state)
+        ? Boolean(answer && "undoable" in answer && answer.undoable)
         : this.#available("answer");
     }
 
@@ -415,19 +397,14 @@ customElements.define(
     // that result, so a second press does what the button then says.
     #answer() {
       if (!this.#doneAvailable()) return;
-      const undo = this.#doneUndo();
-      if (undo)
-        this.controller.dispatch({
-          kind: "undo",
-          target: ("attempt" in undo ? undo.attempt : null) ?? undo.id,
-        });
+      if (isAnswered(this.state)) this.takeBack("answer");
       else this.#dispatch("answer", {}, null, "Marked answered");
       this.#syncDone();
     }
 
     #syncDone() {
       if (!this.#done) return;
-      const answered = Boolean(isAnswered(this.reading?.state));
+      const answered = Boolean(isAnswered(this.state));
       keeps(
         this.#done.control,
         "aria-label",
@@ -528,7 +505,9 @@ customElements.define(
             },
           ],
         };
-        commandsChanged(mark);
+        mark.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
       }
       const input = this.#addition.input;
       if (input)
@@ -556,14 +535,16 @@ customElements.define(
           bindingBadge: done.bindingBadge,
           title: "Done",
           description: () =>
-            isAnswered(this.reading?.state)
+            isAnswered(this.state)
               ? "Take back Done and keep choosing"
               : "Finish choosing options",
           when: () => this.#doneAvailable(),
           run: () => this.#answer(),
         });
       this.lfCommands = { title: SECTION, rows: answerRows };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the
@@ -587,7 +568,7 @@ customElements.define(
       option.append(ref);
     }
 
-    // Generated controls are retained DOM. The controller paints them synchronously
+    // Generated controls are retained DOM. `render()` paints them synchronously
     // while authored options keep their identities, words, and nested evidence.
     /** @param {HTMLElement} option @param {boolean} pressable */
     #control(option, pressable) {
@@ -656,11 +637,11 @@ customElements.define(
     }
 
     render() {
-      if (!this.reading) {
+      const { state } = this;
+      if (!state) {
         this.#syncChoice(this.#authoredChoice());
         return nothing;
       }
-      const { state } = this.reading;
       // A settled group may have no choose projection, so its authored attributes
       // supply the selection. A live group's complete choice is authoritative,
       // including accepted replay.

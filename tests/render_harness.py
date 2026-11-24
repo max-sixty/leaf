@@ -100,6 +100,7 @@ from leaf_dev.browser import (
     scroll_settled,
     slow_cpu,
     threads_tab,
+    unfold,
 )
 from leaf_dev.example_data import WORKED_EXAMPLES, authored_sources, named_source
 from leaf_dev.page_fixtures import (
@@ -164,7 +165,7 @@ def shift_watch_source():
     source = (
         'import { clippingAxes } from "./browser/runtime/rect.js";\n'
         'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
-        'import { renderedParent, skipped } from "./browser/runtime/shadow-tree.js";\n'
+        'import { renderedParent, skipped } from "./browser/runtime/lib/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
@@ -205,7 +206,7 @@ PASSAGE_SOURCES = (
     FEATURE_GALLERY,
     named_source("pr-walkthrough"),
     named_source("ship-review"),
-    named_source("visual-review-gallery"),
+    named_source("review-parts"),
 )
 
 ANCHOR_SOURCES = (
@@ -556,7 +557,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
     test that appends those events itself. `layer_registry` and `layer_widgets` add a
     project package, a registry and its widget modules, for a reading the layer makes
     from declarations, so the test does not depend on which shipped tag declares them.
-    `theme=False` initializes the page with no theme, as `page init --no-theme` does.
+    `reading=False` leaves Leaf's `reading` theme out of the page's packages.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -583,7 +584,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         website_publication=None,
         seed_log=True,
         page_files=None,
-        theme=None,
+        reading=True,
     ):
         monkeypatch.chdir(tmp_path)  # resolve explicitly selected fixture packages
         project = tmp_path / ".leaf"
@@ -641,7 +642,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
             template = ((example.resolve(), seed_log), prepare)
         else:
             template = None
-        initialized_page(d, selected_packages, template, theme=theme)
+        initialized_page(d, selected_packages, template, reading=reading)
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp
@@ -1785,6 +1786,7 @@ def watch_sources(shifts: bool) -> str:
           window.__lfCheckApi = () => entry('runtime/check-api.js');
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfLibImport = name => entry(`runtime/lib/${name}`);
           window.__lfVendorImport = name => entry(`vendor/${name}`);
         })();""",
     ]
@@ -2361,9 +2363,7 @@ def page_comment(page):
     field becoming its reply, so this puts an open view away first, and unfolds a panel
     folded to the leaf."""
     host = page.locator(PANEL)
-    if host.get_attribute("data-lf-rest") == "mark":
-        page.locator(".lf-fp-leaf").click()
-        expect(host).to_have_attribute("data-lf-rest", "row")
+    unfold(page)
     if host.get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
@@ -2985,12 +2985,11 @@ def margins_laid_out(page):
     """
     page.evaluate(
         """async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
           window.__lfMarginLaidOut = false;
           document.addEventListener('lf-margin-layout', () => {
             window.__lfMarginLaidOut = true;
           }, {once: true});
-          layoutChanged(document.body);
+          document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     page.wait_for_function(

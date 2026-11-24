@@ -4,7 +4,6 @@
     "attributes": {
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "parts": {
           "const": "all"
         }

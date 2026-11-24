@@ -16,7 +16,7 @@
  * merge puts them in place of a reader's later typing, or calls the reader's own save
  * a conflict.
  *
- * The editor publishes its files as a `files` output, each named by the label the
+ * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
  * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
@@ -75,32 +75,24 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
-  allButCommandReference,
-  announce,
   boundFile,
-  describeFailure,
   RequestError,
-  closeLayer,
-  closeNativeLayer,
   commandsOn,
   deferredArrival,
   el,
   focusDestination,
-  focused,
-  handBack,
-  iconTemplate,
-  isNativeLayer,
   LeafElement,
-  offered,
-  offeredAction,
+  PendingTaskEvent,
   onCurrentLocation,
-  publishOutput,
   rove,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction } from "/runtime/lib/controls.js";
+import { iconTemplate } from "/runtime/lib/icons.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
@@ -255,16 +247,17 @@ customElements.define(
       };
       // The status control naming the conflict, and the menu of its choices. A choice
       // and Escape put the menu away onto that control, so a save that settles the
-      // conflict returns the reader from it to the editor. A press away from the menu
-      // leaves them where they pressed.
+      // conflict returns the reader from it to the editor. The browser hands focus
+      // back only from inside the menu, and a pointer press in Safari or Firefox on
+      // macOS leaves the row it pressed unfocused, so the menu puts the user there
+      // itself. A press away from the menu leaves them where they pressed.
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
-      const putChoicesAway = () =>
-        closeLayer(
-          () => closeNativeLayer(choices()),
-          () => handBack(conflictControl()),
-        );
+      const putChoicesAway = () => {
+        choices().hidePopover();
+        focusDestination(conflictControl(), "return");
+      };
       /** @param {() => unknown} run */
       const choose = (run) => () => {
         putChoicesAway();
@@ -371,7 +364,9 @@ customElements.define(
         if (!of.slow) return;
         of.slow = false;
         if (of === file && !of.failure && !of.latest && !dirty(of))
-          announce("Changes saved.");
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", { detail: "Changes saved." }),
+          );
       }
       // A failure or conflict arriving on a file the reader has left is news once, as
       // the open file's is (`#drawn`), and the file names itself.
@@ -380,10 +375,12 @@ customElements.define(
         const news = of.failure ?? of.latest;
         if (of === file || !news || news === of.spoken) return;
         of.spoken = news;
-        announce(
-          of.failure
-            ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
-            : `${label(of)} changed on disk. The draft is kept.`,
+        window.dispatchEvent(
+          new CustomEvent("lf-announce", {
+            detail: of.failure
+              ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
+              : `${label(of)} changed on disk. The draft is kept.`,
+          }),
         );
       }
       // A paint draws now, since what follows it reads the controls it drew.
@@ -397,7 +394,7 @@ customElements.define(
       // one open. It is built when a name or the open file changes, never as the reader
       // types, so a keystroke's work doesn't grow with how many files the editor holds.
       // Two bindings of one file list it once, since a navigator keys its rows by path.
-      const publishFiles = () => {
+      const holdFiles = () => {
         /** @type {Set<string>} */
         const listed = new Set();
         /** @type {{path: string, key: string}[]} */
@@ -408,13 +405,11 @@ customElements.define(
           listed.add(of.named);
           named.push({ path: of.named, key: of.binding });
         }
-        publishOutput(
-          this,
-          "files",
-          named.length
-            ? { files: named, ...(file.named ? { current: file.named } : {}) }
-            : null,
-        );
+        // The `files` output: held here, and `change` says it moved.
+        this.files = named.length
+          ? { files: named, ...(file.named ? { current: file.named } : {}) }
+          : null;
+        this.dispatchEvent(new Event("change"));
       };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
@@ -432,14 +427,16 @@ customElements.define(
             : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!of.latest && isNativeLayer(choices())) closeNativeLayer(choices());
+        if (!of.latest) choices().hidePopover();
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)
-          announce(
-            of.failure
-              ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
-              : "The file changed on disk. The draft is kept.",
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", {
+              detail: of.failure
+                ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
+                : "The file changed on disk. The draft is kept.",
+            }),
           );
         of.spoken = news;
         if (of.comparing && of.latest) {
@@ -515,9 +512,7 @@ customElements.define(
             role="menu"
             aria-label="The file changed on disk"
             @toggle=${choiceOpened}
-            ${commandsOn("In the file's conflict menu", choiceKeys, {
-              claims: allButCommandReference,
-            })}
+            ${commandsOn("In the file's conflict menu", choiceKeys)}
           >
             <button
               ${offeredAction("word")}
@@ -591,6 +586,25 @@ customElements.define(
         if (connected && of.api.writable && !of.latest && !of.failure && dirty(of))
           of.timer = setTimeout(() => void flush(of), delay);
       }
+      // Runs once a read or save of `of` ends. The open file paints, and hands the reader
+      // back to the editor if the control they retried from went away; another file
+      // announces its news. Then the file's own saves resume, and a read it owes runs.
+      // The control's tree keeps naming it as active while the window is in the
+      // background, as it may be when a request ends.
+      /** @param {OpenFile} of @param {HTMLElement | null} returnFrom */
+      function ended(of, returnFrom) {
+        const returning =
+          connected &&
+          returnFrom &&
+          /** @type {Document | ShadowRoot} */ (returnFrom.getRootNode())
+            .activeElement === returnFrom;
+        if (of === file) {
+          paint();
+          if (returning && returnFrom.hidden) returnToEditor();
+        } else tell(of);
+        schedule(of, 0);
+        if (of.owed) void refresh(of);
+      }
       // Each request settles the file it was made for, whichever file is open by then;
       // only the open one paints.
       /** @param {OpenFile} of @param {boolean} [replace] @param {HTMLElement | null} [returnFrom] */
@@ -621,7 +635,9 @@ customElements.define(
             of.slow = true;
             of.slowTimer = null;
             if (of !== file) return;
-            announce("Saving changes.");
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", { detail: "Saving changes." }),
+            );
             paint();
           }, 1000);
         if (of === file) paint();
@@ -657,13 +673,7 @@ customElements.define(
             if (of.slowTimer !== null) clearTimeout(of.slowTimer);
             of.slowTimer = null;
           }
-          const returning = connected && returnFrom && focused() === returnFrom;
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       // Settles once a first read has waited a second, which is when the page stops
@@ -725,13 +735,7 @@ customElements.define(
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);
-          const returning = connected && returnFrom && focused() === returnFrom;
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       /** @param {BeforeUnloadEvent} event */
@@ -752,7 +756,7 @@ customElements.define(
         stopWatch?.();
         const stops = [...files.values()].map((of) =>
           of.api.watch(() => {
-            if (of.api.label !== of.named) publishFiles();
+            if (of.api.label !== of.named) holdFiles();
             if (of === file) void refresh(of);
           }),
         );
@@ -805,12 +809,12 @@ customElements.define(
         remember(leaving);
         void flush(leaving);
         paint();
-        publishFiles();
+        holdFiles();
         opening = connected ? refresh(file) : null;
         return opening;
       };
       paint();
-      publishFiles();
+      holdFiles();
       this.#placeSelection = () => {
         editor.placeSelection();
         comparison?.placeSelection();
@@ -826,7 +830,9 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(Promise.race([opening, waited.promise]));
+          this.dispatchEvent(
+            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+          );
           deferredArrival(opening);
           initial = false;
         }

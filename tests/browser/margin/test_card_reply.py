@@ -306,7 +306,7 @@ def test_a_card_reply_s_ring_stands_over_an_error_about_it(browser, serve):
     reply.focus()
     expect(reply).to_be_focused()
     reply.evaluate(
-        "async (subject) => (await window.__lfWidgetApi())"
+        "async (subject) => (await window.__lfCheckApi())"
         ".raiseError('That writing place is unavailable', {subject})"
     )
     expect(page.locator(".lf-margin-preview .lf-compose-error")).to_be_visible()
@@ -1087,7 +1087,8 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     field = preview.locator(".lf-thread-reply .lf-compose-field")
     before = field.bounding_box()
     ring = field.evaluate(
-        "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
+        "node => getComputedStyle(node, '::after').outlineColor"
+        ".match(/\\d+/g).map(Number)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("Shift+Enter")
@@ -1339,10 +1340,14 @@ def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visi
     clearance = image.evaluate(
         """image => {
           const field = image.closest('.lf-thread-reply').querySelector('.lf-compose-field');
-          const worn = [field, field.querySelector('leaf-text')].map(getComputedStyle)
+          // The field draws its ring on its ::after, which stands out from the
+          // field by its negative inset.
+          const worn = [getComputedStyle(field, '::after'),
+            getComputedStyle(field.querySelector('leaf-text'))]
             .filter(style => style.outlineStyle !== 'none');
           const ring = Math.max(0, ...worn.map(style =>
-            parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset)));
+            -(parseFloat(style.top) || 0) + parseFloat(style.outlineWidth)
+              + parseFloat(style.outlineOffset)));
           const shelf = getComputedStyle(image.closest('.lf-composer-media'));
           return {worn: worn.length, ring,
                   gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
@@ -2769,6 +2774,46 @@ def test_an_answer_a_card_followed_says_new_reply_once_its_picture_outgrows_it(
     words = asked.bounding_box()
     assert transcript.bounding_box()["y"] <= head["y"], head
     assert words["y"] + words["height"] <= press.bounding_box()["y"], words
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_s_turn_glided_into_sight_stays_there_as_the_transcript_above_grows(
+    engine, request, serve
+):
+    """A reader at the card's end whose answer arrives too long to show with their turn
+    has the card glide their turn into sight above New reply (thread-card.js,
+    `#fitAnswer`), and the turn stands there though a message above it grows 150px as
+    the card glides."""
+    page, preview, transcript = open_long_thread(request.getfixturevalue(engine), serve)
+    page.emulate_media(reduced_motion="no-preference")
+    press = preview.locator(".lf-new-reply")
+    preview.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text("And over the weekend?")
+    with sending(page, "the turn"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    # The first message grows in the task that sets the glide off, after New reply
+    # joins the card.
+    transcript.evaluate(
+        """list => new MutationObserver((records, observer) => {
+          if (!list.closest('.lf-margin-preview').querySelector('.lf-new-reply'))
+            return;
+          observer.disconnect();
+          list.querySelector('.lf-msg').style.paddingBottom = '150px';
+        }).observe(list.closest('.lf-margin-preview'), { subtree: true, childList: true })"""
+    )
+    agent_says(
+        page,
+        serve.page_dir,
+        "It would. " + "Someone stays on call through Sunday. " * 60,
+    )
+    expect(press).to_have_text("New reply")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    asked = transcript.locator(".lf-msg", has_text="And over the weekend?")
+    words = asked.bounding_box()
+    assert transcript.bounding_box()["y"] <= words["y"], words
+    assert words["y"] + words["height"] <= press.bounding_box()["y"] + 1, words
 
 
 def test_an_edit_landing_as_a_card_s_last_turn_grows_shows_at_its_end(browser, serve):

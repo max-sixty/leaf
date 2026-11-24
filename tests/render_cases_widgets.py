@@ -18,7 +18,8 @@ from leaf.structure import SourceDocument
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
+import { layerFact, LeafElement, widgetController } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
@@ -29,22 +30,18 @@ customElements.define("lf-local", class extends LeafElement {
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     const held = globalThis.__heldLocalPresentations?.get(this.id);
-    if (held) this.controller.present(held);
+    if (held) widgetController(this).present(held);
   }
 
   // The gesture writes its own result into the output, which a deferral holds the
   // widget's drawing over.
   choose() {
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
-    const sent = this.controller.dispatch({
-      kind: "action",
-      verb: "choose",
-      detail: { value: "chosen" },
-    });
-    if (!sent) return;
-    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
+    const delivery = this.record("choose", { value: "chosen" });
+    if (!delivery) return;
+    this.renderRoot.querySelector("output").value = this.state.choose.value;
     keeps(this, "data-delivery", "pending");
-    sent.delivery.then(accepted => {
+    delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
@@ -55,10 +52,10 @@ customElements.define("lf-local", class extends LeafElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    const {state, actions} = this.reading;
+    const {state} = this;
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+    return html`<button ?disabled=${!state.choose.available} @click=${this.choose}>Choose</button>
       <output .value=${live(state.choose.value)}></output>`;
   }
 });
@@ -71,9 +68,7 @@ PAGE_DECLARATION = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
             "additionalProperties": False,
@@ -180,7 +175,6 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
@@ -232,7 +226,7 @@ def prefixed_visual_layer(*prefixes):
             **entry,
             "attributes": {
                 **entry["attributes"],
-                "properties": {"id": entry["attributes"]["properties"]["id"]},
+                "properties": {},
                 "required": ["id"],
             },
             "visual": {"prefixes": list(prefixes)},
@@ -254,7 +248,6 @@ SHADOW_VISUAL_LAYER = {
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "parts": {"const": "all"},
             },
             "required": ["id", "parts"],
@@ -582,10 +575,10 @@ CHART_MARKS = """(id) => {
     });
     probe.remove();
     const marks = {};
-    for (const g of svg.querySelectorAll('g[data-lf-part]')) {
+    for (const g of svg.querySelectorAll('g[data-lf-plot]')) {
         const shapes = [...g.querySelectorAll('rect, path, circle')];
         if (!shapes.length) continue;
-        const part = g.dataset.lfPart;
+        const part = g.dataset.lfPlot;
         (marks[part] ??= []).push(...shapes.map((shape) => {
             const paint = getComputedStyle(shape);
             return [shape.tagName.toLowerCase(), paint.fill, paint.stroke];

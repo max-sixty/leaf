@@ -487,7 +487,7 @@ DRAWING_CONTROL_LAYER = {
         "description": "A native offered control inside a drawing viewport.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -497,7 +497,8 @@ DRAWING_CONTROL_LAYER = {
 }
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
-import { once, offer } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

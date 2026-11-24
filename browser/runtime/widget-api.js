@@ -12,15 +12,15 @@
 
    The helpers that load in any document are portable-api.js's, re-exported here whole,
    so a widget that must also run off a Leaf page imports from there and every other
-   widget keeps importing from here. */
+   widget keeps importing from here.
+
+   Shared web code that reaches none of Leaf's is no part of this surface: it is the
+   library's (lib/; browser/AGENTS.md, "The library of shared web code"). */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
-export { iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
-export { quoted } from "./widget-descriptors.js";
-export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 
@@ -48,29 +48,18 @@ export { navigateToDatum } from "./application.js";
 // user sees, as scroll anchoring and the chrome leave it; `whenNone` hears when such a
 // reading stops holding.
 export { growthIsSeen, landingInsets, shownWindow, whenNone } from "./geometry.js";
-export { registerRootHeader } from "./root-headers.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; their current location and whether it is in a scope; recording where a layer opened
-// from and handing them back as it closes; running something once they move off an
-// element, or once a press lands away from it (`onPressAway`); and a group's roving Tab
-// stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
-// Markdown in.
-export {
-  closeLayer,
-  handBack,
-  onCurrentLocation,
-  onPress,
-  onPressAway,
-  openLayer,
-  openerOf,
-  rove,
-} from "./focus.js";
+// list; hearing each move of their current location with its cause; running something
+// once they move off an element, or once a press lands away from it (`onPressAway`); and
+// a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the
+// user to write Markdown in.
+export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
-export { answeredInWords, readObligations } from "./obligations/model.js";
+export { readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them
 // reads, and which regions hold a widget that asks the user something, including one
 // whose obligation the inventory hasn't listed yet or lists as withdrawn.
@@ -99,35 +88,19 @@ export { threadSummary } from "./thread/messages.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-export { isNativeLayer, under } from "./shadow-tree.js";
-// `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
-export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
+export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
-// The claim of a scope standing over the page: every key but the command reference's.
-export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
-export { contributionItemKey } from "./contribution-model.js";
 export {
-  contributionEntry,
   presentContributionEntry,
   presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
-export {
-  inlineMarkdownFragment,
-  loadMarkdown,
-  markdownReady,
-  markdownWords,
-  markdownSourceOffset,
-  paintMarkdown,
-  renderMarkdown,
-} from "./markdown.js";
-export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { alreadyShown, fitsWhole } from "./landing-scroll.js";
+export { pageLinks } from "./page-markdown.js";
+export { scopedMediaUrl } from "./media.js";
+export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -138,8 +111,6 @@ export {
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";
-export { raiseError } from "./errors.js";
-export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
@@ -148,41 +119,23 @@ export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export { declarationFor, layerFact, matchesWhen } from "./registry.js";
-export {
-  flashDuration,
-  foldDuration,
-  returnDuration,
-  backgroundFlash,
-  motion,
-} from "./motion.js";
+export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;
 // `deferredArrival` counts work the widget has already started.
 export {
-  PAGE_INTERFACE,
-  PRESENTATION,
   afterPresentation,
   deferredArrival,
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-// Whether a press is the plain one a control claims: the primary button, no modifier;
-// and whether a click came from the keyboard rather than a pointer.
-export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
-export { onUserInput } from "./focus.js";
-export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
+export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
-export {
-  dragging,
-  el,
-  motionPreview,
-  reachedForWords,
-  worksInside,
-} from "./widget-elements.js";
+export { dragging, el, reachedForWords, worksInside } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
@@ -204,9 +157,6 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
-// A region's open obligations by whose turn each is, in the words `lf-tally` and
-// `lf-deck` both show.
-export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
 // thread card, as `lf-deck` asks whether the user is on its open card.
 export { placeOf } from "./current-target.js";

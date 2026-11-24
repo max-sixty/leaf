@@ -2,20 +2,20 @@
  * of the Atlas example's composition. */
 import { html, noChange } from "/vendor/lit.js";
 import {
-  generatedElement,
   ago,
-  keeps,
   LeafElement,
   readWork,
   reportSequence,
   reportsReady,
   workAncestor,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-worker",
   class extends LeafElement {
     setup() {
-      this.line = generatedElement(document.createElement("div"), { says: false });
+      this.line = document.createElement("div");
+      keeps(this.line, "data-lf-gen", "1");
       this.append(this.line);
     }
     createRenderRoot() {

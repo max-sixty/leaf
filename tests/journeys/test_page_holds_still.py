@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
-from browser.threads import append_agent_reply
+from browser.threads import append_agent_reply, choose_threads_in_panel
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -879,8 +879,10 @@ def put_card(thread, *, words=False, on=None, tabbed=False, left=False):
 
 def put_panel(thread, *, words=False, on=None, tabbed=False, left=False):
     def put(page, built):
-        """Open `thread` in the floating panel from Threads."""
+        """Open `thread` in the floating panel from Threads, with the panel chosen for
+        threads about a passage."""
         scroll_to(page, "#p-20", 300)
+        choose_threads_in_panel(page)
         go_to_threads(page)
         topic = {"told": "paragraph 20", "asked": "paragraph 22"}[thread]
         page.locator(".lf-fp-thread", has_text=topic).click()
@@ -1481,11 +1483,10 @@ def contribution(page, built, target, place):
     the widget draws it."""
     page.evaluate(
         """async (target) => {
-          const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+          const {registerContribution} = await window.__lfWidgetApi();
           registerContribution({
             key: 'joining', target: () => document.getElementById(target),
-            read: () => ({entries: [contributionEntry(
-              {key: 'action', icon: 'dot', label: 'Joining action'})]}),
+            read: () => ({entries: [{key: 'action', icon: 'dot', label: 'Joining action'}]}),
             activate: () => {},
           }).update({immediate: true});
         }""",

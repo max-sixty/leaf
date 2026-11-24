@@ -1018,6 +1018,9 @@ def test_words_sent_just_before_a_reload_do_not_come_back_with_it(
         round_trip(page)
 
     writes, _, reads = _reload_while_writing(page, before_reload=send)
+    # The send opened its thread, which the entry names, so the reload opens it again;
+    # putting it away stands the page's box in the field.
+    page.keyboard.press("Escape")
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
     expect(field).to_have_js_property("value", "")
 

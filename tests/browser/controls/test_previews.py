@@ -19,6 +19,7 @@ from render_cases_interaction import (
 from render_cases_layout import solid_png
 from render_cases_navigation import _publish
 from render_harness import (
+    EXAMPLES,
     RELEASE_FOCUS,
     back_gesture,
     clocked,
@@ -38,7 +39,6 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
-from leaf_dev.example_data import named_source
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -133,7 +133,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
 # A range and a select built the way Leaf builds its own, whose faces say no name.
 LEAF_SETTINGS = """<p id="settings"></p>
 <script type="module">
-import {offer} from '/runtime/widget-api.js';
+import {offer} from '/runtime/lib/controls.js';
 const rows = offer('input', 'probe-rows', undefined, 'range');
 rows.id = 'rows';
 rows.setAttribute('aria-label', 'Rows shown');
@@ -242,33 +242,59 @@ def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serv
             assert preview_parts(page.locator(control), route) == [words], control
 
 
-# A visual review's Add feedback, which `c` presses, given a mark its quiet word names
-# (`dataset.lfQuiet`, as a module writes one), then the chip its face draws for `c`.
+# A widget's worded control that `f` presses, as its command row names it (`lfCommands`,
+# `control`).
+KEYED = """import { nothing } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { offerAction } from "/runtime/lib/controls.js";
+customElements.define("lf-keyed", class extends LeafElement {
+  setup() {
+    const feedback = offerAction("word", "keyed-feedback", "Add feedback");
+    this.append(feedback);
+    this.lfCommands = {
+      title: "On a case",
+      rows: [{ id: "keyed.feedback", title: "Add feedback", keys: ["f"],
+        control: feedback, run: () => {} }],
+    };
+    this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+  }
+  render() {
+    return nothing;
+  }
+});
+"""
+# The control given a mark its quiet word names (`dataset.lfQuiet`, as a module writes
+# one), then the chip its face draws for `f`.
 QUIET_BESIDE_KEYS = """(button) => {
   const mark = Object.assign(document.createElement('span'), {textContent: ' ●'});
   mark.dataset.lfQuiet = 'Unsaved changes';
   button.append(mark);
 }"""
 DRAWN_CHIP = """(button) => button.append(Object.assign(document.createElement('kbd'),
-  {className: 'lf-key-badge', ariaHidden: 'true', textContent: 'c'}))"""
+  {className: 'lf-key-badge', ariaHidden: 'true', textContent: 'f'}))"""
 
 
 def test_beside_a_key_chip_a_control_previews_its_whole_name(browser, serve):
-    """An approved case's row previews its check's verdict, its quiet word, alone. A
-    control a key presses previews its whole name as the head of that key's chip, since
-    the key presses the control, not the mark its quiet word names; once its face draws
-    the chip, the quiet word alone is what the face leaves unsaid."""
-    page = open_page(browser, serve(named_source("visual-review-gallery")))
-    widget = page.locator("#visual-review-run")
-    widget.locator(".lf-vr-approval-input").first.check()
-    row = widget.locator('.lf-vr-case-button:has([data-lf-approved="true"])')
-    assert preview_parts(row) == ["Looks right"]
-    feedback = widget.locator(".lf-vr-feedback").first
+    """A control a key presses previews its whole name as the head of that key's chip,
+    since the key presses the control, not the mark its quiet word names; once its face
+    draws the chip, the quiet word alone is what the face leaves unsaid."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Keyed",
+                '<h1>Keyed</h1><lf-keyed id="keyed"><p>A case to review.</p></lf-keyed>',
+            ),
+            layer_registry={"lf-keyed": element_declaration("lf-keyed", upgrade=True)},
+            layer_widgets={"lf-keyed.js": KEYED},
+        ),
+    )
+    feedback = page.locator("#keyed .keyed-feedback")
     feedback.evaluate(QUIET_BESIDE_KEYS)
     expect(feedback.locator(".lf-quiet")).to_have_text("Unsaved changes")
     chips = page.locator(f"{PREVIEW} .lf-preview-keys kbd")
     assert preview_parts(feedback, "focus") == ["Add feedback Unsaved changes ●"]
-    expect(chips).to_have_text(["c"])
+    expect(chips).to_have_text(["f"])
     feedback.evaluate(DRAWN_CHIP)
     assert preview_parts(feedback, "focus") == ["Unsaved changes"]
     expect(chips).to_have_count(0)
@@ -746,6 +772,48 @@ def test_a_thread_that_lands_under_a_still_pointer_previews_nothing(
     expect(preview.locator(".lf-preview-word")).to_have_text("Why ship with that?")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_target_redrawn_under_the_pointer_that_came_to_it_still_previews(
+    engine, request, serve
+):
+    """A pointer the user moved onto a target reads it once its dwell ends, even where
+    the target redraws its face meanwhile, as a margin entry redraws its icon: another
+    node stands under the resting pointer, and the target the user pointed at is the
+    same one."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "Redrawn",
+                '<p><span id="chart" tabindex="0"><b>A chart</b></span></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => {
+          window.lf = {arrived: false};
+          document.getElementById('chart').lfPreview = () => ({name: 'Point 1'});
+        }"""
+    )
+    face = page.locator("#chart b").bounding_box()
+    x, y = face["x"] + face["width"] / 2, face["y"] + face["height"] / 2
+    page.mouse.move(x - 80, y - 60)
+    page.mouse.move(x, y, steps=3)
+    # The face is drawn again before the dwell ends, and the browser tells the page
+    # that another node now stands under the pointer.
+    page.evaluate(
+        """() => {
+          const next = document.createElement('b');
+          next.textContent = 'A graph';
+          next.addEventListener('pointerover', () => { window.lf.arrived = true; });
+          document.querySelector('#chart b').replaceWith(next);
+        }"""
+    )
+    page.wait_for_function("window.lf.arrived")
+    dwelt(page)
+    expect(page.locator(PREVIEW)).to_have_text("Point 1")
+
+
 def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     """A finger held on a thread's words reads, at the platform's long press, the
     preview a pointer would, above the line, which the finger doesn't cover. Its
@@ -784,7 +852,7 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     rendered(page)
     expect(preview).to_be_visible()
     expect(page.locator(CARD)).to_be_hidden()
-    expect(page.locator("#passage")).not_to_have_attribute("data-lf-held", "")
+    expect(page.locator("#passage")).not_to_have_attribute("data-lf-touch-held", "")
     touch("touchStart")
     touch("touchEnd")
     expect(page.locator(CARD)).to_be_visible()
@@ -1349,10 +1417,11 @@ def test_the_row_back_from_a_thread_returns_focus_to_previews_nothing(
 ):
     """Back from a thread returns focus to the thread's row in Threads, which is the
     user going back where they came from rather than aiming at the row, so the row
-    previews nothing until they step onto it again."""
+    previews nothing until they step onto it again. Threads about the whole page open
+    in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
     for n in ("one", "two"):
-        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+        panel_comment(serve.page_dir, f"Question {n} on the lede?")
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
     page.keyboard.press("g")
@@ -1449,7 +1518,7 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     engine, request, serve
 ):
     """An element whose aim moves inside it, as a chart's point does, says its preview
-    changed (`previewChanged`): the preview standing for it reads the element again and
+    changed (`lf-preview`): the preview standing for it reads the element again and
     draws the new words where it stands, still open, for a resting pointer and for the
     keyboard's focus."""
     page = open_page(
@@ -1472,9 +1541,8 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     value = page.locator("#value")
     tip = page.locator(PREVIEW)
     moved = """async () => {
-      const {previewChanged} = await window.__lfWidgetApi();
       window.lfPoint += 1;
-      previewChanged(document.getElementById('value'));
+      document.getElementById('value').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
     }"""
 
     page.mouse.move(2, 2)
@@ -2082,7 +2150,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     """Escape puts a focus preview away, and an element declaring its preview again,
     as a chart redrawing with the same point does, brings nothing back; nor does a
     grip whose words come back once its card is put down. The element hears that its
-    preview ended (`PREVIEW_ENDED`). A widget placing focus as a move after a
+    preview ended (`lf-preview-ended`). A widget placing focus as a move after a
     microtask shows it, since the cause is the placement's, and the user stepping
     back with the keyboard shows it again."""
     page = open_page(
@@ -2107,8 +2175,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
         }"""
     )
     changed = """async (id) => {
-      const {previewChanged} = await window.__lfWidgetApi();
-      previewChanged(document.getElementById(id));
+      document.getElementById(id).dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
     }"""
     tip = page.locator(PREVIEW)
     page.locator("#before").focus()
@@ -2124,9 +2191,8 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     # A new point aimed at inside it is a new target, which shows again.
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           window.lf.point = 3;
-          previewChanged(document.getElementById('chart'), {aim: true});
+          document.getElementById('chart').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {aim: true}}));
         }"""
     )
     expect(tip).to_have_text("Point 3")
@@ -2466,6 +2532,40 @@ def test_a_preview_stands_its_gap_past_the_ring_round_a_padded_box_it_fills(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_stands_by_a_target_a_transform_moved(engine, request, serve):
+    """A control in a box a transform moves, as a table granted room is translated into
+    place (layouts.css), previews beside itself in each engine. Firefox leaves an
+    anchor's transforms out of `anchor()`, so the preview's edges are measured from the
+    box Firefox reads (css-anchors.js, `anchorBox`); measured from the box a script
+    reads, the preview stood the translation away from its control."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Moved",
+                '<p><button id="before">Before</button></p>'
+                '<div style="translate: 180px 60px"><p>A moved control: '
+                '<button id="moved" aria-label="Moved name">●</button></p></div>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Moved name")
+    rendered(page)
+    across, below = page.evaluate(
+        """() => {
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          const box = document.getElementById('moved').getBoundingClientRect();
+          return [tip.left - box.left, tip.top - box.bottom];
+        }"""
+    )
+    assert across == pytest.approx(0, abs=1), (across, below)
+    assert 0 < below < 24, (across, below)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in(
     engine, request, serve
 ):
@@ -2585,7 +2685,7 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
     rendered(page)
     assert page.evaluate("location.hash") == "", "the held link was followed"
     expect(tip).to_be_visible()
-    expect(page.locator("#go")).to_have_attribute("data-lf-held", "")
+    expect(page.locator("#go")).to_have_attribute("data-lf-touch-held", "")
     put_away()
 
     page.evaluate("() => { window.GestureEvent = class extends UIEvent {}; }")
@@ -2664,11 +2764,10 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
     assert not short["meets"], short
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           const aim = document.getElementById('aim');
           aim.lfPreview = () => ({name: 'Preview words', detail: [1, 2, 3, 4]
             .map((n) => `Additional detail on line ${n}`)});
-          previewChanged(aim);
+          aim.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     expect(tip.locator(".lf-preview-detail")).to_have_count(4)
@@ -2689,7 +2788,6 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
     expect(tip).to_be_hidden()
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           for (const id of ['aim', 'next']) document.getElementById(id).remove();
           const chart = document.createElement('div');
           chart.id = 'chart';
@@ -2705,7 +2803,7 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
             if (event.key !== 'F10') return;
             window.pointX = 700;
             Object.assign(at, {left: 700, right: 710});
-            previewChanged(chart);
+            chart.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
           });
           const toChart = document.createElement('button');
           toChart.id = 'to-chart';
@@ -2927,8 +3025,7 @@ def test_a_line_that_ends_in_an_ellipsis_keeps_to_its_room(engine, request, serv
           probe.remove();
           if (!fills) throw new Error('no line fills the face');
           window.lfDetail = [text, 'And the paragraph after it.'];
-          const {previewChanged} = await window.__lfWidgetApi();
-          previewChanged(document.getElementById('aim'));
+          document.getElementById('aim').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     expect(tip.locator(".lf-preview-detail").nth(1)).to_have_text(
@@ -2953,7 +3050,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     engine, request, serve
 ):
     """A widget that declares its preview while a control inside it holds focus says
-    the user aimed at something new (`previewChanged` with `aim`): the preview reads
+    the user aimed at something new (`lf-preview` with `aim`): the preview reads
     the widget again, and after Escape put it away the next aim shows it again."""
     page = open_page(
         request.getfixturevalue(engine),
@@ -2974,7 +3071,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     tip = page.locator(PREVIEW)
     aim = """(words) => {
       window.label = words;
-      window.lfApi.previewChanged(document.getElementById('host'), {aim: true});
+      document.getElementById('host').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {aim: true}}));
     }"""
     page.keyboard.press("Shift")
     page.evaluate(
@@ -3094,8 +3191,8 @@ def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_
     expect(word).to_have_text("Reads two")
     rendered(page)
     assert _crossed(page) == ["read two", "ended Reads one"]
-    expect(page.locator("#two")).to_have_attribute("data-lf-held", "")
-    expect(page.locator("#one")).not_to_have_attribute("data-lf-held", "")
+    expect(page.locator("#two")).to_have_attribute("data-lf-touch-held", "")
+    expect(page.locator("#one")).not_to_have_attribute("data-lf-touch-held", "")
     touch("touchEnd")
 
 
@@ -3120,8 +3217,7 @@ def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
         ),
     )
     page.evaluate(
-        """async () => {
-          window.lfApi = await window.__lfWidgetApi();
+        """() => {
           window.lfSays = true;
           document.getElementById('focused').lfPreview = () => ({name: 'Focus reads'});
           document.getElementById('pointed').lfPreview = () =>
@@ -3139,7 +3235,7 @@ def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
     page.evaluate(
         """() => {
           window.lfSays = false;
-          window.lfApi.previewChanged(document.getElementById('pointed'));
+          document.getElementById('pointed').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     dwelt(page)
@@ -3252,9 +3348,8 @@ def test_words_that_grow_keep_a_place_that_held_exactly_one_line(
     assert (before["x"], before["y"]) == (first["x"], first["y"]), (first, before)
     page.evaluate(
         """async () => {
-          const {previewChanged} = await window.__lfWidgetApi();
           window.lfLong = true;
-          previewChanged(document.getElementById('aim'));
+          document.getElementById('aim').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }"""
     )
     expect(tip.locator(".lf-preview-word")).to_contain_text("growing")
@@ -3345,7 +3440,7 @@ def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
         ".getBoundingClientRect().toJSON()"
     )
     # Up to the window's edge, within a layout unit: Firefox lays boxes out in sixtieths
-    # of a pixel, and the owner writes its offsets in sixty-fourths (keeps.js,
+    # of a pixel, and the owner writes its offsets in sixty-fourths (lib/keeps.js,
     # `layoutPx`).
     assert 900 < drawn["right"] < 1200 - 8 + 1 / 60 and drawn["left"] < 932, drawn
 
@@ -3375,8 +3470,7 @@ def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serv
     )
     page.set_viewport_size({"width": 900, "height": 700})
     page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
+        """() => {
           const drawing = document.getElementById('drawing');
           window.at = 280;
           drawing.lfPreview = () => ({name: 'Point', about: document.getElementById('drawn'),
@@ -3386,7 +3480,7 @@ def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serv
           // The point under the pointer, 10 px above it, as a chart's is.
           drawing.addEventListener('pointermove', (event) => {
             window.at = event.clientY - 10;
-            api.previewChanged(drawing, {aim: true});
+            drawing.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true, detail: {aim: true}}));
           });
         }"""
     )
@@ -3826,12 +3920,11 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
         # holds a close watcher for the gesture to reach.
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const step = document.getElementById('step');
               step.lfCommands = { title: 'The step', rows: [{id: 'test.step',
                 keys: ['Escape'], title: 'Take the step',
                 when: () => !step.dataset.fired, run: () => (step.dataset.fired = '')}] };
-              commandsChanged(step);
+              step.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               step.focus();
             }"""
         )
@@ -3978,8 +4071,7 @@ def test_a_standing_preview_redrawn_over_a_control_that_arrived_moves_clear(
             + ' height: 30px; padding: 0';
           next.onclick = () => { window.pressed += 1; };
           document.body.append(next);
-          const {previewChanged} = await window.__lfWidgetApi();
-          previewChanged(document.getElementById('aim'));
+          document.getElementById('aim').dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
         }""",
         [box["x"] + 10, box["y"] + box["height"] / 2],
     )
@@ -4096,3 +4188,36 @@ def test_a_preview_leaves_a_region_the_user_works_in_reachable(
         assert page.evaluate("() => window.pressed") == "region"
     else:
         expect(page.locator("#region")).to_be_focused()
+
+
+def test_a_margin_markers_preview_stands_its_gap_past_the_ring_of_what_it_marks(
+    browser, serve
+):
+    """A decision's margin marker stands just past the decision's edge, and where the
+    window leaves no room beside it, its preview reaches back over the decision. The
+    marker stands for the decision, so the preview stands its gap past the decision's
+    ring rather than on it, where the preview's face would cover the ring."""
+    page = open_page(
+        browser, serve(next(e for e in EXAMPLES if e.stem == "pr-walkthrough"))
+    )
+    resized(page, 1200, 900)
+    marker = page.locator(
+        '[data-lf-margin-for="pr-approval-decision"] .lf-margin-entry'
+    ).first
+    tab_onto(marker)
+    expect(page.locator(PREVIEW)).to_be_visible()
+    rendered(page)
+    seen = page.evaluate(
+        """() => {
+          const group = document.getElementById('pr-approval-decision');
+          const ring = parseFloat(getComputedStyle(group).getPropertyValue('--lf-band-room'));
+          const box = group.getBoundingClientRect();
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          return {
+            across: tip.left < box.right + ring && box.left - ring < tip.right,
+            clear: Math.max(tip.top - (box.bottom + ring), (box.top - ring) - tip.bottom),
+          };
+        }"""
+    )
+    assert seen["across"], f"the preview stands beside the decision: {seen}"
+    assert seen["clear"] == pytest.approx(6, abs=0.5), seen

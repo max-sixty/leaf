@@ -4,8 +4,8 @@ import { ShotView } from "./shot-view.js";
  * `density`, their device pixel ratio, and `focus-x`, `focus-y`, `focus-width` and
  * `focus-height`, the region in their CSS pixels that every view opens cropped to.
  * The maintainer chose to let markup state them, so a pair written in a page opens on
- * its change as a visual review's case does; a containing package states them as an
- * author does, and allocates the box. The region is the author's to state rather than
+ * its change; a containing package states them as an author does, and allocates the
+ * box. The region is the author's to state rather than
  * the comparison's to find: the comparison runs after presentation, so a region it
  * found would resize a shot the reader already sees, and its bounds would take in
  * whatever else moved, such as every row below one that grew. Four attributes rather
@@ -62,31 +62,24 @@ import { ShotView } from "./shot-view.js";
 // A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
-  setScroll,
-  canvas2D,
   afterPresentation,
-  announce,
-  once,
-  offer,
   failSoft,
   frameFor,
   placesFailure,
   focusDestination,
-  closeNativeLayer,
-  nextFrame,
-  isCanonicalMediaUrl,
-  layoutChanged,
-  keeps,
-  plainPress,
   scopedMediaUrl,
   widgetController,
   move,
   whileConnected,
-  sizeObserver,
   registerReadingRegion,
   compoundReadingRegionId,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { keeps } from "/runtime/lib/keeps.js";
+import { canvas2D } from "/runtime/lib/canvas.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -196,7 +189,7 @@ export class Shot extends HTMLElement {
     drawing.chooseScale = (scale) => {
       this.#drawing.actual = scale === "actual";
       this.#fit();
-      closeNativeLayer(drawing.options);
+      drawing.options.hidePopover();
       focusDestination(drawing.scaleTrigger, "move");
     };
     drawing.optionsToggled = (event) => {
@@ -220,15 +213,8 @@ export class Shot extends HTMLElement {
         () => {
           if (this.#drawing.view !== "pair" || !this.#drawing.actual) return;
           const peer = index === 0 ? drawing.viewports[1] : drawing.viewports[0];
-          if (
-            peer.scrollLeft !== viewport.scrollLeft ||
-            peer.scrollTop !== viewport.scrollTop
-          )
-            setScroll(peer, {
-              left: viewport.scrollLeft,
-              top: viewport.scrollTop,
-              behavior: "instant",
-            });
+          const at = { left: viewport.scrollLeft, top: viewport.scrollTop };
+          if (scrollMoves(peer, at)) peer.scrollTo({ ...at, behavior: "instant" });
         },
         { passive: true },
       );
@@ -280,7 +266,7 @@ export class Shot extends HTMLElement {
           image.onerror = () => resolve(false);
           const source = this.getAttribute(state);
           if (source !== null)
-            image.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
+            image.src = source.startsWith("/media/") ? scopedMediaUrl(source) : source;
           else resolve(false);
         });
       }),
@@ -379,7 +365,7 @@ export class Shot extends HTMLElement {
       this.#drawing.paper ??= paperOf(shown);
     this.#drawing.fit();
     this.#paint();
-    layoutChanged(this);
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
   /** @param {string} view @param {string} label */
@@ -390,7 +376,9 @@ export class Shot extends HTMLElement {
       this.#drawing.view = view;
       this.#fit();
     }
-    announce(`Showing ${label.toLowerCase()}`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", { detail: `Showing ${label.toLowerCase()}` }),
+    );
   }
 
   #syncComparison() {
@@ -437,7 +425,11 @@ export class Shot extends HTMLElement {
           focusDestination(handle, "press");
       });
       comparison.addEventListener("click", (event) => {
-        if (dragged || handleOf(event) || !plainPress(event)) return;
+        // The primary button with no modifier: a modified click keeps its usual meaning.
+        const plain =
+          event.button === 0 &&
+          !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
+        if (dragged || handleOf(event) || !plain) return;
         event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });
@@ -457,8 +449,10 @@ export class Shot extends HTMLElement {
           },
         ],
       };
-      commandsChanged(comparison);
       this.#drawing.canvas.append(comparison);
+      comparison.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.#comparison = comparison;
       void comparison.updateComplete.then(() => this.#paintHandle());
     }
@@ -482,7 +476,9 @@ export class Shot extends HTMLElement {
     if (!this.#drawingOwner) return;
     render(this.#drawing.render(), this, { host: this });
     this.#paintHandle();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   /** @param {Capture} capture */

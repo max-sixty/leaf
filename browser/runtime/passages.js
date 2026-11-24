@@ -64,16 +64,16 @@
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
    chrome-looking structure is still one of the page's words. This lets a tab label or
    draft heading remain quotable while runtime controls stay outside the passage.
-   `generatedElement` writes the said marker; `offer` writes the control marker. They
-   are independent facts and neither clears the other.
+   A module writes the said marker on its words; `offer` writes the control marker.
+   They are independent facts and neither clears the other.
 
    A label copied off another element on the page is a route to those words rather
    than a second place the page says them. Say it once: a contents link, a roster row
    naming a worker, any generated index entry stays chrome, and the passage lives where
    the page speaks it. Two copies of one label carry the same text and, being fenced,
    the same empty context, so neither can be told from the other and a drag across
-   either detaches. (The third answer of `says`, `"echo"`, is what such a route
-   declares; widget-elements.js says how.)
+   either detaches. (`data-lf-echo` is what such a route declares; control-labels.js
+   says how.)
 
    Use `inChrome` when the question is whether an element belongs to the runtime's
    document layer. Use `.lf-ui` when the question is whether words or styling are
@@ -93,7 +93,7 @@
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow-tree.js),
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -114,19 +114,14 @@
 import {
   isNode,
   closestAcross,
-  inChrome,
-  SAID,
-  UI_MARKS,
-  inUi,
   overIn,
   shadowHost,
-  uiInside,
   under,
   upFrom,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
+import { inChrome, SAID, UI_MARKS, inUi, uiInside } from "./ui-marks.js";
 import { keptEach, unkept, version } from "./kept.js";
 import { liveStages } from "./arrivals.js";
-export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   declaredRoot,
   refuseShadowRoot,
@@ -144,7 +139,7 @@ import {
   isHTML,
   renderedParent,
   skipper,
-} from "./shadow-tree.js";
+} from "./lib/shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
@@ -157,7 +152,7 @@ import {
   PHRASING,
   TEXT_BLOCK,
 } from "./kernel-facts.js";
-import { textUnits } from "./text-alignment.js";
+import { textUnits } from "./lib/text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
 
@@ -519,7 +514,7 @@ const NO_CONTEXT = Object.freeze({
   cells: null,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
-// (shadow-tree.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
+// (ui-marks.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
 // the walk asks each of one element with `matches`, so a marker added to a selector
 // reaches both. `MARKS` joins the attribute markers, so an element whose attributes are
 // only a class or an id is settled by one match.
@@ -1368,7 +1363,7 @@ const drawnHere = () => {
  * closed disclosure's body are), and, with `visibility`, `element` inherits
  * `visibility: visible`. What a `content-visibility: auto` box skips off screen is drawn
  * once scrolled to, by the same rules, so it is asked as it is, which styles what is
- * asked; what `hidden` skips is answered without styling it (shadow-tree.js, `skipper`).
+ * asked; what `hidden` skips is answered without styling it (lib/shadow-tree.js, `skipper`).
  * @param {Element} element @param {boolean} [visibility] */
 export function drawsWithin(element, visibility = true) {
   for (
@@ -3504,7 +3499,7 @@ export function findQuote(text, quote, anchor, within) {
 // shut details) is still asked of its own element, though the fold is styled whole the
 // first time a search reads inside it, since widgets hide words there by CSS: asking
 // the fold instead added 56 matches to a search for "the" on the corpus (2,651 against
-// 2,595), from widgets such as lf-visual-review, lf-playground and lf-chart.
+// 2,595), from widgets such as lf-playground and lf-chart.
 function searchableWords() {
   const styles = new Map();
   const reachable = new Map();

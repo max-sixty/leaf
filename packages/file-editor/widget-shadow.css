@@ -92,10 +92,6 @@
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   text-align: left;
 }
-/* A row is packed against the menu's edge, so its ring is drawn inset. */
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn {
-  --lf-ring-at: var(--lf-focus-ring-inset);
-}
 :host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;
   min-height: 0;

@@ -9,9 +9,7 @@
    evidence included, and focus anywhere in it is being at the question, where digits
    answer it.
    When several obligations share that context each stands at its own source, so focus,
-   rings, markers and arrival all name the same request. A record unit stands at its
-   projected datum, even when it is the widget's only obligation; the owning widget
-   still supplies its commands and answer formatter.
+   rings, markers and arrival all name the same request.
    Thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:
@@ -33,10 +31,9 @@
    Which obligation holds a node the user is in is the converse question, current location rather
    than membership (`obligationHolding`, current-target.js). It reads every placed
    obligation, and also falls back to an obligation's unique context. */
-import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { composedParentNode } from "../shadow-tree.js";
+import { composedParentNode } from "../lib/shadow-tree.js";
 import { readObligations } from "./model.js";
 import { keptEach } from "../kept.js";
 
@@ -46,14 +43,13 @@ const NOWHERE = Object.freeze({ source: null, context: null, node: null });
  * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
 export function obligationPlace(item, items = readObligations().all) {
   if (item?.source.kind !== "widget") return NOWHERE;
-  const owner = elementById(item.source.id);
-  const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
+  const source = elementById(item.source.id);
   const context = elementById(item.prompt.target);
   const sharing = contextsOf(items).get(item.prompt.target);
   const shared = Boolean(
     sharing && (sharing.size > 1 || (sharing.size === 1 && !sharing.has(item.id))),
   );
-  return { source, context, node: item.source.unit || shared ? source : context };
+  return { source, context, node: shared ? source : context };
 }
 
 // The ids of the widget obligations each context holds, read once per inventory
@@ -90,7 +86,7 @@ export function obligationsByRegion(regions, items = readObligations().all) {
   /** @type {Map<Node, import("../framework/application.js").ObligationRecord[]>} */
   const held = new Map(regions.map((region) => [region, []]));
   for (const item of items) {
-    if (item.status === "withdrawn") continue;
+    if (item.outcome === "dropped") continue;
     const { source } = obligationPlace(item, items);
     for (let at = /** @type {Node | null} */ (source); at; at = composedParentNode(at))
       held.get(at)?.push(item);

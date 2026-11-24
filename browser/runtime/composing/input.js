@@ -5,7 +5,10 @@
 // surface (an impatient second click), and submit with Enter on a physical keyboard. A
 // press on a submit control is that Enter, pressed from the box.
 // Where native speech recognition is available, an empty comment offers a microphone
-// in Send's place. Dictation uses the same draft and send contract in every surface:
+// in Send's place. Where it is not, as in a Firefox without it, the empty box keeps
+// Send, grey and unavailable (`aria-disabled`). The user chose that over a box that
+// shows no Send until it holds words.
+// Dictation uses the same draft and send contract in every surface:
 // empty-field status stays in the placeholder, words keep their place, and the mic's
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.
@@ -55,20 +58,19 @@
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
 import { capitalized, counted } from "../words.js";
-import { describeFailure } from "../exception.js";
+import { describeFailure } from "../lib/exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import {
   advertisesKeys,
   ariaBindings,
   submitBindings,
   spell,
-  PRESS,
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, keepsNotice } from "../notifications.js";
-import { selectableOffered } from "../element-markers.js";
+import { offeredAction, selectableOffered } from "../lib/controls.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -98,11 +100,12 @@ import {
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
 import { errorOver, passErrorsAt, raiseError } from "../errors.js";
-import { holdRendering, sizeObserver } from "../rendering.js";
+import { holdRendering } from "../rendering.js";
+import { sizeObserver } from "../lib/frame-pass.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { offeredAction } from "../widget-elements.js";
+import { PRESS } from "../lib/keys.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -253,9 +256,9 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
-      // A sent message's picture is the one its message draws (markdown.js, the image
-      // rule), in a paragraph of its own as the message sets it, with the removal mark
-      // a rewrite adds.
+      // A sent message's picture is the one its message draws (page-markdown.js,
+      // `pageLinks`), in a paragraph of its own as the message sets it, with the removal
+      // mark a rewrite adds.
       return sent
         ? html`<p class="lf-composer-media-item">
             <button

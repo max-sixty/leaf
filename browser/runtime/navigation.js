@@ -42,7 +42,7 @@ import {
 import { focused } from "./focus.js";
 import { closeDraft, draftAnchor, draftsReading, standsOnDraft } from "./drafts.js";
 import { pageSelection } from "./composing/capture.js";
-import { blockAt, closestAcross, inPage, layoutBox } from "./passages.js";
+import { blockAt, inPage, layoutBox } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -56,7 +56,12 @@ import {
   threadNamed,
 } from "./thread/state.js";
 import { threadPlace } from "./thread/placement.js";
-import { byRenderedOrder, renderedOrder, under } from "./shadow-tree.js";
+import {
+  byRenderedOrder,
+  renderedOrder,
+  under,
+  closestAcross,
+} from "./lib/shadow-tree.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";

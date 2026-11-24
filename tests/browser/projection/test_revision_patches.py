@@ -975,7 +975,7 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
                         "description": "Text its module draws once, at upgrade.",
                         "attributes": {
                             "type": "object",
-                            "properties": {"id": {"type": "string"}},
+                            "properties": {},
                             "required": ["id"],
                             "additionalProperties": False,
                         },
@@ -996,6 +996,7 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
 GRIPPED = """import { html } from '/vendor/lit.js';
 import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-gripped', class extends LeafElement {
+ static shadow = true;
  render() {
   return html`<button data-lf-carry="grip">Move</button><slot></slot>`;
  }

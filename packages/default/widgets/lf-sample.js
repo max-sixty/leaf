@@ -45,31 +45,20 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  aborted,
-  describeFailure,
   frameFor,
   growthIsSeen,
   whileConnected,
-  keeps,
-  keepsText,
-  nameAction,
-  layoutPx,
   mountSample,
-  once,
-  offer,
-  offerAction,
-  generatedElement,
   widgetController,
   focusDestination,
-  closeLayer,
-  showNativeLayer,
-  closeNativeLayer,
-  isNativeLayer,
-  handBack,
   heldGrowth,
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 
 export class Sample extends HTMLElement {
   /** @typedef {Awaited<ReturnType<typeof mountSample>>} SampleHost */
@@ -95,6 +84,10 @@ export class Sample extends HTMLElement {
   }
   get #view() {
     return this.#page.view;
+  }
+  // Whether the view stands over the page as Full view's modal dialog.
+  get #modal() {
+    return this.#view.matches(":modal");
   }
   get #reset() {
     return this.#page.reset;
@@ -178,10 +171,7 @@ export class Sample extends HTMLElement {
   #mount() {
     // Removal ends native modality even when a retained widget reconnects before
     // its host is retired. Reconcile the presentation with that platform state.
-    if (
-      this.#pageView?.view.getAttribute("role") === "dialog" &&
-      !isNativeLayer(this.#view)
-    )
+    if (this.#pageView?.view.getAttribute("role") === "dialog" && !this.#modal)
       this.#embed();
     if (!this.#pageView || this.#host || this.#mounting || this.#nearing) return;
     // A frame the reader sees as it mounts is part of what they are being shown, the
@@ -206,11 +196,7 @@ export class Sample extends HTMLElement {
   // Whether the frame's resize to its child would move what the reader sees now. A
   // window keeps its height.
   #seen() {
-    return (
-      !this.hasAttribute("window") &&
-      !isNativeLayer(this.#view) &&
-      growthIsSeen(this.#frame)
-    );
+    return !this.hasAttribute("window") && !this.#modal && growthIsSeen(this.#frame);
   }
 
   // Start the child. Its resize on arrival applies at once where the reader `asked`
@@ -221,7 +207,7 @@ export class Sample extends HTMLElement {
     this.#mounting = true;
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
-      window: this.hasAttribute("window") || isNativeLayer(this.#view),
+      window: this.hasAttribute("window") || this.#modal,
     }).then(
       async (host) => {
         this.#mounting = false;
@@ -325,12 +311,12 @@ export class Sample extends HTMLElement {
     this.#frame.className = "lf-sample-frame";
     this.#frame.title = this.getAttribute("label") || "Leaf sample";
     this.#frame.addEventListener("lf-sample-return", () => {
-      if (isNativeLayer(this.#view)) this.#return();
+      if (this.#modal) this.#return();
       else focusDestination(this, "return");
     });
 
     this.#view.className = "lf-sample-view";
-    generatedElement(this.#view, { says: false });
+    keeps(this.#view, "data-lf-gen", "1");
     this.#view.setAttribute("open", "");
     this.#view.setAttribute("role", "presentation");
     this.#view.addEventListener("cancel", (event) => {
@@ -340,7 +326,7 @@ export class Sample extends HTMLElement {
 
     const controls = document.createElement("div");
     controls.className = "lf-sample-controls lf-ui";
-    generatedElement(controls, { says: false });
+    keeps(controls, "data-lf-gen", "1");
     const actions = document.createElement("div");
     this.#reset.addEventListener("click", () => {
       if (this.#reset.ariaDisabled === "true") return;
@@ -349,7 +335,7 @@ export class Sample extends HTMLElement {
     this.#status.setAttribute("role", "status");
     this.#paintFull(false);
     this.#full.addEventListener("click", () => {
-      if (isNativeLayer(this.#view)) this.#return();
+      if (this.#modal) this.#return();
       else {
         // The frame never moves in the DOM: reparenting it destroys its browsing
         // context. Native modality supplies focus containment and parent isolation.
@@ -358,11 +344,11 @@ export class Sample extends HTMLElement {
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;
         this.style.setProperty("--lf-sample-height", layoutPx(height));
-        closeNativeLayer(this.#view);
+        this.#view.close();
         this.#view.setAttribute("role", "dialog");
         this.#view.setAttribute("aria-label", this.#frame.title);
         this.#paintFull(true);
-        showNativeLayer(this.#view);
+        this.#view.showModal();
         this.#setWindow(true);
         focusDestination(this.#full, "move");
       }
@@ -377,17 +363,19 @@ export class Sample extends HTMLElement {
     return true;
   }
 
+  // The browser hands focus back to wherever it stood as Full view opened: the Full
+  // view button inside the view the close hides, or, where a press leaves a button
+  // unfocused, wherever the user was before. So the user is put on that button once
+  // the view stands embedded again.
   #return() {
-    closeLayer(
-      () => this.#embed(),
-      () => handBack(this.#full),
-    );
+    this.#embed();
+    focusDestination(this.#full, "return");
     if (this.#heightReading !== undefined)
       this.#height(this.#heightReading, { immediate: true, asked: true });
   }
 
   #embed() {
-    closeNativeLayer(this.#view);
+    this.#view.close();
     // Initial open markup keeps the embedded group visible without the native
     // focusing steps of show(), which could scroll the containing page.
     this.#view.setAttribute("open", "");
@@ -420,7 +408,7 @@ export class Sample extends HTMLElement {
   // the reader `asked` for it, by Reset or Return to page.
   /** @param {number} height */
   #height(height, { immediate = false, asked = false } = {}) {
-    if (this.hasAttribute("window") || isNativeLayer(this.#view)) return;
+    if (this.hasAttribute("window") || this.#modal) return;
     this.#heightReading = height;
     this.#heldFit?.();
     this.#heldFit = null;
@@ -491,7 +479,7 @@ export class Sample extends HTMLElement {
     if (promise === this.#following?.source) return this.#following.ready;
     const ready = promise.then((reading) => {
       if (this.#ready !== ready) return reading;
-      const asWindow = this.hasAttribute("window") || isNativeLayer(this.#view);
+      const asWindow = this.hasAttribute("window") || this.#modal;
       if (reading.block === asWindow) this.#setWindow(asWindow);
       else this.#height(reading.height, { immediate: true });
       keeps(this.#reset, "aria-disabled", null);
@@ -533,7 +521,11 @@ export class Sample extends HTMLElement {
           return false;
         throw error;
       });
-    return Promise.race([shown, aborted(signal).then(() => false)]);
+    /** @type {Promise<boolean>} */
+    const superseded = new Promise((resolve) =>
+      signal.addEventListener("abort", () => resolve(false), { once: true }),
+    );
+    return Promise.race([shown, superseded]);
   }
 
   // Reset starts a child that has not started, or whose start failed.

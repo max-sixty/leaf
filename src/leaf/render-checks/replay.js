@@ -1,8 +1,5 @@
-import {
-  exceptionText,
-  shallowSigs,
-  validationWidgetStates,
-} from "/runtime/check-api.js";
+import { shallowSigs, validationWidgetStates } from "/runtime/check-api.js";
+import { exceptionText } from "/runtime/lib/exception.js";
 import { at } from "./locate.js";
 
 // The complete renderer must be idempotent. Draw each widget's reading again directly,

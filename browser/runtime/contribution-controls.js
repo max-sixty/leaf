@@ -2,14 +2,14 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { closestAcross, renderedUnder } from "./shadow-tree.js";
+import { closestAcross, renderedUnder } from "./lib/shadow-tree.js";
 import { html, render, untracked } from "/runtime/framework.js";
-import { iconTemplate } from "./icons.js";
+import { iconTemplate } from "./lib/icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
 import { agentName, readPart } from "./semantic-state.js";
-import { elementDirective, offerActionElement } from "./widget-elements.js";
-import { keeps, inlineStyle } from "./keeps.js";
+import { elementDirective, offerActionElement } from "./lib/controls.js";
+import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";

@@ -22,7 +22,7 @@ pages that select it. Presentation or behavior used by one page stays in that pa
 ```bash
 leaf package init packages/callout --widget lf-callout
 leaf package check packages/callout
-leaf page init --package packages/callout PAGE
+leaf page init --package reading --package packages/callout PAGE
 leaf package install packages/callout
 leaf package list
 leaf package run NAME SCRIPT [ARGS]...
@@ -75,7 +75,7 @@ Keep a widget simple: show the evidence and actions the reader needs, since ever
 control competes with them. Add an optional control when a caller needs it, and let
 the page's author turn it on. Use the theme's tokens and shared control styles before
 writing widget CSS, build each press by its role so it wears Leaf's face
-(`module-authoring.md`, "Generated controls"), and reuse Leaf's thread symbol, comment
+(`module-controls.md`), and reuse Leaf's thread symbol, comment
 box and keyboard hints (`module-input.md`, "Commands and keyboard routes", and
 `module-annotations.md`, "Widget-local Thread placement").
 
@@ -134,8 +134,8 @@ state of its own.
 
 Leaf's chrome and comment marks are unlayered, so change their colours and type
 through the theme inputs below, and restyle the chrome's surfaces by part in
-`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
-`inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
+`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in
+`@layer lf-base { … }` (`module-authoring.md`, "Shadow stages and styles").
 
 Leaf places each sheet in its tier and changes none of its rules but `chrome.css`'s,
 which it nests in the chrome, so a sheet names
@@ -150,19 +150,19 @@ contribution. Inherited values cross every widget boundary. Adjust another widge
 internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet through `LeafElement` for `shadow`, or through
+the composed shared stylesheet through a `LeafElement` that says `static shadow`, or through
 `shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
 
 Custom properties come in four kinds:
 
-| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Theme tokens        | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "Personal themes"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                      |
-| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                            |
-| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                               |
+| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme tokens        | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "A page's theme"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
+| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                     |
+| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                           |
+| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
 
 Leaf's interface sets its words in a closed set of fonts derived from those tokens,
 each a whole value for the `font` shorthand, declared together in
@@ -181,8 +181,9 @@ control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
 Import Leaf behavior through `/runtime/widget-api.js`, or its portable part
-`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf").
-Both are files of the install: `leaf --root` prints its directory, which holds them in
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
+and shared web code from the library under `/runtime/lib/` (module-authoring.md,
+"Shared web code"). All are files of the install: `leaf --root` prints its directory, which holds them in
 `browser/runtime/` and Leaf's `/vendor/` modules in `browser/vendor/`. A link from
 these references to a file under `browser/` or `src/` leads into that directory.
 Package `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,
@@ -192,17 +193,16 @@ Leaf serves its page, and a package's `vendor/` file at one of those paths repla
 there. `widget-api.js` can change in any update; `leaf package check --render` and
 `leaf page check --render` report a module it breaks.
 
-Registries merge in order: kernel, `default`, the page's theme after the themes it
-builds on, then the selected packages in command order, and a later package wins a
-collision. A later package replaces an element or
+Registries merge in order: kernel, `default`, then the selected packages in command
+order, and a later package wins a collision. A later package replaces an element or
 idiom entry whole and can't delete one. Shared `$` entries merge by member, and a map
 member merges one level further by key; `null` deletes at either level if the merged
 registry still validates. `page init` records the selected packages in
 `$layer.packages`, and a plain re-init selects them again. Re-initializing with
 `--package` replaces that list, so name every package the page keeps.
-`page init --no-packages PAGE` clears the list and keeps the page's theme, which
-`--theme` and `--no-theme` choose
-([package-themes.md, "Personal themes"](package-themes.md#personal-themes)).
+`page init --no-packages PAGE` clears the list. A page's theme is one of the
+packages it selects
+([package-themes.md, "A page's theme"](package-themes.md#a-pages-theme)).
 
 Name each file directly under `instructions/` `<audience>.md`, matching
 `[a-z][a-z0-9-]*\.md`, and start it with its text rather than a title: Leaf adds a
@@ -219,10 +219,11 @@ leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 
 `leaf page instructions` returns a JSON map from audience to text. With no selection it
 returns the packages' shared instructions. Each `--use ENTRY` adds that entry's
-`instructions` to `author`, along with the entries its `example` uses and
-its `inputs` contracts, whose instructions join their own audiences. It reads the
-layer the page selects and any `page/registry.json`, so it works before the page has
-markup. `page-authoring.md`, "Read the registry", says when an author reads each part.
+`instructions` to `author`, along with the entries its `example` uses and the
+contracts its `inputs` and `outputs` name, whose instructions join their own
+audiences. It reads the layer the page selects and any `page/registry.json`, so it
+works before the page has markup. `page-authoring.md`, "Read the registry", says when
+an author reads each part.
 
 A replacement `icon.svg` must contain an element with `class="lf-tone"`, which Leaf
 colours with the page's status.
@@ -245,7 +246,6 @@ its typed `inputs`. Each is declared because some part of Leaf, such as the serv
   "description": "A merge replayed frame by frame.",
   "attributes": {
     "type": "object",
-    "properties": { "id": { "type": "string" } },
     "required": ["id"],
     "additionalProperties": false
   },
@@ -258,7 +258,7 @@ The merged registry's `$keys` entry defines each fact by its name; `$verbs` defi
 obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
 widget's markup that no declared fact states: the module checks it as it draws and
-reports a breach with `reportFailure`
+reports a breach with an `error` event
 ([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
 card whose `shows` names a widget with no answer. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
@@ -281,15 +281,19 @@ declares `content: members`.
 nested widgets in authored order, so users can quote those words; the render check
 refuses a page where they changed. Declare it on a wrapper round authored content, and
 leave it off a widget whose module rewrites or reorders what it holds. Whatever the
-module adds to a verbatim widget stands inside a box it built with `offer`, with no
-words marked `says: true`, which would make them the page's (`module-authoring.md`,
-"Generated controls").
+module adds to a verbatim widget stands inside a box of controls the library built
+(`module-controls.md`), with no words marked `data-lf-said`, which would make them the
+page's (`module-plain-elements.md`, "Words it writes").
+
+Every element takes an `id`. Composition writes it into the merged registry as a string,
+so a declaration leaves `id` out of `properties` and says only whether the element
+requires one, by listing `id` in `required`.
 
 Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
-attribute (`inputs`) and a verb's `contract` attribute. Declare each as `{"type":
-"string"}`; composition writes its `pattern` into the merged registry, replacing any the
-declaration gives. A `refers` attribute needs no pattern either, since `page
-check` requires its value to name an element the page holds.
+attribute (`inputs`) and a verb's `contract` attribute. Declare each of the last two as
+`{"type": "string"}`; composition writes each one's `pattern` into the merged registry,
+replacing any the declaration gives. A `refers` attribute needs no pattern either, since
+`page check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:

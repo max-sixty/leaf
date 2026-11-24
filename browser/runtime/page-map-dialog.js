@@ -28,7 +28,7 @@ import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { registerReadingRegion } from "./reading-regions.js";
 import { holdUserPlace } from "./user-place.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { blockAt, says } from "./passages.js";
 import {
   closeLayer,
@@ -40,12 +40,13 @@ import {
   openerOf,
 } from "./focus.js";
 import { guard, html, nothing, render, repeat } from "/runtime/framework.js";
-import { iconTemplate } from "./icons.js";
+import { iconTemplate } from "./lib/icons.js";
 import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
-import { keepsHidden, keepsText } from "./keeps.js";
+import { closeControl, el, searchField } from "./widget-elements.js";
+import { offeredAction } from "./lib/controls.js";
+import { keepsHidden, keepsText } from "./lib/keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import {
   PAGE_CONTROL_RANK,
@@ -65,7 +66,7 @@ import { marginMapGroups } from "./margin-map-model.js";
 import { loadDraft } from "./drafts.js";
 import { excerptWords } from "./words.js";
 import { threadHeading } from "./thread/messages.js";
-import { isHTML } from "./shadow-tree.js";
+import { isHTML } from "./lib/shadow-tree.js";
 import { voiced, wordsText } from "./voice.js";
 
 /** @typedef {import("./annotation-inventory.js").InventoryEntry} Entry

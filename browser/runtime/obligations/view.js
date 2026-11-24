@@ -36,12 +36,12 @@ import { offFlow } from "../off-flow.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls, nativePress } from "../keyboard/bindings.js";
-import { closestAcross, elementById, inChrome } from "../passages.js";
+import { elementById } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { scrollersOf } from "../scroll-containers.js";
 import { whereGlidesLand } from "../scrolling.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
 import { obligationEntry, readObligations } from "./model.js";
@@ -59,12 +59,12 @@ import { ownedObligationControl } from "./answer.js";
 import { obligationIn } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { under, upFrom } from "../shadow-tree.js";
+import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
-import { revealAddressed } from "../anchor-resolution.js";
+import { inChrome } from "../ui-marks.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
 /** @typedef {import("../framework/application.js").ObligationRecord} Obligation */
@@ -94,12 +94,6 @@ export function createObligationView({
   /** @param {Obligation | null} item */
   const sourceOwner = (item) =>
     item?.source.kind === "widget" ? elementById(item.source.id) : null;
-  /** @param {Obligation | null} item */
-  const sourceControls = (item) => {
-    const owner = sourceOwner(item);
-    const source = sourceNode(item);
-    return owner && source ? { owner, source } : null;
-  };
   /** @param {readonly Obligation[]} items @param {Obligation | null} candidate */
   const hasObligation = (items, candidate) =>
     Boolean(candidate && items.some((item) => item.id === candidate.id));
@@ -280,18 +274,17 @@ export function createObligationView({
   // Widgets own context aliases. The obligation view selects declarations through the same current location
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
-  /** @param {Element} source @param {Element} owner */
-  const actionsFor = (source, owner = source) =>
+  /** @param {Element} owner */
+  const actionsFor = (owner) =>
     decisionControls(commandsWithin(owner), `Obligation ${owner.id}`).filter(
       ({ source: commandSource, control }) =>
         ownedObligationControl(owner, commandSource) &&
-        (source === owner || under(control, source)) &&
         control.getAttribute("aria-busy") !== "true",
     );
   /** @param {Obligation | null} item */
   const actionsOf = (item) => {
-    const controls = sourceControls(item);
-    return controls ? actionsFor(controls.source, controls.owner) : [];
+    const owner = sourceOwner(item);
+    return owner ? actionsFor(owner) : [];
   };
   // The answers an obligation offers, for a surface that answers it away from where it stands,
   // as the floating panel's On view does: each Decision control's own words, whether
@@ -301,9 +294,9 @@ export function createObligationView({
   // caller then offers the arrival instead.
   /** @param {Obligation} item */
   function choicesOf(item) {
-    const controls = sourceControls(item);
-    if (!controls) return null;
-    return actionsFor(controls.source, controls.owner).map(
+    const owner = sourceOwner(item);
+    if (!owner) return null;
+    return actionsFor(owner).map(
       ({ id, label, description, recommended, commits, control }) =>
         Object.freeze({
           id,
@@ -445,8 +438,7 @@ export function createObligationView({
   // question is that region (`prompt.target`): its name, then the context and evidence,
   // then the control. Where the obligation stands at the group alone, the group is also
   // its place, so its arrival is simply its start, however tall the group is. A group
-  // several obligations share, or a record unit's, is the region only where it fits
-  // above the source.
+  // several obligations share is the region only where it fits above the source.
   //
   // A suggestion declares no group: it is an edit to a phrase, and what explains it is
   // the sentence it stands in. Landing on the change alone would put its own top edge
@@ -523,23 +515,13 @@ export function createObligationView({
     // Materializing an obligation can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
     const arriveAtRecord = bindQueuedWork(arrive);
-    // A thread source must exist before its owner can reveal a projected record.
+    // The place the user leaves, read before drawing the obligation opens its thread,
+    // which renames the entry they are on (thread/address.js); only a successful
+    // arrival commits the departure.
+    const departure = prepareNavigationStep();
+    // A thread source must exist before the walk can arrive at it.
     if (hasObligationSource(next, "widget") && next.thread)
       await materializeObligation(next, next.message, mayArrive);
-    if (hasObligationSource(next, "widget") && next.source.unit) {
-      const owner = sourceOwner(next);
-      if (owner) {
-        const hydration = revealAddressed(owner, next.source.unit);
-        if (
-          hydration != null &&
-          (typeof hydration === "object" || typeof hydration === "function") &&
-          "then" in hydration &&
-          typeof hydration.then === "function"
-        )
-          await hydration;
-        if (!mayArrive()) return false;
-      }
-    }
     // A thread obligation uses the same retained destination as every other thread
     // arrival. The selected reader may need to disclose a different conversation.
     const { target } = reachObligation(next);
@@ -550,9 +532,9 @@ export function createObligationView({
     // press moves the page is `alreadyArrived`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
-    // Capture the outgoing place before reveal can reshape it; only a successful
-    // arrival commits the departure. A thread obligation in the panel's own list
-    // arrives centred in that region and is no navigation step. One in a thread's
+    // A thread obligation in the floating panel arrives centred in that region, a step
+    // as every arrival at a stop the user wasn't on is (anchor-travel.js,
+    // `prepareNavigationStep`). One in a thread's
     // card, which stands fixed over the page by the thread's words where no scroll of
     // the boxes around the obligation moves it, lands as an arrival at the thread
     // does (anchor-travel.js, `threadLanding`). Which box either travel moves is the
@@ -581,28 +563,30 @@ export function createObligationView({
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareNavigationStep();
     const {
       box: initialBox,
       region: initialRegion,
       source: initialSource,
       landing,
     } = initial;
-    if (landing) departure.plan(landing.where);
-    const moving = Boolean(
-      initialBox &&
-      departure.plan(initial.target, {
-        there: (readable) =>
-          alreadyArrived(
-            next,
-            initialRegion,
-            initial.target,
-            initialSource,
-            initialBox,
-            readable,
-          ),
-      }),
-    );
+    const moving = landing
+      ? departure.plan(landing.where)
+      : departure.plan(
+          initial.target,
+          initialBox
+            ? {
+                there: (readable) =>
+                  alreadyArrived(
+                    next,
+                    initialRegion,
+                    initial.target,
+                    initialSource,
+                    initialBox,
+                    readable,
+                  ),
+              }
+            : {},
+        );
     const arrived = await arriveAtRecord(
       () => {
         const here = destination();

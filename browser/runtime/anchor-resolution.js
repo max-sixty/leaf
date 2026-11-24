@@ -20,7 +20,8 @@ import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { declaredRoot, queryAllUnder } from "./shadow.js";
-import { inUi, shadowHost, under, upFrom } from "./shadow-tree.js";
+import { shadowHost, under, upFrom, closestAcross } from "./lib/shadow-tree.js";
+import { inUi, inChrome } from "./ui-marks.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -31,10 +32,10 @@ import {
   focusedVisualPart,
   visualPartFocus,
   visualPartAdmission,
+  declaredVisuals,
 } from "./visual-parts.js";
 import {
   blockAt,
-  closestAcross,
   AROUND,
   cut,
   contextAround,
@@ -54,7 +55,6 @@ import {
   excerpt,
   findQuote,
   fileModelsPassage,
-  inChrome,
   leafSurface,
   pageQueryAll,
   settledAway,
@@ -113,7 +113,7 @@ function currentDatums(source, key, identity = null, dataSource = null) {
 }
 
 /** @param {Element | null} source @param {string} key */
-export const projectedDatum = (source, key) => {
+const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? (matches[0] ?? null) : null;
 };
@@ -155,7 +155,7 @@ function suppliedDatum(source, key) {
 // The elements under a referenced widget that a key addresses, in the one key space
 // every `refers` verb reads. A widget whose parts have a private address (a code
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
-// registered visual part's id or a projected datum's key. Only elements under the
+// visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
 /** @param {Element} source @param {string} key */
 export function addressedElements(source, key) {
@@ -180,7 +180,7 @@ export const addressedFocus = (source, key) =>
 
 // Travel's half of that key space: ask the widget to draw what a key addresses before
 // anything reads it. A visual part drawn only in another state is drawn now, as
-// `registerVisualParts` promises; a lazy datum answers with its hydration promise. Every
+// a visual's `lfParts.reveal` promises; a lazy datum answers with its hydration promise. Every
 // travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
 // module's `navigateToDatum` key alike, so neither route reaches a part the other
 // cannot.
@@ -199,6 +199,28 @@ export function revealAnchor(source, anchor) {
   );
   return asked.some((hydration) => hydration?.then) ? Promise.all(asked) : null;
 }
+
+// Whether a thread stands on what its widget gives in place of a part it hasn't drawn,
+// such as a closed diff file's row for a line in it, or for a line of earlier data
+// (`resolveAnchor`'s `fallback` and `outdated` with no drawn datum).
+/** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
+export const standsIn = (anchor, placement) =>
+  Boolean(
+    (anchor?.datum || anchor?.visual) &&
+    placement &&
+    placement.status !== "exact" &&
+    !placement.datumElement,
+  );
+
+// Whether the part a thread stands in for is yet to be drawn, so drawing it moves the
+// thread there, or gives it a seat beside it. A thread on earlier data stays on the
+// place its widget gives it.
+/** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
+export const awaitsDrawing = (anchor, placement) =>
+  standsIn(anchor, placement) && placement?.status === "fallback";
+
+// Which elements are visuals of their own, for the reader of a visual's marks.
+declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
 
 // A generated visual part keeps an id its provider's declaration admits.
 /** @param {Element | null} visual */
@@ -363,9 +385,7 @@ function addressableAt(node) {
 // addressable element.
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring((entry) => entry["text-format"] === "markdown").join(
-    ",",
-  );
+  const formatted = tagsDeclaring((entry) => entry.content === "markdown").join(",");
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );

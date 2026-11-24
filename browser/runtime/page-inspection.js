@@ -6,7 +6,7 @@
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
 import { capitalized } from "./words.js";
-import { describeFailure } from "./exception.js";
+import { describeFailure } from "./lib/exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -27,13 +27,8 @@ import { retainUserIntent } from "./user-intent.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { readCurrentUserView } from "./user-view.js";
-import {
-  closeControl,
-  el,
-  offerAction,
-  offeredAction,
-  reveal,
-} from "./widget-elements.js";
+import { closeControl, el, reveal } from "./widget-elements.js";
+import { offerAction, offeredAction } from "./lib/controls.js";
 
 /** Source diagnostics are served by `page_inspection.inspect_artifact`.
  * @typedef {{bytes: number, rules: number, declarations: number, inline_styles: number, important: number}} CssCounts

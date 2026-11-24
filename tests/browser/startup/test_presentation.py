@@ -160,7 +160,7 @@ def test_a_projected_external_link_wears_the_mark_its_href_earns(browser, serve)
     module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
     module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        DATA_PROJECTION_MODULE.replace("{ keeps,", "{ keeps, keepsText,").replace(
+        DATA_PROJECTION_MODULE.replace("{ keeps }", "{ keeps, keepsText }").replace(
             "const row = document.createElement('p');\n"
             "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
@@ -218,7 +218,7 @@ def test_reduced_motion_reaches_declared_shadow_stages(
         "description": "A package motion control.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -265,7 +265,8 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
-import {{ once, shadowStage }} from '/runtime/widget-api.js';
+import {{ shadowStage }} from '/runtime/widget-api.js';
+import {{ once }} from '/runtime/lib/once.js';
 customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (!once(this)) return;
@@ -344,9 +345,7 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
         "description": "A project-supplied link.",
         "attributes": {
             "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-            },
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -375,7 +374,8 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
             layer_registry={"lf-settled-link": settled, "lf-shadow-link": shadow},
             layer_widgets={
                 "lf-settled-link.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
+import {widgetController} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -391,7 +391,8 @@ customElements.define('lf-settled-link', class extends HTMLElement {
 });
 """,
                 "lf-shadow-link.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

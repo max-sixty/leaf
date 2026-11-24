@@ -139,7 +139,7 @@ def library_select(browser, serve):
     page = _bound_diff(browser, serve)
     page.evaluate("""async () => {
       await import('/vendor/webawesome.esm.js');
-      const {offer} = await window.__lfWidgetApi();
+      const {offer} = await import("/runtime/lib/controls.js");
       const select = offer('wa-select', 'library-select');
       select.label = 'Choose file';
       for (const value of ['first', 'second', 'third']) {
@@ -281,7 +281,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
     page = _bound_diff(browser, serve)
     readings = page.evaluate("""async () => {
       await import('/vendor/webawesome.esm.js');
-      const {offer} = await window.__lfWidgetApi();
+      const {offer} = await import("/runtime/lib/controls.js");
       const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
         'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
         'wordSpacing', 'textTransform'];
@@ -349,7 +349,7 @@ def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve
     page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate("""async () => {
-      const {offer} = await window.__lfWidgetApi();
+      const {offer} = await import("/runtime/lib/controls.js");
       const copy = offer('wa-copy-button', 'copy-feedback');
       copy.id = 'copy-feedback'; copy.value = 'copied value';
       copy.tooltip = 'copy'; copy.feedbackDuration = 80;

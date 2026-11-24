@@ -552,7 +552,8 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{offer, nameAction, searchField}} = await import("/runtime/portable-api.js");
+  const {{searchField}} = await import("/runtime/portable-api.js");
+  const {{offer, nameAction}} = await import("/runtime/lib/controls.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});

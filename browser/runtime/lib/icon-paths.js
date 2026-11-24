@@ -3,7 +3,7 @@
    its press says), and a plain DOM drawing of one. It imports nothing, so a pure model
    such as the margin's names a symbol without loading Lit; icons.js adds their Lit
    templates. A press that shows a symbol names its action rather than an icon
-   (`offerAction` and `nameAction` in the package API), so each action looks the same
+   (`offerAction` and `nameAction`, controls.js), so each action looks the same
    wherever it is offered; an icon an action doesn't name marks what something is or
    holds, such as a kind or a state. */
 

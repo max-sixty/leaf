@@ -99,7 +99,8 @@ import {
   threadPassage,
   threadSummary,
 } from "./messages.js";
-import { generatedElement, offeredAction } from "../widget-elements.js";
+import { generatedElement } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import { contentsBox, measure } from "../lib/shown-box.js";
 import { keeps, keepsHidden, layoutPx, roomPx } from "../lib/keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";

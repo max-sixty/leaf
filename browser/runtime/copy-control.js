@@ -10,7 +10,7 @@
  * hides its button for it, and the trigger, a press built by its role, is the face. A
  * failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
-import { offer, offerActionElement } from "./widget-elements.js";
+import { offer, offerActionElement } from "./lib/controls.js";
 import { actionElement, iconElement } from "./lib/icon-paths.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";

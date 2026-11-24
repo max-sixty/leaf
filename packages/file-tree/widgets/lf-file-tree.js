@@ -22,13 +22,13 @@ import {
   commandScope,
   focusDestination,
   navigateToDatum,
-  offer,
   LeafElement,
   onCurrentLocation,
   scrollIntoView,
   shadowStage,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import { PRESS } from "/runtime/lib/keys.js";
 import { keeps } from "/runtime/lib/keeps.js";
 

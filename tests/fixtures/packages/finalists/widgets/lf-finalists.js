@@ -8,7 +8,8 @@
 // with the candidate's key as the button's value, so the browser delivers it on
 // either host and the owner records the change as its own.
 import { html, repeat } from "/vendor/lit.js";
-import { LeafElement, offeredAction } from "/runtime/portable-api.js";
+import { LeafElement } from "/runtime/portable-api.js";
+import { offeredAction } from "/runtime/lib/controls.js";
 
 customElements.define(
   "lf-finalists",

@@ -108,7 +108,6 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  actionClass,
   addressableLabel,
   focusDestination,
   foldDuration,
@@ -116,8 +115,6 @@ import {
   LeafElement,
   motion,
   move,
-  offer,
-  offerAction,
   phrasing,
   onPress,
   readingAt,
@@ -125,6 +122,8 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";

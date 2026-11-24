@@ -170,6 +170,8 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
+    // For a widget that scrolls a box of its own (module-scroll-and-motion.md,
+    // "Reading regions"): the registration's function is this connection's cleanup.
     return registerReadingRegion({ id: this.id, host: this, body: this.body });
   });
 }

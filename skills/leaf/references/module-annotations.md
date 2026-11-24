@@ -91,6 +91,16 @@ returned `update()` after the parts or their positions change: a part's margin e
 stands level with the part, and Leaf learns that a part moved inside the visual only
 from `update()`.
 
+A visual that registers nothing marks its parts instead. Each node in the visual's
+light DOM that carries `data-lf-part="<id>"` is the part of that id, named by its
+`aria-label` or else by its words; a node inside another visual standing in it is that
+visual's. Each id marks one node, each marked node needs a name, and the `visual`
+declaration admits the id. A mark inside a shadow root is not read. Leaf reads the marks
+again each time it sets a plain element's properties (`module-plain-elements.md`); a
+visual that redraws its marks at another time calls `layoutChanged(element)`
+(`module-controls.md`). Register instead where the visual needs `reveal`, `label`,
+`find`, `at` or `focus`.
+
 The user picks a part as they pick any element that isn't words, with Alt-click or in
 Select mode (`page-authoring.md`, "Stable anchors"). Leaf finds the part under the
 pointer by hit-testing, so paint each part across the area a user aims at: an SVG shape

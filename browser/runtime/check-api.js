@@ -2,8 +2,6 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { canvas2D } from "./canvas.js";
-export { exceptionText } from "./exception.js";
 export { startNearWork } from "./presentation.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
@@ -94,6 +92,7 @@ export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispat
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
   focused,
+  handBack,
   onCurrentLocation,
   releaseFocus,
   ringBox,
@@ -115,7 +114,11 @@ export {
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
-export { nativeLayers } from "./keyboard/layer-stack.js";
+export {
+  closeNativeLayer,
+  nativeLayers,
+  showNativeLayer,
+} from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";

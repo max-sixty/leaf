@@ -33,7 +33,9 @@ import {
 } from "/runtime/anchor-resolution.js";
 import { targetElement } from "/runtime/resolved-target.js";
 import { registry } from "/runtime/registry.js";
-import { registerVisualParts } from "/runtime/visual-parts.js";
+import { registerVisualParts, visualPartProblems } from "/runtime/visual-parts.js";
+import { layoutChanged } from "/runtime/widget-upgrade.js";
+import { kept } from "/runtime/kept.js";
 import { focusDestination, handBack } from "/runtime/focus.js";
 
 beforeEach(() => {
@@ -322,4 +324,56 @@ test("a visual settles on its part as focus is placed there, and at no other tim
     section: "plot",
     visual: "point:b",
   });
+});
+
+test("a visual that registers nothing is read by the parts it marks", () => {
+  document.body.innerHTML = "<main></main>";
+  const source = document.createElement("lf-film");
+  source.id = "marked";
+  // The plot standing inside the film is a visual of its own, and what it marks is its
+  // own, whatever the ids: one the film would admit, and one that is no id at all.
+  source.innerHTML =
+    '<span data-lf-part="frame:one">The  first <b>frame</b></span>' +
+    '<svg><circle data-lf-part="frame:two" aria-label="The second frame"/></svg>' +
+    '<lf-plot><i data-lf-part="frame:nine">A point</i>' +
+    '<i data-lf-part="x-axis tick label">A tick</i></lf-plot>';
+  document.querySelector("main").append(source);
+  const [one, two] = source.querySelectorAll('[data-lf-part^="frame:"]');
+
+  // In document order, each named by its `aria-label` or else by its words.
+  const inventory = () =>
+    visualParts(source).map(({ id, element, label }) => [id, element, label]);
+  assert.deepEqual(inventory(), [
+    ["frame:one", one, "The first frame"],
+    ["frame:two", two, "The second frame"],
+  ]);
+  const found = resolveAnchor({ section: "marked", visual: "frame:two" });
+  assert.equal(targetElement(found), two);
+  // A hit inside a marked node is a hit on its part.
+  assert.deepEqual(aimTargetAt(one.querySelector("b"))?.anchor, {
+    section: "marked",
+    visual: "frame:one",
+  });
+  // A mark of the film's own that its prefixes don't admit is no part, and is what the
+  // render check names.
+  const declaration = registry["lf-film"].visual;
+  assert.deepEqual(visualPartProblems(source, declaration), []);
+  const mistyped = source.appendChild(document.createElement("span"));
+  mistyped.dataset.lfPart = "frme:three";
+  mistyped.textContent = "A third frame";
+  assert.equal(inventory().length, 2);
+  assert.deepEqual(visualPartProblems(source, declaration), [
+    { kind: "unadmitted-parts", parts: ["frme:three"] },
+  ]);
+  mistyped.remove();
+  // The marks are read as they stand. A reading kept from them is made again once the
+  // widget's layout is said to have changed, as Leaf says after it sets the element's
+  // properties.
+  const ids = kept(() => inventory().map(([id]) => id));
+  assert.deepEqual(ids(), ["frame:one", "frame:two"]);
+  one.remove();
+  assert.deepEqual(inventory(), [["frame:two", two, "The second frame"]]);
+  assert.deepEqual(ids(), ["frame:one", "frame:two"]);
+  layoutChanged(source);
+  assert.deepEqual(ids(), ["frame:two"]);
 });

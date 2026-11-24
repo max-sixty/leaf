@@ -216,6 +216,8 @@ summary from before a compaction, doesn't carry its rules.
   script. Then, as the behavior needs them: `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state, data, authenticated
   HTTP connections and LLM generation;
+  `references/module-plain-elements.md` for a widget written as a plain custom
+  element, with no base class;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-previews.md` for the preview Leaf shows of an element the user
   points at, tabs to or holds; `references/module-controls.md` for the controls a

@@ -10,6 +10,8 @@ files beside this one:
   obligations and history;
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
+- [module-plain-elements.md](module-plain-elements.md): a widget written as a plain
+  custom element, which Leaf drives by properties and events;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
   presses, and text entry;
 - [module-previews.md](module-previews.md): the preview Leaf shows of an element the
@@ -30,8 +32,8 @@ long it lives across revisions. A widget's declarations are in
 
 Import behavior helpers from `/runtime/widget-api.js`, or its portable part ("A
 widget that also runs off Leaf"), and Lit's templates from `/vendor/lit.js`.
-Don't import the runtime's
-other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
+Of the runtime's other modules, import only the library's ("Shared web code"). Don't
+query Leaf's own chrome or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
 of the module `widget-api.js` re-exports it from. Every export is public for independent
 and bundled packages alike. A DOM helper takes the element it acts for as its first
@@ -43,17 +45,28 @@ argument.
 `widget-api.js` exports `signal`, for private state a command's `when` reads
 (`module-input.md`, "Command rows").
 
+### Shared web code
+
+`/runtime/lib/` is a library of web code that Leaf's runtime and its bundled packages
+share, such as the ticks of a time axis and the words for a thrown value. It is not
+part of Leaf's interface: a library module keeps none of the page's state and calls
+nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
+module works off Leaf too. Like `widget-api.js`, the library can change in any update.
+[The directory](../../../browser/runtime/lib/) lists the modules, and each module's
+header and comments say what it exports. These references describe none of them.
+
 ### A widget that also runs off Leaf
 
-A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
-`widget-api.js`. The portable helpers are
+A widget reused off Leaf imports `/runtime/portable-api.js`, which `widget-api.js`
+re-exports, and may import the library's modules too. The portable helpers are
 [that file's exports](../../../browser/runtime/portable-api.js): each loads on a page
 without Leaf, where `widget-api.js` can't. The host maps `/runtime/` and `/vendor/` to
 a Leaf install with its own import map and gives the element its drawing box. For the
 widget's look it links the layer's `portable.css`, served beside `/widgets/`
 (`packages.md`, "Styles and composition"). Use `LeafElement` ("Drawing what a widget
-reads") or extend `HTMLElement`. Leaf adds its services through events and element
-declarations that a plain host can ignore:
+reads") or extend `HTMLElement`; a plain element that only records state and reads
+bound data needs no import at all (`module-plain-elements.md`). Leaf adds its services
+through events and element declarations that a plain host can ignore:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -74,8 +87,8 @@ declarations that a plain host can ignore:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
-- Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
-  which only Leaf reads.
+- Comment targets: `data-lf-part` marks or `registerVisualParts`
+  (`module-annotations.md`, "Visual parts"), which only Leaf reads.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
 - State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
@@ -114,10 +127,10 @@ script", lists.
 
 ## Upgrade
 
-A widget extends `LeafElement` and builds itself in `setup()` ("Drawing what a widget
-reads"). Any other custom element starts `connectedCallback` with
+A `LeafElement` builds itself in `setup()` ("Drawing what a widget reads"). Any other
+custom element starts `connectedCallback` with
 `if (!once(this)) return;`, since `once(this)` is true only on the element's first
-connection. Use `disconnectedCallback` only for teardown that must happen at once, such
+connection, or with a guard of its own where it imports nothing. Use `disconnectedCallback` only for teardown that must happen at once, such
 as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
 callback calls the `super` method.
 
@@ -285,7 +298,7 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-A widget extends `LeafElement`, a `LitElement` that draws everything in one `render()`.
+`LeafElement` is a `LitElement` that draws everything in one `render()`.
 A `shadow` widget uses an ordinary shadow root; other widgets draw into
 themselves or a generated part `createRenderRoot()` returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the

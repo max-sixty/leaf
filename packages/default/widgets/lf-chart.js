@@ -782,7 +782,7 @@ customElements.define(
       for (const named of built.querySelectorAll("g")) {
         const label = named.getAttribute("aria-label");
         if (label === null) continue;
-        named.dataset.lfPart = label;
+        named.dataset.lfPlot = label;
         named.removeAttribute("aria-label");
       }
       if (!drawing) throw new Error("Plot did not draw its labelled SVG");

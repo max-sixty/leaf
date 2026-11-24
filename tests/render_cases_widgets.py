@@ -578,10 +578,10 @@ CHART_MARKS = """(id) => {
     });
     probe.remove();
     const marks = {};
-    for (const g of svg.querySelectorAll('g[data-lf-part]')) {
+    for (const g of svg.querySelectorAll('g[data-lf-plot]')) {
         const shapes = [...g.querySelectorAll('rect, path, circle')];
         if (!shapes.length) continue;
-        const part = g.dataset.lfPart;
+        const part = g.dataset.lfPlot;
         (marks[part] ??= []).push(...shapes.map((shape) => {
             const paint = getComputedStyle(shape);
             return [shape.tagName.toLowerCase(), paint.fill, paint.stroke];

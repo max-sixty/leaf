@@ -37,7 +37,9 @@ from its own state and passes the member's asynchronous drawing to
 such as hiding a suggestion's `lf-old` once it is accepted (`retired-when`). Off Leaf
 (`module-authoring.md`, "A widget that also runs off Leaf") `this.reading` is `null`,
 and `this.state` and `this.controller` throw, so a widget that also runs there reads
-`this.reading?.state` and records only where `this.reading` exists.
+`this.reading?.state` and records only where `this.reading` exists. A widget whose
+class is no `LeafElement` has neither: Leaf sets its state as a property and hears its
+actions as events (`module-plain-elements.md`).
 
 `read()` returns an immutable `{authored, state, memberships, thread, provenance,
 actions}`. `authored` is the state the page's markup sets, and `state` that with every

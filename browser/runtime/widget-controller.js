@@ -3,13 +3,16 @@
    Leaf captures identity and declarations before upgrade. This controller exposes only
    immutable publisher selections and commands validated against the newest selection;
    the owner DOM is never a semantic store. A widget draws as a `LeafElement`
-   (leaf-element.js), which owns the widget's render region; the controller owns its
-   asynchronous preparation region (`present`), which removal pauses and reconnection
-   restores. Registered preparation also holds full rendering readiness until
-   completion or removal. Local editing holds the widget's drawing (`defer`) until the
-   gesture releases it. A widget that draws itself without Leaf's helpers says it has
-   drawing under way with a `pending-task` event instead (`PendingTaskEvent`,
-   widget-upgrade.js), which reaches the same preparation region here. */
+   (leaf-element.js), or as another custom element Leaf sets its `state` on
+   (element-integration.js), and whichever draws it owns the widget's render region;
+   the controller owns its asynchronous preparation region (`present`), which removal
+   pauses and reconnection restores. Registered preparation also holds full rendering
+   readiness until completion or removal. Local editing holds the widget's drawing
+   (`defer`) until the gesture releases it. A widget that draws itself without Leaf's
+   helpers reaches the controller through events Leaf hears at the document: it says it
+   has drawing under way with `pending-task` (`PendingTaskEvent`, widget-upgrade.js),
+   which reaches the same preparation region, and records with `lf-action` and
+   `lf-undo`, which reach `dispatch`. */
 import { untracked } from "/runtime/framework.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
@@ -236,12 +239,108 @@ export function widgetController(owner) {
   return controller;
 }
 
+// The nearest widget an event passed through on its way out that `holds` admits.
+/** @param {Event} event @param {(descriptor: WidgetDescriptor) => unknown} [holds] */
+const widgetOn = (event, holds = () => true) =>
+  event
+    .composedPath()
+    .filter((node) => node instanceof Element)
+    .find((node) => {
+      const descriptor = widgetDescriptor(node);
+      return descriptor && holds(descriptor);
+    });
+
 // Drawing a widget announced from outside Leaf's helpers: the nearest widget the event
 // passed through on its way out holds its presentation on it, as `present` does.
 document.addEventListener(PENDING_TASK, (event) => {
-  const owner = event
-    .composedPath()
-    .filter((node) => node instanceof Element)
-    .find((node) => widgetDescriptor(node));
+  const owner = widgetOn(event);
   if (owner) widgetController(owner).present(event.complete);
 });
+
+// Each unit of a verb whose action in force the user may take back, with the Undo
+// candidate that takes it back.
+/** @param {WidgetReading["actions"][string] | undefined} action */
+const undoCandidates = (action) => {
+  const undo = new Map(action?.undo.map((event) => [event.id, event]));
+  /** @type {Map<string, WidgetReading["actions"][string]["undo"][number]>} */
+  const units = new Map();
+  for (const { unit, event } of action?.inForce ?? []) {
+    const candidate = undo.get(event.id);
+    if (candidate) units.set(unit, candidate);
+  }
+  return units;
+};
+
+// A widget's reading as the immutable `state` property Leaf sets on an element it
+// drives from outside (element-integration.js): each declared verb's folded state, with
+// whether the user may act on it now (`available`) and whether `lf-undo` would take
+// back the action in force (`undoable`), which a verb holding a state for each unit
+// says on each unit. A verb the agent writes reads as one the user may neither act on
+// nor take back.
+/** @param {WidgetReading} reading */
+export const widgetState = ({ state, actions }) =>
+  immutable(
+    Object.fromEntries(
+      Object.entries(state).map(([verb, held]) => {
+        const undoable = undoCandidates(actions[verb]);
+        return [
+          verb,
+          {
+            ...held,
+            ...("units" in held
+              ? {
+                  units: Object.fromEntries(
+                    Object.entries(held.units).map(([unit, at]) => [
+                      unit,
+                      { ...at, undoable: undoable.has(unit) },
+                    ]),
+                  ),
+                }
+              : { undoable: undoable.size > 0 }),
+            available: actions[verb]?.available ?? false,
+          },
+        ];
+      }),
+    ),
+  );
+
+// Recording announced from outside Leaf's helpers: a bubbling, composed `lf-action`
+// event whose detail is `{verb, detail, says?}`, or `lf-undo` whose detail is
+// `{verb, unit?}`, naming the unit where the verb holds a state for each. The nearest
+// widget declaring `verbs` that the event passed through on its way out sends it as
+// `dispatch` does, so that widget's reading holds the result before `dispatchEvent`
+// returns. Leaf sets `delivery` on an event it sends, which resolves to the event the
+// server admitted, or null once it refuses; an event Leaf sends nothing for, as while
+// the action is unavailable or no action in force can be taken back, has none.
+/** @param {DocumentEventMap["lf-action" | "lf-undo"]} event
+ * @param {(reading: WidgetReading) => import("./pending/dispatch.js").WidgetCommand | null | undefined} command */
+function record(event, command) {
+  const owner = widgetOn(event, ({ declaration }) => declaration.verbs);
+  if (!owner) return;
+  const controller = widgetController(owner);
+  const sent = command(controller.read());
+  const delivery = sent && controller.dispatch(sent)?.delivery;
+  if (delivery) event.delivery = delivery;
+}
+document.addEventListener("lf-action", (event) =>
+  record(event, () => {
+    const { verb, detail, says } = event.detail;
+    return { kind: "action", verb, ...(detail && { detail }), ...(says && { says }) };
+  }),
+);
+document.addEventListener("lf-undo", (event) =>
+  record(event, ({ state, actions }) => {
+    const { verb, unit } = event.detail;
+    const units = undoCandidates(actions[verb]);
+    const candidate =
+      state[verb] && "units" in state[verb]
+        ? units.get(unit ?? "")
+        : units.values().next().value;
+    return (
+      candidate && {
+        kind: "undo",
+        target: ("attempt" in candidate ? candidate.attempt : null) ?? candidate.id,
+      }
+    );
+  }),
+);

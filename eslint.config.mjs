@@ -294,6 +294,12 @@ const ownerRuntimeSyntax = [
     message:
       "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
   },
+  {
+    selector:
+      ":matches(ExportNamedDeclaration, ExportAllDeclaration)[source.value=/(?:^|\\/)lib\\/[^\\/]+$/]",
+    message:
+      "Nothing re-exports the library: each module that uses a library module imports it by its own path (browser/AGENTS.md, “The library of shared web code”).",
+  },
 ];
 
 const ownerBoundary = {
@@ -321,6 +327,13 @@ const ownerBoundary = {
   ],
   "no-restricted-syntax": ["error", ...ownerRuntimeSyntax],
 };
+
+// What a module of the library (browser/runtime/lib/) may import: a /vendor/ bundle or
+// a module beside it in that flat directory, by a path with no `..`, written or
+// percent-encoded, to climb out of either.
+const librarySpecifier = "(?:/vendor/(?!.*(?:\\.\\.|%))|\\./[^/\\\\%]+$)";
+const LIBRARY_MESSAGE =
+  "The library imports only /vendor/ bundles and its own modules (browser/AGENTS.md, “The library of shared web code”): code that needs the runtime is not library code.";
 
 const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
 const runtimeName = (file) =>
@@ -538,17 +551,6 @@ const placementsRule = {
               message:
                 "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
             });
-          if (
-            ["showModal", "showPopover", "hidePopover"].includes(
-              callee.property.name,
-            ) &&
-            file !== "browser/runtime/keyboard/layer-stack.js"
-          )
-            context.report({
-              node,
-              message:
-                "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
-            });
         }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
           if (args.length < 2)
@@ -579,6 +581,36 @@ const placementsRule = {
           node,
           message: "Call focusDestination with its cause rather than passing it on.",
         });
+      },
+    };
+  },
+};
+
+// The runtime opens and closes its native layers through `showNativeLayer` and
+// `closeNativeLayer` (keyboard/layer-stack.js), which inside a live sample keep the
+// browser's focusing steps from taking focus from the page around it or scrolling that
+// page. The option names the owner.
+const nativeLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          ["showModal", "showPopover", "hidePopover"].includes(callee.property.name)
+        )
+          context.report({
+            node,
+            message:
+              "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
+          });
       },
     };
   },
@@ -887,9 +919,9 @@ export const movesRule = {
 // sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
 // return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding in the kernel (runtime/focus.js; a package takes closeLayer and handBack from widget-api.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
 const CLOSE_PLACES_MESSAGE =
-  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js, or widget-api.js in a package).";
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -1096,6 +1128,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
+    "native-layers": nativeLayersRule,
     "scroll-writes": scrollWritesRule,
     "scroll-ends": scrollEndsRule,
     "current-location-reads": currentLocationReadsRule,
@@ -1611,8 +1644,9 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$)",
-              message: "Render checks use the public API or diagnostic adapter.",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$|lib/[^/\\\\%]+$)",
+              message:
+                "Render checks use the public API, the library or the diagnostic adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -1713,6 +1747,13 @@ export default [
           "browser/runtime/preview.js",
         ],
       ],
+      "architecture/native-layers": [
+        "error",
+        [
+          // The owner.
+          "browser/runtime/keyboard/layer-stack.js",
+        ],
+      ],
       "architecture/open-layers": [
         "error",
         [
@@ -1804,7 +1845,8 @@ export default [
     // subject to the same boundary. Nor is another primitive,
     // whose own imports this same rule holds: `rendering.js`, which every rendering
     // callback is counted through, or `focus.js`, which a primitive that moves the
-    // user's node asks to keep their current location on it.
+    // user's node asks to keep their current location on it. Nor is a module of the
+    // library (lib/), which its own block below keeps clear of every owner.
     files: runtimePrimitives.map((name) => `browser/runtime/${name}`),
     rules: {
       "no-restricted-imports": [
@@ -1812,11 +1854,11 @@ export default [
         {
           patterns: [
             {
-              regex: `^(?!/vendor/|\\.\\.?/(?:${runtimePrimitives
+              regex: `^(?!/vendor/|\\.\\.?/lib/[^/\\\\%]+$|\\.\\.?/(?:${runtimePrimitives
                 .map((name) => name.replaceAll(".", "\\."))
                 .join("|")})$)`,
               message:
-                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle or another primitive may be imported.",
+                "Runtime primitives must remain independent of other owners; only a /vendor/ bundle, a library module (lib/) or another primitive may be imported.",
             },
           ],
         },
@@ -1827,6 +1869,36 @@ export default [
           selector:
             "ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
           message: "Runtime primitives import statically and re-export nothing.",
+        },
+      ],
+    },
+  },
+  {
+    // The library of shared web code holds none of the page's state and reaches none
+    // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
+    // it names only a /vendor/ bundle and the modules beside it, whether it imports
+    // statically or lazily. That keeps out the runtime, and with it the framework's
+    // facade (/runtime/framework.js) and the kernel registry, neither of which is in
+    // the graph the import graph's check reads. So each module loads in a document
+    // Leaf did not compose. A module holds one concern, so none gathers the others'
+    // exports.
+    files: ["browser/runtime/lib/**/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [{ regex: `^(?!${librarySpecifier})`, message: LIBRARY_MESSAGE }] },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...ownerRuntimeSyntax,
+        {
+          selector: `ImportExpression[source.type="Literal"]:not([source.value=/^${librarySpecifier.replaceAll("/", "\\/")}/])`,
+          message: LIBRARY_MESSAGE,
+        },
+        {
+          selector: "ExportAllDeclaration, ExportNamedDeclaration[source]",
+          message:
+            "A library module re-exports nothing: its importer names the module that holds what it needs.",
         },
       ],
     },
@@ -1909,8 +1981,10 @@ export default [
     // size observer stays counted. The open-layers and current-location-reads rules hold
     // the runtime to one reading of every node and of where the user is, and a package
     // asks its own popover or dialog whether it is open, and its own tree's
-    // `activeElement` what is focused there, so both rules are off here whole. Each
-    // other rule repeats what it keeps of the layer's, since a file takes a rule's
+    // `activeElement` what is focused there, so both rules are off here whole. A package
+    // opens and closes its popover or dialog with the browser's own methods, whose focus
+    // return Leaf reads as a return, so the native-layers and layer-returns rules are
+    // off here too. Each other rule repeats what it keeps of the layer's, since a file takes a rule's
     // options from the last block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
@@ -1929,12 +2003,16 @@ export default [
       ],
       "architecture/open-layers": "off",
       "architecture/current-location-reads": "off",
+      "architecture/native-layers": "off",
+      "architecture/layer-returns": "off",
     },
   },
   {
     // An import or binding nothing reads is a dependency edge the graph still carries
-    // and a name the next reader has to account for. Arguments and caught errors are
-    // left alone: a signature says what a callback is handed.
+    // and a name the next reader has to account for. Arguments are the type checks'
+    // (`noUnusedParameters`), which count a use in a JSDoc type where this rule
+    // doesn't. A callback keeps an argument it must take to reach a later one behind a
+    // `_`, so its signature still says what it is handed. Caught errors are left alone.
     files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-unused-vars": [

@@ -3,7 +3,7 @@
  * Draw or Design mode. The passive overlay leaves current target hit tests intact. Captures
  * enter the same anchored draft and media admission path as other attached images.
  */
-import { describeFailure } from "../exception.js";
+import { describeFailure } from "../lib/exception.js";
 import {
   pageCommand,
   pageScope,

@@ -25,7 +25,7 @@
    one of a chart's points to the next, or a grip's words stop being true once its card
    is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
-import { describeFailure, exceptionError } from "./exception.js";
+import { describeFailure, exceptionError } from "./lib/exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { version } from "./kept.js";
 
@@ -239,6 +239,10 @@ const widgetOf = (el) => {
 const placers = new WeakMap();
 /** @param {Element} el @param {(box: HTMLDivElement) => boolean} place */
 export const placesFailure = (el, place) => placers.set(el, place);
+// Whether an owner places `el`'s box already, which a host that would place it for an
+// element it drives asks first, so the element's own placer stands (element-integration.js).
+/** @param {Element} el */
+export const failurePlaced = (el) => placers.has(el);
 /** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
 const stages = new WeakMap();
 /** @param {Element} host @param {(box: HTMLDivElement) => boolean} place */

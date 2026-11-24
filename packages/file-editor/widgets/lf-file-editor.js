@@ -79,13 +79,10 @@ import {
   announce,
   boundFile,
   RequestError,
-  closeLayer,
-  closeNativeLayer,
   commandsOn,
   deferredArrival,
   el,
   focusDestination,
-  handBack,
   iconTemplate,
   LeafElement,
   offered,
@@ -97,6 +94,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
@@ -251,16 +249,17 @@ customElements.define(
       };
       // The status control naming the conflict, and the menu of its choices. A choice
       // and Escape put the menu away onto that control, so a save that settles the
-      // conflict returns the reader from it to the editor. A press away from the menu
-      // leaves them where they pressed.
+      // conflict returns the reader from it to the editor. The browser hands focus
+      // back only from inside the menu, and a pointer press in Safari or Firefox on
+      // macOS leaves the row it pressed unfocused, so the menu puts the user there
+      // itself. A press away from the menu leaves them where they pressed.
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
-      const putChoicesAway = () =>
-        closeLayer(
-          () => closeNativeLayer(choices()),
-          () => handBack(conflictControl()),
-        );
+      const putChoicesAway = () => {
+        choices().hidePopover();
+        focusDestination(conflictControl(), "return");
+      };
       /** @param {() => unknown} run */
       const choose = (run) => () => {
         putChoicesAway();
@@ -321,12 +320,6 @@ customElements.define(
         focusDestination(editor.contentDOM, "return");
         editor.revealCaret();
       };
-      // Whether the user is still on a control: its tree's active element, as it stays
-      // while the window is in the background and a request settles.
-      /** @param {HTMLElement} control */
-      const stillOn = (control) =>
-        /** @type {Document | ShadowRoot} */ (control.getRootNode()).activeElement ===
-        control;
       // A file's text: the editor's while it is open, else what the editor kept of it
       // or, where it kept nothing, the version last read.
       const text = (/** @type {OpenFile} */ of) =>
@@ -432,7 +425,7 @@ customElements.define(
             : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!of.latest) closeNativeLayer(choices());
+        if (!of.latest) choices().hidePopover();
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)
@@ -591,6 +584,25 @@ customElements.define(
         if (connected && of.api.writable && !of.latest && !of.failure && dirty(of))
           of.timer = setTimeout(() => void flush(of), delay);
       }
+      // Runs once a read or save of `of` ends. The open file paints, and hands the reader
+      // back to the editor if the control they retried from went away; another file
+      // announces its news. Then the file's own saves resume, and a read it owes runs.
+      // The control's tree keeps naming it as active while the window is in the
+      // background, as it may be when a request ends.
+      /** @param {OpenFile} of @param {HTMLElement | null} returnFrom */
+      function ended(of, returnFrom) {
+        const returning =
+          connected &&
+          returnFrom &&
+          /** @type {Document | ShadowRoot} */ (returnFrom.getRootNode()).activeElement ===
+            returnFrom;
+        if (of === file) {
+          paint();
+          if (returning && returnFrom.hidden) returnToEditor();
+        } else tell(of);
+        schedule(of, 0);
+        if (of.owed) void refresh(of);
+      }
       // Each request settles the file it was made for, whichever file is open by then;
       // only the open one paints.
       /** @param {OpenFile} of @param {boolean} [replace] @param {HTMLElement | null} [returnFrom] */
@@ -646,9 +658,7 @@ customElements.define(
             } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
             of.failure = null;
           } else {
-            const message =
-              fault instanceof Error ? fault.message || fault.name : String(fault);
-            of.failure = { kind: "save", message, replace };
+            of.failure = { kind: "save", message: describeFailure(fault), replace };
             of.owed ||= owedBefore;
           }
         } finally {
@@ -659,13 +669,7 @@ customElements.define(
             if (of.slowTimer !== null) clearTimeout(of.slowTimer);
             of.slowTimer = null;
           }
-          const returning = connected && returnFrom && stillOn(returnFrom);
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       // Settles once a first read has waited a second, which is when the page stops
@@ -720,22 +724,14 @@ customElements.define(
           of.sent = null;
           of.failure = null;
         } catch (fault) {
-          const message =
-            fault instanceof Error ? fault.message || fault.name : String(fault);
-          of.failure = { kind: "read", message };
+          of.failure = { kind: "read", message: describeFailure(fault) };
         } finally {
           clearTimeout(slow);
           of.loading = false;
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);
-          const returning = connected && returnFrom && stillOn(returnFrom);
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       /** @param {BeforeUnloadEvent} event */

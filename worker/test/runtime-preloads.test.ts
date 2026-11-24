@@ -1,10 +1,11 @@
 import { link, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { expect, it } from "vitest";
 import { Window } from "happy-dom";
 
+import { runtimeEntries } from "../../build/runtime-bundle.mjs";
 import { bundleSite } from "../bundle-runtime.mjs";
 import { registeredTags, widgetImports } from "../../browser/runtime/widget-imports.js";
 
@@ -86,6 +87,13 @@ it("bundles each document's static graph without fetching optional modules or ch
         "runtime/widget-api.js": "export const api = 1;",
         "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",
+        // The library's modules are entries too, by the bundler's own list, and no
+        // document's static graph reaches one.
+        ...Object.fromEntries(
+          runtimeEntries
+            .filter((path) => path.startsWith("runtime/lib/"))
+            .map((path) => [path, "export const shared = 1;"]),
+        ),
         "widgets/lf-used.js":
           'import "../runtime/bundle-common.js"; import "/vendor/widget.js"; export const optional = () => import("../runtime/optional.js");',
         "vendor/widget.js": "export const widget = 1;",
@@ -99,6 +107,7 @@ it("bundles each document's static graph without fetching optional modules or ch
       };
       for (const [name, source] of Object.entries(sources)) {
         const path = join(layer, name);
+        await mkdir(dirname(path), { recursive: true });
         await writeFile(path, source);
         modules.set(path, source);
       }

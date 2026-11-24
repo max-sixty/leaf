@@ -36,12 +36,8 @@ import {
   openLayer,
   openerOf,
 } from "../focus.js";
-import {
-  createHintSession,
-  HINT_KEYS,
-  codedHints,
-  renderKeys,
-} from "../keyboard/hints.js";
+import { createHintSession, HINT_KEYS, codedHints } from "../keyboard/hints.js";
+import { objectIds } from "../ids.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   keySequenceModel,
@@ -139,7 +135,6 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
- * @property {() => import("./selection.js").Anchor | null} fabAnchorAt
  * @property {() => boolean} pointerModeActive
  * @property {() => PickerTarget[]} readTargets
  * @property {() => unknown} armChanged
@@ -157,7 +152,6 @@ export function createTargetPicker({
   hintChrome,
   commentOnTarget,
   updateFab,
-  fabAnchorAt,
   pointerModeActive,
   readTargets,
   armChanged,
@@ -204,13 +198,11 @@ export function createTargetPicker({
   let searchReturnsToHints = false;
   /** @type {{query: string, index: number} | null} */
   let repeatedSearch = null;
-  /** @type {WeakMap<Text, number>} */
-  const matchNodeIds = new WeakMap();
-  let nextMatchNodeId = 1;
+  const matchNodeId = objectIds();
 
   // Target elements and text coordinates stay outside the immutable readings. Lit receives
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
-  const hintRenderKey = renderKeys();
+  const hintRenderKey = objectIds();
   // The open search's mark stands over its words in the frames that cut them, carried
   // by what carries the words (target-paint-geometry.js, `paintSet`), so no scroll
   // writes it.
@@ -436,10 +428,9 @@ export function createTargetPicker({
 
   /** @param {string} query @param {Match} segments */
   function matchIdentity(query, segments) {
-    const parts = segments.map(({ node, start, end }) => {
-      if (!matchNodeIds.has(node)) matchNodeIds.set(node, nextMatchNodeId++);
-      return `${matchNodeIds.get(node)}:${start}:${end}`;
-    });
+    const parts = segments.map(
+      ({ node, start, end }) => `${matchNodeId(node)}:${start}:${end}`,
+    );
     return `${query}\u0000${parts.join(",")}`;
   }
 

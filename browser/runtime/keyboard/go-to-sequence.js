@@ -63,7 +63,8 @@
    the hints just painted. */
 import { bindings, commandRun, labelOf, live, nativePress } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { createHintSession, HINT_KEYS, codedHints, renderKeys } from "./hints.js";
+import { createHintSession, HINT_KEYS, codedHints } from "./hints.js";
+import { objectIds } from "../ids.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -378,7 +379,9 @@ export function createGoToSequence({
     ...(targetFilter ? [targetFilter.key] : []),
     ...hints.prefix(),
   ];
-  const hintRenderKey = renderKeys();
+  // Lit receives a number for each candidate's row, so an unchanged row keeps its seat,
+  // chip and keycaps across paint-only updates.
+  const hintRenderKey = objectIds();
   /** @param {ReturnType<typeof visibleCandidates>[number]} candidate @param {boolean} current @returns {GoToHintModel} */
   const goToHintModel = (candidate, current) => {
     const steps = [...candidate.code];

@@ -39,9 +39,6 @@ export { titledElement } from "./addressable-names.js";
 export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
-// The part of the page a node stands in, by the one rule On Me groups its items by and
-// a link's preview names a place by.
-export { partOver } from "./thread/placement.js";
 // The authored page body, or the body of the message whose markup a node stands in.
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
@@ -97,9 +94,7 @@ export { saying } from "./keyboard/control-keys.js";
 export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
-export { contributionItemKey } from "./contribution-model.js";
 export {
-  contributionEntry,
   presentContributionEntry,
   presentContributionReceipts,
 } from "./contribution-controls.js";
@@ -128,21 +123,19 @@ export {
 export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { named, phrasing, says } from "./passages.js";
-export { ago, agePreview, clockValue } from "./presence.js";
+export { ago, agePreview } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
-export { declarationFor, layerFact, matchesWhen } from "./registry.js";
+export { declarationFor, layerFact } from "./registry.js";
 export { foldDuration, returnDuration, backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
 // `whenNear` for the reader to near a node, then each starts the work;
 // `deferredArrival` counts work the widget has already started.
 export {
-  PAGE_INTERFACE,
-  PRESENTATION,
   afterPresentation,
   deferredArrival,
   whenNear,

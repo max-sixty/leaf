@@ -66,8 +66,7 @@ link preview counts a thread about any of them.
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
 widget's entry, each fact under its own name, as `declarationFor(element)?.awaits`
-reads a widget's `awaits`. `matchesWhen(element, when)` says whether the element's attributes
-satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
+reads a widget's `awaits`. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
 ### Following a reference
@@ -258,12 +257,8 @@ declaring `awaits`, whether its obligation has yet to arrive or was withdrawn, a
 not the regions' elements, and follows each revision, so ask it rather than
 reading the regions' elements in a render.
 
-`partOver(node)` is the part of the page `node` stands in: the heading over it, else
-the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On Me groups its items by it and a link's preview names a place by it. A
-question or section stands in the part around it, past its own heading. A module that
-counts items per heading as the reader moves through them, as `lf-toc` does, gives
-each heading the stretch of the page from the element it titles (`titledElement`,
+A module that counts items per heading as the reader moves through them, as `lf-toc`
+does, gives each heading the stretch of the page from the element it titles (`titledElement`,
 "Naming elements") to the next heading's, and counts each item in the stretch holding
 its first word, comparing positions with `compareDocumentPosition`.
 

@@ -22,9 +22,9 @@
  * before the next section's heading, counts in the section that held it.
  *
  * Rejected: counting each item under the first row met climbing the parts over it
- * (`partOver`), the rule On Me groups by, which puts a question in the part around it,
- * so a thread about a whole question counted in the row above, and a paragraph after a
- * question in a different row from the map's.
+ * (the runtime's `partOver`, thread/placement.js), the rule On Me groups by, which
+ * puts a question in the part around it, so a thread about a whole question counted in
+ * the row above, and a paragraph after a question in a different row from the map's.
  *
  * Each item costs a binary search over the rows, comparing positions in the document. */
 import { elementById } from "/runtime/widget-api.js";

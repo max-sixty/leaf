@@ -278,7 +278,6 @@ async function boot() {
     targetPaint: createVisualMarkPaint(),
     pointer: pointerAt,
     currentLocationThreadId,
-    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -452,7 +451,6 @@ async function boot() {
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
     annotationCommands: {
-      currentLocationObligation: () => items.currentLocationIn(),
       designModeActive: designMode.active,
       pointerModeActive: () =>
         designMode.active() || drawing.drawModeActive() || regionCapture.active(),

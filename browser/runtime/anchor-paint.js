@@ -35,7 +35,6 @@ import {
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { locationRingOn } from "./target-paint.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
@@ -104,7 +103,6 @@ function piecesAt(tree, at) {
 /** @param {{targetPaint: ReturnType<typeof import("./visual-mark-paint.js").createVisualMarkPaint>,
  * pointer: typeof import("./pointer.js").pointerAt,
  * currentLocationThreadId: () => string | null,
- * currentLocationObligation: () => Element | null,
  * rowThread: (under: Element | null) => string | null, threadRow: (id: string) => Element | null,
  * marginThread: () => string | null,
  * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
@@ -114,7 +112,6 @@ export function createAnchorPaint({
   targetPaint,
   pointer,
   currentLocationThreadId,
-  currentLocationObligation,
   rowThread,
   threadRow,
   marginThread,
@@ -266,13 +263,9 @@ export function createAnchorPaint({
     // to an element after its draft (and thus its last annotation) has disappeared.
     const active = visibleFocus();
     // Page controls need the same cue whether or not an author gave them an id.
-    // Private controls and a face wearing another control's ring keep that paint. A box
-    // the location ring stands on needs none: the ring is its focus cue.
-    // Read that owner's current location too: its reflected attribute may still
-    // describe the previous location until the mechanical repaint.
-    const obligationRing =
-      active && locationRingOn(active, currentLocationObligation());
-    const ownsRing = active && ringBox(active) === active && !obligationRing;
+    // Private controls and a face wearing another control's ring keep that paint. On a
+    // box the location ring stands on, the ring draws over the cue (surfaces.css).
+    const ownsRing = active && ringBox(active) === active;
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
     const focus = new Set(ownsRing && elements.has(active) ? [active] : []);

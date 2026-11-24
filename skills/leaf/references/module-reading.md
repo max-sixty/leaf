@@ -144,6 +144,12 @@ elements and text while tokens are added inside them; use literal newlines rathe
 `<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
 reading face as other content with its own design does.
 
+A widget that draws each line of source in a box of its own, as an editor does, marks
+the box `data-lf-pre-line`. Leaf then indents the rows a long line wraps onto two
+columns past the line's own indent and draws a mark before each. The box states the
+line's indent, a count of its leading columns, as `--lf-code-indent`, and its own
+inline padding as `--lf-pre-line-inset`.
+
 Leaf adds a Copy button to each `pre > code` in the page. A widget block holding other
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that

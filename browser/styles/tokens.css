@@ -7,8 +7,8 @@
  * Every name starts with `--lf-`, so none meets a name a page or its framework coins
  * (tests/model/test_theme_tokens.py). The ones a page, theme or package may rely on
  * are those the references name (skills/leaf/references/package-themes.md, "Theme
- * tokens"), and Leaf's examples and instructions use no other; the rest are Leaf's own
- * and change freely. */
+ * tokens"), and Leaf's examples, instructions and bundled packages use no other; the
+ * rest are Leaf's own and change freely. */
 /* The times of motion, registered so each computes to a time a script can read
    (runtime/lib/motion-timing.js, `motionTime`) as a stylesheet reads it with `var()`. */
 /* How long the tint that marks an arrival or a change lasts. */

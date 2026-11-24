@@ -24,14 +24,12 @@
    combobox wears it over a box words are typed into, and a treeitem in a walk of its own,
    where the arrows belong to the caret and the walk.
 
-   Which way a disclosure stands is watched as state, not heard as an event. A `toggle` is
-   not composed, so one from a shadow-staged `<details>` reaches no document listener, and
-   an `aria-expanded` control fires nothing anywhere. Both keep that state in an
-   attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
-   and `shadowStage` hands it each root. */
+   Which way a disclosure stands is read off its attribute, `open` or `aria-expanded`,
+   each time the dispatcher or the reference asks. The row names no control and seats no
+   badge, so no painted surface holds its keys between asks, and nothing watches for a
+   toggle. */
 import { PRESS, rowArrows } from "../lib/keys.js";
 import { inChrome } from "../ui-marks.js";
-import { paintKeysWithin } from "./scopes.js";
 
 /** @param {Element | null} el */
 export const DISCLOSE = (el) => {
@@ -57,33 +55,3 @@ export function disclosureAt(el) {
       : el.getAttribute("aria-expanded") === "true",
   };
 }
-
-// Where a disclosure keeps which way it stands, in both spellings. Declared up here
-// because `shadowStage` calls it, far above the surfaces it repaints for.
-// A toggle writes one of this pair and reports nothing to the keyboard, so the watch
-// reports it: the scopes on, in and around the control that moved read their rows again
-// (scopes.js, `paintKeysWithin`), since a row may read which way it stands. The
-// page's own row needs no repaint, the dispatcher reading DISCLOSE as it is asked.
-// A write that says what the attribute already said is not a disclosure changing, and
-// taking it for one closes a loop: a key paint that writes `aria-expanded` on a
-// control would schedule the next paint with every paint, and the page would repaint
-// for as long as the disclosure stood open. Reading the old value is what tells the two apart. A real
-// toggle still arrives, including one that lands back where it started, because the
-// record for its return leg carries the other value.
-const disclosureWatch = new MutationObserver((records) => {
-  // Every record is an attribute's, so its target is an element.
-  for (const r of records)
-    if (
-      r.target instanceof Element &&
-      r.attributeName !== null &&
-      r.target.getAttribute(r.attributeName) !== r.oldValue
-    )
-      paintKeysWithin(r.target);
-});
-/** @param {Node} root */
-export const watchDisclosures = (root) =>
-  disclosureWatch.observe(root, {
-    subtree: true,
-    attributeFilter: ["open", "aria-expanded"],
-    attributeOldValue: true,
-  });

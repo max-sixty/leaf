@@ -407,18 +407,6 @@ export const moved = (message) => ({
   ts: message.edited?.ts ?? message.ts ?? null,
 });
 
-// When a thread last moved: the latest move of any of its turns.
-/** @param {{msgs: readonly {id: string, token?: string, edited?: {seq?: number, ts: string} | undefined, seq?: number, ts?: string}[], root: {id: string}}} thread */
-export function lastMovedAt(thread) {
-  let latest = null;
-  for (const message of turns(thread)) {
-    const { ts } = moved(message);
-    if (ts !== null && (latest === null || Date.parse(ts) > Date.parse(latest)))
-      latest = ts;
-  }
-  return latest;
-}
-
 /** @param {import("../../types/domain.js").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
 
@@ -449,16 +437,10 @@ const NONE = Object.freeze([]);
 
 /** @template T @param {readonly T[]} items @param {(item: T) => string | null | undefined} key */
 function grouped(items, key) {
-  /** @type {Map<string, T[]>} */
-  const groups = new Map();
-  for (const item of items) {
-    const name = key(item);
-    if (name == null) continue;
-    const group = groups.get(name);
-    if (group) group.push(item);
-    else groups.set(name, [item]);
-  }
-  return groups;
+  const groups = Map.groupBy(items, key);
+  groups.delete(null);
+  groups.delete(undefined);
+  return /** @type {Map<string, T[]>} */ (groups);
 }
 
 /** @typedef {{id: string, tag: string, message: string | undefined, state: import("../../types/domain.js").AuthoredWidget["state"]}} Unit */

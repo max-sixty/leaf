@@ -6,8 +6,8 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { dataBody } from "../widget-upgrade.js";
-import { authoredRank } from "./model.js";
+import { dataBody } from "../lib/data-body.js";
+import { authoredRank } from "../lib/rank.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
@@ -29,7 +29,7 @@ import { authoredRank } from "./model.js";
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists per container and each listed unit's authored rank
-     (projection/model.js);
+     (lib/rank.js);
    - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 

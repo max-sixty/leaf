@@ -49,12 +49,12 @@ import {
   growthIsSeen,
   whileConnected,
   mountSample,
-  widgetController,
   focusDestination,
   heldGrowth,
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
@@ -273,7 +273,7 @@ export class Sample extends HTMLElement {
     // sample's page out of view in Chromium"), so without that end a reader who
     // scrolled past the frame as it loaded would hold the page until they came back.
     const away = this.#lookAway(landing);
-    if (present) widgetController(this).present(Promise.race([shown, away]));
+    if (present) this.dispatchEvent(new PendingTaskEvent(Promise.race([shown, away])));
     return Promise.race([landing, away]);
   }
 

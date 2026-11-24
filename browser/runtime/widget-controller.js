@@ -9,14 +9,14 @@
    rendering readiness until completion or removal.
 
    A widget's element reaches the controller through events Leaf hears at the
-   document. It says it has drawing under way with `pending-task` (`PendingTaskEvent`,
-   widget-upgrade.js). One an element Leaf drives dispatches on itself is that
+   document. It says it has drawing under way with `pending-task`
+   (lib/pending-task.js). One an element Leaf drives dispatches on itself is that
    element's own drawing and holds its render claim (element-integration.js). Any
    other reaches the preparation region of the nearest widget the event passed
    through, or, where it passed through none, a region of the dispatching element's.
    Either way it holds full rendering readiness until it is in. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
-   And it says a gesture holds its nodes with `lf-hold` (`HoldEvent`), at whose end the
-   document-wide renderers read the page again. */
+   And it says it holds its own drawing with `lf-defer` (`DeferEvent`), at whose end
+   the document-wide renderers read the page again. */
 import { untracked } from "/runtime/framework.js";
 import {
   applicationState,
@@ -25,7 +25,9 @@ import {
 } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { HOLD, PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
+import { DEFER } from "./widget-upgrade.js";
+import { PENDING_TASK } from "./lib/pending-task.js";
+import { showFailure } from "./lib/failure.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
@@ -114,7 +116,7 @@ function createWidgetController(owner) {
 
   /** @param {PreparationHandle} handle @param {Preparation} preparation */
   const presentPreparation = (handle, { completion }) =>
-    handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
+    handle.present((reason) => showFailure(owner, reason)).resolve(completion);
 
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to connect is its own, never that paint's.
@@ -206,7 +208,7 @@ const widgetOn = (event, holds = () => true) =>
     });
 
 // The drawing each element has announced on itself and not finished, and the holds
-// gestures have on its nodes. A claim on the element's own region waits for all the
+// it has on its own drawing. A claim on the element's own region waits for all the
 // drawing under way when it settles, so a later claim never lets go of an earlier
 // drawing, and for the holds standing when it was made, since the element draws
 // nothing under one: a hold that begins in the draw a claim is for does not keep that
@@ -298,14 +300,14 @@ function ownRegion(origin) {
   region.handle ??= attachApplicationPresentation(
     `element:${origin.localName}:drawing:${++regions}`,
   );
-  return region.handle.present((reason) => failSoftUnreported(origin, reason));
+  return region.handle.present((reason) => showFailure(origin, reason));
 }
 
-// A hold an element has on its nodes through a gesture that rewrites them
-// (`HoldEvent`). A claim on the element's region made while it stands waits for the
-// gesture to end, since the element draws nothing until then, and as it ends the
+// A hold an element has on its own drawing while it rewrites its nodes
+// (`DeferEvent`). A claim on the element's region made while it stands waits for the
+// hold to end, since the element draws nothing until then, and as it ends the
 // document-wide renderers read the page again.
-document.addEventListener(HOLD, (event) => {
+document.addEventListener(DEFER, (event) => {
   const [origin] = event.composedPath();
   let holds = origin instanceof Element ? holding.get(origin) : null;
   if (!holds && origin instanceof Element) holding.set(origin, (holds = new Set()));
@@ -333,10 +335,10 @@ const undoCandidates = (action) => {
 
 // A widget's reading as the immutable `state` property Leaf sets on an element it
 // drives from outside (element-integration.js): each declared verb's folded state, with
-// whether the user may act on it now (`available`) and whether `lf-undo` would take
-// back the action in force (`undoable`), which a verb holding a state for each unit
-// says on each unit. A verb the agent writes reads as one the user may neither act on
-// nor take back.
+// whether the user may act on it now (`available`), the reason they may not where Leaf
+// has one to give (`unavailable`), and whether `lf-undo` would take back the action in
+// force (`undoable`), which a verb holding a state for each unit says on each unit. A
+// verb the agent writes reads as one the user may neither act on nor take back.
 /** @param {WidgetReading} reading */
 export const widgetState = ({ state, actions }) =>
   immutable(
@@ -358,6 +360,7 @@ export const widgetState = ({ state, actions }) =>
                 }
               : { undoable: undoable.size > 0 }),
             available: actions[verb]?.available ?? false,
+            unavailable: actions[verb]?.unavailable ?? null,
           },
         ];
       }),

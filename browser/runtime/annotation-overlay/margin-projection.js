@@ -87,7 +87,6 @@ import {
   contributionEntrySource,
   presentContributionEntry,
   activateContributionControl as activateSharedContribution,
-  presentContributionReceipts,
   syncContributionSelection,
 } from "../contribution-controls.js";
 import {
@@ -1118,6 +1117,8 @@ export function createMarginProjection({
         writesRelation: false,
         writesSeat,
         unread: unreadIn(items) > 0,
+        receipt: workflowReceipt(items),
+        awaitsUser: awaitingUser(items),
         // A thread's entry previews its threads, as their passage marks do, as they
         // read when it shows; to the keyboard a lone thread's line leaves out the word
         // the entry's name already says (`markerName`, `spokenContext`).
@@ -1144,7 +1145,6 @@ export function createMarginProjection({
               : null,
       },
     );
-    presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
     syncReadingRelation(node, choice);
     return behavior;
   }

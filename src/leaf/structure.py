@@ -315,7 +315,7 @@ def splice(source, edits):
 
 def pre_body(element) -> str | None:
     """The text of `element`'s first `<pre>` child, as the browser reads a data body
-    (widget-upgrade.js, `dataBody`): its `textContent`, so a `<code>` naming its
+    (lib/data-body.js, `dataBody`): its `textContent`, so a `<code>` naming its
     language is read through. The body a Markdown-bodied element renders, a written
     Markdown file first paints and a `body` state record reads, or None where it has
     none."""

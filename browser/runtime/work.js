@@ -7,7 +7,7 @@ import { declarationFor, layerFact, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { obligationsByRegion } from "./obligations/place.js";
-import { elementById } from "./passages.js";
+import { authoredScope, elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
@@ -59,9 +59,10 @@ const append = (map, key, item) => {
 };
 // One walk of the scope, so a reading costs the scope's size rather than its size for
 // each goal (root AGENTS.md, "Responsiveness"). A nested scope's work is its own, so the
-// walk doesn't enter it.
-/** @param {Element} root @returns {WorkTree} */
-function workTree(root) {
+// walk doesn't enter it. `root` is the scope, or the page or message where `scope` is
+// null.
+/** @param {Element} root @param {Element | null} scope @returns {WorkTree} */
+function workTree(root, scope) {
   const roles = widgets();
   /** @type {WorkTree["goals"]} */
   const goals = [];
@@ -90,7 +91,7 @@ function workTree(root) {
       visit(element, role ? element : work, role?.role === "goal" ? element : goal);
     }
   };
-  visit(root, workAncestor(root), null);
+  visit(root, scope, null);
   /** @type {Map<Element, WorkEntry<"goal">[]>} */
   const leafCache = new Map();
   /** @param {Element} goal @returns {WorkEntry<"goal">[]} */
@@ -109,7 +110,7 @@ function workTree(root) {
 }
 
 /** @param {Element | null | undefined} element @param {Role | null} [role] */
-export function workAncestor(element, role) {
+function workAncestor(element, role) {
   for (let at = element; at; at = at.parentElement) if (workRole(at, role)) return at;
   return null;
 }
@@ -267,8 +268,12 @@ const openWidgetObligations = readPart((root) =>
   root.effective.obligations.user.filter((item) => hasObligationSource(item, "widget")),
 );
 
-/** @param {Element} scope */
-export function readWork(scope) {
+// The work of the scope `element` is or stands in. Outside every scope it is the work
+// in no scope of the page or message holding it (`authoredScope`), and the reading's
+// `scope` is null, as a worker's `remit` outside any goal is.
+/** @param {Element} element */
+export function readWork(element) {
+  const scope = workAncestor(element, "scope");
   /** @type {Map<Element, WidgetReading>} */
   const readings = new Map();
   /** @param {Element} element */
@@ -281,7 +286,7 @@ export function readWork(scope) {
     return reading;
   };
   const obligations = openWidgetObligations();
-  const tree = workTree(scope);
+  const tree = workTree(scope ?? authoredScope(element), scope);
   /** @type {Open} */
   const open = {
     tree,

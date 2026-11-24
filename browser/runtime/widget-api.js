@@ -21,16 +21,13 @@ import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
-// The rank a position record carries for a unit dropped at an index in a container.
-export { rankAt } from "./projection/model.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
-export { addressableLabel } from "./addressable-names.js";
-// `authoredTitle()`: the page's own `<title>`, without the count the tab's title
-// shows in front of it.
-export { authoredTitle } from "./tab-title.js";
+// `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
+// row, in words.
+export { nameOf } from "./names.js";
 // `titledElement(heading)`: the element a heading titles, its hgroup and the section or
 // article that opens with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";
@@ -59,22 +56,14 @@ export { holdPlace, readingAt } from "./user-place.js";
 // user to write Markdown in.
 export { onCurrentLocation, onPress, onPressAway, rove } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
-export { readObligations } from "./obligations/model.js";
-// The obligations a region of the page holds, by the rule every count and walk of them
-// reads, and which regions hold a widget that asks the user something, including one
-// whose obligation the inventory hasn't listed yet or lists as withdrawn.
-export {
-  obligationsByRegion,
-  obligationsIn,
-  regionsAwaiting,
-} from "./obligations/place.js";
+// The page's obligations, or those a region of it holds by the rule every count and walk
+// of them reads, with whether the region's markup asks the user something.
+export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-export { readWork, workAncestor } from "./work.js";
+export { readWork } from "./work.js";
 export { obligationActions } from "./application.js";
-export { readQueues, queueItemKey } from "./queue-api.js";
-export { queueTitle } from "./queue-title.js";
-export { queueActions } from "./application.js";
+export { readQueues } from "./queue-api.js";
 export {
   placePageThreads,
   consumeAnnotations,
@@ -83,7 +72,6 @@ export {
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { turns as threadTurns } from "./thread/model.js";
-export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
@@ -92,14 +80,10 @@ export { labelOf } from "./keyboard/bindings.js";
 export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
-export {
-  presentContributionEntry,
-  presentContributionReceipts,
-} from "./contribution-controls.js";
+export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -113,7 +97,6 @@ export {
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
-export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
@@ -121,20 +104,19 @@ export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and
-// `whenNear` for the reader to near a node, then each starts the work;
-// `deferredArrival` counts work the widget has already started.
+// `whenNear` for the reader to near a node, then each runs its callback. A callback
+// may return work the widget has already started, which `afterPresentation` counts
+// from its call.
 export {
   afterPresentation,
-  deferredArrival,
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
 export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
-export { readHistory, reportSequence, reportsReady } from "./reports.js";
-// The one watcher of the page's readings (module-reading.md, "Page readings").
-export { dragging, el, reachedForWords, worksInside } from "./widget-elements.js";
+export { readHistory, readReports } from "./reports.js";
+export { el, reachedForWords, worksInside } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

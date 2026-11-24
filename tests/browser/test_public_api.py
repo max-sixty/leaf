@@ -369,7 +369,7 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
     tag = "lf-pending-proof"
     add_test_widget(package, tag, upgrade=True)
     (package / "widgets" / f"{tag}.js").write_text(
-        'import { PendingTaskEvent } from "/runtime/portable-api.js";\n'
+        'import { PendingTaskEvent } from "/runtime/lib/pending-task.js";\n'
         'import { once } from "/runtime/lib/once.js";\n'
         f'customElements.define("{tag}", class extends HTMLElement {{\n'
         "  connectedCallback() {\n"

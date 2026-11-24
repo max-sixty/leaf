@@ -149,7 +149,8 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import { LeafElement, PendingTaskEvent } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/widget-api.js';
+import { PendingTaskEvent } from '/runtime/lib/pending-task.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 customElements.define('lf-delayed-body', class extends LeafElement {
   setup() {
@@ -611,7 +612,7 @@ def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the user, who would otherwise carry a
-    decision in force for the life of the page and have `d` step them into a closed
+    decision in force for the life of the page and have `m` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_OBLIGATIONS[0])

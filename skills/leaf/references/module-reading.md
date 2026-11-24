@@ -15,10 +15,11 @@ Inline values stay in their sentence, and ordinary HTML source indentation colla
 phrasing content and a widget declaring `inline` do, rather than starting a block.
 To name one of the widget's own parts, use `named(element)`, which returns only the words
 the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
-`<pre>` body with `bodyText(this)`, which trims leading blank lines and trailing
-whitespace. A widget that also declares an input
-(`inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
-text when the markup binds nothing (`package-data.md`, "External or derived data").
+`<pre>` body with the library's
+[`data-body.js`](../../../browser/runtime/lib/data-body.js), never the element's
+`textContent`. A widget that also declares an input (`inputs`) reads that input's
+property instead, which Leaf sets to the `<pre>`'s text when the markup binds nothing
+(`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
 another element gives within `authoredScope(element)`: the page's `body`, or, for markup
@@ -32,12 +33,14 @@ document around it, as a contents list does, reads it with
 (`views`, `module-authoring.md`), whose holder Leaf marks `data-lf-views`, else the
 `main` holding it, else null.
 
-### Naming elements
+### Naming
 
-To name an element elsewhere, such as in a feed row, use `addressableLabel(element)`,
-the name Leaf's chrome gives it: its title, caption or label; failing those, a
-paragraph or list item is named by its first words, and another element by the nearest
-named element around it. A registered widget with no name gets an empty label: say the
+To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name Leaf
+gives it in words. It names an element, the page (`document`), a thread from
+`readThreads()` and a row from `readQueues()`, and returns "" where Leaf gives no name.
+An element's name is its title, caption or label; failing those, a paragraph or list
+item is named by its first words, and another element by the nearest named element
+around it. A registered widget with no name gets an empty name: say the
 word for its kind instead, which the library gives (`module-authoring.md`, "Shared web
 code"). That word is the element's `aria-roledescription`, which the module that
 builds the element writes along with a role for it, since ARIA ignores the attribute
@@ -49,8 +52,8 @@ its structure, as a rewrite's old and new text don't, its `lfSays()` returns the
 words that describe it. A widget's name is its `label` attribute, as an option
 card's, a board card's or a column's is, which names its element on every widget
 that takes it (the registry's `$attributes`), whether or not the widget draws it.
-`authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
-while the tab's title counts what waits on the user in front of it.
+The page's name is its own `<title>`, which `document.title` doesn't give while the
+tab's title counts what waits on the user in front of it.
 
 `titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
 or `article` that opens with it, alone or in that `hgroup`, and a heading inside a
@@ -167,7 +170,15 @@ handed over is owed, or a to-do the agent opened; the On lists show each one und
 next actor. `readObligations()` returns `{phase, all, user, unanswered}`: `all` holds
 every obligation whose source is still there, answered and withdrawn ones included,
 `user` the open obligations waiting on the user, and `unanswered` every open obligation,
-including those with the agent. Each record looks like this:
+including those with the agent.
+
+`readObligations(region)` returns the same lists holding only what a region of the
+page holds, by the rule `lf-tabs` and `lf-tally` count with: the obligations whose
+widget is `region` or stands inside it, shadow trees included, less those withdrawn.
+It adds `asks`, whether the region's markup holds a widget declaring `awaits`, even one
+whose obligation has yet to arrive or was withdrawn, as a side list keeps a row's room
+for an answer through both. A module that marks every card or section reads each one
+this way. Each record looks like this:
 
 ```js
 {
@@ -215,22 +226,10 @@ arrives. Each `source.kind` adds its own facts:
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
   `answer.event`, answered it. Of several messages the user sent in a row, only the
-  newest has one. `obligationsIn` never counts an update.
+  newest has one. No region holds an update.
 
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state"). `obligationsIn(region, obligations)`
-returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
-`lf-tally` count with it, so a module marking obligations per card or section should
-too, passing `readObligations().user` for those waiting on the user.
-`obligationsByRegion(regions, obligations)` answers the same for many regions in one
-pass, as a `Map` from each region to its obligations; a module that marks every card
-or section in one render reads it, since asking `obligationsIn` once per region costs
-the regions times the obligations.
-`regionsAwaiting(regions)` returns the `Set` of `regions` whose markup holds a widget
-declaring `awaits`, whether its obligation has yet to arrive or was withdrawn, as
-`lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
-not the regions' elements, and follows each revision, so ask it rather than
-reading the regions' elements in a render.
+(`module-state.md`, "Declared widget state").
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
@@ -238,39 +237,41 @@ the nearest element holding it that its author named, such as a captioned figure
 question or section stands in the part around it, past its own heading. A module that
 counts items per heading as the reader moves through them, as `lf-toc` does, gives
 each heading the stretch of the page from the element it titles (`titledElement`,
-"Naming elements") to the next heading's, and counts each item in the stretch holding
+"Naming") to the next heading's, and counts each item in the stretch holding
 its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
-it is gone. `obligationActions.next({within, dir})` steps to the next obligation
-waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does in On
-Me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
+it is gone; a row of the On lists opens by its `id`.
+`obligationActions.next({within, dir})` steps to the next obligation waiting on the
+user inside `within`, or the previous with `dir: -1`, as `m` does in On Me, and
+resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On Me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind`, `todo` for a to-do of the agent's, the obligation itself as
-`obligation`, and an `owner`, `user` or `agent`, naming its list. The record says where
-the row stands: the agent has it in hand while its `state` is `running`, and a row in
-`done` ended as its `outcome` and `end` say. An obligation's row lists in `also` the ids
-of the other obligations the user answers at the same place, such as the agent's answer
-in a thread about it.
-`queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
-its title. `queueActions.open(key)` goes to a row; an obligation is answered only
-through its widget or thread. Act on a collection only when its `phase` is `ready`.
+under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
+it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
+to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
+`agent`, naming its list. The record says where the row stands: the agent has it in
+hand while its `state` is `running`, and a row in `done` ended as its `outcome` and
+`end` say. An obligation's row lists in `also` the ids of the other obligations the
+user answers at the same place, such as the agent's answer in a thread about it.
+`nameOf(row)` gives a row's name ("Naming"). An obligation is
+answered only through its widget or thread. Act on a collection only when its `phase`
+is `ready`.
 
 ### Work hierarchies
 
-`readWork(scope)` reads the work hierarchy within `scope`, such as goals and the
-workers on them, so a widget that counts its children's work reads it here rather than
-from their reports. Leaf owns the work roles, and a package maps its tags onto them in
-`$work.widgets` ([package-data.md, "Work roles"](package-data.md#work-roles)), which
-composition checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals,
-`liveWorkers`, and `running` and `quiet` workers, each with its authored `element`, and
-`done` counts finished leaves. `workAncestor(element, role)` returns the nearest element
-at or above `element` with that role. Atlas in `examples/command-hub.page/` is the
-worked example.
+`readWork(element)` reads the work hierarchy of the scope `element` is or stands in,
+such as its goals and the workers on them, so a widget that counts its children's work
+reads it here rather than from their reports. An element outside every scope reads
+the work on its page, or in its message, that stands in no scope. Leaf owns the work
+roles, and a package maps its tags onto them in `$work.widgets`
+([package-data.md, "Work roles"](package-data.md#work-roles)), which composition
+checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`,
+and `running` and `quiet` workers, each with its authored `element`, and `done` counts
+finished leaves; a goal or worker finds its own row by that `element`. Atlas in
+`examples/command-hub.page/` is the worked example.
 
 ### Page history and reports
 
@@ -280,11 +281,16 @@ thread, whether it was undone, the agent's name as `agent`, and a gesture's word
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads reports with `reportSequence(this)`, after checking
-`reportsReady(this)` and returning `noChange` while it is false. Each entry has `id`, `target`,
-`source`, `action`, `detail`, `text`, `ts` and `disposition`: `effective`, `outranked`
-by a newer report on the same unit and verb, or `settled` by a stamped version. Pass
-`{kind: "thread", id}` for a Thread's reports, or nothing for all of them.
+A widget an agent reports on reads `readReports(this)` in its render:
+`{phase, reports}`. `phase` turns `ready` once the server's reading has arrived and
+the state the reports describe is drawn; until then, return `noChange`, and the widget
+draws again as it turns. Each report has `id`, `target`, `source`, `action`,
+`detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
+on the same unit and verb, or `settled` by a stamped version. The element form is for
+the widget's own render: its `phase` waits on that element's drawing, and only that
+element draws again as it turns. Pass `{kind: "widget", id}` for another widget's
+reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them; their
+`phase` is the page's.
 
 ### Reading version changes
 

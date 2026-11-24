@@ -51,13 +51,13 @@ from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { LeafElement, readThreads, threadSummary, threadTurns } from '/runtime/widget-api.js';
+import { LeafElement, nameOf, readThreads, threadTurns } from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
-    this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+    this.topic = collection.threads[0] && nameOf(collection.threads[0]);
     return html`<pre>${collection.threads.map(thread =>
       threadTurns(thread).map(message => message.body.text).join('\n')
     ).join('\n')}</pre>`;
@@ -79,7 +79,7 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { LeafElement, signal, threadActions, readThreads, threadSummary } from '/runtime/widget-api.js';
+import { LeafElement, nameOf, signal, threadActions, readThreads } from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   query = signal('');
   setup() { this.query.value = this.getAttribute('filter') ?? ''; }
@@ -89,11 +89,11 @@ customElements.define('lf-thread-filter', class extends LeafElement {
     this.sameReading = collection === readThreads();
     this.updates = (this.updates ?? 0) + 1;
     const shown = collection.threads.filter(thread =>
-      threadSummary(thread).topic.toLowerCase().includes(this.query.value.toLowerCase()));
+      nameOf(thread).toLowerCase().includes(this.query.value.toLowerCase()));
     return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
       @input=${event => { this.query.value = event.target.value; }}>
       <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
-        @click=${() => threadActions.open(thread.key)}>${threadSummary(thread).topic}</button></li>`)}</ul>`;
+        @click=${() => threadActions.open(thread.key)}>${nameOf(thread)}</button></li>`)}</ul>`;
   }
 });
 """
@@ -1460,9 +1460,10 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On Me's route and Threads' row each take the user to the primary reader that
-    owns the thread's widget. The panel opens no view of the thread, and the widget
-    arrives as the same native node."""
+    """Opening the widget's On Me row by its id, which arrives where the row's own Show
+    does, and Threads' row each take the user to the primary reader that owns the
+    thread's widget. The panel opens no view of the thread, and the widget arrives as
+    the same native node."""
     page = open_page(browser, package_workspace(serve))
     page.set_viewport_size({"width": 693, "height": 900})
     workspace = page.locator("#workspace")
@@ -1476,7 +1477,7 @@ def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
 
     other_thread.click()
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.obligationActions.open(item.id); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

@@ -1,13 +1,15 @@
 /* The report feed exposed to widgets and chrome.
 
    Projection answers where state stands. Some modules also need to narrate how the state
-   arrived or when it was last reported. They read that through the exported sequence
-   helpers, not through raw `events`.
+   arrived or when it was last reported. They read that through `readReports`, not
+   through raw `events`.
 
-   `reportSequence(target)` is the one reading of news about an item. Its target is
-   either a widget element or an explicit `{kind, id}` pair; a bare id is not an identity
-   and is rejected because a thread and a widget may spell theirs alike. With no target
-   it returns the whole ordered feed. Each entry is a worker's report from the
+   `readReports(target)` is a package's one reading of news about an item, `{phase,
+   reports}`; `reportSequence(target)` is its `reports`, which the runtime's own readers
+   (work.js) select without a phase. The target is either a widget element or an
+   explicit `{kind, id}` pair; a bare id is not an identity and is rejected because a
+   thread and a widget may spell theirs alike. With no target it reads the whole ordered
+   feed. Each entry is a worker's report from the
    append-only log, in one envelope: `id`, typed `target`, `source`, `action`,
    structured `detail`, declared human-readable `text`, `ts`, attribution,
    `disposition`, and the report's version and sequence. The work the agent has in hand
@@ -27,11 +29,13 @@
    to carry non-empty `detail.text`. That is the envelope's `text`; consumers never
    infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
-   `reportSequence` filters the server-normalized report feed, and `readHistory` selects
+   `readReports` filters the server-normalized report feed, and `readHistory` selects
    the history reading. A LeafElement reads them in render(), so Lit follows both
-   initial state and later publications. `reportsReady(target)` holds that render until
-   the projection has committed every report coordinate its target holds: no renderer
-   narrates a report the widget has not yet painted.
+   initial state and later publications. A reading's `phase` is the page's, as
+   `readHistory`'s is, so a render never narrates the empty feed a page holds before the
+   server's reading. A widget's reading, which it makes in its own render, also waits
+   until the projection has committed every report coordinate the widget holds: no
+   renderer narrates a report the widget has not yet painted.
 
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
@@ -56,6 +60,7 @@ import {
   watchPresentation,
 } from "./semantic-state.js";
 import { closestAcross } from "./lib/shadow-tree.js";
+import { runtime } from "./context.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
 /** @param {unknown} target @returns {ReportTarget | null} */
@@ -128,9 +133,11 @@ export const readHistory = readPart((root) => ({
 // startup and pending release use: a report names its widget by id, so the reports
 // on a widget name no other. A widget asks in the update that draws its state, which
 // is its own render, so only its preparation and the coordinate chrome must have
-// committed. An update told no is asked to draw again once they have, and that update
-// is told yes: where the widget's own update holds its preparation region, as one
-// Leaf sets nothing on does, asking again would never find the region free.
+// committed. An update told no is asked to draw again once they have, and every
+// reading in that update is told yes: where the widget's own update holds its
+// preparation region, as one Leaf sets nothing on does, asking again would never find
+// the region free.
+/** @typedef {Element & {requestUpdate(): void, updateComplete: Promise<unknown>}} Drawer */
 /** @type {WeakSet<Element>} */
 const proven = new WeakSet();
 /** @type {WeakSet<Element>} */
@@ -138,9 +145,9 @@ const waiting = new WeakSet();
 /** @param {Element} target */
 const committed = (target) =>
   applicationRegionsPresented(["projection:chrome", `widget:${target.id}:preparation`]);
-/** @param {Element & {requestUpdate(): void}} target */
-export const reportsReady = (target) => {
-  if (proven.delete(target) || committed(target)) return true;
+/** @param {Drawer} target */
+const reportsReady = (target) => {
+  if (proven.has(target) || committed(target)) return true;
   if (waiting.has(target)) return false;
   waiting.add(target);
   // The watch's first call comes before it has returned its stop.
@@ -153,7 +160,25 @@ export const reportsReady = (target) => {
     if (!target.isConnected) return;
     proven.add(target);
     target.requestUpdate();
+    const release = () => proven.delete(target);
+    target.updateComplete.then(release, release);
   });
   if (watch.done) watch.stop();
   return false;
+};
+
+// A widget's reading, in its own render, also waits on its report coordinates
+// (`reportsReady`) once the page's reading has arrived; a thread's, or the whole
+// feed's, phase is the page's.
+/** @param {Drawer | ReportTarget | null} [target] */
+export const readReports = (target = null) => {
+  const reports = reportSequence(target);
+  const phase = runtime.statePhase;
+  return {
+    phase:
+      phase === "ready" && target instanceof Element && !reportsReady(target)
+        ? "waiting"
+        : phase,
+    reports,
+  };
 };

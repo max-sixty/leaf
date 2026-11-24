@@ -59,21 +59,19 @@ import { ShotView } from "./shot-view.js";
  * scrolling them never opens the viewer. Image options holds scale, outlines and the
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
-// A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
   afterPresentation,
-  failSoft,
   frameFor,
-  placesFailure,
   focusDestination,
   scopedMediaUrl,
-  widgetController,
   move,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
 } from "/runtime/widget-api.js";
+import { failSoft, placesFailure } from "/runtime/lib/failure.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -127,8 +125,6 @@ export class Shot extends HTMLElement {
   #capture = null;
   /** @type {Element | null} */
   #error = null;
-  /** @type {((promise: Promise<unknown>) => void) | undefined} */
-  _lfPresentGenerated;
   static observedAttributes = ["alt", "before", "after", "density", ...FOCUS];
 
   get difference() {
@@ -185,7 +181,7 @@ export class Shot extends HTMLElement {
     render(drawing.render(), this, { host: this });
     drawing.fit();
     render(drawing.render(), this, { host: this });
-    drawing.chooseView = (view, label) => this.#chooseView(view, label);
+    drawing.chooseView = (view) => this.#chooseView(view);
     drawing.chooseScale = (scale) => {
       this.#drawing.actual = scale === "actual";
       this.#fit();
@@ -326,8 +322,7 @@ export class Shot extends HTMLElement {
    * waits for what this shot draws when it lands.
    * @param {Promise<unknown>} promise */
   #present(promise) {
-    if (this._lfPresentGenerated) this._lfPresentGenerated(promise);
-    else widgetController(this).present(promise);
+    this.dispatchEvent(new PendingTaskEvent(promise));
   }
 
   /** @param {Capture} capture @param {string | null} [pixels] */
@@ -368,17 +363,15 @@ export class Shot extends HTMLElement {
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
-  /** @param {string} view @param {string} label */
-  #chooseView(view, label) {
+  // The view's own radio says which view shows, as focus lands on it.
+  /** @param {string} view */
+  #chooseView(view) {
     if (view === this.#drawing.view) return;
     if (view === "pixels") void this.#showPixels();
     else {
       this.#drawing.view = view;
       this.#fit();
     }
-    window.dispatchEvent(
-      new CustomEvent("lf-announce", { detail: `Showing ${label.toLowerCase()}` }),
-    );
   }
 
   #syncComparison() {

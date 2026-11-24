@@ -75,14 +75,12 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
+  afterPresentation,
   boundFile,
-  RequestError,
   commandsOn,
-  deferredArrival,
   el,
   focusDestination,
   LeafElement,
-  PendingTaskEvent,
   onCurrentLocation,
   rove,
   rowWalk,
@@ -90,6 +88,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
@@ -218,6 +217,9 @@ customElements.define(
       let file = fileFor(/** @type {string} */ (bindings[0]));
       const label = (/** @type {OpenFile} */ of) =>
         of.api.label ?? of.base?.label ?? of.binding;
+      // A file takes typing once its text is known and its binding can be written.
+      const readOnly = (/** @type {OpenFile} */ of) =>
+        of.base === null || !of.api.writable;
       this.#shown = () => file.binding;
       this.#label = (binding) => (files.has(binding) ? label(fileFor(binding)) : null);
       // The host's grid gives the comparison half the editing room while it is open.
@@ -417,7 +419,7 @@ customElements.define(
         const of = file;
         const name = label(of);
         editor.setLabel(name);
-        editor.readOnly = of.base === null || !of.api.writable;
+        editor.readOnly = readOnly(of);
         // With no file to show, as on an export or an unbound page, or while a slow
         // first read waits, the empty editor says why, where a finger and the eye
         // already are.
@@ -566,8 +568,28 @@ customElements.define(
         menu: choicesMenu,
         first: firstChoice,
       };
+      // A draft this tab kept, as across a reload, stands over the file until a read
+      // settles it. Drafts come back before the editor exists, so it starts as editable
+      // as the file it shows rather than switching within the same task.
+      /** @param {OpenFile} of */
+      const recover = (of) => {
+        const pending = tabStore.get(of.recoveryKey);
+        if (!pending || !of.api.writable) return;
+        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
+        const recovered = JSON.parse(pending);
+        of.base = recovered.base;
+        of.sent = recovered.sent;
+        of.recovering = true;
+        return recovered.text;
+      };
+      /** @type {Map<OpenFile, string>} */
+      const drafts = new Map();
+      for (const of of files.values()) {
+        const draft = recover(of);
+        if (draft !== undefined) drafts.set(of, draft);
+      }
       const editor = createEditor(mount, {
-        readOnly: true,
+        readOnly: readOnly(file),
         onChange() {
           file.generation++;
           remember(file);
@@ -642,29 +664,35 @@ customElements.define(
           }, 1000);
         if (of === file) paint();
         try {
-          of.base = await of.api.save({ revision: against.revision, text: submitted });
-          of.latest = null;
-          of.failure = null;
+          const saved = await of.api.save({
+            revision: against.revision,
+            text: submitted,
+          });
+          // An answer ends the save: it wrote the file, or, refused in the server's own
+          // words, wrote nothing.
           of.sent = null;
-        } catch (fault) {
-          // A refusal in the server's own words, the only `RequestError` file-api.js
-          // passes on, wrote nothing. A save with no such answer, as when a reload
-          // cancels it or a proxy answers for the server, may have reached the file,
-          // so its text stays until a read says.
-          if (fault instanceof RequestError) of.sent = null;
-          if (fault instanceof RequestError && fault.current) {
+          if (!("refused" in saved)) {
+            of.base = saved;
+            of.latest = null;
+            of.failure = null;
+          } else if (saved.current) {
             // A file holding this save or a lost earlier one holds the draft's own
             // words, which the draft stands over, as a read takes them (`refresh`).
-            const held = fault.current.text;
+            const held = saved.current.text;
             if (held === submitted || held === lost) {
-              of.base = fault.current;
+              of.base = saved.current;
               of.latest = null;
-            } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            } else if (replace || !settle(of, saved.current)) of.latest = saved.current;
             of.failure = null;
           } else {
-            of.failure = { kind: "save", message: describeFailure(fault), replace };
+            of.failure = { kind: "save", message: saved.refused, replace };
             of.owed ||= owedBefore;
           }
+        } catch (fault) {
+          // A save with no answer, as when a reload cancels it or a proxy answers for
+          // the server, may have reached the file, so its text stays until a read says.
+          of.failure = { kind: "save", message: describeFailure(fault), replace };
+          of.owed ||= owedBefore;
         } finally {
           of.busy = false;
           if (connected) remember(of);
@@ -762,24 +790,9 @@ customElements.define(
         );
         stopWatch = () => stops.forEach((stop) => stop());
       };
-      // A draft this tab kept, as across a reload, stands over the file until a read
-      // settles it.
-      /** @param {OpenFile} of */
-      const recover = (of) => {
-        const pending = tabStore.get(of.recoveryKey);
-        if (!pending || !of.api.writable) return;
-        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
-        const recovered = JSON.parse(pending);
-        of.base = recovered.base;
-        of.sent = recovered.sent;
-        of.recovering = true;
-        return recovered.text;
-      };
       // Every file's draft comes back, the closed ones' kept as if left in this load,
       // so each settles against its file as the open one does.
-      for (const of of files.values()) {
-        const draft = recover(of);
-        if (draft === undefined) continue;
+      for (const [of, draft] of drafts) {
         if (of === file) editor.value = draft;
         else of.kept = editor.keep(draft);
       }
@@ -830,10 +843,11 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
+          const first = opening;
           this.dispatchEvent(
-            new PendingTaskEvent(Promise.race([opening, waited.promise])),
+            new PendingTaskEvent(Promise.race([first, waited.promise])),
           );
-          deferredArrival(opening);
+          void afterPresentation(() => first);
           initial = false;
         }
         watch();

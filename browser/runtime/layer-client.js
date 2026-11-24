@@ -49,7 +49,7 @@ import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { holdingError } from "./errors.js";
-import { failureContext, failureOf } from "./widget-upgrade.js";
+import { failureContext, failureOf } from "./lib/failure.js";
 
 const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
@@ -619,7 +619,7 @@ export function reportCarried(reason, context = "") {
 
 window.addEventListener("error", (e) => {
   // A widget's own failure, which it shows where it stands and dispatches
-  // (`reportFailure`, widget-upgrade.js), named for the widget it happened in.
+  // (`reportFailure`, lib/failure.js), named for the widget it happened in.
   const failure = failureOf(e);
   if (failure) {
     reportPageError(failure.reason, failureContext(failure.element));

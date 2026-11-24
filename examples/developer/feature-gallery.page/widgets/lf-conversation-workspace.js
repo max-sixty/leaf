@@ -5,9 +5,8 @@ import {
   compoundReadingRegionId,
   HeldReading,
   LeafElement,
-  queueActions,
-  queueItemKey,
-  queueTitle,
+  obligationActions,
+  nameOf,
   readObligations,
   answerWords,
   readQueues,
@@ -17,7 +16,6 @@ import {
   setChildren,
   shadowStage,
   threadActions,
-  threadSummary,
   threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -209,7 +207,7 @@ customElements.define(
         }
         row.button.toggleAttribute("hidden", !thread);
         if (thread) {
-          keepsText(row.button, threadSummary(thread).topic);
+          keepsText(row.button, nameOf(thread));
           keeps(row.button, "aria-current", key === this.selected ? "true" : null);
         }
         return row.node;
@@ -262,7 +260,7 @@ customElements.define(
         ...Object.fromEntries(
           Object.keys(this.queues).map((name) => [
             name,
-            queues[name].map(queueItemKey),
+            queues[name].map((item) => item.id),
           ]),
         ),
       });
@@ -292,7 +290,7 @@ customElements.define(
       const queues = readQueues();
       const layout = this.indexLayout();
       for (const [name, list] of Object.entries(this.queues)) {
-        const current = new Map(queues[name].map((item) => [queueItemKey(item), item]));
+        const current = new Map(queues[name].map((item) => [item.id, item]));
         const rows = layout[name].map((key) => {
           const item = current.get(key);
           const identity = JSON.stringify([name, key]);
@@ -300,7 +298,7 @@ customElements.define(
           if (!row) {
             const node = offer("li");
             const open = offerAction("word", "");
-            open.addEventListener("click", () => void queueActions.open(key));
+            open.addEventListener("click", () => void obligationActions.open(key));
             row = { node, open };
             this.queueRows.set(identity, row);
           }
@@ -308,7 +306,7 @@ customElements.define(
             setChildren(row.node, []);
             return row.node;
           }
-          keepsText(row.open, `Open ${queueTitle(item)}`);
+          keepsText(row.open, `Open ${nameOf(item)}`);
           setChildren(row.node, [row.open]);
           return row.node;
         });

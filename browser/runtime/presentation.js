@@ -41,18 +41,19 @@
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
 
-   A widget reaches this through three routes, and each declares what it defers, so no
+   A widget reaches this through two routes, and each declares what it defers, so no
    widget keeps work off the presentation path without the page counting it.
    `afterPresentation` is the wait and the declaration together, for work the widget
-   earns the right to start only once the user has the page. `whenNear` is the same for
-   work it earns only once the reader comes near the node, such as a live sample's
-   child page: the page counts the browser's first reading of the node, so a reader of
-   its final boxes waits for whatever that reading starts, and a check that reads every
-   document the page can show starts the rest (`startNearWork`), in each live sample's
-   child too. `deferredArrival` is
-   the declaration alone, for work already running that presentation need not wait
-   for: the work starts now, the page presents without it, and `arrived` waits for it.
-   None hands a package the bare `presented` wait. */
+   earns the right to start only once the user has the page, or work already running
+   that presentation need not wait for, which its `work` callback returns: the page
+   presents without it, and `arrived` waits for it, counted from the call either way.
+   `whenNear` is the same for work it earns only once the reader comes near the
+   node, such as a live sample's child page: the page counts the browser's first
+   reading of the node, so a reader of its final boxes waits for whatever that reading
+   starts, and a check that reads every document the page can show starts the rest
+   (`startNearWork`), in each live sample's child too. Neither hands a package the bare
+   `presented` wait. `deferredArrival` is the declaration alone, which both routes
+   make and the runtime's own owners make for work they have started. */
 
 import { whileConnected } from "./arrivals.js";
 import { applicationPresented } from "./semantic-state.js";
@@ -103,7 +104,9 @@ export async function whenArrived() {
     on `arrived` takes a fall in it as progress (render_checks.py, `HandoverProgress`). */
 export const arrivalsOutstanding = () => arriving.size;
 
-/** Run `work` once the page has presented, as an arrival the page answers for.
+/** Run `work` once the page has presented, as an arrival the page answers for from
+ * this call until what `work` returns settles; a `work` that returns a promise already
+ * running declares that promise.
  * @template T @param {() => T | PromiseLike<T>} work @returns {Promise<T>} */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 

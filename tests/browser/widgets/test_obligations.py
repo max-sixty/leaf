@@ -610,7 +610,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     """The decision is the question's whole reading region, not only its answer control.
 
     Were an options group both the state owner and the navigation target, then when the
-    heading, premise, and evidence stood immediately above it, `d` would centre the
+    heading, premise, and evidence stood immediately above it, `m` would centre the
     options and make the user scroll backward before they could answer. The group the
     author names round the question encodes that broader unit while the nested
     `awaits` widget still owns the action: the walk rings the region, aligns its
@@ -716,7 +716,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
 
 
 def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
-    """a lands semantic focus on the obligation; digits work its exact action list there.
+    """m lands semantic focus on the obligation; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
     descendants: options own controls inside the obligation, while a suggestion's margin entries are
@@ -1293,8 +1293,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # The press moves the ring and the focus and leaves the page where it stands.
         # Rebuilding a view the user is already looking at is motion that says nothing,
         # and it costs them whatever adjustment they had made within it. The gate reads
-        # what the page shows of the obligation rather than what its own box claims,
-        # which is the reading commentOnAddressable makes before its own travel.
+        # what the page shows of the obligation rather than what its own box claims.
         #
         # The walk above is the control: it did travel, from a page that opens above
         # the change, so a second press standing still is this gate rather than a walk
@@ -1419,7 +1418,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     """The walk measures from the user, the way Space page travel measures from the scroll position
     and t/T from the focused thread. A walk that kept an id of its own would start every
     walk the user had not made with this key at the top of the page: scroll halfway
-    down and press `d` and you would be taken back past everything you had read, and so
+    down and press `m` and you would be taken back past everything you had read, and so
     would anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
@@ -1457,7 +1456,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     the box left out — would measure (0,0) at the document's origin, as an element with
     none does, which is not a degenerate answer but a wrong one. Everything that asked
     the wrapper where it was would believe it, so the travel would centre the top of the
-    document and a page whose open decisions were all suggestions would answer `d` by
+    document and a page whose open decisions were all suggestions would answer `m` by
     appearing to do nothing at all.
 
     Hanging the ring on the pieces instead covers that and says the wrong thing about

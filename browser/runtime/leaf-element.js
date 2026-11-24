@@ -31,11 +31,11 @@
      what the keys declared in what it drew read from those nodes. A draw leaves what
      the page wrote beside a part it draws into as it was, such as a tab set's panels,
      so their keys aren't read again.
-   - `lf-hold`, as `defer()` starts, with a promise that settles as the hold ends.
+   - `lf-defer`, as `defer()` starts, with a promise that settles as the hold ends.
      A set Leaf makes meanwhile is not drawn, so the page counts it as presented only
      once the hold has ended and the release has drawn; and the gesture rewrote the
      element's nodes outside any draw, so Leaf reads the document again then.
-   - `error`, for an update that throws anywhere (`failSoft`, widget-upgrade.js). The
+   - `error`, for an update that throws anywhere (`failSoft`, lib/failure.js). The
      fail-soft box stands at the end of the render root after what the element drew,
      since a render may paint retained nodes no later draw would make again and nothing
      drawn moves for it; the next update that draws takes the box away. A `setup()`
@@ -56,14 +56,9 @@
    undefined and the element draws what its markup and its own properties give it. */
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
-import {
-  COMMANDS,
-  CONNECT,
-  HoldEvent,
-  PendingTaskEvent,
-  failSoft,
-  placesFailure,
-} from "./widget-upgrade.js";
+import { COMMANDS, CONNECT, DeferEvent } from "./widget-upgrade.js";
+import { PendingTaskEvent } from "./lib/pending-task.js";
+import { failSoft, placesFailure } from "./lib/failure.js";
 import { inWindowDocument, once } from "./lib/once.js";
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.
@@ -115,8 +110,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   /** The widget's reading as Leaf set it (`module-plain-elements.md`, "`state`"):
    *  each declared verb's state with every admitted and unresolved record folded in,
-   *  whether the user may act on it now (`available`), and whether `takeBack` would
-   *  take its action in force back (`undoable`). An element whose tag declares no verb
+   *  whether the user may act on it now (`available`), the reason they may not where
+   *  Leaf has one (`unavailable`), and whether `takeBack` would take its action in
+   *  force back (`undoable`). An element whose tag declares no verb
    *  holds an empty one once Leaf has set its inputs. Undefined where no host set it:
    *  off a Leaf page, and for a widget the page did not capture, such as one with no
    *  id.
@@ -274,7 +270,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     if (this.#hold) throw new Error("Widget presentation is already deferred");
     /** @type {PromiseWithResolvers<void>} */
     const hold = (this.#hold = Promise.withResolvers());
-    this.dispatchEvent(new HoldEvent(hold.promise));
+    this.dispatchEvent(new DeferEvent(hold.promise));
     return () => {
       if (this.#hold !== hold) return;
       this.#hold = null;

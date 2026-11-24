@@ -818,6 +818,7 @@ block names what a package answers with the browser's own call instead.
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                           |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `lib/words.js` `labelWords`, `counted`, `capitalized`                                  |
 | The word for an element's kind, a widget's own word for it included                                   | `lib/element-word.js` `addressableWord`, `widgetWord`                                  |
+| The order a position container lists its units in, and the rank that puts a unit at an index          | `lib/rank.js` `byRank`, `rankAt`, `authoredRank`                                       |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                            |
 | What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                             |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                        |
@@ -832,7 +833,7 @@ block names what a package answers with the browser's own call instead.
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |
 | The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                                |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                                  |
-| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)         |
+| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName`                                                      |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                       |
 | The open conversations about an element or the part a heading heads, and whose turn                   | `thread/placement.js` `conversationsAbout`                                             |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                            |
@@ -840,7 +841,7 @@ block names what a package answers with the browser's own call instead.
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                                   |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                            |
 | Which message drafts hold words or a drawing, for every view of drafts                                | `drafts.js` `draftsReading`                                                            |
-| Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                                 |
+| Which obligations a region of the page holds                                                          | `obligations/place.js` `readObligations`                                               |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                       |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                                 |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                              |

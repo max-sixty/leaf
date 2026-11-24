@@ -155,7 +155,13 @@ import {
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { bodyIsData, registry, tagsDeclaring, upgrades } from "./registry.js";
+import {
+  bodyIsData,
+  registry,
+  sameRecord,
+  tagsDeclaring,
+  upgrades,
+} from "./registry.js";
 import { inlineMarkdownFragment, paintMarkdown } from "./lib/markdown.js";
 import {
   pageLinks,
@@ -1315,10 +1321,7 @@ function diffWith(doc, baseAuthored, baseDocument) {
     /** @type {import("../types/domain.js").ProjectionEntry} */ { e, spec },
   ) => {
     const current = baseAuthored.get(e.widget)?.specs.get(e.action);
-    return (
-      current?.unit === spec.unit &&
-      JSON.stringify(current.record ?? null) === JSON.stringify(spec.record ?? null)
-    );
+    return current?.unit === spec.unit && sameRecord(current.record, spec.record);
   };
   const baseWidgets = foldWidgetStates(baseAuthored, {
     ...baseProjection,
@@ -1468,8 +1471,6 @@ function blockWords(target) {
   const words = diffWordsOf.get(target);
   return words && words.is === comparisonWords(target) ? words : null;
 }
-const plural = (/** @type {string} */ word, /** @type {number} */ n) =>
-  `${n} ${n === 1 ? word : `${word}s`}`;
 // One word for a set of blocks: theirs where they share one, else "block".
 const nounOf = (/** @type {string[]} */ words) => {
   const [first = "block", ...rest] = words.map((word) =>
@@ -1504,7 +1505,7 @@ export function changeAccount({ blocks, removed }) {
     parts.push([changed.length, nounOf(changed.map(addressableWord)), "changed"]);
   return parts
     .map(([n, noun, verb], i) =>
-      parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${plural(noun, n)} ${verb}`,
+      parts[i - 1]?.[1] === noun ? `${n} ${verb}` : `${counted(n, noun)} ${verb}`,
     )
     .join(", ");
 }

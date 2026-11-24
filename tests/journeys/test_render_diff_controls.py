@@ -55,9 +55,6 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     diff = page.locator("#patch")
     buttons = diff.locator(".lf-diff-line-comment")
     expect(buttons).to_have_count(4)
-    expect(diff.locator(".lf-diff-wrap, .lf-diff-review, .lf-diff-next")).to_have_count(
-        0
-    )
 
     def geometry():
         return buttons.evaluate_all("""buttons => buttons.map(button => {

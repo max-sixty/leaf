@@ -1,14 +1,7 @@
 /* An anonymous report consumer keeps clock and report identity tests independent
  * of the Atlas example's composition. */
 import { html, noChange } from "/vendor/lit.js";
-import {
-  ago,
-  LeafElement,
-  readWork,
-  reportSequence,
-  reportsReady,
-  workAncestor,
-} from "/runtime/widget-api.js";
+import { ago, LeafElement, readReports, readWork } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-worker",
@@ -24,14 +17,17 @@ customElements.define(
     render() {
       const state = this.state.state.value;
       keeps(this, "state", state);
-      if (!reportsReady(this)) return noChange;
-      const reports = reportSequence(this).filter(
-        (row) => row.source === "report" && row.action === "state",
+      const { phase, reports } = readReports(this);
+      if (phase !== "ready") return noChange;
+      const current = reports.findLast(
+        (row) =>
+          row.source === "report" &&
+          row.action === "state" &&
+          row.disposition === "effective",
       );
-      const { heard, quiet } = readWork(
-        workAncestor(this, "scope") ?? this.parentElement,
-      ).workers.find((row) => row.element === this);
-      const current = reports.findLast((row) => row.disposition === "effective");
+      const { heard, quiet } = readWork(this).workers.find(
+        (row) => row.element === this,
+      );
       return html`<span class="lf-state">${state}</span>
         ${current?.text ? html`<span class="lf-doing">${current.text}</span>` : ""}
         ${quiet ? html`<span class="lf-cold">quiet</span>` : ""}

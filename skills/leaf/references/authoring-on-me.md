@@ -19,7 +19,11 @@ dropped uploads”, not “Merging #431”.
 
 Each option is a result the user can pick, so its title says what choosing it does to
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
-handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
+handwritten types”, rather than “Accept” and “Not now”. Write the titles and labels in
+your own voice, as you write the question and the cards, so that “I” always means you
+and “you” the user: “Keep your wording”, not “Keep my wording” beside a card that says
+“I'd push it to the pull request”. Words an option quotes, such as a sentence for the
+user's README, stay as written. Where the options differ only
 in a value, such as how long captures are kept, say once above them what that value
 costs, and each title can be the whole option. A card carries its name in `label`,
 which On Me and threads show, and shows its title in its own HTML, a leading

@@ -214,7 +214,9 @@ The text holds the question, what is true of every option and your
 reason; each card holds what is true of its option alone, such as what choosing it
 does and costs. The choice needs no heading or group round it. Title each option by
 what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
-question holds").
+question holds"). Write the titles in your own voice, as you write the text, so that
+“I” always means you and “you” the user: “Hold it until you've read it”, not “Hold it
+for my review”.
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'

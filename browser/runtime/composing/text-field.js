@@ -32,12 +32,31 @@
  * the element that shows them (`facesOf`) and draws them in that display's faces
  * instead of the message's: each heading and code block in the type, padding and indent
  * the page gives it there, each quote's inset, and the display's gap between two
- * outermost blocks in place of the blank lines that part them in the source, so no
+ * outermost blocks in place of the blank line that parts them in the source, so no
  * word moves as the editor opens (browser/AGENTS.md, "Editing something keeps it where
  * it stood and as it read"). Such a display is a Markdown body, which reads as a file,
  * so the field draws a line break inside a paragraph as a space, and Return among a
  * paragraph's words writes a hard break, which the body draws as a line too
- * (field-editor.js, `joints`, `newLine`). The cascade answers what those faces are: as the editor builds, and when its width
+ * (field-editor.js, `joints`, `newLine`).
+ *
+ * Every blank line shows. In a run of them between two blocks, each line stands where a
+ * paragraph typed on it would: the first and last as the gaps around that paragraph and
+ * the rest as its lines (field-editor.js, `standBlocks`). So each Return shows a line,
+ * and Return on a blank line or before a paragraph's first words leaves the caret with
+ * a blank line on each side, where the words typed next stand as a paragraph of their
+ * own (`newLine`). The display draws a run as one gap, so an owner saves it as one
+ * blank line (`valueToSave`) and the words reopen where they read. A source written
+ * with a run opens with the run's lines drawn, which moves the words below it down; an
+ * agent rarely writes one, and the user takes the move in at a glance. The user chose
+ * this for how dependable it is: a line's height follows from the words alone, so no
+ * caret move, click or selection lays a run out again. Rejected: one gap shared among
+ * a run's lines, which showed nothing for a Return between paragraphs until a word was
+ * typed, and then opened the gap under it; a run drawn as lines only while the caret
+ * stands in it, whose lines moved as the caret came and went, so a click could land on
+ * a moving line. A ¶ on each line saving drops would add a widget beside those lines,
+ * and can join this rule later.
+ *
+ * The cascade answers what those faces are: as the editor builds, and when its width
  * changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
@@ -272,7 +291,6 @@ sheet.replaceSync(`
      stays the words', because the caret can stand at the end of unseen text, as just
      past a new item's marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--lf-muted); }
-  .lf-md-dropped { color: var(--lf-quiet); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
     background: var(--lf-code-bg); border-radius: var(--lf-code-inline-r);
@@ -735,10 +753,6 @@ class LeafText extends HTMLElement {
       oneLine: () => this.#oneLine,
       // Words edited where a Markdown body shows them read as that body does.
       message: () => this.facesOf === null,
-      // EXPLORATION: the candidate a draft tries for its extra blank lines.
-      blankLines: () =>
-        this.facesOf?.closest("[data-try-blanks]")?.getAttribute("data-try-blanks") ??
-        "",
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),
@@ -1035,6 +1049,18 @@ class LeafText extends HTMLElement {
 
   get value() {
     return this.#text;
+  }
+
+  /** The words as an owner that shows them in `facesOf` saves them: each run of blank
+   * lines the field draws between two blocks written as one, as the display draws it
+   * (field-editor.js, `oneLinePerGap`). Until the editor has built, the field draws no
+   * gaps, and these are the words as they stand. */
+  get valueToSave() {
+    const content = this.#content;
+    if (content.kind === "draft") return content.draft.text;
+    return content.module.oneLinePerGap(
+      content.kind === "view" ? content.view.state : content.state,
+    );
   }
 
   /** @param {string} text */

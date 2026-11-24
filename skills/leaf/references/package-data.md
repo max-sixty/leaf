@@ -154,13 +154,15 @@ The record kind fixes the event's payload, a closed object with every field requ
   the widget itself where `within` names the widget's own tag, as for a list the user
   reorders, or an element inside the widget, as each column of a board is.
 
-`leaf page state` lists each move in force with its container and rank, not the order
-that results. Authored members rank `1`, `2`, `3` and on in authored order, in base
-36, a move gives its member the rank it names, and each container lists its members by
-rank, compared as strings (the registry's `$verbs.record`). Once a version changes
-which members a container holds, or their order, the moves made before it stay in the
-log but no longer place their members: that version's author writes each moved member
-where the user left it, and those moves can no longer be undone.
+`leaf page state` lists each move in force with its container and rank, and gives the
+order that results on the widget's entry in `elements`: `order` maps each position verb
+to each container's member ids in the order the page draws them. Authored members rank
+`1`, `2`, `3` and on in authored order, in base 36, a move gives its member the rank it
+names, and each container lists its members by rank, compared as strings (the
+registry's `$verbs.record`). Once a version changes which members a container holds, or
+their order, the moves made before it stay in the log but no longer place their
+members: that version's author writes each container's members in the `order` the
+active version showed, and those moves can no longer be undone.
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
 detail field holding the moved element. A verb with no record declares its own

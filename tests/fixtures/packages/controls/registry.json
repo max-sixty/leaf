@@ -28,13 +28,9 @@
   "lf-chosen": {
     "description": "The choice another widget holds, as words. Set `for` to the id of a widget that holds a `choice`.",
     "attributes": {
-      "properties": {
-        "for": { "type": "string" }
-      },
       "required": ["id", "for"]
     },
     "content": "empty",
-    "refers": { "for": {} },
     "inputs": {
       "choice": { "contract": "choice", "reference": "for", "property": "value" }
     },

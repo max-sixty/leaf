@@ -3,7 +3,7 @@
 from jsonschema.exceptions import SchemaError
 
 from leaf.findings import Finding
-from leaf.schema import DECLARATION_SCHEMA
+from leaf.schema import DECLARATION_SCHEMA, INPUT_BINDINGS
 
 from .contract import (
     body_is_data,
@@ -257,13 +257,6 @@ def _validate_widget_structure(
                 output=output_name,
                 contract=spec["contract"],
             )
-    for input_name, spec in entry.get("inputs", {}).items():
-        if (reference := spec.get("reference")) and reference not in entry.get(
-            "refers", {}
-        ):
-            raise registry_error(
-                "data-reference", path, tag, input=input_name, attr=reference
-            )
     # A `refers` attribute the widget hasn't got leaves the widget out of every pass
     # that reads it, with no error anywhere, so the door refuses it.
     if unknown := sorted(set(entry.get("refers", {})) - set(properties)):
@@ -330,7 +323,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     data_bindings = {
         spec[key]
         for spec in entry.get("inputs", {}).values()
-        for key in ("source", "reference")
+        for key in INPUT_BINDINGS
         if key in spec
     }
     if dynamic := sorted(data_bindings & mutable_values):

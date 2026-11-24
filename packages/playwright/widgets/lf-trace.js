@@ -90,7 +90,6 @@ import {
   dragging,
   compoundReadingRegionId,
   registerReadingRegion,
-  keepsHidden,
   el,
   focusDestination,
   closeNativeLayer,
@@ -1674,7 +1673,7 @@ export class Trace extends LeafElement {
         // the same place and scale (defaults.css, `--lf-trace-capture`), so a hit on
         // it reaches the canvas part.
         move(this.#imageSurface(this.#pictureId).canvas, layer);
-        keepsHidden(layer, false);
+        layer.toggleAttribute("hidden", false);
         this.#draw();
       },
       () => {
@@ -1687,7 +1686,7 @@ export class Trace extends LeafElement {
     this.#playbackWanted = null;
     if (this.#playbackId === null) return;
     this.#playbackId = null;
-    keepsHidden(this.#playbackImage, true);
+    this.#playbackImage.toggleAttribute("hidden", true);
   }
 
   #closePicture() {
@@ -1949,7 +1948,7 @@ export class Trace extends LeafElement {
     const read = input && image ? this.#inputRelation(image, input) : null;
     const relation = read === "before" ? null : read;
     const action = relation ? input : null;
-    keepsHidden(this.#inputBadge, !action || !imageReady);
+    this.#inputBadge.toggleAttribute("hidden", !action || !imageReady);
     const span = action
       ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
       : "";
@@ -1982,7 +1981,7 @@ export class Trace extends LeafElement {
       imageReady &&
       image.pageId === action.pageId &&
       this.#picture?.viewed;
-    keepsHidden(this.#inputPoint, !visible);
+    this.#inputPoint.toggleAttribute("hidden", !visible);
     if (visible) {
       keeps(this.#inputPoint, "data-lf-x", String(coordinate.x / viewport.width));
       keeps(this.#inputPoint, "data-lf-y", String(coordinate.y / viewport.width));
@@ -2644,7 +2643,7 @@ export class Trace extends LeafElement {
         render(this.#template(...this.#drawing), this.#view, this.renderOptions);
       },
     );
-    keepsHidden(this.#missingImage, !!this.#pictureId);
+    this.#missingImage.toggleAttribute("hidden", !!this.#pictureId);
     keepsText(
       this.#missingImage,
       !this.#trace

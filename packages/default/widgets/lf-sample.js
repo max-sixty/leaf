@@ -51,7 +51,6 @@ import {
   keeps,
   keepsText,
   nameAction,
-  layoutPx,
   mountSample,
   once,
   offer,
@@ -351,7 +350,10 @@ export class Sample extends HTMLElement {
         const height =
           this.#frame.getBoundingClientRect().bottom -
           controls.getBoundingClientRect().top;
-        this.style.setProperty("--lf-sample-height", layoutPx(height));
+        this.style.setProperty(
+          "--lf-sample-height",
+          `${Math.round(height * 64) / 64}px`,
+        );
         closeNativeLayer(this.#view);
         this.#view.setAttribute("role", "dialog");
         this.#view.setAttribute("aria-label", this.#frame.title);

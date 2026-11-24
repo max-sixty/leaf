@@ -5,7 +5,6 @@ import { nothing } from "/vendor/lit.js";
 import {
   generatedElement,
   keeps,
-  keepsHidden,
   keepsText,
   LeafElement,
   offer,
@@ -51,7 +50,10 @@ customElements.define(
       const status = this.state.status.value;
       keeps(this, "status", status);
       keepsText(this.statusLine, status);
-      keepsHidden(this.comment, this.writing || !threadSurface(this).open);
+      this.comment?.toggleAttribute(
+        "hidden",
+        this.writing || !threadSurface(this).open,
+      );
       return nothing;
     }
   },

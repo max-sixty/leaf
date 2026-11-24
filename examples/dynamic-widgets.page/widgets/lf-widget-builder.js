@@ -5,7 +5,6 @@ import {
   LeafElement,
   generate,
   dressCode,
-  keepsHidden,
   keepsText,
   quoted,
   tabStore,
@@ -83,7 +82,7 @@ customElements.define(
             let view = null,
               ticker;
             const showError = (error) => {
-              keepsHidden(errorBox, false);
+              errorBox.toggleAttribute("hidden", false);
               keepsText(errorBox, error.message);
             };
             const draw = async (value) => {
@@ -91,7 +90,7 @@ customElements.define(
                 if (signal.aborted || view !== staged) return;
                 view = null;
                 staged.dispose();
-                keepsHidden(empty, false);
+                empty.toggleAttribute("hidden", false);
                 keepsText(status, "Widget error.");
                 keepsText(overall, "A preview encountered an error.");
                 showError(error);
@@ -102,7 +101,7 @@ customElements.define(
               staged.frame.removeAttribute("data-staging");
               staged.frame.inert = false;
               staged.frame.removeAttribute("aria-hidden");
-              keepsHidden(empty, true);
+              empty.toggleAttribute("hidden", true);
             };
             const metrics = (result) => {
               const time = result.timing;
@@ -118,8 +117,8 @@ customElements.define(
             const run = async (input) => {
               view?.dispose();
               view = null;
-              keepsHidden(empty, false);
-              keepsHidden(errorBox, true);
+              empty.toggleAttribute("hidden", false);
+              errorBox.toggleAttribute("hidden", true);
               holdDocument(request, input);
               for (const part of ["code", "css", "js"]) {
                 const listing = get(part);
@@ -182,7 +181,7 @@ customElements.define(
                   const failed = view;
                   view = null;
                   failed?.dispose();
-                  keepsHidden(empty, false);
+                  empty.toggleAttribute("hidden", false);
                   showError(error);
                 }
               } finally {

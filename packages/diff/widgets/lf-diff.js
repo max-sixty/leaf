@@ -64,7 +64,6 @@ import {
   sizeObserver,
   whileConnected,
   scrollIntoView,
-  layoutPx,
   focused,
   currentLocationIn,
   commandsChanged,
@@ -1796,7 +1795,7 @@ customElements.define(
       if (this.filesBody) {
         const { top, height } = this.filesBody.getBoundingClientRect();
         const hold = needle
-          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
+          ? `${Math.round(Math.max(0, Math.min(height, innerHeight - top)) * 64) / 64}px`
           : "";
         if (this.filesBody.style.minBlockSize !== hold)
           this.filesBody.style.minBlockSize = hold;

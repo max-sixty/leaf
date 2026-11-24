@@ -92,7 +92,7 @@ export { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export { scrollersOf } from "./scroll-containers.js";
 export { inChrome } from "./shadow-tree.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
-export { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+export { keeps, keepsText } from "./keeps.js";
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { DISCLOSE } from "./control-keys.js";

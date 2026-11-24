@@ -793,7 +793,7 @@ block names what a package answers with the browser's own call instead.
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                      |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                          |
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                                |
-| Set a box's offset outright: the runtime's own write, and a package's, which says its `behavior`      | `arrivals.js` `setScroll`; the browser's `scrollTo`, which it hears (_lint_)           |
+| Set a box's offset outright; a package calls the browser's `scrollTo`, heard there, with a `behavior` | `arrivals.js` `setScroll` (_lint_)                                                     |
 | Keep a reader who stands at a box's end there as it changes, and say whether they stand there         | `scrolling.js` `followEnd`                                                             |
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)               |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                             |

@@ -22,10 +22,10 @@ import { nothing } from "/vendor/lit.js";
 import {
   commandScope,
   LeafElement,
-  failSoft,
   registerContribution,
   says,
 } from "/runtime/widget-api.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { foldBlock } from "../runtime/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";

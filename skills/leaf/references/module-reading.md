@@ -15,8 +15,9 @@ Inline values stay in their sentence, and ordinary HTML source indentation colla
 phrasing content and a widget declaring `inline` do, rather than starting a block.
 To name one of the widget's own parts, use `named(element)`, which returns only the words
 the author wrote, less a popover's, such as a gloss's explanation. Read a widget's
-`<pre>` body with `bodyText(this)`, which trims leading blank lines and trailing
-whitespace. A widget that also declares an input
+`<pre>` body with the library's
+[`data-body.js`](../../../browser/runtime/lib/data-body.js), never the element's
+`textContent`. A widget that also declares an input
 (`inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
 text when the markup binds nothing (`package-data.md`, "External or derived data").
 

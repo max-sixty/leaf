@@ -12,7 +12,7 @@ import {
 } from "./lib/markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { declaredElements } from "./registry.js";
-import { dataBody } from "./widget-upgrade.js";
+import { dataBody } from "./lib/data-body.js";
 
 /** The page's links and pictures (`MarkdownLinks` in lib/markdown.js), which every
  * rendering on a Leaf page passes. The page's own media answers at the page's address

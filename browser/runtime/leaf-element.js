@@ -35,7 +35,7 @@
      A set Leaf makes meanwhile is not drawn, so the page counts it as presented only
      once the hold has ended and the release has drawn; and the gesture rewrote the
      element's nodes outside any draw, so Leaf reads the document again then.
-   - `error`, for an update that throws anywhere (`failSoft`, widget-upgrade.js). The
+   - `error`, for an update that throws anywhere (`failSoft`, lib/failure.js). The
      fail-soft box stands at the end of the render root after what the element drew,
      since a render may paint retained nodes no later draw would make again and nothing
      drawn moves for it; the next update that draws takes the box away. A `setup()`
@@ -56,14 +56,9 @@
    undefined and the element draws what its markup and its own properties give it. */
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
-import {
-  COMMANDS,
-  CONNECT,
-  DeferEvent,
-  PendingTaskEvent,
-  failSoft,
-  placesFailure,
-} from "./widget-upgrade.js";
+import { COMMANDS, CONNECT, DeferEvent } from "./widget-upgrade.js";
+import { PendingTaskEvent } from "./lib/pending-task.js";
+import { failSoft, placesFailure } from "./lib/failure.js";
 import { inWindowDocument, once } from "./lib/once.js";
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.

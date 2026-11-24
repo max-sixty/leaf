@@ -83,10 +83,9 @@ widget the user drags, grabs or scrubs also says `lf-hold` for the whole gesture
 (`module-plain-elements.md`, "`lf-hold`").
 
 Say asynchronous preparation the page should wait for, such as a renderer loading,
-with `this.dispatchEvent(new PendingTaskEvent(promise))` (`module-authoring.md`, "A
-widget that also runs off Leaf"). Where a parent prepares for a member that has no
-controller of its own, it passes the promise to its `widgetController(owner)`'s
-`present(promise)`. Drawing that finishes a draw, such as highlighting what `render()`
+with a `pending-task` event (`module-plain-elements.md`, "Drawing"). Where a parent
+prepares for a member that has no controller of its own, it passes the promise to its
+`widgetController(owner)`'s `present(promise)`. Drawing that finishes a draw, such as highlighting what `render()`
 placed, starts in `updated()` and extends the element's `updateComplete`, as any Lit
 element's completion waits for work its update starts:
 

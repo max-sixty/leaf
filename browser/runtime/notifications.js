@@ -146,13 +146,13 @@ export function announce(msg) {
 }
 
 // A widget's words for a listener (`ANNOUNCE`, widget-upgrade.js), said here: the words
-// themselves, or `{words, keys}`, the words and the command rows whose keys a listener
+// themselves, or `{words, rows}`, the words and the command rows whose keys a listener
 // hears after them, named as a press would reach them when the words are said
 // (keyboard/control-keys.js, `saying`).
 addEventListener(ANNOUNCE, ({ detail }) =>
   announce(
-    typeof detail === "object" && "words" in detail
-      ? () => [detail.words, saying(detail.keys)].filter(Boolean).join(" — ")
+    typeof detail === "object" && "rows" in detail
+      ? () => [detail.words, saying(detail.rows)].filter(Boolean).join(" — ")
       : detail,
   ),
 );

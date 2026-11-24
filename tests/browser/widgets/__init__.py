@@ -20,6 +20,23 @@ def expect_walk_says(page, words):
     expect(page.locator(".lf-live")).to_contain_text(words)
 
 
+def hear_walks(page):
+    """Start recording the places a widget's steps say to the page (`lf-walk`,
+    module-input.md, "Walks"), as the window hears them, for `walks_said`."""
+    page.evaluate(
+        """() => {
+          window.__lfWalksSaid = [];
+          addEventListener('lf-walk', ({detail}) => window.__lfWalksSaid.push(
+            `${detail.noun} ${detail.position} of ${detail.total}`));
+        }"""
+    )
+
+
+def walks_said(page):
+    """Each place said since `hear_walks`, in order, as "Hunk 2 of 3"."""
+    return page.evaluate("() => window.__lfWalksSaid")
+
+
 def expect_accept_all(page, count):
     """Read the leaf's menu offering Accept all for `count` pending suggestions, enabled,
     then put the menu away; `count` 0 reads no such row at all."""

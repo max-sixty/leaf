@@ -291,9 +291,9 @@ with the words as its `detail`:
 `window.dispatchEvent(new CustomEvent("lf-announce", { detail: words }))`. Leaf says
 them in its live region, and a page without Leaf leaves them unsaid. To tell a
 listener which keys act next, as after a card is grabbed, give `detail` as
-`{ words, keys }`, where `keys` holds command rows (`module-input.md`, "Command
-rows"). After the words Leaf names each row's keys and title, such as `Escape cancel`,
-leaving out a row no key would run as the words are said.
+`{ words, rows }`, where `rows` holds the command rows that act (`module-input.md`,
+"Command rows"). After the words Leaf names each row's keys and title, such as
+`Escape cancel`, leaving out a row no key would run as the words are said.
 
 An `lf-error` event, dispatched the same way, tells the user that something they did
 has not taken, such as a value the server refused (`module-plain-elements.md`,

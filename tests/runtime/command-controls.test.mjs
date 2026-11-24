@@ -2481,7 +2481,7 @@ test("a key is named beside a row only while its press would run the row", (t) =
   // words, read as the words are said.
   t.mock.timers.enable({ apis: ["setTimeout"] });
   window.dispatchEvent(
-    new CustomEvent("lf-announce", { detail: { words: "Card grabbed", keys: rows } }),
+    new CustomEvent("lf-announce", { detail: { words: "Card grabbed", rows } }),
   );
   t.mock.timers.runAll();
   assert.equal(liveEl.textContent, "Card grabbed — Escape cancel, w or q leave");

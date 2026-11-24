@@ -25,13 +25,15 @@
    reader, so nothing says when a list that changed, or a reading the widget moved
    without a step, has made the place wrong. The place therefore stands for its step's
    moment alone (notifications.js, `answerStep`), which is as long as the page's field
-   says any step, and goes sooner if its stop leaves the page, as when a redraw replaces
-   it. So a widget's place before an open thread's Reply goes with the moment, where a
-   walk of Leaf's own stands. Rejected: the place standing while focus stays on the
-   stop, which a chart, whose points take no focus, would have to end by a second event
-   each time its pointer or a redraw moved its reading. */
-import { effect } from "/runtime/framework.js";
+   says any step, and ends sooner when its stop leaves the page, as when a redraw
+   replaces it, or the user steps again. So a widget's place before an open thread's
+   Reply goes with the moment, where a walk of Leaf's own stands. Rejected: the place
+   standing while focus stays on the stop, which a chart, whose points take no focus,
+   would have to end by a second event each time its pointer or a redraw moved its
+   reading. */
+import { effect, untracked } from "/runtime/framework.js";
 import { capitalized } from "./lib/words.js";
+import { watchOwner } from "./arrivals.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { answerStep, answeringStep, gesture } from "./notifications.js";
@@ -96,17 +98,33 @@ export function walkPosition() {
   };
 }
 
+// The place a widget's latest step said (the `WALK` listener), while it stands, with
+// what stops the watch on its stop.
+/** @type {{walk: Walking, unwatch: () => void} | null} */
+let said = null;
+function endSaid() {
+  const ended = said;
+  if (!ended) return;
+  said = null;
+  ended.unwatch();
+  if (walking !== ended.walk) return;
+  walking = null;
+  repaint();
+}
+
 // A step's walk takes the panel's seat for a notice's moment (notifications.js,
 // `answerStep`), and the panel's leaf answers the step, one landing where the last did
 // included. Reading the same walk on an ordinary repaint does neither again. A step
 // within a list standing whole in view (`ends`, its first and last stops) is declined:
 // the ring shows its place among stops the user sees, so the seat would only repeat it,
-// and the walk the user came by, such as On Me's, goes on standing. Whole is measured
+// and the walk the user came by, such as On Me's, goes on standing. A place a widget
+// said doesn't: it was the last step's, which this step has left. Whole is measured
 // at the step, before a landing that scrolls, so a list running past the window's edge
 // says its place even where the landing brings the rest into view, and by each end's
 // own box, since whether the user sees it doesn't hang on the room its ring would take.
 /** @param {Walking} walk @param {WalkEnds | null | undefined} ends */
 function stepTo(walk, ends) {
+  endSaid();
   if (ends?.length && ends.every((end) => end && alreadyShown(end, { ringed: false })))
     return;
   walking = walk;
@@ -138,29 +156,22 @@ export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
   return walkPositionLabel(noun, position.position, position.total, position.qualifier);
 }
 
-// A widget's step says where it landed (the header), on the stop it landed on: the
-// place stands while the moment its step began lasts and that stop stays in the page,
-// since a redraw that replaces the stop may have changed the list. The frame reads the
-// walk again as the moment ends, since nothing else tells the panel the place has gone.
-const SAID = "said";
+// A widget's step says where it landed (the header), on the stop it landed on. The
+// place has no reader to retire it, so three events end it: the moment its step began
+// ending, its stop leaving the page, since a redraw that replaces the stop may have
+// changed the list, and the next step of any walk (`stepTo`).
 addEventListener(WALK, (event) => {
   const [stop] = event.composedPath();
   if (!(stop instanceof Element)) return;
   const { noun, position, total, list } = event.detail;
   const place = { target: stop, position, total, qualifier: "" };
-  stepTo(
-    {
-      key: SAID,
-      noun,
-      read: () => (answeringStep() && stop.isConnected ? place : null),
-      about: null,
-      target: stop,
-    },
-    list,
-  );
+  const walk = { key: "said", noun, read: () => place, about: null, target: stop };
+  stepTo(walk, list);
+  if (walking === walk)
+    said = { walk, unwatch: watchOwner(stop, { disconnect: endSaid }) };
 });
 effect(() => {
-  if (!answeringStep() && walking?.key === SAID) repaint();
+  if (!answeringStep()) untracked(endSaid);
 });
 
 // What a surface of the panel says of a walk's step, which the walk's owner declared

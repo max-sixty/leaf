@@ -213,7 +213,7 @@ interface WindowEventMap {
     | import("../runtime/voice.js").Words
     | {
         words: string;
-        keys: readonly import("../runtime/keyboard/bindings.js").Command[];
+        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
       }
   >;
   /** Where a step of a widget's own walk landed, which Leaf's panel says

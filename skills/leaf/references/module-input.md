@@ -154,9 +154,9 @@ arrow that opens or closes it, and lists the press in the command reference as o
 close. In a thread's message only Enter and Space work one. The library names the keys
 that press a button and the arrows along a row in its text direction
 (`module-authoring.md`, "Shared web code"). Leaf spells and says keys itself: a
-preview draws a press the register can't see from its binding (`module-previews.md`),
-and an announcement names the keys of the rows it is given
-(`module-scroll-and-motion.md`, "Notices and spoken words").
+preview takes each press it adds as a binding (`module-previews.md`), and an
+announcement takes the rows whose keys it names (`module-scroll-and-motion.md`,
+"Notices and spoken words").
 
 A flex or grid summary draws no native marker. Give it, or an `aria-expanded` button,
 the `lf-disclosure-marker` class, and it shows the arrow Leaf's own disclosures show, as

@@ -647,7 +647,7 @@ customElements.define(
         index + 1
       } of ${cards.length}`;
       window.dispatchEvent(
-        new CustomEvent("lf-announce", { detail: { words: grabbed, keys: rows } }),
+        new CustomEvent("lf-announce", { detail: { words: grabbed, rows } }),
       );
     }
 

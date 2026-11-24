@@ -24,6 +24,7 @@ from render_harness import (
     wait_for_revision,
 )
 
+from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -1204,6 +1205,8 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
     expect(page.get_by_role("tab", name="Ticket 10")).to_have_attribute(
         "aria-selected", "true"
     )
+    # The queue runs past its list, so the panel says the step's place in it.
+    expect_walk_position(page, "Tab 11 of 30")
     page.wait_for_function("""() => {
       const strip = document.querySelector('#queue > .lf-tabstrip');
       const band = strip.getBoundingClientRect();

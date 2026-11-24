@@ -980,6 +980,55 @@ def test_a_reload_before_leaf_starts_carries_on_the_values_the_user_left(
     expect(page.locator("#who")).to_have_value("Grace")
 
 
+def test_startup_recovery_s_reload_keeps_words_typed_before_leaf_started(
+    browser, serve
+):
+    """Words the user typed into a page whose module failed on its way, which no reload
+    had handed anything, come back after startup recovery reloads it."""
+    url = live_url(serve(leaf_page("Restarted", NAME_AND_TOWN)))
+    page = open_page(browser, url)
+    documents = {"count": 0}
+    held, failed = [], []
+
+    def navigated(request):
+        if request.is_navigation_request() and request.frame == page.main_frame:
+            documents["count"] += 1
+
+    def lose(route):
+        if documents["count"] == 1 and not failed:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    # Recovery's probe of the source, the registry at the server's root, waits while the
+    # user types.
+    def probe(route):
+        if documents["count"] == 1 and urlsplit(route.request.url).path == (
+            "/registry.json"
+        ):
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.on("request", navigated)
+    page.route("**/runtime/rendering.js", lose)
+    page.route("**/registry.json", probe)
+    with page.expect_navigation(wait_until="commit"):
+        page.goto(url, wait_until="commit")
+    holding(page, held, 1, "startup recovery's probe")
+    page.locator("#who").fill("Grace")
+    with page.expect_navigation(wait_until="commit"):
+        held.pop().continue_()
+    wait_until_ready(page)
+    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/registry.json")
+    page.remove_listener("request", navigated)
+    assert len(failed) == 1, failed
+    take_browser_errors(page)
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
 @pytest.mark.parametrize("arrives", ["back at its entry", "at another entry"])
 def test_a_handoff_written_as_the_page_hid_comes_back_only_to_its_entry(
     browser, serve, arrives

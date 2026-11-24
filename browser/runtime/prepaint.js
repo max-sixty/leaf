@@ -336,14 +336,14 @@
   // entry's.
   //
   // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
-  // that is the handoff it was handed, none of whose values has reached the page yet,
-  // with the state of each control the user has changed since (document-inputs.js,
-  // `edited`), and without where they were once they have acted within the entry, steps
-  // Back or Forward and leaving the window aside (`away`). From then on it is what the
-  // arrival says (`handOnWith`; version.js, `installArrival`). A document's own
-  // departure fires its `pagehide` before the hide that follows it, which writes
-  // nothing over it; one put into the back/forward cache may come back, so its hide
-  // writes, and its return removes what it wrote.
+  // that is what it owes of the document, none of which has reached the page yet: the
+  // handoff it was handed, if any, with the state of each control the user has changed
+  // since (document-inputs.js, `edited`), and without where they were once they have
+  // acted within the entry, steps Back or Forward and leaving the window aside
+  // (`away`). From then on it is what the arrival says (`handOnWith`; version.js,
+  // `installArrival`). A document's own departure fires its `pagehide` before the hide
+  // that follows it, which writes nothing over it; one put into the back/forward cache
+  // may come back, so its hide writes, and its return removes what it wrote.
   const HANDOFF_KEY = "lf-revision-handoff";
   const entryId = () => window.navigation?.currentEntry?.id ?? null;
   /** @type {{carry?: {id: string}[], typing?: unknown} | null} */
@@ -367,20 +367,23 @@
     ...(inputs.holdsTick(node) && { checked: node.checked }),
   });
   /** @type {() => object | null} */
-  let handingOn = () =>
-    handoff && {
+  let handingOn = () => {
+    const changed = [...document.querySelectorAll("[id]")].filter((node) =>
+      inputs.edited(node),
+    );
+    if (!handoff && !changed.length) return null;
+    return {
       ...handoff,
       carry: [
-        ...(handoff.carry ?? []).filter(({ id }) => {
+        ...(handoff?.carry ?? []).filter(({ id }) => {
           const node = document.getElementById(id);
           return !node || !inputs.edited(node);
         }),
-        ...[...document.querySelectorAll("[id]")]
-          .filter((node) => inputs.edited(node))
-          .map(changedState),
+        ...changed.map(changedState),
       ],
       ...(inputs.count !== inputs.away && { entry: null, typing: false }),
     };
+  };
   /** @param {object | null} value */
   const handOn = (value) =>
     tabStore.set(

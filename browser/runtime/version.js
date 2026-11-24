@@ -3247,12 +3247,15 @@ export function createVersionController({
     )?.type;
     const currentRevision = runtime.currentRevision;
     // The handoff a departure at this document's entry handed it (prepaint.js), read at
-    // a revision no newer than this one.
+    // a revision no newer than this one. One from a document whose runtime never
+    // started, which no handoff had come to, names no revision: it carries only the
+    // controls the user changed there.
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
-      return currentRevision !== null &&
-        Number.isInteger(value?.revision) &&
-        value.revision <= currentRevision
+      const at = value?.revision;
+      return value &&
+        currentRevision !== null &&
+        (at === undefined || (Number.isInteger(at) && at <= currentRevision))
         ? value
         : null;
     })();

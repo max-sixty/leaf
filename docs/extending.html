@@ -2093,9 +2093,11 @@ packages/callout/
               the entry needs no other Leaf declaration: the body is the author's markup
               unless <code>content</code> says otherwise. Every element takes an
               <code>id</code>, which Leaf adds with its grammar, so the entry says only
-              that this one requires it, and <code>page check</code> refuses an
-              attribute the schema doesn't name; <code>description</code> and
-              <code>example</code> make the merged registry useful to an author.
+              that this one requires it. Leaf also writes the schema's
+              <code>type</code> and <code>additionalProperties</code>, so
+              <code>page check</code> refuses an attribute the entry doesn't name, such
+              as a misspelt one. <code>description</code> and <code>example</code> make
+              the merged registry useful to an author.
             </p>
             <p>
               The <a href="#keys">registry-key reference</a> lists every other fact a

@@ -120,9 +120,10 @@ MODULES = "$modules"
 def complete_declarations(registry: dict) -> dict:
     """Write into a merged vocabulary's element declarations the default each may
     leave unsaid, so every reader reads a complete entry: an element's content is its
-    author's markup (`content`) unless it declares another, and the schema of its
-    attributes (`attributes`) is of an object that holds no attribute the schema
-    doesn't name, unless it gives a `type` or an `additionalProperties` of its own.
+    author's markup (`content`) unless it declares another, and its attribute schema
+    (`attributes`) takes `"type": "object"` and `"additionalProperties": false`, each
+    where the schema doesn't write that keyword. So the schema admits only the
+    attributes it names unless the declaration says otherwise.
 
     It runs before validation, so it completes only an entry of the shape it reads
     and leaves any other for validation to refuse."""

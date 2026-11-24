@@ -450,15 +450,16 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
 def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
     """A declaration names its element's attributes and leaves `type` and
     `additionalProperties` out. The composed vocabulary carries both
-    (`registry.contract.complete_declarations`), so `page check` refuses an attribute
-    the schema doesn't name, such as a misspelt one, in the words it gives where a
-    declaration writes both itself. A schema that gives one of its own keeps it, as
-    one that admits any attribute does."""
+    (`registry.contract.complete_declarations`), each where the declaration doesn't
+    write it, so `page check` refuses an attribute the schema doesn't name, such as a
+    misspelt one, in the words it gives where a declaration writes both itself. A
+    schema that gives one of its own keeps it, as one that admits any attribute does."""
     registry = vocabulary(page_dir)
     named = {"properties": {"tone": {"type": "string"}}}
     written = {"type": "object", **named, "additionalProperties": False}
     for tag, attributes in (
         ("lf-unsaid", named),
+        ("lf-typed", {"type": "object", **named}),
         ("lf-written", written),
         ("lf-open", {**named, "additionalProperties": True}),
     ):
@@ -466,8 +467,9 @@ def test_composition_closes_an_attribute_schema_that_does_not_say(page_dir):
     declare_vocabulary(page_dir, registry)
 
     composed = read_page_registry(page_dir).registry
-    assert composed["lf-unsaid"]["attributes"] == composed["lf-written"]["attributes"]
-    assert list(composed["lf-unsaid"]["attributes"]) == list(written)
+    for tag in ("lf-unsaid", "lf-typed"):
+        assert composed[tag]["attributes"] == composed["lf-written"]["attributes"]
+        assert list(composed[tag]["attributes"]) == list(written)
     assert composed["lf-open"]["attributes"]["additionalProperties"] is True
 
     source = page_dir / "index.html"

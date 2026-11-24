@@ -292,11 +292,13 @@ module adds to a verbatim widget stands inside a box of controls the library bui
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
 page's (`module-plain-elements.md`, "Words it writes").
 
-Composition writes `"type": "object"` and `"additionalProperties": false` into
-`attributes`, so a declaration leaves both out and names only its element's attributes,
-and `page check` refuses an attribute the schema doesn't name, such as a misspelt one.
-A declaration that writes either keeps its own: `"additionalProperties": true` admits
-any attribute.
+A declaration names each of its element's attributes in `properties`, and the schema's
+other keywords, such as `required`, constrain the attributes named there. `page check`
+refuses an attribute `properties` doesn't name, such as a misspelt one. Composition
+writes `"type": "object"` and `"additionalProperties": false` into the schema, so a
+declaration leaves both out, and one that writes either keyword keeps its own. The
+attributes any element takes (`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the
+page's own `data-*`) stand outside the schema unless it names one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

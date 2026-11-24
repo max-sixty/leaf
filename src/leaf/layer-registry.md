@@ -112,10 +112,11 @@ Every composition, `page init`'s layer and a page's own declarations over it, wr
 `$modules`, the module each declared element has among the files it composes
 (`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
 `page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
-declaration says so. It also writes in the defaults a declaration may leave out
-(`registry/contract.complete_declarations`): its `content`, and the `type` and
-`additionalProperties` of its attribute schema. Validation and every reader after it
-read each declaration complete.
+declaration says so. Composition also writes into each declaration the defaults it
+leaves out (`registry/contract.complete_declarations`): its `content`, and the `type`
+and `additionalProperties` of its attribute schema. It writes them before validation,
+so validation and every later reader read the three whether the declaration or
+composition wrote them.
 
 Composition then stamps the facts the browser reads rather than derives
 (`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,

@@ -780,20 +780,17 @@ lf-tabs[data-lf-views] > lf-tab {
      * strip and the panel keep the edges they had. */
     }
 
-    /* A page's parts (lf-parts.js). Where they stand in a `main` that carries no Layout,
-   * the page lays them out (layouts.css, "A page of parts"): the list in a column down
-   * the left and the open part beside it, arranged by its own Layout. The holder draws
-   * no frame; its list stands on the page's ground under the page's title, and marks
-   * the open part as every strip marks its open tab, by the way it runs (above): a
-   * painted face in the column, a rule under the tab in a row. The open part is ruled off
-   * from the column. The list stands fixed under the title (layouts.css), so it stands in
-   * one place whichever part is open and wherever it is read, and scrolls on its own
-   * where it holds more names than the window's height leaves under the title, a height
-   * it holds on purpose (`--lf-holds-height`), as a sticking block does. It reaches the window's
-   * foot, as the open part does (layouts.css), where a narrow window puts the floating
-   * panel's row over the column. On a phone it is
-   * a row sticking over the part, scrolled sideways. Placed anywhere else, as when the corpus
-   * embeds a page of parts, the list is a strip's row over the open part.
+    /* A page's parts (lf-parts.js). Where they stand in the page's `main`, which carries
+   * no Layout since `page check` refuses parts in one (`parts-in-layout`), the page lays
+   * them out (layouts.css, "A page of parts"): the list fixed in a column down the left,
+   * under the title, and the open part beside it, arranged by its own Layout; on a
+   * phone, the list a row sticking over the part. This sheet sets only how the list
+   * looks there. The holder draws no frame; its list stands on the page's ground under
+   * the page's title, and marks the open part as every strip marks its open tab, by the
+   * way it runs (above): a painted face in the column, a rule under the tab in a row.
+   * The open part is ruled off from the column. On a phone the row is a strip's, scrolled
+   * sideways. Placed anywhere else, as when the corpus embeds a page of parts, the list
+   * is a strip's row over the open part.
    *
    * A part is a section of the page, not a box on it: like `main`, it trims its edges
    * and draws nothing, and its Layout sets its padding. Its focus ring is a tab
@@ -817,25 +814,15 @@ lf-tabs[data-lf-views] > lf-tab {
       overflow: clip;
       pointer-events: none;
     }
-    @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
+    @scope (body > main > lf-parts) {
       :scope:is(lf-parts)[data-lf-views]::before {
         content: none;
       }
       :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
-        position: fixed;
-        position-anchor: --lf-parts-title;
-        top: anchor(bottom, var(--lf-top));
-        inline-size: var(--lf-parts-list);
-        box-sizing: border-box;
-        align-self: start;
-        block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
-        min-block-size: 0;
         --lf-tabstrip-flow: column;
         gap: 0;
+        /* Room for a focus ring at the header's foot, where it scrolls (layouts.css). */
         padding: calc(var(--lf-sp-4) - var(--lf-focus-ring-room)) 8px var(--lf-sp-4);
-        overflow-x: hidden;
-        overflow-y: auto;
-        --lf-holds-height: 1;
         border-bottom: 0;
         border-radius: 0;
         --lf-tabstrip-bg: var(--lf-paper);
@@ -847,10 +834,10 @@ lf-tabs[data-lf-views] > lf-tab {
         border-inline-start: 1px solid var(--lf-rule);
       }
       /* On a phone the list is a row that sticks over the open part as the page tabs'
-     * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
-     * reaches another part from anywhere in this one, and what sticks inside the part
-     * stacks under it. Its tabs are names alone, as theirs are, so it stays one line
-     * high over the part. */
+     * strip does (layouts.css), a header of the root (lf-tabs.js, `#declareHeader`), so
+     * the reader reaches another part from anywhere in this one, and what sticks inside
+     * the part stacks under it. Its tabs are names alone, as theirs are, so it stays one
+     * line high over the part. */
       @container lf-shell (width < 640px) {
         :scope:is(lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
           content: "";
@@ -864,18 +851,10 @@ lf-tabs[data-lf-views] > lf-tab {
           --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
         }
         :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
-          position-anchor: normal;
-          position: sticky;
-          --lf-head-inset: 0px;
-          top: var(--lf-top);
-          inline-size: auto;
-          z-index: 2;
           block-size: var(--lf-tabstrip-h);
           --lf-tabstrip-flow: row;
           gap: 2px;
           padding: 8px var(--lf-tabstrip-pad) 0;
-          overflow-x: auto;
-          overflow-y: hidden;
           border-bottom: 1px solid var(--lf-border);
         }
         :scope:is(lf-parts)[data-lf-views]

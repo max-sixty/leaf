@@ -21,6 +21,7 @@ from leaf import event_log as events_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import validation as registry_validation
+from leaf.validation import composition as composition_model
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
@@ -457,6 +458,46 @@ def test_a_position_record_s_container_stands_inside_the_widget(page_dir):
     assert found(
         findings, "record-within", "<lf-board>", verb="move", within="lf-board"
     )
+
+
+@pytest.mark.parametrize(
+    ("within", "containers"),
+    [
+        # A holder the board's structure never reaches: <lf-options> sits only in
+        # a card's markup, if anywhere, so the board's own drops all fail.
+        ("lf-options", ["lf-column"]),
+        # The moved units' tag, which holds no members.
+        ("lf-card", ["lf-column"]),
+    ],
+)
+def test_a_position_container_the_declarations_never_place_is_advice(
+    within, containers
+):
+    """A `within` that no declared membership places inside the widget leaves every
+    drop the widget's own structure offers refused at admission, where nothing tells
+    the agent. Another package could still declare the membership, so the registry
+    advises, naming the containers the declarations do place there."""
+    registry = deepcopy(model_layer())
+    assert composition_model.declaration_advice(registry, registry, "test") == []
+
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = within
+    registry_validation.validate_registry(registry, "test registry")
+    said = composition_model.declaration_advice(
+        {"lf-board": registry["lf-board"]}, registry, "test"
+    )
+    assert [(f.code, f.at, f.severity, f.values) for f in said] == [
+        (
+            "position-container",
+            "<lf-board>",
+            "advice",
+            {
+                "verb": "move",
+                "within": within,
+                "containers": containers,
+                "registry": "test",
+            },
+        )
+    ]
 
 
 def _independent_member_records():

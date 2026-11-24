@@ -217,13 +217,14 @@ the verb whose state is the answer: the recorded value, or a recordless verb's l
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
 `awaits.answered` separately says when the obligation is complete: `{}` once the
 verb has a state, `when` for instances with matching attributes, and `empty` while the
-named container has no members. A page-owned queue can declare:
+container its `when` selects has no members, a container of the tag the verb's position
+record names in `within`. A page-owned queue can declare:
 
 ```json
 {
   "value": "move",
   "answered": {
-    "move": { "empty": { "within": "lf-queue-column", "when": { "queued": [true] } } }
+    "move": { "empty": { "when": { "queued": [true] } } }
   }
 }
 ```

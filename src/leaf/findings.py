@@ -1741,6 +1741,21 @@ _TEXT = {
             " inside the widget, whose children are the units it orders"
         )
     ),
+    "position-container": _declared(
+        lambda v: (
+            f"verb `{v['verb']}` (`verbs`) records positions within <{v['within']}>,"
+            " but no declaration places a container of that tag inside this widget"
+            " with members of its own, so a move has nowhere to land; "
+            + (
+                "name the container its units stand in: "
+                + " or ".join(f"<{tag}>" for tag in v["containers"])
+                if v["containers"]
+                else "declare that container, a tag whose `owners` names this"
+                " widget, give the units `owners` naming it, and name it here"
+            )
+        ),
+        keeps=None,
+    ),
     "body-content": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records its body, so content must be"
@@ -1812,11 +1827,12 @@ _TEXT = {
     "answering-position": _declared(
         lambda v: _answering(v, "tests an empty container but records no position")
     ),
-    "answering-container": _declared(
-        lambda v: _answering(v, f"names unknown container <{v['within']}>")
-    ),
     "answering-members": _declared(
-        lambda v: _answering(v, f"names <{v['within']}>, whose content is not members")
+        lambda v: _answering(
+            v,
+            f"tests whether its container <{v['within']}> is empty, but that"
+            " container's content is not members",
+        )
     ),
     "answering-undeclared": _declared(
         lambda v: _answering(

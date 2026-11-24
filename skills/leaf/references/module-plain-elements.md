@@ -49,8 +49,10 @@ customElements.define(
 );
 ```
 
-Its declaration ([packages.md, "A widget"](packages.md#a-widget)) puts the question on
-On Me and admits the ids its buttons mark:
+Lit's `render` calls an `@event` handler with the node it listens on as `this`, so
+where a handler is a method of the element, pass `{ host: this }` as `render`'s third
+argument. Its declaration ([packages.md, "A widget"](packages.md#a-widget)) puts the
+question on On Me and admits the ids its buttons mark:
 
 ```json
 "lf-verdict": {
@@ -241,15 +243,19 @@ this.dispatchEvent(hold);
 
 ## `LeafElement`
 
-The library's [`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js) holds
-`LeafElement`, a Lit element on this protocol, which the starter that `leaf package
-init --widget` writes extends. It says `lf-connect`, draws `this.state` and its Lit
-properties in `render()`, announces each update with `pending-task`, says `lf-commands`
-after each draw, defines `redraw()`, and wraps the events as `record()`, `takeBack()`
-and `defer()`. Its `setup()` is the build behind its first-connection guard. The
+A widget that draws with Lit extends `LeafElement`, from the library's
+[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js), as the starter that
+`leaf package init --widget` writes does. It is a Lit element on this protocol. Its
+`render()` draws `this.state`, its Lit properties and the page readings it reads
+synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
+changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
+announces each update with `pending-task`, says `lf-commands` after each draw, defines
+`redraw()`, and wraps the events as `record()`, `takeBack()` and `defer()`. Its
+`setup()` is the build behind its first-connection guard. It draws into the element
+itself, so a widget that holds authored children returns from `createRenderRoot()` a
+part it generated beside them, or says `static shadow = true` and slots them. The
 module's header is the class's whole contract.
 
-A widget that draws from a page reading, such as obligations, threads, history or the
-time, extends it: a `render()` that reads one synchronously runs again when the reading
-changes (`module-reading.md`, "Page readings"). Any other widget may extend it or
+Only the class follows a page reading, so a widget that draws from one extends it. A
+widget that imports nothing, or wraps a component written without Leaf, extends
 `HTMLElement`.

@@ -14,7 +14,8 @@ properties, and the element answers with events: one records a gesture, one take
 back, and others say that it is drawing, holding something for the user or failing.
 [module-plain-elements.md](module-plain-elements.md) gives each property, event and
 mark of that protocol. A widget that only records state and reads bound data imports
-nothing.
+nothing, and one that draws with Lit extends `LeafElement`, the Lit element on that
+protocol (`module-plain-elements.md`, "`LeafElement`").
 
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a
@@ -276,7 +277,8 @@ Without either declaration the module keeps its first drawing of a child the rev
 changed. Leaf compares only each direct child's tag and attributes, and a revision
 doesn't redraw a widget it keeps. So a module that draws from what its children hold,
 or can declare neither, reads them again when they change, from a `MutationObserver`
-on its children, as `lf-pane` does. A widget that draws its own content (`content` `data`, `markdown` or `empty`) is
+on the children the author wrote, as `lf-pane` does, and never on the nodes the module
+draws, whose changes would call it again without end. A widget that draws its own content (`content` `data`, `markdown` or `empty`) is
 always replaced.
 
 ## Startup and presentation
@@ -321,8 +323,7 @@ now would move what the user sees, say the work with a `pending-task` event inst
 ### First paint
 
 Each widget renders when its module loads, then updates that same view from Leaf's
-readings. A control that needs JavaScript or saved state waits only for its own
-behavior or reading; native disclosures, links and authored content need no such wait.
+readings.
 
 - Draw a widget's complete view in one place, its `state` setter or its one `render()`.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
@@ -411,10 +412,9 @@ and the size observer that goes with it. The page doesn't count as settled until
 work runs, nor while sizes change, so motion that may run until the user stops it, such
 as playback, calls the browser's `requestAnimationFrame` instead.
 
-Have a size observer's callback schedule a paint from `frameFor` rather than draw: a
-drawing that settles inside a size delivery lets Leaf present the page there, which
-moves boxes the browser has just measured, and the browser reports a ResizeObserver
-loop that `page check` counts as a fault.
+Have a size observer's callback schedule a paint from `frameFor` rather than draw. A
+drawing made inside a size delivery has the browser report a ResizeObserver loop, which
+`page check` counts as a fault.
 
 ### Writes that change nothing
 
@@ -442,11 +442,7 @@ its own state and theme scope. Declare its template in the authored document, fo
 
 The host gives a block's frame its child's height, as the frame's content height, so
 set none yourself; a window's frame keeps the height its styles give it. A resize the
-user did not ask for waits while it would move what they are reading. They asked for
-a child's resizes where they saw the frame as the host mounted it, where `reset()`
-started the child, and once they click, press a key or type in it. Where they saw the
-frame as it mounted, the page's presentation also waits for the child to be ready or
-to fail, or for the user to look away.
+user did not ask for waits while it would move what they are reading.
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are

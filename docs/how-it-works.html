@@ -5893,21 +5893,21 @@ customElements.define(
               >
               <lf-note at="8"
                 >Leaf sets <code>state</code> once the module has defined the element,
-                and again after every change to it, whether this tab, another tab, Undo
-                or a new version made the change. It holds each declared verb’s state by
-                name, and the setter draws the whole of it each time.</lf-note
+                and again each time the state changes, whether this tab, another tab,
+                Undo or a new version of the page changed it. It holds each declared
+                verb’s state by name, here <code>decide</code>, and the setter draws all
+                of it each time.</lf-note
               >
-              <lf-note at="17"
-                ><code>decide.value</code> is the recorded answer, or
-                <code>null</code> before there is one, and
-                <code>aria-pressed</code> marks its button. The page’s theme, the
-                package that gives it its look, draws a plain
+              <lf-note at="13"
+                ><code>decide.value</code> is the answer, or <code>null</code> before
+                there is one, and <code>aria-pressed</code> marks its button. The page’s
+                theme (the package that gives the page its look) draws a plain
                 <code>&lt;button&gt;</code> and its pressed state, and a screen reader
-                announces it. <code>decide.available</code> is false while the user may
-                not press, as when the page has no server to record the action.
+                says which is pressed. <code>decide.available</code> is false while the
+                user may not press, as when the page has no server to record the action.
                 <code>aria-disabled</code> shows that and, unlike <code>disabled</code>,
                 leaves the button in the keyboard’s reach. Leaf records nothing for a
-                press then, so the module needs no check of its own.
+                press while it is false, so the module needs no check of its own.
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-plain-elements.md"
                   >The widget protocol</a
@@ -5929,10 +5929,7 @@ customElements.define(
                 the new <code>state</code> by the time
                 <code>dispatchEvent</code> returns, so the press shows at once. If the
                 server then refuses the action, Leaf sets <code>state</code> back to
-                what the server holds. Undo takes the latest press back, so the answer
-                before it returns. A widget that offers that itself dispatches
-                <code>lf-undo</code> the same way, with
-                <code>{ verb: "decide" }</code> as its <code>detail</code>.</lf-note
+                what the server holds.</lf-note
               >
             </lf-code>
             <h3 id="verdict-stylesheet-heading">Stylesheet</h3>
@@ -5968,8 +5965,11 @@ lf-verdict {
               <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac): Leaf sets
               <code>state</code> again, so neither button is pressed, and pressing
               <strong>Activity changed</strong> in the feed shows the action marked
-              undone. Here the widget stands in a sample, which only demonstrates, so
-              its question stays off On Me.
+              undone. Each Undo takes back the latest press, so an earlier answer stands
+              again. A widget offers the same from a control of its own by dispatching
+              an <code>lf-undo</code> event whose <code>detail</code> is
+              <code>{ verb: "decide" }</code>. Here the widget stands in a sample, which
+              only demonstrates, so its question stays off On Me.
             </p>
             <lf-sample id="verdict-sample" label="Example: ship or hold" interactive>
               <lf-group id="release" label="Ship 4.2 today?">

@@ -65,7 +65,7 @@ export { focusDestination, holdFocus, onUserInput } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
 export { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export { scrollersOf } from "./scroll-containers.js";
-export { inChrome } from "./shadow-tree.js";
+export { inChrome } from "./ui-marks.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";

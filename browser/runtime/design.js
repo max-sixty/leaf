@@ -13,12 +13,13 @@ import {
   aimTargets,
   designPressAt,
 } from "./anchor-resolution.js";
-import { inChrome, leafSurface } from "./passages.js";
+import { leafSurface } from "./passages.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { BACK_OUT, pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 import { saying } from "./keyboard/control-keys.js";
+import { inChrome } from "./ui-marks.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one

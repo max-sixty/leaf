@@ -4,7 +4,7 @@
  * reflow as a transform. */
 import { elementFrame } from "../element-frame.js";
 import { leafSurface } from "../passages.js";
-import { shadowHost, under, upFrom } from "../shadow-tree.js";
+import { shadowHost, under, upFrom } from "../lib/shadow-tree.js";
 import { MAX_DRAWING_FRAME_DEPTH } from "./drawing-record.js";
 
 // These native sources own intrinsic coordinates. A semantic figure, paragraph or

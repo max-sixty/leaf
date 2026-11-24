@@ -51,7 +51,7 @@
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
 import { applicationRegionsPresented, readPart } from "./semantic-state.js";
-import { closestAcross } from "./passages.js";
+import { closestAcross } from "./lib/shadow-tree.js";
 import { askHistory } from "./layer-client.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */

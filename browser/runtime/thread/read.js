@@ -41,7 +41,7 @@ import { sessionIsActive } from "../layer-client.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { renderedParent } from "../shadow-tree.js";
+import { renderedParent } from "../lib/shadow-tree.js";
 
 import { savedReadingSettled } from "../keyboard/bindings.js";
 import {

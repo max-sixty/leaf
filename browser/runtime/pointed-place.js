@@ -33,10 +33,11 @@
    else reads the result off the placement record. A point whose words no longer
    resolve, or that had none, stands at the target's top; a reload keeps none. */
 import { resolveAnchor } from "./anchor-resolution.js";
-import { inChrome, pageReadingVersion } from "./passages.js";
+import { pageReadingVersion } from "./passages.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
-import { isElement, isText, upFrom, under } from "./shadow-tree.js";
+import { isElement, isText, upFrom, under } from "./lib/shadow-tree.js";
+import { inChrome } from "./ui-marks.js";
 
 // A sent comment's point by its thread's key: `{ element, passage, row, readFor }`.
 /** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: number | null}} HeldPoint */

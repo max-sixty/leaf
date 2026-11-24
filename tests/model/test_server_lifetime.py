@@ -438,7 +438,7 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
     Advance maintenance after a log append and then a service withdrawal. Both
     loops must still read the files and act on the next look.
     """
-    from leaf import file_changes, server_rows
+    from leaf import file_changes, rows, server_rows
 
     fixture_service(page_dir, available_loopback_port(), lifetime="persistent")
 
@@ -460,7 +460,7 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
 
     def after_row(seconds):
         assert seconds == presence_model.PRESENCE_CACHE_S
-        record = server_rows.ROW.read(publisher.path)
+        record = rows.ROW.read(publisher.path)
         assert record is not None
         row = record["row"]
         seen.append(row["threads"]["open"])

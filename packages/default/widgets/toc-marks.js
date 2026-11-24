@@ -27,7 +27,8 @@
  * question in a different row from the map's.
  *
  * Each item costs a binary search over the rows, comparing positions in the document. */
-import { elementById, under } from "/runtime/widget-api.js";
+import { elementById } from "/runtime/widget-api.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 
 /** @typedef {{threads: number, onMe: number, changes: number}} SectionMarks */
 /** @typedef {{heading: Element | null, destination: Element}} MarkedSection */

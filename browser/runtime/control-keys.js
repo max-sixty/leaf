@@ -1,6 +1,6 @@
 /* Native activation and direction-aware disclosure keys, read from the control.
    A host may bind the declared keys; computing them needs no page dispatcher. */
-import { inChrome } from "./shadow-tree.js";
+import { inChrome } from "./ui-marks.js";
 
 // What activates a focused button, stated once because it is the platform's fact and not
 // any one row's. Four rows spelled it by hand — the runtime's own control scope, a card

@@ -81,7 +81,6 @@ import {
   el,
   focusDestination,
   LeafElement,
-  PendingTaskEvent,
   onCurrentLocation,
   rove,
   rowWalk,
@@ -89,6 +88,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";

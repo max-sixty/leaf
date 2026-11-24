@@ -33,7 +33,6 @@
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   beginWalk,
-  failSoft,
   focusDestination,
   holdFocus,
   inChrome,
@@ -41,7 +40,6 @@ import {
   listWalkPosition,
   move,
   LeafElement,
-  PendingTaskEvent,
   threadSurface,
   retainUserIntent,
   searchField,
@@ -50,6 +48,8 @@ import {
   whileConnected,
   scrollIntoView,
 } from "/runtime/portable-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";

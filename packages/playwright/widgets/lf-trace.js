@@ -92,7 +92,6 @@ import {
   focusDestination,
   holdFocus,
   LeafElement,
-  PendingTaskEvent,
   move,
   onUserInput,
   signal,
@@ -103,6 +102,7 @@ import {
   showReadingSubject,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";

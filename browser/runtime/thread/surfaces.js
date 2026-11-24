@@ -33,7 +33,7 @@
    owner's region. */
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
-import { reportFailure as reportWidgetFailure } from "../widget-upgrade.js";
+import { reportFailure as reportWidgetFailure } from "../lib/failure.js";
 import { offlineInteractive } from "../context.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";

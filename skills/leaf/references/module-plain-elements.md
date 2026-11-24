@@ -122,11 +122,10 @@ On Me and admits the ids its buttons mark:
 - **Drawing.** The page counts the widget as drawn once its setters return. A setter
   whose drawing finishes later dispatches a bubbling, composed `pending-task` event
   whose `complete` property is a promise of that drawing. A setter that throws is the
-  widget's failure: Leaf reports it as `failSoft` does (`module-authoring.md`,
-  "Upgrade"), stands the box after the element's content, and sets the property again
-  with the next change. Where one change moves the state of several widgets, Leaf sets
-  a widget's before the state of any widget inside it, so a setter that moves a member
-  runs before that member draws.
+  widget's failure: Leaf reports it as an `error` (below), stands an error box after
+  the element's content, and sets the property again with the next change. Where one
+  change moves the state of several widgets, Leaf sets a widget's before the state of
+  any widget inside it, so a setter that moves a member runs before that member draws.
 - **Drawing again unasked.** An element that redraws by itself, as for a timer or a
   value it holds, dispatches the same `pending-task` on itself, and the page waits for
   that drawing too. Leaf promises it no order among the page's other drawing.
@@ -173,10 +172,9 @@ On Me and admits the ids its buttons mark:
   seats threads (`module-annotations.md`, "Widget-local Thread placement") dispatches
   it after any change in the data it shows, whether or not its size changes, and Leaf
   asks it for its outlets again.
-- **`error`.** An element that shows a failure its own way reports it by dispatching a
-  bubbling, composed `ErrorEvent` named `error` on itself, whose `error` property is
-  the failure. Leaf reports it to the agent as a page error naming the widget, which
-  fails `page check`.
+- **`error`.** An element reports a failure by dispatching a bubbling, composed
+  `ErrorEvent` named `error` on itself, whose `error` property is the failure. Leaf
+  reports it to the agent as a page error naming the widget, which fails `page check`.
 - **`lf-error`.** To tell the user that something they did has not taken, such as a
   value the server refused, dispatch an `lf-error` event on the window whose `detail`
   is the words, as `lf-announce` is dispatched (`module-scroll-and-motion.md`,

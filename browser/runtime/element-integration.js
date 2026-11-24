@@ -83,15 +83,14 @@ import {
 import { ElementData } from "./element-data.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { liveStages, watchArrivals, watchOwner } from "./arrivals.js";
+import { CONNECT, layoutChanged } from "./widget-upgrade.js";
+import { PENDING_TASK } from "./lib/pending-task.js";
 import {
-  CONNECT,
-  PENDING_TASK,
-  failSoftUnreported,
   failurePlaced,
-  layoutChanged,
   placesFailure,
   reportFailure,
-} from "./widget-upgrade.js";
+  showFailure,
+} from "./lib/failure.js";
 import { adoptShadowStage } from "./shadow-stage.js";
 import { byRenderedOrder } from "./lib/shadow-tree.js";
 import { tick } from "./version-signal.js";
@@ -166,7 +165,7 @@ function host(element) {
   /** @type {HTMLElement | null} */
   let box = null;
   const claim = () => {
-    ticket ??= region?.present((reason) => failSoftUnreported(element, reason)) ?? null;
+    ticket ??= region?.present((reason) => showFailure(element, reason)) ?? null;
   };
   // A source's accepted reading claims the region, and its delivery draws.
   const data = new ElementData(element, claim);
@@ -188,13 +187,13 @@ function host(element) {
     takeDrawing(event);
     announceDrawing(
       element,
-      /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (event).complete,
+      /** @type {import("./lib/pending-task.js").PendingTaskEvent} */ (event).complete,
     );
     // A draw the element started by itself claims its region, unless a claim already
     // stands open for a pass still to settle. Away, it waits for the return's pass.
     if (!passing && !ticket)
       region
-        ?.present((reason) => failSoftUnreported(element, reason))
+        ?.present((reason) => showFailure(element, reason))
         .resolve(Promise.all([drawingOf(element), ...holdsOn(element)]));
   });
   // One set the element is owed, made whether or not another threw.

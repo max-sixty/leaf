@@ -500,7 +500,11 @@ customElements.define(
     async #commit() {
       if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
-      const text = this.#editor.value;
+      let text = this.#editor.value;
+      // EXPLORATION: save one blank line where the prose shows one gap. The build reads
+      // the runs between blocks from the field's reading, which leaves code alone.
+      if (this.dataset.tryBlanks?.includes("collapse"))
+        text = text.replace(/\n(?:[ \t]*\n){2,}/g, "\n\n");
       if (text === this.#savedText) {
         this.#close(true);
         return;

@@ -1530,17 +1530,15 @@ _TEXT = {
         keeps=None,
     ),
     "data-input": _declared(
-        lambda v: (
-            "its <pre> is the text of its `value` input when the markup binds"
-            " none, so "
-            + {
-                "inputs": "content: data takes at most one `value` input",
-                "words": "content: markdown takes no `value` input, since its <pre>"
-                " is its words",
-                "state": "content: data takes no `value` input with a body record,"
-                " whose <pre> is its state",
-            }[v["reason"]]
-        )
+        lambda v: {
+            "inputs": "its <pre> is the text of its `value` input when the markup"
+            " binds none, so content: data takes at most one `value` input",
+            "words": "content: markdown takes no `value` input, since its <pre> is"
+            " its words",
+            "state": "its <pre> is the text of its `value` input when the markup"
+            " binds none, so content: data takes no `value` input with a body"
+            " record, whose <pre> is its state",
+        }[v["reason"]]
     ),
     "requires": _declared(
         lambda v: f"`{v['key']}` requires {v['needs']}: {_plain(v['value'])}"

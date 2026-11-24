@@ -117,8 +117,9 @@ const unpaintedFiles = (scope) =>
 /** @param {import("../types/contract.js").WidgetDeclaration} entry */
 const wordsAreMarkdown = (entry) => entry.content === "markdown";
 
-// Registry text formatting belongs to the layer, so a package declaration cannot
-// make file-side passages read words the browser leaves as raw Markdown.
+// A Markdown body (`content: markdown`) is the layer's to render, so a package
+// declaration cannot make file-side passages read words the browser leaves as raw
+// Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (

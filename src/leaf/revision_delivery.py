@@ -410,7 +410,7 @@ def mark_declared(
     neither is marked.
 
     A mark is declared by the element's tag, so a selector idiom declares none. An
-    element whose written `<pre>` is Markdown, as `content` or
+    element whose written `<pre>` is Markdown, as `content: markdown` or
     `prepaint` declares, is painted with its rendering, so the page first paints
     the words, at the size, its module will show.
     """

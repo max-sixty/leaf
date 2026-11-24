@@ -776,6 +776,7 @@ block names what a package answers with the browser's own call instead.
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |
 | The address a heading's link names                                                                    | `heading-links.js` `headingAddress`                                                |
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
+| Whether an element's body is one `<pre>` holding text, by its declared `content`                      | `registry.js` `bodyIsData`, `DATA_CONTENT`                                         |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
 | A number that names an object in a key built of strings, the same at every ask                        | `ids.js` `objectIds`                                                               |

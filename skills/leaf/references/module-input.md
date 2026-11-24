@@ -275,11 +275,12 @@ Chromium that makes every focus move restyle the page.
 A widget's own layer, such as a list over its contents, is a native popover or dialog,
 opened and closed with the browser's own methods (`showPopover`, `hidePopover`,
 `showModal`, `close`) or with `popovertarget` in markup. Closing a dialog, or an auto
-popover (`popover="auto"`) opened while no other was showing, returns the user inside it
-to where they stood as it opened, so the widget places no return of its own. Any other
-popover returns nobody, so the widget that closes it puts the user back on its opener
-with `focusDestination(opener, "return")`. A manual popover's Escape is an ordinary
-command row.
+popover (`popover="auto"`) opened while no other was showing, returns the user to where
+they stood as it opened, but only while focus is inside it, and a pointer press in
+Safari or Firefox on macOS leaves the button it pressed unfocused. So a widget that
+closes its own layer from a choice in it, or closes any other popover, puts the user
+back on its opener with `focusDestination(opener, "return")`. A manual popover's Escape
+is an ordinary command row.
 
 A control that opens a popover, such as a menu of choices, names it with
 `popovertarget`, or passes itself as the popover's source, `showPopover({source})`.

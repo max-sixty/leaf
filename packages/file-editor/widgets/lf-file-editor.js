@@ -248,14 +248,18 @@ customElements.define(
         if (of.owed) void refresh(of);
       };
       // The status control naming the conflict, and the menu of its choices. A choice
-      // and Escape put the menu away onto that control, where Leaf put the user as the
-      // menu opened from it, so a save that settles the conflict returns the reader
-      // from it to the editor. A press away from the menu leaves them where they
-      // pressed.
+      // and Escape put the menu away onto that control, so a save that settles the
+      // conflict returns the reader from it to the editor. The browser hands focus
+      // back only from inside the menu, and a pointer press in Safari or Firefox on
+      // macOS leaves the row it pressed unfocused, so the menu puts the user there
+      // itself. A press away from the menu leaves them where they pressed.
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
-      const putChoicesAway = () => choices().hidePopover();
+      const putChoicesAway = () => {
+        choices().hidePopover();
+        focusDestination(conflictControl(), "return");
+      };
       /** @param {() => unknown} run */
       const choose = (run) => () => {
         putChoicesAway();

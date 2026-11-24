@@ -1,5 +1,12 @@
-/* Mechanical placement of an obligation in the current document, and the one rule for which
-   obligations a region of the page holds.
+/* The obligations the page holds or a region of it holds, the mechanical placement of an
+   obligation in the current document, and the one rule for which obligations a region
+   holds.
+
+   The page's reading is the application publisher's. Python folds the page's and thread
+   markup's obligation readings under the page transaction that answers each state read,
+   and the publisher carries them; nothing here folds those declarations again, and
+   placement never changes which obligations exist, whether they await the user, or their
+   identities.
 
    A widget's source owns its answer; the context supplies its prompt. The context is
    the part of the page the author assigned to the question: the innermost named group
@@ -14,36 +21,84 @@
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:
    the user chose to give a to-do on the page no place, over standing it at its first
-   heading, which has nothing to do with it. Placement
-   never changes the semantic inventory or its obligation identities.
+   heading, which has nothing to do with it.
 
-   A region holds an obligation when the obligation's source element is the region or stands under
-   it (`obligationsIn`, or `obligationsByRegion` for many regions at once), shadow trees included. A withdrawn obligation no longer asks anything, and
-   an obligation with no source (a question answered in words, an update's, or a thread
-   source not drawn) stands in no region, so a region counts what its widgets
-   ask. Membership reads the complete
-   inventory, answered obligations included, and each consumer selects what it counts from
-   the members: a tab row and `lf-tally` count every member, how many are answered, and
-   whose turn the open ones are by next actor, so an obligation the user discussed and left
-   with the agent counts as unanswered and on the agent; and a goal's
-   interventions (work.js) are the members whose next actor is the user, since only those
-   stop work on the user.
+   A region holds an obligation when the obligation's source element is the region or
+   stands under it, shadow trees included: `readObligations(region)` reads the page's
+   inventory so, and `obligationsByRegion` a list of the runtime's own. A withdrawn
+   obligation no longer asks anything, and an obligation with no source (a question
+   answered in words, an update's, or a thread source not drawn) stands in no region, so
+   a region counts what its widgets ask. Membership reads the complete inventory,
+   answered obligations included, and each consumer selects what it counts from the
+   members: a tab row and `lf-tally` count every member, how many are answered, and whose
+   turn the open ones are by next actor, so an obligation the user discussed and left
+   with the agent counts as unanswered and on the agent; and a goal's interventions
+   (work.js) are the members whose next actor is the user, since only those stop work on
+   the user.
+   A region's reading also says whether its markup asks the user something (`asks`): it
+   holds a widget declaring `awaits`, in the page or in a message's markup, whatever the
+   inventory says of its obligation. Before the first reading the obligation isn't listed
+   yet, and once withdrawn it stands in no region; a side list's row keeps room for the
+   answer through both.
+   Every obligation and every asking widget of the page's markup is filed under each node
+   above it once for the inventory, the captured widgets and the page's reading
+   (kept.js), so a widget that reads every panel or card of its own pays one climb per
+   obligation for the page, a region's reading costs a lookup, and no region's elements
+   are searched: a panel holding a 96,000-line text document has about 97,000. A
+   message's markup is a document of its own, drawn and moved by Leaf's surfaces and
+   package readers, and nothing versions where it stands (passages.js,
+   `pageReadingVersion`, versions only the page's), so each widget in a message's
+   markup is looked up and climbs on every read: reading every panel of a side list
+   costs the panels times those widgets. Keeping that too would take a version every
+   drawing of a message moves.
    Which obligation holds a node the user is in is the converse question, current location rather
    than membership (`obligationHolding`, current-target.js). It reads every placed
    obligation, and also falls back to an obligation's unique context. */
 import { elementById } from "../passages.js";
 import { readPart } from "../semantic-state.js";
-import { composedParentNode } from "../lib/shadow-tree.js";
-import { readObligations } from "./model.js";
-import { keptEach } from "../kept.js";
+import { composedParentNode, under } from "../lib/shadow-tree.js";
+import { kept, keptEach } from "../kept.js";
+
+/** @typedef {import("../framework/application.js").ObligationRecord} ObligationRecord */
+
+const pageObligations = readPart((root) => root.effective.obligations);
+/** The page's reading less its index, holding what one region holds, and whether the
+ * region's markup asks the user something.
+ * @typedef {Omit<ReturnType<typeof pageObligations>, "byId"> & {asks: boolean}} RegionObligations */
+
+/** @overload @returns {ReturnType<typeof pageObligations>} */
+/** @overload @param {Node} region @returns {RegionObligations} */
+/** The page's obligations, or those `region` holds.
+ * @param {Node} [region] @returns {ReturnType<typeof pageObligations> | RegionObligations} */
+export function readObligations(region) {
+  const page = pageObligations();
+  if (region === undefined) return page;
+  const all = heldBy(region, page.all);
+  return {
+    phase: page.phase,
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.state !== "done"),
+    // Read when asked, so a widget that doesn't ask doesn't draw again as the captured
+    // widgets change.
+    get asks() {
+      return asks(region);
+    },
+  };
+}
 
 const NOWHERE = Object.freeze({ source: null, context: null, node: null });
 
-/** @param {import("../framework/application.js").ObligationRecord | null | undefined} item
- * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
+// The element a widget's obligation answers at, and nothing for any other kind's.
+/** @param {ObligationRecord} item */
+const sourceOf = (item) =>
+  item.source.kind === "widget" ? elementById(item.source.id) : null;
+
+/** @param {ObligationRecord | null | undefined} item
+ * @param {readonly ObligationRecord[]} items */
 export function obligationPlace(item, items = readObligations().all) {
   if (item?.source.kind !== "widget") return NOWHERE;
-  const source = elementById(item.source.id);
+  const source = sourceOf(item);
   const context = elementById(item.prompt.target);
   const sharing = contextsOf(items).get(item.prompt.target);
   const shared = Boolean(
@@ -56,7 +111,7 @@ export function obligationPlace(item, items = readObligations().all) {
 // (kept.js), so placing every obligation of an inventory costs one pass over it rather
 // than one per obligation.
 const contextsOf = keptEach(
-  /** @param {readonly import("../framework/application.js").ObligationRecord[]} items */
+  /** @param {readonly ObligationRecord[]} items */
   (items) => {
     /** @type {Map<string | null, Set<string>>} */
     const held = new Map();
@@ -76,63 +131,94 @@ const contextsOf = keptEach(
 export const subjectPlace = (subject) =>
   subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 
-// The obligations each of `regions` holds, in the order `items` lists them. Each
-// obligation's source climbs once to the top of the page, past each region above it, so
-// a widget that counts for every panel or card makes one pass over the inventory rather
-// than one per region.
-/** @param {readonly Node[]} regions
- * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-export function obligationsByRegion(regions, items = readObligations().all) {
-  /** @type {Map<Node, import("../framework/application.js").ObligationRecord[]>} */
-  const held = new Map(regions.map((region) => [region, []]));
-  for (const item of items) {
-    if (item.outcome === "dropped") continue;
-    const { source } = obligationPlace(item, items);
-    for (let at = /** @type {Node | null} */ (source); at; at = composedParentNode(at))
-      held.get(at)?.push(item);
-  }
-  return held;
+// Whether an obligation still asks anything: a withdrawn one stands in no region.
+/** @param {ObligationRecord} item */
+const live = (item) => item.outcome !== "dropped";
+
+// The obligations each of `regions` holds, in the order `items` lists them, filed in
+// one pass over the list rather than one per region.
+/** @param {readonly Node[]} regions @param {readonly ObligationRecord[]} items */
+export function obligationsByRegion(regions, items) {
+  const filed = filedAbove(items.filter(live), sourceOf);
+  return new Map(regions.map((region) => [region, filed.get(region) ?? []]));
 }
 
-// The obligations `region` holds, in the order `items` lists them.
-/** @param {Element} region
- * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-export const obligationsIn = (region, items = readObligations().all) =>
-  /** @type {import("../framework/application.js").ObligationRecord[]} */ (
-    obligationsByRegion([region], items).get(region)
-  );
+// `items` filed under each node above where each stands (`at`), in their order: each
+// climbs once to the top of the page, shadow trees included.
+/** @template T @param {readonly T[]} items @param {(item: T) => Node | null} at */
+function filedAbove(items, at) {
+  /** @type {Map<Node, T[]>} */
+  const filed = new Map();
+  for (const item of items)
+    for (let node = at(item); node; node = composedParentNode(node)) {
+      const held = filed.get(node);
+      if (held) held.push(item);
+      else filed.set(node, [item]);
+    }
+  return filed;
+}
 
-// The regions among `regions` that hold a widget declaring `awaits`, one whose markup
-// asks the user something, in the page or in a message's markup. A region holds it
-// whatever the inventory says of its obligation: before the first reading the
-// obligation isn't listed yet, and once it is withdrawn the inventory lists it as
-// withdrawn, which `obligationsByRegion` leaves out. A queue's row keeps room for the
-// answer through both. The widgets are the documents' captured ones
-// (widget-descriptors.js), which change with each revision and each message whose
-// markup is captured, and each climbs once from its element, as an obligation's source
-// does in `obligationsByRegion`. So the cost grows with the widgets and not with the
-// elements the regions hold, of which a panel holding a 96,000-line text document has
-// about 97,000.
-const authoredWidgets = readPart((root) => root.document.descriptors);
-const awaitingIds = keptEach(
-  /** @param {ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>} widgets */
-  (widgets) =>
-    [...widgets.values()]
-      .filter(({ declaration }) => declaration.awaits !== undefined)
-      .map(({ id }) => id),
+// The inventory's live widget obligations, those of the page's markup and those of a
+// message's, read once per inventory.
+const placed = keptEach(
+  /** @param {readonly ObligationRecord[]} all */
+  (all) => {
+    const widgets = all.filter((item) => item.source.kind === "widget" && live(item));
+    return {
+      onPage: widgets.filter((item) => item.thread === null),
+      inMessages: widgets.filter((item) => item.thread !== null),
+    };
+  },
 );
-/** @param {readonly Node[]} regions */
-export function regionsAwaiting(regions) {
-  const ids = awaitingIds(authoredWidgets());
-  const wanted = new Set(regions);
-  /** @type {Set<Node>} */
-  const awaiting = new Set();
-  for (const id of ids)
-    for (
-      let at = /** @type {Node | null} */ (elementById(id));
-      at;
-      at = composedParentNode(at)
-    )
-      if (wanted.has(at)) awaiting.add(at);
-  return awaiting;
+// Each region's list is handed to every reader of the region, so it is frozen, as the
+// page's reading is.
+const filedOnPage = keptEach(
+  /** @param {readonly ObligationRecord[]} all */
+  (all) => {
+    const filed = filedAbove(placed(all).onPage, sourceOf);
+    for (const held of filed.values()) Object.freeze(held);
+    return filed;
+  },
+);
+/** @type {readonly ObligationRecord[]} */
+const NONE = [];
+
+// The obligations of `all` that `region` holds, in its order.
+/** @param {Node} region @param {readonly ObligationRecord[]} all */
+function heldBy(region, all) {
+  const onPage = filedOnPage(all).get(region) ?? NONE;
+  const inMessages = placed(all).inMessages.filter((item) =>
+    under(sourceOf(item), region),
+  );
+  if (!inMessages.length) return onPage;
+  const held = new Set([...onPage, ...inMessages]);
+  return all.filter((item) => held.has(item));
 }
+
+// The ids of the captured widgets declaring `awaits`, of the page's markup and of
+// messages' (widget-descriptors.js), which change with each revision and each message
+// whose markup is captured.
+const captured = readPart((root) => root.document.descriptors);
+const asking = keptEach(
+  /** @param {ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>} widgets */
+  (widgets) => {
+    const declaring = [...widgets.values()].filter(
+      ({ declaration }) => declaration.awaits !== undefined,
+    );
+    return {
+      onPage: declaring
+        .filter(({ document }) => document.kind === "page")
+        .map(({ id }) => id),
+      inMessages: declaring
+        .filter(({ document }) => document.kind !== "page")
+        .map(({ id }) => id),
+    };
+  },
+);
+const askingOnPage = kept(() => filedAbove(asking(captured()).onPage, elementById));
+
+// Whether `region`'s markup holds a widget that asks the user something.
+/** @param {Node} region */
+const asks = (region) =>
+  askingOnPage().has(region) ||
+  asking(captured()).inMessages.some((id) => under(elementById(id), region));

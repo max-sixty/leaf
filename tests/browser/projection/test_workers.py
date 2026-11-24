@@ -390,7 +390,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     told(page)
 
     reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).readReports().reports"
     )
     by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
@@ -413,10 +413,10 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
         """async () => {
             const feed = await window.__lfWidgetApi();
             return {
-                widget: feed.reportSequence(document.querySelector('#ag-wren')),
-                thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
+                widget: feed.readReports(document.querySelector('#ag-wren')).reports,
+                thread: feed.readReports({kind: 'thread', id: 'ag-wren'}).reports,
                 bare: (() => {
-                    try { feed.reportSequence('ag-wren'); }
+                    try { feed.readReports('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
                 })(),
             };
@@ -443,7 +443,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     wait_for_revision(page, 2)
 
     reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).readReports().reports"
     )
     by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
@@ -506,7 +506,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
                 return noChange;
               }
               api.clockValue(() => window.__proofClock);
-              window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+              window.__proofReads.push(api.readReports({kind: 'widget', id: owner.id}).reports.map(report => report.text));
               return noChange;
             }
           });
@@ -516,7 +516,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
-            return api.reportSequence(owner).some(report => report.text === 'held report') &&
+            return api.readReports({kind: 'widget', id: owner.id}).reports.some(report => report.text === 'held report') &&
               proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
               !proof.pending.includes('projection:chrome');
           };

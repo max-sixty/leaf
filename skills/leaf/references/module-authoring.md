@@ -260,8 +260,8 @@ nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wa
 the page wait for the work each has started; `page check --render` starts what
 `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, pass the work to the widget controller's
-`present(promise)` instead, so it lands before presentation.
+now would move what the user sees, say the work with a `pending-task` event instead
+("A widget that also runs off Leaf"), so it lands before presentation.
 
 ### First paint
 
@@ -315,7 +315,7 @@ the widget draws nothing after it.
 `render()` reads `this.state` (`module-plain-elements.md`, "`state`"), each property a
 bound source sets, which the class declares as a Lit reactive property
 (`static properties = { value: { attribute: false } }`; `module-state.md`, "Bound data
-and projections"), and page readings such as `readObligations`, `reportSequence` or
+and projections"), and page readings such as `readObligations`, `readReports` or
 `ago`. The element redraws when Leaf sets its `state` or a bound property, and whenever
 a page reading it read synchronously changes; DOM reads and reads after an `await` are
 not tracked. A new `state` is drawn before Leaf's set returns, a parent's before a

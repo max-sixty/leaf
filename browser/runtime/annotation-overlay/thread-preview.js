@@ -619,6 +619,18 @@ export function createThreadPreview({
     session.positionFrame = 0;
     return placeThreadPreview(delivered);
   }
+  // The landing of the placement that stands a card whose size has changed since it
+  // last stood (off-flow.js, `standing`), started here, since the frame that follows
+  // the change has yet to ask for it. Nothing where the card stands at its size, or
+  // where no placement can start, as with its entry gone: the card is then judged as
+  // it stands rather than whenever a later placement lands.
+  const standingThreadPreview = () => {
+    const session = previewSession;
+    if (!session || !placementDriver.resized()) return null;
+    session.positionResult ??= Promise.withResolvers();
+    const { promise } = session.positionResult;
+    return placeNow(session) ? promise : null;
+  };
   // Floating UI follows what moves the card's target: its scroll containers, the window
   // and visual viewport, and the target and card changing size or moving.
   // A card that stays open keeps its spot while its next placement is worked out from
@@ -1548,10 +1560,7 @@ export function createThreadPreview({
       }
     });
     declareOffFlowSurface(preview, {
-      standing: () =>
-        previewSession && placementDriver.resized()
-          ? placedThreadPreview(previewSession)
-          : null,
+      standing: standingThreadPreview,
       bringBack: (behavior) =>
         scrollToElement(
           entryPlace(previewSession?.entry) ?? previewSession?.control ?? null,

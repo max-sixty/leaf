@@ -30,13 +30,14 @@
    "Edit kept", and the message's head says "unsaved edit" until the user opens the
    rewrite again, which finds them, or Resume writing does. Back lands on the message's
    Edit control rather than the reply box, whose caret would raise a phone's keyboard.
-   So an accidental Escape loses nothing for good: Restore discarded edit (`g D`) puts
-   the discarded words back in the rewrite's draft and opens its message on them
-   (drafts.js, `discardDraft`). Escape lands the caret in the reply box, where `g` types
-   a letter, so the press the discard's notice offers, Restore edit, shows once the user
-   leaves the box. The notice answers the user's own gesture with a press, so it stays
-   past its time until the first input after it (notifications.js, `showNotice`), and
-   the Escape that leaves the box within that time shows Restore edit.
+   So an accidental Escape loses nothing for good: ⌘Z, or Restore discarded edit
+   (`g D`), puts the discarded words back in the rewrite's draft and opens its message
+   on them (undo.js, `takeDiscard`). Escape lands the caret in the reply box, up ↑'s
+   rung (below), and the box keeps ⌘Z and `g` for its own words, so both reach the
+   discard once the user leaves the box, and the discard's notice shows ⌘Z's press
+   then. The notice answers the user's own gesture with a press, so it stays past its
+   time until the first input after it (notifications.js, `showNotice`), and the Escape
+   that leaves the box within that time shows the press.
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
    "Typed words survive"): a comment box over the message's body, every line of its words
@@ -414,8 +415,8 @@ export class MessageEditor {
       if (painting) paint();
       if (says) announce(says);
     };
-    // Closing as Escape and Discard do, throwing away what changed, which Restore
-    // discarded edit brings back (`discardDraft`).
+    // Closing as Escape and Discard do, throwing away what changed, which ⌘Z brings
+    // back (undo.js, `keepDiscard`).
     const close = () => {
       if (unchanged()) return leave(true, { says: "Stopped editing" });
       discardDraft(ctx);

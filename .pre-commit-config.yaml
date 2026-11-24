@@ -73,7 +73,7 @@ repos:
       - id: import-linter
         name: import-linter
         language: system
-        entry: uv run lint-imports --config .config/importlinter.ini
+        entry: uv run lint-imports .config/importlinter.ini
         pass_filenames: false
         files: '^(src/leaf/.*\.py|\.config/importlinter\.ini|pyproject\.toml|uv\.lock)$'
       # Whole-graph check; files only wakes it. Install independently of pnpm setup.

@@ -303,10 +303,11 @@ threadOutlets(targets, { onCommit }) {
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
 stays in the margin; a widget that seats only its data returns `null` for itself too.
-After a change that only shows or hides data, as a fold or a filter does, dispatch
-`lf-layout` on the widget (`module-plain-elements.md`, "`lf-layout`"), and Leaf calls
-`threadOutlets` again. A change that also resizes the widget still needs the event:
-after a resize alone, Leaf measures the widget again and does not call `threadOutlets`.
+After a change that only shows or hides data, as a fold or a filter does, dispatch a
+bubbling, composed `lf-layout` event on the widget (`module-plain-elements.md`,
+"`lf-layout`"), and Leaf calls `threadOutlets` again. A change that also resizes the
+widget still needs the event: after a resize alone, Leaf measures the widget again and
+does not call `threadOutlets`.
 
 A thread names its widget by `id`, so a widget that shows threads needs an `id` on
 each instance and should require it in its schema: Leaf reports an instance without

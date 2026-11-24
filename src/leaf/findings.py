@@ -1744,14 +1744,21 @@ _TEXT = {
     "position-container": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records positions within <{v['within']}>,"
-            " but no declaration places a container of that tag inside this widget"
-            " with members of its own, so a move has nowhere to land; "
+            " but no declaration places an element of that tag, holding members of"
+            " its own, inside this widget, so a drop of the widget's own members is"
+            " refused; "
             + (
-                "name the container its units stand in: "
+                f"set `verbs.{v['verb']}.record.within` to "
                 + " or ".join(f"<{tag}>" for tag in v["containers"])
                 if v["containers"]
-                else "declare that container, a tag whose `owners` names this"
-                " widget, give the units `owners` naming it, and name it here"
+                else "declare a container tag of your own whose `owners` names this"
+                " widget, name that tag in place of this widget in the `owners` of "
+                + (
+                    " and ".join(f"<{tag}>" for tag in v["members"])
+                    if v["members"]
+                    else "the elements the verb reorders"
+                )
+                + f", and set `verbs.{v['verb']}.record.within` to it"
             )
         ),
         keeps=None,

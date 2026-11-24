@@ -124,6 +124,26 @@ On Me and admits the ids its buttons mark:
   set Leaf makes meanwhile counts as drawn only once it has, so the element may leave
   that set undrawn until then, and Leaf reads the page again as the gesture ends,
   since the nodes changed outside any drawing it waited for.
+- **`lf-commands`.** An element's keys are its `lfCommands` property
+  (`module-input.md`, "Commands and keyboard routes"). Leaf reads the property each
+  time the element dispatches a bubbling, composed `lf-commands` event on itself, so
+  the element dispatches one after it sets or replaces `lfCommands`, and after anything
+  its rows read changes. The element must stand in the page by then, since nothing
+  hears an event from an element out of it. A `detail` of `{ within: true }` has Leaf
+  read again every scope on the element or inside it, as after a redraw of the nodes
+  their rows read. Leaf reports a declaration it refuses as the element's failure.
+- **`lf-layout`.** An element that rearranges what it holds without changing its own
+  size, as a view swap does, dispatches a bubbling, composed `lf-layout` event on
+  itself. Leaf then reads again whatever it measured or read inside the element, such
+  as where a margin entry stands and which parts are comment targets.
+- **`error`.** An element that shows a failure its own way reports it by dispatching a
+  bubbling, composed `ErrorEvent` named `error` on itself, whose `error` property is
+  the failure. Leaf reports it to the agent as a page error naming the widget, which
+  fails `page check`.
+- **`lf-error`.** To tell the user that something they did has not taken, such as a
+  value the server refused, the element dispatches a bubbling, composed `lf-error`
+  event whose `detail` is the words. The Leaf panel shows them until the user has
+  dealt with them. A failure in the widget itself is an `error`, never an `lf-error`.
 - **`redraw()`.** `page check --render` calls this method on an element that has one,
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** `connectedCallback` runs again each time a revision or a thread puts

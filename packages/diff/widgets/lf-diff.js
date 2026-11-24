@@ -42,7 +42,6 @@ import {
   inChrome,
   nameAction,
   langForPath,
-  layoutChanged,
   listWalkPosition,
   move,
   nextRender,
@@ -52,7 +51,6 @@ import {
   PendingTaskEvent,
   threadSurface,
   releaseOutlets,
-  reportFailure,
   retainUserIntent,
   searchField,
   setChildren,
@@ -60,7 +58,6 @@ import {
   sizeObserver,
   whileConnected,
   scrollIntoView,
-  commandsChanged,
 } from "/runtime/portable-api.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
@@ -461,7 +458,6 @@ function summaryNode(record, open, verified = true) {
       },
     ],
   };
-  commandsChanged(summary);
   paintFileDetails(view, verified ? record : {});
   return view;
 }
@@ -1136,7 +1132,9 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
       whileConnected(this, () => {
@@ -1335,6 +1333,12 @@ customElements.define(
           ]);
           this.markRuns();
           this.stageFiles();
+          // A file row's keys (`summaryNode`) are read once the row stands in the page.
+          for (const entry of entries)
+            if (entry.kind === "text")
+              entry.header.dispatchEvent(
+                new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+              );
           this.markFiles(source);
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools?.search.value ?? "");
@@ -1629,7 +1633,13 @@ customElements.define(
         paintFileDetails(entry, {});
         if (!entry.details.open) entry.details.open = true;
         if (entry.disclosure) entry.disclosure.open = true;
-        reportFailure(this, prepared.error);
+        this.dispatchEvent(
+          new ErrorEvent("error", {
+            error: prepared.error,
+            bubbles: true,
+            composed: true,
+          }),
+        );
         entry.rendered = null;
         entry.renderKey = null;
         fileError(entry, prepared.error);
@@ -1814,7 +1824,9 @@ customElements.define(
       }
       this.markRuns();
       this.refreshDiffTools();
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       threadSurface(this).update();
     }
 
@@ -1860,7 +1872,9 @@ customElements.define(
       keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The files the filter shows: all opened while any is closed, and all closed once

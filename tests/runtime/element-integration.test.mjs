@@ -331,3 +331,45 @@ test("a drawing an element announces by itself holds its region until it is in",
   assert.deepEqual(pending(), []);
   element.remove();
 });
+
+test("an element says its failure with `error` and an error for the user with `lf-error`", async () => {
+  const { errorsReading, dismissErrors } = await import("/runtime/errors.js");
+  const host = document.body.appendChild(document.createElement("section"));
+  const part = host
+    .attachShadow({ mode: "open" })
+    .appendChild(document.createElement("div"));
+  const failures = [];
+  const report = (event) => failures.push(failureOf(event));
+  window.addEventListener("error", report);
+  try {
+    // The failure is the element's the event began at, and its reason the event's
+    // error, or its message where it carries none.
+    const reason = new Error("cannot draw this file");
+    part.dispatchEvent(
+      new ErrorEvent("error", { error: reason, bubbles: true, composed: true }),
+    );
+    host.dispatchEvent(
+      new ErrorEvent("error", { message: "no rows", bubbles: true, composed: true }),
+    );
+    assert.deepEqual(failures, [
+      { element: part, reason },
+      { element: host, reason: "no rows" },
+    ]);
+    dismissErrors();
+    part.dispatchEvent(
+      new CustomEvent("lf-error", {
+        bubbles: true,
+        composed: true,
+        detail: "Wait for the current edit to finish saving",
+      }),
+    );
+    assert.deepEqual(
+      errorsReading().map(({ message, subject }) => [message, subject]),
+      [["Wait for the current edit to finish saving", null]],
+    );
+  } finally {
+    window.removeEventListener("error", report);
+    dismissErrors();
+    host.remove();
+  }
+});

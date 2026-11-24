@@ -78,7 +78,6 @@ import {
   PendingTaskEvent,
   beginWalk,
   bodyText,
-  commandsChanged,
   listWalkPosition,
   whileConnected,
   failSoft,
@@ -505,7 +504,9 @@ customElements.define(
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       if (reading && at) this.#choose(again(at), this.#by);
       else if (at)
         this.dispatchEvent(

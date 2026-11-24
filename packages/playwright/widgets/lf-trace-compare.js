@@ -14,7 +14,6 @@ import {
   el,
   generatedElement,
   keepView,
-  layoutChanged,
   nextRender,
   once,
   offer,
@@ -133,7 +132,9 @@ customElements.define(
         if (member !== this.#selected) recording.pause();
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

@@ -147,7 +147,7 @@ interface Element {
   lfElementsFor?(key: string): Iterable<Element> | null;
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
-   * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
+   * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
    * title, rows and options, or a `commandScope()` value. */
   lfCommands?:
     | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
@@ -257,6 +257,8 @@ interface DocumentEventMap {
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
   /** A hold a widget has on its own nodes through a gesture (`widget-upgrade.js`). */
   "lf-hold": import("../runtime/widget-upgrade.js").HoldEvent;
+  /** A widget's words for something the user did that has not taken (`errors.js`). */
+  "lf-error": CustomEvent<string>;
   /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
    * sets `delivery` on each it sends (`widget-controller.js`). */
   "lf-action": CustomEvent<{
@@ -398,7 +400,9 @@ interface DocumentEventMap {
 }
 
 interface WindowEventMap {
-  "lf-commands": import("../runtime/widget-upgrade.js").CommandsChangedEvent;
+  /** An element's `lfCommands`, or what its rows read, changed (`keyboard/scopes.js`);
+   * `within` says every scope at or under it reads again. */
+  "lf-commands": CustomEvent<{ within?: boolean } | null>;
 }
 interface Element {
   // render() creates its root part with an inserted marker (lit-html render).

@@ -23,7 +23,6 @@ import {
   compoundReadingRegionId,
   generatedElement,
   holdFocus,
-  layoutChanged,
   offer,
   once,
   preserveReadingRegions,
@@ -416,7 +415,9 @@ customElements.define(
       if (painter !== this.painter)
         void preserveReadingRegions(this, () => {
           this.#draw(narrow, painter);
-          layoutChanged(this);
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         });
       else this.#draw(narrow, painter);
     }

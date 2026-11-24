@@ -775,8 +775,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
                   if (change === 'size') target.previousElementSibling.style.height = '224px';
                   else {
                     target.setAttribute('data-offset', '');
-                    const {layoutChanged} = await window.__lfWidgetApi();
-                    await layoutChanged(target);
+                    await target.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
                   }
                 }""",
                 change,

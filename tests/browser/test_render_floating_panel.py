@@ -3012,7 +3012,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     expect(peek).to_be_hidden()
     page.locator("body").click(position={"x": 5, "y": 5})
     page.evaluate(
-        "async text => (await window.__lfWidgetApi()).raiseError(text)",
+        "async text => (await window.__lfCheckApi()).raiseError(text)",
         "Couldn't save the draft",
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
@@ -3280,7 +3280,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     page = floating(browser, url)
     raise_error = """async ([text, onField]) => {
       const subject = onField ? document.querySelector('.lf-fp-field leaf-text') : null;
-      window.latestError = (await window.__lfWidgetApi()).raiseError(text, { subject });
+      window.latestError = (await window.__lfCheckApi()).raiseError(text, { subject });
     }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-field .lf-compose-error")
@@ -3402,7 +3402,7 @@ def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, se
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           window.raisedFrom = () => api.raiseError('That writing place is unavailable');
           window.raisedFrom();
         }"""
@@ -3754,7 +3754,7 @@ def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
     browser fixture fails the test on that restated write (write_watch.js)."""
     page = floating(browser, serve(LONG_PAGE))
     page.evaluate(
-        "async () => (await window.__lfWidgetApi()).raiseError('Link not copied')"
+        "async () => (await window.__lfCheckApi()).raiseError('Link not copied')"
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
     dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
@@ -6349,7 +6349,7 @@ def test_the_field_s_ring_stands_over_what_covers_its_words(browser, serve):
     )
 
     field(page).evaluate(
-        "async (subject) => (await window.__lfWidgetApi())"
+        "async (subject) => (await window.__lfCheckApi())"
         ".raiseError('That writing place is unavailable', {subject})"
     )
     expect(page.locator(".lf-fp-field .lf-compose-error")).to_be_visible()

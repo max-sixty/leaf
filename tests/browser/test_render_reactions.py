@@ -1620,8 +1620,7 @@ diff --git a/value.txt b/value.txt
             picture.setAttribute('viewBox', '0 0 20 20');
             root.append(picture);
           }
-          const { layoutChanged } = await window.__lfWidgetApi();
-          layoutChanged(document.querySelector('#patch'));
+          document.querySelector('#patch').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     controls = page.locator(".lf-visual-action")
@@ -1633,8 +1632,7 @@ diff --git a/value.txt b/value.txt
 
     page.evaluate(
         """async () => {
-          const { layoutChanged } = await window.__lfWidgetApi();
-          layoutChanged(document.querySelector('#patch'));
+          document.querySelector('#patch').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     expect(second).to_be_focused()

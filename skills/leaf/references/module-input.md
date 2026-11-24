@@ -6,31 +6,32 @@ module owes.
 ## Commands and keyboard routes
 
 A widget declares its commands as data on the element they apply in: set the element's
-`lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
+`lfCommands` to the scope and dispatch an `lf-commands` event on the element
+(`module-plain-elements.md`, "`lf-commands`"). The scope holds `title`,
 the heading the command reference lists it under, and `rows` ("Command rows"). It may
 also hold `when`, whether the page has the scope at all, which gates the reference as a
 row's own `when` gates its press; `ready` (`module-authoring.md`, "Startup and
 presentation"); `claims` ("How scopes compose"); and `escape: "inner"`, for a scope
 whose own Escape step comes before every step outside it.
 
-Leaf reads the declaration when `commandsChanged` runs, binds its keys, lists them in
+Leaf reads the declaration when it hears the event, binds its keys, lists them in
 the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
 widget that also runs off Leaf") binds no key. Declare at upgrade, once the element
-exists; it may still be out of the page.
+stands in the page.
 
-Assigning a new object to `lfCommands` and calling `commandsChanged` replaces the
-scope, and Leaf checks the new rows then: `commandsChanged` throws where one is
-malformed. `null` withdraws the scope. Calling `commandsChanged` with the same object
-only has Leaf read its rows' titles and availability again, so a row or title edited in
-place goes unchecked; assign a new object to change them.
+Assigning a new object to `lfCommands` and dispatching the event replaces the
+scope, and Leaf checks the new rows then, reporting a malformed one as the element's
+failure. `null` withdraws the scope. Dispatching the event with the same object
+standing only has Leaf read its rows' titles and availability again, so a row or title
+edited in place goes unchecked; assign a new object to change them.
 
 ```javascript
 this.lfCommands = {
   title: "On a code block",
   rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
 };
-commandsChanged(this);
+this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 ```
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
@@ -53,7 +54,9 @@ const actions = commandScope("In a classifier", [
   },
 ]);
 classifier.lfCommands = actions;
-commandsChanged(classifier);
+classifier.dispatchEvent(
+  new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+);
 ```
 
 In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
@@ -109,9 +112,8 @@ keeps them where reopening finds them and shows that the widget holds them.
 Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
 such as the threads, and, for the scopes a `LeafElement` drew or declared on itself,
 after each of its draws, so their rows may read `this.state`. For any other state a row
-reads, hold the value in a `signal` or call `commandsChanged(element)` after changing
-it; `commandsChanged(element, {within: true})` has every scope on the element or inside
-it read again, as after a redraw of the nodes their rows read.
+reads, hold the value in a `signal` or dispatch `lf-commands` on the element after
+changing it.
 
 ### How scopes compose
 

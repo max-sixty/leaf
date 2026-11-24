@@ -400,8 +400,9 @@ what is shown. Apply each add, remove, reorder or edit to that state once, and d
 candidates, with their rows, counts and measurements, from it, so they can't disagree;
 for the same reason a canvas or SVG instrument converts pointer input to model
 coordinates once, and gives the same edits a keyboard route. Give each item a stable
-element id, so the user can point at it in Design mode. Call `layoutChanged` after a
-gesture changes geometry.
+element id, so the user can point at it in Design mode. Dispatch `lf-layout`
+(`references/module-plain-elements.md`, "`lf-layout`") after a gesture changes
+geometry.
 
 Before handoff, exercise the user's comparison and submission journey through the states
 that change its result. Check that the preview and measurements reflect the chosen

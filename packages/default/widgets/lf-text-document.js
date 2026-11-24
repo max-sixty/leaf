@@ -42,7 +42,6 @@ import {
   offerAction,
   loadMarkdown,
   renderMarkdown,
-  reportFailure,
   sizeObserver,
   nextFrame,
   MAX_EDIT_LENGTH,
@@ -1039,7 +1038,10 @@ class TextDocument extends LeafElement {
         this.colours?.clear();
         this.colours = language
           ? new RunColours(language, (error) => {
-              if (this.isConnected) reportFailure(this, error);
+              if (this.isConnected)
+                this.dispatchEvent(
+                  new ErrorEvent("error", { error, bubbles: true, composed: true }),
+                );
             })
           : null;
       }

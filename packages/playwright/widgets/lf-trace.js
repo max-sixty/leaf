@@ -109,7 +109,6 @@ import {
   showReadingSubject,
   sizeObserver,
   whileConnected,
-  commandsChanged,
   actionClass,
 } from "/runtime/widget-api.js";
 import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
@@ -665,7 +664,9 @@ export class Trace extends LeafElement {
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
     whileConnected(this, (signal) => {
       document.addEventListener("visibilitychange", this.#visibility, { signal });
@@ -743,7 +744,10 @@ export class Trace extends LeafElement {
         if (this.#playing) this.pause();
       },
       // Zoom availability follows the window a gesture left.
-      onZoom: () => commandsChanged(this),
+      onZoom: () =>
+        this.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        ),
     });
     this.addEventListener("lf-inspect", (event) => this.#inspect(event));
     this.#visualParts = registerVisualParts(this, () => this.#inventory, {
@@ -772,7 +776,9 @@ export class Trace extends LeafElement {
           },
         ],
       };
-      commandsChanged(this.#nodes.timelineHost);
+      this.#nodes.timelineHost.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
   }
 
@@ -1730,6 +1736,11 @@ export class Trace extends LeafElement {
       figure,
       ...this.#overlays(),
     ]);
+    // The canvas's keys are read once it stands in the page.
+    if (canvas.lfCommands)
+      canvas.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     if (!canvas.clientWidth) {
       keeps(this.#nodes.imageHost, "aria-busy", null);
       return;
@@ -2079,7 +2090,9 @@ export class Trace extends LeafElement {
   #zoom(change) {
     this.pause();
     change();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   // The playhead and its readout, without redrawing evidence. Playback changes
@@ -2421,7 +2434,9 @@ export class Trace extends LeafElement {
                     options.querySelector("button");
                   if (selected) focusDestination(selected, "move");
                 }
-                commandsChanged(this);
+                this.dispatchEvent(
+                  new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+                );
               }}
             >
               ${[
@@ -2608,7 +2623,6 @@ export class Trace extends LeafElement {
               },
             ],
           };
-          commandsChanged(canvas);
         }
         canvas.addEventListener("pointerdown", () => focusDestination(canvas, "press"));
         canvas.append(img, status);
@@ -2717,7 +2731,9 @@ export class Trace extends LeafElement {
     this.#marked = marked;
     this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
     this.#parts.update();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 }
 customElements.define("lf-trace", Trace);

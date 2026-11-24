@@ -452,7 +452,6 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'changing-command-scope';
           control.textContent = 'Changing command scope';
@@ -476,8 +475,8 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
               run: () => { control.dataset.ran = 'second'; },
             },
           ] };
-          commandsChanged(control);
-          commandsChanged(document.body);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+          document.body.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           control.focus();
         }"""
     )

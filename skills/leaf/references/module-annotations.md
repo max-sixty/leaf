@@ -97,8 +97,8 @@ light DOM that carries `data-lf-part="<id>"` is the part of that id, named by it
 visual's. Each id marks one node, each marked node needs a name, and the `visual`
 declaration admits the id. A mark inside a shadow root is not read. Leaf reads the marks
 again each time it sets a plain element's properties (`module-plain-elements.md`); a
-visual that redraws its marks at another time calls `layoutChanged(element)`
-(`module-controls.md`). Register instead where the visual needs `reveal`, `label`,
+visual that redraws its marks at another time dispatches `lf-layout` on itself
+(`module-plain-elements.md`, "`lf-layout`"). Register instead where the visual needs `reveal`, `label`,
 `find`, `at` or `focus`.
 
 The user picks a part as they pick any element that isn't words, with Alt-click or in

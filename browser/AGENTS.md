@@ -904,7 +904,7 @@ Use a boolean only when false has one clear meaning; otherwise declare named val
 Add a fact only where some part of Leaf, such as the server, `page check` or the first
 paint, must act on it without running the widget's module, and the module can't keep
 the same rule itself. A rule about one widget's markup that its module can check as it
-draws stays in the module, which reports a breach with `reportFailure`, even where
+draws stays in the module, which reports a breach with an `error` event, even where
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the
 thread. Keep a rule static where a breach would otherwise reach the log or a stored

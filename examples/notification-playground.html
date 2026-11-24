@@ -212,7 +212,6 @@
     <script type="module">
       import {
         generatedElement,
-        layoutChanged,
         once,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
@@ -363,7 +362,9 @@
             }
             keepsText(this.#banner.metric, `${values.events} cards · full detail`);
             keepsText(this.#strip.metric, `${values.events} rows · compact summary`);
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           }
         },
       );

@@ -82,7 +82,6 @@ import {
   TEXT_FIELD,
   quoted,
   sendDraft,
-  raiseError,
   saveDraft,
   loadDraft,
   clearDraft,
@@ -99,7 +98,6 @@ import {
   scrollIntoView,
   onPressAway,
   worksInside,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // Each control's key and the action whose mark it shows.
@@ -352,7 +350,9 @@ customElements.define(
         },
       ]);
       this.lfCommands = this.#commandScope;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} key @returns {HTMLButtonElement | null} */
@@ -384,7 +384,9 @@ customElements.define(
           )}`,
         this.#tools,
       );
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #available() {
@@ -412,7 +414,13 @@ customElements.define(
       this.#returnMotion = null;
       if (this.#editor) return;
       if (this.#sending) {
-        raiseError("Wait for the current edit to finish saving");
+        this.dispatchEvent(
+          new CustomEvent("lf-error", {
+            bubbles: true,
+            composed: true,
+            detail: "Wait for the current edit to finish saving",
+          }),
+        );
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.defer();
@@ -437,8 +445,10 @@ customElements.define(
       // behind it and closing a panel too.
       this.#editor = editor;
       editor.lfCommands = this.#commandScope;
-      commandsChanged(editor);
       this.#body.after(editor);
+      editor.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       // Its toolbar stands inside the draft, so Discard and Copy are no press away.
       this.#stopPressAway = onPressAway(
         (/** @type {EventTarget[]} */ path) => !path.includes(this),

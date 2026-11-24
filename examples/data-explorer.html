@@ -101,7 +101,6 @@
     <script type="module">
       import {
         generatedElement,
-        layoutChanged,
         offer,
         offerAction,
         once,
@@ -388,7 +387,9 @@
               this.#count,
               `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           }
         },
       );

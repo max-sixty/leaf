@@ -897,10 +897,9 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           document.body.lfCommands = { title: 'On a draft', rows: [{ id: 'test.project-widget', keys: ['F2'],
                   title: 'a project widget using the same heading' }] };
-          commandsChanged(document.body);
+          document.body.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     page.keyboard.press("?")

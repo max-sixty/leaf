@@ -21,7 +21,6 @@
 import { nothing } from "/vendor/lit.js";
 import {
   commandScope,
-  commandsChanged,
   LeafElement,
   contributionEntry,
   failSoft,
@@ -346,7 +345,9 @@ customElements.define(
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
       });
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #ensureCommands() {
@@ -374,7 +375,9 @@ customElements.define(
         })),
       );
       this.lfCommands = this.#commandScope;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // What the change is about, for the button's label and failure receipt: the

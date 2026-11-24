@@ -164,7 +164,6 @@
       import {
         frameFor,
         generatedElement,
-        layoutChanged,
         offer,
         offerAction,
         once,
@@ -296,7 +295,9 @@
                 `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
               );
             }
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           });
         },
       );

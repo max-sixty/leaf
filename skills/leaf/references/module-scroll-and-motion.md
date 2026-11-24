@@ -286,9 +286,8 @@ them in its live region, and a page without Leaf leaves them unsaid. Words that 
 the page, as ones naming keys with `saying(rows)` do, are a function returning the
 words, which Leaf reads as it says them.
 
-`raiseError(message)` tells the user a gesture failed, such as a value the server
-refused, and the Leaf panel shows it until they have dealt with it. Its handle's
-`clear()` takes the error down once it no longer holds. Use it for failures only.
+An `lf-error` event tells the user that something they did has not taken, such as a
+value the server refused (`module-plain-elements.md`, "`lf-error`").
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and

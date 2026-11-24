@@ -24,13 +24,10 @@ export {
   LAYOUT,
   PendingTaskEvent,
   bodyText,
-  commandsChanged,
   failSoft,
-  layoutChanged,
   once,
   placesFailure,
   PREVIEW_ENDED,
-  reportFailure,
 } from "./widget-upgrade.js";
 export { measure } from "./shown-box.js";
 export { registerVisualParts } from "./visual-parts.js";

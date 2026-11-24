@@ -125,7 +125,6 @@ export {
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";
-export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";

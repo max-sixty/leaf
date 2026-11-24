@@ -31,6 +31,7 @@ from render_harness import (
     write,
 )
 
+from browser.startup.test_readiness import answer_as_another_runtime
 from browser.test_render_drawing import draw_over
 from browser.threads import choose_threads_in_panel
 from leaf.render_checks import wait_until_ready
@@ -537,6 +538,70 @@ def test_back_during_a_revisions_arrival_ends_it(request, serve, engine, when):
         for route in module:
             route.continue_()
         release(page, held)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_back_before_leaf_starts_leaves_the_reload_s_place_to_its_entry(
+    request, serve, engine
+):
+    """A reload Leaf asks for, as a server restarted under another Leaf causes, hands
+    its document the place the user left: the reply they were writing. Back taken
+    before Leaf starts lands on another entry, whose record says where the user is
+    there, so the handoff's place stays with the entry it was written on, where Forward
+    returns to the reply. The words typed into the page's own form are the document's,
+    as they stay through a Back within one document, so they come back wherever the
+    document arrives."""
+    source = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>',
+        '<h1 id="t">Long</h1><p><input id="who" autocomplete="off"></p>',
+    )
+    url = live_url(serve(source))
+    first = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p10", "quote": "Paragraph 10."}
+    )
+    second = panel_comment(
+        serve.page_dir, "And here?", {"section": "p40", "quote": "Paragraph 40."}
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", second)
+    reply = card.locator(".lf-thread-reply leaf-text")
+    write(reply, "Hold")
+    page.wait_for_function("navigation.transition === null")
+    module = []
+    page.route("**/leaf.js", lambda route: module.append(route))
+    answer_as_another_runtime(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+        holding(page, module, 1, "the arriving document's entry module")
+        page.evaluate("history.back()")
+        page.wait_for_function(
+            f"new URL(location.href).searchParams.get('thread') === '{first}'"
+        )
+    finally:
+        page.unroute("**/leaf.js")
+        for route in module:
+            route.continue_()
+    wait_until_ready(page)
+    page.unroute("**/api/**")
+    page.unroute("**/registry.json")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    expect(card).to_be_focused()
+    expect(page.locator("#who")).to_have_value("Ada")
+    page.wait_for_function("navigation.transition === null")
+    page.go_forward()
+    expect(card).to_have_attribute("data-lf-thread", second)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Hold")
 
 
 def new_url_thread(page):

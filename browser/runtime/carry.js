@@ -210,8 +210,7 @@ function keyedFocus(owner, { part, partName }) {
   return (
     [owner, owner.shadowRoot]
       .flatMap((tree) => [...(tree?.querySelectorAll(keyed) ?? [])])
-      .find((node) => node.localName === partName && partOwner(node) === owner) ??
-    null
+      .find((node) => node.localName === partName && partOwner(node) === owner) ?? null
   );
 }
 
@@ -252,6 +251,20 @@ export function captureCarry(root, authored) {
   }
   return { records, held };
 }
+
+// What records carry of the document itself, values, checked state and disclosures,
+// which a Back within one document keeps too, without where the user was in it, focus,
+// caret and scroll offsets, which belong to the entry the records were read on
+// (version.js, `installArrival`).
+/** @param {readonly CarryRecord[] | null | undefined} records @returns {CarryRecord[]} */
+export const documentState = (records) =>
+  (records ?? []).map(({ id, name, open, value, checked }) => ({
+    id,
+    name,
+    ...(open !== undefined && { open }),
+    ...(value !== undefined && { value }),
+    ...(checked !== undefined && { checked }),
+  }));
 
 // Restore authored values, disclosures, focus and caret in the replacement turn, so
 // typing continues while renderers settle. Generated controls become visible after

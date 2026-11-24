@@ -62,12 +62,15 @@
  * and the pointer. The document that reload loads consumes it, at that revision or a
  * newer one, once its arrival has put back what it carries; one that goes before then,
  * as by a second reload Leaf asks for, leaves it to the next, with the keys held for it
- * (`installArrival`). Since it describes the moment the document went, a reload that
- * ends the document later, as after the user stays at a page's own leave prompt, hands
- * over the place they then left; any other reload or history travel finds none. Until
- * the arriving document has returned the user to the entry, printed keys wait
- * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back, as
- * text in the reply box they were writing in. Waiting keys are no input
+ * (`installArrival`). Where the user was belongs to the entry they left, so an arrival
+ * at another, as after Back taken before Leaf starts, takes from the handoff only what
+ * it carries of the document: the values, disclosures, comparison and pointer, which a
+ * Back within one document keeps too. Since it describes the moment the document went,
+ * a reload that ends the document later, as after the user stays at a page's own leave
+ * prompt, hands over the place they then left; any other reload or history travel
+ * finds none. Until the arriving document has returned the user to the entry, printed
+ * keys wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put
+ * back, as text in the reply box they were writing in. Waiting keys are no input
  * (document-inputs.js, `holdKeys`), so they don't end the return; any other input
  * does, and drops them. An in-place patch is no navigation, so it restores the page's
  * place, the margin's and the panel's thread location, focus, and the selected
@@ -112,7 +115,7 @@ import {
 } from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
-import { captureCarry, restoreCarry } from "./carry.js";
+import { captureCarry, documentState, restoreCarry } from "./carry.js";
 import {
   captureDraftEditing,
   draftEditingDestination,
@@ -2476,6 +2479,8 @@ export function createVersionController({
       // document's key hold then takes even a Space as text for it (bootstrap.js,
       // `typingBack`).
       typing: typesText(focused()),
+      // The entry the user left, where the handoff's place belongs (`installArrival`).
+      entry: window.navigation?.currentEntry?.key ?? null,
       revision,
       url,
     });
@@ -3289,10 +3294,25 @@ export function createVersionController({
     });
     // The handoff is part of the document's arrival (history.js, `beginArrival`), whose
     // one intent its every step runs under, the early focus of an authored control among
-    // them, so that focus doesn't end the record's return.
+    // them, so that focus doesn't end the record's return. Its place, the reading
+    // regions, focus, caret and the reply being written, belongs to the entry it was
+    // written on (`handOff`), so an arrival at another, as after Back taken before Leaf
+    // started, leaves where the user is to that entry's record. What it carries of the
+    // document, the values typed into the page's form, its disclosures and the
+    // comparison shown, comes back wherever the document arrives, as a Back within one
+    // document keeps it.
     const currentIntent = arrival.intent;
+    const placed =
+      handoff && handoff.entry === window.navigation?.currentEntry?.key
+        ? handoff
+        : null;
     const restoreCarryScroll =
-      handoff && restoreCarry(handoff.carry, new Map(), currentIntent.handoff);
+      handoff &&
+      restoreCarry(
+        placed ? handoff.carry : documentState(handoff.carry),
+        new Map(),
+        currentIntent.handoff,
+      );
     // The arrival in order, returning to the entry's record where it calls for it
     // (`returnToRecord`, history.js `arrive`).
     /** @param {() => Promise<void>} returnToRecord */
@@ -3301,17 +3321,19 @@ export function createVersionController({
         if (!currentIntent()) return;
         if (handoff) {
           restorePointer(handoff.pointer);
-          restoreView(handoff.view, currentIntent);
-          restoreCarryScroll();
-          // A reply being written keeps its session open across the record's return, so
-          // the record's claim opens its thread where the session stands, a resolved
-          // thread's card included; the words being written go back after that return,
-          // into the box it put the user in, as the reply of whichever view of the
-          // thread the claim opened.
-          await keepReplySession(handoff, async () => {
-            await returnToRecord();
-            await restoreEditingContinuity(handoff, currentIntent);
-          });
+          if (placed) {
+            restoreView(placed.view, currentIntent);
+            restoreCarryScroll();
+            // A reply being written keeps its session open across the record's return, so
+            // the record's claim opens its thread where the session stands, a resolved
+            // thread's card included; the words being written go back after that return,
+            // into the box it put the user in, as the reply of whichever view of the
+            // thread the claim opened.
+            await keepReplySession(placed, async () => {
+              await returnToRecord();
+              await restoreEditingContinuity(placed, currentIntent);
+            });
+          } else await returnToRecord();
           if (handoff.comparison && currentIntent()) showComparison(handoff.comparison);
           return;
         }

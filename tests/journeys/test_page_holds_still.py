@@ -759,6 +759,7 @@ DIAL_READING = """() => {
   return range;
 }"""
 
+
 def put_dial_widget(page, built):
     """Read the fourth line of the diff after the impact's gist, which began 110px
     down the window."""

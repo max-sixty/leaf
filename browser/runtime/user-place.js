@@ -310,7 +310,7 @@ export function holdPlaceOf(node) {
 // widget drew in its own tree, of what stands for them in `column`'s tree, the widget.
 /** @param {Element} column
  * @param {(node: Element) => Element | null | undefined} [standIn] */
-export function holdPlace(column, standIn = () => null) {
+export function holdPlace(column, standIn) {
   const reading = readingAt(column);
   const holder = reading && holderOf(reading);
   if (!reading || !holder) return () => false;
@@ -329,7 +329,7 @@ export function holdPlace(column, standIn = () => null) {
     // The outermost box the change hid, where it hid one, and the nearest it left.
     const hid = around[left - 1];
     const stays = around[left];
-    const named = standIn(asked);
+    const named = standIn?.(asked);
     if (named?.isConnected)
       return returnPlace(named, hid && hid.top >= shown ? hid.top : read);
     return stays && stays.top >= shown ? returnPlace(stays.box, stays.top) : false;

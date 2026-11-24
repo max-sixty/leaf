@@ -9,10 +9,12 @@ export. `tests/fixtures/packages/controls` holds two components with no code wri
 for Leaf, each recorded because a declaration's `record` names the property that
 holds its value: Web Awesome's select, which the page writes inside the `lf-select`
 that keeps its value, and `lf-level`, a range that announces every change of its
-value, a script's set included.
+value, a script's set included. The starter `leaf package init --widget` writes is
+such an element too, tested here as the command writes it.
 """
 
 import pytest
+from click.testing import CliRunner
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -33,6 +35,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log
 from leaf.schema import PLUGIN_ROOT
@@ -222,6 +225,53 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
         send(page, "hires", "lf-undo", {"verb": "pick", "unit": "grace"})
     expect(grace).to_have_attribute("aria-pressed", "false")
     expect(ada).to_have_attribute("aria-pressed", "true")
+
+
+def test_the_starter_package_init_writes_draws_and_records(browser, serve, tmp_path):
+    """The widget `package init --widget` writes works as written: it draws its two
+    choices, a press shows as chosen and reaches the log, Undo takes it back, and a
+    quoted copy draws its choices disabled and records nothing."""
+    package = tmp_path / "starter"
+    made = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(package), "--widget", "lf-thing"]
+    )
+    assert made.exit_code == 0, made.output
+    markup = (
+        '<h1 id="title">Starter</h1><lf-thing id="thing"></lf-thing>'
+        '<lf-sample id="quoted" label="A quoted starter">'
+        '<lf-thing id="quoted-thing"></lf-thing></lf-sample>'
+    )
+    url = live_url(serve(leaf_page("Starter", markup), packages=(package,)))
+    page = open_page(browser, url)
+    yes, no = (
+        page.locator("#thing").get_by_role("button", name=name)
+        for name in ("Yes", "No")
+    )
+    expect(yes).to_have_attribute("aria-pressed", "false")
+    expect(no).to_have_attribute("aria-pressed", "false")
+
+    def chosen():
+        return [
+            (event["widget"], event["action"], event["detail"])
+            for event in event_log.read_events(serve.page_dir)
+            if event["kind"] == "action"
+        ]
+
+    with sending(page, "the choice"):
+        yes.click()
+    expect(yes).to_have_attribute("aria-pressed", "true")
+    assert chosen() == [("thing", "choose", {"value": "yes"})]
+
+    undo(page)
+    expect(yes).to_have_attribute("aria-pressed", "false")
+
+    quoted = page.locator("#quoted-thing").get_by_role("button", name="Yes")
+    expect(quoted).to_have_attribute("aria-disabled", "true")
+    # Playwright presses no disabled control, so the click is forced onto it.
+    quoted.click(force=True)
+    round_trip(page)
+    expect(quoted).to_have_attribute("aria-pressed", "false")
+    assert len(chosen()) == 1
 
 
 def test_a_plain_element_in_an_agent_s_reply_draws_and_records(browser, serve):

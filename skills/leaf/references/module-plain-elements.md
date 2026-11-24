@@ -50,8 +50,10 @@ customElements.define(
 
 Lit's `render` calls an `@event` handler with the node it listens on as `this`, so
 where a handler is a method of the element, pass `{ host: this }` as `render`'s third
-argument. Its declaration ([packages.md, "A widget"](packages.md#a-widget)) puts the
-question on On Me and admits the ids its buttons mark:
+argument. The starter `leaf package init --widget` writes
+([packages.md, "Package reach"](packages.md#package-reach)) is a smaller widget of
+this kind. This one's declaration ([packages.md, "A widget"](packages.md#a-widget))
+puts the question on On Me and admits the ids its buttons mark:
 
 ```json
 "lf-verdict": {
@@ -244,8 +246,7 @@ this.dispatchEvent(hold);
 
 A widget that draws with Lit usually extends `LeafElement`, the Lit element on this
 protocol in the library's
-[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js), as the starter that
-`leaf package init --widget` writes does. Its `render()` draws `this.state`, its Lit properties and the page readings it reads
+[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js). Its `render()` draws `this.state`, its Lit properties and the page readings it reads
 synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
 changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
 announces each update with `pending-task`, says `lf-commands` after each draw, defines

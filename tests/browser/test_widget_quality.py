@@ -5,6 +5,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import add_test_widget
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors
@@ -16,14 +17,23 @@ from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
 from leaf.revision_delivery import json_script
 
 
+def test_the_starter_widget_leaves_the_render_check_nothing_to_advise(
+    tmp_path, browser
+):
+    """What `package init --widget` writes is right as written: the render check
+    draws the starter's example and finds nothing to advise."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(package), "--widget", "lf-one"]
+    )
+    assert made.exit_code == 0, made.output
+    assert widget_findings(browser.unwatched, package) == []
+
+
 def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     """A settled example whose asynchronous drawing rejected was not drawn."""
     package = tmp_path / "package"
-    made = CliRunner().invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-async-panel"],
-    )
-    assert made.exit_code == 0, made.output
+    add_test_widget(package, "lf-async-panel", upgrade=True)
     (package / "widgets/lf-async-panel.js").write_text("""\
 import { html } from "/vendor/lit.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";

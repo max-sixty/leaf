@@ -109,40 +109,83 @@ def rollback_package_files(created: list) -> None:
             pass
 
 
+# The starter `package init --widget` writes is one working widget, a yes-or-no choice,
+# in the three parts a widget with behavior has: its declaration, its module and its
+# style rule. It holds the widget protocol's one round trip and nothing else: Leaf sets
+# `state`, the module draws it, and a press records an action. An author reads all of
+# it and changes it into the widget they need, so each key of the declaration is one
+# this widget uses, and `package check --render` finds nothing to advise in it. It is
+# a plain custom element, as the protocol reference's opening example is
+# (module-plain-elements.md). A `LeafElement` subclass would be shorter, but only by
+# putting the event the starter is there to show behind `record()`.
+
+
 def starter_element_declaration(tag: str) -> dict:
-    """One useful upgraded markup block, ready for a package author to specialize."""
-    name = tag.removeprefix("lf-")
-    label = name.replace("-", " ")
+    """The starter's declaration: a `choose` verb recorded as the `choice` attribute,
+    on an element that holds no authored content."""
     return {
-        "description": f"A dedicated block for {label} content. Use it to keep one technical "
-        "point with its supporting evidence or rationale. Give the block a stable "
-        "id.",
+        "description": "A yes-or-no choice the user makes with a press.",
         "attributes": {
             "type": "object",
-            "properties": {},
+            "properties": {"choice": {"type": "string", "enum": ["yes", "no"]}},
             "required": ["id"],
             "additionalProperties": False,
         },
-        "verbatim": True,
-        "example": f'<{tag} id="{name}"><p>The retry budget is three attempts '
-        f"before manual review.</p></{tag}>",
+        "content": "empty",
+        "verbs": {
+            "choose": {"unit": "widget", "record": {"kind": "value", "attr": "choice"}}
+        },
+        "example": f'<{tag} id="{tag.removeprefix("lf-")}"></{tag}>',
     }
 
 
 def starter_widget_module(tag: str) -> bytes:
-    """The registration shared by behavioral widgets: a `LeafElement`
-    (module-plain-elements.md, "`LeafElement`").
+    """The starter's module: the `state` setter draws a button for each value, and a
+    press dispatches `lf-action`."""
+    return f"""\
+import {{ html, render }} from "/vendor/lit.js";
 
-    The layer paints what the declaration alone determines, settlement included, with
-    no help from the module. A module that draws state adds `render()`, which reads
-    `this.state` and is drawn again whenever it changes."""
-    return (
-        'import { LeafElement } from "/runtime/lib/leaf-element.js";\n\n'
-        "customElements.define(\n"
-        f'  "{tag}",\n'
-        "  class extends LeafElement {},\n"
-        ");\n"
-    ).encode()
+// The widget protocol: references/module-plain-elements.md in the Leaf skill.
+customElements.define(
+  "{tag}",
+  class extends HTMLElement {{
+    set state({{ choose }}) {{
+      const button = (value, label) =>
+        html`<button
+          type="button"
+          aria-pressed=${{choose.value === value}}
+          aria-disabled=${{!choose.available}}
+          @click=${{() => this.choose(value)}}
+        >
+          ${{label}}
+        </button>`;
+      render([button("yes", "Yes"), button("no", "No")], this);
+    }}
+
+    choose(value) {{
+      this.dispatchEvent(
+        new CustomEvent("lf-action", {{
+          bubbles: true,
+          composed: true,
+          detail: {{ verb: "choose", detail: {{ value }} }},
+        }}),
+      );
+    }}
+  }},
+);
+""".encode()
+
+
+def starter_widget_styles(tag: str) -> bytes:
+    """The starter's style rule: the box the module's row of buttons takes, held from
+    first paint."""
+    return f"""\
+/* The first box: references/packages.md, "Seeing it", in the Leaf skill. */
+{tag} {{
+  display: block;
+  min-block-size: var(--lf-line);
+}}
+""".encode()
 
 
 def protected_package_paths(package: Path) -> list:
@@ -369,7 +412,9 @@ def init_starter_widget(
     composition: LayerComposition,
     widget: str,
 ) -> None:
-    """Add one checked upgraded-content starter without replacing package members."""
+    """Add the tag's starter widget, all of it or none: its declaration to
+    `registry.json`, its rule to the end of `defaults.css`, and its module, which
+    replaces no file the package holds. The whole candidate is checked first."""
     if re.fullmatch(WIDGET_NAME, widget) is None:
         raise Refused(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
     module_name = f"{widget}.js"
@@ -386,27 +431,32 @@ def init_starter_widget(
         )
 
     registry_path = package / "registry.json"
+    styles_path = package / "defaults.css"
     registry = read_json(registry_path) or {}
     registry[widget] = starter_element_declaration(widget)
-    files = {
-        "registry.json": json_bytes(registry, indent=2),
-        f"widgets/{module_name}": starter_widget_module(widget),
+    styles = [styles_path.read_bytes().rstrip()] if styles_path.is_file() else []
+    styles.append(starter_widget_styles(widget).rstrip())
+    modules = {module_path: starter_widget_module(widget)}
+    replaces = {
+        registry_path: json_bytes(registry, indent=2),
+        styles_path: b"\n\n".join(filter(None, styles)) + b"\n",
     }
-    validate_starter_candidate(package, files)
+    validate_starter_candidate(
+        package,
+        {
+            path.relative_to(package).as_posix(): contents
+            for path, contents in (replaces | modules).items()
+        },
+    )
     refuse_package_overlap(
         [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
-    module_path.parent.mkdir(parents=True, exist_ok=True)
-    creates = [(module_path, files[f"widgets/{module_name}"])]
-    if not (
-        (package / "defaults.css").exists() or (package / "defaults.css").is_symlink()
-    ):
-        creates.append((package / "defaults.css", b""))
-    created = create_package_files(package, creates)
+    (package / "widgets").mkdir(parents=True, exist_ok=True)
+    created = create_package_files(package, list(modules.items()))
     try:
-        replace_files([(registry_path, files["registry.json"], True)])
+        replace_files([(path, contents, True) for path, contents in replaces.items()])
     except BaseException:
         rollback_package_files(created)
         raise

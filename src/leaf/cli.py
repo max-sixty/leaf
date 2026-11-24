@@ -448,14 +448,15 @@ def package() -> None:
 @click.option(
     "--widget",
     metavar="TAG",
-    help="add one upgraded content widget starter",
+    help="add a starter widget under this tag",
 )
 def package_init(package_path: Path, widget: str | None) -> dict:
     """Create a package's registry.json and defaults.css without replacing
     existing files.
 
-    With --widget, add one checked upgraded content widget starter: its
-    declaration in registry.json and its module in widgets/.
+    With --widget, add a working starter widget under TAG, a yes-or-no choice to
+    change into your own: its declaration in registry.json, its module in
+    widgets/ and its rule at the end of defaults.css.
     """
     from leaf.packages import cmd_package_init
 

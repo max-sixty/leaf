@@ -4635,6 +4635,32 @@ def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypa
     assert (unrelated / "missing").is_symlink()
 
 
+def test_package_init_widget_writes_a_starter_package_check_accepts(
+    tmp_path, monkeypatch
+):
+    """`--widget` writes the tag's starter, its declaration, module and style rule,
+    and `package check` finds nothing to say about what it wrote."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+
+    result = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(package), "--widget", "lf-first"]
+    )
+
+    assert result.exit_code == 0, result.output
+    registry = json.loads((package / "registry.json").read_text())
+    assert registry == {
+        "lf-first": packages_model.starter_element_declaration("lf-first")
+    }
+    assert (
+        package / "widgets" / "lf-first.js"
+    ).read_bytes() == packages_model.starter_widget_module("lf-first")
+    assert (
+        package / "defaults.css"
+    ).read_bytes() == packages_model.starter_widget_styles("lf-first")
+    assert package_findings(package) == (0, [])
+
+
 def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"

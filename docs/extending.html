@@ -2027,11 +2027,12 @@ packages/callout/
               id="widget-init-command"
             ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
             <p>
-              Leaf writes a valid markup-widget element declaration and its one-shot
-              browser module, then checks the complete candidate before changing the
-              package. The tutorial below stays with the smaller CSS-only form so each
-              contract remains visible. A behavior module imports Leaf's package API
-              from
+              Leaf writes a working starter, a yes-or-no choice that records the user's
+              press: its element declaration, its browser module and its style rule. It
+              checks the complete candidate before changing the package, and each part
+              is there to be changed into the widget you need. The tutorial below stays
+              with the smaller CSS-only form so each contract remains visible. A
+              behavior module imports Leaf's package API from
               <code>/runtime/widget-api.js</code>; it declares each interactive
               capability once, as the <code>lfCommands</code> of the element it applies
               in. The same live command rows feed keyboard dispatch, help, accessibility

@@ -1540,6 +1540,18 @@ def option_reference_hovered(page: Page) -> None:
     page.locator("#off-workaround-approve").hover()
 
 
+def option_row_by_keyboard(page: Page) -> None:
+    """The patch decision with the keyboard on the row it leaves open, which wears the
+    focus ring inside its edge, below the picked row's ring, with the group's digits
+    showing."""
+    option_references(page)
+    keyboard_modality(page)
+    page.locator("#off-workaround-revise > .lf-pick").focus()
+    expect(page.locator("#off-workaround-revise")).to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+
+
 def go_to_on_me(page: Page) -> None:
     """Open On Me by Go to On Me (`g` then `M`), the route every runtime shares, as
     `go_to_threads` opens Threads."""
@@ -3411,6 +3423,12 @@ STATES = (
         "ship-option-reference-hovered",
         "ship-review",
         option_reference_hovered,
+        region="#off-workaround-decision",
+    ),
+    State(
+        "ship-option-row-keyboard",
+        "ship-review",
+        option_row_by_keyboard,
         region="#off-workaround-decision",
     ),
     State(

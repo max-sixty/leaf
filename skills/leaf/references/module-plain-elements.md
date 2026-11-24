@@ -73,8 +73,9 @@ question on On Me and admits the ids its buttons mark:
 ```
 
 `leaf package init --widget` writes a smaller widget of this kind to start from
-([packages.md, "Package reach"](packages.md#package-reach)). It has the same `state`
-setter and `lf-action`, and puts no question on On Me and marks no comment target.
+([packages.md, "Package reach"](packages.md#package-reach)). It draws from `state` and
+records with `lf-action` as this one does, under names of its own, and puts no question
+on On Me and marks no comment target.
 
 Each `lf-` event the element dispatches, and `pending-task` and `error`, bubbles and is
 composed, so Leaf hears it from inside any shadow tree. Where an entry says an event

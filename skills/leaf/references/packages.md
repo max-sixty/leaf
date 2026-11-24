@@ -20,21 +20,21 @@ pages that select it. Presentation or behavior used by one page stays in that pa
 `<style>`, its scripts or `page/`. Anything reused belongs in a package:
 
 ```bash
-leaf package init packages/release --widget lf-verdict
-leaf package check packages/release
-leaf page init --package reading --package packages/release PAGE
-leaf package install packages/release
+leaf package init packages/signoff --widget lf-signoff
+leaf package check packages/signoff
+leaf page init --package reading --package packages/signoff PAGE
+leaf package install packages/signoff
 leaf package list
 leaf package run NAME SCRIPT [ARGS]...
 ```
 
 `package init` creates the package's `registry.json` and `defaults.css`, which are all
-a theme or a CSS-only widget needs. Each `--widget TAG` adds a working starter under
-that tag, a yes-or-no choice: its declaration, its module at `widgets/<tag>.js` and
-its rule in `defaults.css`. The starter is a small widget that records what the user
-presses (`module-plain-elements.md`), there to be changed into the widget you need:
-each of its three parts is yours to rewrite, or to delete where your widget needs
-none.
+a CSS-only widget needs, and often all a theme does. Each `--widget TAG` adds a
+working starter under that tag, a yes-or-no choice: its declaration, its module at
+`widgets/<tag>.js` and its rule in `defaults.css`. The starter is a small widget that
+records what the user presses (`module-plain-elements.md`), there to be changed into
+the widget you need: each of its three parts is yours to rewrite, or to delete where
+your widget needs none.
 
 `--package` takes a name of lowercase letters, digits and hyphens, which selects an
 installed or bundled package, or a path. A path is relative to the directory `page

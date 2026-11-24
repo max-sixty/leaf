@@ -416,7 +416,7 @@ def init_starter_widgets(
     the end of `defaults.css`, and its module, which replaces no file the package
     holds. Every tag and the whole candidate are checked before any file changes.
     The registry is written last, so a write that fails leaves no declaration without
-    its module, and at most a rule that no declaration names."""
+    its module, and at most the new rules, which no declaration then names."""
     registry_path = package / "registry.json"
     styles_path = package / "defaults.css"
     registry = read_json(registry_path) or {}

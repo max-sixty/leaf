@@ -131,7 +131,8 @@ On Me and admits the ids its buttons mark:
   module that imports it.
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
-  target (`module-annotations.md`, "Visual parts").
+  target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
+  parts").
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,
   never shows them as a change. To set apart words it writes, such as a count after an

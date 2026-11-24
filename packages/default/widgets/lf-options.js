@@ -124,7 +124,6 @@ import {
   offer,
   offerAction,
   placePreview,
-  quoted,
   reachedForWords,
   rowWalk,
   worksInside,
@@ -256,7 +255,7 @@ customElements.define(
     // alternatives, but owns no selection, so it has no reading. Only a live or
     // settled decision has one.
     setup() {
-      this.#wire(quoted(this));
+      this.#wire(this.matches("[data-lf-exhibit] *"));
     }
 
     connectedCallback() {

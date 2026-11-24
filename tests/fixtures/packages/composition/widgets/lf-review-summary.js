@@ -1,11 +1,5 @@
 import { html } from "/vendor/lit.js";
-import {
-  LeafElement,
-  el,
-  offer,
-  quoted,
-  commandsChanged,
-} from "/runtime/widget-api.js";
+import { LeafElement, el, offer, commandsChanged } from "/runtime/widget-api.js";
 
 // Only the generated controls repaint; authored evidence keeps its nodes and state.
 customElements.define(
@@ -21,7 +15,7 @@ customElements.define(
     }
 
     setup() {
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       this.lfCommands = {
         title: "Review result",
         rows: [
@@ -74,7 +68,7 @@ customElements.define(
           ${result}
         </p>
         ${
-          quoted(this)
+          this.matches("[data-lf-exhibit] *")
             ? ""
             : html`<div class="review-buttons">
                 ${this.passButton}${this.failButton}

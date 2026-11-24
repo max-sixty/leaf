@@ -513,10 +513,19 @@
   // end at every scroll's end. A write is the page's when a frame of the page's own
   // scripts made it; one the test makes through Playwright's evaluate is the test's
   // setup. A smooth write moves the box later, so only an instant one is judged.
+  //
+  // On a Leaf page every write passes through the runtime's hearing of it (arrivals.js,
+  // `heardWrite`), the test's own included, and the runtime's own through their door
+  // past it (`unheardWrite`). Neither frame made the write, so neither is one of the
+  // page's.
+  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/arrivals\.js:/;
   const pageFrames = () =>
     new Error().stack
       .split("\n")
-      .filter((line) => /\b(?:https?|file|blob):\/\/|\bdata:/.test(line))
+      .filter(
+        (line) =>
+          /\b(?:https?|file|blob):\/\/|\bdata:/.test(line) && !HEARING.test(line),
+      )
       .slice(0, 4)
       .map((line) =>
         line

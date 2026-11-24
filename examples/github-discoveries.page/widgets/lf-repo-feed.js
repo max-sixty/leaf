@@ -11,7 +11,6 @@ import {
   HeldReading,
   threadActions,
   readThreads,
-  quoted,
   pageLinks,
 } from "/runtime/widget-api.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
@@ -533,7 +532,7 @@ class RepoFeed extends LeafElement {
               >
             </div>
           </details>
-          ${!quoted(this) ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
+          ${!this.matches("[data-lf-exhibit] *") ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
         </div>
       </div>
     </article>`;

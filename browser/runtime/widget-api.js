@@ -114,7 +114,7 @@ export { copyControl } from "./copy-control.js";
 export { keepView, openingView, viewMembers } from "./storage.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
-export { el, reachedForWords, worksInside } from "./widget-elements.js";
+export { aimedAt, el } from "./widget-elements.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

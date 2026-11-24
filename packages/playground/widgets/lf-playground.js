@@ -64,17 +64,16 @@ import { createPlayground, same } from "./playground-view.js";
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
 import {
+  aimedAt,
   copyControl,
   focusDestination,
   holdFocus,
   onCurrentLocation,
   onPress,
   LeafElement,
-  reachedForWords,
   says,
   wear,
   whileConnected,
-  worksInside,
 } from "/runtime/widget-api.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
@@ -308,7 +307,7 @@ customElements.define(
           if (!(target instanceof Element)) return;
           const pick = initial.candidate(target);
           if (!pick) return;
-          if (reachedForWords(pick.box) || worksInside(target, pick.box)) return;
+          if (aimedAt(event, pick.box) !== pick.box) return;
           event.preventDefault();
           focusDestination(pick.radio, "press");
           pick.radio.click();

@@ -58,7 +58,7 @@
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
 import { capitalized, counted } from "../words.js";
-import { describeFailure } from "../exception.js";
+import { describeFailure } from "../lib/exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";

@@ -93,6 +93,8 @@
  * The clustering library loads only when a reading needs it, after page presentation;
  * this module touches no document. */
 
+import { canvas2D } from "/runtime/lib/canvas.js";
+
 /** @typedef {{x: number, y: number, width: number, height: number}} Rectangle */
 /** @typedef {{width: number, height: number, data: Uint8Array | Uint8ClampedArray}} PixelImage */
 /** @typedef {Extract<CanvasImageSource, {width: number, height: number}>} SizedImage */
@@ -832,16 +834,10 @@ export function compareImagePixels(a, b) {
   return changedPixels(pixels(a), pixels(b));
 }
 
-// A canvas of that size to read an image's pixels back from. A browser refusing the
-// context fails here, before a blank reading can pass for the image's.
+// A canvas of that size to read an image's pixels back from.
 /** @param {number} width @param {number} height */
-function readingContext(width, height) {
-  const context = new OffscreenCanvas(width, height).getContext("2d", {
-    willReadFrequently: true,
-  });
-  if (!context) throw new Error("The browser could not create a 2D canvas context");
-  return context;
-}
+const readingContext = (width, height) =>
+  canvas2D(new OffscreenCanvas(width, height), { willReadFrequently: true });
 
 // The side of a thumbnail `paperOf` counts, enough that a screenshot's background
 // outnumbers everything drawn on it.

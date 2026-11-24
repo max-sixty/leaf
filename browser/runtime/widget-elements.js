@@ -1,49 +1,26 @@
 export { searchField } from "./control-labels.js";
-import { offerAction } from "./element-markers.js";
-export {
-  generatedElement,
-  offer,
-  offerAction,
-  offerActionElement,
-  elementDirective,
-  offered,
-  offeredAction,
-} from "./element-markers.js";
-/* The chrome a widget injects and the words it labels.
+import { offerAction } from "./lib/controls.js";
+export { generatedElement } from "./element-markers.js";
+/* The chrome a widget injects and the words it labels, as the runtime reads them.
 
-   A behavior module builds injected controls with `offer`, a press wearing one of
-   Leaf's control faces with `offerAction` by its role, and marks words it writes that
-   should stand apart from the author's with `data-lf-gen` (the runtime's own with
-   `generatedElement`). A Lit template reaches the offers' writers through element
-   directives built by `elementDirective`. A behavior module
-   reads a box from inside `measure` (lib/shown-box.js). A label
-   whose words change holds one room for all of them with `data-lf-room`, which the
-   theme sizes without script and which cuts words past it (controls.css). A module that
+   A module builds the chrome it injects with the library's control constructors
+   (lib/controls.js), which write the marks read here, and marks words it writes apart
+   from the author's with `data-lf-gen` (the runtime's own with `generatedElement`). A
+   behavior module reads a box from inside `measure` (lib/shown-box.js). A label whose
+   words change holds one room for all of them with `data-lf-room`, which the theme
+   sizes without script and which cuts words past it (controls.css). A module that
    rearranges what it holds inside an unchanged box says so with `lf-layout`
    (widget-upgrade.js).
 
-   A control is built so the browser does as much of it as it can. `offer` builds the
-   corresponding native element, so activation, disabled state, focus, and
-   accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, so `selectableOffer` (element-markers.js)
-   builds it as a span with the role. One with a button's role takes a button's Enter and Space from
-   role-button-press.js, on any page; for another role its widget supplies the keyboard
-   pattern the native element would have. A `<button>` would not do:
-   Chromium and Firefox begin a selection inside one styled `user-select: text`, but
-   WebKit, so Safari and every iOS browser, begins none inside a form control whatever
-   its style (notes/browser-support.md, "Selecting words inside a button in WebKit").
-   Both constructors mark generated chrome consistently. The shared drag guard
-   (`reachedForWords`) distinguishes a click from the mouseup ending an active text
-   selection by comparing the selection's focus end with the release. It does not
-   suppress a press merely because an older selection contains the control or because
-   the pointer landed beside selected text.
+   The shared drag guard (`reachedForWords`) distinguishes a click from the mouseup
+   ending an active text selection by comparing the selection's focus end with the
+   release. It does not suppress a press merely because an older selection contains the
+   control or because the pointer landed beside selected text.
 
    Paint that promises a gesture — the pointer hand above all — hangs on how a press is
-   spelled, never on a control class alone. The layer's own
-   spelling is the value `offer` writes into `data-lf-offer`: the tag or input type for
-   a native press, the tag for a custom host that opts into its own press contract, the
-   role for a selectable one, and the empty string for the rest of the chrome a widget
-   makes. The theme's one pressable rule reads that value.
+   spelled, the value the constructors write into `data-lf-offer`, never on a control
+   class alone. The theme's one pressable rule reads that value, and `PRESSABLE` reads
+   it for the passes written in JavaScript.
 
    `worksInside` decides whether a container gesture may take a click. It treats
    platform interactive elements, inside the container or pressed around it, as their
@@ -270,7 +247,7 @@ const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empt
 // anchoring reads where no label speaks nearer; `data-lf-gen` for words the author
 // didn't write; `data-lf-offer` for a thing to work, which paper drops because there is
 // nothing there to press.
-// DOM writers and template directives share these markers through element-markers.js.
+// DOM writers and template directives share these markers through lib/controls.js.
 //
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a

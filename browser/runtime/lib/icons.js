@@ -22,7 +22,7 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
 /** The template of `action`'s symbol (icon-paths.js, `ACTIONS`) where it is not a
     press's whole face, such as a menu row's icon or the second of two symbols a press
     swaps by CSS. A press that shows one symbol takes it and its name together, from a
-    role or `nameAction` (the package API). */
+    role or `nameAction` (controls.js). */
 /** @param {Parameters<typeof actionIcon>[0]} action @param {string} [className] */
 export const actionTemplate = (action, className) =>
   iconTemplate(actionIcon(action), className);

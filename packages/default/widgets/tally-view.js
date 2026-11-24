@@ -1,6 +1,6 @@
 /* The count keeps its room while the server reading changes. */
 import { html, nothing } from "/vendor/lit.js";
-import { actionClass } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
 
 /**
  * @param {HTMLElement} host

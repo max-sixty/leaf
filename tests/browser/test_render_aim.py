@@ -2494,7 +2494,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     )
     if generated:
         page.evaluate("""async () => {
-          const {offer} = await window.__lfWidgetApi();
+          const {offer} = await import("/runtime/lib/controls.js");
           for (const row of document.querySelectorAll('#rows p')) {
             const button = offer('button', '', 'Remove');
             button.setAttribute('aria-label', 'Delete row');

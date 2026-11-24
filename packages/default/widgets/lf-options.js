@@ -121,8 +121,6 @@ import {
   inChrome,
   LeafElement,
   landInThread,
-  offer,
-  offerAction,
   placePreview,
   reachedForWords,
   rowWalk,
@@ -131,6 +129,7 @@ import {
   focusDestination,
   scrollIntoView,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

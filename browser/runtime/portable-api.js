@@ -27,25 +27,12 @@ export {
 } from "./widget-upgrade.js";
 export { tabStore } from "./tab-store.js";
 
-export { actionClass } from "./control-faces.js";
-
-export {
-  offerElement,
-  offer,
-  offerAction,
-  offerActionElement,
-  selectableOffer,
-  offered,
-  offeredAction,
-  selectableOffered,
-} from "./element-markers.js";
-
 export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
 
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 
-export { nameAction, searchField } from "./control-labels.js";
+export { searchField } from "./control-labels.js";
 
 export { focusDestination, holdFocus, onUserInput } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";

@@ -27,13 +27,8 @@ import { retainUserIntent } from "./user-intent.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { readCurrentUserView } from "./user-view.js";
-import {
-  closeControl,
-  el,
-  offerAction,
-  offeredAction,
-  reveal,
-} from "./widget-elements.js";
+import { closeControl, el, reveal } from "./widget-elements.js";
+import { offerAction, offeredAction } from "./lib/controls.js";
 
 /** Source diagnostics are served by `page_inspection.inspect_artifact`.
  * @typedef {{bytes: number, rules: number, declarations: number, inline_styles: number, important: number}} CssCounts

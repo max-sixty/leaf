@@ -69,7 +69,7 @@ import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
 import { MessageView, arrivalTint, saidTime } from "./messages.js";
-import { offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 import { renderMarkdown } from "../lib/markdown.js";
 import { pageLinks } from "../page-markdown.js";

@@ -4,7 +4,6 @@ import { guard, html, render, repeat } from "/vendor/lit.js";
 import {
   loadDraft,
   move,
-  offer,
   saveDraft,
   sendDraft,
   TEXT_FIELD,
@@ -13,6 +12,7 @@ import {
   wireInput,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,
   loadMarkdown,

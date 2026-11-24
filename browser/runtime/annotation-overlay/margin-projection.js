@@ -130,12 +130,8 @@ import {
   currentLocationIn,
 } from "../focus.js";
 
-import {
-  el,
-  generatedElement,
-  offerActionElement,
-  reveal as openFolds,
-} from "../widget-elements.js";
+import { el, generatedElement, reveal as openFolds } from "../widget-elements.js";
+import { offerActionElement } from "../lib/controls.js";
 import { readingPlace } from "../resolved-target.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 

@@ -48,7 +48,7 @@ import { readPart } from "./semantic-state.js";
 import { tokenEntry } from "./registry.js";
 import { isElement, shadowHost, upFrom } from "./lib/shadow-tree.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, offeredAction } from "./widget-elements.js";
+import { offer, offeredAction } from "./lib/controls.js";
 import { keeps, keepsText } from "./lib/keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";

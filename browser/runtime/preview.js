@@ -63,7 +63,7 @@
      element's name, or as its name where it has none. Nothing here writes or removes a
      title, so it says what its writer last wrote and names what it names. Leaf's own
      controls declare their words as `lfPreview` and write no title on Leaf (the
-     portable writers, element-markers.js and control-labels.js, write one off Leaf,
+     library's control constructors, lib/controls.js, write one off Leaf,
      where the browser's tooltip is the only reading).
    - A range with no element of its own, as a passage mark is, is its owner's to hit
      test, so the owner says where the pointer rests (`pointRange`), as often as it
@@ -329,7 +329,7 @@ import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
-import { actionClass } from "./control-faces.js";
+import { actionClass } from "./lib/control-faces.js";
 import { aimableAt, PRESSABLE } from "./widget-elements.js";
 import { MODIFIER_KEYS, PRESSES, WORKS } from "./control-selectors.js";
 import {

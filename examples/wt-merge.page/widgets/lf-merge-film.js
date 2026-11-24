@@ -22,13 +22,13 @@
 import {
   compoundReadingRegionId,
   holdFocus,
-  offer,
   preserveReadingRegions,
   registerReadingRegion,
   scrollIntoView,
   shownWindow,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";

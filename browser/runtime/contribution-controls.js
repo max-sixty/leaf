@@ -8,7 +8,7 @@ import { iconTemplate } from "./lib/icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
 import { agentName, readPart } from "./semantic-state.js";
-import { elementDirective, offerActionElement } from "./widget-elements.js";
+import { elementDirective, offerActionElement } from "./lib/controls.js";
 import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";

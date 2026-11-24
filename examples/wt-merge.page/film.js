@@ -7,7 +7,8 @@
 // between its two worlds; the Painter reconciles keyed SVG nodes against that frame. The
 // page tells the step beside the film from the chapter and caption each frame carries.
 
-import { offer, setChildren } from "/runtime/widget-api.js";
+import { setChildren } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 const SVG = "http://www.w3.org/2000/svg";

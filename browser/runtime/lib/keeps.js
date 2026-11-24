@@ -2,8 +2,7 @@
 
    A write that restates what a node already says still reaches everything watching
    the page: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty
-   box for whatever reads next, on a Leaf page the document's disclosure watch, which
-   repaints every key on the page, and, while CSS highlight ranges hold a quoted
+   box for whatever reads next, and, while CSS highlight ranges hold a quoted
    comment's marks, Chrome's paint of the whole document. A render that runs on every change of
    the state it draws writes at that rate on a page nobody has touched, and a placement
    that follows the scroll writes at the scroll's.

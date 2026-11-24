@@ -812,8 +812,8 @@ export function keys(where, ...declaration) {
 // one reading of this element alone, so an unchanged render costs that one element.
 // Removing the directive withdraws only its own attachment, including when Lit keeps
 // the element. Temporary disconnection restores that declaration on reconnection. Rows
-// that read the element at their current location, as a disclosure's toggle does, come as a function
-// of it, called on each render, since the template declaring them renders that element.
+// that read the element they stand on come as a function of it, called on each render,
+// since the template declaring them renders that element.
 export const commandsOn = directive(
   class extends AsyncDirective {
     #reconnect = () => {};

@@ -438,6 +438,53 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
     assert read["root"] == "40px" and read["panel"] == read["root"], read
 
 
+def test_a_pinned_file_name_stands_under_a_page_box_stuck_at_the_same_edge(
+    browser, serve
+):
+    """The z-indexes that stand a diff's pinned file name over its own rows order only
+    the diff's boxes. A page control that sticks at the same edge, as the detail dial
+    does at the column's end, stays on top of the stuck name, so a press on it reaches
+    the control and leaves the file open rather than folding it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Control over a diff",
+                '<h1>Control over a diff</h1><button id="control" type="button" '
+                "onclick=\"this.dataset.pressed = 'yes'\">Control</button>"
+                + long_diff("patch")
+                + "<p>Filler.</p>" * 40,
+                head="<style>#control { position: sticky; top: var(--lf-top);"
+                " z-index: 1; display: block; margin-inline-start: auto; }</style>",
+            )
+        ),
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#patch').shadowRoot?.querySelector('.lf-diff-line')"
+    )
+    page.evaluate(
+        """() => scrollBy({ behavior: 'instant',
+            top: document.querySelector('#patch').getBoundingClientRect().top + 400 })"""
+    )
+    box = page.locator("#control").bounding_box()
+    head = page.evaluate(
+        """() => document.querySelector('#patch').shadowRoot
+            .querySelector('.lf-diff-file > details > summary').getBoundingClientRect().top"""
+    )
+    assert abs(head - box["y"]) < box["height"], (
+        f"the file's name is not stuck beside the control: {head}, {box}"
+    )
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    # The click's handlers have run by the time the press returns.
+    assert page.locator("#control").get_attribute("data-pressed") == "yes", (
+        "the press missed the control"
+    )
+    assert page.evaluate(
+        """() => document.querySelector('#patch').shadowRoot
+            .querySelector('.lf-diff-file > details').open"""
+    ), "the press folded the file under the control"
+
+
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
     """A page tab panel the page makes scroll pins its diff's header to the scrollport
     edge, leaving no padding band where scrolled rows can show above the header.

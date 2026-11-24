@@ -122,8 +122,9 @@ def complete_declarations(registry: dict) -> dict:
     leave unsaid, so every reader reads a complete entry: an element's content is its
     author's markup (`content`) unless it declares another, and its attribute schema
     (`attributes`) and each verb's `detail` schema admit only what they name unless
-    they say otherwise (`_closed_by_default`). An element that declares no
-    `attributes` takes none of its own, so its schema is the one that names nothing.
+    they say otherwise (`_closed_by_default`); validation refuses a `detail` that
+    does. An element that declares no `attributes` takes none of its own, so its
+    schema is the one that names nothing.
 
     It runs before validation, so it completes only an entry of the shape it reads
     and leaves any other for validation to refuse."""

@@ -423,8 +423,8 @@ DECLARATION_SCHEMA = {
         # the schema admits attributes it doesn't name (`additionalProperties`). A
         # declaration may leave the schema out, or `type` and `additionalProperties`
         # out of it. Composition writes them in
-        # (`registry.contract.complete_declarations`), so every composed declaration
-        # has the `attributes` that `required` names below.
+        # (`registry.contract.complete_declarations`), so this schema, which reads a
+        # composed declaration, still requires `attributes`.
         "attributes": {
             "type": "object",
             "properties": {

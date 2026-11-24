@@ -168,8 +168,9 @@ detail field holding the moved element. A verb with no record declares its own
 naming what the verb's state is about, by element id or by data key, as a playground's
 submitted settings do. That schema holds only `properties`, which names its fields, and
 `required`, so a rule across fields, such as `if`/`then`, is refused; each property
-takes any schema. Leaf closes the schema (`packages.md`, "A widget"), so an action's
-detail holds only the fields `properties` names.
+takes any schema. Leaf writes the schema's `type` and `additionalProperties`
+(`packages.md`, "A widget"), so an action's detail holds only the fields `properties`
+names.
 
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$verbs.attention` in the registry). Changes to

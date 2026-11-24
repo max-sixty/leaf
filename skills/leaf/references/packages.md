@@ -298,11 +298,13 @@ refuses an attribute `properties` doesn't name, such as a misspelt one. Composit
 writes `"type": "object"` and `"additionalProperties": false` into the attribute schema
 and into each verb's `detail` schema
 ([package-data.md, "User state"](package-data.md#user-state)), so a declaration leaves
-both out of each. An attribute schema that writes either keyword keeps its own, while a
-`detail` that writes another value for either is refused. An element that takes no
-attribute of its own leaves `attributes` out. The attributes any element takes (`class`,
-`style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand outside the
-schema unless it names one.
+both out of each. An attribute schema may write `"additionalProperties": true` to admit
+attributes it doesn't name, as a widget that passes them to an inner element does. A
+`detail` schema that writes any other value for either keyword is refused. A
+declaration with nothing to say about its element's attributes leaves `attributes` out,
+and the element then takes only an optional `id`. The attributes any element takes
+(`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand
+outside the schema unless it names one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

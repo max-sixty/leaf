@@ -117,10 +117,10 @@ export const invalidVisualProviders = (declarations) =>
     .filter((instance) => instance.problems.length);
 
 // Attributes on a widget that its entry never declared. The schema is the
-// whole of the author's namespace — composition closes it with
-// `additionalProperties: false` unless the entry gives its own, and an entry that
-// opens its schema is passed by, since it admits attributes it doesn't name — and
-// the static lint holds an authored document to it. What no source reading can see is the
+// whole of the author's namespace, and the static lint holds an authored document to
+// it. Composition closes it with `additionalProperties: false` unless the entry gives
+// its own; an entry that opens its schema admits attributes it doesn't name, so this
+// check skips it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`selected`, `status`), which is what makes the write

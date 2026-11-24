@@ -302,38 +302,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
-    """A process the session started before its plugin updated still runs the older
-    Leaf, and must not take the page back to it: the newer Leaf's next hook would
-    re-vendor it up again, reloading the user's tabs each time. Neither a command
-    naming the page nor an explicit `page init` re-vendors it down, and each names
-    the newer Leaf as the repair rather than the re-vendor it refuses."""
-    publish(claimed)
-    foreign = vendored_at_another_protocol(claimed, newer=True)
-    for command in (["page", "check"], ["page", "init"]):
-        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
-        assert refused.exit_code != 0
-        assert "Use a newer Leaf" in refused.output
-        assert "leaf page init" not in refused.output
-        layer_4 = registry_storage.layer_record(claimed)
-        assert layer_4 is not None
-        assert layer_4["protocol"] == foreign
-    # A fresh process in a session that does not hold the page reads the state of
-    # the revision published before, and reports the same refusal as its source
-    # error.
-    stated = subprocess.run(
-        [*LEAF_COMMAND, "page", "state", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
-    )
-    assert stated.returncode == 0, stated.stderr
-    error = json.loads(stated.stdout)["source"]["error"]
-    assert "Use a newer Leaf" in error
-
-
 def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
     """A server keeps the Leaf it started under, so a check by another Leaf, at
     another path or commit, may pass on code the user's tab doesn't run. `page check`
@@ -370,38 +338,80 @@ def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
     assert advised("0123456789ab", enabled=False) == []
 
 
-def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
-    """A newer Leaf may change the layer record's shape without a protocol bump, and
-    this Leaf reads that format as no record at all. Told "no layer.json; run `leaf
-    page init` first", an agent would replace the page's packages and theme under
-    this Leaf, so the page is refused as a newer Leaf's instead, by the hooks and
-    writers that ask first as by `page check` and `page init`."""
+def test_a_page_an_older_leaf_initialized_is_renewed_keeping_its_packages(claimed):
+    """A layer record an older Leaf wrote, at that Leaf's shape, is its page rather
+    than none: the check each hook makes before writing refuses it as
+    `foreign-layer`, which is what has the session renew it, and `page init` with no
+    `--package` keeps the packages it selected, the one field this Leaf reads off
+    another Leaf's record. Read as none, the page would never be renewed, and `page
+    init` would select no packages."""
     from leaf.event_contracts import write_refusal
 
     path = claimed / schema_model.LAYER_FILE
     record = registry_storage.layer_record(claimed)
+    assert record is not None and record["packages"]
+    # The shape before a page's theme was one of its packages.
+    older = {
+        "format": "leaf-layer/36",
+        "packages": record["packages"],
+        "theme": {"name": "reading", "source": "default"},
+        "generation": record["generation"],
+        "protocol": 53,
+    }
+    cleanup_model.write_json(path, older)
+
+    refusal = write_refusal(claimed)
+    assert refusal is not None
+    assert (refusal.code, refusal.values["recorded"]) == ("foreign-layer", 36)
+    renewed = CliRunner().invoke(cli_model.cli, ["page", "init", str(claimed)])
+    assert renewed.exit_code == 0, renewed.output
+    assert write_refusal(claimed) is None
+    layer = registry_storage.layer_record(claimed)
+    assert layer is not None
+    assert layer["packages"] == record["packages"]
+    assert layer["generation"] != record["generation"]
+
+
+def test_a_page_a_newer_leaf_initialized_is_refused_whatever_its_shape(claimed):
+    """A process the session started before its plugin updated still runs the older
+    Leaf, and must not take the page back to it: the newer Leaf's next hook would
+    renew it again, reloading the user's tabs each time. So a layer record at a
+    newer format refuses the page as that newer Leaf's, here one whose shape moved
+    `packages`: the check each hook makes before writing, and every command that
+    reads the page's layer, name the newer Leaf as the repair, rather than crashing
+    on the shape or reading it as none and naming `page init`, and none rewrites the
+    file."""
+    from leaf.event_contracts import write_refusal
+
+    publish(claimed)
+    path = claimed / schema_model.LAYER_FILE
+    record = registry_storage.layer_record(claimed)
     assert record is not None
-    path.unlink()
-    later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
-    path.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+    newer = {
+        "format": f"leaf-layer/{registry_storage.LAYER.since + 1}",
+        "selection": {"packages": record["packages"]},
+        "generation": record["generation"],
+    }
+    cleanup_model.write_json(path, newer)
     recorded = path.read_bytes()
 
     refusal = write_refusal(claimed)
     assert refusal is not None and refusal.code == "newer-layer"
-    for command in (["page", "check"], ["page", "init"]):
-        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
-        assert refused.exit_code != 0
-        assert "Use a newer Leaf" in refused.output
-        assert "leaf page init" not in refused.output
-        assert path.read_bytes() == recorded
+    for command in ("check", "init", "state", "vocabulary"):
+        refused = CliRunner().invoke(cli_model.cli, ["page", command, str(claimed)])
+        assert refused.exit_code != 0, command
+        assert "Use a newer Leaf" in refused.output, command
+        assert "leaf page init" not in refused.output, command
+        assert path.read_bytes() == recorded, command
 
 
-def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
-    """`page state` on a page this Leaf can neither serve nor write, from a session
-    that may not re-vendor it since another one holds the page, still prints its
-    reading, and says why under `source.error`, naming the re-vendor, from the one
-    reading the servers and the append door refuse on (`layer.incompatible_layer`).
-    Activation writes no revision under that layer, even for an edited source.
+def test_page_state_refuses_a_layer_this_leaf_cannot_serve(claimed):
+    """`page state` on a page an older Leaf initialized, from a session that may not
+    renew it since another one holds the page, refuses it, naming the renewal, from
+    the one reading the servers and the append door refuse on
+    (`registry.storage.layer_record`), since this Leaf reads no page at another
+    protocol. Activation writes no revision under that layer, even for an edited
+    source.
 
     A fresh process, as an agent's is: this one holds the revision `publish`
     captured in memory, under the vocabulary before the change."""
@@ -420,12 +430,10 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
         check=False,
         env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
-    assert result.returncode == 0, result.stderr
-    state = json.loads(result.stdout)
-    assert state["source"]["live"] is False
-    assert "page protocol" in state["source"]["error"]
-    assert f"leaf page init {page_dir}" in state["source"]["error"]
-    assert state["active"]["revision"] == revisions[-1]
+    said = result.stdout + result.stderr
+    assert result.returncode != 0, said
+    assert "page protocol" in said
+    assert f"leaf page init {page_dir}" in said
     assert interact_files.list_revisions(page_dir) == revisions
 
 

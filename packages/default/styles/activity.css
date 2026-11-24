@@ -29,9 +29,11 @@ lf-activity .lf-activity-list {
   margin: 0;
   padding: 0;
 }
-/* A bounded feed scrolls its list under the toggle, which stays in view. Bounded whole,
-   the box cut off the toggle's focus ring, since the toggle fills its width and stands
-   at its top. */
+/* The feed scrolls its list under the toggle, which stays in view. Bounded whole, as
+   the mark its module writes would bound it (base.css, `[data-lf-bound]`), the box cut
+   off the toggle's focus ring, since the toggle fills its width and stands at its top:
+   so the host gives the bound to the list and names it as the box Leaf keeps the
+   reader's place in. */
 @media screen {
   html[data-lf-interactive] lf-activity {
     min-block-size: var(--lf-aim-floor);
@@ -42,7 +44,7 @@ lf-activity .lf-activity-list {
     overflow: visible;
     --lf-top: inherit;
   }
-  lf-activity[data-lf-bound] > .lf-activity-list {
+  lf-activity > .lf-activity-list {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;

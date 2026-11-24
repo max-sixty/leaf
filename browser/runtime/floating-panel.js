@@ -6272,7 +6272,7 @@ export function createFloatingPanel({
       const key = list.row ?? (from && threadByKey(from)?.key);
       const row = key && listRows().find((node) => rowKey(node) === key);
       if (row) focusDestination(row, "return");
-      if (!view || !list.scroll) return;
+      if (!view) return;
       void present().then(() =>
         afterSettling(() => {
           if (intent() && shownView() === view)

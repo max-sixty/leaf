@@ -267,6 +267,37 @@ def test_a_reload_keeps_the_user_on_the_versions_row_they_were_on(
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+def test_back_returns_a_list_read_from_its_top_to_its_top(request, serve, engine):
+    """Back to an entry where the user stood at the top of the panel's Threads returns
+    the list to its top, though they read it down on the entry they left: the top is a
+    place the list was read to like any other."""
+    url = serve(LONG_PAGE)
+    for n in range(1, 31):
+        panel_comment(
+            serve.page_dir,
+            f"Question {n}?",
+            {"section": f"p{n}", "quote": f"Paragraph {n}."},
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    open_threads(page)
+    view = page.locator(panel_view("threads"))
+    expect(view.locator(".lf-fp-thread")).to_have_count(30)
+    assert view.evaluate("view => view.scrollTop") == 0
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#p20'")
+    page.wait_for_function("navigation.transition === null")
+    expect(view).to_be_visible()
+    view.evaluate("view => view.scrollBy({top: 300, behavior: 'instant'})")
+    scroll_settled(page)
+    assert view.evaluate("view => view.scrollTop") > 100
+    page.go_back()
+    page.wait_for_function("navigation.transition === null")
+    scroll_settled(page)
+    expect(view).to_be_visible()
+    assert view.evaluate("view => view.scrollTop") == 0
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_back_from_another_document_returns_to_the_link_followed(
     request, serve, engine
 ):

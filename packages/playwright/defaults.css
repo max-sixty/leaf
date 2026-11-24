@@ -211,11 +211,16 @@ lf-trace[hidden="until-found"] {
   cursor: crosshair;
   overflow: hidden;
 }
-/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
-   every lane, as the playhead does. */
+/* The axis's ticks and gridlines (`timeAxis`, runtime/lib/time-axis.js) each stand in
+   a box as wide as the axis: the ticks in the ruler, and the gridlines in a layer
+   from the ruler's foot down every lane, as the playhead runs. */
+.lf-trace-ruler {
+  position: relative;
+}
 .lf-trace-grid {
   position: absolute;
   inset: var(--lf-trace-ruler-h) 0 0;
+  pointer-events: none;
 }
 .lf-trace-lane {
   position: relative;

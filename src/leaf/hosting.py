@@ -60,6 +60,7 @@ from .service import (
     claimant_matches,
     page_claim,
     prepare_claim,
+    refuse_held,
     same_claim,
 )
 
@@ -643,6 +644,9 @@ def cmd_serve(
                 )
             url = _reuse_server(page_dir, host, persistent)
             if url is None:
+                if not claimed:
+                    # A serve that takes no claim starts a server for no session.
+                    refuse_held(page_dir, harness)
                 access = page_access(page_dir, host)
                 token = host_key()
                 endpoint = page_endpoint(page_dir, token)
@@ -821,11 +825,9 @@ def claim_and_start(
     restore a superseded owner; the captured acquisition governs owner cleanup.
 
     A caller whose environment does not imply the harness it acts for passes a
-    claim it prepared, and holds delivery preparation through this commit: a
-    detached preview's launcher, whose child uses the captured lifetime and cwd
-    rather than discovering its own ancestry, and a prompt hook, whose payload names
-    the session (`reconnect`). The hook also passes its own `deadline`; a start not
-    ready and confirmed by then is refused.
+    claim it prepared, and holds delivery preparation through this commit: a prompt
+    hook, whose payload names the session (`reconnect`). It also passes its own
+    `deadline`; a start not ready and confirmed by then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     claim = prepared_claim
@@ -1111,14 +1113,8 @@ def restarting_server(
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
     """Whether `harness`'s session may restart a session service: its claim is that
     session's. False when no live session holds it any more; a refusal when
-    another one does."""
-    claim = page_claim(page_dir)
-    if not claim_is_active(claim):
+    another one does (`service.refuse_held`)."""
+    if not claim_is_active(page_claim(page_dir)):
         return False
-    if harness is None or not claimant_matches(claim, harness):
-        raise Refused(
-            f"{page_dir} is served for another session, and only that session can "
-            "start its server again; re-initialize it from there, or take the page "
-            f"over first with `leaf server start {page_dir}`"
-        )
+    refuse_held(page_dir, harness)
     return True

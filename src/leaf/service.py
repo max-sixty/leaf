@@ -264,6 +264,25 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     )
 
 
+def refuse_held(page_dir: Path, harness: Harness | None) -> None:
+    """Refuse to serve `page_dir` or change its layer record for anyone but the live
+    session holding it, where one does: only `harness` naming that session passes.
+    Another session takes the page over first by claiming it (`leaf server start`).
+    Since only the Leaf a session's hooks run acts for it (`harness.session_harness`),
+    no other Leaf, such as a checkout's or a terminal's, moves a held page to a
+    protocol those hooks can't read, whatever the protocols are."""
+    claim = page_claim(page_dir)
+    if not claim_is_active(claim) or claimant_matches(claim, harness):
+        return
+    assert claim is not None
+    raise Refused(
+        f"{page_dir} is held by session {claim['id']}, and only the Leaf that "
+        "session's hooks run serves it or changes its layer; run this with that Leaf, "
+        f"or take the page over first with `leaf server start {page_dir}` from your "
+        "own session"
+    )
+
+
 def same_claim(left: dict | None, right: dict | None) -> bool:
     """Whether two readings name the same acquisition, including no claimant.
 

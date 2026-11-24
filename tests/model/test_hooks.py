@@ -56,6 +56,7 @@ from leaf import file_changes as file_changes_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
+from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
@@ -65,7 +66,6 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
-from leaf.findings import Rejected
 from leaf.json_block import read_json_block
 from leaf.refusals import Refused
 from leaf.registry.storage import LAYER, layer_record
@@ -2335,34 +2335,31 @@ def test_a_leaf_other_than_its_sessions_hooks_acts_for_no_session(
     assert harness is not None and harness.session == "s1"
 
 
-def test_no_leaf_takes_a_held_page_past_the_protocol_its_sessions_hooks_run(
-    claimed, tmp_path
-):
-    """A page a live session holds is never taken to a later page protocol than the
-    one the Leaf its session's hooks run speaks, whatever Leaf asks, a checkout's
-    `bin/leaf` or a terminal's: those hooks could then no longer read the page, and
-    no Leaf takes a page back down. With the page's server running, its restart
-    refuses first (`hosting.restarting_server`), so this holds where the server is
-    down. Such a Leaf doesn't renew a page another session holds either. At the
-    hooks' protocol it initializes the page, and a page already at its protocol it
-    initializes again whatever the hooks run, since that moves no protocol."""
-    older = vendored_at_another_protocol(claimed)
-    hooks = hooks_run_leaf_at(tmp_path, older)
+@pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])
+def test_only_the_holding_sessions_leaf_changes_a_held_page(claimed, tmp_path, ahead):
+    """A page a live session holds is served and re-initialized only by the Leaf
+    that session's hooks run, whatever the protocols, with its server down as up:
+    any other Leaf, as a checkout's `bin/leaf` acting for no session, neither renews
+    it nor initializes it, and its own first serve of the page is refused too. So no
+    other Leaf moves a held page to a protocol the hooks can't read. The holding
+    session's own Leaf initializes it."""
+    hooks_run_leaf_at(tmp_path, LAYER.since + ahead)
+    vendored_at_another_protocol(claimed)
 
     assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    for command in (
+        lambda: vendoring_model.cmd_init(claimed),
+        lambda: vendoring_model.cmd_init(claimed, dry_run=True),
+        lambda: hosting_model.cmd_serve(claimed, harness=None, acquire=True),
+    ):
+        with pytest.raises(Refused, match="is held by session s1"):
+            command()
     refusal = event_contracts_model.write_refusal(claimed)
     assert refusal is not None and refusal.code == "foreign-layer"
-    with pytest.raises(Rejected) as refused:
-        vendoring_model.cmd_init(claimed)
-    assert [finding.code for finding in refused.value.findings] == ["unheard-protocol"]
-    assert f"`{hooks}/bin/leaf`" in str(refused.value)
 
-    hooks_run_leaf_at(tmp_path, LAYER.since)
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
     assert vendoring_model.cmd_init(claimed)["packages"]
     assert event_contracts_model.write_refusal(claimed) is None
-
-    hooks_run_leaf_at(tmp_path, older)
-    assert vendoring_model.cmd_init(claimed, ())["packages"] == []
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(

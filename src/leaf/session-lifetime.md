@@ -301,9 +301,10 @@ page the session holds it treats as another session's. Where it keeps the sessio
 records in another shape (`state.Record`), it reads them as absent, and so takes
 the session's pages for pages no live session holds.
 
-Whichever Leaf asks, a page a live session holds isn't taken to a later protocol
-than the one that session's hooks run (`vendoring._refuse_unheard`), since those
-hooks would refuse it from then on and no Leaf takes a page back down.
+Only the session holding a page, through the Leaf its hooks run, serves the page
+or changes its layer record, its server up or down (`service.refuse_held`); another
+session takes the page over first by claiming it. So no other Leaf moves a held page
+to a protocol its session's hooks can't read, whatever the two protocols are.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):
@@ -374,11 +375,10 @@ session and the session has not ended (`service.claim_names_session`).
 ### Adapter lifetime
 
 Desktop Codex unloads an idle instance without ending the chat, so an existing chat
-keeps its server, preview and adapter across inactivity and unload, and loses them
-only on archive, deletion or transfer. Its startup hook captures the chat's native
+keeps its server and adapter across inactivity and unload, and loses them only on
+archive, deletion or transfer. Its startup hook captures the chat's native
 transcript (`codex_state.py`), without which a new desktop start owns nothing
-(`state.chat_exists`). A desktop user preview detaches its input watcher for the same
-reason (`dev/leaf_dev/commands/preview.py`).
+(`state.chat_exists`).
 
 The adapter follows the session's page ownership, not the pages' declarations, and
 retires once ownership ends (`codex_adapter.py`).

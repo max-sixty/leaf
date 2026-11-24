@@ -308,7 +308,6 @@ _ENDED = "a to-do's recorded outcome stays as its first end gave it"
 _ONCE = "each gesture is taken back once, and the agent hears of it once"
 _UNDONE = "an undo the page accepts changes what the user sees"
 _READ_AS_WRITTEN = "the user's recorded decisions are read as they were written"
-_HEARD = "the session holding a page can go on reading it"
 _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
@@ -1979,10 +1978,10 @@ _TEXT = {
     "newer-layer": _refuses(
         _READ_AS_WRITTEN,
         lambda at, v: (
-            f"{v['page']} was initialized by a Leaf at page protocol {v['recorded']},"
-            f" newer than this one ({v['leaf']}, at {v['protocol']}), so this Leaf can"
-            " neither serve nor write the page. Use a newer Leaf; in Claude Code,"
-            " /reload-plugins loads the installed copy."
+            f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
+            f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
+            " write the page. Use a newer Leaf; in Claude Code, /reload-plugins loads"
+            " the installed copy."
         ),
     ),
     "no-registry": _refuses(
@@ -2330,19 +2329,6 @@ _TEXT = {
     "renewal-refused": lambda at, v: (
         f"{v['page']} is at an older page protocol, and this Leaf could not take it"
         f" to its own: {v['error']}"
-    ),
-    # A renewal or `page init` that would take a page a live session holds to a
-    # later page protocol than the one the session's hooks run
-    # (`vendoring._refuse_unheard`).
-    "unheard-protocol": _refuses(
-        _HEARD,
-        lambda at, v: (
-            f"{v['page']} is held by session {v['session']}, whose hooks run a Leaf at"
-            f" page protocol {v['heard']} ({v['hooks']}). Taken to this Leaf's"
-            f" protocol, {v['protocol']} ({v['leaf']}), it would be a page those hooks"
-            " refuse, and no Leaf takes a page back down. Work on this page with"
-            f" `{v['hooks']}/bin/leaf`, that session's own Leaf."
-        ),
     ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"

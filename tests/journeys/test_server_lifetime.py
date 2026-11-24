@@ -137,10 +137,10 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
 ):
     """Only an enabled service this command may restart comes back.
 
-    A stopped service was stopped on purpose and stays stopped. A session service
-    whose session has ended has nobody to come back for, so the re-vendor stops it
-    and leaves it for the next `server start`. One another live session holds is
-    refused before anything stops, since only that session could start it again.
+    A page another live session holds is refused before anything stops, served or
+    stopped, since only that session's Leaf changes it (`service.refuse_held`). A
+    session service whose session has ended has nobody to come back for, so the
+    re-vendor stops it and leaves it for the next `server start`.
     """
     publish(page_dir)
     started = start_server_command(page_dir, session_id="other")
@@ -160,17 +160,17 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     layer_4 = layer_record(page_dir)
     assert layer_4 is not None
     revendored = layer_4["generation"] != generation
-    if service == "foreign":
+    if service != "orphaned":
         assert result.exit_code == 1
-        assert "served for another session" in result.output
-        assert server_model.running_server(page_dir)
+        assert "is held by session other" in result.output
+        assert bool(server_model.running_server(page_dir)) == (service == "foreign")
         assert not revendored
         return
     assert result.exit_code == 0, result.output
     assert revendored
     assert server_model.running_server(page_dir) is None
     assert not read_record(page_dir / "service.json")["enabled"]
-    assert ("has no live session owner" in result.output) == (service == "orphaned")
+    assert "has no live session owner" in result.output
 
 
 @pytest.mark.parametrize("lifetime", ["persistent", "session"])

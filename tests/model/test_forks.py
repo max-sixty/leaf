@@ -711,7 +711,7 @@ def test_the_follower_ends_once_its_tree_moves_on_under_it(
         monkeypatch.setattr(
             kernel_model,
             "installed_protocol",
-            lambda root=None: kernel_model.kernel_protocol() + len(waited),
+            lambda: kernel_model.kernel_protocol() + len(waited),
         )
     else:
         launcher = state_model.PLUGIN_ROOT / "bin" / "leaf"

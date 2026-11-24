@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .event_log import initialized, start_log
-from .findings import Finding, Rejected, note
+from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
 from .hosting import restarting_server
 from .layer import (
@@ -48,7 +48,6 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
-from .registry.kernel import installed_protocol, kernel_protocol
 from .registry.storage import (
     LAYER,
     IncompatibleLayer,
@@ -70,6 +69,7 @@ from .service import (
     claim_path,
     claimant_matches,
     page_claim,
+    refuse_held,
 )
 from .state import (
     PLUGIN_ROOT,
@@ -95,7 +95,8 @@ def cmd_init(
 
     Everything that can refuse the rewrite is decided first, in a dry run with the
     page still served, so a refused one leaves its server untouched: a restart
-    would bring this Leaf's server back over a record it may not serve.
+    would bring this Leaf's server back over a record it may not serve. A page a
+    live session holds is rewritten only for that session (`service.refuse_held`).
     An unchanged record and package copies need no transition, so neither
     files nor the server change. `dry_run` reports this decision without committing.
     Only a changed contract takes the service down (`hosting.restarting_server`)
@@ -118,6 +119,7 @@ def cmd_init(
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     harness = session_harness()
     if initialized(page_dir):
+        refuse_held(page_dir, harness)
         if dry_run:
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, fresh=False)
@@ -159,8 +161,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
-    initialized, or one whose session's hooks run a Leaf at an older protocol,
-    both of which `_plan_page` refuses.
+    initialized, which `_plan_page` refuses.
 
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -372,9 +373,7 @@ def _plan_page(
     updated, or an agent following an older Leaf's advice, would otherwise take the
     page down, and the newer Leaf's next command or hook up again, reloading the
     user's tabs each time. A page an older Leaf initialized keeps its selection
-    (`layer_packages`) under a new generation, unless a live session holds the page
-    and its hooks run a Leaf at an older protocol than this one's
-    (`_refuse_unheard`), whichever session or Leaf asks."""
+    (`layer_packages`) under a new generation."""
     previous = None
     if not fresh:
         try:
@@ -411,47 +410,7 @@ def _plan_page(
     ):
         # A copy's new bytes change what an open document runs under.
         record = {**record, "generation": secrets.token_hex(16)}
-    if previous is None and not fresh:
-        # The page stands at an older protocol, which this record takes to this one.
-        claim = page_claim(page_dir)
-        if claim is not None and claim_is_active(claim):
-            _refuse_unheard(claim["id"], page_dir)
     return _PagePlan(record, copied, record != previous, advice)
-
-
-def _refuse_unheard(session_id: str, page_dir: Path) -> None:
-    """Refuse to take `page_dir`, which the live session `session_id` holds, to this
-    Leaf's page protocol where the Leaf that session's hooks run speaks an older one
-    (`state.hooks_root`, `installed_protocol`): those hooks would refuse the page
-    from then on (`newer-layer`), and no Leaf takes a page back down. It holds
-    whatever Leaf asks, a terminal's or another session's included. A page at an
-    older protocol than the hooks' Leaf's, which those hooks renew themselves, a
-    session no hook has run for, and one whose hooks' Leaf is gone take the change.
-    """
-    root = hooks_root(session_id)
-    if root is None or root == PLUGIN_ROOT:
-        return
-    try:
-        heard = installed_protocol(root)
-    except (OSError, ValueError, KeyError):
-        return
-    if heard >= kernel_protocol():
-        return
-    raise Rejected(
-        [
-            Finding(
-                "unheard-protocol",
-                values={
-                    "page": str(page_dir),
-                    "session": session_id,
-                    "hooks": str(root),
-                    "heard": heard,
-                    "leaf": str(PLUGIN_ROOT),
-                    "protocol": kernel_protocol(),
-                },
-            )
-        ]
-    )
 
 
 def _copies(selected: tuple[str, ...]) -> dict[str, Path]:

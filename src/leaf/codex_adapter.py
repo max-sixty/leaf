@@ -1097,9 +1097,7 @@ def preparing_adapter(harness: CodexHarness):
             yield
             return
         # Existing active ownership already proves the canonical lifetime and
-        # generation. A detached preview can replace its adapter, but its process
-        # ancestry cannot rediscover the interactive harness that took the page.
-        # A new acquisition still establishes that evidence in its own harness.
+        # generation. A new acquisition establishes that evidence in its own harness.
         # owned_pages checks generation and liveness, so retained claims cannot
         # lend an ended session their former authority.
         if not owned_pages(session_id):

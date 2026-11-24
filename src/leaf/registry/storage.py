@@ -82,10 +82,11 @@ def layer_record(page_dir: Path) -> dict | None:
             "page": str(page_dir),
             "leaf": str(PLUGIN_ROOT),
             "protocol": LAYER.since,
-            "recorded": recorded,
         }
-        refusal = Finding(
-            "newer-layer" if recorded > LAYER.since else "foreign-layer", values=values
+        refusal = (
+            Finding("newer-layer", values=values)
+            if recorded > LAYER.since
+            else Finding("foreign-layer", values={**values, "recorded": recorded})
         )
         raise IncompatibleLayer([refusal])
     del stored["format"]

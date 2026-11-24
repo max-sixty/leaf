@@ -74,7 +74,11 @@ export {
   textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
-export { commandDeclarationsWithin, paintKeys } from "./keyboard/scopes.js";
+export {
+  commandDeclarationsWithin,
+  commandsUnread,
+  paintKeys,
+} from "./keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,

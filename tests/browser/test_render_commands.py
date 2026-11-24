@@ -33,6 +33,7 @@ from render_harness import (
 )
 
 from leaf import render_checks as render_checks_model
+from leaf.findings import Finding
 from leaf.render_gate import browser as browser_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1638,6 +1639,54 @@ def test_a_code_block_no_reading_face_reaches_is_named(browser, serve):
             "language": "json",
         }
     ], found
+
+
+def test_keys_an_element_said_before_it_was_placed_are_named(browser, serve):
+    """An element that says `lf-commands` before it is placed is heard by nobody, so
+    its keys bind nothing, and the gate's reading names it, in a shadow root too. One
+    that says so from the page is read and quiet, and so is an element holding no
+    keys."""
+    page = open_page(browser, serve(leaf_page("Keys", '<p id="host">Words.</p>')))
+    page.evaluate(
+        """() => {
+          const say = (element) => element.dispatchEvent(
+            new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+          const keyed = (id) => {
+            const button = document.createElement('button');
+            button.id = id;
+            button.lfCommands = { title: 'Keyed', rows: [
+              { id: `test.${id}`, keys: ['F2'], title: 'Run', run() {} },
+            ] };
+            return button;
+          };
+          const main = document.querySelector('main');
+          const early = keyed('early');
+          say(early);
+          const late = keyed('late');
+          const inner = keyed('inner');
+          say(inner);
+          const host = document.getElementById('host');
+          host.attachShadow({ mode: 'open' }).append(inner, document.createElement('slot'));
+          main.append(early, late);
+          say(late);
+        }"""
+    )
+    found = render_checks_model.evaluate_probe(page, "unreadCommands")
+
+    assert found == [
+        {"code": "unread-commands", "at": "<button id=early>"},
+        {"code": "unread-commands", "at": "<button id=inner>"},
+    ], found
+    finding = Finding.read(found[0])
+    assert finding.refuses
+    assert "dispatch the event on the element" in str(finding)
+    # Said from the page, the keys are read, and the reading goes quiet.
+    page.evaluate(
+        """() => document.getElementById('early').dispatchEvent(
+          new CustomEvent('lf-commands', { bubbles: true, composed: true }))"""
+    )
+    found = render_checks_model.evaluate_probe(page, "unreadCommands")
+    assert [f["at"] for f in found] == ["<button id=inner>"], found
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):

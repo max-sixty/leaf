@@ -4,6 +4,7 @@ import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
+  commandsUnread,
   commandsWithin,
   projectCommandScope,
   keys,
@@ -2497,8 +2498,11 @@ test("a widget's commands stand from when it says them until it withdraws them",
   document.body.append(owner);
   try {
     assert.deepEqual(declared(owner), []);
+    assert.equal(commandsUnread(owner), true);
     say(owner);
     assert.deepEqual(declared(owner), ["declared.run"]);
+    assert.equal(commandsUnread(owner), false);
+    assert.equal(commandsUnread(part), false);
     owner.lfCommands = null;
     say(owner);
     assert.deepEqual(declared(owner), []);

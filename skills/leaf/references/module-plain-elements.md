@@ -130,10 +130,11 @@ On Me and admits the ids its buttons mark:
   the element dispatches one after it sets or replaces `lfCommands`, and after anything
   its rows read changes. Like every event an element dispatches on itself, it is heard
   only while the element stands in the page, so an element built before it is placed
-  dispatches once it is placed. A `detail` of `{ within: true }` has Leaf read again
-  the rows of every scope already declared on the element or inside it, as after a
-  redraw of the nodes those rows read; it declares no scope. Leaf reports a
-  declaration it refuses as the element's failure.
+  dispatches once it is placed; `page check --render` reports an element whose
+  `lfCommands` Leaf never read (`unread-commands`). A `detail` of `{ within: true }`
+  has Leaf read again the rows of every scope already declared on the element or
+  inside it, as after a redraw of the nodes those rows read; it declares no scope.
+  Leaf reports a declaration it refuses as the element's failure.
 - **`lf-layout`.** An element that rearranges what it holds without changing its own
   size, as a view swap does, dispatches a bubbling, composed `lf-layout` event on
   itself. Leaf then reads again whatever it measured or read inside the element, such

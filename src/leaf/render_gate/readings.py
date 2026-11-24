@@ -266,6 +266,7 @@ def _page_findings(context: _PageContext) -> list[Finding]:
     found += map(Finding.read, retired)
     found += context.unsettled
     found += (Finding.read(block) for block in evaluate_probe(page, "uncolouredCode"))
+    found += map(Finding.read, evaluate_probe(page, "unreadCommands"))
     found += _unreduced_motion(page)
     return found
 

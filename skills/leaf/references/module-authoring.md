@@ -125,8 +125,7 @@ module keeps none of the page's state and calls nothing of Leaf's. A widget impo
 module by its path, as it imports Lit, and the module works off Leaf too. Like
 `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
-header and comments say what it exports. These references name a module where a task
-needs it and describe none of its functions.
+header and comments say what it exports.
 
 ### A widget that also runs off Leaf
 

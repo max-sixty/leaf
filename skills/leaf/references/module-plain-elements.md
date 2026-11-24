@@ -2,10 +2,9 @@
 
 Read with [module-authoring.md](module-authoring.md).
 
-A widget is a custom element, and needs no base class. On an element whose tag declares
-`verbs` or `inputs`, Leaf sets the widget's state and bound data as properties and
-hears what it records as events, so its module needs none of Leaf's functions. This one
-draws with Lit:
+On an element whose tag declares `verbs` or `inputs`, Leaf sets the widget's state and
+bound data as properties and hears what it records as events. This widget needs no
+base class and none of Leaf's functions, and draws with Lit:
 
 ```js
 import { html, render } from "/vendor/lit.js";

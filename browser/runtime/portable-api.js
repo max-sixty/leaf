@@ -22,11 +22,8 @@ export { whileConnected, frameFor } from "./arrivals.js";
 export {
   PendingTaskEvent,
   bodyText,
-  commandsChanged,
   failSoft,
-  layoutChanged,
   placesFailure,
-  reportFailure,
 } from "./widget-upgrade.js";
 export { tabStore } from "./tab-store.js";
 

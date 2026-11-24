@@ -1,5 +1,5 @@
 import { html } from "/vendor/lit.js";
-import { LeafElement, el, offer, commandsChanged } from "/runtime/widget-api.js";
+import { LeafElement, el, offer } from "/runtime/widget-api.js";
 
 // Only the generated controls repaint; authored evidence keeps its nodes and state.
 customElements.define(
@@ -39,7 +39,9 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     review(outcome) {

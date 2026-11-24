@@ -77,12 +77,10 @@ import {
   PendingTaskEvent,
   beginWalk,
   bodyText,
-  commandsChanged,
   listWalkPosition,
   whileConnected,
   failSoft,
   frameFor,
-  layoutChanged,
 } from "/runtime/portable-api.js";
 import { measure } from "/runtime/lib/shown-box.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -502,7 +500,9 @@ customElements.define(
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       if (reading && at) this.#choose(again(at), this.#by);
       else if (at)
         this.dispatchEvent(
@@ -607,7 +607,9 @@ customElements.define(
       this.#telling = true;
       nextRender(() => {
         this.#telling = false;
-        layoutChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       });
     }
 

@@ -41,7 +41,6 @@ import {
   focusDestination,
   offer,
   offerAction,
-  reportFailure,
   afterPresentation,
   pageLinks,
 } from "/runtime/widget-api.js";
@@ -1040,7 +1039,10 @@ class TextDocument extends LeafElement {
         this.colours?.clear();
         this.colours = language
           ? new RunColours(language, (error) => {
-              if (this.isConnected) reportFailure(this, error);
+              if (this.isConnected)
+                this.dispatchEvent(
+                  new ErrorEvent("error", { error, bubbles: true, composed: true }),
+                );
             })
           : null;
       }

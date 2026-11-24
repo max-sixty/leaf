@@ -68,14 +68,12 @@ import {
   frameFor,
   placesFailure,
   focusDestination,
-  layoutChanged,
   scopedMediaUrl,
   widgetController,
   move,
   whileConnected,
   registerReadingRegion,
   compoundReadingRegionId,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 import { once } from "/runtime/lib/once.js";
 import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -367,7 +365,7 @@ export class Shot extends HTMLElement {
       this.#drawing.paper ??= paperOf(shown);
     this.#drawing.fit();
     this.#paint();
-    layoutChanged(this);
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
   /** @param {string} view @param {string} label */
@@ -451,8 +449,10 @@ export class Shot extends HTMLElement {
           },
         ],
       };
-      commandsChanged(comparison);
       this.#drawing.canvas.append(comparison);
+      comparison.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.#comparison = comparison;
       void comparison.updateComplete.then(() => this.#paintHandle());
     }
@@ -476,7 +476,9 @@ export class Shot extends HTMLElement {
     if (!this.#drawingOwner) return;
     render(this.#drawing.render(), this, { host: this });
     this.#paintHandle();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   /** @param {Capture} capture */

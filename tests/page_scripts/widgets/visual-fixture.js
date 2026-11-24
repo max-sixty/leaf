@@ -1,5 +1,4 @@
 /* A visual stating its parts (`lfParts`), drawn together or revealed in stages. */
-import { layoutChanged } from "/runtime/widget-api.js";
 import { once } from "/runtime/lib/once.js";
 
 export function defineVisualFixture({
@@ -57,13 +56,17 @@ export function defineVisualFixture({
             ? (id) => {
                 if (id !== "inner") return;
                 inner.style.display = "";
-                layoutChanged(this);
+                this.dispatchEvent(
+                  new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+                );
               }
             : undefined,
         };
         this.redraw = () => {
           outerSurface.setAttribute("rx", "28");
-          layoutChanged(this);
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         };
       }
     },

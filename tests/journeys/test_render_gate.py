@@ -182,7 +182,6 @@ def _layout_passes_batch_without_refolding_controls(page):
         before = metrics()
         page.evaluate(
             """async () => {
-              const {layoutChanged} = await window.__lfWidgetApi();
               const rows = [...document.querySelectorAll('.lf-margin-cluster')];
               const boxes = () => rows.map(row => {
                 const {x, y, width, height} = row.getBoundingClientRect();
@@ -205,7 +204,7 @@ def _layout_passes_batch_without_refolding_controls(page):
               };
               for (let i = 0; i < 5; i++) await new Promise(done => {
                 document.addEventListener('lf-margin-layout', done, {once: true});
-                layoutChanged(document.body);
+                document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
               });
             }"""
         )

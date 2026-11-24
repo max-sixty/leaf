@@ -92,8 +92,9 @@ Threads, in its margin entry and in Page Map without changing the visual, or ret
 
 Leaf reads the parts again each time it sets a plain element's properties
 (`module-plain-elements.md`). A visual whose parts or their positions change at another
-time calls `layoutChanged(element)` (`module-controls.md`): a part's margin entry stands
-level with the part, and Leaf learns that a part moved inside the visual only from it.
+time dispatches `lf-layout` on itself (`module-plain-elements.md`, "`lf-layout`"): a
+part's margin entry stands level with the part, and Leaf learns that a part moved
+inside the visual only from it.
 
 The user picks a part as they pick any element that isn't words, with Alt-click or in
 Select mode (`page-authoring.md`, "Stable anchors"). Leaf finds the part under the

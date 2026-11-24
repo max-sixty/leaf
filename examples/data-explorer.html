@@ -100,7 +100,6 @@
     </style>
     <script type="module">
       import {
-        layoutChanged,
         offer,
         offerAction,
         setChildren,
@@ -389,7 +388,9 @@
               this.#count,
               `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           }
         },
       );

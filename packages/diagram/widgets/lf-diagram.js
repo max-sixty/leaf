@@ -35,7 +35,6 @@ import {
   bodyText,
   failSoft,
   frameFor,
-  layoutChanged,
   whileConnected,
 } from "/runtime/portable-api.js";
 import { once } from "/runtime/lib/once.js";
@@ -257,7 +256,9 @@ customElements.define(
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);
       this.toggleAttribute("data-lf-scroll", true);
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

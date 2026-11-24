@@ -57,10 +57,10 @@
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import {
+  COMMANDS,
   CONNECT,
   HoldEvent,
   PendingTaskEvent,
-  commandsChanged,
   failSoft,
   placesFailure,
 } from "./widget-upgrade.js";
@@ -340,7 +340,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     super.updated(changed);
     const root = this.renderRoot;
     untracked(() =>
-      commandsChanged(root instanceof Element ? root : this, { within: true }),
+      (root instanceof Element ? root : this).dispatchEvent(
+        new CustomEvent(COMMANDS, {
+          bubbles: true,
+          composed: true,
+          detail: { within: true },
+        }),
+      ),
     );
   }
 }

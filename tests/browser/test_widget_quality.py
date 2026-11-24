@@ -43,7 +43,6 @@ def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
     return f"""\
-import {{ commandsChanged }} from "/runtime/widget-api.js";
 import {{ once }} from "/runtime/lib/once.js";
 
 customElements.define(
@@ -55,7 +54,7 @@ customElements.define(
         {{ id: "{tag[3:]}.go", keys: [], contextKeys: ["1"], control: this,
           title: "Go", run: () => {{}}{badge} }},
       ] }};
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent("lf-commands", {{ bubbles: true, composed: true }}));
     }}
   }},
 );

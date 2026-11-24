@@ -16,7 +16,7 @@ const drawn = (markup) => {
   holder.innerHTML = markup;
   document.body.append(holder);
   const age = holder.querySelector("lf-age");
-  // The words it draws, without the zero-width space that leads them.
+  // The words it draws, without the zero-width no-break space that leads them.
   return { holder, age, shows: () => age.shadowRoot.textContent.trim() };
 };
 

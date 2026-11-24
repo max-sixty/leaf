@@ -4,8 +4,9 @@
 
      <lf-age datetime="2026-11-24T18:05:00Z">24 Nov, 18:05 UTC</lf-age>
 
-   An author writes it in the page, in a message or in a widget's template, and
-   changes its `datetime` to show another moment.
+   An author writes it in the page, in a message or in a widget's template, with
+   the time in their own words inside it or with nothing, and changes its `datetime`
+   to show another moment.
 
    The decisions it embodies:
 
@@ -23,7 +24,9 @@
      formula pays for that: a thread's mark stands on the words round it and not on
      it, and Leaf's page search finds the written time and not the age. A page
      without Leaf draws the words, and so does a served page until the runtime has
-     defined the element.
+     defined the element. A file that runs no script can't keep an age, so a static
+     export draws the words too, or the clock time where the author wrote none
+     (src/leaf/static-export.js).
    - It follows the clock with one effect of its own and writes one text node. A
      `LeafElement` would make each age a stage Leaf dresses and watches
      (shadow-stage.js), which a list of ages pays once for each.
@@ -32,12 +35,13 @@
      double-click of the first word of a shadow tree that stands flush against its
      host's start, and a comment made from that has no passage. JavaScript counts
      that character as white space, so a reading of the age's text that trims it,
-     as a test's text match does, reads the words alone. Three other cures fail:
-     a word joiner (U+2060) stays in every such reading; after a zero-width space
-     (U+200B) Chromium drops the space a line break in the source leaves before the
-     tag; and an inline block takes no underline or strike from a link or an `<s>`
-     round it, parts from an opening bracket before it, lets a comma after it start
-     the next line, and is undone by a page that restyles the element. */
+     as a test's text match does, reads the words alone; a copy that takes in an
+     age carries the character. Three other cures fail: a word joiner (U+2060)
+     stays in every such reading; after a zero-width space (U+200B) Chromium drops
+     the space a line break in the source leaves before the tag; and an inline
+     block takes no underline or strike from a link or an `<s>` round it, parts
+     from an opening bracket before it, lets a comma after it start the next line,
+     and is undone by a page that restyles the element. */
 import { effect, signal } from "/runtime/framework.js";
 import { agePreview, ago } from "./presence.js";
 

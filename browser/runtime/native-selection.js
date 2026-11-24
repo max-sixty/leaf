@@ -57,8 +57,10 @@ export function selectEnds(anchor, focus) {
   writtenBackward = selection.direction === "backward";
   writtenSelection = selectionEnds(selection);
 }
+// The selection's ends as the platform holds them and as the composed range reads them,
+// so two selections compare equal only where they hold the same words.
 /** @param {Selection} selection */
-const selectionEnds = (selection) => {
+export const selectionEnds = (selection) => {
   const range = selection.rangeCount ? pageRange(selection) : null;
   return [
     selection.anchorNode,

@@ -8,7 +8,7 @@
  */
 
 import { ringBox, visibleFocus } from "./focus.js";
-import { lined, shownParts } from "./geometry.js";
+import { lined, overCharacter, shownParts } from "./geometry.js";
 import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import {
   readingOrder,
@@ -433,18 +433,6 @@ export function createAnchorPaint({
       }
     }
     return hit && { id: hit.id, where: hit.where, alike };
-  }
-  // Whether the point lies over the character at `at` in a text node, or with `whole`
-  // over its line (`lined`).
-  /** @param {Node} node @param {number} at @param {number} x @param {number} y @param {boolean} whole */
-  function overCharacter(node, at, x, y, whole) {
-    if (at >= (node.textContent?.length ?? 0)) return false;
-    const character = document.createRange();
-    character.setStart(node, at);
-    character.setEnd(node, at + 1);
-    return [...character.getClientRects()].some((rect) =>
-      holds(whole ? lined(rect, node) : rect, x, y),
-    );
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;

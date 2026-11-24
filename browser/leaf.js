@@ -149,7 +149,6 @@ import {
   reflectFirstScopes,
   reflectKeys,
 } from "./runtime/keyboard/scopes.js";
-import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openDocumentLayout } from "./runtime/content-layout.js";
 import { createNavigation, placeThreadEdge } from "./runtime/navigation.js";
@@ -790,7 +789,6 @@ async function boot() {
         reactions.setReact(false);
       },
     });
-    watchDisclosures(document);
     mountRepaint({
       ...currentLocationPainters,
       reflectFirstScopes,

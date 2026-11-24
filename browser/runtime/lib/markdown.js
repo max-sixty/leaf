@@ -388,11 +388,9 @@ function admittedUrl(href) {
   if (href === null) return null;
   href = String(href);
   if (href.startsWith("#")) return href;
-  try {
-    return WEB_PROTOCOLS.has(new URL(href, location.href).protocol) ? href : null;
-  } catch {
-    return null;
-  }
+  return WEB_PROTOCOLS.has(URL.parse(href, location.href)?.protocol ?? "")
+    ? href
+    : null;
 }
 
 const probe = document.createElement("template");

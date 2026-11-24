@@ -50,10 +50,7 @@ def _refreshes_restate_no_margin_name(page, population):
     An attribute the pass leaves carrying the value it opened with said nothing,
     whether one writer restated it or two took turns over it — and the turns are
     the reading a same-value predicate cannot take, because each leg differs from
-    the value before it. Both are records a reader rebuilds from, and the second
-    kind is what `leaf.js`'s disclosure watch reads as news. So `news` stays as
-    its own reading: a watched attribute that ends the pass somewhere new repaints
-    the page's keys, and that is a change rather than a restatement.
+    the value before it. Both are records a reader rebuilds from.
 
     Every row lives in the margin layer, whatever it holds, and `inline-contributions.js`
     builds another host in place wherever an offer's target stands in chrome. So
@@ -99,7 +96,6 @@ def _refreshes_restate_no_margin_name(page, population):
               attributeFilter: ['style']});
           const on = record => record.target.className || record.target.nodeName;
           const unchanged = [];
-          const news = [];
           for (let i = 0; i < refreshes; i++) {
             window.dispatchEvent(new Event('resize'));
             await frame();
@@ -122,10 +118,6 @@ def _refreshes_restate_no_margin_name(page, population):
                 if (opening === now)
                   unchanged.push({on: on(record), wrote: record.attributeName,
                                   said: opening});
-                if (['open', 'aria-expanded'].includes(record.attributeName)
-                    && now !== record.oldValue)
-                  news.push({on: on(record), wrote: record.attributeName,
-                             was: record.oldValue, now});
               } else if (record.type === 'characterData') {
                 if (record.oldValue === record.target.data)
                   unchanged.push({on: on(record), wrote: 'text',
@@ -138,7 +130,7 @@ def _refreshes_restate_no_margin_name(page, population):
           }
           observer.disconnect();
           return {
-            unchanged, news,
+            unchanged,
             outside: hosts.filter(host => !layer.contains(host)).length,
             pageBoxes: pageBoxes.length,
           };
@@ -146,7 +138,6 @@ def _refreshes_restate_no_margin_name(page, population):
         {"refreshes": 5},
     )
     assert refresh["unchanged"] == [], refresh["unchanged"]
-    assert refresh["news"] == [], refresh["news"]
     # The reach the readings above are worth: every row stands in the watched layer,
     # and every authored box is watched too.
     assert refresh["outside"] == 0, refresh

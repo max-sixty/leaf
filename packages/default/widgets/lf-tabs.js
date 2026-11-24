@@ -111,7 +111,6 @@ import {
   focusDestination,
   fragmentTarget,
   scrollIntoView,
-  fitsWhole,
   landingInsets,
   signal,
   LeafElement,
@@ -724,7 +723,7 @@ export class TabSet extends LeafElement {
   // shows there.
   // Where the strip has room for it, the tab comes in with its run's label, so the
   // name of the group the user opened stays beside it. Down a column that room is
-  // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
+  // the landing's own (`including`) and the run from heading to tab lands together.
   // Along a row the label sticks at the row's start as the run scrolls under it (the
   // package theme), so a range over the two measures where the label stands rather
   // than the run's length; the row's room is asked whether the label and the tab
@@ -756,10 +755,7 @@ export class TabSet extends LeafElement {
       range.setStartBefore(label);
       range.setEndAfter(btn);
     }
-    scrollIntoView(range && fitsWhole(range) ? range : btn, {
-      block: "nearest",
-      within,
-    });
+    scrollIntoView(btn, { including: range, block: "nearest", within });
   }
 
   // The open tab stays in the row as the strip's width changes, and not only when a

@@ -239,6 +239,19 @@ def test_composition_holds_each_work_role_to_its_tags_declaration(
     assert found([finding], code, at, **values), finding
 
 
+def test_a_work_role_s_state_verb_may_name_the_property_that_holds_it(page_dir):
+    """A role's state is the value record on its attribute, whichever property of the
+    element holds that value in the browser."""
+    registry = vocabulary(page_dir)
+    (spec,) = (
+        spec
+        for spec in registry["lf-test-task"]["verbs"].values()
+        if spec.get("record") == {"kind": "value", "attr": _GOAL["state"]}
+    )
+    spec["record"]["property"] = "status"
+    registry_validation.validate_registry(registry, "test registry")
+
+
 def test_the_command_hub_example_maps_its_tags_onto_work_roles():
     """The worked example of `$work.widgets` composes over the shipped layer."""
     registry = validation_composition.incoming_registry(

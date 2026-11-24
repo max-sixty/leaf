@@ -273,7 +273,9 @@ export const submitBindings = () =>
 export const advertisesKeys = () => !coarsePointer.matches;
 // Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
 // which is the keyboard's face, while a listener needs the physical press because many
-// speech configurations do not distinguish letter case.
+// speech configurations do not distinguish letter case. The maintainer chose to keep that
+// face rather than draw Shift on the keycap (⇧T), which would let the keycap's own text
+// be its spoken name and remove this function.
 /** @param {string} binding */
 export const spokenBinding = (binding) => {
   const { key, mods } = parsed(binding);

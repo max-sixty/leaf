@@ -6,7 +6,6 @@ import { installStageIntegration } from "./shadow-stage.js";
 import { shadowRules } from "./shadow.js";
 import { chromeSheet, marksSheet } from "./stylesheets.js";
 import { watchCurrentLocationIn } from "./focus.js";
-import { watchDisclosures } from "./keyboard/disclosure.js";
 import { installLayerStyleIntegration } from "./keyboard/layer-stack.js";
 import { move } from "./dom-move.js";
 import { watchPassageRoot } from "./passages.js";
@@ -20,7 +19,6 @@ installLayerStyleIntegration((root) => {
 const styles = new WeakMap();
 installStageIntegration((root) => {
   root.adoptedStyleSheets = [...new Set([...root.adoptedStyleSheets, marksSheet])];
-  watchDisclosures(root);
   watchCurrentLocationIn(root);
   let style = styles.get(root);
   if (!style) {

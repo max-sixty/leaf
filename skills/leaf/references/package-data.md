@@ -143,7 +143,10 @@ The record kind fixes the event's payload, a closed object with every field requ
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
-  attribute holds no other JSON type, so a number is recorded as its digits.
+  attribute holds no other JSON type, so a number is recorded as its digits. The
+  record may also name the element's property that holds the value, so that Leaf
+  records it with no module code (`module-plain-elements.md`,
+  "`record.property`").
 - `position` sends `{unit, value, rank}`: the moved element's id, the destination
   container's id, and the element's rank there. A container is an element of the tag `record.within` names, a declared
   one, inside the widget and with an id of its own, and its members are its children

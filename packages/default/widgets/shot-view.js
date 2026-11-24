@@ -222,7 +222,7 @@ export class ShotView {
   /** @type {{color: string, scheme: string} | null} */
   paper = null;
 
-  /** @type {((view: string, label: string) => void) | undefined} */
+  /** @type {((view: string) => void) | undefined} */
   chooseView;
   /** @type {((scale: string) => void) | undefined} */
   chooseScale;
@@ -375,11 +375,7 @@ export class ShotView {
               /** @type {Event & {currentTarget: HTMLElementTagNameMap["wa-radio-group"]}} */ event,
             ) => {
               const view = String(event.currentTarget.value);
-              if (view in SHOT_VIEWS)
-                this.chooseView?.(
-                  view,
-                  SHOT_VIEWS[/** @type {keyof typeof SHOT_VIEWS} */ (view)],
-                );
+              if (view in SHOT_VIEWS) this.chooseView?.(view);
             }}
           >
             ${Object.entries(SHOT_VIEWS).map(

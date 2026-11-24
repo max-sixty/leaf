@@ -33,6 +33,7 @@ from browser.threads import (
     CHANGE_PAGE,
     REPLY_CHANGE,
     append_agent_reply,
+    choose_threads_in_panel,
     open_panel_thread,
     seed_reply,
     thread_row,
@@ -772,18 +773,14 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     else:
         stamp_page(d, replacement, "Rewrote the plan")
     wait_for_revision(page, 2)
+    choose_threads_in_panel(page)
     card = open_from_threads(page, root["id"])
     quote = card.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
         expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
-    # A margin card's quote returns to the passage where it still stands; the panel's
-    # names no jump.
-    in_panel = card.evaluate("node => node.matches('.lf-fp-view')")
-    if removed or in_panel:
-        expect(quote).not_to_have_attribute("role", "button")
-    else:
-        expect(quote).to_have_attribute("role", "button")
+    # The panel's quote names no jump; Show on page takes the user to the passage.
+    expect(quote).not_to_have_attribute("role", "button")
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.locator(".lf-quote-label").get_by_role("button")
     expect(disclosure).to_be_visible()
@@ -906,6 +903,8 @@ def test_a_thread_s_head_names_the_headings_over_its_words(browser, serve):
     )
     on_heading = panel_comment(serve.page_dir, "Rename this?", {"section": "rollout"})
     page = open_page(browser, url)
+    # The head is the panel view's: a card beside words no revision changed draws none.
+    choose_threads_in_panel(page)
     for thread, label in (
         (on_words, "Release plan › Rollout › Canary hosts"),
         (on_lede, "Release notes"),

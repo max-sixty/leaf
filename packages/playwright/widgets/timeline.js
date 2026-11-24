@@ -23,7 +23,6 @@ import {
   sizeObserver,
   whileConnected,
   layoutPx,
-  pressIsKeyboardActivation,
   assignRows,
   axisTicks,
   textWidth as measure,
@@ -880,7 +879,7 @@ export class RecordingTimeline {
       return;
     }
     // A mouse press already scrubbed; a tap seeks once.
-    if (event.pointerType === "touch" || pressIsKeyboardActivation(event))
+    if (event.pointerType === "touch" || event.detail === 0)
       this.#options.onSeek(this.#eventTime(event), true);
   }
 

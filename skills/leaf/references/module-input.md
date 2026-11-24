@@ -188,8 +188,7 @@ as `Hunk 3 of 7`. `noun` names one stop, and `read()` returns the position, usua
 from `listWalkPosition(items, current, {identity})`. A walk within a list on screen,
 such as a chart's points or a tab strip, gives `list()`, its first and last stops;
 Leaf's panel then says nothing while both stand in view, since the focus ring shows
-where the step landed. A walk that comes round at its ends steps with
-`cycledRow(items, current, direction)`, which returns the item it lands on.
+where the step landed.
 
 ### Go-to targets
 
@@ -312,8 +311,9 @@ the primary button with no modifier held, so a modified click keeps its usual me
 
 A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a
-click made with Enter or Space through, checking `pressIsKeyboardActivation(event)`
-first. A container that takes a click anywhere on it, as an option card does, asks
+click made with Enter or Space through, checking `event.detail === 0` first, which
+only a keyboard or script click has. A container that takes a click anywhere on it,
+as an option card does, asks
 `worksInside(event.target, container)` for the control the click was aimed at, inside
 the container or around it, and leaves the click to that control.
 

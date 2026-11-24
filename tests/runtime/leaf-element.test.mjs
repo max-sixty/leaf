@@ -9,7 +9,7 @@ import { signal } from "/runtime/framework.js";
 import { html, nothing } from "/vendor/lit.js";
 import { LeafElement, shadowStage } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
+import { showFailure } from "/runtime/lib/failure.js";
 import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
 import {
   applicationState,
@@ -451,7 +451,7 @@ test("a failed preparation stands beside the render root, which the next draw st
   document.body.append(element);
   await settled(element);
   // The controller shows a rejected `present()` on its owner, as here.
-  failSoftUnreported(element, new Error("could not prepare"));
+  showFailure(element, new Error("could not prepare"));
   assert.ok(element.part.isConnected);
   assert.match(element.textContent, /failed: could not prepare/);
   applicationState.setPhase("offline");

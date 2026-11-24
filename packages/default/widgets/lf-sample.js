@@ -49,12 +49,12 @@ import {
   growthIsSeen,
   whileConnected,
   mountSample,
-  PendingTaskEvent,
   focusDestination,
   heldGrowth,
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";

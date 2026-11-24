@@ -1301,7 +1301,7 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
-          const {failSoft} = await window.__lfWidgetApi();
+          const {failSoft} = await window.__lfLibImport('failure.js');
           const widget = document.querySelector('lf-feed');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;

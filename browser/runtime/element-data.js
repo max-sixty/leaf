@@ -41,7 +41,8 @@ import {
   joinDataDelivery,
   suppliedSnapshot,
 } from "./data.js";
-import { dataBody, failSoft } from "./widget-upgrade.js";
+import { dataBody } from "./lib/data-body.js";
+import { failSoft } from "./lib/failure.js";
 import { registry } from "./registry.js";
 import { projectMarked } from "./projection/data.js";
 

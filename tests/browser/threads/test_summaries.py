@@ -483,13 +483,13 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(browser, 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     """A summary arriving over messages the user is reading, closed and opened again,
-    then retracted, leaves them where they stand: a frame in one keeps the document it
-    loaded, and words the user selected in another stay selected. Moving a message
-    would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
-    in every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
-    words stay selected. Standing on that toggle, the user is in the thread, so their
-    rewrite of a folded message, which retracts the summary, draws at once."""
+    leaves them where they stand: a frame in one keeps the document it loaded, and
+    words the user selected in another stay selected. Moving a message would reload its
+    frame in WebKit, which lacks `moveBefore`, and lose the selection in every engine.
+    The checkpoint groups its messages for assistive technology by `aria-owns`, since
+    it doesn't contain them. Its toggle takes a press while those words stay selected.
+    Standing on that toggle, the user is in the thread, so their rewrite of a folded
+    message draws at once, and the summary stands over it."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     framed = append_agent_reply(
@@ -575,9 +575,9 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
         },
     )
     told(page)
-    expect(checkpoint).to_have_count(0)
-    expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(covered[2]).to_contain_text("The camera takes three.")
+    expect(checkpoint).to_have_count(1)
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
     kept()
 
 

@@ -65,7 +65,7 @@ def failed_widget(page: Page) -> None:
     """A failed full-width exhibit beside the document's prose."""
     page.evaluate("""async () => {
         const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-        const {failSoft} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+        const {failSoft} = await import(new URL('runtime/lib/failure.js', new URL(boot, location.href)));
         const host = document.createElement('div');
         host.id = 'failed-exhibit';
         host.dataset.lfSpace = 'available';

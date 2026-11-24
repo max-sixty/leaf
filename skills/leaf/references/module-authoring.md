@@ -52,7 +52,8 @@ part of Leaf's interface: a library module keeps none of the page's state and ca
 nothing of Leaf's. A widget imports a module by its path, as it imports Lit, and the
 module works off Leaf too. Like `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
-header and comments say what it exports. These references describe none of them.
+header and comments say what it exports. These references name a module where a task
+needs it and describe none of its functions.
 
 ### A widget that also runs off Leaf
 
@@ -67,13 +68,10 @@ reads") or extend `HTMLElement`; a plain element that only records state and rea
 bound data needs no import at all (`module-plain-elements.md`). Leaf adds its services
 through events and element declarations that a plain host can ignore:
 
-- Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
-  Components Community Group's `pending-task` protocol. Leaf holds the page's
-  presentation until `promise` settles, as it does for `present(promise)`
-  (`module-state.md`, "The widget controller").
-- A failure: an `error` event, which `failSoft` dispatches ("Upgrade") and a widget
-  that shows a failure its own way dispatches itself. Leaf reports it to the author as
-  the page's error.
+- Drawing under way: a `pending-task` event (`module-plain-elements.md`, "Drawing"),
+  which the library's [`pending-task.js`](../../../browser/runtime/lib/pending-task.js)
+  builds.
+- A failure: an `error` event (`module-plain-elements.md`, "`error`").
 - Keys: an element's `lfCommands` and its `lf-commands` event (`module-input.md`,
   "Commands and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
@@ -144,18 +142,11 @@ A widget inside an element whose `exhibit` declaration applies (including its op
 input back, it asks `this.matches("[data-lf-exhibit] *")`. Its presentation and view
 state still work.
 
-When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
-the widget or part with an error box naming it, with `source` beneath when given, and
-dispatches an `error` `ErrorEvent` on the element, bubbling and composed, or on the
-window while the element is out of the document. Leaf reports it as a page error
-naming the widget, which fails `page check`. The widget's next draw removes the box,
-a template render into the element included.
-A native renderer that retains its nodes can register `placesFailure(element, place)`
-to place the box beside them: `place(box)` returns true when it handles the box, and
-the renderer removes it when the failed content recovers. An element has one placer,
-which registering again replaces. Where the widget shows a
-failed part its own way, as `lf-diff` does for a patch it cannot draw, it dispatches
-the `error` event itself (`module-plain-elements.md`, "`error`"), which only reports.
+When an upgrade or one part of it fails, the widget shows the failure in place of what
+failed rather than a blank, and dispatches the `error` event
+(`module-plain-elements.md`, "`error`"). The library's
+[`failure.js`](../../../browser/runtime/lib/failure.js) does both, and its header says
+where the box goes and what removes it.
 
 ## Connection lifetimes
 

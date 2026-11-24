@@ -1454,7 +1454,15 @@ def unread_syntax(page):
 
 def axe_findings(page):
     """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
-    that has any."""
+    that has any, read with the page's reading scroller at its top.
+
+    Axe counts a target partly scrolled under a sticky header as obscured, and its
+    sliver as a neighbour too close to the targets beside it, so a reading taken
+    wherever an earlier journey left the scroll varies with that journey's timing.
+    A reader scrolls such a target back into view, and at the top no sticky element
+    covers the content beneath it."""
+    page.evaluate(f"() => {{ {READING_SCROLLER}.scrollTop = 0; }}")
+    rendered(page)
     findings = []
     for scheme in in_each_scheme(page):
         violations, report = serious_axe_violations(page)

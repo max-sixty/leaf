@@ -1,4 +1,4 @@
-import { agePreview, fragmentTarget, tabStore } from "/runtime/widget-api.js";
+import { agePreview, elementById, tabStore } from "/runtime/widget-api.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
@@ -12,12 +12,12 @@ export const ACTIVITY_VIEW = "activity-reading:";
 
 /** @typedef {{id: string, ts: string, actor: string, what: string, label?: string | null | undefined, widget?: string | null | undefined, thread?: string | undefined, excerpt?: string | null, undone: boolean}} ActivityRow */
 /** @typedef {{open: boolean, shown: string, label: string, news: boolean}} ActivityReading */
-/** @typedef {(fragment: string, document: Document) => Element | null} ActivityTarget */
+/** @typedef {(fragment: string) => Element | null} ActivityTarget */
 /** @typedef {{printing?: boolean, names?: ActivityTarget, age?: (ts: string) => string, openThread?: (id: string) => void}} ActivityCapabilities */
 /** @param {Element} link @param {string} widget @param {typeof keeps} write @param {ActivityTarget} names */
 function refreshTarget(link, widget, write, names) {
   const fragment = `#${encodeURIComponent(widget)}`;
-  const href = names(fragment, link.ownerDocument) ? fragment : null;
+  const href = names(fragment) ? fragment : null;
   // Preserve the focused node as a link becomes historical text, and back again.
   // Give it a programmatic stop before removing href; restore href before removing
   // that stop. The unavailable target is never a Tab offer.
@@ -74,8 +74,7 @@ export function createActivity(host) {
       data-lf-carry=${`row-${row.id}`}
       ${ref(
         (node) =>
-          node &&
-          refreshTarget(node, widget, keeps, capabilities.names ?? fragmentTarget),
+          node && refreshTarget(node, widget, keeps, capabilities.names ?? elementById),
       )}
       >${row.label}</a
     >`;

@@ -43,7 +43,7 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   const button = items[1].querySelector("button");
   const opened = [];
   const live = {
-    names: (fragment, doc) => doc.getElementById(fragment.slice(1)),
+    names: (fragment) => document.getElementById(fragment.slice(1)),
     age: () => "just now",
     openThread: (id) => opened.push(id),
   };

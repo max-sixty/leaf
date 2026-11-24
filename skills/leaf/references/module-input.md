@@ -231,8 +231,14 @@ A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 For a control in a widget's shadow root, that ancestor is the widget.
 
-`focused()` is the focused element across shadow trees, and `currentLocationIn(scope)` says
-whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
+Ask the browser what is focused: the `activeElement` of the tree a node stands in,
+`document`, the widget's own `shadowRoot`, or `this.getRootNode()` for a widget that may
+stand inside another's shadow tree. A shadow host stands for focus inside its tree. It
+keeps naming the element while the window is in the background, as when a revision
+arrives, where `:focus` and `:focus-within` stop matching. A command row may read it:
+Leaf reads a scope's rows again whenever focus moves into, out of or within the scope.
+
+`placeOf(node)` returns the page node a place stands for,
 so focus on a margin entry or in a thread card reads as being at its passage or
 obligation; a module asks it whether the user is on its content from either.
 `onPressAway(away, dismiss)` hears each primary press that begins and

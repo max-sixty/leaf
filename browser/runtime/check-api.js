@@ -91,6 +91,7 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  focused,
   handBack,
   onCurrentLocation,
   releaseFocus,

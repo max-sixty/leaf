@@ -316,7 +316,14 @@ export class ShotView {
       const regions = reading?.regions
         .filter((region) => region.side === state)
         .map((region) => differenceMark(region, reading));
-      return html`<div class="lf-shotframe" data-lf-state=${state} data-lf-gen="1">
+      // Each viewport is a reading region its frame hosts, and the stage is one the
+      // shot itself hosts (lf-shot.js, `connectedCallback`).
+      return html`<div
+        class="lf-shotframe"
+        data-lf-state=${state}
+        data-lf-scroll-host=${state}
+        data-lf-gen="1"
+      >
         <div class="lf-shot-frame-label" data-lf-state=${state} data-lf-gen="1">
           ${caption(state, true)}
         </div>
@@ -324,6 +331,7 @@ export class ShotView {
           class="lf-shotviewport lf-media-frame"
           role="region"
           aria-label=${`${label} — ${alt}`}
+          data-lf-scroll=${state}
           data-lf-gen="1"
         >
           <a
@@ -470,6 +478,7 @@ export class ShotView {
         role="region"
         aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
         aria-description=${this.description ?? nothing}
+        data-lf-scroll="capture"
         data-lf-gen="1"
       >
         <div class="lf-shotcanvas" data-lf-gen="1">

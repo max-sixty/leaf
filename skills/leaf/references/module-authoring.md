@@ -162,9 +162,10 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
-    // For a widget that scrolls a box of its own (module-scroll-and-motion.md,
-    // "Reading regions"): the registration's function is this connection's cleanup.
-    return registerReadingRegion({ id: this.id, host: this, body: this.body });
+    // What the signal can't end is this connection's cleanup.
+    const sizes = sizeObserver(this.schedulePaint);
+    sizes.observe(this.body);
+    return () => sizes.disconnect();
   });
 }
 ```
@@ -175,7 +176,8 @@ it again. `whileConnected` returns a function that ends the registration for goo
 
 Moving an element within the page doesn't count as leaving. When a revision replaces a
 widget, the old element's cleanup runs before the new one's `start`, so a registration
-only one element may hold, such as `registerReadingRegion`, passes to the replacement.
+only one element may hold, such as `registerThreadPresentation`, passes to the
+replacement.
 
 A `LeafElement` draws nothing while it is away and draws the current reading once on
 return, keeping unchanged template nodes. Have `start` restore what its cleanup removed,
@@ -412,13 +414,18 @@ child and its listeners; call it when the owning widget is disposed. A sample ke
 its own state and theme scope. Declare its template in the authored document, following
 [live-samples.md](live-samples.md).
 
+The host gives a block's frame its child's height, as the frame's content height, so
+set none yourself; a window's frame keeps the height its styles give it. A resize the
+user did not ask for waits while it would move what they are reading. They asked for
+a child's resizes where they saw the frame as the host mounted it, where `reset()`
+started the child, and once they click, press a key or type in it. Where they saw the
+frame as it mounted, the page's presentation also waits for the child to be ready or
+to fail, or for the user to look away.
+
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
-`loading`, `departed`, `input` (with the event's `{type}`), `current-location` (with
-`{focused}`), and `height` (with `{height}`). The host counts the child's arrival in
-the page's readiness itself. Use `height` to size a block frame, holding
-growth the user did not request as described in `module-scroll-and-motion.md` until a
-`click`, `keydown` or `input` notice says they acted in the child.
+`loading`, `departed`, `input` (with the event's `{type}`) and `current-location` (with
+`{focused}`). The host counts the child's arrival in the page's readiness itself.
 `restoreCurrentLocation()` returns focus to the child's last focused control;
 `showThread(id, {surface, status, signal})` opens a child Thread with an AbortSignal
 for the owning gesture's lifetime. `surface: "panel"` selects the child's panel,

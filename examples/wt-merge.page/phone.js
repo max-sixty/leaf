@@ -56,6 +56,9 @@ export class PhonePainter {
     this.latest = document.createElement("p");
     this.latest.className = "film-phone-latest";
     this.log = document.createElement("div");
+    // The log is a reading region the disclosure hosts.
+    this.log.setAttribute("data-lf-scroll", "terminal");
+    this.terminal.setAttribute("data-lf-scroll-host", "terminal");
     this.terminal.append(summary, this.log);
     this.root.append(this.context, this.latest, this.terminal);
     stage.append(this.root);

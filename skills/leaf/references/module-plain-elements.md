@@ -184,7 +184,9 @@ On Me and admits the ids its buttons mark:
 - **`lf-layout`.** An element that rearranges what it holds without changing its own
   size, as a view swap does, dispatches a bubbling, composed `lf-layout` event on
   itself. Leaf then reads again whatever it measured or read inside the element, such
-  as where a margin entry stands and which parts are comment targets.
+  as where a margin entry stands, which parts are comment targets and which outlets
+  the element offers its threads (`module-annotations.md`, "Widget-local Thread
+  placement").
 - **`error`.** An element reports a failure by dispatching a bubbling, composed
   `ErrorEvent` named `error` on itself, whose `error` property is the failure. Leaf
   reports it to the agent as a page error naming the widget, which fails `page check`.
@@ -202,6 +204,9 @@ On Me and admits the ids its buttons mark:
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
   parts").
+- **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
+  with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
+  regions").
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,
   never shows them as a change. To set apart words it writes, such as a count after an

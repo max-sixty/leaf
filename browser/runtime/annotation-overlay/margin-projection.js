@@ -125,11 +125,12 @@ import {
   pressLed,
   focused,
   closeLayer,
-  rove,
   currentLocationIn,
 } from "../focus.js";
+import { rove } from "../lib/roving.js";
 
-import { el, generatedElement, reveal as openFolds } from "../widget-elements.js";
+import { generatedElement, reveal as openFolds } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
 import { offerActionElement } from "../lib/controls.js";
 import { readingPlace } from "../resolved-target.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";

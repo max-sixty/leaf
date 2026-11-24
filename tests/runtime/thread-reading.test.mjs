@@ -153,6 +153,12 @@ test("a reply to a thread reads its own message and the reactions it moves", () 
     [null, false, null, false, true],
   );
   assert.equal(after.msgs[1].reactions?.choices[0]?.inForce?.id, "liked");
+  // A package draws a thread from its record's `turns`: the messages themselves, less
+  // the reaction, which stands on the message it answers.
+  assert.deepEqual(
+    after.turns,
+    after.msgs.filter((message) => message.id !== "liked"),
+  );
   assert.deepEqual(
     [after],
     readThreadRecords(
@@ -499,11 +505,18 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
   );
   held.hold(reading(false), { row: false });
   const next = held.prepare(reading(true), { row: false });
-  const mark = next.reading.threads[0].source.msgs.find(({ id }) => id === "mark");
+  const drawn = next.reading.threads[0].source;
+  const mark = drawn.msgs.find(({ id }) => id === "mark");
   held.dispose();
   owner.remove();
   assert.equal(mark?.token, "keep");
   assert.equal(mark?.withdrawn, undefined);
+  // The held thread's turns are those of the messages it holds, so a package reading
+  // them draws what the seat does: the mark still a reaction, and no turn.
+  assert.deepEqual(
+    drawn.turns.map(({ id }) => id),
+    ["opening", "answer", "kept"],
+  );
 });
 
 test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {

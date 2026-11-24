@@ -501,11 +501,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     draft = panel_field(page) if place == "panel" else owner.locator("leaf-text")
     expect(draft).to_be_visible()
     if place == "nested-end":
-        page.evaluate("""async () => {
-          const body = document.querySelector('#continuity-scroll');
-          const {registerReadingRegion} = await window.__lfWidgetApi();
-          registerReadingRegion({id: 'continuity-scroll', host: body, body});
-        }""")
+        page.locator("#continuity-scroll").evaluate(
+            "body => body.setAttribute('data-lf-scroll', 'continuity')"
+        )
     held = []
 
     def hold(route):

@@ -18,7 +18,7 @@
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
-import { el } from "../widget-elements.js";
+import { el } from "../lib/elements.js";
 import { paintSet } from "../target-paint-geometry.js";
 import { drawingGeometry } from "./drawing-geometry.js";
 

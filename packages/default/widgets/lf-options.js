@@ -113,8 +113,8 @@ import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  addressableLabel,
   aimedAt,
+  nameOf,
   authoredScope,
   elementById,
   threadInput,
@@ -546,7 +546,7 @@ customElements.define(
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the
-    // name the chrome gives it (`addressableLabel`), else by its word, and by the id
+    // name the chrome gives it (`nameOf`), else by its word, and by the id
     // only where no block in the option's document answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone, and pointing at it
     // previews the block, as a link into the page does (`placePreview`). It is chrome
@@ -556,7 +556,7 @@ customElements.define(
       const target = option.getAttribute("for");
       if (!target) return;
       const block = elementById(target, authoredScope(this));
-      const label = `§ ${addressableLabel(block) || addressableWord(block) || target}`;
+      const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
       ref.lfPreview = () => {

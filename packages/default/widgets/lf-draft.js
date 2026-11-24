@@ -70,8 +70,8 @@
  */
 import { html, render, nothing } from "/vendor/lit.js";
 import {
-  addressableLabel,
   aimedAt,
+  nameOf,
   commandScope,
   motion,
   LeafElement,
@@ -393,7 +393,7 @@ customElements.define(
 
     // The draft as the rest of the chrome names it, never by its id.
     #named() {
-      const label = addressableLabel(this);
+      const label = nameOf(this);
       return label ? `“${label}”` : `the ${addressableWord(this)}`;
     }
 

@@ -8,11 +8,14 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    ROOT,
     append_carried_log_record,
     check_findings,
     declare_data_input,
     element_declaration,
     found,
+    package_findings,
+    package_path,
     read_page_data,
     registry_refusal,
 )
@@ -25,6 +28,7 @@ from leaf import files as files_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
 from leaf.findings import Rejected
+from leaf.page import page_instructions
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
@@ -109,6 +113,12 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
     assert found(findings, code, **values), findings
 
 
+def _also_reads_an_output(entry):
+    entry["attributes"]["properties"]["for"] = {"type": "string"}
+    entry["refers"] = {"for": {}}
+    entry["inputs"]["data"].update({"contract": "missing-contract", "reference": "for"})
+
+
 @pytest.mark.parametrize(
     ("change", "code"),
     [
@@ -118,6 +128,9 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
             ),
             "data-contract",
         ),
+        # `leaf data set` validates a source's value against the contract, so an input
+        # that can bind a source needs it declared whatever else the input can bind.
+        (_also_reads_an_output, "data-contract"),
         (
             lambda entry: entry.update(
                 {
@@ -626,3 +639,65 @@ def test_composing_declares_the_attributes_an_input_binds_by(
 
     assert composed["lf-reader"]["attributes"].get("properties") == properties
     assert composed["lf-reader"].get("refers") == refers
+
+
+SHORTLIST, FINALISTS = (
+    ROOT / "tests" / "fixtures" / "packages" / name
+    for name in ("shortlist", "finalists")
+)
+
+
+def test_a_package_reads_another_packages_output_by_the_contracts_name(
+    initialized_page, tmp_path
+):
+    """The finalists fixture reads a `shortlist` only from the widget its `for` names
+    and declares no contract. The shortlist fixture, written apart from it, declares
+    the one both name. So the finalists package checks alone, and on a page that
+    selects both, `page check` matches the input to the output by that name. The
+    contract's instructions reach the reader's author on that page, and a page that
+    selects the reader alone returns the reader's own."""
+    status, findings = package_findings(FINALISTS)
+    assert status == 0, findings
+
+    page_dir = initialized_page(
+        tmp_path / "page", (package_path(SHORTLIST), package_path(FINALISTS))
+    )
+
+    def checked(target):
+        (page_dir / "index.html").write_text(
+            '<!doctype html><html lang="en"><head><title>Final round</title></head>'
+            '<body><main><lf-shortlist id="hires"><ul><li><button type="button"'
+            ' commandfor="hires" command="--toggle" value="ada">Ada Lovelace</button>'
+            '</li></ul></lf-shortlist><p id="plain">No shortlist here.</p>'
+            f'<lf-finalists id="finalists" for="{target}"></lf-finalists>'
+            "</main></body></html>"
+        )
+        status, findings = check_findings(page_dir)
+        return status, [
+            (finding.at, finding.values)
+            for finding in found(findings, "output-contract")
+        ]
+
+    assert checked("hires") == (0, [])
+    assert checked("plain") == (
+        1,
+        [
+            (
+                "<lf-finalists>",
+                {
+                    "line": 1,
+                    "input": "shortlist",
+                    "target": "plain",
+                    "outputs": [],
+                    "contract": "shortlist",
+                },
+            )
+        ],
+    )
+
+    def audiences(page):
+        return set(page_instructions(page, entries=("lf-finalists",)))
+
+    assert audiences(page_dir) == {"author", "producer"}
+    alone = initialized_page(tmp_path / "alone", (package_path(FINALISTS),))
+    assert audiences(alone) == {"author"}

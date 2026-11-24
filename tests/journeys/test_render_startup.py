@@ -313,8 +313,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement} = await window.__lfWidgetApi();
-          const {clockValue} = await window.__lfCheckApi();
+          const {LeafElement, clockValue} = await window.__lfWidgetApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
           window.clockVersion = 0;
           const probes = [];

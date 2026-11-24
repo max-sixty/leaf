@@ -2,7 +2,6 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { clockValue } from "./presence.js";
 export { startNearWork } from "./presentation.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";

@@ -239,6 +239,13 @@ as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 
 Read `ago` synchronously in `render()`, which then redraws as the time's reading
 changes.
 
+`clockValue((now) => …)` states any other condition on the time, such as whether a
+timestamp is older than a limit or which day a date falls in. `now` is the server's
+time in milliseconds, the clock `ago` reads, so the answer never disagrees with an age
+beside it; keep no clock of your own. Return the answer rather than the time, as in
+`clockValue((now) => now - Date.parse(collected) > STALE_MS)`: a synchronous read in
+`render()` redraws only when that answer changes.
+
 ## Editing a bound file
 
 `boundFile(binding)` reads and writes a file the agent granted this page with

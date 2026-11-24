@@ -1180,7 +1180,7 @@ def test_threads_on_two_parts_of_a_picture_stand_an_entry_each_tracing_its_part(
     resized(page, 1440, 900)
     expect(page.locator("#weeks svg[role=img]")).to_be_visible()
     margins_laid_out(page)
-    third_dot = page.locator("#weeks svg[role=img] [data-lf-part=dot] circle").nth(2)
+    third_dot = page.locator("#weeks svg[role=img] [data-lf-plot=dot] circle").nth(2)
     traced = page.locator("[data-lf-traced]")
     for picture, word, names, hovered, part in (
         (
@@ -1234,7 +1234,7 @@ def test_a_draft_on_a_chart_s_point_traces_the_point_after_the_chart_draws_again
     resized(page, 1440, 900)
     chart = page.locator("#weeks")
     expect(chart.locator("svg[role=img]")).to_be_visible()
-    dot = chart.locator("svg[role=img] [data-lf-part=dot] circle").nth(2)
+    dot = chart.locator("svg[role=img] [data-lf-plot=dot] circle").nth(2)
 
     def middle(locator):
         box = locator.bounding_box()

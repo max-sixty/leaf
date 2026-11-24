@@ -64,7 +64,6 @@ import {
   sizeObserver,
   whileConnected,
   scrollIntoView,
-  layoutPx,
   focused,
   currentLocationIn,
   commandsChanged,
@@ -1139,7 +1138,7 @@ customElements.define(
       commandsChanged(this);
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, (signal) => {
+      whileConnected(this, () => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -1796,7 +1795,7 @@ customElements.define(
       if (this.filesBody) {
         const { top, height } = this.filesBody.getBoundingClientRect();
         const hold = needle
-          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
+          ? `${Math.round(Math.max(0, Math.min(height, innerHeight - top)) * 64) / 64}px`
           : "";
         if (this.filesBody.style.minBlockSize !== hold)
           this.filesBody.style.minBlockSize = hold;

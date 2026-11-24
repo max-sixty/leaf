@@ -508,8 +508,8 @@ export const countWhenShown = directive(
   class extends AsyncDirective {
     /** @type {Element | null} */
     node = null;
-    /** @param {number} revision */
-    render(revision) {
+    /** @param {number} _revision */
+    render(_revision) {
       return nothing;
     }
     /** @param {import("/vendor/lit.js").ElementPart} part @param {[number]} args */

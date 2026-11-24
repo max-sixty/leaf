@@ -2,7 +2,7 @@
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "/runtime/framework.js";
 import "./runtime/stage-integration.js";
-import "./runtime/element-integration.js";
+import { hostDeclaredElements } from "./runtime/element-integration.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -181,6 +181,7 @@ async function boot() {
   const initialDocument = takeInitialDocument();
   if (!(await prepareDocument(initialDocument))) return letHeldKeysGo();
   holdArrivingBounds();
+  hostDeclaredElements();
 
   // A published shell may bundle the entry without publishing its source modules beside
   // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
@@ -604,7 +605,6 @@ async function boot() {
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
-    fabAnchorAt: responseSurface.fabAnchorAt,
     pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
     armChanged: () => aim.armChanged(),

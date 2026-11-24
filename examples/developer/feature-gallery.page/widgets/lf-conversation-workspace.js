@@ -4,7 +4,6 @@ import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
-  keepsHidden,
   keeps,
   keepsText,
   offer,
@@ -211,7 +210,7 @@ customElements.define(
           row = { node, button };
           this.rows.set(key, row);
         }
-        keepsHidden(row.button, !thread);
+        row.button.toggleAttribute("hidden", !thread);
         if (thread) {
           keepsText(row.button, threadSummary(thread).topic);
           keeps(row.button, "aria-current", key === this.selected ? "true" : null);

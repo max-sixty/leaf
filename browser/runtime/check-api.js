@@ -91,6 +91,7 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  handBack,
   onCurrentLocation,
   releaseFocus,
   ringBox,
@@ -112,7 +113,11 @@ export {
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
-export { nativeLayers } from "./keyboard/layer-stack.js";
+export {
+  closeNativeLayer,
+  nativeLayers,
+  showNativeLayer,
+} from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";

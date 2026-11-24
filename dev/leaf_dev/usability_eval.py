@@ -635,6 +635,30 @@ GRACE = 20
 RENDER_PASS_WAIT_S = 240
 
 
+def live_session(run: Run, work: Path, page: Path, prompt: str) -> LiveSession:
+    """The run's session in `work`, opened with `prompt`, on the payload's plugin and
+    the run's own state home, recording its stream in the run's directory."""
+    return LiveSession(
+        LiveChild(
+            work,
+            prompt,
+            "--plugin-dir",
+            str(run.payload),
+            stderr=run.dir / "err-1.txt",
+            limit=TURN_LIMIT,
+            timed_out=run.dir / "timed-out",
+            dirs=[run.payload],
+            env={
+                "PATH": environment(payload=run.payload)["PATH"],
+                "XDG_STATE_HOME": str(run.state),
+            },
+            harness=run.harness,
+        ),
+        run.dir / "stream-1.jsonl",
+        watch=(run.payload, run.state, page),
+    )
+
+
 def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     """Serve the case's page from a live session and play its user.
 
@@ -651,25 +675,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     pending_events: set[str] = set()
     try:
         with (
-            LiveSession(
-                LiveChild(
-                    work,
-                    prompt,
-                    "--plugin-dir",
-                    str(run.payload),
-                    stderr=run.dir / "err-1.txt",
-                    limit=TURN_LIMIT,
-                    timed_out=run.dir / "timed-out",
-                    dirs=[run.payload],
-                    env={
-                        "PATH": environment(payload=run.payload)["PATH"],
-                        "XDG_STATE_HOME": str(run.state),
-                    },
-                    harness=run.harness,
-                ),
-                run.dir / "stream-1.jsonl",
-                watch=(run.payload, run.state, page),
-            ) as live,
+            live_session(run, work, page, prompt) as live,
             ExitStack() as deadlines,
         ):
 
@@ -833,25 +839,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
     ]
     for phase, prompt in enumerate(prompts, 1):
         (run.dir / f"prompt-{phase}.txt").write_text(prompt)
-    with LiveSession(
-        LiveChild(
-            work,
-            prompts[0],
-            "--plugin-dir",
-            str(run.payload),
-            stderr=run.dir / "err-1.txt",
-            limit=TURN_LIMIT,
-            timed_out=run.dir / "timed-out",
-            dirs=[run.payload],
-            env={
-                "PATH": environment(payload=run.payload)["PATH"],
-                "XDG_STATE_HOME": str(run.state),
-            },
-            harness=run.harness,
-        ),
-        run.dir / "stream-1.jsonl",
-        watch=(run.payload, run.state, page),
-    ) as live:
+    with live_session(run, work, page, prompts[0]) as live:
         for phase, prompt in enumerate(prompts, 1):
             live.note({"type": "eval_phase", "phase": phase, "received_at": now()})
             since = live.answered

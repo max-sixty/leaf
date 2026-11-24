@@ -71,7 +71,6 @@ import {
   frameFor,
   placesFailure,
   focusDestination,
-  closeNativeLayer,
   nextFrame,
   layoutChanged,
   keeps,
@@ -194,7 +193,7 @@ export class Shot extends HTMLElement {
     drawing.chooseScale = (scale) => {
       this.#drawing.actual = scale === "actual";
       this.#fit();
-      closeNativeLayer(drawing.options);
+      drawing.options.hidePopover();
       focusDestination(drawing.scaleTrigger, "move");
     };
     drawing.optionsToggled = (event) => {

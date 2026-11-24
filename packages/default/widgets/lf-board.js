@@ -100,7 +100,6 @@ import {
   rowArrows,
   rankAt,
   keeps,
-  keepsHidden,
   keepsText,
   focusDestination,
   scrollIntoView,
@@ -349,8 +348,8 @@ customElements.define(
             ":scope > .lf-board-destinations > .lf-board-destination",
           );
           for (const button of destinations)
-            keepsHidden(
-              button,
+            button.toggleAttribute(
+              "hidden",
               button.getAttribute("data-lf-board-target") === col.id ||
                 !this.#takes(
                   card,
@@ -358,8 +357,8 @@ customElements.define(
                 ),
             );
           // With no button to show, the group's "Move to" would name no destination.
-          keepsHidden(
-            card.querySelector(":scope > .lf-board-destinations"),
+          card.querySelector(":scope > .lf-board-destinations")?.toggleAttribute(
+            "hidden",
             [...destinations].every((button) => button.hidden),
           );
         }

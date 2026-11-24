@@ -54,8 +54,8 @@ export function pageRange(sel) {
 // shadow text, whose `parentElement` is null. The platform names an end inside a shadow
 // tree only once it is handed that tree's root (`getComposedRanges`). Otherwise it
 // moves the start out before the host holding it and the end past that host, so a
-// caret there comes back as a range round the host. So each host found at the end read
-// has its root handed over in turn, once for each level of nesting, and an end that
+// caret there comes back as a range round the host. So each host found at the moving
+// end has its root handed over in turn, once for each level of nesting, and an end that
 // stays at the edge once the host's root is handed over stands beside the host, not in
 // it. Every open root counts, declared or not, since this asks where the caret is
 // drawn, as a pointer's composed path does. A caret inside a closed root stays at its

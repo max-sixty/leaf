@@ -38,7 +38,7 @@ declaration alone decides, such as hiding a suggestion's `lf-old` once it is acc
 (`retired-when`).
 
 `widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read`, `dispatch` and `present`. `read()` is a page
+own or another's, through `read` and `dispatch`. `read()` is a page
 reading (`module-reading.md`, "Page readings"), so a `LeafElement` whose `render()`
 calls it draws again when it changes. Another element's `state`
 property is not a page reading, and nothing tells a widget that read it when Leaf
@@ -67,9 +67,7 @@ The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with th
 row in the leaf's menu.
 
 A widget says its own drawing under way, such as a renderer loading, with a
-`pending-task` event (`module-plain-elements.md`, "Drawing"). Where a parent prepares
-for a member that has no controller of its own, it passes the promise to its
-`widgetController(owner)`'s `present(promise)`.
+`pending-task` event (`module-plain-elements.md`, "Drawing").
 
 ### State only this tab keeps
 

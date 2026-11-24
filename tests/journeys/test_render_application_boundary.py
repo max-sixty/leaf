@@ -348,9 +348,10 @@ def test_thread_presentation_waits_for_its_own_widgets_only(browser, serve):
           window.__heldLocalPresentations = new Map([
             ['thread-local', threadPreparation.promise],
           ]);
-          (await window.__lfWidgetApi())
-            .widgetController(document.querySelector('#page-local'))
-            .present(pagePreparation.promise);
+          // Said from inside the widget, the work is its preparation.
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          document.querySelector('#page-local').shadowRoot
+            .dispatchEvent(new PendingTaskEvent(pagePreparation.promise));
           window.whenLeafPresented = presentation.whenApplicationPresented;
           window.whenLeafRegionsPresented =
             presentation.whenApplicationRegionsPresented;

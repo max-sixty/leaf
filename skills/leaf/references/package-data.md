@@ -195,7 +195,7 @@ widget in `owners`, requires only an `id`, and has `content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
 presentation, but `package check` refuses one that declares state, obligations,
-history, data or visual parts of its own; the parent's controller records and presents
+history, data or visual parts of its own; the parent records and draws
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions
 or services belongs in authored markup.

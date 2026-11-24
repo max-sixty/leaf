@@ -58,7 +58,10 @@
   }
 
   /* The one paragraph a user is guaranteed to read, so it is set as one: larger than the
-     body, looser, and in the ink the body isn't. */
+     body, looser, and in the ink the body isn't. In a page of parts' column
+     (layouts.css, "A page of parts") it takes the column's size, since set larger it
+     ran three or four words to a line and left the list of parts a strip at the
+     window's foot. */
   h1 + .lf-lede {
     margin-block-start: 12px;
   }
@@ -67,6 +70,12 @@
     font-size: var(--lf-t-3);
     line-height: 1.5;
     margin: 0 0 10px;
+  }
+  @container style(--lf-parts-title: 1) {
+    .lf-lede {
+      font-size: inherit;
+      line-height: inherit;
+    }
   }
 
   /* A callout's tint carries its emphasis. Its prose keeps the page's own size, and the

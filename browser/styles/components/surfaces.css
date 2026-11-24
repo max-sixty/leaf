@@ -123,9 +123,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   display: none;
 }
 /* A lent command hint never participates in flow, whether empty, filled or restored.
-   Its widget positions the external seat beside the control it labels. */
+   Its widget positions the external seat beside the control it labels. It takes no
+   pointer, as a corner chip takes none (chrome.css, `.lf-chip-seat`;
+   keyboard/command-hints.js says what that gives a press). */
 .lf-binding-seat {
   position: absolute;
+  pointer-events: none;
 }
 :root,
 :host {

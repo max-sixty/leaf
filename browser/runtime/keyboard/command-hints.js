@@ -5,9 +5,11 @@
  * face; null requests a runtime corner chip. The widget owns placement, while this
  * presenter owns words and visibility; a control's accessible shortcuts are
  * control-keys.js's, from the same reading. A lent face keeps its out-of-flow seat even
- * when empty or its command leaves reach. Neither Decision metadata nor a second focus
- * predicate is needed. Contextual aliases and intrinsic bindings to one original command
- * share a face, with a reachable contextual alias preferred.
+ * when empty or its command leaves reach. A face labels a key and takes no pointer, as
+ * a chip takes none, so a press where one stands lands on what the widget drew it over,
+ * whether the face shows, has just arrived or has just gone. Neither Decision metadata
+ * nor a second focus predicate is needed. Contextual aliases and intrinsic bindings to
+ * one original command share a face, with a reachable contextual alias preferred.
  *
  * Paint after the chrome's layout, so placement sees current fixed chrome.
  * The lent face is restored when its command leaves reach; stale source references
@@ -24,7 +26,8 @@ import {
 import { reachingNow } from "./control-keys.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder, under } from "../lib/shadow-tree.js";
+import { renderedUnder } from "../lib/shadow-tree.js";
+import { elementFromPointAcross } from "../passages.js";
 import { html, render } from "/runtime/framework.js";
 import { inlineStyle, keepsText } from "../lib/keeps.js";
 import { repaint } from "../repaint.js";
@@ -128,13 +131,12 @@ export function createCommandHints({ presentedControl }) {
   let paintedMoving = false;
   /** @type {Map<BindingBadge, LentFace>} */
   const wornBindingBadges = new Map();
-  // TODO(#5194): this hit test is 28 of a Tab's 30, about 1.8 ms at 256 sections.
-  // Leaving what stands over a lent face to paint order deleted 56 lines in a prototype:
-  // a thread card or a pin covers the control as well as its face, so only a face under
-  // the page's own content, such as a sticky bar, would go unseen instead of becoming a
-  // corner chip.
-  /** @param {Element} bindingBadge @param {Element} control @param {import("../rect.js").Box} visible @param {ReadonlySet<Element>} lent */
-  function exposedBindingBadge(bindingBadge, control, visible, lent) {
+  // TODO(#5194): a Tab pays this hit test at every face the window shows. Leaving what
+  // stands over a lent face to paint order would delete it: a thread card or a pin
+  // covers the control as well as its face, so only a face under the page's own content,
+  // such as a sticky bar, would go unseen instead of becoming a corner chip.
+  /** @param {Element} bindingBadge @param {Element} control @param {import("../rect.js").Box} visible */
+  function exposedBindingBadge(bindingBadge, control, visible) {
     const whole = bindingBadge.getBoundingClientRect();
     /** @type {readonly ("left" | "right" | "top" | "bottom")[]} */
     const edges = ["left", "right", "top", "bottom"];
@@ -146,14 +148,15 @@ export function createCommandHints({ presentedControl }) {
       (visible.right - visible.left) / 4,
       (visible.bottom - visible.top) / 4,
     );
-    // The whole stack at each point, read the same whether the face is worn or withheld
-    // (transparent, and still in the hit test): nothing may stand over the face but the
-    // control it labels, whose state mark shares the slot and yields it to a worn face
-    // (an option's pick turns transparent), or another face lent in the same pass, since
-    // every face is lent before any is read; `reserve` gives two that overlap to the
-    // earlier route.
-    const root = bindingBadge.getRootNode();
-    if (!(root instanceof Document || root instanceof ShadowRoot)) return false;
+    // A face takes no pointer (surfaces.css, `.lf-binding-seat`), so a hit test at its
+    // place finds what stands there without it, the same whether the face is worn or
+    // withheld. The face is exposed where that is the control it labels or something
+    // inside it, whose state mark may share the seat (an option's pick turns transparent
+    // under a worn face), or a box that holds the face. Anything else there may stand
+    // over the face, which this hit test can't tell from standing under it, so the face
+    // is withheld and a chip takes its place. A host whose own shadow tree draws a part
+    // over a face slotted into it reads as the box that holds the face, so that face is
+    // worn under the part. `reserve` gives two faces that overlap to the earlier route.
     /** @type {[number, number][]} */
     const points = [
       [x, y],
@@ -162,40 +165,11 @@ export function createCommandHints({ presentedControl }) {
       [visible.left + inset, y],
       [visible.right - inset, y],
     ];
-    // A hit test names a shadow tree's host for whatever that tree holds at the point, so
-    // a host over the face is read again inside its tree, and covers the face unless all
-    // it holds there over the face is faces lent in this pass. Its own box covers it.
-    /** @param {Element} host @param {number} atX @param {number} atY @returns {boolean} */
-    const holdsOnlyLent = (host, atX, atY) => {
-      const tree = host.shadowRoot;
-      if (!tree) return false;
-      const stack = tree.elementsFromPoint(atX, atY);
-      const at = stack.findIndex((each) => under(bindingBadge, each));
-      return (
-        at >= 0 &&
-        stack.slice(0, at).every(
-          (over) =>
-            over !== host &&
-            // What stands outside the tree, the reading in the face's own tree answers.
-            (over.getRootNode() !== tree ||
-              lent.has(over) ||
-              holdsOnlyLent(over, atX, atY)),
-        )
-      );
-    };
     return points.every(([atX, atY]) => {
-      const stack = root.elementsFromPoint(atX, atY);
-      const at = stack.indexOf(bindingBadge);
+      const under = elementFromPointAcross(atX, atY);
       return (
-        at >= 0 &&
-        stack
-          .slice(0, at)
-          .every(
-            (over) =>
-              lent.has(over) ||
-              renderedUnder(over, control) ||
-              holdsOnlyLent(over, atX, atY),
-          )
+        under !== null &&
+        (renderedUnder(under, control) || renderedUnder(bindingBadge, under))
       );
     });
   }
@@ -255,7 +229,7 @@ export function createCommandHints({ presentedControl }) {
     // That can be read only off the face as it would stand, so the face stays lent while
     // its route stands: one that is not exposed keeps the digit and its box but turns
     // transparent, rather than being put back after each measurement and lent again on
-    // the next pass. The widget routes a press on its face to the labeled control.
+    // the next pass.
     // The core chip takes the face's own place, the widget owning where its digit goes:
     // hung off the control's corner instead, a field's chip covered its first words.
     // Where what hides the face covers that place too, as an open thread card does, the
@@ -317,7 +291,7 @@ export function createCommandHints({ presentedControl }) {
       const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
       const exposed = Boolean(
         box &&
-        exposedBindingBadge(bindingBadge, control, box, lent) &&
+        exposedBindingBadge(bindingBadge, control, box) &&
         placement.reserve(box, control),
       );
       const face = box && !exposed ? bindingBadge.getBoundingClientRect() : null;

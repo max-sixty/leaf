@@ -739,6 +739,7 @@ block names what a package answers with the browser's own call instead.
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                                |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                                |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                              |
+| Which member a widget shows of several, its name in the address, and the user's place in each         | `views.js` `keepView`, `entryView`                                                     |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                           |
 | The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                    |
@@ -761,7 +762,7 @@ block names what a package answers with the browser's own call instead.
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
 | Holding what the reader reads across a module's own change that hides it                              | `user-place.js` `holdPlace`                                                            |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                               |
-| Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                              |
+| Whether a press is a plain primary-button press with no modifier                                      | `lib/keys.js` `plainPress`                                                             |
 | Which arrow means back along a row, in its text direction                                             | `lib/keys.js` `rowArrows`                                                              |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                        |
 | Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                            |

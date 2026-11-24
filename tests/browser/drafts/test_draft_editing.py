@@ -21,6 +21,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    press_draft_control,
     resized,
     round_trip,
     scroll_settled,
@@ -475,13 +476,13 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, se
     page.keyboard.press("ControlOrMeta+z")
     expect(editor).to_have_js_property("value", text)
     write(editor, "Discard **this**.")
-    draft_control(page, "cancel", "source").click()
+    press_draft_control(page, "cancel", "source")
     expect(draft.locator(".lf-draft-body strong")).to_have_count(3)
     draft_control(page, "edit", "source").click()
     expect(editor).to_have_js_property("value", text)
     saved = "Keep **this** and `that` exactly.\nA second line."
     write(editor, saved)
-    draft_control(page, "save", "source").click()
+    press_draft_control(page, "save", "source")
     round_trip(page)
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body strong")).to_have_text("this")
@@ -522,7 +523,7 @@ def test_a_press_away_from_an_open_draft_saves_it(browser, serve):
     editor = draft.locator("leaf-text")
     expect(editor).to_be_focused()
     write(editor, "Only the pointer one.")
-    draft_control(page, "cancel", "q9-note").click()
+    press_draft_control(page, "cancel", "q9-note")
     expect(editor).to_have_count(0)
     draft.click()
     write(editor, "Land the pointer branch first.")
@@ -574,7 +575,7 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
         expect(editor).to_have_js_property("selectionStart", at)
         page.keyboard.insert_text("here")
         expect(editor).to_have_js_property("value", source[:at] + "here" + source[at:])
-        draft_control(page, "cancel", f"continuation-{i}").click()
+        press_draft_control(page, "cancel", f"continuation-{i}")
 
 
 def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
@@ -652,6 +653,52 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
         if event.get("action") == "edit"
     ]
     assert [event["detail"]["value"] for event in edits] == [saved]
+
+
+def test_typing_puts_the_toolbar_away_until_the_pointer_comes_to_it(browser, serve):
+    """The toolbar stands over the first line's last words, so typing puts it away at
+    once, the pointer resting where it opened the editor or not, and the pointer coming
+    to it brings it back. Put away, it takes no press: a press that hasn't moved
+    places the caret in the words rather than pressing a Discard the user can't see, and
+    the toolbar takes presses again once the pointer rests on it or Tab reaches it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Draft toolbar",
+                '<h1>Release note</h1><lf-group id="note-decision" label="How should the note read?">'
+                '<h2 id="note-decision-h">How should the note read?</h2>'
+                '<lf-draft id="note" required><pre>Keep this source editable.</pre></lf-draft></lf-group>',
+            )
+        ),
+    )
+    tools = page.locator("#note .lf-draft-tools")
+    editor = page.locator("#note leaf-text")
+    page.locator("#note .lf-draft-body").click()
+    expect(editor).to_be_focused()
+    expect(tools).to_have_css("opacity", "1")
+    box = draft_control(page, "save", "note").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.keyboard.type(" Now")
+    expect(tools).to_have_css("opacity", "0")
+    page.mouse.down()
+    page.mouse.up()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Keep this source editable. Now")
+    # A move over the words leaves it away; the pointer coming to it brings it back.
+    words = page.locator("#note").bounding_box()
+    page.mouse.move(words["x"] + 30, words["y"] + words["height"] / 2)
+    assert tools.evaluate("el => getComputedStyle(el).opacity") == "0"
+    page.mouse.move(box["x"] + box["width"] / 2 + 2, box["y"] + box["height"] / 2)
+    expect(tools).to_have_css("opacity", "1")
+    expect(tools).to_have_css("pointer-events", "auto")
+
+    page.keyboard.type(" Then")
+    expect(tools).to_have_css("opacity", "0")
+    page.keyboard.press("Tab")
+    expect(draft_control(page, "save", "note")).to_be_focused()
+    expect(tools).to_have_css("opacity", "1")
+    expect(tools).to_have_css("pointer-events", "auto")
 
 
 def test_the_draft_box_is_its_own_door(browser, serve):
@@ -801,7 +848,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     before = page.locator("#following").bounding_box()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    draft_control(page, "save", "first-draft").click()
+    press_draft_control(page, "save", "first-draft")
     holding(page, held, 1, "the refused first draft Save")
     expect(draft.locator(".lf-draft-body")).to_have_text("Changed words.")
     held[0].fulfill(
@@ -861,7 +908,7 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     edit.press("Enter")
     expect(editor).to_have_js_property("value", "Saved **source**.")
     write(editor, "Changed again.")
-    draft_control(page, "cancel", "local").click()
+    press_draft_control(page, "cancel", "local")
     expect(edit).to_be_focused()
     edit.click()
     expect(editor).to_have_js_property("value", "Saved **source**.")
@@ -884,7 +931,7 @@ def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
     draft = page.locator("#walk")
     draft_control(page, "edit", "walk").click()
     write(draft.locator("leaf-text"), "Saved words.")
-    draft_control(page, "save", "walk").click()
+    press_draft_control(page, "save", "walk")
     round_trip(page)
     draft_control(page, "edit", "walk").click()
     write(draft.locator("leaf-text"), "Authored words.")
@@ -1183,7 +1230,7 @@ def test_pointer_cancel_returns_draft_room_without_delaying_reading_or_focus(
     scroll_settled(page)
     before = draft.bounding_box()["height"]
     scroll_before = page.evaluate("scrollY")
-    draft_control(page, "cancel", "copy").click()
+    press_draft_control(page, "cancel", "copy")
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Original short text.")
     expect(draft_control(page, "edit", "copy")).to_be_focused()
@@ -1202,5 +1249,5 @@ def test_pointer_cancel_returns_draft_room_without_delaying_reading_or_focus(
     page.emulate_media(reduced_motion="reduce")
     draft_control(page, "edit", "copy").click()
     page.keyboard.insert_text("\n" * 8)
-    draft_control(page, "cancel", "copy").click()
+    press_draft_control(page, "cancel", "copy")
     assert draft.evaluate("d=>d.getAnimations().length") == 0

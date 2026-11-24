@@ -115,8 +115,8 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     """A tab switch is not fragment travel. The strip stays where it is on screen: a view
     never read opens at its start when the strip is stuck and leaves the shared header
     alone when it is not, and a view read past its start reopens where the user left it.
-    Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
-    shows the page's top.
+    Pointer and keyboard agree. Back and Forward open their entry's view where the user
+    was on that entry, and a fresh load of the remembered view shows the page's top.
 
     A view's place is where the user was reading in it, not a pixel offset: a window
     resized while the view is hidden rewraps everything above that passage, and the view
@@ -253,8 +253,9 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     """A switch between a page's parts is not fragment travel. The list stays where it is
     on screen under the page's title: a part never read opens at its start, at the top
     of the page level with the title, and a part read past its start reopens where the
-    user left it. Pointer, keyboard, and Back/Forward agree, and a fresh load of the
-    remembered part shows the page's top.
+    user left it. Pointer and keyboard agree. Back and Forward open their entry's part
+    where the user was on that entry, and a fresh load of the remembered part shows the
+    page's top.
 
     A part's place is where the user was reading in it, not a pixel offset: a window
     resized while the part is hidden rewraps everything above that passage, and the part

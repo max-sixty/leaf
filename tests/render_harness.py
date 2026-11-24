@@ -3029,6 +3029,21 @@ def draft_control(scope, key: str, draft_id: str, *, visible=True):
     )
 
 
+def press_draft_control(scope, key: str, draft_id: str):
+    """Press a draft's toolbar control as a pointer reaches it: the pointer comes to the
+    control and rests there, which brings back a toolbar typing put away and gives it
+    its presses (draft.css), and then presses."""
+    page = getattr(scope, "page", scope)
+    control = draft_control(scope, key, draft_id)
+    control.scroll_into_view_if_needed()
+    box = control.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(scope.locator(f'lf-draft[id="{draft_id}"] .lf-draft-tools')).to_have_css(
+        "pointer-events", "auto"
+    )
+    control.click()
+
+
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
     """The suggestion `suggestion_id`'s margin entry `key` (accept, reject, undo), or
     all of its entries."""

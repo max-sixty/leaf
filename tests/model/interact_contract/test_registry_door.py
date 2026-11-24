@@ -836,6 +836,22 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     assert found([finding], "answering-part", "<lf-board>", verb="move")
 
 
+def test_every_member_reads_a_member_verb_that_records_no_position(page_dir):
+    """A move's answer is where the cards stand (`empty`), not that each card moved,
+    so `every` on a position verb would read one widget two ways."""
+    registry = queue_board_registry(vocabulary(page_dir))
+    registry["lf-board"]["awaits"]["answered"]["move"] = {
+        "every": {"member": "lf-card"}
+    }
+
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert found(
+        [finding], "answering-every", "<lf-board>", verb="move", member="lf-card"
+    )
+
+
 def test_check_refuses_a_reference_naming_an_attribute_the_widget_has_not_got(
     page_dir,
 ):

@@ -3,6 +3,9 @@
 (helpers) => {
   const { named } = helpers;
 
+  // Whether a computed colour paints nothing.
+  const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
+
   function deepFocus() {
     let e = document.activeElement;
     while (e) {
@@ -105,8 +108,8 @@
   //
   // Asked of every box painting one, rather than of the focused one.
   // The two are not the same set: three rules draw the ring on something other than the
-  // control holding focus — a decision wears it for whichever of its controls the user
-  // reached, a joined option group wears the one its picks give up, and an element
+  // control holding focus — a decision wears it while the user is on its margin
+  // marker, a joined option group wears the one its picks give up, and an element
   // a focused thread is anchored to wears it with no focus of its own — and a reading that
   // asks only `getComputedStyle(activeElement)` returns `no ring here` for every one, so a
   // cut planted on one of those carriers would pass the entire example corpus.
@@ -313,10 +316,9 @@
           if (getComputedStyle(a).position === "fixed") return true;
         return false;
       };
-      // A decision's ring while Tab is inside it follows the landing's rule
-      // (landing-scroll.js): the runtime reveals that ring only if the decision fits its
-      // room, so a decision taller than its room is held only through the control's own
-      // ring, not the edge rule below.
+      // A decision's ring while the user is on its margin marker: the landing reveals
+      // the marker, not the decision, so a decision taller than its room is held only
+      // through the marker's own ring, not the edge rule below.
       const unlanded = !own && el.matches("[data-lf-obligation]") && !fitsWhole(el);
       const pastFoot =
         !own &&
@@ -402,7 +404,6 @@
       // Whether a box paints at a ring sample: its fill anywhere, or its border where the
       // sample lies on it. A face drawn by its border alone, such as a playground choice,
       // can cover a pixel of its neighbour's ring, which a reading of fills alone misses.
-      const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
       const paints = (n, x, y) => {
         const s = getComputedStyle(n);
         if (s.backgroundImage !== "none" || !clear(s.backgroundColor)) return true;
@@ -857,8 +858,16 @@
       const cs = getComputedStyle(el, "::after");
       if (cs.content !== "none" && ringed(cs)) carriers.push([el, "after"]);
     };
+    // The stop's own outline shows where the keyboard is in any visible ink: an
+    // author's outline replaces Leaf's ring as it replaces the browser's
+    // (surfaces.css, "The user chose this").
     const cs = getComputedStyle(e);
-    if (cs.outlineStyle === "auto" || ringed(cs)) return null;
+    if (
+      cs.outlineStyle !== "none" &&
+      Number.parseFloat(cs.outlineWidth) > 0 &&
+      !clear(cs.outlineColor)
+    )
+      return null;
     if (shadowBand(cs, accent, mixed) > 0) return null;
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even

@@ -2184,15 +2184,16 @@ wa-copy-button.lf-icon-action {
   padding: 5px 8px;
   color: var(--lf-muted);
 }
-/* A time axis, drawn by every widget that has one (`axisTicks`, runtime/lib/time-axis.js).
-   Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
-   (`.lf-axis-gridline`) and a widget's own marks, labels and playhead (`.lf-on-axis`),
-   states its fraction of the axis, from 0 to 1, as `--lf-axis-at`, and stands there
-   inside the edge the drawing states as `--lf-axis-edge` (`AXIS_EDGE` pixels; none
-   where a drawing states none), so it holds at any width, a printed page's included.
-   The box it stands in is as wide as the axis. `--lf-axis-x` is where it stands,
-   measured from the box's start, for a widget that fits a label to the room on either
-   side of it. */
+/* A time axis, drawn by every widget that has one (`timeAxis`, runtime/lib/time-axis.js).
+   Each thing placed on it, a ruler's tick (`.lf-axis-tick`) and a gridline
+   (`.lf-axis-gridline`), which the library draws, and a widget's own marks, labels and
+   playhead (`.lf-on-axis`), states its fraction of the axis, from 0 to 1, as
+   `--lf-axis-at`, and stands there inside the edge the drawing states as
+   `--lf-axis-edge` (`AXIS_EDGE` pixels; none where a drawing states none), so it holds
+   at any width, a printed page's included. The box it stands in, the nearest
+   positioned one, is the widget's and as wide as the axis. `--lf-axis-x` is where it
+   stands, measured from the box's start, for a widget that fits a label to the room
+   on either side of it. */
 .lf-on-axis,
 .lf-axis-tick,
 .lf-axis-gridline {
@@ -2206,14 +2207,11 @@ wa-copy-button.lf-icon-action {
 /* The ruler: a tick at each time, where a major tick runs the ruler's height and
    carries its time, and the last one reads back from its tick (`data-lf-flip`) where
    its words would run past the axis's end. */
-.lf-axis-ruler {
-  position: relative;
-  color: var(--lf-muted);
-}
 .lf-axis-tick {
   inset-block-end: 0;
   block-size: 4px;
   border-inline-start: 1px solid var(--lf-border);
+  color: var(--lf-muted);
   white-space: nowrap;
 }
 .lf-axis-tick[data-lf-major] {
@@ -2233,13 +2231,10 @@ wa-copy-button.lf-icon-action {
 }
 /* A gridline at each major tick's time runs down the drawing below the ruler, so a
    mark far below it, in a later lane, still reads against it. The widget places their
-   layer (`.lf-axis-grid`) over its lanes, from the ruler's foot to the drawing's, as it
-   places its playhead. The line is dotted, so it reads under a lane's solid rule, in
-   the contour ink, so it reads on either scheme's ground. A flipped tick's line stands
-   at its box's end, so its gridline does too. */
-.lf-axis-grid {
-  pointer-events: none;
-}
+   layer behind its lanes, from the ruler's foot to the drawing's, and lets the pointer
+   through it. The line is dotted, so it reads under a lane's solid rule, in the
+   contour ink, so it reads on either scheme's ground. A flipped tick's line stands at
+   its box's end, so its gridline does too. */
 .lf-axis-gridline {
   inset-block: 0;
   border-inline-start: 1px dotted var(--lf-border);

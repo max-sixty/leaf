@@ -1,7 +1,8 @@
 /* Direction-aware disclosure keys, read from the control: the library's press and
-   row arrows (lib/keys.js), with the arrow that opens or shuts a disclosure where
-   Leaf's own keys reach it. A host may bind the declared keys; computing them needs
-   no page dispatcher. */
+   row arrows (lib/keys.js), with the arrow that opens or shuts a disclosure on the
+   page. A disclosure in Leaf's chrome, such as one in a widget a Thread reply holds,
+   keeps the press alone. A host may bind the declared keys; computing them needs no
+   page dispatcher. */
 import { PRESS, rowArrows } from "./lib/keys.js";
 import { inChrome } from "./ui-marks.js";
 

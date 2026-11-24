@@ -101,12 +101,8 @@ element that held the words, which may stand deep inside the block the change hi
 look outward from it for that block, as `node.closest` does. For words a widget drew
 in its shadow tree, `node` is that widget. The change itself scrolls nothing.
 
-A widget that hides a view and shows it again later keeps the place as
-`capturePlace()`, a landmark in the page's words, and returns to it with
-`restorePlace(place)` however the page has moved since. Both read the page's own
-scroller. `restorePlace(place, null, intent)` restores only
-while an `intent` taken earlier with `retainUserIntent()` still holds
-(`module-input.md`, "Delayed work").
+Leaf keeps the user's place in a member a widget hides and shows again later, where
+the members are views of the page (`module-state.md`, "State only this tab keeps").
 
 A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
 the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
@@ -266,21 +262,13 @@ skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` 
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-A widget that adds history entries uses `pushEntry(url, state)` and
-`replaceEntry(url, state)`, where the optional `state` is the entry's `history.state`,
-which `replaceEntry` keeps as it is when given none. An
-entry a press adds says the press takes the user somewhere, as a link's does, so its
-result may scroll away the control pressed; `replaceEntry` only renames the entry the
-user is on. To
-restore the page itself when the user goes Back or Forward to one of its entries, call
-`claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
-the page for an entry of the widget's, or nothing. The handler may be asynchronous.
-When it only reveals the destination view, it resolves to `false`, and Leaf returns the
-user to where they were on the entry after the view is shown. Otherwise the handler owns
-viewport placement. Leaf keeps where the user was on each entry in the entry's
-Navigation API state (`navigation.updateCurrentEntry`), so a widget keeps its own
-state for an entry in `history.state`, which `pushEntry(url, state)` writes. Either way, where the entry's fragment still names a place the
-page doesn't show once the handler finishes, Leaf reveals that place and lands there.
+Leaf writes the page's history entries: one for a followed fragment link, one for each
+step of its walks, and one for each switch between the page's views, which a widget
+states with `data-lf-page-views` (`module-plain-elements.md`). It keeps where the user
+was on each entry, and Back, Forward and a reload return them there. An entry a press
+adds says the press takes the user somewhere, as a link's does, so its result may
+scroll away the control pressed. Where an entry's fragment still names a place the
+page doesn't show once its view is open, Leaf reveals that place and lands there.
 
 ## Motion
 

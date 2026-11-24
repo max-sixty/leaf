@@ -5,7 +5,8 @@ import json
 import pytest
 from interact_support import add_test_widget
 from model_folds import leaf_page
-from render_harness import open_page
+from playwright.sync_api import expect
+from render_harness import open_page, resized, scroll_settled
 
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
@@ -395,3 +396,111 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
     wait_until_ready(page)
     assert page.locator("#proof").text_content() == "Drawn."
     assert not page.evaluate(pending)
+
+
+def test_a_package_s_own_views_get_the_address_back_and_their_places(
+    tmp_path, browser, serve
+):
+    """A package's widget that shows one member at a time, and says its members are
+    the page's views, gets what a root tab set gets from Leaf, by showing each member
+    with `keepView` and nothing more (module-state.md, "State only this tab keeps"):
+    the open member is named in the address, a press adds a history entry, a member
+    reopens where the user read it, Back and Forward return to the member and the
+    place of the entry, and a reload opens the member last shown."""
+    package = tmp_path / "chapters-package"
+    tag = "lf-chapters"
+    add_test_widget(package, tag, upgrade=True)
+    registry = json.loads((package / "registry.json").read_text())
+    registry[tag] |= {"views": {"members": "section"}, "flow": True}
+    (package / "registry.json").write_text(json.dumps(registry, indent=2))
+    with (package / "defaults.css").open("a") as theme:
+        theme.write(
+            f"\n{tag} > nav {{ position: sticky; top: 0; background: var(--lf-paper); }}\n"
+        )
+    (package / "widgets" / f"{tag}.js").write_text(
+        'import { keepView, openingView, viewMembers } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
+        f'customElements.define("{tag}", class extends HTMLElement {{\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    this.toggleAttribute("data-lf-page-views", true);\n'
+        '    const nav = document.createElement("nav");\n'
+        '    nav.setAttribute("data-lf-gen", "1");\n'
+        "    for (const member of viewMembers(this)) {\n"
+        '      const press = document.createElement("button");\n'
+        '      press.type = "button";\n'
+        '      press.textContent = member.getAttribute("aria-label");\n'
+        '      press.addEventListener("click", () => keepView(this, member));\n'
+        "      nav.append(press);\n"
+        "    }\n"
+        "    this.prepend(nav);\n"
+        "    keepView(this, openingView(this));\n"
+        "  }\n"
+        "});\n"
+    )
+    chapters = "".join(
+        f'<section id="{name.lower()}" aria-label="{name}">'
+        + "".join(
+            f"<p>Chapter {name}, paragraph {line}, goes on with step {line} of its own "
+            "account.</p>"
+            for line in range(60)
+        )
+        + "</section>"
+        for name in ("One", "Two")
+    )
+    url = serve(
+        leaf_page(
+            "Chapters", f'<h1>Chapters</h1><{tag} id="chapters">{chapters}</{tag}>'
+        ),
+        packages=(package,),
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 720)
+
+    def press(name):
+        # The nav sticks, and Locator.click would scroll it back to its box in flow.
+        box = page.get_by_role("button", name=name, exact=True).bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        return at()
+
+    def at():
+        page.wait_for_function("navigation.transition === null")
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def read_to(top):
+        page.evaluate("top => scrollTo({top, behavior: 'instant'})", top)
+        return at()
+
+    one, two = page.locator("#one"), page.locator("#two")
+    # Arriving with no fragment names the open member, on the entry the user is on.
+    expect(one).to_be_visible()
+    assert page.url.endswith("#one")
+    entries = page.evaluate("navigation.entries().length")
+    one_read = read_to(700)
+    # A press is the user's step: a new entry that names the member. One never read
+    # opens at its start, since the page stands past it.
+    two_start = press("Two")
+    expect(two).to_be_visible()
+    assert page.url.endswith("#two")
+    assert page.evaluate("navigation.entries().length") == entries + 1
+    assert two.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        0, abs=1
+    )
+    two_read = read_to(two_start + 500)
+    # Each member reopens where the user read it.
+    assert press("One") == pytest.approx(one_read, abs=2)
+    assert press("Two") == pytest.approx(two_read, abs=2)
+    # Back and Forward return to the entry's member and to the place read on it.
+    page.go_back()
+    expect(one).to_be_visible()
+    assert page.url.endswith("#one")
+    assert at() == pytest.approx(one_read, abs=2)
+    page.go_forward()
+    expect(two).to_be_visible()
+    assert at() == pytest.approx(two_read, abs=2)
+    # A reload opens the member last shown.
+    page.reload()
+    wait_until_ready(page)
+    expect(two).to_be_visible()
+    expect(one).to_be_hidden()

@@ -70,9 +70,6 @@ export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-// The user's place as a landmark, and the history entries a widget adds.
-export { capturePlace, restorePlace } from "./reading-place.js";
-export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
   preserveReadingRegions,
   scrollerFor,
@@ -97,7 +94,10 @@ export {
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
-export { keepView, openingView, viewMembers } from "./storage.js";
+// The members a widget shows one at a time: Leaf remembers the one shown, names it in
+// the address where the widget's views are the page's, and keeps the user's place in
+// each view of the page's flow (views.js).
+export { keepView, openingView, viewMembers } from "./views.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";

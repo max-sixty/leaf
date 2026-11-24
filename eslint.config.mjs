@@ -538,17 +538,6 @@ const placementsRule = {
               message:
                 "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
             });
-          if (
-            ["showModal", "showPopover", "hidePopover"].includes(
-              callee.property.name,
-            ) &&
-            file !== "browser/runtime/keyboard/layer-stack.js"
-          )
-            context.report({
-              node,
-              message:
-                "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
-            });
         }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
           if (args.length < 2)
@@ -579,6 +568,36 @@ const placementsRule = {
           node,
           message: "Call focusDestination with its cause rather than passing it on.",
         });
+      },
+    };
+  },
+};
+
+// The runtime opens and closes its native layers through `showNativeLayer` and
+// `closeNativeLayer` (keyboard/layer-stack.js), which inside a live sample keep the
+// browser's focusing steps from taking focus from the page around it or scrolling that
+// page. The option names the owner.
+const nativeLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          ["showModal", "showPopover", "hidePopover"].includes(callee.property.name)
+        )
+          context.report({
+            node,
+            message:
+              "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
+          });
       },
     };
   },
@@ -887,9 +906,9 @@ export const movesRule = {
 // sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
 // return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding in the kernel (runtime/focus.js; a package takes closeLayer and handBack from widget-api.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
 const CLOSE_PLACES_MESSAGE =
-  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js, or widget-api.js in a package).";
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -1096,6 +1115,7 @@ const architecturePlugin = {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
+    "native-layers": nativeLayersRule,
     "scroll-writes": scrollWritesRule,
     "scroll-ends": scrollEndsRule,
     "current-location-reads": currentLocationReadsRule,
@@ -1713,6 +1733,13 @@ export default [
           "browser/runtime/preview.js",
         ],
       ],
+      "architecture/native-layers": [
+        "error",
+        [
+          // The owner.
+          "browser/runtime/keyboard/layer-stack.js",
+        ],
+      ],
       "architecture/open-layers": [
         "error",
         [
@@ -1908,8 +1935,11 @@ export default [
     // playback, calls the browser's frame, which the settled reading doesn't count; a
     // size observer stays counted. The open-layers rule holds the runtime to one
     // reading of every node, and a package asks its own popover or dialog whether it
-    // is open, so the rule is off here whole. Each other rule repeats what it keeps of
-    // the layer's, since a file takes a rule's options from the last block matching it.
+    // is open, so the rule is off here whole. A package opens and closes its popover
+    // or dialog with the browser's own methods, whose focus return Leaf reads as a
+    // return, so the native-layers and layer-returns rules are off here too. Each
+    // other rule repeats what it keeps of the layer's, since a file takes a rule's
+    // options from the last block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
       "no-restricted-globals": [
@@ -1926,6 +1956,8 @@ export default [
         ...ID_PROPERTIES,
       ],
       "architecture/open-layers": "off",
+      "architecture/native-layers": "off",
+      "architecture/layer-returns": "off",
     },
   },
   {

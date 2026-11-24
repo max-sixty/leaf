@@ -52,7 +52,7 @@
    wait out a release's click each its own way, by a timer the next press could outrun
    or a flag held until the next press, and a flag a stopped release left standing.
 
-   And it owns the widget primitives built on these: closing a layer and handing the user
+   And it owns the primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
 

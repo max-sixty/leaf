@@ -93,7 +93,6 @@ import {
   keepsHidden,
   el,
   focusDestination,
-  closeNativeLayer,
   holdFocus,
   actionTemplate,
   iconTemplate,
@@ -2457,7 +2456,7 @@ export class Trace extends LeafElement {
                     aria-label=${label}
                     @click=${() => {
                       run();
-                      closeNativeLayer(this.#nodes.imageScaleOptions);
+                      this.#nodes.imageScaleOptions.hidePopover();
                       focusDestination(this.#nodes.imageScale, "move");
                     }}
                   >

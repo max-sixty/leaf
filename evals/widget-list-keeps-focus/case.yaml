@@ -1,16 +1,17 @@
 # Widgets get the runtime's own focus primitives through widget-api.js: a keyed hold
-# for a list a render replaces, closeLayer for a layer the widget opens, and
-# focusDestination with a cause. A row removal dropped the user to the body whenever
+# for a list a render replaces and focusDestination with a cause, and their own layer
+# is a native popover or dialog. A row removal dropped the user to the body whenever
 # Remove re-rendered its list; this asks for the same shape from the shipped
 # references alone, through module-authoring.md's paragraph on those exports. The
 # immediate receipt exercises same-turn paint alongside focus continuity. Command rows
 # have `lands(from)`, which tempts authors to compute the nearest surviving row in it
 # themselves; module-input.md says a keyed hold tries its stand-ins last and leaves
 # `lands` to presses that go elsewhere. A native popover Add item opens through
-# popovertarget passes, since Leaf returns the user to that control on closing.
+# popovertarget passes, since Leaf puts the user on that control as it opens and the
+# browser returns them there on closing.
 description: widget-list-keeps-focus
 metadata:
-  purpose: A widget paints a removal synchronously, keeps the user in its keyed list, and hands them back when its own popup closes, through the runtime's public primitives.
+  purpose: A widget paints a removal synchronously, keeps the user in its keyed list through the runtime's public primitives, and makes its popup a native popover that returns them as it closes.
   tags:
     - packages
     - keyboard
@@ -42,12 +43,11 @@ assert:
       - holds focus across the list render with holdFocus(list, { key: <the row's
         key attribute> }), sets that attribute on each row, and calls the returned
         restore after rendering with the Add item button as its last stand-in;
-      - closes the popup with closeLayer(close, land), where land hands the user back
-        to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
-        opens, or handBack naming the button; or makes the popup a native popover that
-        Add item opens through popovertarget and closes it with closeNativeLayer,
-        placing no return focus of its own, since Leaf puts the user on a
-        popovertarget control as its popover opens and closing returns them there;
+      - makes the popup a native auto popover (`popover` or `popover="auto"`) that
+        Add item opens through popovertarget, and closes it on a choice with
+        hidePopover(), placing no return focus of its own, since Leaf puts the user
+        on a popovertarget control as its popover opens and the browser returns them
+        there as it closes;
       - any focus it places itself goes through focusDestination with a cause;
       - the popup's Escape, if shown, is a command row in an element's lfCommands,
         not a listener.

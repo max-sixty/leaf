@@ -303,34 +303,53 @@ def start_holds(start: dict, present: dict, *, ended: datetime | None) -> bool:
 
     Claude Code says `busy` while a turn runs and while any agent the session started
     works in the background, whatever its kind: a fork, another subagent, a teammate
-    or a workflow. A background command alone leaves it `shell`, which Leaf reads as
-    `idle`. The page reads an update in hand, and no reminder names it, for exactly as
-    long as this holds (`_start_age`, `in_hand`).
+    or a workflow. Once neither runs, its record says `idle`, with `command` while a
+    command the session left running, such as a test run, a build or a wait on CI,
+    goes on. The page reads an update in hand, and no reminder names it, for exactly
+    as long as this holds (`_start_age`, `in_hand`).
 
     The user decided that a session which starts a message and gives its work to a
     background agent is not reminded of it while that agent works, from whichever
     turn, and is reminded once the session's background work has ended with the
-    message still owed. Leaf can't tell which agent works on which item, so any
-    background agent keeps every start its unbroken run covers. Two readings a later
-    change might reach for fail. A start's own turn alone reminds the session, in its
-    next turn, of a message its fork is still answering, and the session then starts
-    it again or does the work itself. `busy` alone, undated, holds through every
-    turn the session runs, so a start from an earlier turn would never lapse while
-    any turn runs, not even in the turn a reminder opens for it.
+    message still owed. A command the session leaves running keeps a start the same
+    way. That extends the user's decision rather than being one they made: the
+    command carries on the start's turn as an agent does, and without it the agent
+    is reminded of a message while the command answering it still runs. Leaf can't
+    tell which agent or command works on which item, so any of them keeps every
+    start its unbroken run covers. Two readings a later change might reach for
+    fail. A start's own turn alone reminds the session, in its next turn, of a
+    message its fork is still answering, and the session then starts it again or
+    does the work itself. `busy` alone, undated, holds through every turn the
+    session runs, so a start from an earlier turn would never lapse while any turn
+    runs, not even in the turn a reminder opens for it.
 
-    The record dates `busy` by its last change of status, so a dialog after the
-    start, `waiting` and then `busy` again, ends the hold as a break does, and the
-    update is reminded as it would be without this rule. Telling the two apart would
-    take a mark of the session's unbroken work that Leaf keeps itself, set as each
-    turn opens by comparing the record's date with the previous turn's close."""
-    if start.get("turn") in (None, present["turn"]) and not _dropped(
-        start["ts"], ended
-    ):
+    While the start's turn is still the claimant's, the record need only say the
+    session has worked on since that turn ended: `idle` with `command`, or a `busy`
+    that began before the turn's end. Every agent and command the session runs
+    starts in one of its turns, or in an agent a turn started, so while no later
+    turn has run, either one carries on the start's turn. The start's own date
+    can't bound the record there, since the record dates each status by its last
+    change: the turn's end dates the `idle` with `command` that follows it past the
+    start, and a dialog after the start, such as approving the command, does the
+    same to the `busy` after it. A `busy` that began after the turn's end belongs to
+    a later turn whose hooks haven't named it yet.
+
+    A start from an earlier turn holds while the record's `busy` dates from before
+    the start. A dialog after the start ends that hold as a break does; telling the
+    two apart would take a mark of the session's unbroken work that Leaf keeps
+    itself, set as each turn opens. A command keeps no such start, since the later
+    turn's `busy` hides the command and dates the record past the start. That later
+    turn is reminded of the update, and the agent starts it again."""
+    turn = start.get("turn")
+    if turn in (None, present["turn"]) and not _dropped(start["ts"], ended):
         return True
     live = present.get("live_turn") or {}
+    current = turn is not None and turn == present["turn"]
+    if current and live.get("command"):
+        return True
     since = _moment(live.get("since"))
-    written = datetime.fromisoformat(start["ts"])
-    return bool(live.get("state") == "busy" and since and since <= written)
+    covered = ended if current and ended else datetime.fromisoformat(start["ts"])
+    return bool(live.get("state") == "busy" and since and since <= covered)
 
 
 def in_hand(obligation: dict, state: dict) -> bool:
@@ -435,8 +454,12 @@ def claimant_turn(
     keeps no delivery in a turn past the grace. It says the session works
     (`Turn.busy`): in the open turn, past the grace too, and after a turn the
     stamps closed, in the background for as long as the record keeps it. Whether a
-    start stands past its turn reads the record by its date (`start_holds`).
-    `awaiting` says the claimant's observer
+    start stands past its turn reads the record too (`start_holds`). An `idle`
+    with `command`, a command left running, ends the open turn as any `idle` does,
+    and isn't `Turn.busy`: a dev server or a Monitor is such a command too, so the
+    page would read working for as long as one ran while the agent waits on the
+    user. The page reads working through a command only by a start it holds
+    (`start_holds`). `awaiting` says the claimant's observer
     reports a wait on the user right now, which holds the turn open for as long as
     that observer lives."""
     opened = _moment(present.get("turn_opened"))

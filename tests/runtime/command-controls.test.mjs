@@ -1992,94 +1992,86 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
-// A paint lends every face before reading any, so a face lent in the same pass doesn't
-// cover another, and the earlier route keeps a place two faces share. A face in another
-// shadow tree reaches a hit test outside that tree as the tree's host, which must not
-// cover the earlier face either. (happy-dom's document is no `Document`, so each face
-// here stands in a shadow tree of its own.)
-test("an earlier route keeps its face under a later route's face in another shadow tree", async () => {
+// A face takes no pointer, so the presenter reads what stands at its place. Three faces,
+// none over another: one over its own control, which is no box around it, as a card's
+// digit stands over its mark; one over the box that holds it, beside its control, as a
+// row's digit stands in the row's leading column; and one hung out over another
+// widget's box, which may cover it, so it is withheld.
+test("a face shows over its control or the box that holds it, and is withheld over anything else", async () => {
   const { createCommandHints } =
     await import("../../browser/runtime/keyboard/command-hints.js");
   const owner = document.createElement("section");
   /** @returns {[Element, Element, Element]} */
   const faced = () => {
-    const host = document.createElement("div");
+    const box = document.createElement("div");
     const control = document.createElement("button");
     const face = document.createElement("kbd");
-    control.append(face);
-    host.attachShadow({ mode: "open" }).append(control);
-    owner.append(host);
-    return [host, control, face];
+    box.append(face, control);
+    owner.append(box);
+    return [box, control, face];
   };
-  const [firstHost, first, firstFace] = faced();
-  const [secondHost, second, secondFace] = faced();
+  const [card, mark, cardFace] = faced();
+  const [row, rowMark, rowFace] = faced();
+  const [stray, strayMark, strayFace] = faced();
   document.body.append(owner);
-  // The second control stands below the first, and its face hangs out of it over the
-  // first face.
   const boxes = new Map([
-    [firstHost, new DOMRect(0, 0, 100, 20)],
-    [first, new DOMRect(0, 0, 100, 20)],
-    [firstFace, new DOMRect(4, 4, 12, 12)],
-    [secondHost, new DOMRect(0, 200, 100, 20)],
-    [second, new DOMRect(0, 200, 100, 20)],
-    [secondFace, new DOMRect(8, 6, 12, 12)],
+    [card, new DOMRect(0, 0, 100, 20)],
+    [mark, new DOMRect(80, 0, 20, 20)],
+    [cardFace, new DOMRect(84, 4, 12, 12)],
+    [row, new DOMRect(0, 100, 100, 20)],
+    [rowMark, new DOMRect(30, 100, 70, 20)],
+    [rowFace, new DOMRect(4, 104, 12, 12)],
+    [stray, new DOMRect(0, 200, 100, 20)],
+    [strayMark, new DOMRect(0, 200, 100, 20)],
+    [strayFace, new DOMRect(40, 4, 12, 12)],
   ]);
   for (const [element, box] of boxes) {
     element.getBoundingClientRect = () => box;
     element.getClientRects = () => [box];
     element.checkVisibility = () => true;
   }
-  // No chrome stands here to seat the chip a withheld face's route takes instead, so
-  // neither control takes one.
-  for (const control of [first, second]) control.checkVisibility = () => false;
-  // Each tree's hit test, topmost first, reads another tree's contents as its host.
-  const painted = [secondFace, second, firstFace, first, secondHost, firstHost];
-  for (const root of [document, firstHost.shadowRoot, secondHost.shadowRoot])
-    root.elementsFromPoint = (x, y) => [
-      ...new Set(
-        painted
-          .filter((element) => {
-            const { left, top, right, bottom } = boxes.get(element);
-            return x >= left && x <= right && y >= top && y <= bottom;
-          })
-          .map((element) =>
-            [root, document].includes(element.getRootNode())
-              ? element
-              : element.getRootNode().host,
-          ),
-      ),
-    ];
-  keys(owner, "Overlapping faces", [
-    {
-      id: "probe.first-face",
-      title: "First",
-      keys: ["1"],
-      control: first,
-      bindingBadge: firstFace,
+  // No chrome stands here to seat the chip a withheld face's route takes instead, so no
+  // control takes one.
+  for (const control of [mark, rowMark, strayMark])
+    control.checkVisibility = () => false;
+  // The hit test finds the topmost box that takes the pointer, which no face does.
+  const painted = [mark, rowMark, strayMark, card, row, stray];
+  document.elementFromPoint = (x, y) =>
+    painted.find((element) => {
+      const { left, top, right, bottom } = boxes.get(element);
+      return x >= left && x <= right && y >= top && y <= bottom;
+    }) ?? null;
+  keys(
+    owner,
+    "Faces",
+    [
+      ["card", mark, cardFace],
+      ["row", rowMark, rowFace],
+      ["stray", strayMark, strayFace],
+    ].map(([name, control, bindingBadge], at) => ({
+      id: `probe.${name}-face`,
+      title: name,
+      keys: [String(at + 1)],
+      control,
+      bindingBadge,
       run: () => {},
-    },
-    {
-      id: "probe.second-face",
-      title: "Second",
-      keys: ["2"],
-      control: second,
-      bindingBadge: secondFace,
-      run: () => {},
-    },
-  ]);
+    })),
+  );
   reflectFirstScopes();
-  first.focus();
+  mark.focus();
   const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.deepEqual(
-      [firstFace, secondFace].map((face) => face.hasAttribute("data-lf-binding-badge")),
-      [true, false],
+      [cardFace, rowFace, strayFace].map((face) =>
+        face.hasAttribute("data-lf-binding-badge"),
+      ),
+      [true, true, false],
     );
-    assert.equal(secondFace.style.opacity, "0");
+    assert.equal(strayFace.style.opacity, "0");
   } finally {
     hints.destroy();
-    delete document.elementsFromPoint;
+    delete document.elementFromPoint;
     owner.remove();
   }
 });

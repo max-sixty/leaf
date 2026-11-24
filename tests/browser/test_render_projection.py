@@ -28,6 +28,7 @@ from render_harness import (
     leaf_page,
     names,
     open_page,
+    press_draft_control,
     resized,
     root_overflow,
     round_trip,
@@ -418,7 +419,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     else:
         write(editor, provided)
     expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
-    draft_control(page, "save", "ledger-cargo").click()
+    press_draft_control(page, "save", "ledger-cargo")
     round_trip(page)
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(

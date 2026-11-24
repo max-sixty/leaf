@@ -63,8 +63,17 @@ html {
     line-height: 1.1;
   }
 }
-/* A page of parts' title heads the narrow column its list of parts stands in
- * (layouts.css, "A page of parts"), so it is set as that column's heading. */
+/* A page of parts' header heads the narrow column its list of parts stands in
+ * (layouts.css, "A page of parts"), so its title is set as that column's heading and
+ * the rest of what it says as the column's text, a lede included (idioms.css). At the
+ * part's prose size, a paragraph there ran three or four words to a line. What sets its
+ * own size for its own purpose, such as an eyebrow, keeps it. */
+@container style(--lf-holds-parts: 1) {
+  :where(main > *):not([data-lf-views="parts"]) {
+    font-size: var(--lf-t-5);
+    line-height: 1.45;
+  }
+}
 @container style(--lf-parts-title: 1) {
   h1 {
     font-size: var(--lf-t-3);

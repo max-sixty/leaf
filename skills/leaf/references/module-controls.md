@@ -72,18 +72,16 @@ can change in any update.
 | `.lf-rows-head`    | the heading of a group of rows                                                                   | the group heading's font                                                                                                                  |
 | `.lf-rows-empty`   | the line a list shows while it has no rows                                                       | a muted line where the first row would stand                                                                                              |
 
-Every widget with a time axis draws it the same way, from the ticks the library's
-[`time-axis.js`](../../../browser/runtime/lib/time-axis.js) works out. The axis is a
-box as wide as the times it spans. Its ruler has the class `lf-axis-ruler` and holds an
-element of class `lf-axis-tick` for each tick. The widget places a layer of class
-`lf-axis-grid` over the drawing below the ruler, which holds an element of class
-`lf-axis-gridline` for each major tick. A mark, label or playhead the widget places on
-the axis has the class `lf-on-axis`. A major tick carries `data-lf-major`, and a major
-tick the library marks `flip`, with its gridline, carries `data-lf-flip`.
+## A time axis
 
-Each tick, gridline and `lf-on-axis` element states its time as `--lf-axis-at`, a
-fraction of the axis from 0 to 1. Leaf stands the element there, inside the margin the
-axis box states as `--lf-axis-edge`, the library's `AXIS_EDGE` in pixels. Leaf also
-states the element's distance from the box's start as `--lf-axis-x`, a share of the
-box's width, which a rule for the element reads in its own `max-inline-size` to fit a
-label to the room on either side.
+A widget with a time axis draws its ruler and gridlines with `timeAxis`, from the
+library's [`time-axis.js`](../../../browser/runtime/lib/time-axis.js), whose header
+shows a whole drawing. The widget draws its own marks, labels and playhead. Each of
+them has the class `lf-on-axis` and states its time as `--lf-axis-at`, a fraction of
+the axis from 0 to 1. Leaf stands the element at that time in the nearest positioned
+box, which the widget makes as wide as the axis. The axis starts and ends a margin
+inside that box, the library's `AXIS_EDGE` in pixels, and the widget states the margin
+as `--lf-axis-edge` on a box that holds the whole drawing. Leaf also states the
+element's distance from the start of its box as `--lf-axis-x`, a share of the box's
+width, which a rule for the element reads in its own `max-inline-size` to fit a label
+to the room on either side.

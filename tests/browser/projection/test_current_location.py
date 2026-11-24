@@ -613,6 +613,69 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
 
 
+def test_focus_shown_inside_a_decision_carries_the_band_alone(browser, serve):
+    """Whatever Leaf rings for the user's focus inside a decision, the decision's
+    location ring stands down, so one band says where the user is. A draft's editor
+    rings the draft's frame just inside the question's ring, so keeping both drew two
+    boxes round the words being typed; a link in the premise, and a comment's note on
+    the details shelf, which rings the heading it is about, are the same fact."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Opening",
+                """<h1 id="h">Opening</h1>
+<lf-group id="opening" label="Edit the opening paragraph">
+<h2 id="opening-h">Edit the opening paragraph</h2>
+<p id="opening-note">As <a id="opening-link" href="#h">the issue</a> has it.</p>
+<lf-draft id="opening-draft" required><pre>
+Once the session has built up some context, the model decides.</pre></lf-draft>
+</lf-group>""",
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Should the heading say README?",
+                    "anchor": {"section": "opening-h"},
+                    "id": "c" * 32,
+                }
+            ],
+        ),
+    )
+    question = page.locator("#opening")
+    link = page.locator("#opening-link")
+    link.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(link).to_be_focused()
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the focused link"
+    )
+
+    page.locator("#opening-draft .lf-draft-body").click()
+    draft = page.locator("#opening-draft")
+    expect(draft.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert draft.evaluate(RING)[0] == "solid", "the draft's frame shows no focus"
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the draft being edited"
+    )
+
+    # Assistive technology reaches the note; its ring stands round the heading.
+    page.locator(".lf-mark-note").focus()
+    expect(page.locator("#opening-h")).to_have_attribute("data-lf-proxied", "")
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the heading the note rings"
+    )
+
+
 def test_the_ring_says_where_the_user_is_located(browser, serve):
     """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
@@ -629,9 +692,9 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     there, in the browser's blue, would stand a few inches from a decision ringed in the
     page's accent, with nothing saying the two rectangles meant one thing.
 
-    A joined options control is the one shape that draws the band somewhere else: it is
-    already a framed box, so a ring around the decision *and* one inside it would read as
-    a second border that comes and goes, and while the user is in the control the exact
+    Inside a joined options control the band moves to the row: the control is already
+    a framed box, so a ring around the decision *and* one inside it would read as a
+    second border that comes and goes, and while the user is in the control the exact
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
     still meaning one thing. An arrival is the other side of that: it places the user on
     the decision rather than in the control, so there the decision's own ring is the one."""

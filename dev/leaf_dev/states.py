@@ -3074,6 +3074,15 @@ def draft_long_edit(page: Page) -> None:
     expect(page.locator("#rn-cli .lf-draft-edit")).to_be_focused()
 
 
+def draft_typing(page: Page) -> None:
+    """Words being typed into a question's draft, the pointer resting where the click
+    opened it: the draft's frame alone rings it, and its toolbar is away."""
+    page.locator("#ledger-cargo .lf-draft-body").click()
+    page.keyboard.press("End")
+    page.keyboard.type(" Pasted.")
+    settle(page)
+
+
 def draft_hover(page: Page) -> None:
     """A draft under the pointer, which shows its toolbar of marks on its border."""
     page.locator("#rn-cli .lf-draft-body").hover()
@@ -4188,6 +4197,7 @@ STATES = (
     State("hub-choice-answered", "command-hub", on_me_choice_answered),
     State("hub-on-agent", "command-hub", on_agent),
     State("hub-workers", "command-hub", hub_workers),
+    State("hub-draft-typing", "command-hub", draft_typing),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
     # Each page the corpus composes, as it loads, named after its file.

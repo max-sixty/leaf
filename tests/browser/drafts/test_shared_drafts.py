@@ -15,7 +15,6 @@ from render_harness import (
     CutOff,
     _traffic,
     _until,
-    draft_control,
     drafts_on_server,
     expect_panel_says,
     expect_preview_words,
@@ -26,6 +25,7 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    press_draft_control,
     refuse,
     resized,
     restarting,
@@ -129,9 +129,9 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    draft_control(first, "save", "draft-ops").click()
+    press_draft_control(first, "save", "draft-ops")
     holding(first, held, 1, "the first draft edit")
-    draft_control(second, "save", "draft-ops").click()
+    press_draft_control(second, "save", "draft-ops")
     round_trip(second)
 
     held[0].continue_()

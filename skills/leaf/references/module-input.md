@@ -176,10 +176,13 @@ nearby button.
 ### Inline shortcut hints
 
 To show a command's key on the page, set `bindingBadge` on its row or route: an empty
-element the widget positions in or beside its control, or `null` for a badge at the
-control's corner. Leaf gives the element the class `lf-binding-seat`, which positions it
-absolutely, and writes the key into it while the key works; the widget gives it the
-class `lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check
+element the widget positions over its control, or beside it over a box that holds the
+element, or `null` for a badge at the control's corner. Where anything else stands at the
+element's place, the key shows as a chip there instead. Leaf gives the element the class
+`lf-binding-seat`, which positions it
+absolutely and has it take no pointer, so a press where it stands lands on what is under
+it. Leaf writes the key into it while the key works, and the widget gives it the class
+`lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check
 --render` reports a command with `contextKeys` and no badge (`shows-context-keys`,
 [packages.md, "Seeing it"](packages.md#seeing-it)).
 
@@ -215,14 +218,16 @@ hunk.dispatchEvent(
 `Hunk 3 of 7`, for a few seconds after the step. `list` gives the elements of the
 list's first and last stops. At a step taken while both stand in view the panel says
 nothing, since the focus ring shows where the step landed among stops the user sees;
-without `list` it says every step. The place goes sooner if the element it was said on
-leaves the page, as when a redraw replaces it, so a widget whose stops are not elements
-of their own dispatches on the part of its drawing that holds the stop. Leaf hears an
-element leave the page or a shadow stage it builds (`shadowStage`), not a shadow root
-the widget attaches itself, where the place stays its few seconds. A widget whose user
-can leave a stop without stepping, as a chart's pointer takes its reader to another
-point, dispatches `lf-walk` with no `detail` on the element the place was said on as
-they leave it, and the place goes at once. The panel shows the
+without `list` it says every step. The place goes sooner if focus leaves the stop, once
+the stop or something inside it has held focus. It also goes if the element it was said
+on leaves the page, as when a redraw replaces it, so a widget whose stops are not
+elements of their own dispatches on the part of its drawing that holds the stop. Leaf
+hears an element leave the page or a shadow stage it builds (`shadowStage`), not a
+shadow root the widget attaches itself, where the place stays its few seconds. A widget
+whose stops take no focus, as a chart's points take none, tells Leaf when its user
+leaves a stop without stepping, as when the chart's pointer takes its reader to another
+point. It dispatches `lf-walk` with no `detail` on the element the place was said on,
+and the place goes at once. The panel shows the
 place and says nothing aloud: the widget announces it, with what else a listener
 should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken words").
 Off Leaf, nothing hears the event.
@@ -313,10 +318,8 @@ the focused control that matches it `data-lf-control-focus`, and
 own attributes. Don't ask with `:has()` where focus is, by a mark or by `:focus`: in
 Chromium that makes every focus move restyle the page.
 
-Leaf rings the obligation the user is in. A widget whose own control shows where
-the user is, as an option group's row does, declares `--lf-obligation-ring: none` on
-the control while it holds visible focus, and Leaf then draws no ring round the
-obligation.
+Leaf rings the obligation the user is in, and draws no ring round it while visible
+focus is inside it, so a widget's own focus ring is the one that shows.
 
 ### Layers
 

@@ -635,9 +635,9 @@
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
      - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
-       (target-paint.js, `paintLocation`), and the decision's focus ring too. A control
-       inside it that carries the location itself stands it down
-       (`--lf-obligation-ring: none`).
+       (target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
+       down while visible focus is inside the decision, whose own ring says where the
+       user is.
      - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry

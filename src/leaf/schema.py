@@ -112,8 +112,9 @@ AWAITING_CONDITION = {
 # stands (a non-empty attribute or value record, otherwise an action in force). `when`
 # narrows the verb to instances whose attributes match; `empty` holds when the one
 # container of the verb's position record (`within`) inside the widget that its `when`
-# selects is left with no members by the current positions. One map, so every answer
-# is a reading of state the fold already keeps.
+# selects is left with no members by the current positions; `every` holds when each
+# `member` element the widget holds has an action of the verb in force at its own id.
+# One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -127,6 +128,14 @@ ANSWERED_SCHEMA = {
                 "type": "object",
                 "properties": {"when": AWAITING_CONDITION},
                 "required": ["when"],
+                "additionalProperties": False,
+            },
+            "every": {
+                "type": "object",
+                "properties": {
+                    "member": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
+                },
+                "required": ["member"],
                 "additionalProperties": False,
             },
         },

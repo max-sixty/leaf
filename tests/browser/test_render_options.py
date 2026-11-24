@@ -1929,7 +1929,9 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     gestures land in the same box, and neither is a pick: the drag's own click ended a
     selection, and the press inside the words it took is the mark's. A press on an
     option's own pick mark still picks it, on a card too, whose digit draws in the
-    mark's seat while the button is down.
+    mark's seat while the button is down. A digit takes no pointer, so a press where
+    one stands lands on what is under it, as one on the Add field's digit puts the user
+    in the field.
 
     In both engines, because they part between a press's release and its click: Firefox
     collapses the words the press landed in before the click, Chromium after it. Read at
@@ -1970,6 +1972,14 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     )
     page.mouse.up()
     expect(stop).to_have_attribute("selected", re.compile(".*"))
+
+    # The group's digits show now, the Add field's in the field's end corner. A press
+    # there is the field's, which a digit that took the press would leave unfocused.
+    digit = page.locator("#retry > .lf-another > .lf-key-badge")
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+    seat = digit.bounding_box()
+    page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
+    expect(page.locator("#retry > .lf-another leaf-text")).to_be_focused()
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];

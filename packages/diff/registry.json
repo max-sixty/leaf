@@ -119,7 +119,6 @@
     "description": "A unified patch with per-file navigation, commentable source lines and authored inline notes.",
     "attributes": {
       "properties": {
-        "source": { "type": "string" },
         "collapsed": {
           "type": "boolean"
         },
@@ -155,7 +154,6 @@
     "description": "A commentable call-tree diff, linked to the `lf-diff` that holds its patch.",
     "attributes": {
       "properties": {
-        "source": { "type": "string" },
         "diff": { "type": "string" }
       },
       "required": ["id", "source", "diff"]

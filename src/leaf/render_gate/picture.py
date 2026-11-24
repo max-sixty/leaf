@@ -29,6 +29,7 @@ from leaf.leases import page_locked
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import (
     PageNotReady,
+    asked_again,
     open_render_page,
     rendered,
     wait_until_ready,
@@ -127,8 +128,10 @@ def _picture(browser, url: str, comment: dict, out: Path) -> str | None:
         reduced_motion="reduce",
     )
     try:
-        page.goto(url)
-        wait_until_ready(page, served(page, url, "/api/state").json())
+        page.goto(asked_again(url))
+        wait_until_ready(
+            page, served(page, url, "/api/state").json(), fixed_server=True
+        )
         rendered(page)
         ink = page.locator(f'.lf-drawing-posted[data-lf-thread="{comment["id"]}"]')
         if not ink.count():

@@ -225,17 +225,21 @@ export function worksInside(node, container) {
 }
 
 // What a click on such a container was for, asked once so that no caller holds two
-// checks and their order: null where the click ended a selection of the container's
-// words, which a click made with Enter or Space never does (`reachedForWords`); else
-// what works inside or around the container (`worksInside`); else the container. A
-// double click asks `worksInside` alone, since the word it selects is its own doing
-// (thread/messages.js).
+// checks and their order. A click that landed on something working inside or around
+// the container is that thing's (`worksInside`); where that is a control, the click
+// guard below has already asked whether the click ended a selection. A click elsewhere
+// in the container that ended a selection of its words is the selection's, and the
+// answer is null (`reachedForWords`); a click made with Enter or Space never ends one.
+// Any other click is the container's. Asking about the selection first would deaden an
+// option's own pick mark whenever words in the option were selected.
 /** @param {MouseEvent} event @param {Element} container @returns {Element | null} */
 export function aimedAt(event, container) {
-  if (!pressIsKeyboardActivation(event) && reachedForWords(container)) return null;
   const { target } = event;
   if (!isElement(target)) return null;
-  return worksInside(target, container) ?? container;
+  const inner = worksInside(target, container);
+  if (inner) return inner;
+  if (!pressIsKeyboardActivation(event) && reachedForWords(container)) return null;
+  return container;
 }
 
 /** What else the user could aim at, at `node`, at any point on the page, marked words
@@ -304,31 +308,34 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // then reaches for Accept would press a control that has gone dead — and stays dead,
 // because a press that refuses a drag (`user-select: none`) never collapses the
 // selection that deadened it either.
-// Which is a reading rather than this listener's own business, because the same press
-// reaches things `offer` never made: the panel's quote, whose press travels the page to
-// the passage, and the list's landing, which moves the card the words are on. Each is
-// the same complaint in its own place — the user draws across the words to take them
-// and the page goes somewhere.
+// Which is a reading rather than this listener's own business, because a container that
+// takes a click on its whole box asks it of its words too (`aimedAt`).
 // It asks only where the selection stopped, and not whether a press happened at all:
-// which presses can be a drag is each caller's own question. A click carries the answer
-// in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
-// read.
+// which presses can be a drag is each caller's own question, which both ask of the
+// click's `detail` (`pressIsKeyboardActivation`).
 //
-// It reads the selection as the click's press was released, not as the click arrives.
-// A press on words already selected leaves them selected through its release in every
-// engine, but Firefox collapses them before the click and Chromium only after it. Read
-// at the click, the same press would be the selection's in Chromium and the
+// It reads the selection as the press's `mouseup` arrives, not as its click does. A
+// mouse press on words already selected leaves them selected until its `mouseup` in
+// every engine; Firefox collapses them before the click and Chromium only after it.
+// Read at the click, the same press would be the selection's in Chromium and the
 // container's in Firefox, where a press on a comment's mark inside an option's
-// selected words would pick the option rather than open the thread. A click with no
-// press behind it, as one a script dispatches, reads the selection as it stands.
+// selected words would pick the option rather than open the thread. Not as early as
+// `pointerup`: a tap's `mousedown`, which collapses the selection it landed beside,
+// comes after its `pointerup`. A click that no pointer press began, such as one a
+// script dispatches with a click count, reads the selection as it stands.
 /** @type {import("./focus.js").PressRecords<{focus?: Node | null}>} */
 const releases = pressRecords();
 onPress((start) => {
-  const release = releases.keep(start, {});
-  return () => {
-    release.focus = selectionFocus();
-  };
+  releases.keep(start, {});
 });
+addEventListener(
+  "mouseup",
+  () => {
+    const release = releases.kept();
+    if (release) release.focus = selectionFocus();
+  },
+  { capture: true, passive: true },
+);
 
 // The node the selection's focus end stands in, or null where no words are selected.
 function selectionFocus() {

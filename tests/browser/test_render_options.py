@@ -1927,11 +1927,12 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     """The option takes a click anywhere on its card, and a comment's mark on its words
     opens the comment's thread. Where the user has just selected those words, both
     gestures land in the same box, and neither is a pick: the drag's own click ended a
-    selection, and the press inside the words it took is the mark's.
+    selection, and the press inside the words it took is the mark's. A press on an
+    option's own pick mark still picks it.
 
     In both engines, because they part between a press's release and its click: Firefox
     collapses the words the press landed in before the click, Chromium after it. Read at
-    the click, the press picked the option in Firefox and opened the thread in
+    the click, the press would pick the option in Firefox and open the thread in
     Chromium."""
     url = serve(MARKED_OPTION_PAGE)
     append_carried_log_record(
@@ -1951,6 +1952,15 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     option = page.locator("#rt-retry")
     picked = "el => el.hasAttribute('selected')"
+
+    # An option's own mark picks it while its words stand selected: the press is the
+    # mark's, and the selection is no reason to refuse the pick it is for. First, before
+    # a key has drawn the group's key badges over the marks.
+    other = page.locator("#rt-stop")
+    page.locator("#rt-stop-p").evaluate("el => getSelection().selectAllChildren(el)")
+    other.locator(":scope > .lf-pick").click()
+    assert other.evaluate(picked), "the option's own mark refused its pick"
+
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                    return {left: r.left, right: r.right, y: r.top + r.height / 2}; }"""
@@ -1975,9 +1985,31 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     expect(page.locator(".lf-page-thread:focus-within")).to_contain_text(
         "About the retry."
     )
+    assert not option.evaluate(picked), "a gesture on the option's words picked it"
+    round_trip(page)
     assert [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
-    ] == [], "a gesture on the option's words sent a pick"
+        e["detail"]["value"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [["rt-stop"]], "a gesture on the option's words sent a pick"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_tap_beside_an_options_selected_words_picks_it(engine, request, serve):
+    """A tap is read by the selection it leaves, as a click is, so a tap on an option's
+    title beside words of the option selected a moment before picks it. A finger's
+    `mousedown`, which collapses those words, comes after its `pointerup`: read as the
+    finger lifts, the words would still stand and refuse the pick."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 420, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(MARKED_OPTION_PAGE), context=context)
+    option = page.locator("#rt-retry")
+    page.locator("#rt-retry-p").evaluate("el => getSelection().selectAllChildren(el)")
+    assert page.evaluate("() => getSelection().toString()").strip()
+    option.locator("strong").tap()
+    expect(option).to_have_attribute("selected", re.compile(".*"))
 
 
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):

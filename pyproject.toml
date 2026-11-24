@@ -108,6 +108,8 @@ dev = [
   # Draws the edits and placements that move a floating box
   # (`journeys/test_floating_box_motion.py`).
   "hypothesis>=6",
+  # Holds `src/leaf`'s modules to one import order (`.config/importlinter.ini`).
+  "import-linter>=2.17",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to

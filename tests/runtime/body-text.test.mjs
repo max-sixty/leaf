@@ -428,7 +428,7 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   const { formatDeclaredMarkdown } = await import("/runtime/markdown.js");
   const { dataBody } = await import("/runtime/widget-upgrade.js");
   registry["lf-source-contract"] = {
-    "text-format": "markdown",
+    content: "markdown",
   };
   try {
     const source = new DOMParser()
@@ -500,7 +500,7 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
   const { annotationAt } = await import("/runtime/anchor-resolution.js");
   const { blockAt, elementReading } = await import("/runtime/passages.js");
   registry["lf-seat-contract"] = {
-    "text-format": "markdown",
+    content: "markdown",
   };
   try {
     const host = document.createElement("lf-seat-contract");

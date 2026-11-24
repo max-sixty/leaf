@@ -1,6 +1,7 @@
 """Widget state, record, and retirement contract validation."""
 
 from .contract import (
+    body_is_data,
     deciding_outcomes,
     deciding_verb,
     deciding_verbs,
@@ -148,7 +149,7 @@ def validate_widget_record_contracts(
                 "record-within", path, tag, verb=verb, within=record["within"]
             )
         if kind == "body":
-            if entry.get("content") != "data":
+            if not body_is_data(entry):
                 raise registry_error("body-content", path, tag, verb=verb)
             nested = sorted(
                 child

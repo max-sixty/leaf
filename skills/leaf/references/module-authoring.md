@@ -216,8 +216,8 @@ changed. Leaf compares only each direct child's tag and attributes, and a revisi
 doesn't redraw a widget it keeps. So a module that draws from what its children hold,
 or can declare neither, reads them again when they change: `lf-pane` watches its
 children with a `MutationObserver`, and a `LeafElement` calls `requestUpdate()` from
-one. A widget that draws its own content (`content` `data` or `empty`) is always
-replaced.
+one. A widget that draws its own content (`content` `data`, `markdown` or `empty`) is
+always replaced.
 
 ## Startup and presentation
 

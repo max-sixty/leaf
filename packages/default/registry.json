@@ -599,9 +599,8 @@
       "required": ["id"],
       "additionalProperties": false
     },
-    "content": "data",
+    "content": "markdown",
     "verbatim": true,
-    "text-format": "markdown",
     "awaits": {
       "value": "edit",
       "when": {

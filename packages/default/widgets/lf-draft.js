@@ -97,7 +97,6 @@ import {
   nextRender,
   retainUserIntent,
   scrollIntoView,
-  focused,
   onPressAway,
   worksInside,
   commandsChanged,
@@ -486,7 +485,7 @@ customElements.define(
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.
-      const left = focused(document);
+      const left = document.activeElement;
       const stood = this.contains(left);
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
@@ -542,7 +541,7 @@ customElements.define(
           this.#failed = true;
           // A press away may have taken the user on to another place, such as the
           // next draft's editor, which keeps the focus.
-          const here = focused(document);
+          const here = document.activeElement;
           this.#open(
             stored,
             undefined,

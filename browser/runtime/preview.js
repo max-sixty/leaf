@@ -244,9 +244,7 @@
    hit tests for its side, never the page's elements (root AGENTS.md,
    "Responsiveness"). The target a finger held wears `data-lf-touch-held` while its
    preview stands, so its surface can keep it where the finger held it (margin-layout.js,
-   `HELD`). The mark is the finger's alone: a thread's hold on an element is
-   `data-lf-held` (thread/presentation.js), and each pass that writes one clears it
-   from elements it no longer holds.
+   `HELD`).
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
    holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.

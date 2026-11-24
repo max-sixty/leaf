@@ -114,7 +114,6 @@ import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
-  addressableWord,
   authoredScope,
   elementById,
   threadInput,
@@ -130,6 +129,7 @@ import {
   scrollIntoView,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

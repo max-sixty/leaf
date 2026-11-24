@@ -25,7 +25,7 @@
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
 import { offerAction } from "../lib/controls.js";
-import { COMMENT_HINT } from "../words.js";
+import { COMMENT_HINT } from "../voice.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 

@@ -30,7 +30,7 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
-import { capitalized } from "../words.js";
+import { capitalized } from "../lib/words.js";
 import { landingRoom } from "../landing-scroll.js";
 import { offFlow } from "../off-flow.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";

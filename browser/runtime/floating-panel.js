@@ -249,7 +249,17 @@ import {
   workflowStep,
   workflowWord,
 } from "./thread/workflow.js";
-import { agentSays, leafSays, saidBy, voiceOf, voiced, wordsText } from "./voice.js";
+import {
+  agentSays,
+  leafSays,
+  saidBy,
+  voiceOf,
+  voiced,
+  wordsText,
+  COMMENT_HINT,
+  REOPEN_HINT,
+  REPLY_HINT,
+} from "./voice.js";
 import {
   anchorLabel,
   draftPreview,
@@ -358,14 +368,7 @@ import {
   currentLocationIn,
 } from "./focus.js";
 import { rowWalk, walkWords } from "./walk-position.js";
-import {
-  capitalized,
-  COMMENT_HINT,
-  counted,
-  excerptWords,
-  REOPEN_HINT,
-  REPLY_HINT,
-} from "./words.js";
+import { capitalized, counted, excerptWords } from "./lib/words.js";
 import { coarsePointer } from "./pointer.js";
 import { afterScript, afterSettling, holdRendering } from "./rendering.js";
 import { nextRender, sizeObserver } from "./lib/frame-pass.js";

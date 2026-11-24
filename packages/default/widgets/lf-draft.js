@@ -71,7 +71,6 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
-  addressableWord,
   commandScope,
   motion,
   LeafElement,
@@ -92,6 +91,7 @@ import {
   pageLinks,
 } from "/runtime/widget-api.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import {

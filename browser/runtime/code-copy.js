@@ -31,7 +31,7 @@
    it covers the first line's last words only while it shows. The control takes no
    room, since room made for it would move the page's content (`../AGENTS.md`,
    "Nothing Leaf draws moves the page's content"). */
-import { capitalized } from "./words.js";
+import { capitalized } from "./lib/words.js";
 import { copyControl, pressCopy } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";

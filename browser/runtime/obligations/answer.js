@@ -5,8 +5,8 @@
    message an agent sent it in, which keeps it while no drawing of the message shows it
    (thread/messages.js, `messageHolding`), so a choice made in a thread reads the same
    once the thread is put away. */
-import { capitalized, labelWords } from "../words.js";
-import { widgetWord } from "../addressable-names.js";
+import { capitalized, labelWords } from "../lib/words.js";
+import { widgetWord } from "../lib/element-word.js";
 import { addressableAt } from "../thread/messages.js";
 import { perVocabulary, tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";

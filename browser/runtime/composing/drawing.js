@@ -42,7 +42,7 @@ import { elementFrame } from "../element-frame.js";
 import { clippedContents } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../kernel-facts.js";
-import { excerptWords } from "../words.js";
+import { excerptWords } from "../lib/words.js";
 import {
   elementFromPointAcross,
   elementOver,

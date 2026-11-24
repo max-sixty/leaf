@@ -5,7 +5,7 @@
  * here changes authored content, starts a website session, or polls for updates.
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
-import { capitalized } from "./words.js";
+import { capitalized } from "./lib/words.js";
 import { describeFailure } from "./lib/exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";

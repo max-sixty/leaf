@@ -131,7 +131,8 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # diagram package's does.
 SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
-import {PendingTaskEvent, once} from '/runtime/portable-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-sketch', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -202,6 +203,92 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     assert "moved down 140px" in words["<lf-sketch id=short>"], words
     assert "leaving 160px blank" in words["<lf-sketch id=tall>"], words
     assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
+
+
+EARLY_KEYS_WIDGET = """
+customElements.define('lf-early', class extends HTMLElement {
+  connectedCallback() {
+    if (this.firstChild) return;
+    const keyed = (id) => {
+      const press = document.createElement('button');
+      press.dataset.key = id;
+      press.textContent = id;
+      press.lfCommands = { title: 'Keyed', rows: [
+        { id: `early.${id}`, keys: ['F2'], title: 'Run', control: press, run() {} },
+      ] };
+      return press;
+    };
+    const say = (press) => press.dispatchEvent(
+      new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+    const early = keyed('early');
+    say(early);
+    const late = keyed('late');
+    this.append(early, late);
+    say(late);
+    this.classList.add('lf-rendered');
+  }
+});
+"""
+
+
+def test_the_gate_names_keys_said_before_their_element_was_placed(browser, serve):
+    """A widget that says `lf-commands` on a button before placing it is heard by
+    nobody, so the button's keys bind nothing, and the gate fails naming the button.
+    The button it says after placing is read and quiet."""
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            leaf_page("Keys", '<h1>Keys</h1><lf-early id="keys"></lf-early>'),
+            layer_registry={"lf-early": element_declaration("lf-early")},
+            layer_widgets={"lf-early.js": EARLY_KEYS_WIDGET},
+        ),
+        served_timeout_ms=3000,
+    )
+    unread = [f for f in reading.failures if f.code == "unread-commands"]
+
+    assert [f.at for f in unread] == ["<button> in <lf-early id=keys>"], (
+        reading.findings
+    )
+    assert "bubbling, composed lf-commands event" in str(unread[0])
+
+
+# A module that leaves an attribute of its own on its element as it connects.
+MOOD_WIDGET = """
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{ this.setAttribute('mood', 'calm'); }}
+}});
+"""
+
+
+def test_the_gate_names_an_undeclared_attribute_only_where_the_schema_is_closed(
+    browser, serve
+):
+    """A module that writes an attribute its declaration doesn't name is told, since no
+    version can carry it. A declaration that opens its attribute schema admits
+    attributes it doesn't name, so the gate has nothing to say of the same write."""
+    boxes = {tag: element_declaration(tag) for tag in ("lf-shut-box", "lf-open-box")}
+    boxes["lf-open-box"]["attributes"]["additionalProperties"] = True
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            leaf_page(
+                "Boxes",
+                "<h1>Boxes</h1>"
+                + "".join(
+                    f'<{tag} id="{tag.removeprefix("lf-")}"><p>Words.</p></{tag}>'
+                    for tag in boxes
+                ),
+            ),
+            layer_registry=boxes,
+            layer_widgets={f"{tag}.js": MOOD_WIDGET.format(tag=tag) for tag in boxes},
+        ),
+        served_timeout_ms=3000,
+    )
+    undeclared = [f for f in reading.findings if f.code == "undeclared-attr"]
+
+    assert [(f.values["tag"], f.values["attr"]) for f in undeclared] == [
+        ("lf-shut-box", "mood")
+    ], reading.findings
 
 
 def _panel(name: str) -> str:
@@ -339,7 +426,7 @@ def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, ser
     a closed disclosure and a box out of view under `content-visibility: auto`, it asks
     no more than each child whether it is drawn. Asking about what they hold would make
     the browser style it first, and a page of long documents in tabs is almost all such
-    content (`drawnElements` in runtime/shadow-tree.js)."""
+    content (`drawnElements` in runtime/lib/shadow-tree.js)."""
     held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
     source = leaf_page(
         "Skipped content",
@@ -619,11 +706,13 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) is None
     page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           window.probeOlderSettled = false;
           const work = new Promise(resolve => { window.releaseProbeOlder = resolve; });
           window.probeOlder = work.then(() => { probeOlderSettled = true; });
-          widgetController(document.getElementById('readiness')).present(work);
+          // Said from inside the widget, the work is its preparation.
+          document.querySelector('#readiness lf-new')
+            .dispatchEvent(new PendingTaskEvent(work));
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
@@ -1091,7 +1180,7 @@ def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -1342,10 +1431,8 @@ def _author_stateful_verbatim_widget(tmp_path):
     declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "verbatim": True,
@@ -1353,13 +1440,14 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
         "  connectedCallback() { once(this); }\n"
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'import { LeafElement } from "/runtime/lib/leaf-element.js";\n'
+        'import { keepsText } from "/runtime/lib/keeps.js";\n'
         'customElements.define("lf-stateful", class extends LeafElement {\n'
         "  render() {\n"
         "    const { state } = this;\n"
@@ -1405,7 +1493,15 @@ def unread_syntax(page):
 
 def axe_findings(page):
     """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
-    that has any."""
+    that has any, read with the page's reading scroller at its top.
+
+    Axe counts a target partly scrolled under a sticky header as obscured, and its
+    sliver as a neighbour too close to the targets beside it, so a reading taken
+    wherever an earlier journey left the scroll varies with that journey's timing.
+    A reader scrolls such a target back into view, and at the top no sticky element
+    covers the content beneath it."""
+    page.evaluate(f"() => {{ {READING_SCROLLER}.scrollTop = 0; }}")
+    rendered(page)
     findings = []
     for scheme in in_each_scheme(page):
         violations, report = serious_axe_violations(page)
@@ -1797,8 +1893,8 @@ def other_pages(page):
 # anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
-  const {focused} = await window.__lfWidgetApi();
-  const {closestAcross} = await window.__lfCheckApi();
+  const {focused} = await window.__lfCheckApi();
+  const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
   const {seenRect} = await window.__lfCheckApi();
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
@@ -2071,8 +2167,9 @@ def into_the_page(page):
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
-            const {focused} = await window.__lfWidgetApi();
-            const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
+            const {focused} = await window.__lfCheckApi();
+            const {availableCommandRoutes} = await window.__lfCheckApi();
+            const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
             const at = focused();
             if (!at || !closestAcross(at, 'main')) return false;
             for (const [row, keys] of availableCommandRoutes())
@@ -3376,7 +3473,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'import { shadowStage } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"
@@ -4001,7 +4099,7 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
     module = widgets / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
+    runtime_import = 'import { LeafElement } from "/runtime/lib/leaf-element.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,
@@ -4019,7 +4117,6 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     page = open_page(browser, url)
     widget = page.locator("#custom-note")
-    expect(widget).to_have_attribute("data-lf-done", "1")
     expect(widget).to_have_attribute("data-helper", "project-owned helper")
     assert widget.evaluate(
         "(el) => ({display: getComputedStyle(el).display, "
@@ -4125,7 +4222,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'import { shadowStage } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"
@@ -4331,7 +4429,7 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
                 "<tr><th>Key</th><th>Value</th></tr><tr><td>name</td><td>leaf</td></tr>"
                 "</table>",
             ),
-            theme=False,
+            reading=False,
         ),
     )
     measured = page.evaluate(
@@ -4368,7 +4466,7 @@ def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, 
                 "</table>",
                 layout=None,
             ),
-            theme=False,
+            reading=False,
         ),
     )
     resized(page, 390, 844)

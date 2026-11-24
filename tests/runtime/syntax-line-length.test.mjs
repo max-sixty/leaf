@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { syntax } from "/runtime/syntax-tokens.js";
+import { syntax } from "/runtime/lib/syntax-tokens.js";
 
 const after = "\nconst kept = 1; // keep the source\n";
 

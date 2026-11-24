@@ -1,6 +1,6 @@
 /* The count keeps its room while the server reading changes. */
 import { html, nothing } from "/vendor/lit.js";
-import { actionClass } from "/runtime/widget-api.js";
+import { offeredAction } from "/runtime/lib/controls.js";
 
 /**
  * @param {HTMLElement} host
@@ -28,10 +28,7 @@ export function render(
     ${
       host.hasAttribute("next")
         ? html`<button
-            class=${`${actionClass("word", "lf-tally-next")} lf-ui lf-ui-face`}
-            data-lf-gen="1"
-            data-lf-offer="button"
-            type="button"
+            ${offeredAction("word", "lf-tally-next")}
             ?disabled=${!ready || !onUser}
             @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
             @click=${onNext}

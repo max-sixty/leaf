@@ -10,14 +10,16 @@
    move it there at every fit, and a jump there cut the glide following an answer into
    sight. And that a glide lands on its goal in a box that stands only at whole pixels,
    so `u` pressed after `d` has landed takes the box back to its top. And that a glide
-   goes on where layout moves its box, by scroll anchoring or a clamp, and gives the box
-   up to any other move, which is a hand's. */
+   goes on where a clamp moves its box and gives the box up to any other move, which is
+   a hand's, and that a landing's glide heads where the landing now puts the box, and a
+   glide on past it by a distance read there, as a card makes its room. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
   aimScroll,
+  glideBy,
   glideTo,
   readerScroll,
   scrollGoal,
@@ -220,7 +222,7 @@ test("a glide lands on its goal in a box that stands at whole pixels", async () 
   box.remove();
 });
 
-test("a glide goes on where layout moves its box, and stops where a hand moves it", async () => {
+test("a glide goes on where a clamp moves its box, and stops where a hand moves it", async () => {
   // A box 400px tall over content 2000px tall.
   const box = document.createElement("div");
   document.body.append(box);
@@ -250,12 +252,6 @@ test("a glide goes on where layout moves its box, and stops where a hand moves i
     }
     await frameAt(start + 1000);
   };
-  // Scroll anchoring moves the box with content that grows above what it shows.
-  await glide(100, () => {
-    height += 22;
-    top += 22;
-  });
-  assert.equal(box.scrollTop, 100, "the glide stopped where anchoring moved the box");
   // Content lost at the end clamps the box, and comes back before the glide lands.
   await glide(
     1500,
@@ -268,7 +264,8 @@ test("a glide goes on where layout moves its box, and stops where a hand moves i
     },
   );
   assert.equal(box.scrollTop, 1500, "the glide stopped where a clamp moved the box");
-  // A hand moves the box by more than layout does in that frame, or with no layout.
+  // A hand moves the box, in a frame where layout changes or not, and by just what the
+  // content grew: anchoring moves no box a glide holds.
   for (const grows of [0, 22]) {
     await glide(100, () => {
       height += grows;
@@ -280,6 +277,144 @@ test("a glide goes on where layout moves its box, and stops where a hand moves i
       `the glide took the box back from a hand (${grows})`,
     );
   }
+  let left = 0;
+  await glide(100, () => {
+    height += 22;
+    top += 22;
+    left = top;
+  });
+  assert.equal(box.scrollTop, left, "the glide took the box back from a hand");
+  stopGlide(box);
+  box.remove();
+});
+
+test("a landing's glide heads where the landing now puts its box", async () => {
+  // A box 400px tall over content 2000px tall.
+  const box = document.createElement("div");
+  document.body.append(box);
+  let top = 1000;
+  let height = 2000;
+  Object.defineProperties(box, {
+    scrollTop: { get: () => top },
+    scrollHeight: { get: () => height },
+    clientHeight: { get: () => 400 },
+  });
+  box.scrollTo = ({ top: to = top }) => {
+    top = Math.round(Math.min(Math.max(to, 0), height - 400));
+  };
+  // Where the landing puts the box, which layout moves as it moves the destination.
+  /** @type {number | null} */
+  let aim = null;
+  // A glide to `goal` that asks `aim`, with `between` run after each of its first frames.
+  /** @param {number} goal @param {(() => void)[]} between */
+  const glide = async (goal, ...between) => {
+    await frameAt(performance.now());
+    const start = performance.now();
+    aim = goal;
+    glideTo(box, goal, () => aim);
+    for (const [frame, change] of between.entries()) {
+      await frameAt(start + 20 * (frame + 1));
+      change();
+    }
+    await frameAt(start + 1000);
+  };
+  // Content grows between what the box shows and the destination.
+  await glide(1500, () => {
+    height += 22;
+    aim = 1522;
+  });
+  assert.equal(box.scrollTop, 1522, "the glide stopped where the landing first put it");
+  // A destination gone from the page leaves the goal where it was.
+  await glide(1000, () => {
+    aim = null;
+  });
+  assert.equal(box.scrollTop, 1000, "the glide followed a destination that is gone");
+  stopGlide(box);
+  box.remove();
+});
+
+test("a glide on past its destination reads its distance from where that now is", async () => {
+  // A box 400px tall over content 2000px tall.
+  const box = document.createElement("div");
+  document.body.append(box);
+  let top = 1000;
+  let height = 2000;
+  Object.defineProperties(box, {
+    scrollTop: { get: () => top },
+    scrollHeight: { get: () => height },
+    clientHeight: { get: () => 400 },
+  });
+  box.scrollTo = ({ top: to = top }) => {
+    top = Math.round(Math.min(Math.max(to, 0), height - 400));
+  };
+  // A line 20px tall at `subject` in the content, while it is on the page, with a card
+  // 250px tall to show under it, and a landing that puts the box at `landing`.
+  /** @type {number | null} */
+  let subject = 1700;
+  let landing = 1500;
+  const room = () =>
+    subject === null ? null : Math.max(0, subject - top + 20 + 250 - 400);
+  /** @type {() => number | null} */
+  let by = room;
+  /** @param {number} by */
+  const grow = (by) => () => {
+    height += by;
+    if (subject !== null) subject += by;
+    landing += by;
+  };
+  // A glide toward `goal`, by a landing's aim, a landing that keeps the box where it is
+  // headed, as a nearest landing on a destination in view does, a set distance, or none,
+  // on by `by`, the card's room unless said, with `between` run after each of its first
+  // frames.
+  /** @param {"landing" | "kept" | "distance" | "none"} toward @param {number} goal @param {(() => void)[]} between */
+  const glide = async (toward, goal, ...between) => {
+    [top, height, subject, landing] = [1000, 2000, 1700, goal];
+    await frameAt(performance.now());
+    const start = performance.now();
+    /** @type {Record<string, (() => number | null) | null>} */
+    const aims = {
+      landing: () => landing,
+      kept: () => scrollGoal(box),
+      distance: null,
+    };
+    if (toward !== "none") glideTo(box, goal, aims[toward]);
+    glideBy(box, by);
+    for (const [frame, change] of between.entries()) {
+      await frameAt(start + 20 * (frame + 1));
+      change();
+    }
+    await frameAt(start + 1000);
+  };
+  // Content grows above the subject and the landing's destination.
+  for (const toward of /** @type {const} */ (["landing", "distance", "none"])) {
+    await glide(toward, 1500, grow(150));
+    assert.equal(box.scrollTop, 1720, `the card's room was left short (${toward})`);
+  }
+  // Content grows above the subject and shrinks back before the glide lands.
+  await glide("distance", 1500, grow(350), grow(-350));
+  assert.equal(box.scrollTop, 1570, "the glide kept room the card no longer needs");
+  // The subject leaves the page.
+  for (const toward of /** @type {const} */ (["landing", "kept"])) {
+    await glide(toward, 1500, () => {
+      subject = null;
+    });
+    assert.equal(
+      box.scrollTop,
+      1500,
+      `the glide made room for a card gone (${toward})`,
+    );
+  }
+  // The content shrinks under a glide by a distance read where the box can stand, here
+  // to 900 wherever the box is headed.
+  by = () => 900 - top;
+  await glide("distance", 1500, () => {
+    height = 1400;
+  });
+  assert.equal(
+    box.scrollTop,
+    900,
+    "the distance was read and added at different places",
+  );
   stopGlide(box);
   box.remove();
 });

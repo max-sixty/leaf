@@ -324,6 +324,33 @@ def test_a_handover_whose_arrivals_only_swing_ends_at_its_bound():
     assert unready.value.stage == "arrived"
 
 
+def test_a_handover_that_replaces_the_document_waits_on_in_the_new_one():
+    """A page may replace its document on the way to ready, as a revision that cannot
+    be patched in does, between the standing the old document answered and the read
+    of that answer. The wait goes on in the new document rather than failing."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    class ReplacingPage:
+        readings = iter(("replaced", "ready"))
+
+        def wait_for_function(self, expression, *, arg, timeout, polling="raf"):
+            reading = next(self.readings)
+
+            def json_value():
+                if reading == "replaced":
+                    raise PlaywrightError(
+                        "JSHandle.json_value: Execution context was destroyed, "
+                        "most likely because of a navigation"
+                    )
+                return reading
+
+            return SimpleNamespace(json_value=json_value)
+
+    page = ReplacingPage()
+    render_checks.wait_until_ready(page)
+    assert next(page.readings, None) is None
+
+
 def test_a_resize_notice_fails_only_when_a_complete_confirmation_repeats_it(
     monkeypatch,
 ):

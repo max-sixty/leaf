@@ -75,31 +75,22 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
-  allButCommandReference,
-  announce,
+  afterPresentation,
   boundFile,
-  describeFailure,
-  RequestError,
-  closeLayer,
-  closeNativeLayer,
-  commandsOn,
-  deferredArrival,
-  el,
   focusDestination,
-  focused,
-  handBack,
-  iconTemplate,
-  isNativeLayer,
-  LeafElement,
-  offered,
-  offeredAction,
   onCurrentLocation,
-  rove,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { rove } from "/runtime/lib/roving.js";
+import { el } from "/runtime/lib/elements.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { offered, offeredAction } from "/runtime/lib/controls.js";
+import { iconTemplate } from "/runtime/lib/icons.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
@@ -225,6 +216,9 @@ customElements.define(
       let file = fileFor(/** @type {string} */ (bindings[0]));
       const label = (/** @type {OpenFile} */ of) =>
         of.api.label ?? of.base?.label ?? of.binding;
+      // A file takes typing once its text is known and its binding can be written.
+      const readOnly = (/** @type {OpenFile} */ of) =>
+        of.base === null || !of.api.writable;
       this.#shown = () => file.binding;
       this.#label = (binding) => (files.has(binding) ? label(fileFor(binding)) : null);
       // The host's grid gives the comparison half the editing room while it is open.
@@ -254,16 +248,17 @@ customElements.define(
       };
       // The status control naming the conflict, and the menu of its choices. A choice
       // and Escape put the menu away onto that control, so a save that settles the
-      // conflict returns the reader from it to the editor. A press away from the menu
-      // leaves them where they pressed.
+      // conflict returns the reader from it to the editor. The browser hands focus
+      // back only from inside the menu, and a pointer press in Safari or Firefox on
+      // macOS leaves the row it pressed unfocused, so the menu puts the user there
+      // itself. A press away from the menu leaves them where they pressed.
       const conflictControl = () => controls.conflict;
       const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
-      const putChoicesAway = () =>
-        closeLayer(
-          () => closeNativeLayer(choices()),
-          () => handBack(conflictControl()),
-        );
+      const putChoicesAway = () => {
+        choices().hidePopover();
+        focusDestination(conflictControl(), "return");
+      };
       /** @param {() => unknown} run */
       const choose = (run) => () => {
         putChoicesAway();
@@ -370,7 +365,9 @@ customElements.define(
         if (!of.slow) return;
         of.slow = false;
         if (of === file && !of.failure && !of.latest && !dirty(of))
-          announce("Changes saved.");
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", { detail: "Changes saved." }),
+          );
       }
       // A failure or conflict arriving on a file the reader has left is news once, as
       // the open file's is (`#drawn`), and the file names itself.
@@ -379,10 +376,12 @@ customElements.define(
         const news = of.failure ?? of.latest;
         if (of === file || !news || news === of.spoken) return;
         of.spoken = news;
-        announce(
-          of.failure
-            ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
-            : `${label(of)} changed on disk. The draft is kept.`,
+        window.dispatchEvent(
+          new CustomEvent("lf-announce", {
+            detail: of.failure
+              ? `${label(of)} was not saved: ${of.failure.message} The draft is kept.`
+              : `${label(of)} changed on disk. The draft is kept.`,
+          }),
         );
       }
       // A paint draws now, since what follows it reads the controls it drew.
@@ -419,7 +418,7 @@ customElements.define(
         const of = file;
         const name = label(of);
         editor.setLabel(name);
-        editor.readOnly = of.base === null || !of.api.writable;
+        editor.readOnly = readOnly(of);
         // With no file to show, as on an export or an unbound page, or while a slow
         // first read waits, the empty editor says why, where a finger and the eye
         // already are.
@@ -429,14 +428,16 @@ customElements.define(
             : "";
         if (of.comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!of.latest && isNativeLayer(choices())) closeNativeLayer(choices());
+        if (!of.latest) choices().hidePopover();
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = of.failure ?? of.latest;
         if (news && news !== of.spoken)
-          announce(
-            of.failure
-              ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
-              : "The file changed on disk. The draft is kept.",
+          window.dispatchEvent(
+            new CustomEvent("lf-announce", {
+              detail: of.failure
+                ? `${of.failure.message}${of.base && dirty(of) ? " The draft is kept." : ""}`
+                : "The file changed on disk. The draft is kept.",
+            }),
           );
         of.spoken = news;
         if (of.comparing && of.latest) {
@@ -512,9 +513,6 @@ customElements.define(
             role="menu"
             aria-label="The file changed on disk"
             @toggle=${choiceOpened}
-            ${commandsOn("In the file's conflict menu", choiceKeys, {
-              claims: allButCommandReference,
-            })}
           >
             <button
               ${offeredAction("word")}
@@ -568,8 +566,35 @@ customElements.define(
         menu: choicesMenu,
         first: firstChoice,
       };
+      choicesMenu.lfCommands = {
+        title: "In the file's conflict menu",
+        rows: choiceKeys,
+      };
+      choicesMenu.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
+      // A draft this tab kept, as across a reload, stands over the file until a read
+      // settles it. Drafts come back before the editor exists, so it starts as editable
+      // as the file it shows rather than switching within the same task.
+      /** @param {OpenFile} of */
+      const recover = (of) => {
+        const pending = tabStore.get(of.recoveryKey);
+        if (!pending || !of.api.writable) return;
+        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
+        const recovered = JSON.parse(pending);
+        of.base = recovered.base;
+        of.sent = recovered.sent;
+        of.recovering = true;
+        return recovered.text;
+      };
+      /** @type {Map<OpenFile, string>} */
+      const drafts = new Map();
+      for (const of of files.values()) {
+        const draft = recover(of);
+        if (draft !== undefined) drafts.set(of, draft);
+      }
       const editor = createEditor(mount, {
-        readOnly: true,
+        readOnly: readOnly(file),
         onChange() {
           file.generation++;
           remember(file);
@@ -587,6 +612,25 @@ customElements.define(
         clearTimeout(of.timer);
         if (connected && of.api.writable && !of.latest && !of.failure && dirty(of))
           of.timer = setTimeout(() => void flush(of), delay);
+      }
+      // Runs once a read or save of `of` ends. The open file paints, and hands the reader
+      // back to the editor if the control they retried from went away; another file
+      // announces its news. Then the file's own saves resume, and a read it owes runs.
+      // The control's tree keeps naming it as active while the window is in the
+      // background, as it may be when a request ends.
+      /** @param {OpenFile} of @param {HTMLElement | null} returnFrom */
+      function ended(of, returnFrom) {
+        const returning =
+          connected &&
+          returnFrom &&
+          /** @type {Document | ShadowRoot} */ (returnFrom.getRootNode())
+            .activeElement === returnFrom;
+        if (of === file) {
+          paint();
+          if (returning && returnFrom.hidden) returnToEditor();
+        } else tell(of);
+        schedule(of, 0);
+        if (of.owed) void refresh(of);
       }
       // Each request settles the file it was made for, whichever file is open by then;
       // only the open one paints.
@@ -618,34 +662,42 @@ customElements.define(
             of.slow = true;
             of.slowTimer = null;
             if (of !== file) return;
-            announce("Saving changes.");
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", { detail: "Saving changes." }),
+            );
             paint();
           }, 1000);
         if (of === file) paint();
         try {
-          of.base = await of.api.save({ revision: against.revision, text: submitted });
-          of.latest = null;
-          of.failure = null;
+          const saved = await of.api.save({
+            revision: against.revision,
+            text: submitted,
+          });
+          // An answer ends the save: it wrote the file, or, refused in the server's own
+          // words, wrote nothing.
           of.sent = null;
-        } catch (fault) {
-          // A refusal in the server's own words, the only `RequestError` file-api.js
-          // passes on, wrote nothing. A save with no such answer, as when a reload
-          // cancels it or a proxy answers for the server, may have reached the file,
-          // so its text stays until a read says.
-          if (fault instanceof RequestError) of.sent = null;
-          if (fault instanceof RequestError && fault.current) {
+          if (!("refused" in saved)) {
+            of.base = saved;
+            of.latest = null;
+            of.failure = null;
+          } else if (saved.current) {
             // A file holding this save or a lost earlier one holds the draft's own
             // words, which the draft stands over, as a read takes them (`refresh`).
-            const held = fault.current.text;
+            const held = saved.current.text;
             if (held === submitted || held === lost) {
-              of.base = fault.current;
+              of.base = saved.current;
               of.latest = null;
-            } else if (replace || !settle(of, fault.current)) of.latest = fault.current;
+            } else if (replace || !settle(of, saved.current)) of.latest = saved.current;
             of.failure = null;
           } else {
-            of.failure = { kind: "save", message: describeFailure(fault), replace };
+            of.failure = { kind: "save", message: saved.refused, replace };
             of.owed ||= owedBefore;
           }
+        } catch (fault) {
+          // A save with no answer, as when a reload cancels it or a proxy answers for
+          // the server, may have reached the file, so its text stays until a read says.
+          of.failure = { kind: "save", message: describeFailure(fault), replace };
+          of.owed ||= owedBefore;
         } finally {
           of.busy = false;
           if (connected) remember(of);
@@ -654,13 +706,7 @@ customElements.define(
             if (of.slowTimer !== null) clearTimeout(of.slowTimer);
             of.slowTimer = null;
           }
-          const returning = connected && returnFrom && focused() === returnFrom;
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       // Settles once a first read has waited a second, which is when the page stops
@@ -722,13 +768,7 @@ customElements.define(
           of.busy = false;
           if (connected) remember(of);
           if (of.failure || of.latest || !dirty(of)) finishSaving(of);
-          const returning = connected && returnFrom && focused() === returnFrom;
-          if (of === file) {
-            paint();
-            if (returning && returnFrom.hidden) returnToEditor();
-          } else tell(of);
-          schedule(of, 0);
-          if (of.owed) void refresh(of);
+          ended(of, returnFrom);
         }
       }
       /** @param {BeforeUnloadEvent} event */
@@ -755,24 +795,9 @@ customElements.define(
         );
         stopWatch = () => stops.forEach((stop) => stop());
       };
-      // A draft this tab kept, as across a reload, stands over the file until a read
-      // settles it.
-      /** @param {OpenFile} of */
-      const recover = (of) => {
-        const pending = tabStore.get(of.recoveryKey);
-        if (!pending || !of.api.writable) return;
-        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
-        const recovered = JSON.parse(pending);
-        of.base = recovered.base;
-        of.sent = recovered.sent;
-        of.recovering = true;
-        return recovered.text;
-      };
       // Every file's draft comes back, the closed ones' kept as if left in this load,
       // so each settles against its file as the open one does.
-      for (const of of files.values()) {
-        const draft = recover(of);
-        if (draft === undefined) continue;
+      for (const [of, draft] of drafts) {
         if (of === file) editor.value = draft;
         else of.kept = editor.keep(draft);
       }
@@ -823,8 +848,11 @@ customElements.define(
         for (const of of files.values())
           if (of !== file && of.recovering) void refresh(of);
         if (initial) {
-          this.controller.present(Promise.race([opening, waited.promise]));
-          deferredArrival(opening);
+          const first = opening;
+          this.dispatchEvent(
+            new PendingTaskEvent(Promise.race([first, waited.promise])),
+          );
+          void afterPresentation(() => first);
           initial = false;
         }
         watch();

@@ -13,12 +13,20 @@
    user stands in a walk, which the interface states in its own face, but for a seat
    that also carries the agent's words, where Leaf says them (glossary.md,
    "Reader-facing words"; field-readings.js). An empty box's
-   words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…, as
-   the user chose (words.js), and a search's prompt, such as Find
-   text…, which every search box marks as Leaf's (control-labels.js, `searchField`).
+   words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…
+   (`REPLY_HINT`, `COMMENT_HINT`), and a search's prompt, such as Find text…, which
+   every search box marks as Leaf's (control-labels.js, `searchField`).
    So a seat never decides a voice: each word reaches it with its speaker, or as the
    interface's own. */
 import { html } from "/vendor/lit.js";
+
+// What an empty comment box says, in every box, at rest and with the caret in, in
+// Leaf's voice. The user chose these, with the ellipsis a box that prompts for words
+// may carry and the italic of words the agent didn't write, over Reply and Comment in
+// the interface's own face.
+export const COMMENT_HINT = "Comment…";
+export const REPLY_HINT = "Reply…";
+export const REOPEN_HINT = "Reply to reopen…";
 
 /** @typedef {"agent" | "leaf"} Voice */
 /** A word said, and who says it.

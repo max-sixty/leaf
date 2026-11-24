@@ -643,7 +643,7 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
         packages=["file-editor"],
     )
     bind_file(serve.page_dir, "notes", file)
-    page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
+    page = open_page(browser, live_url(url))
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
@@ -665,7 +665,6 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     editor.click()
     page.keyboard.press("ControlOrMeta+End")
     page.keyboard.insert_text("Draft.")
-    page.clock.run_for(600)
     retry = widget.get_by_role("button", name="Retry", exact=True)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
@@ -675,7 +674,6 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
 
     # A clean refresh replaces earlier acknowledged editing history too.
     file.write_text("Latest file version.\n")
-    page.clock.resume()
     expect(editor).to_contain_text("Latest file version.")
     page.keyboard.press("ControlOrMeta+z")
     rendered(page)
@@ -770,7 +768,6 @@ def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tm
     # A finger from the start: the floor changes the header's height, and a page that
     # met the finger only when it was measured would shift as the finger arrived.
     def phone(page):
-        page.clock.install()
         page.set_viewport_size({"width": 390, "height": 844})
         page.context.new_cdp_session(page).send(
             "Emulation.setTouchEmulationEnabled", {"enabled": True}
@@ -791,12 +788,10 @@ def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tm
     page.route("**/api/files/notes", fail_write)
     editor.click()
     page.keyboard.insert_text("Draft.\n")
-    page.clock.run_for(600)
     assert short_aims(".lf-file-editor-retry") == []
     page.unroute("**/api/files/notes", fail_write)
     file.write_text("Changed on disk.\n")
     widget.get_by_role("button", name="Retry", exact=True).click()
-    page.clock.run_for(100)
     assert short_aims(".lf-file-editor-conflict") == []
     consume_browser_errors(
         page,

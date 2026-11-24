@@ -1,7 +1,6 @@
 # Previews
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
 pointer rests on it, when Tab brings the keyboard to it or something inside it, and when
@@ -28,8 +27,10 @@ come back the same leave the preview as it is. It returns:
 - `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
-  lists presses the register can't see, each as the steps its chips draw, as a control's
-  own activation keys a drag grip names. `detail` is lines under the name, each words or
+  adds presses Leaf's own chips leave out, such as the activation keys a drag grip
+  names. Each press is a list of bindings, one for a single key and one for each step
+  of a sequence, spelled as a command row's `keys` are (`module-input.md`, "Command
+  rows"), as in `keys: [["Enter"], [" "]]`, and Leaf draws each binding as a key chip. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
   declaring element by default: another element, as a message stands its preview by
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
@@ -58,18 +59,22 @@ come back the same leave the preview as it is. It returns:
 
 What it throws is reported, and nothing shows. Where what an element previews changes
 while the user's aim stays on it, as a chart's pointer, key or finger reaches another
-point, or a grip's words stop being true once its card is grabbed, the widget calls
-`previewChanged(element)`, from `portable-api.js` (`widget-api.js` re-exports it): Leaf
-calls `lfPreview` again and redraws a standing preview where it stands, or shows the
-new one to a pointer resting on the element or a finger holding it, and off Leaf the
-call does nothing. It never brings back a preview the user put away, nor opens one on
+point, or a grip's words stop being true once its card is grabbed, the widget says so
+with an `lf-preview` event at the element:
+
+```js
+element.dispatchEvent(new CustomEvent("lf-preview", { bubbles: true, composed: true }));
+```
+
+Leaf then calls `lfPreview` again and redraws a standing preview where it stands, or
+shows the new one to a pointer resting on the element or a finger holding it. Off
+Leaf, nothing hears the event. It never brings back a preview the user put away, nor opens one on
 focus: only the user aiming again does. Where the user aimed at something new inside the
-element, as a chart's pointer or arrow key reaching another point, the widget says so,
-`previewChanged(element, {aim: true})`, and the new target shows its preview whatever
+element, as a chart's pointer or arrow key reaching another point, the widget says so
+with `detail: { aim: true }` on the event, and the new target shows its preview whatever
 put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
 reads, as a chart's ring on the point it names, comes off when Leaf dispatches
-`PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
-`CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
+`lf-preview-ended` at the element, a `CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
 reading that ended, as the preview goes for any reason: the pointer or focus leaving,
 the pointer leaving the window, the next touch after a finger's hold, Escape, or
 another target's preview taking its place. A focus preview hidden while the box it
@@ -88,8 +93,8 @@ declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
 
 A thread's words preview the thread to a pointer or a finger only where nothing else
 there takes the pointer: a control, native or ARIA, an element with a `title` or an
-`lfPreview`, or a widget that draws its content itself (`content` `data` or
-`empty`). There the element's own preview shows, or none, and the thread is reached
+`lfPreview`, or a widget that draws its content itself (`content` `data`, `markdown`
+or `empty`). There the element's own preview shows, or none, and the thread is reached
 by its margin entry. Words a widget holds of the author's markup, outside any control
 in it, preview their thread.
 

@@ -2,6 +2,7 @@
 
 import ast
 import contextlib
+import gc
 import inspect
 import itertools
 import json
@@ -12,10 +13,13 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import traceback
 from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+import greenlet
 import psutil
 import pytest
 from click.testing import CliRunner
@@ -50,6 +54,10 @@ LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
 FAILING_HARNESS_PROGRAMS = Path(__file__).parent / "fixtures" / "programs" / "failing"
 
 
+# The run's own stderr, which a test's output capture leaves in place.
+_STDERR = pytest.StashKey[object]()
+
+
 def pytest_configure(config):
     """Set the conditions every test in this process runs under, before any of them.
 
@@ -65,6 +73,8 @@ def pytest_configure(config):
       `unnamed_browser`).
     - On Linux, text is laid out in the fixed fontconfig's faces
       (`leaf_dev.browser.linux_font_environment`).
+    - A test that outlives most of `faulthandler_timeout` has its stacks printed to
+      the run's own stderr (`pytest_runtest_protocol`).
     - Every child starts the way a terminal starts one. A run launched as a shell's
       background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN survives
       both Python startup and `exec`, so everything the run spawns would ignore the
@@ -79,6 +89,8 @@ def pytest_configure(config):
     for name, value in linux_font_environment().items():
         run.setenv(name, value)
     signal.signal(signal.SIGINT, signal.default_int_handler)
+    config.stash[_STDERR] = os.fdopen(os.dup(2), "w")
+    config.add_cleanup(config.stash[_STDERR].close)
 
 
 _PROCESS_STATE = pytest.StashKey[dict]()
@@ -315,8 +327,9 @@ def _page_pool(tmp_path_factory):
 
 @pytest.fixture
 def initialized_page(_page_pool, tmp_path):
-    """Put a page initialized with `packages` at `destination`, from the pool, in the
-    default theme, or in none with `theme=False`.
+    """Put a page initialized with `packages` at `destination`, from the pool. The
+    page lists Leaf's `reading` theme ahead of them, as an author's page does, or
+    leaves it out with `reading=False`.
 
     `prepared`, a `(key, step)` pair, runs `step` on the page after `page init`, and
     `key` tells its shape from the bare initialized one: an example's stamped
@@ -339,22 +352,18 @@ def initialized_page(_page_pool, tmp_path):
     lent = []
     own = tmp_path.resolve()
 
-    def lend(destination, packages, prepared=None, *, theme=None):
+    def lend(destination, packages, prepared=None, *, reading=True):
         destination = Path(destination)
-        packages = tuple(packages)
+        packages = (
+            *(("reading",) if reading else ()),
+            *(package for package in packages if package != "reading"),
+        )
         key, step = prepared or (None, None)
-        theme_args = ["--no-theme"] if theme is False else []
 
         def initialize(target):
             made = CliRunner().invoke(
                 cli_model.cli,
-                [
-                    "page",
-                    "init",
-                    *package_selection_args(packages),
-                    *theme_args,
-                    str(target),
-                ],
+                ["page", "init", *package_selection_args(packages), str(target)],
             )
             assert made.exit_code == 0, made.output
             if step:
@@ -367,7 +376,7 @@ def initialized_page(_page_pool, tmp_path):
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
             return destination
-        shape = (layer_model.ASSETS, packages, theme, resolved, key)
+        shape = (layer_model.ASSETS, packages, resolved, key)
         page = _page_pool.lend(shape, destination, initialize)
         lent.append((shape, page))
         return page
@@ -395,6 +404,44 @@ def pytest_addoption(parser):
         metavar="REF",
         help="Also run the `browser` and `journeys` tests whose own source changed since REF",
     )
+
+
+# How long before `faulthandler_timeout` (pyproject.toml) a hung test's greenlets are
+# printed, long enough for `gc` to walk a worker's objects on a loaded runner.
+_GREENLET_DUMP_LEAD_S = 60
+
+
+def _dump_greenlets(stream):
+    """Print the stack of every suspended greenlet to `stream`.
+
+    Playwright's sync API runs the test in a greenlet and switches to its event loop
+    while a call waits, so faulthandler's dump of every thread shows the event loop
+    and never the test line whose call is waiting."""
+    stream.write("\nGreenlet stacks before faulthandler_timeout:\n")
+    for each in gc.get_objects():
+        if isinstance(each, greenlet.greenlet) and each.gr_frame is not None:
+            stream.write(f"\n{each!r}\n")
+            traceback.print_stack(each.gr_frame, file=stream)
+    stream.flush()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item):
+    """A test still running shortly before `faulthandler_timeout` ends its worker has
+    its greenlets' stacks printed first (`_dump_greenlets`), so the crash report names
+    the call it waits in."""
+    timeout = float(item.config.getini("faulthandler_timeout") or 0)
+    if timeout <= _GREENLET_DUMP_LEAD_S:
+        return (yield)
+    timer = threading.Timer(
+        timeout - _GREENLET_DUMP_LEAD_S, _dump_greenlets, (item.config.stash[_STDERR],)
+    )
+    timer.daemon = True
+    timer.start()
+    try:
+        return (yield)
+    finally:
+        timer.cancel()
 
 
 @pytest.hookimpl(wrapper=True)

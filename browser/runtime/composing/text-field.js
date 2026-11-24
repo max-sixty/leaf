@@ -170,8 +170,9 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { inputs } from "../inputs.js";
-import { holdRendering, sizeObserver } from "../rendering.js";
-import { contentsRects } from "../shown-box.js";
+import { holdRendering } from "../rendering.js";
+import { sizeObserver } from "../lib/frame-pass.js";
+import { contentsRects } from "../lib/shown-box.js";
 import { keepFieldKeys } from "../field-keys.js";
 import { marksSheet } from "../stylesheets.js";
 

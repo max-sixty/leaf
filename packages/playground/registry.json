@@ -2,7 +2,6 @@
   "lf-playground": {
     "description": "A form whose fields the user tunes against a live preview, comparing candidates, and sends as one configuration.",
     "attributes": {
-      "type": "object",
       "properties": {
         "contract": {
           "type": "string"
@@ -12,8 +11,7 @@
           "minLength": 1
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "awaits": {
       "value": "choose",
@@ -28,7 +26,6 @@
           "attribute": "contract"
         },
         "detail": {
-          "type": "object",
           "properties": {
             "values": {
               "type": "object",
@@ -43,14 +40,12 @@
               "minLength": 1
             }
           },
-          "required": ["values", "instruction"],
-          "additionalProperties": false
+          "required": ["values", "instruction"]
         },
         "unit": "widget"
       },
       "tune": {
         "detail": {
-          "type": "object",
           "properties": {
             "values": {
               "type": "object",
@@ -61,8 +56,7 @@
               "additionalProperties": {}
             }
           },
-          "required": ["values"],
-          "additionalProperties": false
+          "required": ["values"]
         },
         "unit": "widget",
         "unsent": true
@@ -74,25 +68,21 @@
   "lf-playground-preset": {
     "description": "A named partial playground configuration the user can apply at once.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
           "minLength": 1
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "content": "members",
     "owners": ["lf-playground"],
-    "word": "preset",
     "instructions": "A control the preset has no setting for keeps its current value."
   },
   "lf-playground-setting": {
     "description": "One control value applied by a playground preset.",
     "attributes": {
-      "type": "object",
       "properties": {
         "for": {
           "type": "string"
@@ -101,19 +91,14 @@
           "type": "string"
         }
       },
-      "required": ["for", "value"],
-      "additionalProperties": false
+      "required": ["for", "value"]
     },
     "content": "empty",
     "owners": ["lf-playground-preset"],
-    "instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, and a radio's or option's value."
+    "instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, a radio's or option's value, and for a `<select multiple>` the values of the options it selects, separated by spaces."
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration; an `<output for>` inside shows a field's value.",
-    "attributes": {
-      "type": "object",
-      "additionalProperties": false
-    },
     "owners": ["lf-playground"]
   }
 }

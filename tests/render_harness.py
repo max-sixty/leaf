@@ -165,7 +165,7 @@ def shift_watch_source():
     source = (
         'import { clippingAxes } from "./browser/runtime/rect.js";\n'
         'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
-        'import { renderedParent, skipped } from "./browser/runtime/shadow-tree.js";\n'
+        'import { renderedParent, skipped } from "./browser/runtime/lib/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
@@ -557,7 +557,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
     test that appends those events itself. `layer_registry` and `layer_widgets` add a
     project package, a registry and its widget modules, for a reading the layer makes
     from declarations, so the test does not depend on which shipped tag declares them.
-    `theme=False` initializes the page with no theme, as `page init --no-theme` does.
+    `reading=False` leaves Leaf's `reading` theme out of the page's packages.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -584,7 +584,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         website_publication=None,
         seed_log=True,
         page_files=None,
-        theme=None,
+        reading=True,
     ):
         monkeypatch.chdir(tmp_path)  # resolve explicitly selected fixture packages
         project = tmp_path / ".leaf"
@@ -642,7 +642,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
             template = ((example.resolve(), seed_log), prepare)
         else:
             template = None
-        initialized_page(d, selected_packages, template, theme=theme)
+        initialized_page(d, selected_packages, template, reading=reading)
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp
@@ -1468,10 +1468,12 @@ def heard_draft_settled(page, ctx: str) -> None:
     page.wait_for_function("([has, ctx]) => !has(ctx)", arg=[has, ctx])
 
 
-def write_draft_elsewhere(page, ctx: str, text: str) -> str:
+def write_draft_elsewhere(page, ctx: str, text: str, over: dict | None = None) -> str:
     """Write a new generation of the draft at `ctx` to the page's server, as another
-    tab or device would, over the one the server holds; return its attempt."""
-    current = stored_draft(page, ctx)
+    tab or device would, over the one the server holds, or over the record `over`
+    the test read before, which asks nothing of the page, as one mid-navigation can't
+    answer; return its attempt."""
+    current = over or stored_draft(page, ctx)
     attempt = os.urandom(16).hex()
     origin = urlsplit(page.url)
     answer = page.request.post(
@@ -1786,6 +1788,7 @@ def watch_sources(shifts: bool) -> str:
           window.__lfCheckApi = () => entry('runtime/check-api.js');
           window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
           window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfLibImport = name => entry(`runtime/lib/${name}`);
           window.__lfVendorImport = name => entry(`vendor/${name}`);
         })();""",
     ]
@@ -2984,12 +2987,11 @@ def margins_laid_out(page):
     """
     page.evaluate(
         """async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
           window.__lfMarginLaidOut = false;
           document.addEventListener('lf-margin-layout', () => {
             window.__lfMarginLaidOut = true;
           }, {once: true});
-          layoutChanged(document.body);
+          document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }"""
     )
     page.wait_for_function(

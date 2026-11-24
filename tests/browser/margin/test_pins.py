@@ -720,15 +720,15 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
         layout="sidebar",
     )
     page = open_page(browser, serve(source))
-    page.evaluate("""async () => {
-      const { registerReadingRegion } =
-        await window.__lfWidgetApi();
+    page.evaluate("""() => {
       const host = document.getElementById('reader-host');
       const root = host.attachShadow({mode:'open'});
-      root.innerHTML = '<section style="height:240px; overflow:auto">'
+      root.innerHTML = '<section data-lf-scroll="reader" style="height:240px; overflow:auto">'
         + '<slot></slot><div style="height:400px"></div></section>';
-      const body = root.querySelector('section');
-      window.stopSlottedRegion = registerReadingRegion({id:'slotted-reader', host, body});
+      host.setAttribute('data-lf-scroll-host', 'reader');
+      // Leaf reads the marks in a shadow root whose host has said `lf-connect`.
+      host.dispatchEvent(
+        new CustomEvent('lf-connect', {bubbles: true, composed: true, cancelable: true}));
       document.getElementById('ask-help').addEventListener('click', event => {
         event.currentTarget.textContent = 'Channel explanation';
       });
@@ -884,7 +884,7 @@ SEATS = """() => [...document.querySelectorAll('[data-lf-margin-for]')].map((row
 # Rows by contribution on the elements `keys` name, each with `entries` actions; a key
 # already holding a row redraws it with that many, at once where `immediate` says.
 ROWS = """async ({keys, entries, immediate}) => {
-  const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+  const {registerContribution} = await window.__lfWidgetApi();
   window.seatRows ??= new Map();
   for (const key of keys) {
     const held = window.seatRows.get(key);
@@ -898,7 +898,7 @@ ROWS = """async ({keys, entries, immediate}) => {
       key: `seat-${key}`,
       target: document.getElementById(key),
       read: () => ({entries: Array.from({length: row.entries}, (_, i) =>
-        contributionEntry({key: `go${i}`, glyph: String.fromCharCode(65 + i), label: `Go ${key} ${i}`}))}),
+        ({key: `go${i}`, glyph: String.fromCharCode(65 + i), label: `Go ${key} ${i}`}))}),
       activate: () => {},
     });
     window.seatRows.set(key, row);

@@ -1,9 +1,10 @@
 /* The platform's own keys at the focused control, shared by core and element scopes:
    text entry, a widget's typeahead, a choice's arrow navigation, and native activation. */
 import { controlNavigationKeys, takesLetters } from "../focus.js";
-import { parsed, PRESS } from "./bindings.js";
+import { parsed } from "./bindings.js";
 import { CARET_KEYS } from "../control-selectors.js";
-import { ROLE_BUTTON_OFFER } from "../role-button-press.js";
+import { ROLE_BUTTON_OFFER } from "../lib/role-button-press.js";
+import { PRESS } from "../lib/keys.js";
 
 export function EVERYTHING() {
   return true;

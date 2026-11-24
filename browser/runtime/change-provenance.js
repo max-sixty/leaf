@@ -30,11 +30,11 @@
    message exists. It reads nothing while no comparison stands, and nothing of the log
    or the threads while one does. */
 import { runtime } from "./context.js";
-import { markdownReady } from "./markdown.js";
+import { markdownReady } from "./lib/markdown.js";
 import { messageWords } from "./thread/messages.js";
 import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "./voice.js";
-import { counted, quotedWords } from "./words.js";
+import { counted, quotedWords } from "./lib/words.js";
 
 /** One of the user's messages a version was saved after, as the server names it.
  * @typedef {NonNullable<import("../types/contract.js").ServedViewAnswer["saved_after"]>[number]} WaitedMessage */

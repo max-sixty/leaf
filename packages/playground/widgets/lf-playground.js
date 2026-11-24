@@ -1,4 +1,4 @@
-import { createPlayground } from "./playground-view.js";
+import { createPlayground, same } from "./playground-view.js";
 /* lf-playground: one form's working configuration, with one durable decision.
  *
  * Authors write the form as native fields among the preview's own markup, with presets
@@ -64,27 +64,19 @@ import { createPlayground } from "./playground-view.js";
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
 import {
-  compoundReadingRegionId,
-  closeNativeLayer,
+  aimedAt,
   copyControl,
   focusDestination,
   holdFocus,
-  layoutChanged,
   onCurrentLocation,
   onPress,
-  isNativeLayer,
-  LeafElement,
-  registerReadingRegion,
-  reachedForWords,
   says,
-  sizeObserver,
   wear,
   whileConnected,
-  focused,
-  under,
-  worksInside,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
 
 /** @typedef {null | string | number | boolean | readonly JSONSnapshot[] | {readonly [name: string]: JSONSnapshot}} JSONSnapshot */
@@ -102,23 +94,6 @@ const ONE_PRESS = [
   'label:has(> input:is([type="checkbox"], [type="radio"]))',
   'input:is([type="checkbox"], [type="radio"], [type="range"])',
 ].join(", ");
-
-/** @param {readonly string[]} left @param {readonly string[]} right */
-const sameKeys = (left, right) =>
-  left.length === right.length && left.every((key, index) => key === right[index]);
-
-// Configuration objects have no meaningful key order, including contributor slices.
-/** @param {unknown} value */
-const configurationJSON = (value) =>
-  JSON.stringify(value, (_key, /** @type {unknown} */ item) =>
-    item && typeof item === "object" && !Array.isArray(item)
-      ? Object.fromEntries(
-          Object.entries(item).sort(([left], [right]) =>
-            left < right ? -1 : left > right ? 1 : 0,
-          ),
-        )
-      : item,
-  );
 
 /** @param {unknown} value @param {string} [path] @returns {JSONSnapshot} */
 function jsonSnapshot(value, path = "configuration") {
@@ -200,24 +175,21 @@ customElements.define(
     #submit = null;
     /** @type {HTMLButtonElement | null} */
     #reset = null;
-    /** @type {string | null | undefined} */
+    /** @type {unknown} */
     #drawn = undefined;
     #ready = false;
     #interactive = false;
-    /** @type {(PlaygroundView["regions"][number] & {id: string})[]} */
-    #regions = [];
 
     // A build that throws leaves the playground showing its failure (LeafElement).
     setup() {
       this.#build();
       this.#ready = true;
       whileConnected(this, (signal) => {
-        const stops = this.#regions.map((region) => registerReadingRegion(region));
-        stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
+        const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar. A
         // quoted playground draws only its authored markup, with neither.
-        const controls = this.#regions.find((region) => region.name === "controls");
+        const controls = this.#view.controls;
         /** @type {HTMLElement | null} */
         const split = this.querySelector(":scope > .lf-playground-split");
         const observer = sizeObserver((entries) => {
@@ -231,7 +203,7 @@ customElements.define(
             return;
           }
         });
-        if (controls) observer.observe(controls.host);
+        if (controls) observer.observe(controls);
         // The instruction is a glance at the window's middle; a window changing width
         // puts it away rather than reflowing it under the user, which also kept Web
         // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
@@ -239,8 +211,7 @@ customElements.define(
         let width = innerWidth;
         const putAway = () => {
           const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction && isNativeLayer(instruction))
-            closeNativeLayer(instruction);
+          if (innerWidth !== width && instruction) instruction.hidePopover();
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
@@ -258,7 +229,7 @@ customElements.define(
         if (this.#unsent.size) this.#recordLater();
         return () => {
           observer.disconnect();
-          for (const stop of stops) stop();
+          stopPress();
           clearTimeout(this.#pause);
         };
       });
@@ -327,10 +298,6 @@ customElements.define(
       this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
-      this.#regions = initial.regions.map((region) => ({
-        ...region,
-        id: compoundReadingRegionId(this, region.name),
-      }));
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {
@@ -340,7 +307,7 @@ customElements.define(
           if (!(target instanceof Element)) return;
           const pick = initial.candidate(target);
           if (!pick) return;
-          if (reachedForWords(pick.box) || worksInside(target, pick.box)) return;
+          if (aimedAt(event, pick.box) !== pick.box) return;
           event.preventDefault();
           focusDestination(pick.radio, "press");
           pick.radio.click();
@@ -386,7 +353,11 @@ customElements.define(
             { capture: true },
           );
           initial.copy = copy;
-          instruction.addEventListener("toggle", () => commandsChanged(this));
+          instruction.addEventListener("toggle", () =>
+            this.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            ),
+          );
         }
         this.addEventListener("mousedown", (event) => {
           const target = event.target;
@@ -413,7 +384,7 @@ customElements.define(
     #normalize(candidate) {
       const names = Object.keys(this.#defaults).sort();
       const keys = Object.keys(candidate).sort();
-      if (!sameKeys(names, keys))
+      if (!same(names, keys))
         throw new Error(
           `configuration needs exactly these fields: ${names.join(", ")}`,
         );
@@ -429,7 +400,8 @@ customElements.define(
       const field = this.#fields.get(name);
       if (!field) return jsonSnapshot(value, `contributor ${name}`);
       if (!field.holds(value)) throw new Error(`field ${name} can't hold ${value}`);
-      return /** @type {JSONSnapshot} */ (value);
+      // A multiple select's list, read from the log, freezes as a slice's does.
+      return jsonSnapshot(value, `field ${name}`);
     }
 
     // Native range focus and dragging share a default: cancelling it cancels the
@@ -484,7 +456,7 @@ customElements.define(
         );
       }
       return (/** @type {Event} */ _end, /** @type {boolean} */ completed) => {
-        if (completed) restore(focused());
+        if (completed) restore(document.activeElement);
         else close();
         return close;
       };
@@ -501,7 +473,7 @@ customElements.define(
     // can demonstrate any focused element, including an input, so its element type
     // cannot tell an editor from a candidate whose focus is being compared.
     #previewLocation() {
-      let at = focused(document);
+      let at = document.activeElement;
       if (
         !under(at, this.#preview) ||
         this.#view.isField(at) ||
@@ -548,7 +520,9 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} name @param {JSONSnapshot} value */
@@ -596,34 +570,30 @@ customElements.define(
     // The tune in force, whose values are the settings the log holds; without one, it
     // holds the authored defaults.
     #tune() {
-      return (
-        Object.values(this.controller.read().provenance).find(
-          ({ event }) => event.action === "tune",
-        )?.event ?? null
-      );
+      const tune = this.state?.tune;
+      return tune && "action" in tune && tune.action ? tune : null;
     }
 
     #commit() {
       clearTimeout(this.#pause);
       const values = { ...this.#pendingValues, ...this.#values };
       const recorded = this.#tune()?.detail.values ?? this.#defaults;
-      if (!this.controller.read().actions.tune?.available) return;
+      if (!this.state?.tune?.available) return;
       this.#unsent.clear();
-      if (configurationJSON(values) === configurationJSON(recorded)) return;
-      this.controller.dispatch({
-        kind: "action",
-        verb: "tune",
-        detail: { values },
-        says: "Changed the playground's settings",
-      });
+      if (same(values, recorded)) return;
+      this.record("tune", { values }, { says: "Changed the playground's settings" });
     }
 
     #paint() {
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       for (const paint of this.#views) paint(this.#values);
-      layoutChanged(this);
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #providedInstruction() {
@@ -646,20 +616,13 @@ customElements.define(
       const undo = chosen ? this.#undo() : null;
       if (chosen ? !undo : !this.#available()) return;
       if (!chosen) this.#commit();
-      if (chosen) {
-        if (!undo) return;
-        this.controller.dispatch({
-          kind: "undo",
-          target: ("attempt" in undo ? undo.attempt : null) ?? undo.id,
-        });
-      } else {
-        this.controller.dispatch({
-          kind: "action",
-          verb: "choose",
-          detail: { values: this.values, instruction: this.#instruction() },
-          says: "Playground settings",
-        });
-      }
+      if (chosen) this.takeBack("choose");
+      else
+        this.record(
+          "choose",
+          { values: this.values, instruction: this.#instruction() },
+          { says: "Playground settings" },
+        );
     }
 
     // A choice records the controls' values. It still matches when a reload restored
@@ -675,30 +638,27 @@ customElements.define(
       );
       return (
         choice.detail.instruction === this.#instruction() &&
-        configurationJSON(recorded) ===
-          configurationJSON({ ...Object.fromEntries(waiting), ...this.#values })
+        same(recorded, { ...Object.fromEntries(waiting), ...this.#values })
       );
     }
 
     #undo() {
-      const action = this.controller.read().actions.choose;
-      const latest = action?.inForce[0]?.event;
-      return action?.undo.find((event) => event.id === latest?.id) ?? null;
+      const choose = this.state?.choose;
+      return Boolean(choose && "undoable" in choose && choose.undoable);
     }
 
     #available() {
-      return this.controller.read().actions.choose?.available ?? false;
+      return this.state?.choose?.available ?? false;
     }
 
     // Only a tune the controls haven't drawn replaces their values (the header says
-    // why); its attempt stays its identity once the server gives it an id. A change to
-    // the reading's availability draws again too, and paints the keys.
+    // why). The reading names no event, so a tune is told from the one drawn by the
+    // values it records. A change to the reading's availability draws again too, and
+    // paints the keys.
     render() {
       const tune = this.#tune();
-      const drawn = tune
-        ? (("attempt" in tune ? tune.attempt : null) ?? tune.id)
-        : null;
-      if (this.#drawn !== drawn) {
+      const drawn = tune ? tune.detail.values : null;
+      if (!same(this.#drawn, drawn)) {
         this.#drawn = drawn;
         // An edit the tune in force already holds, such as a value the browser restored
         // on a reload, is recorded already.
@@ -706,7 +666,7 @@ customElements.define(
           tune?.detail.values ?? this.#defaults
         );
         for (const name of this.#unsent)
-          if (Object.is(recorded[name], this.#values[name])) this.#unsent.delete(name);
+          if (same(recorded[name], this.#values[name])) this.#unsent.delete(name);
         const unsent = [...this.#unsent].map((name) => [name, this.#values[name]]);
         this.#restore({
           ...recorded,
@@ -723,9 +683,9 @@ customElements.define(
         values: this.#values,
         instruction: this.#renderedInstruction.value,
         chosen: () => this.#chosen(),
-        // The submission's action says why it can't be sent (module-state.md, "The
-        // widget controller"), so the bar keeps no rule of its own about delivery.
-        unavailable: this.controller.read().actions.choose?.unavailable ?? null,
+        // The submission's state says why it can't be sent, so the bar keeps no rule
+        // of its own about delivery.
+        unavailable: this.state?.choose?.unavailable ?? null,
       });
       this.#paint();
       return template;
@@ -736,8 +696,7 @@ customElements.define(
     /** @param {import("lit").PropertyValues} changed */
     updated(changed) {
       super.updated(changed);
-      if (this.#unsent.size && this.controller.read().actions.tune?.available)
-        this.#recordLater();
+      if (this.#unsent.size && this.state?.tune?.available) this.#recordLater();
     }
   },
 );

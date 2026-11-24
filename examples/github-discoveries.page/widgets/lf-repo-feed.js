@@ -4,19 +4,18 @@
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
-  LeafElement,
-  offered,
+  clockValue,
   whileConnected,
   tabStore,
   HeldReading,
-  keeps,
   threadActions,
   readThreads,
-  quoted,
-  loadMarkdown,
-  markdownReady,
-  renderMarkdown,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offered } from "/runtime/lib/controls.js";
+import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 import { GitHubFeed } from "../github-feed.js";
 
@@ -41,7 +40,7 @@ const date = new Intl.DateTimeFormat("en-US", {
 // Markdown stays source evidence; resolve its relative links against its own home.
 function sourceMarkdown(item) {
   const fragment = document.createElement("template");
-  fragment.innerHTML = renderMarkdown(item.body);
+  fragment.innerHTML = renderMarkdown(item.body, pageLinks);
   for (const link of fragment.content.querySelectorAll("a[href]"))
     link.setAttribute("href", new URL(link.getAttribute("href"), item.source_url).href);
   const imageBase =
@@ -447,7 +446,11 @@ class RepoFeed extends LeafElement {
       .replace(/[^a-z0-9]/gi, "")
       .slice(0, 2)
       .toUpperCase();
-    const days = Math.floor((Date.now() - new Date(item.at)) / 86400000);
+    // The day count on the page's clock: the card redraws as it changes, on the
+    // server's time, as every age Leaf draws does.
+    const days = clockValue((now) =>
+      Math.floor((now - Date.parse(item.at)) / 86400000),
+    );
     const when =
       days < 1
         ? "Today"
@@ -489,13 +492,13 @@ class RepoFeed extends LeafElement {
           <a href=${item.url} target="_blank" rel="noreferrer">${item.headline}</a>
         </h3>
         <div class="feed-commentary">
-          ${unsafeHTML(renderMarkdown(item.commentary))}
+          ${unsafeHTML(renderMarkdown(item.commentary, pageLinks))}
         </div>
         <div class="feed-context" data-distance=${item.distance}>
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2 8h10M8 4l4 4-4 4" />
           </svg>
-          <div>${unsafeHTML(renderMarkdown(item.reason))}</div>
+          <div>${unsafeHTML(renderMarkdown(item.reason, pageLinks))}</div>
         </div>
         <div class="feed-actions">
           <details
@@ -534,7 +537,7 @@ class RepoFeed extends LeafElement {
               >
             </div>
           </details>
-          ${!quoted(this) ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
+          ${!this.matches("[data-lf-exhibit] *") ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
         </div>
       </div>
     </article>`;

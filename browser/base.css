@@ -10,8 +10,8 @@
  * element rules that keep a guarantee, each saying which. The idioms an author writes
  * are Leaf's too (styles/components/idioms.css, by way of shadow.css). The reading look,
  * the type and ground a document reads in, is the bundled `reading` theme
- * (packages/reading), which a page takes by default; a page that takes none starts
- * from the browser's defaults and these tokens.
+ * (packages/reading), which a page takes by listing it among its packages; a page that
+ * lists no theme starts from the browser's defaults and these tokens.
  *
  * Every surface rides a color token, so the dark palette is exactly one more
  * token block — nothing else in this file (or the runtime, which styles its UI
@@ -34,8 +34,8 @@
  * content, which answers "block" for every custom element, so they exclude
  * `[data-lf-inline]` rather than the tags that declare `inline`. The affordance
  * rules that draw an option group as a control exclude the descendants of
- * `[data-lf-exhibit]` for the same reason, asking in CSS the question `quoted()` asks
- * in JavaScript. A tag name in a shared list is a closed vocabulary wherever it
+ * `[data-lf-exhibit]` for the same reason, asking the question a module asks of the
+ * same mark. A tag name in a shared list is a closed vocabulary wherever it
  * appears, and one layer's tag written into another layer's stylesheet is that plus a
  * leak.
  *
@@ -452,7 +452,7 @@ body {
     overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
-   * height (lf-sample.js). So the body keeps to its content rather than filling the
+   * height (runtime/sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The frame is the sample's window, and it holds the sample's
@@ -585,8 +585,8 @@ main {
  * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
  * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
- * runtime's and modules' `data-lf-scroll`, which a reading region's body takes when it
- * registers (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * runtime's and modules' `data-lf-scroll`, which every reading region's body wears
+ * (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
  * state.css). Each value it changes is one everything in the box inherits, so a box
  * that holds thousands of elements states the whole restart beside its overflow and
  * the mark changes nothing there (a text document's listing). The runtime reads no
@@ -821,23 +821,6 @@ video {
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
-/* The block an option row is about (§): its `for`, which lf-options writes.
- * It points; it never supplies the row's words. It names the block by the name the
- * chrome gives it, without the kind word a thread's § coordinate adds, with a "Jump to"
- * title, and rides at the words' end, out of the way of what the row says (the package
- * theme drops it under the words where both don't fit on a line). The user chose the
- * block's name over showing its raw id as "what it is". */
-.lf-ref {
-  font: var(--lf-font-small);
-  color: var(--lf-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.lf-ref:hover {
-  color: var(--lf-accent);
-  text-decoration: underline;
-}
-
 /* The label font: small capitals in the UI sans that name a region, ranking below every
    heading they stand among. A pane's name takes it, and so does each label a widget or
    the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a
@@ -1158,27 +1141,4 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: var(--lf-pane-top) var(--lf-pane-inset) var(--lf-pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
-}
-
-/* Board motion carries a compact card label without duplicating its live
- * controls. The motion owner sets position and travel; this face stays bounded. */
-.lf-motion-preview {
-  box-sizing: border-box;
-  max-width: 24rem;
-  max-height: 3.5rem;
-  padding: 12px;
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
-  background: var(--lf-card);
-  color: var(--lf-ink);
-  font: inherit;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  pointer-events: none;
-}
-.lf-motion-preview.lf-inhand {
-  max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
-  opacity: 1;
-  box-shadow: var(--lf-raise-2);
 }

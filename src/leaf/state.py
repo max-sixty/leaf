@@ -265,35 +265,75 @@ def still_named(held: int, path: Path) -> bool:
         return False
 
 
+def hooks_root(session_id: str) -> Path | None:
+    """The root of the Leaf the session's hooks last ran, which each of them records
+    with the skill it ships (`hooks.skill_mark`, `leases.mark_skill`), or None where
+    no hook of the session has run."""
+    try:
+        marked = session_file(session_id, SKILL_SUFFIX).read_text()
+    except FileNotFoundError:
+        return None
+    return Path(marked.rpartition("\n")[0])
+
+
 class LoadedCopy:
     """The installed copy of Leaf this process loaded, held so that a process that
-    outlives the hooks that start it, such as a page server, Codex's delivery
-    adapter or Pi's watch between turns, can tell once its harness has put another
-    copy at that path (`replaced`).
+    outlives the hooks that start it can tell once another copy should run it: a
+    page server and Codex's delivery adapter ask `successor`, and a watch between
+    turns asks only `replaced`, since a newer watch from the session's copy takes
+    over from it (`session.watch_between_turns`).
 
-    Codex and Pi each keep one clone and update it in place (`installed_copy`).
+    A session runs the Leaf its hooks run (`session-lifetime.md`, "Which Leaf runs
+    a session"), and a harness changes that Leaf in one of two ways. Claude Code
+    installs each update at a new path, as a copy without `.git`, and a process of
+    the session that loads the update runs hooks that record the new path
+    (`hooks_root`). Codex and Pi each keep one clone and update it in place
+    (`installed_copy`), between hooks, so the path the hooks record stays the same.
     Codex moves the copy aside, renames a new one into its path and deletes the old
     one. Pi resets the clone to the new commit and then removes every file Git
     doesn't track (`git clean -fdx`). Either way the copy's environment, the `.venv`
     its launcher's `uv run` makes, goes once the code beside it has changed. So the
     holder keeps a descriptor on that environment, which keeps its inode from
     passing to another directory, and asks each pass whether the environment at the
-    copy's path is still the one it holds, which takes two stat calls. Asking Git
-    which commit the copy holds would take a process each pass, and would answer
-    between Pi's reset and its clean, when a successor's environment would still be
-    deleted.
+    copy's path is still the one it holds, which takes two stat calls (`replaced`).
+    Asking Git which commit the copy holds would take a process each pass, and would
+    answer between Pi's reset and its clean, when a successor's environment would
+    still be deleted.
 
-    Claude Code installs each update at a new path, as a copy without `.git`, and
-    may delete an old copy while a process still runs it, its environment possibly
-    before its directory. So a process from Claude Code's copy holds nothing, and
-    neither does one from a checkout, which whoever runs it changes when they
-    choose, or one that finds no environment at its copy's path as it starts."""
+    Claude Code may delete an old copy while a process still runs it, its
+    environment possibly before its directory, so a process from its copy holds no
+    environment. A process from a checkout follows nothing, since whoever runs it
+    changes it when they choose, and neither does one that finds no environment at
+    its copy's path as it starts."""
 
     def __init__(self) -> None:
+        self._installed = installed_copy(PLUGIN_ROOT)
         self._held: int | None = None
-        if installed_copy(PLUGIN_ROOT) and (PLUGIN_ROOT / ".git").exists():
+        if self._installed and (PLUGIN_ROOT / ".git").exists():
             with contextlib.suppress(FileNotFoundError):
                 self._held = os.open(PLUGIN_ROOT / ".venv", os.O_RDONLY)
+
+    def successor(self, session_id: str | None) -> Path | None:
+        """The root of the copy that should now run this process for the session
+        `session_id` names: another installed copy the session's hooks last ran, or
+        else another copy standing at this one's path (`replaced`), or None while
+        this copy stays the session's.
+
+        The maintainer chose that only an installed copy's process follows, and only
+        to an installed copy, so a follow neither replaces a process someone started
+        from a checkout, such as a preview or a trial of a change, nor moves a
+        session's page onto a checkout."""
+        if not self._installed:
+            return None
+        root = hooks_root(session_id) if session_id is not None else None
+        if (
+            root is not None
+            and root != PLUGIN_ROOT
+            and installed_copy(root)
+            and os.access(root / "bin" / "leaf", os.X_OK)
+        ):
+            return root
+        return PLUGIN_ROOT if self.replaced() else None
 
     def replaced(self) -> bool:
         """Whether another copy now stands at this copy's path. Between the two
@@ -438,21 +478,20 @@ class Record(Generic[_RecordValue]):
         """The record at `path`, less its `format`, or None where this Leaf reads
         none there."""
         stored = stored_record(path)
-        if stored is None or stored.pop("format", None) != self.format:
+        if stored is None or self.since_of(stored) != self.since:
             return None
+        del stored["format"]
         return cast(_RecordValue, stored)
 
-    def newer(self, path: Path) -> bool:
-        """Whether `path` holds this kind at a later shape than this Leaf's, which
-        only a newer Leaf writes, since a kind's `since` only rises. `read` takes it
-        as absent, so a reader that must not mistake it for none asks this."""
-        stored = stored_record(path) or {}
+    def since_of(self, stored: dict) -> int | None:
+        """The `since` that `stored`, a record read whole (`stored_record`), names in
+        its `format` where it is of this kind, or None where it is of none. Every
+        shape keeps `format`, so a reader tells by this which Leaf's shape it holds
+        before it reads anything else."""
         kind, _, since = str(stored.get("format", "")).rpartition("/")
-        return (
-            kind == f"leaf-{self.kind}"
-            and since.isdecimal()
-            and int(since) > self.since
-        )
+        if kind != f"leaf-{self.kind}" or not since.isdecimal():
+            return None
+        return int(since)
 
     def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
@@ -474,8 +513,9 @@ class Record(Generic[_RecordValue]):
 
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. Only retirement (`retire_if_gone`) and `Record.newer` read a record this
-    way; every other reader goes through `Record.read`."""
+    none. A reader of a record another Leaf may have written takes from it only keys
+    every shape of its kind keeps, as `named_pages` and `Record.since_of` do; every
+    other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:

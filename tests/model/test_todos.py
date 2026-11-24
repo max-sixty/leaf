@@ -21,6 +21,7 @@ from interact_support import (
     delivered,
     freeze_events,
     obligations_on_user,
+    open_todos,
     owed_answers,
     page_state,
     publish,
@@ -28,6 +29,7 @@ from interact_support import (
     response_reference,
     served_obligations,
     served_thread,
+    served_todos,
     serving,
     stamp,
     state_json,
@@ -38,8 +40,10 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as contracts_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
+from leaf import plans as plans_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import standing as standing_model
 from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
@@ -157,37 +161,33 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     )
     assert (todo["kind"], todo["todo"]) == ("reply", "Rebuild the banner quieter")
     state = state_json(page_dir)
-    [item] = state["todos"]
-    assert (item["id"], item["subject"]) == (
+    [item] = open_todos(state)
+    assert (item["id"], item["source"]["subject"]) == (
         todo["id"],
         {"kind": "thread", "id": comment["id"]},
     )
     assert kinds(state["queues"]["on_agent"]) == [("todo", todo["id"])]
     assert state["queues"]["on_user"] == []
-    assert state["threads"][0]["attention"] == {
-        "kind": "waiting",
-        "reason": "todo",
-        "workflow": None,
-        "todo": todo["id"],
-    }
-    assert [item["id"] for item in state["todos"]] == [todo["id"]]
+    assert state["threads"][0]["attention"] == todo["id"]
 
     append_command(
         page_dir,
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     # Resolving closes the thread for the user; the to-do stays the agent's, and the
-    # panel names it from the served `todos`.
+    # panel names it from its served record.
     state = state_json(page_dir)
     assert state["threads"][0]["attention"] is None
     assert kinds(state["queues"]["on_agent"]) == [("todo", todo["id"])]
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert [item["title"] for item in served["browser"]["todos"]] == [
+    assert [item["prompt"]["text"] for item in served_todos(served["browser"])] == [
         "Rebuild the banner quieter"
     ]
     thread = leaf("page", "state", page_dir, comment["id"])
     assert thread.exit_code == 0, thread.output
-    assert [item["id"] for item in json.loads(thread.output)["todos"]] == [todo["id"]]
+    assert [item["id"] for item in open_todos(json.loads(thread.output))] == [
+        todo["id"]
+    ]
 
     end = written(
         leaf("task", "end", page_dir, todo["id"], "done", "--text", "version 2")
@@ -199,13 +199,14 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     )
     state = state_json(page_dir)
     assert state["queues"]["on_agent"] == []
-    assert state["todos"] == []
-    # The browser is served the ended task in the one list beside the open ones, for
-    # the On panel's Done list, with its outcome.
+    assert open_todos(state) == []
+    # The browser is served the ended task beside the open ones, for the On panel's
+    # Done list, with its outcome.
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [ended] = served["browser"]["todos"]
-    assert (ended["id"], ended["state"], ended["outcome"]["detail"]) == (
+    [ended] = served_todos(served["browser"])
+    assert (ended["id"], ended["state"], ended["outcome"], ended["end"]["detail"]) == (
         todo["id"],
+        "done",
         "done",
         "version 2",
     )
@@ -275,7 +276,8 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
         return (
             step["title"],
             step["state"],
-            step["owner"],
+            step["outcome"],
+            step["next_actor"],
             step["done"],
             step["total"],
             [shape(child) for child in step["steps"]],
@@ -283,22 +285,24 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
 
     assert shape(goal) == (
         "Review the change",
-        "working",
+        "running",
+        None,
         "agent",
         1,
         3,
         [
-            ("Check the diffs", "done", "agent", 0, 0, []),
+            ("Check the diffs", "done", "done", None, 0, 0, []),
             (
                 "Draft the response",
-                "working",
+                "running",
+                None,
                 "agent",
                 0,
                 1,
-                [("Cut to two lines", "working", "agent", 0, 0, [])],
+                [("Cut to two lines", "running", None, "agent", 0, 0, [])],
             ),
-            (item["prompt"]["text"], "open", "user", 0, 0, []),
-            ("Post it", "dropped", "agent", 0, 0, []),
+            (item["prompt"]["text"], "waiting", None, "user", 0, 0, []),
+            ("Post it", "done", "dropped", None, 0, 0, []),
         ],
     )
     cut = goal["steps"][1]["steps"][0]
@@ -321,9 +325,9 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
         )
     )
     [goal] = state_json(page_dir)["plan"]["steps"]
-    assert [(step["item"]["id"], step["state"]) for step in goal["steps"]] == [
-        (asked, "done")
-    ]
+    assert [
+        (step["item"]["id"], step["state"], step["outcome"]) for step in goal["steps"]
+    ] == [(asked, "done", "done")]
     assert ("todo", todo["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
     outline = page_dir.parent / "plan.json"
     # A step that skips a level reads one level below the step before it, so the plan
@@ -352,6 +356,52 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     )
     written(plan([]))
     assert state_json(page_dir)["plan"] is None
+
+
+def test_a_goal_counts_only_the_steps_that_ended_done(task_log):
+    """A to-do that failed ended, but finished nothing, so its goal reads none done."""
+    append, log = task_log
+    todo = append("todo", subject={"kind": "page"}, title="Rebuild the chart")
+    append("todo_end", todo=todo["id"], outcome="failed", detail="The data is gone")
+    append(
+        "plan",
+        steps=[
+            {"depth": 0, "title": "Chart the year", "state": "working"},
+            {"depth": 1, "item": todo["id"]},
+        ],
+    )
+    reading = plans_model.plan_reading(log, set(), todos_model.TodoReading(log).todos)
+    assert reading is not None
+    [goal] = reading["steps"]
+    [step] = goal["steps"]
+    assert (step["state"], step["outcome"]) == ("done", "failed")
+    assert (goal["done"], goal["total"]) == (0, 1)
+
+
+def test_a_plan_step_reads_its_todo_stopped_once_the_turn_that_started_it_ends(
+    claimed,
+):
+    """A step naming a to-do stands where the to-do does: the start its turn left,
+    seen to end, reads blocked and stopped, under the line it last said."""
+    todo = written(leaf("task", "create", claimed, "page", "--title", "Cut it"))
+    written(leaf("task", "start", claimed, todo["id"], "--text", "Cutting it"))
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(claimed)],
+            input=json.dumps([{"depth": 0, "item": todo["id"]}]),
+        )
+    )
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    state_model.close_session_turn(claim["id"])
+    [step] = state_json(claimed)["plan"]["steps"]
+    assert (step["next_actor"], step["state"], step["reason"]) == (
+        "agent",
+        "blocked",
+        "stopped",
+    )
+    assert step["running"]["text"] == "Cutting it"
 
 
 def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
@@ -492,11 +542,11 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["todos"] == []
+    assert served_todos(served["browser"]) == []
     [ended] = served_obligations(served["browser"])["all"]
-    assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
+    assert standing_model.answered(ended)
+    assert (ended["source"]["id"], ended["answer"]["event"]["id"]) == (
         question["id"],
-        "answered",
         answer["id"],
     )
     if answer_kind == "reaction":
@@ -508,7 +558,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
             entry["source"]["id"]
             for entry in served_obligations(served["browser"])["user"]
         ] == [question["id"]]
-        assert served["browser"]["todos"] == []
+        assert served_todos(served["browser"]) == []
 
 
 def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
@@ -544,29 +594,25 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
         )
 
     react("clarify")
-    assert (
+    assert standing_model.is_open(
         next(
             item
             for item in state_json(page_dir)["obligations"]
             if item["source"]["id"] == question["id"]
-        )["status"]
-        == "open"
+        )
     )
     keep = react("keep")
-    assert (
+    assert standing_model.answered(
         next(
             item
             for item in state_json(page_dir)["obligations"]
             if item["source"]["id"] == question["id"]
-        )["status"]
-        == "answered"
+        )
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = served_obligations(served["browser"])["all"]
-    assert (answered["status"], answered["answer"]["event"]["id"]) == (
-        "answered",
-        keep["id"],
-    )
+    assert standing_model.answered(answered)
+    assert answered["answer"]["event"]["id"] == keep["id"]
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
@@ -615,7 +661,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     ]
     assert state["queues"]["on_agent"] == []
     [thread] = state["threads"]
-    assert thread["attention"]["reason"] == "obligation"
+    assert thread["attention"] == f"message:{question['id']}"
 
 
 def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir):
@@ -645,11 +691,11 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     assert (start["kind"], start["item"]) == ("start", comment["id"])
     state = state_json(page_dir)
     [workflow] = state["workflows"]
-    assert (workflow["stage"], workflow["detail"]) == (
-        "working",
+    assert (workflow["state"], workflow["detail"]) == (
+        "running",
         "Tightening the plan section",
     )
-    assert state["activity"]["kind"] == "working"
+    assert state["activity"]["state"] == "running"
     assert state["activity"]["detail"] == "Tightening the plan section"
 
     # The reply that answers the move ends its start: nothing is in hand.
@@ -665,7 +711,7 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     )
     state = state_json(page_dir)
     assert state["workflows"] == []
-    assert state["activity"]["kind"] != "working"
+    assert state["activity"]["state"] != "running"
     again = leaf("task", "start", page_dir, comment["id"], "--text", "More")
     assert again.exit_code != 0
 
@@ -679,8 +725,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
         leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the glossary")
     )
     state = state_json(page_dir)
-    [served] = state["todos"]
-    assert served["running"]["text"] == "Drafting the glossary"
+    [served] = open_todos(state)
+    assert served["line"]["text"] == "Drafting the glossary"
     assert state["activity"]["detail"] == "Drafting the glossary"
     [item] = state["queues"]["on_agent"]
     assert (item["kind"], item["subject"]) == ("todo", {"kind": "page"})
@@ -696,8 +742,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
         )
     )
     state = state_json(page_dir)
-    assert state["todos"] == []
-    assert state["activity"]["kind"] != "working"
+    assert open_todos(state) == []
+    assert state["activity"]["state"] != "running"
 
 
 @pytest.mark.parametrize("claim", ["task start", "progress reply"])
@@ -744,8 +790,10 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
     with service_model.PageTransaction(page_dir) as page:
         claiming.start()
         assert claim_waits.wait(STATED_TIMEOUT)
+        # Another session's resolve answers for the thread; the user's own would
+        # leave the update owed.
         append_admitted(
-            page, {"kind": "resolve", "author": "user", "parent": comment["id"]}
+            page, {"kind": "resolve", "author": "agent", "parent": comment["id"]}
         )
     claiming.join(STATED_TIMEOUT)
     assert not claiming.is_alive()
@@ -767,7 +815,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
         assert "resolved the thread" in noted["text"]
     state = state_json(page_dir)
     assert state["workflows"] == []
-    assert state["activity"]["kind"] != "working"
+    assert state["activity"]["state"] != "running"
 
 
 @pytest.mark.parametrize(
@@ -810,9 +858,9 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
         assert "superseded-progress" not in capsys.readouterr().err
     state = state_json(page_dir)
     [thread] = state["threads"]
-    assert thread["attention"]["todo"] == todo["id"]
-    [record] = state["todos"]
-    assert (record["id"], record["running"]["text"]) == (
+    assert thread["attention"] == todo["id"]
+    [record] = open_todos(state)
+    assert (record["id"], record["line"]["text"]) == (
         todo["id"],
         "Waiting on the build",
     )
@@ -852,8 +900,8 @@ def test_any_agent_session_can_end_a_todo_another_started(task_log):
     append("start", session="worker", item=todo["id"], text="Working")
     completed = append("todo_end", session="third", todo=todo["id"], outcome="failed")
     [ended] = todos_model.TodoReading(log).todos
-    assert ended["state"] == "failed"
-    assert ended["outcome"]["id"] == completed["id"]
+    assert (ended["state"], ended["outcome"]) == ("done", "failed")
+    assert ended["end"]["event"]["id"] == completed["id"]
 
 
 WORK_PAGE = FLOW_PAGE.replace(
@@ -887,19 +935,19 @@ def test_a_widget_todo_stands_on_any_live_widget_and_a_completing_stamp_ends_it(
     written(
         leaf("task", "start", page_dir, todo["id"], "--text", "Checking the fallback")
     )
-    [served] = state_json(page_dir)["todos"]
-    assert served["running"]["text"] == "Checking the fallback"
+    [served] = open_todos(state_json(page_dir))
+    assert served["line"]["text"] == "Checking the fallback"
 
     # An unrelated version and one that drops its card both leave the to-do open.
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v2</title>")
     )
     assert stamp(page_dir, "Elsewhere").exit_code == 0
-    assert [item["id"] for item in state_json(page_dir)["todos"]] == [todo["id"]]
+    assert [item["id"] for item in open_todos(state_json(page_dir))] == [todo["id"]]
     (page_dir / "index.html").write_text(FLOW_PAGE)
     dropped = stamp(page_dir, "Card gone")
     assert dropped.exit_code == 0, dropped.output
-    assert [item["id"] for item in state_json(page_dir)["todos"]] == [todo["id"]]
+    assert [item["id"] for item in open_todos(state_json(page_dir))] == [todo["id"]]
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
     )
@@ -907,12 +955,16 @@ def test_a_widget_todo_stands_on_any_live_widget_and_a_completing_stamp_ends_it(
     assert done.exit_code == 0, done.output
     note = events_model.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "todo", "id": todo["id"]}]
-    assert state_json(page_dir)["todos"] == []
+    assert open_todos(state_json(page_dir)) == []
     ended = {
         item["id"]: item
         for item in todos_model.TodoReading(events_model.read_events(page_dir)).todos
     }[todo["id"]]
-    assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
+    assert (ended["state"], ended["outcome"], ended["end"]["detail"]) == (
+        "done",
+        "done",
+        "v4",
+    )
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")
     )
@@ -948,7 +1000,7 @@ def test_a_completing_stamp_ends_todos_another_session_started(page_dir):
     source.write_text(WORK_PAGE.replace("<title>t</title>", "<title>Checked</title>"))
     completed = stamp(page_dir, "Checks complete", completes=("rollout-card",))
     assert completed.exit_code == 0, completed.output
-    assert state_json(page_dir)["todos"] == []
+    assert open_todos(state_json(page_dir)) == []
     note = events_model.read_events(page_dir)[-1]
     assert {settled["id"] for settled in note["settles"]} == {
         todo["id"] for todo in todos
@@ -958,8 +1010,8 @@ def test_a_completing_stamp_ends_todos_another_session_started(page_dir):
 def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     """`page open` leaves feedback available without an obligation: every
     start written before it is put down, by the `status` event the declaration
-    writes. A started move goes back to its delivery stage, and a started to-do stays
-    open with nothing running on it. A start after the declaration is in hand
+    writes. A started move goes back to where its delivery stands, and a started
+    to-do stays open, waiting with no line. A start after the declaration is in hand
     again."""
     publish(page_dir)
     comment = append_carried_log_record(
@@ -971,7 +1023,7 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     )
     written(leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the plan"))
     written(leaf("task", "start", page_dir, comment["id"], "--text", "Tightening it"))
-    assert state_json(page_dir)["activity"]["kind"] == "working"
+    assert state_json(page_dir)["activity"]["state"] == "running"
 
     written(leaf("page", "open", page_dir))
     # The declaration is the agent's own word: it asks the agent for nothing.
@@ -979,10 +1031,16 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     assert (declaration["kind"], declaration["attention"]) == ("status", False)
     state = state_json(page_dir)
     assert state["queues"]["on_user"] == []
-    assert state["activity"]["kind"] not in {"working", "stalled"}
-    assert [item["stage"] for item in state["workflows"]] == ["sent"]
-    [served] = state["todos"]
-    assert (served["id"], served["running"]) == (todo["id"], None)
+    assert state["activity"]["state"] not in {"running", "blocked"}
+    assert [(item["state"], item["seen"]) for item in state["workflows"]] == [
+        ("waiting", False)
+    ]
+    [served] = open_todos(state)
+    assert (served["id"], served["state"], served["line"]) == (
+        todo["id"],
+        "waiting",
+        None,
+    )
 
     written(
         leaf(
@@ -1057,9 +1115,9 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
         leaf("task", "start", page_dir, todo["id"], "--text", "Building flag first")
     )
     [workflow] = state_json(page_dir)["workflows"]
-    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
+    assert (workflow["input"], workflow["state"], workflow["detail"]) == (
         pick["id"],
-        "working",
+        "running",
         "Building flag first",
     )
     assert [held["item"] for held in workflow["started_by"]] == [todo["id"]]
@@ -1077,9 +1135,9 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
         },
     )
     [workflow] = state_json(page_dir)["workflows"]
-    assert (workflow["input"], workflow["stage"], workflow["started_by"]) == (
+    assert (workflow["input"], workflow["state"], workflow["started_by"]) == (
         later["id"],
-        "sent",
+        "waiting",
         [],
     )
 
@@ -1126,7 +1184,7 @@ def test_the_browser_ends_no_todo_or_obligation_outright(page_dir):
         "task", "start", page_dir, item["id"], "--text", "Answering it myself"
     )
     assert refused.exit_code != 0
-    assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
+    assert open_todos(state_json(page_dir))[-1]["id"] == mine["id"]
 
 
 def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_dir):
@@ -1168,8 +1226,8 @@ def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_d
     state = state_json(page_dir)
     assert kinds(state["queues"]["on_user"]) == [("widget", item["id"])]
     [record] = [record for record in state["obligations"] if record["id"] == asked]
-    assert (record["status"], record["answer"], record["next_actor"]) == (
-        "open",
+    assert (record["state"], record["answer"], record["next_actor"]) == (
+        "waiting",
         None,
         None,
     )
@@ -1215,7 +1273,7 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
         )
     )
     assert on_me() == [("message", item)]
-    assert step_state() == "open"
+    assert step_state() == "waiting"
 
     said = append_command(
         page_dir,
@@ -1250,7 +1308,7 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
         )
     )
     assert on_me() == [("message", item)]
-    assert step_state() == "open"
+    assert step_state() == "waiting"
     [record] = [r for r in state_json(page_dir)["obligations"] if r["id"] == item]
     assert record["message"] == again["id"]
     assert record["prompt"]["text"] == "Can you try the build on your phone?"
@@ -1317,9 +1375,9 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
     )
     state = state_json(page_dir)
     records = {record["id"]: record for record in state["obligations"]}
-    assert [(records[q]["status"], records[q]["next_actor"]) for q in asked] == [
-        ("open", "user"),
-        ("open", "user"),
+    assert [(records[q]["state"], records[q]["next_actor"]) for q in asked] == [
+        ("waiting", "user"),
+        ("waiting", "user"),
     ]
     # One reply answers both, so they share the thread's row on On Me.
     assert len(state["queues"]["on_user"]) == 1
@@ -1448,7 +1506,11 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     state = state_json(page_dir)
     assert "widget:store" not in [item["id"] for item in state["queues"]["on_user"]]
     [record] = [item for item in state["obligations"] if item["id"] == "widget:store"]
-    assert (record["status"], record["answer"]) == ("open", None)
+    assert (record["state"], record["next_actor"], record["answer"]) == (
+        "waiting",
+        None,
+        None,
+    )
     # The user's next words there are delivered with no question waiting on them.
     later = append_command(
         page_dir,
@@ -1489,9 +1551,9 @@ def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
     record = json.loads(started.output.splitlines()[-1])
     assert (record["kind"], record["item"]) == ("start", answer["id"])
     [workflow] = page_state(page_dir)["workflows"]
-    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
+    assert (workflow["input"], workflow["state"], workflow["detail"]) == (
         answer["id"],
-        "working",
+        "running",
         "Answering the comment",
     )
     # The thread's answered root is no move the agent owes.
@@ -1508,9 +1570,9 @@ def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
     )
     assert _start(page_dir, answer["id"], "Still on it").exit_code == 0
     workflows = page_state(page_dir)["workflows"]
-    assert [(item["input"], item["stage"]) for item in workflows] == [
-        (answer["id"], "working"),
-        (correction["id"], "sent"),
+    assert [(item["input"], item["state"]) for item in workflows] == [
+        (answer["id"], "running"),
+        (correction["id"], "waiting"),
     ]
     newest = workflows[-1]
     assert newest["obligation"] == f"update:{correction['id']}"
@@ -1541,10 +1603,10 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
 
     assert result.exit_code == 0, result.output
     [workflow] = page_state(page_dir)["workflows"]
-    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
+    assert (workflow["input"], workflow["subject"], workflow["state"]) == (
         chosen["id"],
         {"kind": "widget", "id": "choice"},
-        "working",
+        "running",
     )
     later = append_command(
         page_dir,
@@ -1558,10 +1620,10 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
         },
     )
     assert [
-        (item["input"], item["stage"])
+        (item["input"], item["state"], item["seen"])
         for item in page_state(page_dir)["workflows"]
         if item["input"] is not None
-    ] == [(later["id"], "sent")]
+    ] == [(later["id"], "waiting", False)]
 
 
 def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
@@ -1592,8 +1654,8 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     live = page_state(page_dir)
     assert "claims" not in live
     [workflow] = live["workflows"]
-    assert (workflow["stage"], workflow["detail"], workflow["agent"]) == (
-        "working",
+    assert (workflow["state"], workflow["detail"], workflow["agent"]) == (
+        "running",
         "reading the traces",
         "Trace reader",
     )
@@ -1602,7 +1664,9 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     # A waiting line answers nothing on the thread, but it puts the start down: the
     # move is no longer in hand until the agent starts it again.
     assert leaf("page", "open", page_dir).exit_code == 0
-    assert [item["stage"] for item in page_state(page_dir)["workflows"]] == ["sent"]
+    assert [
+        (item["state"], item["seen"]) for item in page_state(page_dir)["workflows"]
+    ] == [("waiting", False)]
     assert _start(page_dir, "c1", "reading the traces").exit_code == 0
 
     # Nor does a pickup replace the start: it is a durable transport fact about the
@@ -1620,10 +1684,16 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     )
     state = page_state(page_dir)
     assert [
-        (workflow["input"], workflow["stage"]) for workflow in state["workflows"]
-    ] == [("c1", "working"), ("c2", "sent")]
-    activity = state["activity"]
-    assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
+        (workflow["input"], workflow["state"], workflow["seen"])
+        for workflow in state["workflows"]
+    ] == [("c1", "running", True), ("c2", "waiting", False)]
+    # The thread owes one answer, the newest input's, which no turn has taken in.
+    assert state["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 1,
+    }
     assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
@@ -1633,9 +1703,9 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     assert pickup["kind"] == "pickup"
     assert pickup["events"] == ["c1", "c2"]
     assert [
-        (workflow["input"], workflow["stage"])
+        (workflow["input"], workflow["state"], workflow["seen"])
         for workflow in page_state(page_dir)["workflows"]
-    ] == [("c1", "working"), ("c2", "picked_up")]
+    ] == [("c1", "running", True), ("c2", "waiting", True)]
 
     # The reply that answers the thread ends the start with the moves it answers.
     assert (
@@ -1690,8 +1760,13 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     before_pickup = before_state["activity"]
     acknowledgments = before_state["workflows"]
     assert any(receipt["input"] == answer["id"] for receipt in acknowledgments)
-    assert before_pickup["kind"] == "away"
-    assert before_pickup["counts"]["total"] == 1
+    assert before_pickup["presence"] == "away"
+    assert before_pickup["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 1,
+    }
     assert [item["answer"] for item in owed_answers(page_dir)] == [
         {"kind": "markup", "action": answer["id"]}
     ]
@@ -1705,14 +1780,14 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
             turn=claim["turn"],
         )
     after_pickup = activity_reading(page_dir)
-    assert after_pickup["kind"] == "working"
-    assert after_pickup["counts"]["handling"] == 1
+    assert after_pickup["state"] == "running"
+    assert [item["handling"] for item in after_pickup["obligations"]] == [True]
     assert [item["input"] for item in owed_answers(page_dir)] == [answer["id"]]
 
     claimed = _start(page_dir, answer["id"], "checking the completed choice")
     assert claimed.exit_code == 0, claimed.output
     [working_receipt] = page_state(page_dir)["workflows"]
-    assert working_receipt["stage"] == "working"
+    assert working_receipt["state"] == "running"
     (page_dir / "index.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
@@ -1767,7 +1842,7 @@ def test_reopening_a_thread_reveals_its_started_move(page_dir):
     )
 
     [workflow] = page_state(page_dir)["workflows"]
-    assert (workflow["input"], workflow["stage"]) == (comment["id"], "working")
+    assert (workflow["input"], workflow["state"]) == (comment["id"], "running")
 
 
 def test_a_put_down_start_holds_no_input_in_hand(page_dir):
@@ -1801,7 +1876,11 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
     declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(page_dir)])
     assert declared.exit_code == 0, declared.output
     [workflow] = page_state(page_dir)["workflows"]
-    assert (workflow["input"], workflow["stage"]) == (first["id"], "sent")
+    assert (workflow["input"], workflow["state"], workflow["seen"]) == (
+        first["id"],
+        "waiting",
+        False,
+    )
     assert not edit("Red room.")["attention"]
 
 
@@ -1844,7 +1923,7 @@ def test_the_input_a_reply_answers_moves_to_its_lists_done():
             item["id"],
             item["thread"],
             records[item["id"]]["answer"]["event"]["id"],
-            item["ended"],
+            records[item["id"]]["answer"]["event"]["ts"],
         )
         for item in view["queues"]["done"]
     ]
@@ -1902,7 +1981,7 @@ def test_explicit_message_obligations_need_no_html(page_dir, route):
     [item] = [
         item for item in state_json(page_dir)["obligations"] if item["id"] == identity
     ]
-    assert item["status"] == "answered"
+    assert standing_model.answered(item)
     assert item["answer"] == {
         "value": {"text": "Staging."},
         "event": {key: answer[key] for key in ("id", "kind", "seq", "ts", "author")},

@@ -1,16 +1,8 @@
-/* Immutable obligation selections from the application publisher.
-
-   Python folds the page and thread-markup obligation readings under the page transaction
-   that answers each state read, and the publisher carries them; nothing here or under
-   the publisher folds those declarations again. This module is only the public
-   selection boundary. DOM resolution belongs to the views that need controls, words,
-   focus, or geometry; it cannot change which obligations exist or whether they await the
-   user. */
-import { readPart } from "../semantic-state.js";
+/* What an obligation record says of how it is answered, read from the record and the
+   registry alone: the `awaits` its widget declares, and whether it is answered in
+   words. The records themselves are the page's reading (place.js, `readObligations`). */
 import { registry } from "../registry.js";
 import { hasObligationSource } from "./source.js";
-
-export const readObligations = readPart((root) => root.effective.obligations);
 
 /** @param {import("../framework/application.js").ObligationRecord | null | undefined} obligation */
 export const obligationEntry = (obligation) =>

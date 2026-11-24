@@ -5,8 +5,7 @@
    user-override and reported origin marks (`paintStateOrigins`), and each widget's
    settlement (`paintSettlements`). It also stamps `document.body` with how many log
    events the projection covers, once every widget they touch has painted; a waiter
-   outside the page reads that stamp to know the page has caught up. The region paints
-   after native widget DOM commits (`PRESENTATION_DOM.widgets`); threads then
+   outside the page reads that stamp to know the page has caught up. Threads then
    resolve their passages over the words it writes into authored elements. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
@@ -15,15 +14,15 @@ import {
   applicationState,
   projectionRegionsPresented,
   watchPresentation,
-  PRESENTATION_DOM,
   readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
 import { addressableAt } from "../thread/messages.js";
-import { authored, elementById, inChrome, renderRetired } from "../passages.js";
+import { authored, elementById, renderRetired } from "../passages.js";
 import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
+import { inChrome } from "../ui-marks.js";
 
 // Paint each unit's origin mark, and return every element that wears one or just lost
 // one. `marked` holds the elements the last paint marked with each origin attribute.
@@ -96,7 +95,6 @@ export function createProjectionPresentation() {
   // (`watchPresentation`) rather than this region.
   applicationPresenter({
     region: "projection:chrome",
-    after: PRESENTATION_DOM.widgets,
     reading: () => (answered() ? true : null),
     paint: paintReading,
   });

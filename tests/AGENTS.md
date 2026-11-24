@@ -197,8 +197,8 @@ that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 Where the product already answers a question, use its answer: `root_overflow` for
 sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
 entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
-`__lfOverlayApi()` for overlay geometry); tests can't import private source
-paths.
+`__lfOverlayApi()` for overlay geometry), and a library module by its served path,
+`import("/runtime/lib/<module>.js")`; tests can't import private source paths.
 
 Give a corpus source its own case only when its content is the cause under test. Put a
 probe's independent faults on one composed page beside clean controls and call the gate
@@ -328,9 +328,11 @@ is no per-test
 allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
-  moves nothing. Fix a DOM writer with `runtime/keeps.js`; the runtime's scroll writes
+  moves nothing. Fix a DOM writer with `runtime/lib/keeps.js`. The runtime's scroll writes
   go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
-  nothing, and a stop goes through `stopWhereItStands`. A write
+  nothing, and a stop goes through `stopWhereItStands`. A package's `scrollTo` that may
+  name the position its box holds asks `scrollMoves` first
+  (`runtime/lib/scroll-range.js`). A write
   that must restate, as a vendored component's does, joins `EXPECTED` or
   `EXPECTED_SCROLLS` in `write_watch.js` with its reason; a test that reads the page by
   changing it and putting it back does so inside `lfUnwatched`.

@@ -17,8 +17,8 @@ from pathlib import Path
 from ..data import read_data
 from ..file_bindings import bound_files
 from ..files import (
-    active_descriptor,
     document_descriptor,
+    latest_revision,
     list_revisions,
     version_descriptors,
 )
@@ -85,13 +85,7 @@ class PageRead:
         # Only a check's candidate is read without being stored, and it is never one
         # the user was shown.
         assert isinstance(reading, RevisionReading)
-        return document_descriptor(
-            revision,
-            self.events,
-            url=f"/revisions/{reading.marker.name}",
-            executable=reading.manifest["executable"],
-            activated_at=reading.activated_at,
-        )
+        return _stored_descriptor(revision, reading, self.events)
 
     def through(self, sequence: int) -> PageRead:
         """The read as it stood once event `sequence` was appended: the log and the
@@ -121,6 +115,25 @@ class PageRead:
             versions=tuple(version_descriptors(events, self.revisions)),
             live_stream=None,
         )
+
+
+def _stored_descriptor(revision: int, reading: RevisionReading, events: list) -> dict:
+    """A stored revision's descriptor (`files.document_descriptor`)."""
+    return document_descriptor(
+        revision,
+        events,
+        url=f"/revisions/{reading.marker.name}",
+        executable=reading.manifest["executable"],
+        activated_at=reading.activated_at,
+    )
+
+
+def active_descriptor(page_dir: Path, events: list) -> dict | None:
+    """The exact immutable document shown at the live root, or None before one."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return None
+    return _stored_descriptor(revision, read_revision(page_dir, revision), events)
 
 
 def read_page(

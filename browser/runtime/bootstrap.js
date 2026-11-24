@@ -1,6 +1,16 @@
 // The server places this script before any loadable page resource.
 // It must run even when the entry module or one of its dependencies cannot load.
 (() => {
+  // The one rename this script makes of the entry the user is on: to `url`, keeping the
+  // entry's own state, the record of where the user was on it, which a reload returns
+  // them to (history.js) and `replaceState` alone drops. A sandboxed sample's document
+  // keeps no entries.
+  /** @param {URL} url */
+  const rename = (url) => {
+    const state = window.navigation.currentEntry?.getState();
+    history.replaceState(history.state, "", url);
+    if (state !== undefined) window.navigation.updateCurrentEntry({ state });
+  };
   const arrived = new URL(location.href);
   // `_leaf-recovered` is the mark recovery puts on the one document it asks for, so a
   // document that comes back on the same dead release, or fails to load again from the
@@ -13,7 +23,7 @@
   const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
     for (const mark of marks) arrived.searchParams.delete(mark);
-    history.replaceState(history.state, "", arrived);
+    rename(arrived);
   }
   const script = (() => {
     const entry = document.currentScript;
@@ -373,6 +383,8 @@
   const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
+  // Where the tab keeps the run of held keys (`holdEarlyKeys`).
+  const HELD_KEYS = "lf-held-keys";
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -382,17 +394,53 @@
     "CapsLock",
   ]);
   function holdEarlyKeys() {
-    /** @type {KeyboardEvent[]} */
-    const held = [];
     let taken = false;
-    // The place a reload Leaf asked for hands this document (prepaint.js, `handoff`).
-    // While it comes back a held key is no input (`holdKeys`, below). Where the user
-    // was writing in a box (`typing`), a user typing through the reload means their
-    // keys as words for that box: a Space starts a run as a letter does, rather than
-    // scrolling the page, and the hold takes keys whatever the single-key preference.
-    const { handoff } = window.lfStorage;
-    const handedBack = handoff !== null;
-    const typingBack = handoff?.typing === true;
+    // The place a reload Leaf asked for hands this document (prepaint.js,
+    // `placesUser`); a handoff of values alone hands back none. While the place comes
+    // back a held key is no input (`holdKeys`, below). Where the user was writing in a
+    // box (`typing`), a user typing through the reload means their keys as words for
+    // that box: a Space starts a run as a letter does, rather than scrolling the page,
+    // and the hold takes keys whatever the single-key preference.
+    const { handoff, tabStore, placesUser } = window.lfStorage;
+    const typingBack = () => placesUser() && handoff?.typing === true;
+    // The run is kept in the tab as it changes, as each key is held, pressed or let go
+    // (`save`), so a document that goes leaves the keys it held and never pressed. A
+    // reload Leaf asks for of the same address hands a place back, and its document's
+    // run starts with those keys, even where the document before it had put its own
+    // place back and was pressing them as it went; any other load starts a run of its
+    // own.
+    /** @type {KeyboardEvent[]} */
+    const held = (() => {
+      if (!placesUser()) return [];
+      try {
+        const kept = JSON.parse(tabStore.get(HELD_KEYS) || "[]");
+        return Array.isArray(kept)
+          ? kept.map((init) => new KeyboardEvent("keydown", init))
+          : [];
+      } catch {
+        return [];
+      }
+    })();
+    const save = () =>
+      tabStore.set(
+        HELD_KEYS,
+        held.length
+          ? JSON.stringify(
+              held.map(
+                ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
+                  key,
+                  code,
+                  location,
+                  shiftKey,
+                  ctrlKey,
+                  altKey,
+                  metaKey,
+                }),
+              ),
+            )
+          : null,
+      );
+    save();
     /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
     /** @type {(() => boolean) | null} */
@@ -436,12 +484,14 @@
     };
     const letGo = () => {
       held.length = 0;
+      save();
       hide();
     };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
+      save();
       if (taken) return;
       if (shown) show();
       else beat ||= setTimeout(show, 150);
@@ -451,7 +501,7 @@
     // key uncounted until then (document-inputs.js, `holdKeys`).
     /** @param {KeyboardEvent} event */
     const holds = (event) => {
-      if (!window.lfKeyboard.quick && !typingBack) return false;
+      if (!window.lfKeyboard.quick && !typingBack()) return false;
       if (event.isComposing || HALF_PRESSES.has(event.key)) return false;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =
@@ -470,7 +520,7 @@
       // runtime's text field; its closed root makes the host the event's origin.
       const origin = event.composedPath()[0];
       const typing = origin instanceof Element && takesLetters(origin);
-      if (typing || !printed || (event.key === " " && !typingBack)) return false;
+      if (typing || !printed || (event.key === " " && !typingBack())) return false;
       // Once the document upgrades, the dispatcher supplies readiness from
       // command declarations. Useful page keys pass immediately; only a key
       // whose input is still loading starts another ordered run.
@@ -478,7 +528,7 @@
     };
     /** @param {KeyboardEvent} event */
     const hold = (event) => {
-      if (!window.lfKeyboard.quick && !typingBack) return letGo();
+      if (!window.lfKeyboard.quick && !typingBack()) return letGo();
       if (holds(event)) {
         queue(event);
         event.preventDefault();
@@ -493,8 +543,10 @@
     const pointed = () => letGo();
     // The controller takes a run, but the hold stands until its owner has pressed the
     // last key in it: a printed key pressed meanwhile joins the same run rather than
-    // running ahead of the keys pressed before it. Words already shown stand until the
-    // run is pressed or pauses on a key that must still wait, which they then name.
+    // running ahead of the keys pressed before it. Each key leaves the run as the
+    // controller presses it (`pressed`), and a release lets go of any it leaves. Words
+    // already shown stand until the run is pressed or pauses on a key that must still
+    // wait, which they then name.
     /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
@@ -507,6 +559,10 @@
       clearTimeout(beat);
       beat = 0;
       event.detail.keys = held;
+      event.detail.pressed = () => {
+        held.shift();
+        save();
+      };
       event.detail.pause = () => {
         taken = false;
         if (!keep?.()) return stopHoldingKeys();
@@ -514,7 +570,7 @@
       };
       event.detail.release = () => {
         taken = false;
-        hide();
+        letGo();
         if (!keep?.()) stopHoldingKeys();
       };
     };
@@ -535,16 +591,32 @@
     };
     // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
     // replays, so it doesn't stop the hand-back it waits for, and neither is a bare
-    // modifier, which acts on nothing, as the Shift before a capital the hold keeps. On
-    // any other load a held key still counts, so a key typed while the page starts
-    // still stops arrival work, such as reopening a comment box, as it always did.
-    if (handedBack) holdKeys((event) => HALF_PRESSES.has(event.key) || holds(event));
+    // modifier, which acts on nothing, as the Shift before a capital the hold keeps.
+    // Any other input the document's clock counts, a scroll or a step Back or Forward as
+    // much as a press, ends that hand-back, so the keys held for the place it would put
+    // back go at once (`counted`), and a document that goes then leaves none of them.
+    // The run's own presses, once the place is back, are the clock's inputs too, and
+    // let go of nothing (`taken`). Elsewhere a held key still counts, so a key typed
+    // while the page starts still stops arrival work, such as reopening a comment box,
+    // as it always did. Whatever the load, the run belongs to the entry its keys were
+    // typed at: a step Back or Forward lets it go, the keys the runtime has yet to
+    // press included, only where the browser says the user took it; otherwise the keys
+    // stay and run where the user then stands (document-inputs.js, `step`). Whether
+    // the place is handed back is asked of the entry the user stands at as each input
+    // comes (prepaint.js, `placesUser`).
+    holdKeys({
+      holds: (event) => placesUser() && (HALF_PRESSES.has(event.key) || holds(event)),
+      counted: (stepped) => {
+        if (stepped || (!taken && placesUser())) letGo();
+      },
+    });
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
+    if (held.length) beat = setTimeout(show, 150);
   }
 
   // A small public-site profile separates browser upgrade from the first state
@@ -729,7 +801,7 @@
     const ask = () => {
       const next = new URL(location.href);
       next.searchParams.set("_leaf-recovered", "");
-      history.replaceState(history.state, "", next);
+      rename(next);
       location.reload();
     };
     const check = async () => {

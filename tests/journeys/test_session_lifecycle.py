@@ -31,14 +31,11 @@ from leaf import files as files_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import reconnect as reconnect_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
-from leaf.registry.kernel import kernel_protocol
 
 
 def test_the_server_a_prompt_hook_starts_lives_as_long_as_its_session(claimed):
@@ -252,8 +249,7 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     prompt(prompt_id="resumed")
     running = server_model.running_server(page_dir)
     assert running is not None and running["port"] == port
-    record = registry_storage.layer_record(page_dir)
-    assert record is not None and record["protocol"] == kernel_protocol()
+    assert registry_storage.layer_record(page_dir) is not None
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)
     assert claim is not None and claim["turn"] == "resumed"
@@ -263,32 +259,3 @@ def test_a_resumed_sessions_first_prompt_serves_its_page_again(
     [batch] = inlined(context)["batches"]
     assert [event["id"] for event in batch["events"]] == [left["id"]]
     assert hook_transport_model.ATTENTION_OPENING not in context
-
-
-def test_a_prompt_restarts_a_server_another_installed_copy_started(
-    claimed, tmp_path, monkeypatch, capsys
-):
-    """A prompt from an installed copy of Leaf restarts a page server another
-    installed copy started under its own copy, at the same address, within the
-    hook's deadline (`model/test_session_lifecycle.py` holds which servers it
-    restarts)."""
-    started = start_server_command(claimed, session_id="s1")
-    assert started.returncode == 0, started.stderr
-    serving = server_model.running_server(claimed)
-    assert serving is not None
-    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
-    older, newer = cache / "0a0a0a0a0a0a", cache / "1b1b1b1b1b1b"
-    runtime = {**serving["runtime"], "path": str(older), "commit": older.name}
-    service = read_record(claimed / "service.json")
-    write_record(claimed / "service.json", {**service, "runtime": runtime})
-    for module in (reconnect_model, server_model, layer_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", newer)
-    capsys.readouterr()
-
-    prompt()
-    assert capsys.readouterr().out == ""
-    restarted = server_model.running_server(claimed)
-    assert restarted is not None
-    assert restarted["server_id"] != serving["server_id"]
-    assert restarted["url"] == serving["url"]
-    assert restarted["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)

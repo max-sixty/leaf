@@ -5,7 +5,7 @@
  * cannot refill a sent box or overwrite a user's edit. Only one box captures at a time.
  * This module is loaded on the first microphone press, outside page startup. */
 
-import { labelWords } from "../words.js";
+import { labelWords } from "../lib/words.js";
 
 /** The browser recognition capability supplied by the composer, including prefixed implementations.
  * @typedef {{transcript: string}} RecognitionAlternative

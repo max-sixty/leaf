@@ -21,7 +21,7 @@ import { focusDestination, focused } from "./focus.js";
  * @typedef {import("./contribution-model.js").ContributionReading} ContributionReading
  * @typedef {import("./contribution-model.js").OwnedEntry} OwnedEntry
  * @typedef {import("./contribution-model.js").ContributionModel} ContributionModel
- * @typedef {"margin" | "page" | "map" | "inline"} ContributionSurface
+ * @typedef {"margin" | "map" | "inline"} ContributionSurface
  * @typedef {{origin?: Element | null, surface?: ContributionSurface | null,
  * input?: "keyboard" | "pointer", focus?: (key: string) => boolean}} ActivationRequest
  * @typedef {ActivationRequest & {entry: OwnedEntry, focus: (key: string) => boolean}} ActivationContext

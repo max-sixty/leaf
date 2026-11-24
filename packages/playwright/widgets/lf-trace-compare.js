@@ -9,23 +9,17 @@
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
 import {
-  actionClass,
-  cancelRender,
-  el,
-  generatedElement,
   keepView,
-  keeps,
-  layoutChanged,
-  layoutPx,
-  nextRender,
-  once,
-  offer,
   openingView,
   viewMembers,
-  quoted,
-  sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { el } from "/runtime/lib/elements.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer } from "/runtime/lib/controls.js";
+import { cancelRender, nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { once } from "/runtime/lib/once.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import "./lf-trace.js";
 
 /** @typedef {{index: number, view: Element, recording: import("./lf-trace.js").Trace}} TraceMember */
@@ -56,7 +50,7 @@ customElements.define(
       const opening = openingView(this);
       this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
-      generatedElement(header, { says: false });
+      keeps(header, "data-lf-gen", "1");
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";
       choices.name = `${this.id}-recording`;
@@ -87,7 +81,7 @@ customElements.define(
         choice.value = String(index);
         // An attribute, so the theme seats it as a chooser from its first paint.
         choice.setAttribute("appearance", "button");
-        choice.disabled = quoted(this);
+        choice.disabled = this.matches("[data-lf-exhibit] *");
         choices.append(choice);
       }
       choices.value = String(this.#selected?.index ?? -1);
@@ -134,7 +128,9 @@ customElements.define(
         if (member !== this.#selected) recording.pause();
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

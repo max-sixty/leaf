@@ -1,6 +1,7 @@
 /* A clipped shadow-root visual whose drawn surface extends past its host.
  * The fixture preserves separate SVG and host bounds for visual-aim checks. */
-import { once, registerVisualParts, shadowStage } from "/runtime/widget-api.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 customElements.define(
   "lf-test-shadow-visual",
@@ -22,9 +23,9 @@ customElements.define(
       rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"></rect>`;
       shadowStage(this, [svg]);
       const surface = this.shadowRoot.querySelector("#wide-surface");
-      this.visualRegistration = registerVisualParts(this, () => [
-        { id: "wide", element: surface, label: "Clipped wide surface" },
-      ]);
+      this.lfParts = {
+        read: () => [{ id: "wide", element: surface, label: "Clipped wide surface" }],
+      };
     }
   },
 );

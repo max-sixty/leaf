@@ -48,14 +48,14 @@ from .files import (
 )
 from .findings import Rejected
 from .interaction_log import admit_batch, append_interactions, client_records
-from .layer import incompatible_layer, running_leaf
+from .layer import running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .page_memory import memo, once
 from .passages import SourceReading
 from .presence import live_servers, pages_reading
 from .refusals import Refused
-from .registry.storage import layer_metadata, layer_record
+from .registry.storage import layer_metadata
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -160,8 +160,8 @@ def scope_page_urls(value, page_root: str):
     A response carries version addresses in their canonical, root-relative form;
     beneath a prefix they answer at the page root, as the live page's media does. A
     message's media is the browser's to address as it renders the message
-    (`scopedMediaUrl` in markdown.js and thread/messages.js), since only its rendering
-    tells a reference from words that spell one.
+    (`scopedMediaUrl` in page-markdown.js and thread/messages.js), since only its
+    rendering tells a reference from words that spell one.
     """
     if not page_root:
         return value
@@ -1632,12 +1632,12 @@ def page_endpoint(
     The layer identity and the preview reading are read once here rather than per
     request: they are facts about the layer record this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and refuses, naming `page init`, when
-    the page's layer is one this Leaf cannot serve (`incompatible_layer`) or cannot
-    compose. Reading the page needs only its vocabulary (`layer.LayerVocabulary`),
-    so this is where `server start` refuses a package sheet or module the
-    document's first request would fail on. A snapshot serves
-    the revision it froze, which its capture already judged
+    or temporary, passes here before it binds, and refuses, naming the repair, when
+    the page has no layer record, or one this Leaf cannot serve
+    (`registry.storage.layer_record`) or compose. Reading the page needs only its
+    vocabulary (`layer.LayerVocabulary`), so this is where `server start` refuses a
+    package sheet or module the document's first request would fail on. A snapshot
+    serves the revision it froze, which its capture already judged
     (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
@@ -1645,15 +1645,10 @@ def page_endpoint(
     from .registry.storage import selected
 
     if page_snapshot is None:
-        record = layer_record(page_dir) or {}
-        if refusal := incompatible_layer(page_dir, record):
-            raise Rejected([refusal])
-        selected(record, page_dir)
-    identity = (
-        page_snapshot.context.layer
-        if page_snapshot is not None
-        else layer_metadata(page_dir)
-    )
+        identity = layer_metadata(page_dir)
+        selected(identity, page_dir)
+    else:
+        identity = page_snapshot.context.layer
     return partial(
         endpoint,
         page_dir=page_dir,

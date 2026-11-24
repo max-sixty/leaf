@@ -1949,7 +1949,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -2083,7 +2083,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     )
     page.evaluate(
         """async retiredAt => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           const widget = document.querySelector('#choice');
           const gate = Promise.withResolvers();
           window.release = gate.resolve;
@@ -2095,7 +2095,9 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
               if (phase === 'begin') identity ??= preparation;
               else if (preparation === identity) { terminal.resolve(); stop(); }
             });
-            widgetController(widget).present(gate.promise);
+            // Said from inside a widget, the work is that widget's preparation.
+            widget.querySelector(':scope > .lf-another')
+              .dispatchEvent(new PendingTaskEvent(gate.promise));
             if (retiredAt === "click") widget.remove();
           }, {once: true});
         }""",
@@ -2144,16 +2146,19 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfWidgetApi();
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       const widget = document.querySelector('#choice');
+      // Said from inside a widget, the work is that widget's preparation.
+      const prepare = promise =>
+        widget.querySelector(':scope > .lf-another').dispatchEvent(new PendingTaskEvent(promise));
       const first = Promise.withResolvers();
       const second = Promise.withResolvers();
       window.rejectFirst = first.reject;
       window.releaseFirst = first.resolve;
       window.releaseSecond = second.resolve;
       document.querySelector('#press').addEventListener('click', () => {
-        widgetController(widget).present(first.promise);
-        widgetController(widget).present(second.promise.then(() => {
+        prepare(first.promise);
+        prepare(second.promise.then(() => {
           widget.style.height = '120px';
         }));
       }, {once: true});
@@ -2206,7 +2211,7 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfWidgetApi();
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       CSS.registerProperty({
         name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
       });
@@ -2223,9 +2228,11 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
         document.body.setAttribute('data-lf-reading', 'news');
       }).observe(after);
       document.querySelector('#press').addEventListener('click', () => {
-        widgetController(widget).present(gate.promise.then(() => {
-          after.style.height = '40px';
-        }));
+        // Said from inside a widget, the work is that widget's preparation.
+        widget.querySelector(':scope > .lf-another').dispatchEvent(
+          new PendingTaskEvent(gate.promise.then(() => {
+            after.style.height = '40px';
+          })));
       }, {once: true});
     }""")
     page.locator("#press").click()
@@ -2272,7 +2279,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {

@@ -17,7 +17,8 @@ import {
 } from "./semantic-state.js";
 import { announce } from "./notifications.js";
 import { hasObligationSource } from "./obligations/source.js";
-import { answeredInWords, readObligations } from "./obligations/model.js";
+import { answeredInWords } from "./obligations/model.js";
+import { readObligations } from "./obligations/place.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -30,14 +31,13 @@ import {
   annotationSelection,
   createAnnotationInventory,
 } from "./annotation-inventory.js";
-import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { createReadTracking } from "./thread/read.js";
 import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
@@ -83,7 +83,7 @@ import { raiseError } from "./errors.js";
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
@@ -185,7 +185,7 @@ function createApplication(dependencies) {
   };
 
   createProjectionPresentation();
-  // A widget's drawn marks reach it through `projectMarked` (leaf-element.js).
+  // A widget's drawn marks reach it through `projectMarked` (element-data.js).
   createDataProjection({ invalidateDom });
 
   /** @type {ReturnType<typeof createDelivery>} */
@@ -547,30 +547,11 @@ function createApplication(dependencies) {
     composition: dependencies.compositionSurface,
     reveal: openPageThread,
   };
-  // data-annotations=page is the one switch that hands presentation to the page: both
-  // page consumers refuse a document that keeps Leaf's own margin.
+  // data-annotations=page is the one switch that hands presentation to the page: the
+  // page's thread outlets refuse a document that keeps Leaf's own margin.
   const requirePageAnnotations = () => {
     if (annotationMode !== "page")
       throw new Error("Page annotation presentation requires data-annotations=page");
-  };
-  /** @type {symbol | null} */
-  let annotationRegistration = null;
-  /** @param {Element} owner @param {import("./annotation-view.js").Paint} render */
-  const consumeAnnotations = (owner, render) => {
-    requirePageAnnotations();
-    if (annotationRegistration)
-      throw new Error("The document already has a page annotation view");
-    const registration = Symbol("page annotation view");
-    annotationRegistration = registration;
-    const retire = () => {
-      if (annotationRegistration === registration) annotationRegistration = null;
-    };
-    try {
-      return createAnnotationView(owner, render, annotations, invalidateDom, retire);
-    } catch (error) {
-      retire();
-      throw error;
-    }
   };
   // The widgets whose element has `threadOutlets` (thread/surfaces.js), registered
   // for as long as they stand.
@@ -729,15 +710,18 @@ function createApplication(dependencies) {
     presentThread,
     watchThreadSurfaces,
     placePageThreads,
-    consumeAnnotations,
     threadActions,
+    // The panel's On rows' own arrival, where `m` would arrive (queue-api.js).
     queueActions,
+    // Goes to an obligation by its id, which is also its row's on an On list: an
+    // update's or a to-do's at its row's arrival, a question asked in words at its
+    // message, and any other where the walk would.
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update"))
-        return queueActions.open(JSON.stringify([item.source.kind, item.id]));
+      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
+        return queueActions.open(id);
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
         return threadDestinations.openPageThread(item.message, {
@@ -758,8 +742,12 @@ function createApplication(dependencies) {
 
 /** @type {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
+// A widget can draw before the application mounts, as one a page's own script defines
+// does. No document-wide presenter exists yet then, and each presents the document as
+// it stands when the mount registers it, so the request has nothing to reach.
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */
-export const invalidateDom = (...args) => app().invalidateDom(...args);
+export const invalidateDom = () =>
+  application ? application.invalidateDom() : Promise.resolve();
 /** @type {ReturnType<typeof createApplication>["landInThread"]} */
 export const landInThread = (...args) => app().landInThread(...args);
 /** @type {ReturnType<typeof createApplication>["navigateToDatum"]} */
@@ -767,8 +755,6 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const post = commandDispatch.post;
 /** @type {ReturnType<typeof createApplication>["placePageThreads"]} */
 export const placePageThreads = (...args) => app().placePageThreads(...args);
-/** @type {ReturnType<typeof createApplication>["consumeAnnotations"]} */
-export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 /** @type {ReturnType<typeof createApplication>["registerThreadPresentation"]} */
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
@@ -803,11 +789,6 @@ export const obligationActions = Object.freeze({
   next: /** @type {ReturnType<typeof createApplication>["nextObligation"]} */ (
     ...args
   ) => app().nextObligation(...args),
-});
-export const queueActions = Object.freeze({
-  open: /** @type {ReturnType<typeof createApplication>["queueActions"]["open"]} */ (
-    ...args
-  ) => app().queueActions.open(...args),
 });
 /** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
 export const wireInput = (...args) => app().wireInput(...args);

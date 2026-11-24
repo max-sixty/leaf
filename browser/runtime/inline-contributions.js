@@ -13,12 +13,13 @@ import {
   presentContributionReceipts,
 } from "./contribution-controls.js";
 import { compareContributions, spokenSubject } from "./contribution-model.js";
-import { addressableWord } from "./addressable-names.js";
-import { inChrome } from "./passages.js";
+import { addressableWord } from "./lib/element-word.js";
 import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
-import { el, generatedElement } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { generatedElement } from "./widget-elements.js";
+import { el } from "./lib/elements.js";
+import { keeps } from "./lib/keeps.js";
+import { inChrome } from "./ui-marks.js";
 
 /** @typedef {import("./contributions.js").ContributionSource} Source
  * @typedef {{host: HTMLDivElement, offers: Source[]}} Seat */
@@ -55,7 +56,7 @@ export function createInlineContributions({ targetPath }) {
       let seat = hosts.get(target);
       if (!seat) {
         const host = el("div", "lf-ui lf-margin-inline");
-        generatedElement(host, { says: false });
+        generatedElement(host);
         host.setAttribute("role", "group");
         seat = { host, offers: [] };
         hosts.set(target, seat);

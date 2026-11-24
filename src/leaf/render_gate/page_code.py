@@ -46,6 +46,7 @@ from urllib.parse import parse_qsl, quote_plus, urlsplit, urlunsplit
 import turbohtml
 
 from leaf.findings import Finding
+from leaf.registry.contract import body_is_data
 from leaf.render_checks import (
     ADDRESS_MARKS,
     RENDER_VIEWPORT,
@@ -87,7 +88,7 @@ def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -
     implementations = artifact.implementations
     return any(
         implementations[record["tag"]]["owner"] == "page"
-        or registry[record["tag"]].get("content") == "data"
+        or body_is_data(registry[record["tag"]])
         or any(
             isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
             for value in record["attrs"].values()

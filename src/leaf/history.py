@@ -12,9 +12,9 @@ What a row names on the page the user is reading now — the section a comment s
 in, the widget a row links to — stays with the page, which holds those places;
 this reading carries their ids and anchors.
 
-Bookkeeping stays out: `read`, `pickup`, `receipt`, `summary`, `thread_title`,
-`reanchor`, `error`, and `undo`, which marks the gesture it took back instead of
-appearing as its own row.
+Only the kinds in `SHOWN` become rows; every other kind is bookkeeping. `undo` is
+one of those, since it marks the gesture it took back instead of appearing as its own
+row.
 
 `history` is a served reading only a page that renders it pays for: the state
 carries it when the page's markup holds a widget whose entry declares `history`.

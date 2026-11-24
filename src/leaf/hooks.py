@@ -56,13 +56,12 @@ records the receipt of what its transcript shows entered the model's context
 (`ClaudeCodeHarness.hook_payload`).
 
 Before it opens its turn, the prompt hook serves again each page the session still
-means to serve whose ownership or server is down, as a resumed session's are, and,
-where it runs an installed copy, restarts under that copy each server of the
-session's pages that another installed Leaf started. The turn hears only of a page
-that did not start (`reconnect`). A SessionStart opens no turn and claims nothing;
-after a compaction it tells an agent holding a page which of Leaf's instructions the
-compaction removed (`reload_skill`). Claude Code runs Leaf's start hook only then
-(`hooks.json`), since a resumed session's first reply waits for its start hooks.
+means to serve whose ownership or server is down, as a resumed session's are. The
+turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
+turn and claims nothing; after a compaction it tells an agent holding a page which of
+Leaf's instructions the compaction removed (`reload_skill`). Claude Code runs Leaf's
+start hook only then (`hooks.json`), since a resumed session's first reply waits for
+its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -80,7 +79,6 @@ from .refusals import Refused
 from .service import owned_pages
 from .state import (
     PLUGIN_ROOT,
-    SKILL_SUFFIX,
     CopyReplaced,
     advance_turn,
     close_session_turn,
@@ -88,7 +86,6 @@ from .state import (
     held_claims,
     installed_copy,
     prompt_turn,
-    session_file,
     session_lock_path,
     session_record,
     still_named,
@@ -251,18 +248,6 @@ def skill_mark() -> str:
         }
     )
     return f"{PLUGIN_ROOT}\n{skill}"
-
-
-def hooks_run_here(session_id: str) -> bool:
-    """Whether the session's hooks last ran this Leaf, by the root their latest
-    `skill_mark` names (`leases.mark_skill`), as a process the session's hooks didn't
-    start asks before it acts for the session: a page it renews must stay readable
-    to the Leaf the session's hooks run."""
-    try:
-        marked = session_file(session_id, SKILL_SUFFIX).read_text()
-    except FileNotFoundError:
-        return False
-    return marked.rpartition("\n")[0] == str(PLUGIN_ROOT)
 
 
 def skill_changed(session_id: str, before: str, now: str) -> None:

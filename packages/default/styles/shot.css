@@ -163,8 +163,10 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-scale-options > .lf-btn {
-  /* Selection changes the face, never the width of its words. */
+.lf-shotoptions .lf-shot-scale-options > :where(button) {
+  /* Selection changes the face, never the width of its words. At two classes' weight
+     the rule ties the font a thread gives the presses in it (controls.css), and wins
+     by standing after it. */
   font: var(--lf-font-choice);
   white-space: nowrap;
 }

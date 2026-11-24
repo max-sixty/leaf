@@ -80,8 +80,9 @@
    target has no rendered part to offer. */
 import { LENT_REACH_STOP, TAB_STOP } from "../control-selectors.js";
 import { blockControlBoxes } from "../block-controls.js";
-import { contentsRects } from "../shown-box.js";
-import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
+import { contentsRects } from "../lib/shown-box.js";
+import { afterScript } from "../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
 import {
   clippedContents,
   clippedRect,
@@ -107,12 +108,13 @@ import {
   renderedParent,
   renderedUnder,
   upFrom,
-} from "../shadow-tree.js";
+  closestAcross,
+} from "../lib/shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
-import { closestAcross, layoutBox, pageDocument } from "../passages.js";
+import { layoutBox, pageDocument } from "../passages.js";
 import {
   Footprints,
   arrivals,
@@ -126,12 +128,12 @@ import {
 import { clamp, clippingAxes, overlaps, shifted, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
-import { layoutPx, inlineStyle } from "../keeps.js";
+import { layoutPx, inlineStyle } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
-import { offerActionElement } from "../widget-elements.js";
-import { LAYOUT } from "../widget-upgrade.js";
+import { objectIds } from "../ids.js";
+import { offerActionElement } from "../lib/controls.js";
+import { LAYOUT } from "../lib/widget-events.js";
 import { registry } from "../registry.js";
-import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
   anchorBox,
@@ -146,6 +148,7 @@ import {
   scrollMisplacesAnchors,
   scrollsWith,
 } from "../css-anchors.js";
+import { inChrome } from "../ui-marks.js";
 
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {import("../resolved-target.js").ResolvedTarget} ResolvedTarget
@@ -389,10 +392,7 @@ const isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
 // Each run of rows the same headers cut stands in one chain of frames cut where those
 // headers stand (`headerLevels`), keyed by the lane and the cuts, its innermost frame
 // holding the run's carriers.
-const ids = new WeakMap();
-let idCount = 0;
-/** @param {object} node */
-const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+const idOf = objectIds();
 /** @type {Map<string, HTMLElement[]>} */
 const cutFramesByKey = new Map(); // lane id + cut key → innermost frame of each run
 /** @type {WeakMap<HTMLElement, {level: HeaderLevel, frame: HTMLElement}[]>} */
@@ -1073,8 +1073,8 @@ function drawnChildren(node) {
 function childIndex() {
   /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number, boxless: Child[]}>} */
   const read = new Map();
-  /** @param {Element} parent @param {Iterable<Node>} children */
-  const index = (parent, children) => {
+  /** @param {Iterable<Node>} children */
+  const index = (children) => {
     /** @type {Child[]} */
     const sized = [];
     /** @type {Child[]} */
@@ -1133,7 +1133,7 @@ function childIndex() {
   /** @param {Element} parent @param {() => Iterable<Node>} children @param {Pick<Box, "top" | "bottom">} band */
   return (parent, children, band) => {
     let held = read.get(parent);
-    if (!held) read.set(parent, (held = index(parent, children())));
+    if (!held) read.set(parent, (held = index(children())));
     const { sized, tops, lowest, leaves, boxless } = held;
     const to = firstPast(tops, (top) => top >= band.bottom);
     /** @type {Child[]} */
@@ -1583,7 +1583,7 @@ function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
 }
-// What the page shows in place of `node` while a closed box hides it (shadow-tree.js,
+// What the page shows in place of `node` while a closed box hides it (lib/shadow-tree.js,
 // `closedOver`): a closed disclosure's summary, or else the nearest box round the
 // closed one that draws one of its own, as a tab set does round a panel it hasn't
 // chosen. A row stands by it level with its top, since the line and words it would
@@ -1611,7 +1611,7 @@ export function closedFaceOver(node) {
 }
 
 // Whether a row with no face stands where the page doesn't show its target until the
-// target is drawn (`skippedUntilDrawn`) or the closed box round it opens (shadow-tree.js,
+// target is drawn (`skippedUntilDrawn`) or the closed box round it opens (lib/shadow-tree.js,
 // `closedOver`), which a stylesheet may lay out unseen. Opening the box changes its
 // `hidden` or `open`, which the page's observer hears (`heardPage`).
 /** @param {Element} target */
@@ -1712,7 +1712,7 @@ export function unregisterMarginRow(row) {
 }
 
 // A style property written, or removed for null. The platform makes no write of a
-// value the property already holds (keeps.js).
+// value the property already holds (lib/keeps.js).
 /** @param {Element} row @param {string} property @param {string | null} value */
 function setStyle(row, property, value) {
   if (value === null) inlineStyle(row).removeProperty(property);

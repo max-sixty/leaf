@@ -29,10 +29,10 @@
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { notice } from "../notifications.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
-import { quotedWords } from "../words.js";
+import { quotedWords } from "../lib/words.js";
 import { threadName } from "./messages.js";
 import { anyOpenThread, threadNamed } from "./state.js";
 
@@ -98,7 +98,7 @@ export async function settleThread({
     refused: async () => {
       const mayReturn = retainUserIntent({ since });
       await whenDocumentPresented();
-      return undo.returnToThread(parent(), mayReturn);
+      return undo.returnToThread(parent(), mayReturn, { history: false });
     },
   });
 }

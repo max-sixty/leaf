@@ -2,7 +2,6 @@
   "lf-burn": {
     "description": "One service's error-budget burn over a rolling window, drawn as a meter with its label. `objective` is the availability target in percent, such as `99.95`; `window` is the rolling window, `7d`, `28d` or `90d`; `consumed` is the fraction of the window's budget already spent, from 0 to 1, so a third spent is `0.33`. The element is empty: the widget writes its own label from the attributes.",
     "attributes": {
-      "type": "object",
       "properties": {
         "objective": {
           "type": "string",
@@ -16,8 +15,7 @@
           "pattern": "^(0(\\.[0-9]+)?|1(\\.0+)?)$"
         }
       },
-      "required": ["id", "objective", "window", "consumed"],
-      "additionalProperties": false
+      "required": ["id", "objective", "window", "consumed"]
     },
     "content": "empty",
     "example": "<lf-burn id=\"search-burn\" objective=\"99.95\" window=\"7d\" consumed=\"0.33\"></lf-burn>"

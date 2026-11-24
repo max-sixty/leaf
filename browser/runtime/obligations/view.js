@@ -30,21 +30,21 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
-import { capitalized } from "../words.js";
+import { capitalized } from "../lib/words.js";
 import { landingRoom } from "../landing-scroll.js";
 import { offFlow } from "../off-flow.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls, nativePress } from "../keyboard/bindings.js";
-import { closestAcross, elementById, inChrome } from "../passages.js";
+import { elementById } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { scrollersOf } from "../scroll-containers.js";
 import { whereGlidesLand } from "../scrolling.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { hasObligationSource } from "./source.js";
-import { obligationEntry, readObligations } from "./model.js";
+import { obligationEntry } from "./model.js";
 import { focused } from "../focus.js";
 import {
   commandDeclarationsWithin,
@@ -59,11 +59,12 @@ import { ownedObligationControl } from "./answer.js";
 import { obligationIn } from "../current-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
-import { bindQueuedWork } from "../queued-work.js";
+import { bindQueuedWork } from "../lib/queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { under, upFrom } from "../shadow-tree.js";
+import { under, upFrom, closestAcross } from "../lib/shadow-tree.js";
 import { showHeld } from "../thread/held-news.js";
-import { obligationPlace } from "./place.js";
+import { obligationPlace, readObligations } from "./place.js";
+import { inChrome } from "../ui-marks.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
 /** @typedef {import("../framework/application.js").ObligationRecord} Obligation */
@@ -514,6 +515,10 @@ export function createObligationView({
     // Materializing an obligation can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
     const arriveAtRecord = bindQueuedWork(arrive);
+    // The place the user leaves, read before drawing the obligation opens its thread,
+    // which renames the entry they are on (thread/address.js); only a successful
+    // arrival commits the departure.
+    const departure = prepareNavigationStep();
     // A thread source must exist before the walk can arrive at it.
     if (hasObligationSource(next, "widget") && next.thread)
       await materializeObligation(next, next.message, mayArrive);
@@ -527,9 +532,9 @@ export function createObligationView({
     // press moves the page is `alreadyArrived`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
-    // Capture the outgoing place before reveal can reshape it; only a successful
-    // arrival commits the departure. A thread obligation in the panel's own list
-    // arrives centred in that region and is no navigation step. One in a thread's
+    // A thread obligation in the floating panel arrives centred in that region, a step
+    // as every arrival at a stop the user wasn't on is (anchor-travel.js,
+    // `prepareNavigationStep`). One in a thread's
     // card, which stands fixed over the page by the thread's words where no scroll of
     // the boxes around the obligation moves it, lands as an arrival at the thread
     // does (anchor-travel.js, `threadLanding`). Which box either travel moves is the
@@ -558,28 +563,30 @@ export function createObligationView({
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareNavigationStep();
     const {
       box: initialBox,
       region: initialRegion,
       source: initialSource,
       landing,
     } = initial;
-    if (landing) departure.plan(landing.where);
-    const moving = Boolean(
-      initialBox &&
-      departure.plan(initial.target, {
-        there: (readable) =>
-          alreadyArrived(
-            next,
-            initialRegion,
-            initial.target,
-            initialSource,
-            initialBox,
-            readable,
-          ),
-      }),
-    );
+    const moving = landing
+      ? departure.plan(landing.where)
+      : departure.plan(
+          initial.target,
+          initialBox
+            ? {
+                there: (readable) =>
+                  alreadyArrived(
+                    next,
+                    initialRegion,
+                    initial.target,
+                    initialSource,
+                    initialBox,
+                    readable,
+                  ),
+              }
+            : {},
+        );
     const arrived = await arriveAtRecord(
       () => {
         const here = destination();

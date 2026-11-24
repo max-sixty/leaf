@@ -51,21 +51,23 @@ interactive client continues to handle approvals and user-input requests.
 An adapter outlives the hooks that start it, and Codex replaces its one installed
 copy in place (`session-lifetime.md`, "Which Leaf runs a session"), deleting the old
 one, environment included, so an adapter left running would load each module it
-imports later from the new copy, beside the old modules it already holds. So an
-adapter holds the copy it loaded (`state.LoadedCopy`) and asks each pass whether
-another copy stands at its path; once one does, the adapter hands its task to an
-adapter from the new copy (`_hand_over`). An update that moves the page protocol
-leaves the task's pages at the old one, which the restart of each page's server
-renews (`hosting.follow_copy`), and the successor delivers their input once it does.
-As with page servers
-(`server.stop_when_service_ends`), only an installed copy follows its replacement. A
-checkout's adapter keeps the modules it loaded and imports any later one from the
-checkout as it stands, since whoever runs a checkout decides when it changes.
+imports later from the new copy, beside the old modules it already holds. So the
+adapter asks each pass which copy should run it now (`state.LoadedCopy.successor`),
+as a page server does (`server.stop_when_service_ends`), and once that names one,
+hands its task to an adapter from that copy (`_hand_over`). An adapter running
+Codex's copy moves to the copy Codex puts at its path, and one that another
+installed copy started, as a bare `leaf` from a Claude Code shell does, moves to
+the copy the task's hooks run. An update that moves the page protocol leaves the
+task's pages at the old one, which the restart of each page's server renews
+(`hosting.follow_copy`), and the successor delivers their input once it does. A
+checkout's adapter follows no copy: it keeps the modules it loaded and imports any
+later one from the checkout as it stands, since whoever runs a checkout decides
+when it changes.
 
-Restarting the adapter from the task's prompt hook, as `reconnect.py` restarts a page
-server another copy started, would leave it on its deleted copy until the task's next
-prompt, which can come hours later. Replacing the process with `exec` through the new
-copy's launcher would leave nothing to try again when the new adapter fails to start,
+Restarting the adapter from the task's prompt hook would leave it on its deleted
+copy until the task's next prompt, which can come hours later. Replacing the process
+with `exec` through the new copy's launcher would leave nothing to try again when the
+new adapter fails to start,
 and would carry the start lock across the exec only if the new adapter knew to
 release it.
 
@@ -960,8 +962,9 @@ def run_adapter(
     app_server: str | None = None,
 ) -> int:
     """Own the session watch until every claimed page ends or transfers, the session
-    selects another Leaf, or Codex replaces the copy this adapter started from, in
-    which case the adapter first starts its successor from the new copy.
+    selects another Leaf, or another copy should run the adapter
+    (`LoadedCopy.successor`), in which case the adapter first starts its successor
+    from that copy.
 
     A detached adapter announces its readiness through `handshake` once it holds
     its leases and its transport answers, and exits if `leaf page claim` left
@@ -1021,8 +1024,8 @@ def run_adapter(
                 # before reading another page. Preparation holds the start lock
                 # until these leases and the connection are released.
                 return 0
-            if copy.replaced():
-                return _hand_over(harness, codex_path, app_server, resources)
+            if (root := copy.successor(harness.session)) is not None:
+                return _hand_over(harness, codex_path, app_server, resources, root)
             try:
                 recovered = codex.recover_codex_receipt(harness.session)
                 if not recovered:
@@ -1166,20 +1169,21 @@ def _start_adapter(
 
 
 def _hand_over(
-    harness: Harness, codex_path: str, app_server: str | None, resources: ExitStack
+    harness: Harness,
+    codex_path: str,
+    app_server: str | None,
+    resources: ExitStack,
+    root: Path,
 ) -> int:
-    """Hand the task of an adapter whose installed copy Codex replaced to an adapter
-    from the new copy, and return once one holds the task, a `leaf wait` does, or the
-    task owns no page.
+    """Hand this adapter's task to an adapter from the copy at `root`, and return
+    once one holds the task, a `leaf wait` does, or the task owns no page.
 
     Under the start lock, this adapter lets `resources`, its leases and connection,
     go before the successor takes them, so a claim meanwhile waits and then joins
     the successor, which reconciles any turn the dropped connection was following.
-    The successor starts through the copy's launcher, since this process's
-    environment went with its copy. One that refuses or can't start is tried again
-    on the retry ladder, with nothing held meanwhile."""
-    from .session_runtime import own_launcher
-
+    The successor starts through that copy's launcher, since this process's
+    environment may have gone with its own copy. One that refuses or can't start is
+    tried again on the retry ladder, with nothing held meanwhile."""
     start_lock = adapter_start_lock_path(harness.session)
     failures = 0
     while owned_pages(harness.session):
@@ -1188,7 +1192,9 @@ def _hand_over(
             if adapter_is_live(harness.session) or wait_is_live(None, harness.session):
                 return 0
             try:
-                _start_adapter(harness, codex_path, app_server, own_launcher())
+                _start_adapter(
+                    harness, codex_path, app_server, (root / "bin" / "leaf").resolve()
+                )
                 return 0
             except (Refused, OSError) as error:
                 failures += 1

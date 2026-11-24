@@ -4,13 +4,12 @@ from collections.abc import Callable
 
 from ..events import (
     active_summaries,
-    awaits_agent,
     bare_reaction,
     is_answer,
+    owed_turns,
     progress_completions,
     seat_root,
     spoken_turns,
-    unanswered_turns,
 )
 from ..projection import ThreadMarkupReading
 from ..read_state import content_version, unread_content
@@ -133,9 +132,8 @@ def browser_thread(
             first_answers.setdefault(event["responds"], event["id"])
     owed_since: dict[str, int | None] = {}
     for thread_id, thread in threads.items():
-        owed_since[thread_id] = (
-            unanswered_turns(thread)[0]["seq"] if awaits_agent(thread) else None
-        )
+        owed = owed_turns(thread)
+        owed_since[thread_id] = owed[0]["seq"] if owed else None
         messages = [
             {
                 **_named(message),
@@ -152,7 +150,14 @@ def browser_thread(
                 **{
                     key: value
                     for key, value in thread.items()
-                    if key not in ("turns", "closures", "closings")
+                    if key
+                    not in (
+                        "turns",
+                        "closures",
+                        "closings",
+                        "answered_by",
+                        "closed_by_user",
+                    )
                 },
                 "msgs": messages,
                 "root": next(

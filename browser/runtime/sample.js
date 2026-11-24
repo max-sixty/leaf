@@ -20,7 +20,25 @@
  * way, and with the next document's failure when it fails to start. A call the
  * departed document had not answered rejects with `SampleDepartedError`, since
  * commands belong to one document.
- * A block follows the child's reported height; a window keeps its own viewport.
+ * A block's frame takes its document's height, so the page around it scrolls the sample
+ * like any other block; a window keeps its own viewport. A resize the reader did not ask
+ * for waits while it would move what they see, the frame keeping its height
+ * (thread/held-news.js, `heldGrowth`), until they look away. The reader asked for a
+ * document's resizes where they saw the frame as its host mounted it, as when the page
+ * arrives with it in view or a tab, a link or a jump brings it there, where they reset
+ * it, and from their first click, key or typed character inside it, though not a wheel
+ * or touch that scrolls past it. A document that reloads itself is again one they did
+ * not ask for. The resize as a window becomes a block again is theirs too. The user
+ * chose to fit a frame they bring into view to its page as soon as the page draws, over
+ * keeping its placeholder height until they look away or click into it, which left a
+ * short page standing in a blank frame. Where the reader saw the frame as it
+ * mounted, something showed it to them: the page's presentation, or a gesture whose
+ * rendering brought it into view. That showing waits (`landed`) until the first
+ * document is usable or has failed, or until the reader looks away. Once they look
+ * away the fit moves nothing they see, and in Chromium a document whose arrival waits
+ * on a rendering gets none while its frame is off screen (notes/browser-support.md, "A
+ * sample's page out of view in Chromium"), so without that end a reader who scrolled
+ * past the frame as it loaded would hold the page until they came back.
  * A reading step the child's scroll chain spent goes on from the frame here, as the
  * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
  * Removing a frame retires its realm before releasing the allocation, including on
@@ -75,19 +93,27 @@ import { RequestError, requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { frameView, layoutWindow, presented, watchRoom } from "./geometry.js";
+import {
+  frameView,
+  growthIsSeen,
+  layoutWindow,
+  presented,
+  watchRoom,
+  whenNone,
+} from "./geometry.js";
+import { heldGrowth } from "./thread/held-news.js";
 import {
   frameVisibility,
   onFrameVisibility,
   readSampleVisibility,
   watchFrame,
 } from "./frame-visibility.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { inputInFrame } from "./focus.js";
 import { move } from "./dom-move.js";
-import { nextRender, sizeObserver } from "./rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { recordInteraction } from "./interaction-log.js";
-import { exceptionRecord } from "./exception.js";
+import { exceptionRecord } from "./lib/exception.js";
 import { aborted } from "./abort.js";
 import { deferredArrival, onAllNear } from "./presentation.js";
 
@@ -194,8 +220,14 @@ function connectionMessage(value) {
   );
 }
 
-/** @param {HTMLIFrameElement} frame @param {({template: string, source?: never} | {source: string, template?: never}) & {window?: boolean}} options @returns {SampleHost} */
-export function mountSample(frame, { template, source, window: asWindow = false }) {
+// `landed` is given where the reader saw the frame as its host mounted it, and is called
+// once what showed it to them need wait no longer (header).
+/** @param {HTMLIFrameElement} frame @param {({template: string, source?: never} | {source: string, template?: never}) & {window?: boolean}} options @param {(() => void) | null} [landed] @returns {SampleHost} */
+export function mountSample(
+  frame,
+  { template, source, window: asWindow = false },
+  landed = null,
+) {
   if ((template == null) === (source == null))
     throw new Error("a sample needs either an authored template id or source document");
   // A template is declared in its revision's document or in a message's
@@ -265,7 +297,6 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   const pending = new Map();
   /** @type {import("./sample-protocol.js").SampleListeners} */
   const listeners = {
-    height: new Set(),
     input: new Set(),
     "current-location": new Set(),
     loading: new Set(),
@@ -281,6 +312,55 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-pointer-lock",
   );
   frame.toggleAttribute("data-lf-contained", true);
+
+  // The block height the current document last reported, whether the reader asked for
+  // that document's resizes, and the step that drops a resize waiting on them (header).
+  /** @type {number | undefined} */
+  let height;
+  let theirs = landed !== null;
+  /** @type {(() => void) | null} */
+  let dropHeld = null;
+  const fit = () => {
+    frame.style.height = `${height}px`;
+  };
+  let fitting = 0;
+  const fitNextRender = () => {
+    fitting ||= nextRender(() => {
+      fitting = 0;
+      fit();
+    });
+  };
+  // Take `reading` as the frame's height: at the page's next rendering, or now where
+  // `immediate`. A resize the reader `asked` for applies whoever asked for the
+  // document. A window's frame keeps its height, and its readings go unrecorded.
+  /** @param {number} reading */
+  function resize(reading, { immediate = false, asked = false } = {}) {
+    if (asWindow) return;
+    height = reading;
+    dropHeld?.();
+    dropHeld = null;
+    const apply = immediate ? fit : fitNextRender;
+    if (theirs || asked) apply();
+    else dropHeld = heldGrowth(frame, apply);
+  }
+  // The reader's click or key inside the document makes the frame theirs to move: a
+  // resize held while they read applies now, and so does each later one.
+  function claim() {
+    theirs = true;
+    if (!dropHeld) return;
+    dropHeld();
+    dropHeld = null;
+    fit();
+  }
+  /** @type {(() => void) | null} */
+  let stopLooking = null;
+  function land() {
+    landed?.();
+    landed = null;
+    stopLooking?.();
+    stopLooking = null;
+  }
+  if (landed) stopLooking = whenNone([frame], growthIsSeen, land);
 
   // Whether this page shows, and so renders what it holds.
   function pageShows() {
@@ -475,6 +555,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           record("connected", { reloading });
           if (arriving !== "loading") arrive("drawing");
           if (reloading) {
+            theirs = false;
             awaitNext();
             notify("loading", undefined);
           }
@@ -516,6 +597,10 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           const completion = pendingInterface;
           pendingInterface = null;
           completion?.resolve(data.detail);
+          // The frame takes the height its document upgraded at in the turn the host
+          // learns of it. One that upgraded as a window gives its block height as it
+          // answers `setWindow`.
+          if (data.detail.block) resize(data.detail.height, { immediate: true });
           visibility();
           nearWork();
         } else if (data.type === "error") {
@@ -537,9 +622,11 @@ export function mountSample(frame, { template, source, window: asWindow = false 
             }),
           );
         else if (data.type === "input") {
-          inputInFrame(frame, data.detail.type);
+          const { type } = data.detail;
+          inputInFrame(frame, type);
+          if (type === "click" || type === "keydown" || type === "input") claim();
           notify("input", data.detail);
-        } else if (data.type === "height") notify("height", data.detail);
+        } else if (data.type === "height") resize(data.detail.height);
         else if (data.type === "current-location")
           notify("current-location", data.detail);
         else if (data.type === "arrived") moveOn("drawing", null);
@@ -670,6 +757,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   function reset() {
     if (destroyed)
       return Promise.reject(new Error("the sample host has been destroyed"));
+    theirs = true;
     return operation ?? begin(replace());
   }
   /** @template {SampleMethod} K @overload @param {K} method @param {SampleCommands[K]["detail"]} detail @returns {Promise<SampleCommands[K]["result"]>} */
@@ -707,10 +795,18 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     ready: replace(),
     reset,
     // Full view keeps the realm, log and native editor; only its allocation changes.
+    // A frame that becomes a block again takes the height it last had as one, at once,
+    // and then the height its document answers with.
     setWindow(value) {
+      const returning = asWindow && !value;
       asWindow = value;
       arrive();
-      return call("window", { window: value });
+      if (returning && height !== undefined)
+        resize(height, { immediate: true, asked: true });
+      return call("window", { window: value }).then((reading) => {
+        resize(reading.height, { asked: true });
+        return reading;
+      });
     },
     on(type, callback) {
       const callbacks = listeners[type];
@@ -732,6 +828,9 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       if (closing) return closing;
       destroyed = true;
       arrive(null);
+      dropHeld?.();
+      cancelRender(fitting);
+      land();
       record("destroyed");
       lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));
       mounted.delete(frame);
@@ -757,6 +856,6 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   };
   window.addEventListener("pagehide", departing);
   mounted.set(frame, call);
-  begin(host.ready);
+  begin(host.ready).then(land, land);
   return host;
 }

@@ -1662,6 +1662,22 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
+    # Enter pins the card while the phrase's words stand selected: a press from the
+    # keyboard ends no selection, so the selected words don't refuse it.
+    gloss.evaluate(
+        """el => {
+          const words = document.createRange();
+          words.selectNodeContents(el.childNodes[0]);
+          getSelection().removeAllRanges();
+          getSelection().addRange(words);
+        }"""
+    )
+    expect(mark).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(bubble).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(bubble).to_be_hidden()
+
     assert gloss.evaluate("el => el.childNodes[0].textContent.trim()") == (
         "walking skeleton"
     )

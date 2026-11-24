@@ -113,10 +113,8 @@ PLATE_PACKAGE = {
     "lf-plate": {
         "description": "A project package's picture, under a name the theme never sees.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "visual": "whole",
@@ -610,7 +608,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     """The decision is the question's whole reading region, not only its answer control.
 
     Were an options group both the state owner and the navigation target, then when the
-    heading, premise, and evidence stood immediately above it, `d` would centre the
+    heading, premise, and evidence stood immediately above it, `m` would centre the
     options and make the user scroll backward before they could answer. The group the
     author names round the question encodes that broader unit while the nested
     `awaits` widget still owns the action: the walk rings the region, aligns its
@@ -716,7 +714,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
 
 
 def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
-    """a lands semantic focus on the obligation; digits work its exact action list there.
+    """m lands semantic focus on the obligation; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
     descendants: options own controls inside the obligation, while a suggestion's margin entries are
@@ -768,7 +766,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -788,7 +785,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               run: () => { inspect.dataset.activated = '1'; },
             },
           ] };
-          commandsChanged(source);
+          source.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -840,7 +837,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
           inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -848,7 +844,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
           }] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     rendered(page)
@@ -880,7 +876,6 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -897,7 +892,7 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               run: () => { inspect.dataset.localThree = '1'; },
             },
           ] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -931,7 +926,6 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -947,13 +941,13 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
           }] };
-          commandsChanged(control);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
           }] };
-          commandsChanged(inside);
+          inside.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -1064,7 +1058,6 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -1085,7 +1078,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
             }] };
-            commandsChanged(control);
+            control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));
@@ -1298,8 +1291,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # The press moves the ring and the focus and leaves the page where it stands.
         # Rebuilding a view the user is already looking at is motion that says nothing,
         # and it costs them whatever adjustment they had made within it. The gate reads
-        # what the page shows of the obligation rather than what its own box claims,
-        # which is the reading commentOnAddressable makes before its own travel.
+        # what the page shows of the obligation rather than what its own box claims.
         #
         # The walk above is the control: it did travel, from a page that opens above
         # the change, so a second press standing still is this gate rather than a walk
@@ -1424,7 +1416,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     """The walk measures from the user, the way Space page travel measures from the scroll position
     and t/T from the focused thread. A walk that kept an id of its own would start every
     walk the user had not made with this key at the top of the page: scroll halfway
-    down and press `d` and you would be taken back past everything you had read, and so
+    down and press `m` and you would be taken back past everything you had read, and so
     would anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
@@ -1462,7 +1454,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     the box left out — would measure (0,0) at the document's origin, as an element with
     none does, which is not a degenerate answer but a wrong one. Everything that asked
     the wrapper where it was would believe it, so the travel would centre the top of the
-    document and a page whose open decisions were all suggestions would answer `d` by
+    document and a page whose open decisions were all suggestions would answer `m` by
     appearing to do nothing at all.
 
     Hanging the ring on the pieces instead covers that and says the wrong thing about

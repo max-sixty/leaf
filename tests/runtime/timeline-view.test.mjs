@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { assignRows } from "/runtime/time-axis.js";
+import { assignRows } from "/runtime/lib/time-axis.js";
 import {
   render as timelineView,
   timelineModel,

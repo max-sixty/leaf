@@ -39,7 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
-import { labelWords } from "../words.js";
+import { labelWords } from "../lib/words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
@@ -84,13 +84,14 @@ import {
   closeLayer,
   openLayer,
   openerOf,
-  rove,
   currentLocationIn,
   blurFocused,
 } from "../focus.js";
-import { closeControl, offeredAction, searchField } from "../widget-elements.js";
-import { keeps } from "../keeps.js";
-import { renderedOrder } from "../shadow-tree.js";
+import { rove } from "../lib/roving.js";
+import { closeControl, searchField } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
+import { keeps } from "../lib/keeps.js";
+import { renderedOrder } from "../lib/shadow-tree.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
 import { doorSteps } from "./control-keys.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
@@ -108,7 +109,6 @@ commandReferenceDialog.id = "lf-command-reference";
 commandReferenceDialog.className = "lf-ui lf-command-reference";
 commandReferenceDialog.setAttribute("aria-label", "Command reference");
 commandReferenceDialog.setAttribute("closedby", "any");
-commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
 /** @type {(() => void) | null} */
@@ -962,7 +962,7 @@ function presentCommandReference() {
   if (search.ariaActiveDescendantElement !== row)
     search.ariaActiveDescendantElement = row;
   // The results are one roving group: Tab reaches the selected command, or the first,
-  // and the arrows walk the rest (focus.js, `rove`).
+  // and the arrows walk the rest (`rove`).
   rove(
     commandReferenceDialog.querySelectorAll(".lf-command-reference-command"),
     commandButton(commandReferenceView.tabStopCommandId),

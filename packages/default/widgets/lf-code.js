@@ -78,27 +78,23 @@
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
 import {
-  LeafElement,
   alreadyShown,
-  setScroll,
-  bodyText,
-  codeLanguage,
-  commandsChanged,
-  failSoft,
-  keeps,
-  layoutChanged,
-  nameAction,
-  offer,
-  offerAction,
   onUserInput,
-  scrollBehavior,
   scrollersOf,
   scrollIntoView,
+  tabStore,
+} from "/runtime/portable-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { bodyText } from "/runtime/lib/data-body.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import {
+  codeLanguage,
   synNodes,
   syntax,
-  tabStore,
   tokenLines,
-} from "/runtime/portable-api.js";
+} from "/runtime/lib/syntax-tokens.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 // How long a playhead stands on a line before the block counts it as resting there
 // (see the header): longer than a playing animation's one-step visits, shorter than a
@@ -285,7 +281,7 @@ customElements.define(
         scrollIntoView(row, {
           block: "center",
           within: scroller,
-          behavior: scrollBehavior(),
+          behavior: "smooth",
           sideways: false,
         });
       };
@@ -314,11 +310,7 @@ customElements.define(
         const numbers = numbering(this);
         const rows = lines.map((tokens) => ({ tokens, n: numbers.next().value }));
         const hi = within(this.getAttribute("hi"));
-        const byLine = new Map();
-        for (const note of notes) {
-          const at = Number(note.getAttribute("at"));
-          byLine.set(at, [...(byLine.get(at) ?? []), note]);
-        }
+        const byLine = Map.groupBy(notes, (note) => Number(note.getAttribute("at")));
         // Reading commands remain reachable when wrapping removes overflow.
         const pre = document.createElement("pre");
         pre.setAttribute("data-lf-carry", "source");
@@ -426,8 +418,12 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
-          layoutChanged(this);
+          // Wrapped, the block stood at its start, so only an offset it had is put back.
+          if (!wrapped && horizontal)
+            pre.scrollTo({ left: horizontal, behavior: "instant" });
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         };
         this.lfCommands = {
           title: "On a code block",
@@ -450,16 +446,22 @@ customElements.define(
                       notesShown = !notesShown;
                       tabStore.set(notesKey, notesShown ? "shown" : "hidden");
                       paintNotes();
-                      layoutChanged(this);
+                      this.dispatchEvent(
+                        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+                      );
                     },
                   },
                 ]
               : []),
           ],
         };
-        commandsChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
         this.#mark();
-        layoutChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       } catch (err) {
         failSoft(this, err, source);
       }

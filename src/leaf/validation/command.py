@@ -37,7 +37,6 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
     """`page check`'s report, and where a render check ran, the digest of the version it
     read with what the browser read (`render_gate.command.BrowserCheck`), else None.
     Freezes the checked source before running slow, read-only browser work."""
-    from leaf.event_contracts import write_refusal
 
     def reported(status, findings, browser=None):
         return {
@@ -47,18 +46,15 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         }
 
     with page_locked(page_dir):
-        # A page this Leaf can neither serve nor write passes no check of its source: the
-        # repair it names comes first (`layer.incompatible_layer`).
-        if refusal := write_refusal(page_dir):
-            return reported(1, [refusal]), None
-        # Nor does one whose layer can't be composed to serve it. The check composes
-        # it here because reading the page needs only its vocabulary
-        # (`layer.LayerVocabulary`).
-        if (record := layer_record(page_dir)) is not None:
-            try:
+        # A page this Leaf can neither serve nor write (`layer_record`), or whose
+        # layer can't be composed to serve it, passes no check of its source: the
+        # repair it names comes first. The check composes the layer here because
+        # reading the page needs only its vocabulary (`layer.LayerVocabulary`).
+        try:
+            if (record := layer_record(page_dir)) is not None:
                 selected(record, page_dir)
-            except RegistryError as error:
-                return reported(1, list(error.findings)), None
+        except RegistryError as error:
+            return reported(1, list(error.findings)), None
         events = read_events(page_dir)
         result = check_source(page_dir, events)
         active = max(list_revisions(page_dir), default=0)

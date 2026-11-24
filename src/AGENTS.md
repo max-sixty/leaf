@@ -7,7 +7,9 @@ logic, and any branching across modules, belongs in the module that owns it.
 Each module owns one concern and states its contract in its header, so read the headers
 to find an owner (`head -n 3 leaf/*.py leaf/*/*.py`). Callers import the
 owning module directly; a subpackage's `__init__.py` is only a marker, never a second
-API. Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
+API. The modules stand in one import order, each importing only those below it
+(`../.config/importlinter.ini`, whose header says what to do when a change breaks it).
+Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
 transport boundary exits, prints or answers HTTP. A command returns its result and
 never prints it (`cli.py`'s header).
 

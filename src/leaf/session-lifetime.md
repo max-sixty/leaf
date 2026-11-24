@@ -263,7 +263,7 @@ Neither changes the page's authored work status.
 
 `leaf wait` revives an enabled service whose process has died, once per death, and
 notes it (`server-restarted`). A revival is a start, so it is refused for a page this
-Leaf cannot serve (`layer.incompatible_layer`). A page nothing will serve is lost:
+Leaf cannot serve (`registry.storage.layer_record`). A page nothing will serve is lost:
 never served, or one whose revival was refused or died again. A refused revival leaves
 the service enabled until `server stop`. A lost
 page ends a wait that names it, and a session's wait once no other live page is left,

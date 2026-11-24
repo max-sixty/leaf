@@ -88,8 +88,8 @@ at the session's next turn or at a `leaf` command that writes to the page. A com
 that only reads the page, such as `leaf page state`, leaves it at the old protocol.
 
 While another live session holds the page, Leaf refuses to serve or write it, and
-`leaf page state` explains in `source.error`, naming the `leaf page init` command to
-run from the session that holds the page. A page a newer Leaf initialized is refused
+`leaf page state` refuses it too, naming the `leaf page init` command to run from the
+session that holds the page. A page a newer Leaf initialized is refused
 as well; the refusal says how to load a newer Leaf.
 
 An update can change what a widget accepts or how it draws, and a page's own widgets

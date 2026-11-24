@@ -521,11 +521,12 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
-    """Record another page protocol in the page's layer record, and return it.
+    """Write the page's layer record at another page protocol's format, and return
+    that protocol.
 
     The state a breaking Leaf update leaves a page in: an earlier `page init`
-    recorded an older number this Leaf no longer speaks, or with `newer`, a later
-    Leaf recorded a higher one. The file is replaced rather than written through,
+    wrote an older format this Leaf no longer speaks, or with `newer`, a later
+    Leaf wrote a higher one. The file is replaced rather than written through,
     as every file a lent page may share with its template has to be.
     """
     from leaf.registry.storage import LAYER, layer_record
@@ -533,9 +534,9 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     path = page_dir / schema_model.LAYER_FILE
     record = layer_record(page_dir)
     assert record is not None
-    foreign = record["protocol"] + (1 if newer else -1)
+    foreign = LAYER.since + (1 if newer else -1)
     path.unlink()
-    LAYER.write(path, {**record, "protocol": foreign})
+    cleanup_model.write_json(path, {"format": f"leaf-layer/{foreign}", **record})
     return foreign
 
 

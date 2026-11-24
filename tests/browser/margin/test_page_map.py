@@ -444,15 +444,14 @@ def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, 
     page = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
-          const {commandScope, registerContribution} =
-            await window.__lfWidgetApi();
+          const {registerContribution} = await window.__lfWidgetApi();
           let swapped = false;
           window.lfKeyedCommandRuns = 0;
-          const scope = commandScope('On the retained Page Map action', [{
+          const scope = {title: 'On the retained Page Map action', rows: [{
             id: 'fixture.retained', keys: ['x'],
             title: 'Run the retained action', line: 'run retained',
             run: () => window.lfKeyedCommandRuns += 1,
-          }]);
+          }]};
           const ordinary = index => registerContribution({
             key: `keyed-${index}`,
             target: document.querySelector(`#keyed-${index}`),

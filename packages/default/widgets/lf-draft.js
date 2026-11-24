@@ -72,7 +72,6 @@ import { html, render, nothing } from "/vendor/lit.js";
 import {
   aimedAt,
   nameOf,
-  commandScope,
   motion,
   LeafElement,
   TEXT_FIELD,
@@ -165,8 +164,8 @@ customElements.define(
     #failed = false;
     /** @type {HTMLDivElement | null} */
     #tools = null;
-    /** @type {ReturnType<typeof commandScope> | null} */
-    #commandScope = null;
+    /** @type {HTMLElement["lfCommands"]} */
+    #commands = null;
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
@@ -314,40 +313,43 @@ customElements.define(
     }
 
     #ensureCommands() {
-      if (this.#commandScope) return;
-      this.#commandScope = commandScope("On a draft", [
-        {
-          id: "draft.edit",
-          keys: [],
-          control: () => this.#control("edit"),
-          decision: true,
-          title: "Edit",
-          when: () => !this.#editor && !this.#sending && this.#available(),
-          run: () => this.#open(),
-        },
-        {
-          id: "draft.save",
-          reach: "in an open draft editor",
-          keys: ["Mod+Enter"],
-          control: () => this.#control("save"),
-          decision: true,
-          title: () => (this.#failed ? "Retry" : "Save"),
-          when: () => Boolean(this.#editor) && !this.#sending && this.#available(),
-          run: () => this.#commit(),
-        },
-        {
-          id: "draft.cancel",
-          reach: "in an open draft editor",
-          keys: ["Escape"],
-          control: () => this.#control("cancel"),
-          decision: true,
-          title: "Discard",
-          when: () => Boolean(this.#editor),
-          run: () => this.#close(true),
-          keep: () => this.#commit(),
-        },
-      ]);
-      this.lfCommands = this.#commandScope;
+      if (this.#commands) return;
+      this.#commands = {
+        title: "On a draft",
+        rows: [
+          {
+            id: "draft.edit",
+            keys: [],
+            control: () => this.#control("edit"),
+            decision: true,
+            title: "Edit",
+            when: () => !this.#editor && !this.#sending && this.#available(),
+            run: () => this.#open(),
+          },
+          {
+            id: "draft.save",
+            reach: "in an open draft editor",
+            keys: ["Mod+Enter"],
+            control: () => this.#control("save"),
+            decision: true,
+            title: () => (this.#failed ? "Retry" : "Save"),
+            when: () => Boolean(this.#editor) && !this.#sending && this.#available(),
+            run: () => this.#commit(),
+          },
+          {
+            id: "draft.cancel",
+            reach: "in an open draft editor",
+            keys: ["Escape"],
+            control: () => this.#control("cancel"),
+            decision: true,
+            title: "Discard",
+            when: () => Boolean(this.#editor),
+            run: () => this.#close(true),
+            keep: () => this.#commit(),
+          },
+        ],
+      };
+      this.lfCommands = this.#commands;
       this.dispatchEvent(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
@@ -440,7 +442,7 @@ customElements.define(
       // being the innermost scope's is what keeps the runtime's own rung from running
       // behind it and closing a panel too.
       this.#editor = editor;
-      editor.lfCommands = this.#commandScope;
+      editor.lfCommands = this.#commands;
       this.#body.after(editor);
       editor.dispatchEvent(
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),

@@ -94,7 +94,6 @@ import {
   LeafElement,
   move,
   onUserInput,
-  signal,
   scopedMediaUrl,
   retainUserIntent,
   scrollIntoView,
@@ -440,16 +439,11 @@ export class Trace extends LeafElement {
   /** @type {boolean | null} */
   #playIntent = null;
   // The playhead's time from the scope origin when it stands between captures,
-  // after scrubbing or playback. Null when it stands on the selected capture. A
-  // signal, because the step and event commands' liveness reads it.
-  /** @type {import("@preact/signals-core").Signal<number | null>} */
-  #cursor = signal(null);
-  get #cursorTime() {
-    return this.#cursor.value;
-  }
-  set #cursorTime(time) {
-    this.#cursor.value = time;
-  }
+  // after scrubbing or playback. Null when it stands on the selected capture.
+  // The step and event commands' liveness reads it, so drawing it says the keys
+  // changed (`#drawTime`).
+  /** @type {number | null} */
+  #cursorTime = null;
   // The user's hold through a scrub, settled as the pointer lets go.
   /** @type {PromiseWithResolvers<void> | null} */
   #scrubbing = null;
@@ -2133,6 +2127,10 @@ export class Trace extends LeafElement {
     this.#nodes.selectionLabel.lfPreview = () =>
       selection ? { name: selection } : null;
     this.#drawInput();
+    // The commands read the playhead, the selected capture and whether it plays.
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   /** @param {Moment} moment */
@@ -2737,9 +2735,6 @@ export class Trace extends LeafElement {
     this.#marked = marked;
     this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
-    this.dispatchEvent(
-      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-    );
   }
 }
 customElements.define("lf-trace", Trace);

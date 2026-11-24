@@ -51,6 +51,7 @@ import {
   announceDrawing,
   drawingOf,
   holdsOn,
+  isDrawing,
   takeDrawing,
   widgetController,
   widgetMounted,
@@ -137,10 +138,8 @@ function host(element) {
       (element.shadowRoot ?? element).append(placed);
       return true;
     });
-  // Whether a pass is making its sets, whose claim it settles itself, and how many
-  // drawings the element has announced.
+  // Whether a pass is making its sets, whose claim it settles itself.
   let passing = false;
-  let announced = 0;
   // A listener on a shadow host sees itself as the target of an event from inside its
   // root, so the element that dispatched is read off the path.
   element.addEventListener(PENDING_TASK, (event) => {
@@ -150,9 +149,8 @@ function host(element) {
       element,
       /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (event).complete,
     );
-    announced += 1;
     // A draw the element started by itself claims its region, unless a claim already
-    // stands open for a pass still to come. Away, it waits for the return's pass.
+    // stands open for a pass still to settle. Away, it waits for the return's pass.
     if (!passing && !ticket)
       region
         ?.present((reason) => failSoftUnreported(element, reason))
@@ -194,9 +192,8 @@ function host(element) {
   // What a pass's sets came to, said to whoever hears it: the claim, the page's error
   // report, and the readers of a visual's layout.
   /** @param {import("./framework/presentation.js").PresentationTicket | null} drawing
-   * @param {boolean} drew @param {unknown[]} failures
-   * @param {PromiseLike<unknown>[]} held */
-  const settle = (drawing, drew, failures, held) => {
+   * @param {unknown[]} failures @param {PromiseLike<unknown>[]} held */
+  const settle = (drawing, failures, held) => {
     if (visual) layoutChanged(element);
     if (failures.length) {
       reportFailure(element, failures[0]);
@@ -207,8 +204,8 @@ function host(element) {
     box = null;
     const drawn = drawingOf(element);
     drawing?.resolve(Promise.all([drawn, ...held]));
-    // The drawing the sets announced may redraw the marks as it lands.
-    if (visual && drew)
+    // The drawing under way may redraw the marks as it lands.
+    if (visual && isDrawing(element))
       void drawn.then(
         () => layoutChanged(element),
         () => {},
@@ -217,10 +214,15 @@ function host(element) {
   // The document-wide renderers read the element once the drawing of its first pass
   // is in, on each arrival.
   let mounted = false;
-  const draw = () => {
-    claim();
+  // The pass's claim stands until the pass settles it, so a drawing the element
+  // announces before a deferred `state` set waits for that set's drawing too.
+  const take = () => {
     const drawing = ticket;
     ticket = null;
+    return drawing;
+  };
+  const draw = () => {
+    claim();
     const reading = controller?.read() ?? null;
     // A gesture holding the element's nodes now leaves this pass's sets undrawn until
     // it ends; one that begins in the draw a set starts does not hold that draw.
@@ -230,12 +232,11 @@ function host(element) {
       (reading && !verbs.every((verb) => verb in reading.state)) ||
       data.awaitsDelivery()
     ) {
-      drawing?.resolve(Promise.all([drawingOf(element), ...held]));
+      take()?.resolve(Promise.all([drawingOf(element), ...held]));
       return;
     }
     /** @type {unknown[]} */
     const failures = [];
-    const before = announced;
     passing = true;
     setInputs(failures);
     passing = false;
@@ -246,10 +247,10 @@ function host(element) {
         passing = false;
       }
       passed = true;
-      untracked(() => settle(drawing, announced > before, failures, held));
+      untracked(() => settle(take(), failures, held));
       if (mounted || !descriptor) return;
       mounted = true;
-      const read = () => widgetMounted();
+      const read = () => void (element.isConnected && widgetMounted());
       void drawingOf(element).then(read, read);
     };
     // The first pass is made at once, so an element that asked reads it as it builds.

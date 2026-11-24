@@ -73,19 +73,19 @@ const documentCommits = new Map();
 
 // The DOM each document owner reads: projection decorates widget output, threads
 // resolve passages over that decoration, obligations locate controls in threads,
-// and annotations measure those targets. A widget's element draws before the call
-// that moved it returns, its first connection or the `state` Leaf set
-// (element-integration.js), so its nodes are in before the pass that follows the
-// publication. A draw a widget makes later, on its own schedule, is ordered against
-// no pass; the one this file hears of is the end of a gesture's hold (`lf-hold`,
-// widget-controller.js), which presents the document again. Imperative Lit render
-// commits in its call;
+// and annotations measure those targets. A widget's element draws a `state` Leaf
+// sets before that set returns (element-integration.js), so its nodes are in before
+// the pass that follows the publication. A draw a widget makes on its own schedule,
+// its first included, is ordered against no pass; the two this file hears of present
+// the document again as they end: the drawing of an arriving widget's first sets
+// (element-integration.js) and a gesture's hold (`lf-hold`, widget-controller.js).
+// Imperative Lit render commits in its call;
 // what the thread pass decides later, where it places and seats each thread, reaches
 // the margin as readings its paint follows (anchor-placement.js `placedAt`,
 // thread/surfaces.js `claimed`), not as DOM it waits for. An obligation's control is a
-// widget, so one a seat mounts after this commit presents the whole document as it
-// connects (widget-controller.js, `widgetMounted`), and obligations locate it on the
-// pass that follows. Each entry is transitive: it settles once its region and
+// widget, so one a seat mounts after this commit presents the whole document once
+// its first sets are drawn (widget-controller.js, `widgetMounted`), and obligations
+// locate it on the pass that follows. Each entry is transitive: it settles once its region and
 // everything upstream of it have committed.
 export const PRESENTATION_DOM = Object.freeze({
   projection: () => documentCommits.get("projection:chrome")?.() ?? [],

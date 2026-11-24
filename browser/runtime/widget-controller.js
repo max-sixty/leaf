@@ -37,10 +37,10 @@ import { holdRendering } from "./rendering.js";
 /** @type {WeakMap<Element, WidgetController>} */
 const controllers = new WeakMap();
 
-// A widget connected to draw its reading. It can first appear when thread presentation
-// mounts message markup after the global projection pass, so coordinate and provenance
-// work runs again now that it and its units exist; state application coalesces the
-// request.
+// A widget Leaf drives has drawn the first sets of an arrival (element-integration.js).
+// It can first appear when thread presentation mounts message markup after the global
+// projection pass, so coordinate and provenance work runs again now that it and its
+// units exist; state application coalesces the request.
 export function widgetMounted() {
   invalidateDom();
 }
@@ -211,35 +211,47 @@ const widgetOn = (event, holds = () => true) =>
 // drawing, and for the holds standing when it was made, since the element draws
 // nothing under one: a hold that begins in the draw a claim is for does not keep that
 // claim. A drawing also holds full rendering readiness while its element stands, as a
-// preparation does; a hold does not, since nothing is being drawn.
-/** @type {WeakMap<Element, Set<PromiseLike<unknown>>>} */
+// preparation does (`holdPreparation`): it lets go as the element leaves and holds
+// again on its return. A hold does not, since nothing is being drawn.
+/** Each drawing under way, with its hold on rendering readiness while its element stands.
+ * @type {WeakMap<Element, Map<PromiseLike<unknown>, ReturnType<typeof holdRendering> | null>>} */
 const underWay = new WeakMap();
 /** @type {WeakMap<Element, Set<PromiseLike<unknown>>>} */
 const holding = new WeakMap();
-/** @param {WeakMap<Element, Set<PromiseLike<unknown>>>} kept @param {Element} element
- * @param {PromiseLike<unknown>} complete @param {() => void} [ended] */
-function keep(kept, element, complete, ended) {
-  let all = kept.get(element);
-  if (!all) kept.set(element, (all = new Set()));
-  const held = all;
-  held.add(complete);
-  const done = () => {
-    held.delete(complete);
-    ended?.();
-  };
-  Promise.resolve(complete).then(done, done);
-}
 /** The drawing `element` has under way. @param {Element} element */
-export const drawingOf = (element) => Promise.all(underWay.get(element) ?? []);
+export const drawingOf = (element) => Promise.all(underWay.get(element)?.keys() ?? []);
+/** Whether `element` has drawing under way. @param {Element} element */
+export const isDrawing = (element) => Boolean(underWay.get(element)?.size);
 /** The holds standing on `element` now. @param {Element} element */
 export const holdsOn = (element) => [...(holding.get(element) ?? [])];
 /** Count a drawing `element` announced on itself. @param {Element} element
  * @param {PromiseLike<unknown>} complete */
 export function announceDrawing(element, complete) {
-  const release = element.isConnected ? holdRendering() : null;
-  keep(underWay, element, complete, () =>
-    release?.(element.isConnected ? "settle" : "cancel"),
-  );
+  let drawings = underWay.get(element);
+  if (!drawings) {
+    const all = (drawings = new Map());
+    underWay.set(element, all);
+    watchOwner(element, {
+      connect() {
+        for (const [drawing, release] of all)
+          if (!release) all.set(drawing, holdRendering());
+      },
+      disconnect() {
+        for (const [drawing, release] of all) {
+          release?.("cancel");
+          all.set(drawing, null);
+        }
+      },
+    });
+  }
+  const all = drawings;
+  all.set(complete, element.isConnected ? holdRendering() : null);
+  const done = () => {
+    // A promise reaction can precede the observer delivering the element's departure.
+    all.get(complete)?.(element.isConnected ? "settle" : "cancel");
+    all.delete(complete);
+  };
+  Promise.resolve(complete).then(done, done);
 }
 
 // The `pending-task` events an element Leaf drives has already counted as its own
@@ -295,9 +307,14 @@ function ownRegion(origin) {
 // document-wide renderers read the page again.
 document.addEventListener(HOLD, (event) => {
   const [origin] = event.composedPath();
-  if (origin instanceof Element) keep(holding, origin, event.complete);
-  const read = () => void invalidateDom();
-  Promise.resolve(event.complete).then(read, read);
+  let holds = origin instanceof Element ? holding.get(origin) : null;
+  if (!holds && origin instanceof Element) holding.set(origin, (holds = new Set()));
+  holds?.add(event.complete);
+  const ended = () => {
+    holds?.delete(event.complete);
+    void invalidateDom();
+  };
+  Promise.resolve(event.complete).then(ended, ended);
 });
 
 // Each unit of a verb whose action in force the user may take back, with the Undo

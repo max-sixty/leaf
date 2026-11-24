@@ -316,6 +316,16 @@ test("a drawing an element announces by itself holds its region until it is in",
     }),
   );
   assert.equal(pending().length, 1, "its own region, and no preparation beside it");
+  // A second drawing claims the region again, and the claim keeps the first.
+  const later = Promise.withResolvers();
+  element.dispatchEvent(
+    Object.assign(new Event("pending-task", { bubbles: true, composed: true }), {
+      complete: later.promise,
+    }),
+  );
+  later.resolve();
+  await settled();
+  assert.equal(pending().length, 1, "the earlier drawing is still waited for");
   drawing.resolve();
   await settled();
   assert.deepEqual(pending(), []);

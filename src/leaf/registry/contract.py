@@ -156,9 +156,8 @@ def complete_declarations(registry: dict) -> dict:
                 spec["detail"] = _closed_by_default(detail)
             if isinstance(record := spec.get("record"), dict):
                 spec["record"] = record = {"kind": "value", **record}
-            position = isinstance(record, dict) and record["kind"] == "position"
             # Each default stands first, where a declaration that writes it puts it.
-            verbs[verb] = {"unit": "unit" if position else "widget", **spec}
+            verbs[verb] = {"unit": record_unit(record), **spec}
         awaits = entry.get("awaits")
         if isinstance(awaits, dict) and isinstance(value := awaits.get("value"), str):
             awaits.setdefault("answered", {value: {}})
@@ -176,6 +175,14 @@ def complete_declarations(registry: dict) -> dict:
                 ):
                     entry["refers"].setdefault(attribute, {})
     return registry
+
+
+def record_unit(record) -> str:
+    """The `unit` a verb's `record` decides: a position record's verb keeps a state for
+    each member its `detail.unit` names, and any other, like a verb with no record that
+    names no unit of its own, keeps one for the whole widget."""
+    position = isinstance(record, dict) and record.get("kind") == "position"
+    return "unit" if position else "widget"
 
 
 def _closed_by_default(schema: dict) -> dict:

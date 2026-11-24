@@ -133,10 +133,11 @@ def verb_rows() -> list[str]:
             if not is_element_name(tag):
                 continue
             for verb, verb_state in element.get("verbs", {}).items():
+                unit = verb_state["unit"]
                 cells = (
                     f"<code>{tag}</code>",
                     f"<code>{verb}</code>",
-                    verb_state["unit"],
+                    "the widget" if unit == "widget" else f"<code>detail.{unit}</code>",
                     markup_record(verb_state),
                 )
                 rows.append(

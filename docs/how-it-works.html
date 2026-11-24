@@ -2227,7 +2227,8 @@ flowchart TD
             <p id="coordinate">
               An action's <strong>coordinate</strong> is its widget, its unit, and its
               verb. A verb that names no <code>unit</code> has the widget itself as its
-              unit; one that names a detail field has the value of that field. A pick
+              unit, unless it records positions, when its unit is the member it moves;
+              one that names a detail field has the value of that field. A pick
               therefore uses <code>[ship, ship, choose]</code>, and adding an option
               uses <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete
               only when their coordinates are equal, so a pick never displaces an added

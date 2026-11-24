@@ -233,7 +233,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         # Only an agent verb declares `text`.
         (_user_verb_text, "invalid-declaration", {}),
         # The user answers their own obligation; the agent's news never does.
-        (_agent_verb_answers, "awaits-verbs", {}),
+        (_agent_verb_answers, "awaits-value", {}),
         (_body_record_with_prose, "body-content", {}),
         (_body_record_with_nested_widget, "body-nested", {}),
     ],

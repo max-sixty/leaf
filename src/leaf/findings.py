@@ -1830,8 +1830,8 @@ _TEXT = {
     "answering-part": _declared(
         lambda v: _answering(
             v,
-            "folds on a part rather than the widget, so its condition needs"
-            " `empty` or `every`",
+            "folds on a part rather than the widget, so `awaits.answered` gives"
+            " it a condition with `empty` or `every`",
         )
     ),
     "answering-every": _declared(

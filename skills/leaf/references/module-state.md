@@ -119,8 +119,8 @@ widgets in place rather than rebuilding the widget, and remove an optional recor
 attribute when its value returns to `null`. `state` holds every declared verb by name,
 each in the shape of its `unit`:
 
-- For a verb that keeps one state for the whole widget, as one that names no `unit`
-  does, it is `{action, value, detail}`. `action` is `null` for the
+- For a verb that keeps one state for the whole widget, it is
+  `{action, value, detail}`. `action` is `null` for the
   authored state. `value` is the recorded value, or, for a verb with no record, the
   verb's name while it is in force; `null` means undecided. `detail` carries the event's
   other declared fields.

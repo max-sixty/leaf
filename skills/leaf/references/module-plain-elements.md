@@ -71,9 +71,9 @@ records with `lf-action` as this one does, under names of its own, and puts no q
 on On Me and marks no comment target.
 
 Leaf hears `lf-action` and `lf-undo` on the widget's own element, where it sets
-`state`, so the element dispatches them on itself with no option but `detail`. Every
-other `lf-` event here, and `pending-task` and `error`, may come from any element, so
-it bubbles and is composed, and Leaf hears it from inside any shadow tree. Where an
+`state`, so the element dispatches them on itself with no option but `detail`. Leaf
+hears every other `lf-` event here, and `pending-task` and `error`, at the document, so
+each bubbles and is composed, and reaches Leaf from inside any shadow tree. Where an
 entry says an event carries a promise, the promise is the event's `complete` property:
 
 ```js
@@ -105,7 +105,8 @@ this.dispatchEvent(hold);
   Those fields are the package's to name, so they stay under `detail`, where none can
   take the name of Leaf's `verb`, `says` or `attempt`.
   `attempt` is the id a draft's `send` hands its `deliver` (`module-input.md`, "Text
-  entry and drafts"), so a refusal returns the words to their draft. Leaf has
+  entry and drafts"), so a refusal returns the words to their draft. An event that
+  bubbles to the element from a node inside it is recorded the same way. Leaf has
   set the resulting `state` by the time `dispatchEvent` returns. On an event it sends,
   Leaf sets the event's `delivery` property, a promise of the event the server
   admitted, or of `null` where the server refuses it and Leaf sets the server's state

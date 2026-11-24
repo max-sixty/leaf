@@ -37,6 +37,7 @@ import { holdRendering } from "./rendering.js";
 
 /** @typedef {ReturnType<typeof createWidgetController>} Controller
  * @typedef {Pick<Controller, "read" | "dispatch">} WidgetController
+ * @typedef {import('./framework/application.js').WidgetDescriptor} WidgetDescriptor
  * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
  * @typedef {{completion: Promise<unknown[]>}} Preparation
  * @typedef {ReturnType<typeof attachWidgetPresentation>} PreparationHandle */
@@ -206,13 +207,16 @@ export function widgetController(owner) {
   return controller;
 }
 
-// The nearest widget an event passed through on its way out.
-/** @param {Event} event */
-const widgetOn = (event) =>
+// The nearest widget an event passed through on its way out that `holds` admits.
+/** @param {Event} event @param {(descriptor: WidgetDescriptor) => unknown} [holds] */
+const widgetOn = (event, holds = () => true) =>
   event
     .composedPath()
     .filter((node) => node instanceof Element)
-    .find((node) => widgetDescriptor(node));
+    .find((node) => {
+      const descriptor = widgetDescriptor(node);
+      return descriptor && holds(descriptor);
+    });
 
 // The drawing each element has announced on itself and not finished, and the holds
 // it has on its own drawing. A claim on the element's own region waits for all the
@@ -380,9 +384,10 @@ export const widgetState = ({ state, actions }) =>
 // verb holds a state for each. Leaf listens on the element, where it also sets `state`,
 // so an event the element dispatches on itself needs no options and is heard wherever
 // the element stands, in a thread message or another widget's shadow tree as on the
-// page. Leaf records only an event the element dispatched on itself: one that reached
-// it from a node inside, as a widget's it holds would by bubbling, is not the
-// element's own.
+// page. An event that bubbles to the element from a node inside it is heard too, as
+// any listener hears one. It belongs to the nearest widget declaring `verbs` that it
+// passed through, so the element records none that came up from such a widget inside
+// it. It records none once it has left the page.
 //
 // `detail` is the action's own detail, under the name the verb's declaration and the
 // log give it. It stays a member of its own: its fields are the package's to name, and
@@ -400,9 +405,8 @@ export function hearRecords(owner) {
   /** @param {ElementEventMap["lf-action" | "lf-undo"]} event
    * @param {(reading: WidgetReading) => import("./pending/dispatch.js").WidgetCommand | null | undefined} command */
   const record = (event, command) => {
-    // A listener on a shadow host sees itself as the target of an event from inside
-    // its root, so the element that dispatched is read off the path.
-    if (event.composedPath()[0] !== owner) return;
+    if (!owner.isConnected) return;
+    if (widgetOn(event, ({ declaration }) => declaration.verbs) !== owner) return;
     const sent = command(controller.read());
     const delivery = sent && controller.dispatch(sent)?.delivery;
     if (delivery) event.delivery = delivery;

@@ -16,7 +16,8 @@ lf-chart .lf-chart-drawing {
  * its source. The source waiting in the box is code for the drawing rather than words
  * for the reader. */
 @media screen {
-  html[data-lf-interactive] lf-chart:not(.lf-rendered, :has(> .lf-error)) {
+  html[data-lf-interactive]
+    lf-chart:not(.lf-rendered, :has(> .lf-error), [data-lf-failed]) {
     box-sizing: border-box;
     block-size: attr(data-height px, 400px);
     overflow: clip;

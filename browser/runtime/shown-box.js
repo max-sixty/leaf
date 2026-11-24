@@ -81,8 +81,8 @@ export function elementBox(el) {
 // first, and a chart's bundle waits with it.
 //
 // Paper prints a shut panel open too, but a box laid out for a sheet is not the room
-// the user will see: the screen alone holds an undrawn widget at its stated height
-// (layouts.css), and a measurement stands for good. So a box on paper is no box, and a
+// the user will see: a widget's sheet holds it undrawn at its stated height on the
+// screen alone, and a measurement stands for good. So a box on paper is no box, and a
 // widget paper reached is observed afresh once the page is back on screen, since the
 // browser reports only a change from the size it last delivered and the screen may lay
 // the box out at the size paper did.

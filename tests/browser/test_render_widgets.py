@@ -251,6 +251,9 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         # The source stays under the message: a refusal the user cannot check is half a
         # refusal.
         expect(page.locator(f"#{chart_id} .lf-error pre")).to_contain_text("marks")
+        # The chart lets go of the box its sheet held for a drawing, which would cut
+        # a long source off at the drawing's height.
+        expect(page.locator(f"#{chart_id}")).not_to_have_css("overflow-y", "clip")
     reported = wait_for(
         lambda: [
             event["text"]

@@ -5,7 +5,7 @@ lf-pr-brief {
 /* The brief holds the height the page states for it until its record draws. */
 @media screen {
   html[data-lf-interactive]
-    lf-pr-brief[data-height]:not(.lf-rendered, :has(> .lf-error)) {
+    lf-pr-brief[data-height]:not(.lf-rendered, :has(> .lf-error), [data-lf-failed]) {
     box-sizing: border-box;
     block-size: attr(data-height px);
     overflow: clip;

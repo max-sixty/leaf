@@ -337,8 +337,11 @@ The presentation checks:
   `lf-rating:not(:defined)` with `block-size: var(--lf-line)` holds one row of
   controls. A drawing the markup can't size takes its height from the page: the widget
   declares `data-height`, a whole number of CSS pixels, in its `attributes`, and its
-  sheet holds the box at that height until the module adds the class `lf-rendered`.
-  `lf-chart`'s rule in the default package's `styles/chart.css` is the worked example.
+  sheet holds the box at that height while the drawing is still to come. That is where
+  the runtime runs (`html[data-lf-interactive]`), until the module adds the class
+  `lf-rendered`, and unless Leaf shows the widget's failure in it (a `.lf-error` child,
+  or `data-lf-failed` on a shadow host). `lf-chart`'s rule in the default package's
+  `styles/chart.css` is the worked example.
   `page check --render` then gives a page's author the `data-height` that holds each
   such drawing. Where that height follows the data, the widget's `instructions` say
   how the author works it out. A widget containing others is named only for the change

@@ -1,7 +1,7 @@
 /* The diagram package's presentation. Everything here was in the default package's
  * theme until the diagram renderer left every page carrying a large bundle most never
- * draw with. The shared declaration-driven allocation stays in core; this package owns
- * the diagram's alignment and scrolling. */
+ * draw with. The room a diagram takes in the page (`space`) stays the kernel's to
+ * allocate; this package owns the diagram's height, alignment and scrolling. */
 
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
@@ -23,7 +23,7 @@ lf-diagram {
  * below it. One that can't draw lets go of the box and says why over its source. */
 @media screen {
   html[data-lf-interactive]
-    lf-diagram[data-height]:not(.lf-rendered, :has(> .lf-error)) {
+    lf-diagram[data-height]:not(.lf-rendered, :has(> .lf-error), [data-lf-failed]) {
     block-size: attr(data-height px);
     overflow: clip;
   }

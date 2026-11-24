@@ -457,7 +457,11 @@ these rules on every corpus page.
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"), above the
 layer a page's reset stands in (`PAGE_RESET_LAYER`). A widget package's rules
-name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
+name the widgets they style. So a rule that arranges widgets of several packages
+alike, such as the room a block takes in the column, belongs in the kernel, and a rule
+that sizes one widget's own box, such as the height a drawing holds before it arrives,
+belongs in that widget's package, even where several packages write it alike. Page and
+theme-package rules reach widget
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).

@@ -219,6 +219,9 @@ this.dispatchEvent(hold);
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** The element builds once, behind a first-connection guard
   (`module-authoring.md`, "Upgrade").
+- **Startup.** `lf-presentation` and `lf-page-interface` on `document`
+  (`module-authoring.md`, "Startup and presentation").
+- **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
@@ -236,12 +239,14 @@ this.dispatchEvent(hold);
   inside the member, and arriving at an address with no fragment renames its entry too.
   Back or Forward to an entry whose fragment names a place inside another member
   reveals that member, and returns the user to where they were on the entry.
-- **Previews, spoken words and a Copy control.** `lfPreview()` (`module-previews.md`),
-  `lf-announce` and `data-lf-quiet` (`module-scroll-and-motion.md`, "Notices and spoken
-  words"), and `data-lf-copy` (`module-reading.md`, "Code").
+- **Previews, spoken words and a Copy control.** `lfPreview()`, `lf-preview` and
+  `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
+  (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
+  `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
 - **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
-  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()` (`module-reading.md`,
-  "Following a reference"), `threadOutlets()` (`module-annotations.md`, "Widget-local
+  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
+  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Following a reference"),
+  `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,

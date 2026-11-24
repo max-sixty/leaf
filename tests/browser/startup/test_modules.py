@@ -309,8 +309,10 @@ def test_words_typed_while_the_editor_loads_are_its_first_words(engine, request,
 
         _release(page, held, context)
         expect(field).to_be_focused()
-        page.keyboard.type("kept ")
-        expect(field).to_have_js_property("value", "Typed ear and\nkept ly")
+        # One key, so it is one step of the editor's history however slowly the runner
+        # types: CodeMirror splits a run of keys that pauses past its group delay.
+        page.keyboard.type("k")
+        expect(field).to_have_js_property("value", "Typed ear and\nkly")
         page.keyboard.press("ControlOrMeta+z")
         expect(field).to_have_js_property("value", "Typed ear and\nly")
         page.keyboard.press("ControlOrMeta+z")

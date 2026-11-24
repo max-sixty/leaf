@@ -28,6 +28,7 @@ from render_cases_interaction import (
     TABLE_REPLY,
     live_url,
 )
+from render_cases_layout import mark_edges, token_colour
 from render_cases_navigation import (
     TWICE_PAGE,
 )
@@ -2101,6 +2102,30 @@ def test_a_press_on_a_rows_digit_is_a_press_on_its_control(engine, request, serv
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["wh-night"]], "the press on the row's digit picked it other than once"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
+    engine, request, serve
+):
+    """The row whose mark the keyboard is on wears the focus ring one band inside its
+    edge, all four sides of it. A row is a positioned table, and Firefox paints such a
+    box's own ground over an outline standing inside its edge, so a ring drawn as the
+    row's own outline would show nowhere there."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    page.locator("#wh-day > .lf-pick").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(page.locator("#wh-day")).to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+    rendered(page)
+    accent = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    )
+    edges = mark_edges(page, "wh-day", accent)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):

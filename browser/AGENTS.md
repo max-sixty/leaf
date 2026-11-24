@@ -236,9 +236,9 @@ needs (`../skills/leaf/SOUL.md`, "Let the user work as directly as in a terminal
   the software they use, such as ✕ for close, ✓ for resolve, ‹ and › for back and next, and
   the symbols for play, pause, copy and undo, so they can tell what the control does
   before hovering it; a symbol is smaller and quieter than a word. The control names its
-  action from `ACTIONS` in `runtime/icon-paths.js`, which gives it the action's symbol,
-  and says its name as its accessible name and its preview (below), without the word
-  beside the symbol.
+  action from `ACTIONS` in `runtime/lib/icon-paths.js`, which gives it the action's
+  symbol, and says its name as its accessible name and its preview (below), without the
+  word beside the symbol.
   An action shows one symbol, or one word, wherever Leaf offers it, so a reader who
   learns it in one place knows it in every other, and a press names an action, never an
   icon, so its symbol can't drift. One control whose symbol follows its state, such
@@ -853,7 +853,7 @@ the server sends its state in `/api/state`, whose type the build generates from
 (`runtime/kernel-registry.json`) declares it and both read the serving Leaf's copy:
 the browser imports it as a JSON module through `runtime/kernel-facts.js`, so no build
 stands between an edit and either reader. Only a fact the registry can't settle alone
-is generated, as `build/vendor.mjs` writes `runtime/syntax-languages.js` from
+is generated, as `build/vendor.mjs` writes `runtime/lib/syntax-languages.js` from
 `$languages` and the grammars it bundles. Where runtime code must spell a value, a
 generated type such as `ServedWorkKind` makes a misspelling fail the type check. Where only a literal can carry
 the fact, as in a stylesheet's attribute selector, a check holds the spelling to the

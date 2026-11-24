@@ -4,7 +4,7 @@
    containment, so a producer updates one registration whichever surface shows it. */
 import { closestAcross, renderedUnder } from "./lib/shadow-tree.js";
 import { html, render, untracked } from "/runtime/framework.js";
-import { iconTemplate } from "./icons.js";
+import { iconTemplate } from "./lib/icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
 import { agentName, readPart } from "./semantic-state.js";

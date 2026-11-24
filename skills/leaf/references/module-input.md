@@ -323,13 +323,14 @@ itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 A handler that takes over a click, such as a link that opens a source line, acts only on
 the primary button with no modifier held, so a modified click keeps its usual meaning.
 
-A control labelled with the page's own words skips a click where
-`reachedForWords(control)` is true, since the user was selecting the words, but lets a
-click made with Enter or Space through, checking `event.detail === 0` first, which
-only a keyboard or script click has. A container that takes a click anywhere on it,
-as an option card does, asks
-`worksInside(event.target, container)` for the control the click was aimed at, inside
-the container or around it, and leaves the click to that control.
+A container that takes a click anywhere on it, as an option card does, asks
+`aimedAt(event, container)` what the click was for. The answer is the container itself;
+or what the click landed on that has a use of its own, such as a control or a widget
+inside the container or a link around it; or null where the click belongs to a
+selection of the container's words, one a drag across them ends or one the press
+landed in. The container acts where the answer is itself or a control its own module
+put inside it, such as an option's pick mark, and leaves the click to anything else
+the answer names. A click made with Enter or Space never belongs to a selection.
 
 A click on words a thread marks opens that thread, unless the click landed on a control
 or a handler took it. So a handler that acts on a click on anything but a control, such

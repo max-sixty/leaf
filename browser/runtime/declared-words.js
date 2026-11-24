@@ -88,7 +88,7 @@ function quietWord(el, word) {
     className: "lf-ui lf-quiet",
     textContent: word,
   });
-  generatedElement(span, { says: false });
+  generatedElement(span);
   move(el, span, el.firstChild);
 }
 

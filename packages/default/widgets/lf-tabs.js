@@ -104,7 +104,6 @@ import {
   listWalkPosition,
   whileConnected,
   offer,
-  generated,
   openingView,
   viewMembers,
   preserveReadingRegions,
@@ -426,7 +425,8 @@ export class TabSet extends LeafElement {
                       ? html`<span
                           class="lf-tab-group lf-rows-head"
                           aria-hidden="true"
-                          ${generated({ says: true })}
+                          data-lf-gen="1"
+                          data-lf-said
                           >${run.group}</span
                         >`
                       : nothing
@@ -501,11 +501,11 @@ export class TabSet extends LeafElement {
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", event.detail !== 0)}
-      ><span class="lf-tab-name" ${generated({ says: true })}
+      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
         this.#down && !face(panel) && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
+          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
               >${panel.getAttribute("summary")}</span
             >`
           : nothing

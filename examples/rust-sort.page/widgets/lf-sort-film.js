@@ -8,7 +8,6 @@
 
 import {
   frameFor,
-  generatedElement,
   inlineMarkdownFragment,
   layoutChanged,
   loadMarkdown,
@@ -274,9 +273,11 @@ customElements.define(
       this.addEventListener("keydown", (e) => this.#key(e));
       // The drawing, the narration and the count are the film's words, which a reader
       // can point at; the timeline is a press with none.
-      for (const words of [stage, this.narration, this.stats])
-        generatedElement(words, { says: true });
-      generatedElement(this.timeline, { says: false });
+      for (const words of [stage, this.narration, this.stats]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
+      keeps(this.timeline, "data-lf-gen", "1");
       const controls = document.createElement("div");
       controls.className = "sort-controls";
       controls.append(this.narration, this.timeline, bar, inputs, this.stats);

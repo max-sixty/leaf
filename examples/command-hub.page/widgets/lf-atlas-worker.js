@@ -3,7 +3,6 @@
 import { html, noChange } from "/vendor/lit.js";
 import {
   ago,
-  generatedElement,
   HeldReading,
   LeafElement,
   readWork,
@@ -39,8 +38,13 @@ customElements.define(
         this.append(details);
       }
       // The worker's state word and its latest report are this widget's words.
-      generatedElement(this.querySelector(".atlas-worker-state"), { says: true });
-      generatedElement(this.querySelector(".atlas-worker-report"), { says: true });
+      for (const words of [
+        this.querySelector(".atlas-worker-state"),
+        this.querySelector(".atlas-worker-report"),
+      ]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
       this.held = new HeldReading(
         this,
         () => [this.querySelector(".atlas-worker-body")],

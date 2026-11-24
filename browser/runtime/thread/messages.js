@@ -793,7 +793,7 @@ export class MessageView {
       // thread to another, as the floating panel does to a page's own reader.
       this.node.dataset.lfMessage = model.key;
       this.node.classList.add("lf-ui");
-      generatedElement(this.node, { says: false });
+      generatedElement(this.node);
       this.node.dataset.lfOffer = "";
       // A message the keyboard stands on previews when it was said, as its time does to
       // a pointer or a finger (`agePreview`), beside that time in its head. Its words

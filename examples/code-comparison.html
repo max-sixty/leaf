@@ -163,7 +163,6 @@
     <script type="module">
       import {
         frameFor,
-        generatedElement,
         layoutChanged,
         offer,
         offerAction,
@@ -217,8 +216,10 @@
             // Each candidate's title and measurement are this module's words.
             for (const words of this.querySelectorAll(
               ".code-candidate-title, .code-measurement",
-            ))
-              generatedElement(words, { says: true });
+            )) {
+              keeps(words, "data-lf-gen", "1");
+              words.toggleAttribute("data-lf-said", true);
+            }
           }
 
           #connect(signal) {

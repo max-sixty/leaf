@@ -857,10 +857,10 @@ export const commandsOn = directive(
 
 // A package widget's keys are data on the element they apply in, `lfCommands`: the
 // scope's title, rows and options as `keys` takes them, in one object, which is one
-// scope on every element that holds it (`statedScope`). The
-// element says when it sets or changes them, or anything its rows read, with an
-// `lf-commands` event it dispatches on itself (`COMMANDS`, widget-upgrade.js), so a page
-// without Leaf, which hears nothing, binds no key. The element is the one the event
+// scope on every element that holds it (`statedScope`). The element says when it sets
+// or changes them, or anything its rows read, with an `lf-commands` event it dispatches
+// on itself (`COMMANDS`, widget-upgrade.js), so a page without Leaf, which hears
+// nothing, binds no key. The element is the one the event
 // began at, read off its path, since the window sees a shadow host as the target of an
 // event from inside its root; a closed root hides the element, and its host is read in
 // its place. A declaration other than the one standing stands in its

@@ -1,11 +1,11 @@
-import { agePreview, elementById, tabStore } from "/runtime/widget-api.js";
+import { elementById, tabStore } from "/runtime/widget-api.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
  * behavior module holds/reveals authoritative history through HeldReading and supplies
- * the live clock, thread action and current-document target reading. */
+ * the thread action and current-document target reading. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
@@ -13,7 +13,7 @@ export const ACTIVITY_VIEW = "activity-reading:";
 /** @typedef {{id: string, ts: string, actor: string, what: string, label?: string | null | undefined, widget?: string | null | undefined, thread?: string | undefined, excerpt?: string | null, undone: boolean}} ActivityRow */
 /** @typedef {{open: boolean, shown: string, label: string, news: boolean}} ActivityReading */
 /** @typedef {(fragment: string) => Element | null} ActivityTarget */
-/** @typedef {{printing?: boolean, names?: ActivityTarget, age?: (ts: string) => string, openThread?: (id: string) => void}} ActivityCapabilities */
+/** @typedef {{printing?: boolean, names?: ActivityTarget, openThread?: (id: string) => void}} ActivityCapabilities */
 /** @param {Element} link @param {string} widget @param {typeof keeps} write @param {ActivityTarget} names */
 function refreshTarget(link, widget, write, names) {
   const fragment = `#${encodeURIComponent(widget)}`;
@@ -84,8 +84,7 @@ export function createActivity(host) {
       <p class="lf-activity-line">
         <strong class="lf-activity-actor">${row.actor}</strong>
         <span class="lf-activity-what">${row.what}</span> ${target(row)}
-        <time class="lf-activity-time" datetime=${row.ts} .lfPreview=${agePreview}
-          >${capabilities.age?.(row.ts) ?? ""}</time
+        <lf-age class="lf-activity-time" datetime=${row.ts}></lf-age
         >${row.undone ? html` <span class="lf-activity-undone">undone</span>` : nothing}
       </p>
       ${row.excerpt ? html`<p class="lf-activity-excerpt">${row.excerpt}</p>` : nothing}

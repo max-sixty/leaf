@@ -238,9 +238,13 @@ def _validate_widget_structure(
             raise registry_error(
                 "reading-role-attr", path, tag, role=layout, attr="label"
             )
+    # `leaf data set` validates a source's value against its contract, so an input
+    # that can bind a source names a contract this vocabulary declares. An input that
+    # only reads another widget's output matches that output by the contract's name,
+    # and the package holding the output declares the contract.
     for input_name, spec in entry.get("inputs", {}).items():
         contract = spec["contract"]
-        if contract not in data["contracts"]:
+        if "source" in spec and contract not in data["contracts"]:
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
             )

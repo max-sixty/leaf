@@ -44,7 +44,6 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   const opened = [];
   const live = {
     names: (fragment) => document.getElementById(fragment.slice(1)),
-    age: () => "just now",
     openThread: (id) => opened.push(id),
   };
   try {
@@ -54,7 +53,10 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
     assert.deepEqual([...drawing.list.children], items);
     assert.equal(items[0].querySelector("a"), link);
     assert.equal(items[1].querySelector("button"), button);
-    assert.equal(items[0].querySelector("time").textContent, "just now");
+    assert.equal(
+      items[0].querySelector("lf-age").getAttribute("datetime"),
+      "2026-10-21T00:00:00Z",
+    );
     assert.equal(link.getAttribute("href"), "#activity-destination");
     link.focus();
     const reordered = reading([thread, { ...widget, label: "Renamed", undone: true }]);

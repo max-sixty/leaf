@@ -11,14 +11,18 @@
    (`suppliedSnapshot`), so whoever holds the value can name its revision.
 
    A widget output is a property its element holds under the output's declared name,
-   as a form control holds `value`, and the element says it changed by dispatching
-   `change` on itself. Nothing is published to Leaf: a reader's input names the
-   producer (`reference`) and reads the one output of its contract off the element
-   standing under that id, again whenever that element says `change`, and resolves
-   the id again whenever a producer arrives or leaves under it, so it follows a
-   replacement. A
-   reader that arrives late, or before its producer's module has loaded, reads what the
-   element holds then. Outputs stay outside the application state: no reading of the log
+   as a form control holds `value`. Nothing is published to Leaf: a reader's input
+   names the producer (`reference`) and reads the one output of its contract off the
+   element standing under that id, and resolves the id again whenever a producer
+   arrives or leaves under it, so it follows a replacement. A reader reads the
+   property as the reader first draws, and again (`changeOf`) when the element
+   dispatches `change` on itself, when the element's class is defined, and when
+   `heldMoved` says the property changed with no such `change`, as
+   element-integration.js says for a property a verb records ("Recorded
+   properties"). The definition counts because the element held no output before it
+   and may dispatch no `change` for the first value its class holds. A value the
+   element comes to hold at any other time, with no `change`, reaches no reader.
+   Outputs stay outside the application state: no reading of the log
    depends on one, so a change runs no fold and no selection, and only the readers of
    that producer hear it. The proof that a reader has drawn is the one every element
    Leaf delivers to has: its region is claimed in the stack that moved its reading
@@ -36,6 +40,7 @@ import { applicationState, whenApplicationRegionsPresented } from "./semantic-st
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { isElementName } from "./registry-contract.js";
 import { watchArrivals } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError } from "./layer-client.js";
@@ -123,7 +128,7 @@ function watchProducers() {
     },
   });
 }
-/** @type {WeakMap<Element, ReturnType<typeof signal<number>>>} */
+/** @type {WeakMap<Element, {peek(): number, value: number}>} */
 const changes = new WeakMap();
 /** @param {Element} producer */
 function changeOf(producer) {
@@ -135,8 +140,21 @@ function changeOf(producer) {
     producer.addEventListener("change", (event) => {
       if (event.target === producer) tick(moved);
     });
+    // A widget's element holds no output until its class is defined, and the class
+    // may dispatch no `change` for the first value it holds, as a form control
+    // dispatches none.
+    const tag = producer.localName;
+    if (isElementName(tag) && !customElements.get(tag))
+      void customElements.whenDefined(tag).then(() => tick(moved));
   }
   return said;
+}
+/** Have the readers of `element`'s outputs read them again, after a change the
+ * element may have dispatched no `change` on itself to report.
+ * @param {Element} element */
+export function heldMoved(element) {
+  const said = changes.get(element);
+  if (said) tick(said);
 }
 
 /** @typedef {{contract: string, source?: string, reference?: string}} DataInput */

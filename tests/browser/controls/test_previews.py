@@ -982,6 +982,96 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
 
 
+AGE_IN_PROSE = leaf_page(
+    "Ages",
+    '<p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z">'
+    "20 Nov, 02:10 UTC</lf-age>, and nothing has failed since. "
+    '<a id="notes-link" href="#notes">The <em>notes</em></a> say why.</p>'
+    '<h2 id="notes">Notes</h2><p>Nothing has failed.</p>',
+)
+# Whether the caret stands in the age's drawn words, as the platform says when handed
+# the age's shadow root.
+CARET_IN = """(age) => {
+  const [range] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
+  return range.startContainer.getRootNode() === age.shadowRoot;
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
+    """An age takes no Tab stop, and `K` reads its clock time where the caret stands on
+    it, beside it: caret browsing walks the caret into the age's words, as the
+    engine's own caret movement does here (`Selection.modify`), which Chromium names at
+    the age's edge and Firefox inside its shadow tree. The next key, which walks the
+    caret on, puts that reading away. Where focus is on something the caret isn't in,
+    `K` reads what focus is on, and a caret in the focused element's own words reads
+    that element as focus would."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
+    )
+    page = open_page(browser, serve(AGE_IN_PROSE), context=context)
+    preview = page.locator(PREVIEW)
+    age = page.locator("#ran lf-age")
+    page.evaluate(
+        """() => {
+          const words = document.getElementById('ran').firstChild;
+          getSelection().collapse(words, words.length);
+          for (let step = 0; step < 2; step++)
+            getSelection().modify('move', 'forward', 'character');
+        }"""
+    )
+    assert age.evaluate(CARET_IN)
+    page.keyboard.press("Shift+K")
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    tip = preview.bounding_box()
+    box = age.bounding_box()
+    assert tip["y"] <= box["y"] + box["height"] + 24, (tip, box)
+    assert tip["y"] + tip["height"] >= box["y"] - 24, (tip, box)
+    page.keyboard.press("ArrowRight")
+    expect(preview).to_be_hidden()
+    # A selection drawn from inside the age to the link's words reads the end it moves,
+    # though Chromium reports its anchor in the link's words too.
+    age.evaluate(
+        """(age) => getSelection().setBaseAndExtent(
+          age.shadowRoot.lastChild, 1,
+          document.querySelector('#notes-link em').firstChild, 2)"""
+    )
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          api.focusDestination(document.getElementById('notes-link'), 'move');
+        }"""
+    )
+    link = page.locator("#notes-link")
+    expect(link).to_be_focused()
+    assert age.evaluate(CARET_IN)
+    rendered(page)
+    expect(preview).to_be_hidden()
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+
+    # A caret in the focused link's words reads the link, as focus does, though it
+    # stands in an element inside the link: a screen reader hears it as the link's
+    # description, and the next key leaves it standing.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    link.locator("em").evaluate("(em) => getSelection().collapse(em.firstChild, 2)")
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+    assert "lf-preview" in link.evaluate(DESCRIBED)
+    page.keyboard.press("ArrowRight")
+    rendered(page)
+    expect(preview).to_be_visible()
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, serve):
     """A screen reader hears a preview the keyboard's focus shows as the focused

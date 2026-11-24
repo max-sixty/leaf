@@ -1,7 +1,9 @@
 /* Native selection endpoints and the provenance of programmatic writes. Passage
  * capture, view restoration and control activation share the same composed range;
- * none reads Chromium's retargeted light-DOM endpoints as the selected words. */
+ * none reads Chromium's retargeted light-DOM endpoints as the selected words. `K`
+ * reads the element the caret stands in (`selectionFocusElement`). */
 import { pageShadowRoots } from "./shadow.js";
+import { isElement, isText, upFrom } from "./lib/shadow-tree.js";
 
 // The range the user actually drew. Chrome keeps the legacy Range in the light DOM: a
 // drag wholly inside a widget's shadow tree comes back with `commonAncestorContainer` at
@@ -36,6 +38,38 @@ export function pageRange(sel) {
   range.setEnd(endContainer, endOffset);
   if (sel.type === "Caret") range.collapse(true);
   return range;
+}
+
+// The element the selection's moving end stands in, however deep in open shadow trees
+// it lies: the caret as caret browsing walks it through the page's words, or the end of
+// a selection that Shift and an arrow move (`selectionBackward` says which end that is).
+// The platform names an end inside a shadow tree only once it is handed that tree's
+// root (`getComposedRanges`); otherwise it names the edge of the host holding the end,
+// before the host for a caret or a backward selection's moving end and past it for a
+// forward one. So each host found at that edge has its root handed over in turn, once
+// for each level of nesting, and an end that stays at the edge once the host's root is
+// handed over stands beside the host, not in it. Every open root counts, declared or
+// not, since this asks where the caret is drawn, as a pointer's composed path does,
+// where `pageRange` asks which of the page's words were selected. A caret inside a
+// closed root stays at its host's edge, so it reads as the host's container. Chromium's
+// own `focusNode` stops at the outermost host; Firefox's goes in.
+/** @param {Selection} sel @returns {Element | null} */
+export function selectionFocusElement(sel) {
+  if (!sel.rangeCount) return null;
+  const forward = !selectionBackward(sel);
+  /** @type {ShadowRoot[]} */
+  const shadowRoots = [];
+  for (;;) {
+    const [range] = sel.getComposedRanges({ shadowRoots });
+    if (!range) return null;
+    const node = forward ? range.endContainer : range.startContainer;
+    const offset = forward ? range.endOffset : range.startOffset;
+    const edge = isText(node) ? null : node.childNodes[forward ? offset - 1 : offset];
+    const root = isElement(edge) ? edge.shadowRoot : null;
+    if (!root || shadowRoots.includes(root))
+      return isElement(node) ? node : upFrom(node);
+    shadowRoots.push(root);
+  }
 }
 
 // Native page selections share one endpoint writer, including their provenance.
@@ -128,17 +162,21 @@ export function programmaticSelection(selection) {
   return false;
 }
 
-// Boundary points retain the working end even where the platform reports "none"
-// after setBaseAndExtent. A composed selection clamped in light DOM instead uses
-// the platform's direction for the range inside its declared shadow tree.
+// Whether the selection's moving end is its start. Where the platform reports a
+// direction, as every engine does for a selection the keyboard or setBaseAndExtent
+// made, the direction answers, since the legacy anchor can stand at the wrong end: a
+// selection from inside an age to the words after it can report its anchor at the far
+// end, in Chromium and Firefox alike. Where the platform reports "none", as Chromium and WebKit
+// do on macOS for every selection a mouse makes, the anchor's place against the
+// composed range's start answers, and an anchor in another tree than the range keeps
+// the direction Leaf's own write recorded.
 /** @param {Selection} selection @param {Range} range */
 export function selectionBackward(selection, range = pageRange(selection)) {
+  if (selection.direction !== "none") return selection.direction === "backward";
   const anchor = selection.anchorNode;
   if (!anchor) return false;
   if (anchor.getRootNode() !== range.commonAncestorContainer.getRootNode())
-    return programmaticSelection(selection)
-      ? writtenBackward
-      : selection.direction === "backward";
+    return programmaticSelection(selection) && writtenBackward;
   const probe = document.createRange();
   probe.setStart(anchor, selection.anchorOffset);
   return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;

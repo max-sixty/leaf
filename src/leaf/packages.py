@@ -131,7 +131,7 @@ def starter_element_declaration(tag: str) -> dict:
 
 def starter_widget_module(tag: str) -> bytes:
     """The registration shared by behavioral widgets: a `LeafElement`
-    (module-authoring.md, "Drawing what a widget reads").
+    (module-plain-elements.md, "`LeafElement`").
 
     The layer paints what the declaration alone determines, settlement included, with
     no help from the module. A module that draws state adds `render()`, which reads

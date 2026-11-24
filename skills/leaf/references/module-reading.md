@@ -1,7 +1,6 @@
 # Reading the page from a module
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 ## Reading the page
 
@@ -11,6 +10,8 @@ leave out. For text to copy or send, `says(element, {format: "lines"})` keeps re
 block boundaries, explicit line breaks and preformatted whitespace. Read a connected
 element so its computed styles supply these boundaries; a closed popover is supported.
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
+`{drawn: true}` keeps only the words the page draws now, and `until` names an element
+to stop at.
 `phrasing(element)` says whether an element stands within a line of words, as HTML's
 phrasing content and a widget declaring `inline` do, rather than starting a block.
 To name one of the widget's own parts, use `named(element)`, which returns only the words
@@ -52,8 +53,8 @@ gives it in words. It names an element, the page (`document`), a thread from
 An element's name is its title, caption or label; failing those, a paragraph or list
 item is named by its first words, and another element by the nearest named element
 around it. A registered widget with no name gets an empty name: say the
-word for its kind instead, which the library gives (`module-authoring.md`, "Shared web
-code"). That word is the element's `aria-roledescription`, which the module that
+word for its kind instead, which the library's
+[`element-word.js`](../../../browser/runtime/lib/element-word.js) gives. That word is the element's `aria-roledescription`, which the module that
 builds the element writes along with a role for it, since ARIA ignores the attribute
 on an element with no role, as `lf-playground` makes each preset a `group` it calls
 "preset". Without one, it is what the element answers from an `lfWord()`
@@ -174,19 +175,21 @@ symbol and the words its press says.
 
 ## Page readings
 
-A widget reads these values in its `LeafElement.render()`, which redraws when they
-change (`module-authoring.md`, "Drawing what a widget reads").
+Each function here returns a page reading. A `LeafElement`'s `render()` that reads one
+synchronously runs again when the reading changes (`module-plain-elements.md`,
+"`LeafElement`"); a read after an `await` is not followed.
 
 ### Reading obligations and the On lists
 
 An obligation is what a widget waits on the user for, what an update the user
 handed over is owed, or a to-do the agent opened; the On lists show each one under its
-next actor. `readObligations()` returns `{phase, all, user, unanswered}`: `all` holds
-every obligation whose source is still there, answered and withdrawn ones included,
-`user` the open obligations waiting on the user, and `unanswered` every open obligation,
-including those with the agent.
+next actor. `readObligations()` returns `{phase, all, user, unanswered, byId}`: `all`
+holds every obligation whose source is still there, answered and withdrawn ones
+included, `user` the open obligations waiting on the user, `unanswered` every open
+obligation, including those with the agent, and `byId` a `Map` from each one's `id` to
+its record.
 
-`readObligations(region)` returns the same lists holding only what a region of the
+`readObligations(region)` returns the three lists holding only what a region of the
 page holds, by the rule `lf-tabs` and `lf-tally` count with: the obligations whose
 widget is `region` or stands inside it, shadow trees included, less those withdrawn.
 It adds `asks`, whether the region's markup holds a widget declaring `awaits`, even one
@@ -295,7 +298,7 @@ thread, whether it was undone, the agent's name as `agent`, and a gesture's word
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads `readReports(this)` in its render:
+A `LeafElement` an agent reports on reads `readReports(this)` in its `render()`:
 `{phase, reports}`. `phase` turns `ready` once the server's reading has arrived and
 the state the reports describe is drawn; until then, return `noChange`, and the widget
 draws again as it turns. Each report has `id`, `target`, `source`, `action`,
@@ -320,5 +323,5 @@ what the earlier version's blocks said (`{id, tag, word, words}`); and `at`, the
 element it stands by: its first block, or for a removal the element beside its gap, or
 the element the removal emptied of every block. A removal's `at` is in the part of the
 page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
-The result's length counts changes as the reader does. Reading it during a
-`LeafElement` render subscribes that render to comparison changes.
+The result's length counts changes as the reader does. It is a page reading ("Page
+readings").

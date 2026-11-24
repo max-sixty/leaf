@@ -70,7 +70,7 @@ cmd_export(page, target, version, runtime=True)
 
 # What a report needs without being asked: `lf-diff` for a cited patch, and `lf-diagram`
 # for the review's campaign. Packages already on the page stay.
-REQUIRED_PACKAGES = ["diff", "diagram"]
+REQUIRED_PACKAGES = ["reading", "diff", "diagram"]
 
 UNREVIEWED = '<h1 id="title">Authoring comparisons</h1>'
 
@@ -1564,7 +1564,7 @@ def eval_report(
             str(page),
             *[
                 argument
-                for name in dict.fromkeys([*packages, *REQUIRED_PACKAGES])
+                for name in dict.fromkeys([*REQUIRED_PACKAGES, *packages])
                 for argument in ("--package", name)
             ],
         )

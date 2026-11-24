@@ -174,7 +174,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     nav = page.get_by_role("navigation", name="On this page")
     links = nav.get_by_role("link")
     expect(links).to_have_count(4)
-    expect(links.first).to_have_css("opacity", "0")
+    expect(nav.locator(".lf-toc-labels")).to_have_css("opacity", "0")
 
     page.keyboard.press("g")
     chips = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
@@ -183,7 +183,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     assert first_code
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, Migration plan. Press Enter to go there."
+        f"Hint {first_code}: Link, Migration plan. Enter go to target"
     )
     prepare_link = links.nth(1)
     prepare_href = prepare_link.get_attribute("href")
@@ -273,7 +273,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     for _ in range(under_index + 1):
         page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {under_code}: Link, Over the top. Press Enter to go there."
+        f"Hint {under_code}: Link, Over the top. Enter go to target"
     )
     page.keyboard.press("Enter")
     expect(over_top).to_have_attribute("data-activated", "true")
@@ -355,19 +355,30 @@ def test_adjacent_footnote_markers_keep_their_codes_without_chips(browser, serve
     page.wait_for_url(re.compile(r"#s1$"))
 
 
-def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve):
+@pytest.mark.parametrize(
+    "drawing",
+    [
+        '<svg id="drawing" width="400" height="120"><foreignObject x="80" y="40" '
+        'width="200" height="40"><div xmlns="http://www.w3.org/1999/xhtml">'
+        '<a id="run" href="#top">$ wt merge</a></div></foreignObject></svg>',
+        # Drawn at twice its viewBox, the link in the far half of its foreignObject.
+        '<svg id="drawing" width="400" height="120" viewBox="0 0 200 60">'
+        '<foreignObject x="40" y="20" width="100" height="20"><div '
+        'xmlns="http://www.w3.org/1999/xhtml" style="padding-left: 60px; font-size: 8px">'
+        '<a id="run" href="#top">merge</a></div></foreignObject></svg>',
+    ],
+    ids=["drawn", "scaled"],
+)
+def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve, drawing):
     """Chromium resolves no anchor to an element inside a foreignObject, so the chip
-    anchored to a link there stood off the window while its code still followed it."""
+    anchored to a link there stood off the window while its code still followed it. A
+    drawing scaled by its viewBox draws its HTML at that scale, and the foreignObject
+    shows all of it there (geometry.js, `drawnViewport`), so a link in the far half of
+    one still has its chip."""
     page = open_page(
         browser,
         serve(
-            leaf_page(
-                "Drawn terminal",
-                '<h1 id="top">Drawn terminal</h1><svg id="drawing" width="400" '
-                'height="120"><foreignObject x="80" y="40" width="200" height="40">'
-                '<div xmlns="http://www.w3.org/1999/xhtml"><a id="run" '
-                'href="#top">$ wt merge</a></div></foreignObject></svg>',
-            )
+            leaf_page("Drawn terminal", f'<h1 id="top">Drawn terminal</h1>{drawing}')
         ),
     )
     page.keyboard.press("g")
@@ -576,11 +587,10 @@ def test_a_generated_hint_is_never_drawn_on_the_panel(browser, serve):
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
 
-    # Swept rather than asked once. The panel's room is reserved at the document's foot,
-    # so the end of the page is exactly where this cannot happen; what puts a member under
-    # it is an ordinary scroll position with a link resting on the bottom edge. Each
-    # step waits for the runtime's own paint frame, since the chips follow a scroll on a
-    # frame of their own and boxes read in the same turn are the positions it just left.
+    # Swept rather than asked once: what puts a member under the panel is a scroll
+    # position with a link resting on the bottom edge. Each step waits for the runtime's
+    # own paint frame, since the chips follow a scroll on a frame of their own and boxes
+    # read in the same turn are the positions it just left.
     room = page.evaluate(
         "() => document.scrollingElement.scrollHeight"
         " - document.scrollingElement.clientHeight"
@@ -630,15 +640,21 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         )
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
-    # at the header's end.
+    # its drawn ✕ ending where the header does, on the edge the sheet's words share.
     header = sheet.locator(".lf-dialog-head")
     close = header.get_by_role("button", name="Close Page Map", exact=True)
-    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-    header_box, close_box = header.bounding_box(), close.bounding_box()
-    assert header_box and close_box
-    assert close_box["x"] + close_box["width"] == pytest.approx(
-        header_box["x"] + header_box["width"], abs=0.5
-    ), (header_box, close_box)
+    cross = close.locator('svg[data-lf-icon="cross"]')
+    expect(cross).to_have_count(1)
+    header_box = header.bounding_box()
+    assert header_box
+    ink_end = cross.evaluate("""svg => {
+      const box = svg.getBBox(), at = svg.getScreenCTM();
+      return at.a * (box.x + box.width + parseFloat(getComputedStyle(svg).strokeWidth) / 2) + at.e;
+    }""")
+    assert ink_end == pytest.approx(header_box["x"] + header_box["width"], abs=1), (
+        header_box,
+        ink_end,
+    )
     expect(sheet).to_contain_text(
         "No margin controls, status indicators or locations yet"
     )
@@ -866,7 +882,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
     # Every hint stands on screen, the heard one marked, so the walk says no position.
     expect_walk_position(page, None)
     expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {first_code}: Link, First destination. Press Enter to go there."
+        f"Hint {first_code}: Link, First destination. Enter go to target"
     )
     expect(page.locator(f'{CHIPS}[data-lf-go-to-target="first"]')).to_have_class(
         re.compile(r"\blf-current\b")

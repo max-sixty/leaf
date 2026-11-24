@@ -396,20 +396,60 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
 
 
+# The contents map as it stands, one entry per row in the outline's order, the start
+# row's first: the row's label and the marker the map draws for it on its spine. The
+# markers stand in a layer of their own, one per row in the same order, and a marker's
+# ring is its `::before`. A label's `shown` is its opacity on screen, its own times its
+# ancestors' within the map, since its layer fades as one, and 0 where it is hidden.
+# `boxes` is the label's box and the marker's, each as x, y and height.
+CONTENTS_MAP = """nav => {
+  const markers = nav.querySelectorAll('.lf-toc-marker');
+  return [...nav.querySelectorAll('.lf-toc-start, li')].map((row, index) => {
+    const link = row.querySelector(':scope > a');
+    const label = link.getBoundingClientRect();
+    let shown = link.checkVisibility({visibilityProperty: true}) ? 1 : 0;
+    for (let node = link; node !== nav; node = node.parentElement)
+      shown *= Number(getComputedStyle(node).opacity);
+    const marker = markers[index];
+    const box = marker.getBoundingClientRect();
+    const ring = getComputedStyle(marker, '::before');
+    const shift = new DOMMatrixReadOnly(ring.transform);
+    return {
+      label: link.textContent.trim(),
+      href: link.getAttribute('href'),
+      current: link.getAttribute('aria-current') === 'location',
+      ring: row.matches('.lf-toc-start, [data-lf-depth="0"]'),
+      shown,
+      boxes: [label.x, label.y, label.height, box.x, box.y, box.height],
+      labelTop: label.top,
+      labelBottom: label.bottom,
+      labelCenter: label.top + parseFloat(getComputedStyle(link).lineHeight) / 2,
+      content: ring.content,
+      width: ring.width,
+      height: ring.height,
+      color: ring.backgroundColor,
+      border: ring.borderTopColor,
+      x: box.x + parseFloat(ring.left) + shift.m41 + parseFloat(ring.width) / 2,
+      y: box.y + parseFloat(ring.top) + shift.m42 + parseFloat(ring.height) / 2,
+    };
+  });
+}"""
+
+
 def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, serve):
     """A document's contents spine is a stable reading map rather than a compressed
     outline.
 
     Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
     spine rather than keeping a column's width, and the prose stands where a
-    column page's would. Section rows divide the available height according to the content they
-    lead, a moving lens shows the visible band, and late content growth redraws both.
+    column page's would. Each section's marker stands at its place on the document's
+    scale, a moving lens shows the visible band, and late content growth redraws both.
     Labels reveal over the body without moving the map or changing the item under the
     pointer. Outside the narrowed sidebar, the same links open through a native
     disclosure.
 
-    The track sticks, so once the reader scrolls the map stands still above the room
-    the floating panel keeps at the window's foot, through the document's end."""
+    The track sticks, so once the reader scrolls the map stands still, filling its
+    track, until its sidebar ends or a footer below the sidebar comes in."""
     source = leaf_page(
         "contents map",
         """
@@ -439,6 +479,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page")
     toc = page.locator("#contents")
+    # The labels stand in one layer, which the map fades as one.
+    labels = nav.locator(".lf-toc-labels")
     start = nav.locator(".lf-toc-start a")
     prepare = nav.get_by_role("link", name="Prepare the copy", exact=False)
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
@@ -455,18 +497,14 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     expect(start).to_have_text("Migration plan for the readers already in flight")
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
-    expect(nav.locator(".lf-toc-rows")).to_have_css("display", "flex")
-    expect(prepare).to_have_css("opacity", "0")
-    motion = prepare.evaluate(
+    expect(nav.locator(".lf-toc-markers")).to_have_css("display", "block")
+    expect(labels).to_have_css("opacity", "0")
+    fade = labels.evaluate(
         "node => { const s = getComputedStyle(node); "
-        "return {property: s.transitionProperty, duration: s.transitionDuration, "
-        "timing: s.transitionTimingFunction}; }"
+        "const at = s.transitionProperty.split(', ').indexOf('opacity'); "
+        "return at < 0 ? null : s.transitionDuration.split(', ')[at]; }"
     )
-    assert motion == {
-        "property": "color, opacity",
-        "duration": "0.12s, 0.24s",
-        "timing": "ease-out, ease-out",
-    }
+    assert fade not in (None, "0s"), f"the labels show without a fade: {fade}"
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
@@ -507,12 +545,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     assert not toc.evaluate("node => node.matches(':hover')")
     page.mouse.move(rows_box["x"] + 2, rows_box["y"] + 20, steps=4)
     assert toc.evaluate("node => node.matches(':hover')")
-    expect(prepare).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     page.mouse.move(nav_box["x"] + 100, rows_box["y"] - 8, steps=8)
     assert toc.evaluate("node => node.matches(':hover')")
     # Leaving the map returns it to its spine.
     page.mouse.move(1200, 700)
-    expect(prepare).to_have_css("opacity", "0")
+    expect(labels).to_have_css("opacity", "0")
 
     # At rest the map lays nothing over the body, whatever the window's width.
     resized(page, 1188, 900)
@@ -536,20 +574,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     resized(page, 1400, 900)
     page.mouse.move(1200, 700)
     assert nav.bounding_box() == nav_box
-    markers = nav.locator(".lf-toc-start, li").evaluate_all(
-        """items => items.map(item => {
-          const style = getComputedStyle(item, '::before');
-          const box = item.getBoundingClientRect();
-          return {content: style.content, width: style.width, height: style.height,
-                  color: style.backgroundColor, border: style.borderTopColor,
-                  x: box.x + parseFloat(style.left) + parseFloat(style.width) / 2 +
-                    new DOMMatrixReadOnly(style.transform).m41,
-                  y: box.y + parseFloat(style.top) +
-                    new DOMMatrixReadOnly(style.transform).m42 + parseFloat(style.height) / 2,
-                  labelCenter: item.querySelector(':scope > a').getBoundingClientRect().y +
-                    parseFloat(getComputedStyle(item.querySelector(':scope > a')).lineHeight) / 2};
-        })"""
-    )
+    markers = nav.evaluate(CONTENTS_MAP)
     assert markers[0]["content"] == '""'
     assert [marker["width"] for marker in markers] == [
         "9px",
@@ -582,41 +607,13 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     # section still reads at the document's scale.
     assert markers[5]["y"] - markers[4]["y"] > markers[3]["y"] - markers[2]["y"]
 
-    # The flex rows preserve the raw document scale from which the visible map is fitted.
-    # Nearby destinations bend together just enough for every label to remain distinct.
-    map_layout = nav.locator(".lf-toc-rows").evaluate(
-        """rows => {
-          const track = rows.getBoundingClientRect();
-          const items = [...rows.querySelectorAll('.lf-toc-start, li')];
-          const spans = items.map(item =>
-            Number(item.style.getPropertyValue('--lf-toc-span')));
-          const total = spans.reduce((sum, span) => sum + span, 0);
-          let before = 0;
-          return items.map((item, index) => {
-            const row = item.getBoundingClientRect();
-            const label = item.querySelector(':scope > a').getBoundingClientRect();
-            const expected = track.top + track.height * before / total;
-            before += spans[index];
-            return {rowTop: row.top, rowHeight: row.height, expected,
-                    labelTop: label.top, labelBottom: label.bottom,
-                    labelHeight: label.height};
-          });
-        }"""
-    )
-    assert all(
-        item["rowTop"] == pytest.approx(item["expected"], abs=1) for item in map_layout
-    )
-    assert capacity.evaluate(
-        "node => node.parentElement.getBoundingClientRect().height "
-        "< node.getBoundingClientRect().height"
-    )
-    assert any(
-        item["labelTop"] != pytest.approx(item["rowTop"], abs=1) for item in map_layout
-    ), "the crowded destinations stayed on their overlapping raw positions"
+    # A section further down the document stands further down the map, and nearby
+    # destinations bend together just enough for every label to remain distinct.
+    assert all(left["y"] < right["y"] for left, right in pairwise(markers)), markers
     assert all(
         right["labelTop"] >= left["labelBottom"] - 1
-        for left, right in pairwise(map_layout)
-    ), f"the fitted contents labels overlap: {map_layout}"
+        for left, right in pairwise(markers)
+    ), f"the fitted contents labels overlap: {markers}"
 
     # The start row and top-level sections share one typographic edge. Depth changes
     # indentation, never the spine or the marker position.
@@ -651,17 +648,14 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     move_before = markers[4]["y"]
     page.locator("#late-content").evaluate("node => { node.style.height = '580px'; }")
     page.wait_for_function(
-        "before => { const item = document.querySelector('a[href=\"#move\"]').parentElement; "
-        "const style = getComputedStyle(item, '::before'); "
-        "return item.getBoundingClientRect().y + parseFloat(style.top) "
-        "+ new DOMMatrixReadOnly(style.transform).m42 > before + 20; }",
+        "before => ("
+        + CONTENTS_MAP
+        + ")(document.querySelector('#contents .lf-toc-nav'))"
+        ".find(row => row.href === '#move').y > before + 20",
         arg=move_before,
     )
     assert nav.bounding_box() == nav_box
-    resting_rows = nav.locator(".lf-toc-start, li").evaluate_all(
-        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.height]; })"
-    )
+    resting_rows = [row["boxes"] for row in nav.evaluate(CONTENTS_MAP)]
 
     # The go-to menu reveals and addresses every label without moving it or focus into
     # the map.
@@ -670,18 +664,13 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Link"]'
     )
     expect(link_hints).to_have_count(nav.locator("a").count())
-    for link in nav.locator("a").all():
-        expect(link).to_have_css("opacity", "1")
-    assert (
-        nav.locator(".lf-toc-start, li").evaluate_all(
-            "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-            "return [r.x, r.y, r.height]; })"
-        )
-        == resting_rows
-    )
+    expect(labels).to_have_css("opacity", "1")
+    revealed = nav.evaluate(CONTENTS_MAP)
+    assert all(row["shown"] == 1 for row in revealed), revealed
+    assert [row["boxes"] for row in revealed] == resting_rows
     assert nav.evaluate("node => !node.contains(document.activeElement)")
     page.keyboard.press("Escape")
-    expect(prepare).to_have_css("opacity", "0")
+    expect(labels).to_have_css("opacity", "0")
 
     prepare.evaluate(
         "node => node.addEventListener('pointerdown', "
@@ -704,73 +693,40 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     scroll_settled(page)
     assert page.evaluate("window.lfTocPressed") is True
     expect(prepare).to_have_attribute("aria-current", "location")
-    active_marker = prepare.evaluate(
-        "node => { const s = getComputedStyle(node.parentElement, '::before'); "
-        "return {fill: s.backgroundColor, border: s.borderTopColor}; }"
-    )
-    assert active_marker["fill"] == active_marker["border"]
-    title_marker = start.evaluate(
-        "node => { const s = getComputedStyle(node.parentElement, '::before'); "
-        "return {fill: s.backgroundColor, border: s.borderTopColor}; }"
-    )
-    assert title_marker["fill"] != title_marker["border"]
     # The travel stuck the track, so read the map where it now stands.
-    resting_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
-        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.height]; })"
-    )
-    resting_marker_centers = nav.locator(".lf-toc-start, li").evaluate_all(
-        "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
-        "const r = item.getBoundingClientRect(); "
-        "return r.y + parseFloat(s.top) + new DOMMatrixReadOnly(s.transform).m42 "
-        "+ parseFloat(s.height) / 2; })"
-    )
+    resting = nav.evaluate(CONTENTS_MAP)
+    active_marker = next(row for row in resting if row["href"] == "#prepare")
+    assert active_marker["color"] == active_marker["border"]
+    title_marker = resting[0]
+    assert title_marker["color"] != title_marker["border"]
+    resting_boxes = [row["boxes"] for row in resting]
+    resting_marker_centers = [row["y"] for row in resting]
     prepare.hover()
-    prepare.evaluate("node => Promise.all(node.getAnimations().map(m => m.finished))")
+    labels.evaluate(
+        "node => Promise.all(node.getAnimations({subtree: true}).map(m => m.finished))"
+    )
     current_hover_color = prepare.evaluate("node => getComputedStyle(node).color")
     capacity_box = capacity.bounding_box()
     assert capacity_box is not None
     page.mouse.move(capacity_box["x"] + 100, capacity_box["y"] + 4)
     expect(capacity).not_to_have_attribute("aria-current", "location")
     expect(capacity).to_have_css("color", current_hover_color)
-    hovered_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
-        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.height]; })"
-    )
-    assert hovered_boxes == resting_boxes
-
-    marker_alignment = nav.locator(".lf-toc-start, li").evaluate_all(
-        """items => items.map(item => {
-          const marker = getComputedStyle(item, '::before');
-          const row = item.getBoundingClientRect();
-          const label = item.querySelector(':scope > a');
-          const labelBox = label.getBoundingClientRect();
-          const lineHeight = parseFloat(getComputedStyle(label).lineHeight);
-          return {
-            label: label.textContent.trim(),
-            visible: getComputedStyle(label).opacity === '1',
-            rowTop: row.top,
-            markerCenter:
-              row.top + parseFloat(marker.top) + new DOMMatrixReadOnly(marker.transform).m42 +
-              parseFloat(marker.height) / 2,
-            labelCenter: labelBox.top + lineHeight / 2,
-          };
-        })"""
-    )
-    assert sum(item["visible"] for item in marker_alignment) == len(marker_alignment)
+    marker_alignment = nav.evaluate(CONTENTS_MAP)
+    assert [item["boxes"] for item in marker_alignment] == resting_boxes
+    assert sum(item["shown"] == 1 for item in marker_alignment) == len(marker_alignment)
     assert all(
-        item["markerCenter"] == pytest.approx(item["labelCenter"], abs=2)
+        item["y"] == pytest.approx(item["labelCenter"], abs=2)
         for item in marker_alignment
     ), f"a contents marker parted from its label: {marker_alignment}"
     assert all(
-        item["markerCenter"] == pytest.approx(resting, abs=1)
+        item["y"] == pytest.approx(resting, abs=1)
         for item, resting in zip(marker_alignment, resting_marker_centers, strict=True)
     ), f"hovering the contents map moved a marker: {marker_alignment}"
 
     # Once its track sticks, the map stays put through the rest of its sidebar, its
-    # start in view where the sidebar ends and its foot above the panel's room.
-    panel_box = page.locator(".lf-fp-card").bounding_box()
-    assert panel_box is not None
+    # start in view where the sidebar ends, and fills its track less the track's focus
+    # room.
+    track = page.locator("#route > .layout-track")
     sidebar_end = page.locator("#route").evaluate(
         "node => node.parentElement.getBoundingClientRect().bottom "
         "+ document.scrollingElement.scrollTop - innerHeight"
@@ -785,9 +741,29 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         box = nav.bounding_box()
         assert box is not None
         assert box["y"] >= 0, box
-        assert box["y"] + box["height"] <= panel_box["y"] + 1, (box, panel_box)
+        foot = box["y"] + box["height"]
+        track_box = track.bounding_box()
+        assert track_box is not None
+        assert foot == pytest.approx(track_box["y"] + track_box["height"] - 8, abs=1)
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
+
+    # A footer below the sidebar ends the room its track sticks in, so at the page's end
+    # the map stands above the footer rather than over it.
+    page.locator(".layout-sidebar").evaluate(
+        "sidebar => sidebar.insertAdjacentHTML('beforeend', "
+        "'<footer id=\"route-end\"><p>Last revised in March.</p></footer>')"
+    )
+    page.evaluate(
+        "document.scrollingElement.scrollTo({"
+        "top: document.scrollingElement.scrollHeight, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    footer_box = page.locator("#route-end").bounding_box()
+    box = nav.bounding_box()
+    assert footer_box is not None and box is not None
+    assert box["y"] + box["height"] <= footer_box["y"], (box, footer_box)
+    page.locator("#route-end").evaluate("node => node.remove()")
 
     # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
@@ -810,7 +786,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)
-    expect(verify).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     top = "() => document.scrollingElement.scrollTop"
     frames = [page.evaluate(top)]
     with held_frames(page) as step:
@@ -842,7 +818,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     start_box = start.bounding_box()
     assert start_box is not None
     page.mouse.move(start_box["x"] + 4, start_box["y"] + 4)
-    expect(start).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     page.mouse.click(start_box["x"] + 60, start_box["y"] + start_box["height"] / 2)
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     scroll_settled(page)
@@ -855,7 +831,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
     page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
-    expect(prepare).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     page.mouse.click(
         prepare_box["x"] + 60, prepare_box["y"] + prepare_box["height"] / 2
     )
@@ -921,7 +897,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")
     expect(start).to_be_focused()
-    expect(start).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     expect(start).to_have_css("outline-style", "solid")
     expect(start).to_have_css("outline-width", "2px")
     expect(start).to_have_css("outline-offset", "-2px")
@@ -929,13 +905,13 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     page.evaluate(RELEASE_FOCUS)
     resized(page, 700, 900)
     toc.locator("summary").click()
-    expect(prepare).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     expect(start).to_be_hidden()
 
     resized(page, 1400, 900)
     page.emulate_media(media="print")
     rendered(page)
-    expect(prepare).to_have_css("opacity", "1")
+    expect(labels).to_have_css("opacity", "1")
     expect(start).to_be_visible()
 
     page.emulate_media(media="screen", forced_colors="active")
@@ -944,36 +920,34 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     forced_colors = nav.evaluate(
         "node => { const rows = node.querySelector('.lf-toc-rows'); "
         "const lens = node.querySelector('.lf-toc-window'); "
-        "const items = [...node.querySelectorAll('.lf-toc-start, li')]; "
-        "const current = items.find(item => item.querySelector('[aria-current]')); "
         "return { spine: getComputedStyle(rows, '::before').backgroundColor, "
-        "lens: getComputedStyle(lens).backgroundColor, "
-        "current: getComputedStyle(current, '::before').backgroundColor, "
-        "inactive: items.filter(item => item !== current).map(item => { "
-        "const style = getComputedStyle(item, '::before'); return { "
-        "ring: item.matches('.lf-toc-start, [data-lf-depth=\"0\"]'), "
-        "background: style.backgroundColor, border: style.borderColor }; }) }; }"
+        "lens: getComputedStyle(lens).backgroundColor }; }"
     )
+    forced_markers = nav.evaluate(CONTENTS_MAP)
+    [current] = [item for item in forced_markers if item["current"]]
     canvas = page.locator("body").evaluate(
         "node => getComputedStyle(node).backgroundColor"
     )
     assert forced_colors["spine"] != canvas
-    assert forced_colors["lens"] == forced_colors["current"]
+    assert forced_colors["lens"] == current["color"]
     assert forced_colors["lens"] != forced_colors["spine"]
-    rings = [item for item in forced_colors["inactive"] if item["ring"]]
-    dots = [item for item in forced_colors["inactive"] if not item["ring"]]
+    inactive = [item for item in forced_markers if not item["current"]]
+    rings = [item for item in inactive if item["ring"]]
+    dots = [item for item in inactive if not item["ring"]]
     assert rings and dots
-    assert all(item["background"] == canvas for item in rings)
-    assert all(item["border"] == forced_colors["spine"] for item in rings)
-    assert all(item["background"] == forced_colors["spine"] for item in dots)
+    assert all(item["color"] == canvas for item in rings)
+    assert all(item["border"] == forced_colors["spine"] for item in rings), [
+        item["border"] for item in rings
+    ]
+    assert all(item["color"] == forced_colors["spine"] for item in dots)
 
     page.emulate_media(media="screen", forced_colors="none", reduced_motion="reduce")
     rendered(page)
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
     page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
-    expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("transition-duration", "0s")
+    expect(labels).to_have_css("opacity", "1")
+    expect(labels).to_have_css("transition-duration", "0s")
     start.scroll_into_view_if_needed()
     start_box = start.bounding_box()
     assert start_box is not None
@@ -998,9 +972,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
         coarse.get_by_role("navigation", name="On this page").locator(".lf-toc-heading")
     ).to_be_visible()
     expect(
-        coarse.get_by_role("navigation", name="On this page").get_by_role(
-            "link", name="Prepare the copy", exact=False
-        )
+        coarse.get_by_role("navigation", name="On this page").locator(".lf-toc-labels")
     ).to_have_css("opacity", "1")
     coarse.locator("#route > .layout-track").evaluate(
         "node => { node.style.maxHeight = '80px'; node.scrollTop = 0; }"

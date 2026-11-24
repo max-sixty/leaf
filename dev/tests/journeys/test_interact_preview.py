@@ -345,7 +345,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
                     "description": "A reading",
                     "attributes": {
                         "type": "object",
-                        "properties": {"id": {"type": "string"}},
+                        "properties": {},
                         "required": ["id"],
                         "additionalProperties": False,
                     },

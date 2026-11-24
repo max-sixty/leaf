@@ -7,7 +7,7 @@
  * floor leaves the mark to say where focus is. Importing this module writes nothing. */
 
 import { keeps } from "./keeps.js";
-import { shownParts } from "./geometry.js";
+import { readMarkerSides, shownParts } from "./geometry.js";
 
 const PROJECTED = "data-lf-projected-mark";
 /** @typedef {{element: Element, surface: Element, states: ReadonlySet<string>}} VisualTarget */
@@ -26,12 +26,14 @@ export function createVisualMarkPaint() {
         ]),
     );
     const wearing = new Set([...targets.values()].flatMap(({ boxes }) => boxes));
+    const sideMarkers = readMarkerSides([...wearing]);
     for (const [element, boxes] of marked) {
       if (!targets.has(element)) element.removeAttribute(PROJECTED);
       for (const box of boxes)
         if (!wearing.has(box)) box.removeAttribute("data-lf-mark");
     }
     marked.clear();
+    sideMarkers();
     for (const [element, { boxes, states }] of targets) {
       keeps(element, PROJECTED, "");
       for (const box of boxes) keeps(box, "data-lf-mark", [...states].sort().join(" "));

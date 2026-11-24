@@ -30,10 +30,12 @@ from render_harness import (
     write,
 )
 
+from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import (
     LANDING_WORDS,
     _shadow_tree_widget,
     append_agent_reply,
+    long_diff_thread,
     open_panel_thread,
     paste_image,
 )
@@ -274,7 +276,10 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
-    """The last translated frame and rest keep Copy on the message's head line."""
+    """The last translated frame and rest keep Copy on the message's head line, ending
+    where the card's own controls end (annotation-chrome.css, `--lf-margin-symbol-end`),
+    less the transcript's scrollbar: where scrollbars take room, the reply makes the
+    transcript scroll and its bar stands between the message and the card's edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Opening turn.", {"section": "how-store"})
     append_agent_reply(serve.page_dir, root, "A reply with words to copy. " * 8)
@@ -305,10 +310,20 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         edges = """m => {
           const box = m.getBoundingClientRect();
           const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
-          return {right: copy.right - box.right, top: copy.top - box.top};
+          const transcript = m.closest('.lf-thread-transcript');
+          const card = m.closest('.lf-margin-thread')
+            .querySelector('.lf-margin-thread-controls > :last-child')
+            .getBoundingClientRect();
+          return {
+            right: copy.right - box.right,
+            top: copy.top - box.top,
+            cardEnd: card.right - box.right
+              - (transcript.offsetWidth - transcript.clientWidth),
+          };
         }"""
         moving = message.evaluate(edges)
-        assert moving == pytest.approx({"right": 0, "top": 0}, abs=1), moving
+        assert moving["top"] == pytest.approx(0, abs=1), moving
+        assert moving["right"] == pytest.approx(moving["cardEnd"], abs=1), moving
         page.evaluate(
             "() => __lfHeld.slice().filter(a => a.playState !== 'idle')"
             ".forEach(a => a.finish())"
@@ -373,14 +388,11 @@ def test_every_message_says_when_it_was_said(browser, serve):
     ]
 
 
-# Where a message's words may run to, and the thread's inset before its words.
+# Where a message's words may run to.
 WORDS_END = """message => {
   const words = message.querySelector('.lf-msg-text');
-  const end = words.getBoundingClientRect().right
+  return words.getBoundingClientRect().right
     - parseFloat(getComputedStyle(words).paddingInlineEnd);
-  const inset = parseFloat(
-    getComputedStyle(message).getPropertyValue('--lf-thread-text-inset'));
-  return {end, inset};
 }"""
 
 
@@ -390,7 +402,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     does, keeping at its end only the inset its words start with, where its rewrite's
     frame stands. Keeping the room Send takes in the field they were typed in, the
     user's lines would stop short of the agent's, so every message the user sent would
-    wrap narrower than the reply under it."""
+    wrap narrower than the reply under it. The panel and a seated card end every
+    message's words that inset in, as the margin card does (`--lf-msg-text-end`), so
+    the two end together."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -413,10 +427,76 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     expect(agent).to_contain_text("Check that these")
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
-    assert theirs["end"] - mine["end"] == pytest.approx(mine["inset"], abs=0.5), (
-        mine,
-        theirs,
+    assert theirs == pytest.approx(mine, abs=0.5), (mine, theirs)
+
+
+# The words of each line a node shows, from its text's own boxes, and where its words
+# may run to: a message's, or a field's in its closed root.
+WORDS_AS_DRAWN = """node => {
+  const words = window.marginEditorRoots.get(node)?.querySelector('.cm-content') ?? node;
+  const lines = new Map();
+  const walk = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
+  for (let text = walk.nextNode(); text; text = walk.nextNode())
+    for (let at = 0; at < text.data.length; at++) {
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 1);
+      const box = range.getClientRects()[0];
+      if (!box?.width) continue;
+      const top = Math.round(box.top);
+      lines.set(top, (lines.get(top) ?? '') + text.data[at]);
+    }
+  return {
+    lines: [...lines].sort(([a], [b]) => a - b).map(([, line]) => line.trim()),
+    end: words.getBoundingClientRect().right
+      - parseFloat(getComputedStyle(words).paddingInlineEnd),
+  };
+}"""
+
+
+@pytest.mark.parametrize("finger", [False, True], ids=["mouse", "finger"])
+@pytest.mark.parametrize("box", ["comment", "reply"])
+def test_a_seat_s_boxes_break_their_lines_where_their_messages_will(
+    browser, serve, box, finger
+):
+    """A seat's comment box and its card's reply box each run the row's width, and
+    their words end where the message they become will, so Send moves no word. Wrapping
+    at the row's width, a comment under a diff line broke its lines at the row's end
+    and rewrapped at the seat's column once sent. Under a finger, where Send keeps its
+    room at the end of every line, a reply's words ran a pixel past the message's, where
+    Send's room was reckoned from Send rather than from the room a message keeps."""
+    url, root = long_diff_thread(serve)
+    context = browser.new_context(has_touch=finger, is_mobile=finger)
+    page = open_page(browser, url, init_script=MARGIN_EDITOR_ROOTS, context=context)
+    resized(page, 1280, 900)
+    if box == "comment":
+        page.locator("#patch").get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        field = page.locator("#patch .lf-fab-bar leaf-text")
+    else:
+        field = page.locator(
+            f'#patch .lf-page-thread[data-lf-thread="{root}"]'
+        ).locator(".lf-thread-reply leaf-text")
+        field.click()
+    expect(field).to_be_focused()
+    words = LANDING_WORDS.strip()
+    page.keyboard.insert_text(words)
+    rendered(page)
+    typed = field.evaluate(WORDS_AS_DRAWN)
+    assert len(typed["lines"]) > 1, typed
+    if finger:
+        field.locator("xpath=..").locator(".lf-compose-submit").click()
+    else:
+        page.keyboard.press("Enter")
+    sent = page.locator(
+        "#patch .lf-msg[data-lf-author=user] .lf-msg-text", has_text=words[:40]
     )
+    expect(sent).to_be_visible()
+    rendered(page)
+    drawn = sent.evaluate(WORDS_AS_DRAWN)
+    assert drawn["lines"] == typed["lines"]
+    assert drawn["end"] == pytest.approx(typed["end"], abs=0.5), (drawn, typed)
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
@@ -617,7 +697,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
                     "description": "A widget beside a page-wide theme.",
                     "attributes": {
                         "type": "object",
-                        "properties": {"id": {"type": "string"}},
+                        "properties": {},
                         "required": ["id"],
                         "additionalProperties": False,
                     },
@@ -696,6 +776,78 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
             .color]))""")
     assert colors["own"] == "rgb(0, 128, 0)", colors
     assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_package_restyles_an_idiom_whatever_its_rule_weighs(
+    request, serve, tmp_path, engine
+):
+    """Leaf's idioms are defaults (idioms.css), so a package's rule for an idiom's
+    element outranks Leaf's however little it weighs. In the document, a theme's
+    `.lf-tag` beats the tone of Leaf's `.lf-tag.warn` and its bare `dt` beats
+    `dl.lf-facts dt`; in a declared shadow tree, the package's
+    `:host(lf-idiom-tree) :where(dt)` beats `dl.lf-facts dt` too. The idioms still
+    outrank markup's reading face, so a fact's label stays regular where the face sets
+    a `dt` bold, and a numeric cell stands right where the face sets a cell at its
+    start."""
+    declaration, _module = _shadow_tree_widget("lf-idiom-tree")
+    look = tmp_path / "look"
+    (look / "widgets").mkdir(parents=True)
+    (look / "registry.json").write_text(json.dumps({"lf-idiom-tree": declaration}))
+    (look / "widgets" / "lf-idiom-tree.js").write_text("""
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-idiom-tree', class extends HTMLElement {
+  connectedCallback() {
+    if (this.shadowRoot) return;
+    const facts = document.createElement('dl');
+    facts.className = 'lf-facts';
+    facts.append(document.createElement('dt'), document.createElement('dd'));
+    facts.firstChild.textContent = 'Owner';
+    facts.lastChild.textContent = 'Imani';
+    shadowStage(this, [facts]);
+  }
+});
+""")
+    (look / "defaults.css").write_text(
+        ".lf-tag { background-color: rgb(0, 128, 0); }\ndt { color: rgb(0, 0, 255); }\n"
+    )
+    (look / "widget-shadow.css").write_text(
+        ":host(lf-idiom-tree) :where(dt) { color: rgb(0, 0, 255); }\n"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Idioms",
+                '<h1>Idioms</h1><p><span class="lf-tag warn" id="tag">late</span></p>'
+                '<dl class="lf-facts"><dt id="label">Owner</dt><dd>Imani</dd></dl>'
+                "<table><tr><th>Run</th><th>Time</th></tr>"
+                '<tr><td>one</td><td class="lf-numeric" id="figure">12</td></tr></table>'
+                '<lf-idiom-tree id="tree"></lf-idiom-tree>',
+            ),
+            packages=("./look",),
+        ),
+    )
+    drawn = page.evaluate("""() => {
+      const cs = el => getComputedStyle(el);
+      const tree = document.getElementById('tree').shadowRoot;
+      return {
+        tag: cs(document.getElementById('tag')).backgroundColor,
+        label: cs(document.getElementById('label')).color,
+        labelWeight: cs(document.getElementById('label')).fontWeight,
+        figure: cs(document.getElementById('figure')).textAlign,
+        treeLabel: cs(tree.querySelector('dt')).color,
+        treeFacts: cs(tree.querySelector('dl')).display,
+      };
+    }""")
+    assert drawn == {
+        "tag": "rgb(0, 128, 0)",
+        "label": "rgb(0, 0, 255)",
+        "labelWeight": "400",
+        "figure": "right",
+        "treeLabel": "rgb(0, 0, 255)",
+        "treeFacts": "grid",
+    }, drawn
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -896,7 +1048,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             },
         )
     page = open_page(browser, url)
-    resized(page, 1200, 900)
+    # A height whose scroll limit stands a head on the top row, rather than the gap
+    # between two turns there (the known edge below).
+    resized(page, 1200, 880)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
@@ -1046,7 +1200,7 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
                 "kind": "reply",
                 "author": author,
                 "parent": root,
-                "text": f"Turn {turn}. " + LANDING_WORDS * 4,
+                "text": f"Turn {turn}. " + LANDING_WORDS * 6,
             },
         )
     context = browser.new_context(
@@ -1296,6 +1450,61 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
     landed = holder.bounding_box()
     for axis in ("x", "y"):
         assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
+
+
+@pytest.mark.parametrize("turned", ["root", "card"])
+def test_a_carried_card_travels_with_the_pointer_when_turned(browser, serve, turned):
+    """The carry's translate moves the card along the axes of the box it stands in, at
+    the card's own zoom (element-axes.js, `translateAxes`): a transform on the root
+    turns those axes, and the card's own turn, which applies inside its translate,
+    leaves them alone. So on a page turned half round, and as a card turned half round
+    and zoomed, the card travels the way the pointer does, standing under it from the
+    first frame of the move, rather than away from it."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this explanation.", {"section": "how-store"})
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    # The root turned about the card's centre leaves the card's box where it stood.
+    card.evaluate(
+        """(card, turned) => {
+          if (turned === 'card') {
+            card.style.rotate = '180deg';
+            card.style.zoom = '1.5';
+            return;
+          }
+          const box = card.getBoundingClientRect();
+          const root = document.documentElement;
+          root.style.transformOrigin = `${box.left + box.width / 2 + scrollX}px `
+            + `${box.top + box.height / 2 + scrollY}px`;
+          root.style.rotate = '180deg';
+        }""",
+        turned,
+    )
+    rendered(page)
+    # The middle of the grip's band along the card's top edge, wherever the turn puts it.
+    start = card.locator(":scope > .lf-surface-grip").evaluate(
+        """grip => {
+          const mark = document.createElement('i');
+          mark.style.cssText = 'position:absolute;left:50%;top:3px';
+          grip.append(mark);
+          const at = mark.getBoundingClientRect();
+          mark.remove();
+          return {x: at.left, y: at.top};
+        }"""
+    )
+    resting = card.bounding_box()
+    page.mouse.move(start["x"], start["y"])
+    page.mouse.down()
+    expect(card).to_have_attribute("data-lf-carried", "")
+    page.mouse.move(start["x"] - 40, start["y"] - 30)
+    one_frame(page)
+    held = card.bounding_box()
+    page.mouse.up()
+    assert (held["x"] - resting["x"], held["y"] - resting["y"]) == pytest.approx(
+        (-40, -30), abs=0.5
+    ), (resting, held)
 
 
 def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):

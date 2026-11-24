@@ -357,7 +357,12 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
         "title": "Release",
         "on_user": 0,
         "threads": {"open": 0, "unread": 0},
-        "activity": {"kind": "waiting"},
+        "activity": {
+            "presence": "here",
+            "state": "waiting",
+            "reason": None,
+            "detail": "",
+        },
     }
     # The first follower lists the page and ends to be renewed; the next stays.
     launcher.write_text(

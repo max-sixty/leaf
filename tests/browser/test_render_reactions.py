@@ -888,8 +888,8 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     lines shows them all, and only one taller than the window the page shows scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
     narrow screen the same room caps the bar and the field spans it, since words take
-    the picker trigger out of its corner. The sent message spans the card as its reply
-    does."""
+    the picker trigger out of its corner. The sent message spans the card's padding,
+    which its reply box runs over to the card's sides."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -966,9 +966,12 @@ def test_the_response_field_grows_across_its_bar(browser, serve):
     expect(card).to_have_css("opacity", "1")
     message = card.locator(".lf-msg-body").first.bounding_box()
     reply = card.locator(".lf-compose-field").bounding_box()
-    assert message["x"] + message["width"] == pytest.approx(
+    padding = card.evaluate(
+        "card => parseFloat(getComputedStyle(card).getPropertyValue('--lf-thread-pad'))"
+    )
+    assert message["x"] + message["width"] + padding == pytest.approx(
         reply["x"] + reply["width"], abs=1
-    ), (message, reply)
+    ), (message, reply, padding)
 
 
 def test_a_reaction_on_a_visual_part_names_that_part(browser, serve):
@@ -2061,8 +2064,11 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
     browser, serve, width, touch
 ):
     """Reaction belongs to its own header, including an agent-authored root, and
-    stands clear of the view's Resolve. Both actions stay reachable, and a touch
-    trigger reaches its floor without its face covering the message's first line."""
+    stands clear of the view's Resolve. It stands on the head's line, and a control
+    that ends the line may hang into the room the transcript keeps at its end
+    (floating-panel.css, `.lf-fp-messages .lf-msg-head`) but no further. Both actions
+    stay reachable, and a touch trigger reaches its floor without its face covering the
+    message's first line."""
     url = serve(PANEL_PAGE)
     text = (
         "Step three now requires the supervisor to reap every process "
@@ -2098,6 +2104,9 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const box = trigger.getBoundingClientRect();
           const message = trigger.closest('.lf-msg');
           const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+          const transcript = message.closest('.lf-thread-transcript');
+          const transcriptEnd = transcript.getBoundingClientRect().left +
+            transcript.clientLeft + transcript.clientWidth;
           const metadata = [
             ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
           ].map(node => node.getBoundingClientRect());
@@ -2120,7 +2129,8 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
             opacity: getComputedStyle(trigger).opacity,
             metadataClear: metadata.every(words => words.right <= box.left ||
               words.left >= box.right || words.bottom <= box.top || words.top >= box.bottom),
-            insideHeader: box.right <= head.right && box.left >= head.left,
+            onHeadLine: box.left >= head.left && box.right <= transcriptEnd &&
+              box.top < head.bottom && box.bottom > head.top,
             disjoint: box.right <= action.left || box.left >= action.right ||
               box.bottom <= action.top || box.top >= action.bottom,
             triggerHit: hit(trigger), resolveHit: hit(resolve)};
@@ -2132,7 +2142,7 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
             "covered": 0,
             "opacity": "1",
             "metadataClear": True,
-            "insideHeader": True,
+            "onHeadLine": True,
             "disjoint": True,
             "triggerHit": True,
             "resolveHit": True,
@@ -2238,7 +2248,7 @@ def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
             rendered(page)
             expect(preview).to_be_hidden()
         return strip.evaluate("""strip => [...strip.querySelectorAll('.lf-react')]
-            .filter((chip) => chip.hasAttribute('data-lf-held'))
+            .filter((chip) => chip.hasAttribute('data-lf-touch-held'))
             .map((chip) => [chip.dataset.lfToken,
                             document.getElementById('lf-preview').innerText])""")
 

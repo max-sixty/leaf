@@ -970,40 +970,6 @@ def test_words_typed_on_a_reload_stand_however_late_the_page_it_left_writes(
     expect(field).to_have_js_property("value", "Kept words")
 
 
-def test_words_typed_on_a_reload_stand_over_the_send_it_cut_short(
-    firefox_browser, serve
-):
-    """A reload that cuts short a send still out starts from the drafts it was served,
-    since only the log can say whether those words were sent, and the page it replaced
-    resends them as it goes. Each reload after counts that resend as its own write
-    until the server takes one of its own, so the words typed after a second reload
-    stand over the resend landing after them. Firefox's routes hold the resend, which
-    Chromium's don't see."""
-    page = open_page(firefox_browser, serve(LONG_PAGE))
-    sends = []
-    _, says, reads = _reload_while_writing(
-        page, before_reload=lambda: sends.extend(_send_cut_short(page))
-    )
-    holding(page, says["resent Kept"], 1, "the resend")
-    refuse(sends[0])
-    with restarting(page):
-        page.reload()
-    field = _type_on_arrival(page, " words")
-    holding(page, says["K words"], 1, "the second reload's write")
-
-    refuse(says["Ke"][0])
-    for resend in says["resent Kept"]:
-        _land(resend)
-    assert drafts_on_server(page)["general"]["text"] == "Kept"
-    page.unroute("**/api/draft")
-    page.unroute("**/api/drafts")
-    _land(says["K words"][0])
-    for route in reads:
-        route.continue_()
-    assert stored_draft_text(page, "general") == "K words"
-    expect(field).to_have_js_property("value", "K words")
-
-
 def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
     firefox_browser, serve
 ):
@@ -1052,6 +1018,9 @@ def test_words_sent_just_before_a_reload_do_not_come_back_with_it(
         round_trip(page)
 
     writes, _, reads = _reload_while_writing(page, before_reload=send)
+    # The send opened its thread, which the entry names, so the reload opens it again;
+    # putting it away stands the page's box in the field.
+    page.keyboard.press("Escape")
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
     expect(field).to_have_js_property("value", "")
 

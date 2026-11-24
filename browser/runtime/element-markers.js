@@ -161,8 +161,8 @@ export function elementDirective(name, write) {
           throw new TypeError(`${name} belongs in a template's element part`);
       }
       // The values the template passes, which `update` writes.
-      /** @param {A} args */
-      render(...args) {
+      /** @param {A} _args */
+      render(..._args) {
         return nothing;
       }
       /** @param {import("/vendor/lit.js").ElementPart} part @param {A} args */

@@ -24,6 +24,7 @@ from render_harness import (
     INLINE_PAGE,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
+    WORDS_RANGE,
     command_reference_rows,
     compare_with,
     consume_browser_errors,
@@ -449,7 +450,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     pre.focus()
     page.keyboard.press("ArrowRight")
     page.wait_for_function("document.querySelector('#colored').scrollLeft > 0")
-    scroll_settled(page)
+    scroll_settled(page, "#colored", axis="x")
     after = control.bounding_box()
     block = pre.bounding_box()
     assert after and block
@@ -567,16 +568,15 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         )
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     touch.wait_for_function("document.querySelector('#plain').scrollLeft > 0")
-    scroll_settled(touch)
+    scroll_settled(touch, "#plain", axis="x")
     touch_pre.evaluate("pre => pre.scrollLeft = pre.scrollWidth")
 
     def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
-          const text = pre.querySelector('code').firstChild;
-          const range = new Range();
-          range.setStart(text, text.length - suffix.length);
-          range.setEnd(text, text.length);
+          const range = ("""
+            + WORDS_RANGE
+            + """)(pre.querySelector('code'), suffix, true);
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
@@ -603,10 +603,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
-          const code = pre.querySelector('code');
+          const first = document.createTreeWalker(pre.querySelector('code'),
+            NodeFilter.SHOW_TEXT).nextNode();
           const range = new Range();
-          range.setStart(code.firstChild, 0);
-          range.setEnd(code.firstChild, 1);
+          range.setStart(first, 0);
+          range.setEnd(first, 1);
           const width = range.getBoundingClientRect().width;
           const style = getComputedStyle(pre);
           const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -672,7 +673,9 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     # to once the ordering has decided it.
     presses = versions.locator(".lf-fp-compare")
     expect(presses).to_have_count(9)
-    expect(presses.first).to_have_attribute("aria-label", "Compare with v9")
+    expect(presses.first).to_have_attribute(
+        "aria-label", re.compile(r"\bCompare with v9\b")
+    )
     page.locator(".lf-fp-leaf").click()
     compare_with(page)
     expect(page.locator(".lf-fp-row")).to_contain_text("since v9")
@@ -1156,7 +1159,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         page.keyboard.press("Enter")
     resolved = page.locator("lf-diff .lf-resolved-threads")
     summary = resolved.locator(":scope > summary")
-    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_have_text("Resolved · Keep this check beside the changed line")
     expect(summary).to_be_focused()
     expect(thread.locator(".lf-msg").first).to_be_hidden()
     summary.click()
@@ -1734,3 +1737,19 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("source", "words"),
+    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
+)
+def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
+    engine, source, words, request, serve
+):
+    """A figure caption in the product docs draws its title on a line of its own above
+    its text, and page search finds the title's last word and the text's first apart."""
+    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")

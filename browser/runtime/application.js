@@ -83,7 +83,7 @@ import { raiseError } from "./errors.js";
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
@@ -434,6 +434,7 @@ function createApplication(dependencies) {
     threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    revealThread: dependencies.anchorTravel.revealThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareNavigationStep: dependencies.anchorTravel.prepareNavigationStep,
     ...(overlay ? { preview: overlay.threadPreview } : {}),
@@ -466,6 +467,7 @@ function createApplication(dependencies) {
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node ?? null) ?? null,
+    travellingTo: dependencies.anchorTravel.travellingTo,
     // The margin's own commit, which reply continuity waits for; before the margin
     // mounts there is nothing to wait for.
     marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
@@ -734,7 +736,7 @@ function createApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update"))
+      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);

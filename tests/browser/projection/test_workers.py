@@ -24,6 +24,7 @@ from render_cases_interaction import (
 from render_cases_navigation import source_revision
 from render_harness import (
     compare_with,
+    comparison_view,
     draft_control,
     holding,
     leaf_page,
@@ -163,9 +164,9 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         else:
             route.continue_()
 
-    page.route("**/api/view*", hold_first_view)
+    page.route(comparison_view, hold_first_view)
     try:
-        with page.expect_request("**/api/view*"):
+        with page.expect_request(lambda request: comparison_view(request.url)):
             compare_with(page, 1)
         holding(page, held, 1, "the first comparison view")
         assert held, "the first comparison view was not held"
@@ -185,7 +186,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         told(page)
         expect(page.locator("#t-parser")).to_have_attribute("status", "done")
 
-        with page.expect_request("**/api/view*"):
+        with page.expect_request(lambda request: comparison_view(request.url)):
             held[0][0].fulfill(response=held[0][1])
             held[0][2] = True
         holding(page, requests, 2, "the retried comparison view")
@@ -197,13 +198,13 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             "v2"
         )
         expect(
-            versions.get_by_role("button", name=re.compile(r"^Compare with v1\b"))
+            versions.get_by_role("button", name=re.compile(r"\bCompare with v1\b"))
         ).to_have_attribute("aria-pressed", "true")
         page.keyboard.press("Escape")
     finally:
         if held and not held[0][2]:
             held[0][0].fulfill(response=held[0][1])
-        page.unroute("**/api/view*")
+        page.unroute(comparison_view)
 
 
 def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serve):
@@ -345,13 +346,13 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
-    # Event ids and authored element ids belong to different identity spaces. Give
-    # the thread and widget the same spelling so only the typed target can separate
-    # their reports; a bare id or target lookup by store would merge them.
+    # A page refuses an element id its log already gives an event, so the thread
+    # takes its own id. A thread target spelled as the widget's id still reads none
+    # of the widget's reports, and a bare id is refused rather than guessed at.
     thread = append_carried_log_record(
         d,
         {
-            "id": "ag-wren",
+            "id": "c-wren",
             "kind": "comment",
             "author": "user",
             "revision": 1,

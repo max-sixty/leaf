@@ -12,6 +12,7 @@
  * compartments are shared by every field's state, as a compartment names a slot in a
  * state's configuration rather than holding one.
  */
+import { indentColumns } from "../code-lines.js";
 import { opensElsewhere } from "../declared-words.js";
 
 import { leafEditorView } from "../editor-view.js";
@@ -449,6 +450,17 @@ export function readFaces(field, display) {
   return rules.join("\n");
 }
 
+// Calls `each` with every line of `doc` that holds a position from `from` up to `to`.
+/** @param {import("@codemirror/state").Text} doc @param {number} from @param {number} to
+ * @param {(line: import("@codemirror/state").Line) => void} each */
+function eachLine(doc, from, to, each) {
+  for (let at = from; at < to;) {
+    const current = doc.lineAt(at);
+    each(current);
+    at = current.to + 1;
+  }
+}
+
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
 // second's first line where none do. Only a field that edits in place has rules for the
@@ -460,14 +472,6 @@ export function readFaces(field, display) {
 const blockTag = (token) => (isCode(token) ? "pre" : token.tag);
 /** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line */
 function standBlocks(state, blocks, out, line) {
-  /** @param {number} from @param {number} to @param {(line: import("@codemirror/state").Line) => void} each */
-  const lines = (from, to, each) => {
-    for (let at = from; at < to;) {
-      const current = state.doc.lineAt(at);
-      each(current);
-      at = current.to + 1;
-    }
-  };
   /** @param {number} from @param {string} cls */
   const named = (from, cls) => out.push(line(cls).range(from));
   // A run of blank lines stands as one gap, shared among them.
@@ -475,7 +479,9 @@ function standBlocks(state, blocks, out, line) {
   const gapLines = (from, to, gap) => {
     const runs = state.doc.lineAt(to).number - state.doc.lineAt(from).number;
     const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
-    lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
+    eachLine(state.doc, from, to, (each) =>
+      named(each.from, `lf-face-gap${share} ${gap}`),
+    );
   };
   // The block before the one being read in each container still open, by level: the
   // draft itself and each quote. A list's items stand apart by their own gap.
@@ -492,8 +498,9 @@ function standBlocks(state, blocks, out, line) {
     const tag = blockTag(token);
     // A heading and a code block wear their faces wherever they stand.
     if (token.type === "heading_open")
-      lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
-    else if (isCode(token)) lines(from, to, (each) => named(each.from, "lf-face-code"));
+      eachLine(state.doc, from, to, (each) => named(each.from, `lf-face-${tag}`));
+    else if (isCode(token))
+      eachLine(state.doc, from, to, (each) => named(each.from, "lf-face-code"));
     for (let last = open.at(-1); last && last.to <= from; last = open.at(-1)) {
       before.length = last.level + 1;
       open.pop();
@@ -527,7 +534,7 @@ function standBlocks(state, blocks, out, line) {
     before[level] = { tag, to: end };
     before.length = level + 1;
     if (token.type === "paragraph_open" && level === 0)
-      lines(from, to, (each) => named(each.from, "lf-face-p"));
+      eachLine(state.doc, from, to, (each) => named(each.from, "lf-face-p"));
     else if (token.type === "blockquote_open" && level === 0) {
       named(from, "lf-face-quote-first");
       named(state.doc.lineAt(Math.max(from, end - 1)).from, "lf-face-quote-last");
@@ -779,14 +786,6 @@ function fieldEditor(
       if (deco === hide && state.doc.sliceString(from, to).includes("\n")) deco = dim;
       out.push(deco.range(from, to));
     };
-    /** @param {number} from @param {number} to @param {(line: import("@codemirror/state").Line) => void} each */
-    const lines = (from, to, each) => {
-      for (let at = from; at < to;) {
-        const current = state.doc.lineAt(at);
-        each(current);
-        at = current.to + 1;
-      }
-    };
     for (const placement of placed) {
       const { token, from, to, content, spelled, words: said } = placement;
       const item = items.get(placement);
@@ -842,9 +841,9 @@ function fieldEditor(
             }).range(from, to),
           );
       } else if (token.type === "paragraph_open") {
-        lines(from, to, (each) => leads.push([each.from, token.level]));
+        eachLine(state.doc, from, to, (each) => leads.push([each.from, token.level]));
       } else if (isBlockPlacement(placement, "heading_open")) {
-        lines(from, to, (each) => {
+        eachLine(state.doc, from, to, (each) => {
           out.push(line("lf-md-heading").range(each.from));
           leads.push([each.from, token.level]);
         });
@@ -875,7 +874,7 @@ function fieldEditor(
         const opening = state.doc.lineAt(from);
         const inline = markers.length > 0 && (markers[0]?.[1] ?? 0) < opening.to;
         const opened = opening.number + (markers.length && !inline ? 1 : 0);
-        lines(from, to, (each) => {
+        eachLine(state.doc, from, to, (each) => {
           const first = each.from <= from;
           const last = each.to + 1 >= to;
           const ends = [
@@ -884,8 +883,20 @@ function fieldEditor(
             last ? " lf-md-code-last" : "",
             last && markers.length < 2 ? " lf-md-code-pad-end" : "",
           ].join("");
-          out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];
+          // A code line's rows hang from its indent, as the sent block's do
+          // (marks.css, `[data-lf-pre-line]`), which the line states as the block's
+          // boxes do.
+          const indent = kept === undefined ? 0 : indentColumns(kept, state.tabSize);
+          out.push(
+            Decoration.line({
+              class: `lf-md-code-block${ends}`,
+              attributes: {
+                "data-lf-pre-line": "",
+                ...(indent && { style: `--lf-code-indent: ${indent}` }),
+              },
+            }).range(each.from),
+          );
           if (kept === undefined) return;
           const start = after(each.from, token.level);
           const lead = indentation(state.doc.sliceString(start, each.to));
@@ -921,7 +932,9 @@ function fieldEditor(
           at - trailingIndentation(head.text.slice(0, at - head.from)),
           after(head.from, token.level),
         );
-        lines(head.to + 1, to, (each) => leads.push([each.from, token.level]));
+        eachLine(state.doc, head.to + 1, to, (each) =>
+          leads.push([each.from, token.level]),
+        );
         const kind =
           item.number === null
             ? BULLETS[Math.min(depth, BULLETS.length) - 1]

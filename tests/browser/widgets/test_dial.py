@@ -6,7 +6,15 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import PREVIEW, leaf_page, open_page, preview_parts, resized
+from render_harness import (
+    PREVIEW,
+    clocked,
+    dwelt,
+    leaf_page,
+    open_page,
+    preview_parts,
+    resized,
+)
 
 from leaf.render_checks import one_frame
 from leaf_dev.example_data import named_source
@@ -31,7 +39,7 @@ def section(name, paragraphs):
 SECTIONS = ("impact", "cause", "fix", "timeline", "method", "owners", "followups")
 DIAL_PAGE = leaf_page(
     "Dial",
-    '<h1>Report</h1><p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+    '<h1>Report</h1><p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
     + "".join(section(name, 3) for name in SECTIONS),
 )
 
@@ -155,9 +163,10 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     """Each depth says under its word how long it takes to read. Pointing at one hangs
     each depth's page under its own button, Skim's shortest and Everything's longest,
     with Leaf's own preview face unseen, and fades on the page what Skim would fold. A
-    press on another depth keeps them up the whole time it is held,
-    and moves the frame to it; Escape puts them away and leaves focus on the depth."""
-    page = open_page(request.getfixturevalue(engine), serve(DIAL_PAGE))
+    press on another depth keeps them up the whole time it is held and as it is let go,
+    however long it was held, and moves the frame to it; Escape puts them away and
+    leaves focus on the depth."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(DIAL_PAGE))
     buttons = page.locator("lf-dial .lf-dial-depth")
     expect(buttons.locator(".lf-dial-time")).to_have_text([re.compile(r"\d+ min")] * 3)
     panel = page.locator(".lf-dial-hang-panel")
@@ -184,9 +193,20 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     one_frame(page)
     one_frame(page)
     expect(panel).to_have_attribute("data-lf-open", "")
+    # Held past the warmth the put-away preview leaves, after which the pointer's next
+    # preview there would wait for its dwell.
+    dwelt(page, "WARM")
+    panel.evaluate(
+        """panel => new MutationObserver(() => {
+          if (!panel.hasAttribute("data-lf-open")) panel.dataset.closed = "";
+        }).observe(panel, {attributes: true, attributeFilter: ["data-lf-open"]})"""
+    )
     page.mouse.up()
     expect(page.locator("details[open]")).to_have_count(len(SECTIONS))
+    # Past the dwell that would bring back sheets the release had put away.
+    dwelt(page)
     expect(panel).to_have_attribute("data-lf-open", "")
+    assert panel.get_attribute("data-closed") is None
     page.wait_for_function("() => document.getAnimations().length === 0")
     assert centre_x(frame) == pytest.approx(centre_x(everything), abs=1)
 
@@ -244,7 +264,7 @@ def test_skim_keeps_what_the_author_marks_whatever_it_is(browser, serve):
         serve(
             leaf_page(
                 "Dial",
-                '<h1>Report</h1><p class="lede">What happened.</p>'
+                '<h1>Report</h1><p class="lf-lede">What happened.</p>'
                 '<lf-dial id="dial"></lf-dial>'
                 '<section id="cause"><h2 id="cause-heading">Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
@@ -355,7 +375,7 @@ def test_a_dial_in_a_sidebar_page_s_body_governs_the_body_alone(browser, serve):
                 '<aside id="route"><div class="layout-track">'
                 '<lf-toc id="contents"></lf-toc></div></aside>'
                 '<div class="layout-column" id="body"><h1>Report</h1>'
-                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
                 + "".join(section(name, 3) for name in SECTIONS)
                 + "</div>",
                 layout="sidebar",
@@ -386,7 +406,7 @@ def test_a_section_without_a_gist_folds_whole(browser, serve):
             leaf_page(
                 "Dial",
                 '<hgroup id="title"><h1>Report</h1></hgroup>'
-                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<p class="lf-lede">What happened.</p><lf-dial id="dial"></lf-dial>'
                 '<section id="cause"><h2>Cause</h2>'
                 '<p class="gist" id="cause-gist">The key changed.</p>'
                 '<section id="detail"><h3 id="detail-heading">Detail</h3>'

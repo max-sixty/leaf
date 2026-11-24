@@ -106,7 +106,7 @@
    The comment over the store below says where it came from. */
 
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
-import { admitResponse, layerHeaders } from "./layer-client.js";
+import { admitResponse, layerHeaders, takeLeafUnload } from "./layer-client.js";
 import { PENDING } from "./thread/identity.js";
 import { writingStore } from "./storage.js";
 import { tabStore } from "./tab-store.js";
@@ -118,7 +118,6 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
 import { signal } from "./framework.js";
-import { takesNoWords } from "./composing/input.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, text: string, payload?: DraftPayload, held?: string, settled?: never}} ActiveDraft
@@ -137,7 +136,7 @@ import { takesNoWords } from "./composing/input.js";
  * @typedef {import('./focus.js').Caret} Caret
  * @typedef {{context: string, selection: Caret | null, generation: string}} WritingPlace
  * @typedef {{ctx: string, input: DraftField | (() => DraftField | null), mirrored: boolean,
- * resume: (() => EditorDestination | null) | null}} DraftEditor */
+ * resume: (() => EditorDestination | null) | null, closed: () => boolean}} DraftEditor */
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches
@@ -454,9 +453,14 @@ const writeWaiting = () => {
 // knows they no longer want them"). Keeping them in the browser past the tab instead
 // would need the store to know every write it ever took, or a late replay brings back
 // words sent, cancelled or written over elsewhere. Work a write is carrying needs no
-// prompt, since the resend above takes it on. A reload asks too, though its tab keeps
-// the work for it, since the prompt can't tell a reload from a close.
+// prompt, since the resend above takes it on. A reload the user asks for asks too,
+// though its tab keeps the work for it, since the prompt can't tell a reload from a
+// close. The prompt a reload Leaf asks for raises asks nothing (layer-client.js,
+// `takeLeafUnload`): it is no close, and after a server restarted under another Leaf,
+// which refuses this document's writes, every word typed since would otherwise put the
+// prompt in front of a reload the user never asked for.
 addEventListener("beforeunload", (event) => {
+  if (takeLeafUnload()) return;
   const stranded = [...draftCache].some(
     ([ctx, { durable }]) =>
       !durable && !writing.has(ctx) && holdsWork(activeDraftRecord(ctx)),
@@ -623,9 +627,19 @@ export function threadDraft(ctx) {
 }
 /** @param {string} ctx */
 const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
-// What a box that stops showing the user's words says, once, with the address that
-// brings them back.
-export const DRAFT_KEPT = "Draft kept — g i resumes writing";
+// What a box that stops showing the user's words says, once: that they are kept, with
+// Resume writing, the press that brings them back, at the panel field's end, where the
+// user looks for a moment's next press and its key (notifications.js, `press`). A
+// refusal's error offers the same press (`keepRefusedWords`).
+export function noticeDraftKept() {
+  notice("Draft kept", { press: writingPlace && RESUME_WRITING });
+}
+/** @type {import("./notifications.js").NoticePress} */
+const RESUME_WRITING = {
+  action: "resume-writing",
+  command: "writing.resume",
+  stands: () => writingPlace !== null,
+};
 
 // A generation this document has sent and not heard back on. Its words are shown
 // wherever the gesture drew them, so the box they were written in reads empty, while
@@ -964,7 +978,9 @@ const openedFrom = new Map();
 // supplies active words and an optional submission payload, or null and no payload
 // for settlement. Editor membership is mechanical: connected root editors recover
 // by context, and retained reply mirrors land through their current thread owner.
-// Unsubscribing retires that membership alongside the listener.
+// Unsubscribing retires that membership alongside the listener. A subscription also
+// says whether its box takes words now (`closed`), which a wired box's wiring answers
+// (`mirrorDraft`), so Resume writing asks the editor it reaches.
 //
 // It does not run on subscribe, which is where this parts company with controller state. The
 // draft a box opens with and the news that another tab changed one are different facts,
@@ -1120,8 +1136,10 @@ export function giveBackWords(ctx, text, payload, under = null) {
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
 // destination, a content change to that draft like any other, and the refusal's error
-// carries the sentence naming that address (delivery.js). The error is about the box on
-// screen the sending gesture's words came back to, where there is one (`field`).
+// says they are kept (delivery.js). The error is about the box on screen the sending
+// gesture's words came back to, where there is one (`field`); otherwise it is about no
+// box and offers Resume writing as its press (`press`), since a box's cover draws no
+// press (errors.js).
 //
 // Resume writing comes back to words a refusal handed back at their end (`atEnd`), as a
 // press on the error over them does (composing/input.js), so Enter sends them.
@@ -1168,12 +1186,14 @@ export function keepRefusedWords(attempts) {
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
-    hidden.length && DRAFT_KEPT,
+    hidden.length && "Draft kept",
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
+  const field = returned.map(shownIn).find(Boolean) ?? null;
   return {
     said: sentences.length ? sentences.join(". ") : null,
-    field: returned.map(shownIn).find(Boolean) ?? null,
+    field,
+    press: hidden.length && writingPlace && !field ? RESUME_WRITING : null,
   };
 }
 const writingEditor = () =>
@@ -1221,6 +1241,18 @@ export function registerWritingDestination(prefix, reveal) {
   return () => writingRoutes.delete(prefix);
 }
 
+// Whether the user stands on the box `ctx` is written in, as the thread walk leaves them
+// (`showDraft`), rather than in its editor: only a draft whose owner declares a writing
+// route has such a box (`frame`). The walk puts the box away once it has taken the
+// user on to another stop (`closeDraft`), keeping its words, as `c` into a thread does.
+/** @param {string} ctx */
+export function standsOnDraft(ctx) {
+  const frame = writingRoute(ctx)?.(ctx)?.frame?.();
+  return Boolean(frame) && focused() === frame;
+}
+/** @param {string} ctx */
+export const closeDraft = (ctx) => writingRoute(ctx)?.(ctx)?.close?.();
+
 // Words nothing on the active document holds a box for, as when a version removes the
 // content an edit was for, join the page's own draft after the words it already holds,
 // and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
@@ -1248,10 +1280,13 @@ function moveToPage(ctx) {
 // The command resumes the writing place; `resumeDraft` resumes the draft a press names,
 // as a row of Threads' Drafts does, at the caret the place last kept for it, else at its
 // words' end. Opening a draft is no content edit, so it leaves the writing place where
-// it was.
-/** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
+// it was. Each travels to the draft, a Back step, except where the caller opens it
+// where the user stands (`travel: false`), as a press on its passage's margin marker
+// does (thread/destination.js).
+/** @typedef {{travel?: boolean}} DraftRoute */
+/** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string) => Promise<void>}} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -1264,21 +1299,23 @@ export function createWritingResume({
       : Boolean(writingRoute(ctx)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
   const resume = () => (writingPlace ? resumeAt(writingPlace) : Promise.resolve());
-  /** @param {string} ctx */
-  const resumeDraft = (ctx) =>
+  /** @param {string} ctx @param {DraftRoute} [route] */
+  const resumeDraft = (ctx, route = {}) =>
     resumeAt(
       [writingPlace, ...earlierPlaces].find((place) => place?.context === ctx) ?? {
         context: ctx,
         selection: atEnd(ctx),
         generation: randomId(),
       },
+      route,
     );
-  /** @param {WritingPlace} place @returns {Promise<void>} */
-  const resumeAt = async (place) => {
+  /** @param {WritingPlace} place @param {DraftRoute} [route] @returns {Promise<void>} */
+  const resumeAt = async (place, route = {}) => {
     const intent = retainUserIntent();
     let input;
     // A thread view holds its own drafts, which the thread's destination reveals.
-    if (threadDraft(place.context)) input = await revealInThread(place.context, intent);
+    if (threadDraft(place.context))
+      input = await revealInThread(place.context, intent, route);
     else {
       const resolve = () => {
         const route = writingRoute(place.context);
@@ -1287,20 +1324,24 @@ export function createWritingResume({
         );
         return route ? route(place.context) : editor?.resume?.();
       };
-      input = await arriveEditor(resolve, { intent, caret: place.selection });
+      input = await arriveEditor(resolve, {
+        intent,
+        caret: place.selection,
+        travel: route.travel ?? true,
+      });
     }
     if (input === undefined || !intent()) return;
     const editor = [...draftEditors].find(
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     const field = editor && editorInput(editor);
-    // Whether the box takes words now (`takesNoWords`), not its painted `readOnly`,
-    // which still reads shut until the next paint after the same task ends a stance,
-    // as `g i` ends Go-to's.
+    // Whether the box takes words now, as its subscription says (`closed`), not its
+    // painted `readOnly`, which still reads shut until the next paint after the same
+    // task ends a stance, as `g i` ends Go-to's.
     if (
       field?.isConnected &&
       field.checkVisibility() &&
-      !takesNoWords(field) &&
+      !editor?.closed() &&
       !("disabled" in field && field.disabled)
     ) {
       // Coming back to the words is the user dealing with any error over them, as a
@@ -1323,6 +1364,23 @@ export function createWritingResume({
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
     );
   };
+  // The thread walk's way onto a draft it names by context (navigation.js): the draft's
+  // box opens on its own record, as Resume writing opens it, and the user stands on the
+  // box rather than in it (`standsOnDraft`), so a walk key goes on walking and `c` puts
+  // the caret in the words. It answers whether the user arrived. Opening a draft is no
+  // content edit, so it leaves the writing place where it was.
+  /** @param {string} ctx */
+  const showDraft = async (ctx) => {
+    const route = writingRoute(ctx);
+    if (!route) return false;
+    const intent = retainUserIntent();
+    const frame = await arriveEditor(() => route(ctx), {
+      intent,
+      caret: null,
+      onFrame: true,
+    });
+    return Boolean(frame) && intent();
+  };
   return {
     command: {
       id: "writing.resume",
@@ -1335,6 +1393,7 @@ export function createWritingResume({
       run: resume,
     },
     resumeDraft,
+    showDraft,
   };
 }
 
@@ -1413,13 +1472,13 @@ export function restoreDraftEditing(editing, input) {
 }
 
 /** @param {string} ctx @param {(value: string | null, payload?: DraftPayload) => void} callback
- * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null}} [options] */
+ * @param {{input?: DraftField | (() => DraftField | null) | null, mirrored?: boolean, resume?: (() => EditorDestination | null) | null, closed?: () => boolean}} [options] */
 export function watchDraft(
   ctx,
   callback,
-  { input = null, mirrored = false, resume = null } = {},
+  { input = null, mirrored = false, resume = null, closed = () => false } = {},
 ) {
-  const editor = input && { ctx, input, mirrored, resume };
+  const editor = input && { ctx, input, mirrored, resume, closed };
   if (editor) draftEditors.add(editor);
   /** @param {CustomEvent<DraftNews>} ev */
   const update = (ev) =>
@@ -1479,7 +1538,7 @@ export function mirrorDraft(
       sync.load(value ?? blank());
       onChange(value);
     },
-    { input: ta, mirrored, resume },
+    { input: ta, mirrored, resume, closed: sync.closed },
   );
   return off;
 }

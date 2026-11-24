@@ -87,7 +87,6 @@
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
-  afterScript,
   authoredTitle,
   setScroll,
   actionTemplate,
@@ -99,13 +98,11 @@ import {
   tally,
   under,
   backgroundFlash,
-  flashDuration,
   beginWalk,
   capturePlace,
   comparisonChanges,
   claimTraversals,
   compoundReadingRegionId,
-  cycledRow,
   keepView,
   keeps,
   layoutChanged,
@@ -115,14 +112,12 @@ import {
   generated,
   openingView,
   viewMembers,
-  pageScroller,
   preserveReadingRegions,
   pushEntry,
   registerReadingRegion,
   registerRootHeader,
   replaceEntry,
   restorePlace,
-  scrollBehavior,
   selectableOffered,
   sizeObserver,
   tabStore,
@@ -133,14 +128,14 @@ import {
   focused,
   fitsWhole,
   landingInsets,
-  layoutPx,
-  pressIsKeyboardActivation,
   signal,
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
 const PLACE_KEY = "lf-tabs-place:";
+// The document's own scroller, which scrolls a page-flow set's views.
+const pageScroller = /** @type {Element} */ (document.scrollingElement);
 /** @param {Element} owner */
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
@@ -261,9 +256,8 @@ export class TabSet extends LeafElement {
     // tracked render; its unchanged Lit parts retain these exact nodes.
     render(this.render(), strip);
     // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
-    // at the ends as every cyclic walk does (`cycledRow`). The strip takes no tab stop
-    // of its own, so focus inside it, which is the whole of when this scope holds, is
-    // always one of these buttons.
+    // at the ends. The strip takes no tab stop of its own, so focus inside it, which is
+    // the whole of when this scope holds, is always one of these buttons.
     const tabs = () => [...this.#buttons.values()];
     const focusedTab = () => tabs().find((button) => button === focused());
     /** @param {HTMLElement | undefined} next */
@@ -272,11 +266,13 @@ export class TabSet extends LeafElement {
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
-      // sight, the tab would lose focus to the next key (keyboard/controller.js).
+      // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
+      // paint for the end of this script, so a microtask queued after the move runs
+      // behind it. Left out of sight, the tab would lose focus to the next key
+      // (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
-      afterScript(() => this.#showTab(next, null));
+      queueMicrotask(() => this.#showTab(next, null));
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()), {
         list: () => [tabs()[0], tabs().at(-1)],
       });
@@ -321,7 +317,9 @@ export class TabSet extends LeafElement {
           travels: true,
           runKey: (binding) => {
             const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-            walk(cycledRow(tabs(), focusedTab(), step));
+            const all = tabs();
+            const at = all.findIndex((button) => button === focusedTab());
+            walk(all[(at + step + all.length) % all.length]);
           },
         },
         {
@@ -506,7 +504,7 @@ export class TabSet extends LeafElement {
       aria-description=${description || nothing}
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
-        this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
+        this.#activate(panel, "ordinary", event.detail !== 0)}
       ><span class="lf-tab-name" ${generated({ says: true })}
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
@@ -601,7 +599,7 @@ export class TabSet extends LeafElement {
       // motion's shared gate answers reduced motion and initial presentation.
       if (previous && reason === "reveal") {
         const name = button.querySelector(":scope > .lf-tab-name");
-        if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
+        if (name) this.#revealMotion = backgroundFlash(name);
       }
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
@@ -708,7 +706,9 @@ export class TabSet extends LeafElement {
             left:
               strip.scrollLeft +
               ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-            behavior: scrollBehavior(),
+            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "instant"
+              : "smooth",
           });
         }}
         >${actionTemplate(to === "start" ? "previous" : "next", "lf-tabstrip-scroll-icon")}</span
@@ -751,7 +751,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
+      run.style.setProperty("--lf-tab-group-size", `${Math.round(size * 64) / 64}px`);
       scrollIntoView(btn, { block: "nearest", within });
       return;
     }

@@ -625,7 +625,7 @@ def test_two_leaf_versions_capture_one_source_as_the_same_revision(tmp_path):
     one, and each composes its own vocabulary over the page's selection. The capture
     names only what the page owns, so the source is one revision under either and
     an open tab keeps its document; the page's own declarations still replace it."""
-    layer = {"generation": "g1", "packages": [], "theme": None}
+    layer = {"generation": "g1", "packages": []}
 
     def capture(description):
         registry = {"$layer": layer, "lf-note": {"description": description}}
@@ -768,8 +768,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     source = (
         "<!doctype html><html><head><title>T</title></head><body>"
         '<header id="banner" data-width="wide">Banner</header><main data-width="available">'
-        '<aside class="callout warn" id="note">Paused.</aside>'
-        '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
+        '<aside class="lf-callout warn" id="note">Paused.</aside>'
+        '<aside class="lf-callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
         '<lf-board id="board" data-width="available"></lf-board>'
         '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'

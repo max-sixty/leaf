@@ -28,7 +28,6 @@ import {
   offerAction,
   setChildLists,
   setChildren,
-  plainPress,
   focused,
 } from "/runtime/widget-api.js";
 
@@ -203,7 +202,11 @@ function locationLink(record, owner) {
         class="lf-call-location"
         href=${`#${owner.getAttribute("diff")}`}
         @click=${async (/** @type {MouseEvent} */ event) => {
-          if (event.defaultPrevented || !plainPress(event)) return;
+          // A modified click keeps the link's own meaning, such as opening a new tab.
+          const plain =
+            event.button === 0 &&
+            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
+          if (event.defaultPrevented || !plain) return;
           event.preventDefault();
           event.stopPropagation();
           await travelToLine(owner, record);

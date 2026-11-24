@@ -65,14 +65,12 @@ import { createPlayground } from "./playground-view.js";
 import { render } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
-  closeNativeLayer,
   copyControl,
   focusDestination,
   holdFocus,
   layoutChanged,
   onCurrentLocation,
   onPress,
-  isNativeLayer,
   LeafElement,
   registerReadingRegion,
   reachedForWords,
@@ -239,8 +237,7 @@ customElements.define(
         let width = innerWidth;
         const putAway = () => {
           const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction && isNativeLayer(instruction))
-            closeNativeLayer(instruction);
+          if (innerWidth !== width && instruction) instruction.hidePopover();
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });

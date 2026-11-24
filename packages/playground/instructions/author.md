@@ -3,7 +3,8 @@ both. A playground can have just one choice: the candidate to build. Write each
 candidate in the preview with its own radio, so the user selects the actual example
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
 that needs no playground controls or composed preview. To critique a document or
-source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
+source, use Leaf's comments, suggestions or `lf-diff` instead, and for a visible
+change, before-and-after captures with a question beside each.
 
 Put the playground in the `lf-group` whose label asks its question, with any context that
 lives outside it (`references/authoring-on-me.md`, "On the page"). Keep
@@ -113,8 +114,9 @@ in the playground is one field of the configuration, and radios that share a nam
 one field. A range or number input submits a number, a checkbox true or false, and any
 other field its value as a string; a radio group with none checked submits null. Field
 names use lowercase letters, digits and hyphens. A control without a `name`, or one
-that belongs to a `<form>` of its own, is no field. On a themed page these plain
-controls wear Leaf's faces, a radio or checkbox inside its `<label>` among them
+that belongs to a `<form>` of its own, is no field. On a page that wears the reading
+face, as a page in the `reading` theme does, these plain controls wear Leaf's faces, a
+radio or checkbox inside its `<label>` among them
 (`references/page-layout.md`, "Page CSS and Leaf's controls"). In the aside, Leaf
 stacks what you write, sets a field's words above it and stands a fieldset's radios
 one per line; in the preview, lay them out yourself.

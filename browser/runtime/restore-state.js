@@ -12,12 +12,18 @@
    the first visit already. */
 import { tabStore } from "./tab-store.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
-// The tab coordinate is shared by restoration evidence and the optional owner.
+// The tab coordinates shared by restoration evidence and their owners.
 export const ANNOTATIONS_KEY = "lf-annotations";
+export const THREADS_IN_PANEL_KEY = "lf-threads-in-panel";
 
 export const USER_VIEW_RESTORE_CASES = [
   { name: "design mode on", ...tabStore.where(DESIGN_MODE_KEY), value: "1" },
   { name: "annotations hidden", ...tabStore.where(ANNOTATIONS_KEY), value: "hidden" },
+  {
+    name: "threads open in the panel",
+    ...tabStore.where(THREADS_IN_PANEL_KEY),
+    value: "panel",
+  },
 ];
 
 // The chrome put back the way this user left it, before the page is presented. A view

@@ -173,6 +173,7 @@ import { inputs } from "../inputs.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
 import { contentsRects } from "../shown-box.js";
 import { keepFieldKeys } from "../field-keys.js";
+import { marksSheet } from "../stylesheets.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -263,7 +264,8 @@ sheet.replaceSync(`
      rules stop at this root. A heading is bold, as the platform draws one, at the size
      of the words around it. A block is drawn line by line, so a code block's frame is
      each line's sides, closed above its first line and below its last, and each code
-     line hangs the rows it wraps onto as the sent block does (reading.css, \`pre\`).
+     line hangs the rows it wraps onto from its indent behind the mark, as the sent
+     block's lines do (marks.css, \`[data-lf-pre-line]\`).
      Syntax that holds its room while the caret is away, as a rule's or a code fence's
      line does, is there unseen and unspoken. Its glyphs go unfilled while its colour
      stays the words', because the caret can stand at the end of unseen text, as just
@@ -304,7 +306,7 @@ sheet.replaceSync(`
     font-size: var(--lf-code-size);
     line-height: var(--lf-code-line); color: var(--lf-code-ink); background: var(--lf-pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
-    padding-inline: var(--lf-pre-inset); text-indent: 2ch hanging; }
+    padding-inline: var(--lf-pre-inset); --lf-pre-line-inset: var(--lf-pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--lf-code-border);
     border-start-start-radius: var(--lf-r); border-start-end-radius: var(--lf-r); }
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--lf-code-border);
@@ -624,6 +626,11 @@ class LeafText extends HTMLElement {
     this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
     this.#rest.rows = 1;
+    // Chrome raises a DevTools issue for a form field with neither an id nor a name,
+    // which every page's render check would report as the page's. The host keeps
+    // whatever name its owner gives it; this node is the field's own, so its name is
+    // fixed.
+    this.#rest.name = "words";
     // In `focusin`, never `focus`: Chromium, Firefox and WebKit send no `focusin` for
     // a node that passes focus on in its own `focus` handler, and the move inside the
     // closed root reaches nothing outside it, so the page would never hear the field
@@ -805,7 +812,7 @@ class LeafText extends HTMLElement {
     // A tab stop, as a textarea is: delegation already stops Tab in the words, and a
     // host reading -1 is one every stop-counting walk would miss.
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
-    this.#root.adoptedStyleSheets = [sheet, this.#faces];
+    this.#root.adoptedStyleSheets = [sheet, this.#faces, marksSheet];
     if (this.#length) this.#build();
     else this.#describe();
     this.#paintEmpty();

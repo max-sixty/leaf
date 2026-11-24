@@ -71,7 +71,6 @@ from leaf_dev.browser import shell_executable
 from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.page_fixtures import (
     admit_events,
-    fixture_environment,
     prepare_page,
     read_event_lines,
     read_fixture,
@@ -212,9 +211,8 @@ def run_leaf(
     """Run `arm`'s launcher, or where `arm` is None this environment's own Leaf
     (`LEAF_COMMAND`), and capture what it says. It runs in `env`, by default this
     process's environment less the agent session it may run in (`environment`),
-    under the state home `state` where one is given, and without personal
-    configuration (`fixture_environment`). With `check`, a nonzero exit raises
-    `error` with the command, its status and its output."""
+    under the state home `state` where one is given. With `check`, a nonzero exit
+    raises `error` with the command, its status and its output."""
     command = [*LEAF_COMMAND] if arm is None else [str(arm / "bin/leaf")]
     base = environment() if env is None else dict(env)
     if state is not None:
@@ -228,7 +226,7 @@ def run_leaf(
         text=True,
         check=False,
         timeout=timeout,
-        env=fixture_environment(base),
+        env=base,
         cwd=ROOT,
     )
     if check and proc.returncode:

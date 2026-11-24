@@ -54,8 +54,8 @@ rule draws at once is drawn.
   pressed control only to bring it whole into a scroller that showed part of it, or
   where the gesture says it takes the user somewhere. Without a gesture, as when news
   arrives or a widget finishes loading, a box may grow or shrink into free room, but
-  reading content and controls stay put. The exception is a thread card at its least
-  width, which the user chose to let widen once, from its start, when a long message
+  reading content and controls stay put. The exception is a thread card narrower than
+  the measure, which the user chose to let widen once, from its start, when a long message
   arrives, carrying its controls (`data-lf-widens`; `annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
   that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
@@ -89,8 +89,10 @@ rule draws at once is drawn.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
-  and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
-  anchoring off on no box the reader reads in. A revision then restores the reader's
+  and a message's words (`setRenderedChildren` in `dom-children.js`) do. Leaf turns
+  anchoring off in a box the reader reads in only while its own motion moves the box,
+  as a glide does, whose landing then places the destination (`scrolling.js`), or the
+  box's content, as a ride does (`box-motion.js`). A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
   control under the user's hands; for a reader whose focus is scrolled away, the
   reading line where growth starts between anchoring's box and it; and a place the
@@ -110,12 +112,13 @@ rule draws at once is drawn.
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The
   rail and the margin"). Native block flow and wrapping rows place the page's own
   sidebars and notes from the first paint, and `runtime/content-layout.js` reads their
-  CSS geometry for annotations and never reallocates document space. The chrome opens
-  over the page too, in the
-  room the theme keeps at the page's foot (`--lf-foot-room`). Checks:
-  `test_a_comment_leaves_its_block_as_the_page_wrote_it`, the shift watch, and the
-  render gate's `under-panel` for a page that loses the foot's room
-  (`src/leaf/render-checks/words.js`). Owner:
+  CSS geometry for annotations and never reallocates document space. The floating
+  panel stands over the page too, with no room kept for it: the page lays out in the
+  whole window, and the user folds the panel to its leaf where it covers what they
+  read; it folds itself where focus lands on a place it alone would hide
+  (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
+  (`geometry.js`, `declareCover`). Checks:
+  `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
 - **A box floating over the page grows inside the window**, toward the edge that has
   room, and sending and later growth never scroll the page to make room. Owners:
@@ -146,7 +149,10 @@ rule draws at once is drawn.
   share the floating panel's field, the container sets its dimensions from a theme token
   and each mode's controls fill it. It grows only for content, such as typed words, or
   an explicit action, such as More room. A one-line control's visible height is
-  `--lf-line` (`styles/tokens.css`), and its touch target meets the minimum
+  `--lf-line` (`styles/tokens.css`). A field that runs to its frame's edges adds the
+  frame's padding to that height, as a thread card's reply box does, a comment box
+  does in the frame of the card it becomes, and the floating panel's field does while
+  it holds the caret. A control's touch target meets the minimum
   `surfaces.css` sets; a control that derives its height from its font or the touch
   minimum instead changes the height of every container that holds it. Checks:
   `test_whatever_the_field_holds_the_row_keeps_its_line` compares the row's height with
@@ -296,7 +302,7 @@ concrete and playable").
   diagram shows its name as a tooltip (check: the `lf-diagram` case in
   `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
-  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
+  (`lfPreview`, `../skills/leaf/references/module-previews.md`), a control's
   word and keys come from its name and the register, a link an author wrote into the
   page shows the place it names (`runtime/place-preview.js`), and a range's owner says
   where the pointer or a holding finger rests on it, as a thread's passage marks do
@@ -321,6 +327,18 @@ directly as in a terminal").
   one-pixel seams. A box edged on one side is never rounded: mark a state with a
   whole contour, or a stripe on a square box. Avoid reflexive cards, tints, gradients and
   soft shadows. Check: `test_no_rule_rounds_a_box_edged_on_one_side`.
+- **A box inside a frame either meets its edge or stands clear of it.** A box that
+  meets its frame's edge, as the floating panel's field and a thread card's reply box
+  do, takes the frame's rounding at the corners they share and is square at the
+  others. A box that stands clear, by `--lf-clear` or more, keeps the corners its kind
+  takes (`styles/tokens.css`, at `--lf-r`). So does a thumb that slides along its
+  track, or a mark round by meaning such as a dot, wherever it stands. Boxes joined at
+  seams count as one box.
+- **A word about shown material stands outside it.** Where the page shows an
+  interface rather than says something, as a capture or a quoted sample does, a word
+  about it, such as Before and After or a sample's note, stands on the page just above
+  its frame or gutter. Inside, the word reads as part of the interface, which could
+  have drawn a band or a heading of its own.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
@@ -374,7 +392,7 @@ attention and work").
 ## Runtime ownership
 
 `leaf.js` only boots the page: it imports the owner modules, each of which exports its
-capability, and starts them in the order "Startup and presentation" lists. Two classic
+capability, and starts them in the order "Startup and presentation" lists. Classic
 scripts run before any module. `runtime/prepaint.js` runs inline in every document,
 served or exported. It marks the interactive document, restores native reading state
 and reports startup failures. Content remains readable while modules load; controls
@@ -393,45 +411,16 @@ projection, thread and pending models import no DOM or application services.
 (`../.config/knip.js`) rejects import cycles, so imports use literal paths; only the
 widget and interaction loaders compute theirs.
 
-Entry points per concern (paths under `runtime/`; each header owns the details):
-
-| Concern                                                                                              | Owners                                                                                                                                                                                              |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Composition and the application's state                                                              | `application.js`, `semantic-state.js`, `context.js`                                                                                                                                                 |
-| Delivery, accepted state, and wakeups                                                                | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                                                             |
-| Undo and withdrawal                                                                                  | `undo.js`                                                                                                                                                                                           |
-| State models and projection                                                                          | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                                                                          |
-| Widget capture and lifecycle                                                                         | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                                                                    |
-| Vocabulary and public helpers                                                                        | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                                                                        |
-| External data                                                                                        | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                                                           |
-| Revision installs and continuity                                                                     | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `change-provenance.js`                                                                       |
-| Repaint and geometry                                                                                 | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`                                                      |
-| Chrome and available space                                                                           | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`, `place-preview.js`                                                                         |
-| Reading regions and scrolling                                                                        | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                                                  |
-| Keyboard                                                                                             | `keyboard/AGENTS.md`                                                                                                                                                                                |
-| Focus and navigation                                                                                 | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`, `change-walk.js`                                                             |
-| Obligations                                                                                          | `obligations/`                                                                                                                                                                                      |
-| Comment capture                                                                                      | `composing/`, `drafts.js`, `media.js`                                                                                                                                                               |
-| Threads                                                                                              | `thread/`                                                                                                                                                                                           |
-| Annotation inventory and controls                                                                    | `annotation-inventory.js`, `annotation-view.js`, `annotation-layer.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                   |
-| Annotation records and Page Map                                                                      | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                                                                  |
-| Pins and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                                               |
-| Passages and target identity                                                                         | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                                                 |
-| Anchor placement, decoration and travel                                                              | `anchor-placement.js`, `anchor-paint.js`, `visual-mark-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js` |
-| Page status and what a user copies about the page                                                    | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                                                               |
-| Neighboring pages                                                                                    | `live-leaves.js`                                                                                                                                                                                    |
-| Activity and reports                                                                                 | `presence.js`, `activity-words.js`, `reports.js`, `margin-bars.js`                                                                                                                                  |
-| Notices, errors and announcements                                                                    | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                                                                   |
-| Reactions and design review                                                                          | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                                                   |
-| Presentation and validation                                                                          | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                                                          |
-| Child pages                                                                                          | `sample*.js`                                                                                                                                                                                        |
-| Shadow trees and styles                                                                              | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `base-layer.js`                                                                                                                                   |
-| Paint that belongs to an element while it is in the page, whoever added it                           | `arrivals.js`                                                                                                                                                                                       |
-| Utilities                                                                                            | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `syntax-tokens.js`, `motion.js`, `color-scheme.js`, `storage.js`, `tab-store.js`, `interaction-log.js`                                          |
+Each module owns one concern and states it in its header, so read the headers to find
+an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
+question", below, indexes the owners a caller asks, and `keyboard/AGENTS.md` covers the
+keyboard's.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
-the browser's own. A rendering callback does its layout reads before its writes, since
+the browser's own, except `requestAnimationFrame` in a package, which is for motion
+that may run until the user stops it, such as playback, and which the settled reading
+doesn't count. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
 in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
 forced style also lays out whatever in `body` is out of date, a closed tab's panel
@@ -442,7 +431,11 @@ A box that follows page content is positioned by CSS, with an anchor, a sticky o
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
 the page's targets goes through `paintSet` in `target-paint-geometry.js`. What a scroll
 changes that CSS can't follow is read again when the scroll ends (`watchScrollEnds` in
-`arrivals.js`).
+`arrivals.js`), unless the reader would see it wrong until then. Such a reading is
+taken at each scroll and writes only where its answer changes, as the solve of a
+floating box an edge holds in does (`annotation-overlay/floating.js`), and the paint
+that follows whether focus is in sight (`user-place.js`, through `geometry.js`
+`whenChanges`).
 
 Lit owns template bindings and skips unchanged values. For imperative writes outside
 those bindings, use `keeps` in `runtime/keeps.js`, whose header says what a redundant
@@ -467,6 +460,8 @@ name the widgets they style, so a rule several packages need belongs in the kern
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
+
+### What a style rule costs
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. One
 rule anywhere whose subject after a `:has()` names no element can make every write to
@@ -510,6 +505,13 @@ holds when it changes, and so does an explicit `inherit` on each element between
 box and its readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
+
+An explicit `inherit` of a property that doesn't inherit costs even when the property
+stays the same. Once a child of a box writes one, Chromium restyles every child of the
+box whenever the box's own style changes, as it does when a mark or ring is drawn on
+the box (`test_holding_alt_over_an_article_restyles_none_of_the_sections_in_it`).
+Register a property that boxes pass down as inheriting, and set it back on the boxes
+it must not reach (layouts.css, `--lf-prose-measure`).
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
@@ -572,9 +574,12 @@ holds the measurement.
   faces by element, where its theme turns on markup's reading face, never by writing
   Leaf's names (`styles/components/controls.css`, "The faces of Leaf's control
   roles"); the `lf-` classes a page may write are those a kernel idiom declares, such
-  as `lf-scroll`, which `page check` therefore lets it write. The kernel's other
-  classes for authors are the Layouts' (`layout-column`, `density-working`), and a
-  theme's idioms, such as the reading theme's `.tag`, come with the theme a page takes.
+  as `lf-scroll` or `lf-tag`, which `page check` therefore lets it write. An idiom's
+  rules name the bare words its entry tells an author to write with it, since they
+  reach nothing outside the idiom: a variant beside its class, as `.warn` in
+  `.lf-tag.warn`, and a drawing's marks inside `svg.lf-drawing`, such as `.box`. The
+  kernel's other classes for authors are the Layouts' (`layout-column`,
+  `density-working`).
   A library's names on an element Leaf draws for that library, such as Pierre's row
   attributes, stay the library's.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
@@ -619,7 +624,7 @@ it. Call an API every engine ships directly, with no fallback, and record remain
 browser gaps in `notes/browser-support.md`, whose "Recording and assessing a gap" says
 which ones Leaf's code corrects.
 
-Three script answers already exist. `focus.js` sets `data-lf-focus` and
+These script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
 and a held label press; those attributes mark the user's current location, and rings are
 styled with `data-lf-focus-visible` and `data-lf-focus-visible-within`, which also
@@ -661,6 +666,17 @@ Add no second cache, pending map, replay list or DOM attribute as another source
 one of these facts. A rendering may expose state, such as `data-lf-state` for CSS and
 render checks, but no code reads it back.
 
+A renderer repaints only when a value it read through a selector has changed, or
+when code calls the renderer's `present()` after changing an input the renderer
+reads from outside the state, such as a draft. Code that changes what the page shows
+publishes the new state, then awaits `whenDocumentPresented()`; it doesn't call
+renderers or decide their order. A renderer that depends on DOM another renderer
+writes declares that dependency through `PRESENTATION_DOM`.
+`whenDocumentPresented()` resolves once every renderer has written its DOM. It
+doesn't wait for a widget's asynchronous preparation or for a gesture that holds
+part of the page, such as a drag, to end; `whenApplicationPresented()` waits for
+those too.
+
 When a revision replaces the document, a node the patch didn't rewrite keeps its state,
 and `carry.js` carries the value, focus, caret and scroll of an element with an authored
 id. A module keeps any other state in its own store under the element's id. Delay the
@@ -679,13 +695,15 @@ A question the runtime asks in many places has one owner, which every caller ask
 since a second copy drifts from it at the edges, such as under a stuck header or in a
 shadow tree. Before writing or approving a predicate or measurement, look for its
 question in "The browser answers first" and then here. A change that creates an owner
-adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
+adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`, whose packages'
+block names what a package answers with the browser's own call instead.
 
 | Question                                                                                              | Owner                                                                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
+| Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                          |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
 | The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                |
@@ -701,6 +719,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
 | Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `keyboard/text-entry.js` `nativeClaimAt`                                           |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
+| The keys that would make a command's press now, as a chip shows them                                  | `keyboard/control-keys.js` `commandKeysNow`                                        |
 | A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                       |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                              |
@@ -709,18 +728,25 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
+| Whether a box, one with no height included, stands wholly above or below the window                   | `geometry.js` `outOfWindow`                                                        |
 | What the user sees of a node where the glides under way leave it, or as they carry it toward the view | `scroll-containers.js` `seenGlided`, `seenLanded`, `seenAhead`                     |
 | Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
-| When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
+| When a reading of what is seen starts or stops holding, or holds for none of some nodes               | `geometry.js` `whenChanges`, `whenNone`                                            |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
 | The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
 | Whether a box shows what it holds, not only its own box as one hidden until found does                | `geometry.js` `showsContents`                                                      |
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
+| What a target draws, its list marker included, and where the marks round it stand                     | `geometry.js` `inkedBox`, `markedBox`                                              |
+| The room the marks round a target take beside it, a named box's round it included                     | `mark-room.js` `markRoom`                                                          |
+| Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `geometry.js` `shownRectHeld`                                                      |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
+| How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`              |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
+| What the page shows where the glides under way land, each box put back within the task                | `scrolling.js` `whereGlidesLand`                                                   |
+| How far a scroll of a box carries a node, which a sticky box around it rides only to its line         | `geometry.js` `carried`                                                            |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | The box an input scrolls, along the chain native scrolling follows                                    | `scroll-containers.js` `inputScroller`, `scrollChainOf`                            |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
@@ -743,6 +769,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
+| The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `shadow-tree.js` `closedOver`                                                      |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | The element an id names: the page's, else one an agent's message keeps, drawn or not                  | `thread/messages.js` `addressableAt`                                               |
@@ -751,6 +778,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The language a file path means                                                                        | `language-paths.js` `langForPath`, from the registry's `$languages`                |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed; a style property needs no guard (`keeps.js` header)           | `keeps.js` `keeps`                                                                 |
+| A number that names an object in a key built of strings, the same at every ask                        | `ids.js` `objectIds`                                                               |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
 | What the floating panel's empty field says, for how long, and what its end offers                     | `field-readings.js` `FIELD_READINGS`, `readField`                                  |
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
@@ -805,10 +833,10 @@ review, ask why that fact isn't generated.
 
 ## Startup and presentation
 
-Authored HTML paints at once, the render-blocking theme reserves the floating panel's
-room, and the panel's row stands in it from the first paint: the panel's own first
-drawing, generated into the document (`build/panel-row.mjs`), which the panel takes over
-as it mounts. So mounting the runtime moves nothing. Prose, links and scrolling work
+Authored HTML paints at once, and the floating panel's row stands over it from the first
+paint: the panel's own first drawing, generated into the document
+(`build/panel-row.mjs`), which the panel takes over as it mounts. So mounting the runtime
+moves nothing. Prose, links and scrolling work
 while widgets upgrade; comments and drawing work from `data-lf-upgraded`.
 `../skills/leaf/references/module-authoring.md`, "Startup and presentation", says how a module
 keeps work off the presentation path and how held keys replay.
@@ -842,6 +870,15 @@ them itself.
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
+
+Add a fact only where some part of Leaf, such as the server, `page check` or the first
+paint, must act on it without running the widget's module, and the module can't keep
+the same rule itself. A rule about one widget's markup that its module can check as it
+draws stays in the module, which reports a breach with `reportFailure`, even where
+static validation could observe the same breach. The author then hears of the breach
+from `page check --render`, and in a thread message only after the user opens the
+thread. Keep a rule static where a breach would otherwise reach the log or a stored
+decision (root `AGENTS.md`, "Leaf's role").
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and words a module generates are a passage

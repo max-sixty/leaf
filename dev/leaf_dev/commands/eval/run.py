@@ -339,17 +339,6 @@ def grading(test: dict, condition: str, judge: Callable[[], dict]) -> dict:
     ]
     for assertion in assertions:
         value = assertion.get("value")
-        if isinstance(value, str) and value.endswith("/authoring_assertion.mjs"):
-            assert isinstance(assertion["config"], dict)
-            assertion["config"]["judge"] = {
-                "id": f"python:{ROOT / 'dev/leaf_dev/arrangement_eval.py'}",
-                "config": {
-                    "pythonExecutable": sys.executable,
-                    # Allow setup and retirement around the native judge's
-                    # 20-minute turn, for workflows and short authoring alike.
-                    "timeout": 30 * 60 * 1000,
-                },
-            }
         if isinstance(value, str) and value.startswith("file://"):
             assertion["value"] = (
                 f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
@@ -451,8 +440,8 @@ def prepare(
                     prompt = f"It is now {now}.\n\n{prompt}"
                 if not authoring and "page" in metadata:
                     # Each column's probe finds the case's page at the same path
-                    # under its working directory, with the packages the case names,
-                    # named for nothing in the case.
+                    # under its working directory, with Leaf's reading theme and the
+                    # packages the case names, named for nothing in the case.
                     page = Path("pages") / secrets.token_hex(4)
                     for label in labels:
                         config = providers[label]["config"]
@@ -462,7 +451,10 @@ def prepare(
                             Path(state["XDG_STATE_HOME"]),
                             "page",
                             "init",
-                            *(f"--package={name}" for name in metadata["page"]),
+                            *(
+                                f"--package={name}"
+                                for name in ("reading", *metadata["page"])
+                            ),
                             str(Path(config["working_dir"]) / page),
                             check=True,
                         )

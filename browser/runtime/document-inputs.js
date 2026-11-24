@@ -10,6 +10,11 @@
   // back from someone already using the authored page. focus.js exposes this
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
+  // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
+  // only once the hold replays it, so until then it is no input, and the hand-back it
+  // waits for is not superseded by it (bootstrap.js, `holdEarlyKeys`).
+  /** @type {((event: KeyboardEvent) => boolean) | null} */
+  let holdsKey = null;
   /** @type {Set<(event: Event) => void>} */
   const inputReaders = new Set();
   // Early key holding and the runtime ask the same question of a key's origin.
@@ -50,6 +55,9 @@
     get count() {
       return inputs;
     },
+    holdKeys(holds) {
+      holdsKey = holds;
+    },
     observe(read) {
       inputReaders.add(read);
       return () => inputReaders.delete(read);
@@ -65,11 +73,22 @@
     // input through that child. Only leaving the document supersedes its gesture.
     if (event.type === "blur" && (event.target !== window || document.hasFocus()))
       return;
+    if (event instanceof KeyboardEvent && holdsKey?.(event)) return;
     inputs++;
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
     window.addEventListener(type, input, { capture: true, passive: true });
+  // Going Back or Forward is the user's word too, though the browser's own buttons send
+  // the page no input. Where the Navigation API runs, the step counts as it begins,
+  // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has
+  // no such handler, and the `popstate` that follows the step counts. An opaque frame,
+  // as a live sample is, has the API with no entries and fires only `popstate`.
+  if (window.navigation?.currentEntry)
+    window.navigation.addEventListener("navigate", (event) => {
+      if (event.navigationType === "traverse") inputs++;
+    });
+  else window.addEventListener("popstate", () => inputs++);
 
   Reflect.set(window, key, state);
 })();

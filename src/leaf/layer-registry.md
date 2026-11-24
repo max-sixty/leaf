@@ -1,6 +1,6 @@
 # Layer composition and registry contract
 
-A page records the packages and theme it selects in `layer.json`
+A page records the packages it selects in `layer.json`
 (`registry.storage.LAYER`), never the layer itself. Every Leaf that serves, checks or
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
@@ -34,16 +34,13 @@ repair, while hooks and reads of the page go on.
 
 The layer record holds the selection and two identities:
 
-- `packages` records content-package selections. `theme` is the separately selected
-  theme, the page's look, `{name, source}` with `source` explicit or default. A new
-  page takes the user's default or else Leaf's bundled `reading`; null records taking
-  none.
-  The reading look and then the theme compose right after the default package,
-  before the content packages (`themes.with_theme`), so a theme restates the look
-  and a content package restates either. Re-running `page init` preserves
-  the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
-  catalogue changes affect new pages; `themes.py` owns selection and
-  `package-themes.md` documents its authoring interface.
+- `packages` records the packages the page selects, in the order every Leaf composes
+  them after the mandatory layer. A page's theme is one of them, Leaf's bundled
+  `reading` included: Leaf composes no package the page doesn't list, so a page that
+  lists no theme starts from the browser's defaults (`vendoring.py` states the
+  decision). Re-running `page init` preserves the selection until `--package` or
+  `--no-packages` replaces it. `package-themes.md`, "A page's theme", documents the
+  authoring interface.
 - `generation`, a fresh epoch whenever the selection or the page protocol changes.
   The served registry names it under `$layer`, a served document names the
   generation of the revision it shows, event requests carry it, and contract
@@ -81,10 +78,11 @@ outside the page. Root `AGENTS.md`, "Pages across Leaf updates", says when it mo
 
 Every page server and the append door refuse a page at another number
 (`layer.incompatible_layer` says what each refusal names). The session holding a page
-at a lower number takes it to this Leaf's at its first write command or hook naming the
-page (`vendoring.renew_layer`); read commands leave it and its server alone. No Leaf
-takes a page down. `session_runtime.py` selects the Leaf that runs a session's hooks
-and watch.
+at a lower number takes it to this Leaf's at its first command that writes to the page
+or hook that reads its pages (`vendoring.renew_layer` says which do); a command that
+only reads the page leaves it and its server alone. No Leaf takes a page down. A
+session's hooks and watch run the copy of Leaf its harness loaded, or a checkout the
+session selected (`session-lifetime.md`, "Which Leaf runs a session").
 
 A Leaf's readings skip an event kind it doesn't know, and its deliveries hand such an
 event over as logged, with no handling clause. So a new kind declares `skippable` where
@@ -120,8 +118,10 @@ each widget's deciding verb (`verbs`) and the member tags each of its outcomes
 retires, and `$states`, each verb's writer and the operation definition an admitted
 event records. It also completes the attribute schemas validation reads: an attribute
 naming one of the layer's words, such as a tone, takes the layer's list as its `enum`,
-and an attribute holding a name Leaf looks up, such as an element id, takes that name's
-grammar as its `pattern`.
+every element takes an `id`, an attribute holding a name Leaf looks up, such as that
+id, takes the name's grammar as its `pattern`, and a widget with a verb whose unit is
+the whole widget takes the boolean attribute a version sets to take that verb back,
+`restated` for the user's and `overruled` for the agent's.
 
 The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s

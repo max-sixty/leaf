@@ -162,9 +162,14 @@ const RENDERING_NAMES = [
   "cancelAnimationFrame",
   "ResizeObserver",
 ];
-const RENDERING_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
-  RENDERING_NAMES.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
-);
+// The one of them a package still reaches through runtime/rendering.js alone.
+const PACKAGE_RENDERING_NAMES = ["ResizeObserver"];
+/** @param {string[]} names */
+const renderingProperties = (names) =>
+  ["window", "globalThis"].flatMap((object) =>
+    names.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
+  );
+const RENDERING_PROPERTIES = renderingProperties(RENDERING_NAMES);
 const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
   object: "history",
   property,
@@ -533,17 +538,6 @@ const placementsRule = {
               message:
                 "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
             });
-          if (
-            ["showModal", "showPopover", "hidePopover"].includes(
-              callee.property.name,
-            ) &&
-            file !== "browser/runtime/keyboard/layer-stack.js"
-          )
-            context.report({
-              node,
-              message:
-                "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
-            });
         }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
           if (args.length < 2)
@@ -574,6 +568,36 @@ const placementsRule = {
           node,
           message: "Call focusDestination with its cause rather than passing it on.",
         });
+      },
+    };
+  },
+};
+
+// The runtime opens and closes its native layers through `showNativeLayer` and
+// `closeNativeLayer` (keyboard/layer-stack.js), which inside a live sample keep the
+// browser's focusing steps from taking focus from the page around it or scrolling that
+// page. The option names the owner.
+const nativeLayersRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === "MemberExpression" &&
+          !callee.computed &&
+          ["showModal", "showPopover", "hidePopover"].includes(callee.property.name)
+        )
+          context.report({
+            node,
+            message:
+              "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
+          });
       },
     };
   },
@@ -882,9 +906,9 @@ export const movesRule = {
 // sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
 // return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding in the kernel (runtime/focus.js; a package takes closeLayer and handBack from widget-api.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land, or of a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
 const CLOSE_PLACES_MESSAGE =
-  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js, or widget-api.js in a package).";
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -1060,11 +1084,38 @@ const topLevelAwaitRule = {
   },
 };
 
+// A notice's or an error's words name no key: the step they point to is a press the
+// panel's field offers (field-readings.js, `press`). The rule reads every string a
+// module writes for the form such words took before, a dash or a semicolon and then a
+// shortcut, a character or `g` and one, doing something ("— v shows them", "; g D
+// restores it"), past a count or the article ("— 3 changes", "— a process exited"). It
+// catches that form, not every way of spelling a key.
+const SPELLED_KEY = /(?:—|;)\s+(?:g\s+)?[^\s\daAI]\s+[a-z]+s\b/u;
+export const spelledKeysRule = {
+  meta: { type: "problem", schema: [] },
+  create(context) {
+    /** @param {any} node @param {unknown} text */
+    const check = (node, text) => {
+      if (typeof text === "string" && SPELLED_KEY.test(text))
+        context.report({
+          node,
+          message:
+            "Offer the step as a press (notifications.js, `press`; errors.js), or in an announcement say its key through `saying` (keyboard/scopes.js), rather than spelling it in the words: both name a key only while it would work.",
+        });
+    };
+    return {
+      Literal: (node) => check(node, node.value),
+      TemplateElement: (node) => check(node, node.value.cooked),
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
+    "native-layers": nativeLayersRule,
     "scroll-writes": scrollWritesRule,
     "scroll-ends": scrollEndsRule,
     "current-location-reads": currentLocationReadsRule,
@@ -1072,6 +1123,7 @@ const architecturePlugin = {
     moves: movesRule,
     "layer-returns": layerReturnsRule,
     "top-level-await": topLevelAwaitRule,
+    "spelled-keys": spelledKeysRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1423,6 +1475,7 @@ export default [
       "tests/*_watch.js",
       "tests/watch_platform.js",
       "dev/leaf_dev/main_thread.js",
+      "dev/leaf_dev/frames.js",
     ],
     languageOptions: { globals: globals.browser },
   },
@@ -1627,7 +1680,8 @@ export default [
   },
   {
     // The settled reading answers only for the rendering callbacks and size observers it
-    // counts, so the layer and its packages reach both through runtime/rendering.js.
+    // counts, so the layer and its packages reach both through runtime/rendering.js. The
+    // packages' block below names the calls a package makes itself.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     // Prepaint runs before the module graph, so it cannot call the scheduler.
     ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
@@ -1677,6 +1731,13 @@ export default [
           // A held release stands in for the browser's own press, so it focuses the
           // target as that press does, ringless; focus.js reads it as the press's.
           "browser/runtime/preview.js",
+        ],
+      ],
+      "architecture/native-layers": [
+        "error",
+        [
+          // The owner.
+          "browser/runtime/keyboard/layer-stack.js",
         ],
       ],
       "architecture/open-layers": [
@@ -1732,6 +1793,7 @@ export default [
           "browser/runtime/prepaint.js",
         ],
       ],
+      "architecture/spelled-keys": "error",
     },
   },
   {
@@ -1846,7 +1908,7 @@ export default [
     // Properties the layer and its packages reach only through their owner. A file
     // takes a rule's options from the last block matching it, not a merge of every
     // block's, so all of them stand in this one list, and the history owners' block
-    // below repeats the others.
+    // and the packages' block below repeat the others.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     rules: {
       "no-restricted-properties": [
@@ -1868,9 +1930,42 @@ export default [
     },
   },
   {
+    // Where a package writes the browser's own call, because the runtime's function
+    // adds nothing to it. Motion that may run until the user stops it, such as
+    // playback, calls the browser's frame, which the settled reading doesn't count; a
+    // size observer stays counted. The open-layers rule holds the runtime to one
+    // reading of every node, and a package asks its own popover or dialog whether it
+    // is open, so the rule is off here whole. A package opens and closes its popover
+    // or dialog with the browser's own methods, whose focus return Leaf reads as a
+    // return, so the native-layers and layer-returns rules are off here too. Each
+    // other rule repeats what it keeps of the layer's, since a file takes a rule's
+    // options from the last block matching it.
+    files: ["packages/*/**/*.js"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...PACKAGE_RENDERING_NAMES.map((name) => ({
+          name,
+          message: RENDERING_MESSAGE,
+        })),
+      ],
+      "no-restricted-properties": [
+        "error",
+        ...renderingProperties(PACKAGE_RENDERING_NAMES),
+        ...HISTORY_PROPERTIES,
+        ...ID_PROPERTIES,
+      ],
+      "architecture/open-layers": "off",
+      "architecture/native-layers": "off",
+      "architecture/layer-returns": "off",
+    },
+  },
+  {
     // An import or binding nothing reads is a dependency edge the graph still carries
-    // and a name the next reader has to account for. Arguments and caught errors are
-    // left alone: a signature says what a callback is handed.
+    // and a name the next reader has to account for. Arguments are the type checks'
+    // (`noUnusedParameters`), which count a use in a JSDoc type where this rule
+    // doesn't. A callback keeps an argument it must take to reach a later one behind a
+    // `_`, so its signature still says what it is handed. Caught errors are left alone.
     files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-unused-vars": [

@@ -28,7 +28,7 @@
      for each new presentation of the document while the preview stands, so the words
      follow the page, a thread's turn or a link's place, redrawn in place with no fade
      and left as they are where they come back the same: `{name, keys, detail, list,
-     at, about, excerpt, unseen}`, every field optional (module-input.md, "Previews"). On a control its
+     at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
      accessible name where that says more than the face should; `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
@@ -184,8 +184,9 @@
      to aim a comment leaves standing the preview of the point it aims at. A target that
      arrives under a pointer the user hasn't moved shows nothing, so news landing under
      a resting pointer never covers what the user reads, and nor does one a pointer
-     reaches while it carries a press, as in a drag. A tab the user leaves takes its
-     preview away.
+     reaches while it carries a press, as in a drag. A target the pointer came to
+     shows after its dwell even where it redraws under the pointer meanwhile. A tab
+     the user leaves takes its preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
      once, with no fade, where the user aimed it there by a Tab or Shift+Tab, or by a
      placement standing in for one (`step`), the cause its mover gives (focus.js,
@@ -230,7 +231,7 @@
      holds whatever range its owner says it rests on (`pointRange`), and slides only as
      the owner says; its preview stands above the line and, as any hold's, its release
      presses nothing. A finger that only moves, as a pointer would, reads no range, and
-     the author's element holding the range wears no `data-lf-held`.
+     the author's element holding the range wears no `data-lf-touch-held`.
    - While a preview stands, by pointer or by focus, it is Escape's first step and the
      press does nothing else (keyboard/AGENTS.md, "Escape"): it covers what lies under
      it, so the user can put it away without moving the pointer or focus, and without
@@ -241,9 +242,11 @@
    Each pointer boundary costs the path it walks, the nodes under the pointer, and a
    preview showing costs what it reads, for a control the page's commands, and a few
    hit tests for its side, never the page's elements (root AGENTS.md,
-   "Responsiveness"). The target a finger held wears `data-lf-held` while its preview
-   stands, so its surface can keep it where the finger held it (margin-layout.js,
-   `HELD`).
+   "Responsiveness"). The target a finger held wears `data-lf-touch-held` while its
+   preview stands, so its surface can keep it where the finger held it (margin-layout.js,
+   `HELD`). The mark is the finger's alone: a thread's hold on an element is
+   `data-lf-held` (thread/presentation.js), and each pass that writes one clears it
+   from elements it no longer holds.
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
    holding the user up, over the margin labels' 90 ms and the platform's tooltips' second.
@@ -333,12 +336,16 @@ import {
   clippedContents,
   clippedRect,
   drawsText,
+  lined,
+  shownBox,
   shownParts,
   shownWindow,
   visualViewport,
 } from "./geometry.js";
-import { hasArea } from "./rect.js";
+import { hasArea, holds } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
+import { markRoom } from "./mark-room.js";
+import { anchorBox } from "./css-anchors.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -487,9 +494,13 @@ function wholeHeight() {
 // The face's lines as it lays out whole, read from layout whatever room a past fit held
 // it to, so the fit and the decision count a line alike: each block, the element its
 // lines wrap in (a name's words, else the block), the offset of its top from the face's
-// top, its line's height as laid out and its lines, a past fit's clamp added back in; and
-// the room each whole line needs from the face's top, the face's foot padding included.
-// A list's lines short of all of them need room for its count under them too.
+// top, its line's height as laid out and its lines, what a past fit's clamp holds back
+// added in; and the room each whole line needs from the face's top, the face's foot
+// padding included. A list's lines short of all of them need room for its count under
+// them too. A block's lines shown are read off its box, never off the count a past
+// clamp was given: the block may since hold another reading's words, which the face
+// draws into the same elements, and a clamp holds back nothing of a part the browser
+// lays out as a grid, such as a table's, so its box stands whole.
 /** @param {Reading} reading @returns {{blocks: {block: HTMLElement, el: HTMLElement, item: boolean, top: number, line: number, lines: number}[], rooms: number[], padEnd: number, counted: number}} */
 function faceLines(reading) {
   const faceTop = body.getBoundingClientRect().top;
@@ -502,7 +513,6 @@ function faceLines(reading) {
   if (reading.list && more && !more.textContent)
     render(reading.list.more(reading.list.items.length), more);
   const counted = reading.list && more ? more.getBoundingClientRect().height : padEnd;
-  const was = clampedNow();
   let held = 0;
   const blocks = /** @type {HTMLElement[]} */ ([
     ...body.querySelectorAll(":scope > .lf-preview-name, :scope > .lf-preview-detail"),
@@ -511,18 +521,14 @@ function faceLines(reading) {
       block.querySelector(":scope > .lf-preview-word") ?? block
     );
     const box = el.getBoundingClientRect();
-    const shown =
-      el === was
-        ? Number(el.style.getPropertyValue("--lf-preview-lines"))
-        : Math.max(
-            1,
-            Math.round(box.height / parseFloat(getComputedStyle(el).lineHeight)),
-          );
-    const line = box.height / Math.max(shown, 1);
-    const lines =
-      el === was ? Math.max(shown, Math.round(el.scrollHeight / line)) : shown;
+    const shown = Math.max(
+      1,
+      Math.round(box.height / parseFloat(getComputedStyle(el).lineHeight)),
+    );
+    const line = box.height / shown;
+    const lines = Math.max(shown, Math.round(el.scrollHeight / line));
     const top = box.top - faceTop + held;
-    if (el === was) held += (lines - shown) * line;
+    held += (lines - shown) * line;
     return {
       block,
       el,
@@ -1010,6 +1016,10 @@ let pointingRead = null;
 let pointingAt;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let dwell;
+// The target under the pointer whose wait is over, by its dwell or at once while warm,
+// so a new aim inside it shows at once (`changed`).
+/** @type {Target | null} */
+let rested = null;
 // The wait before a pointer's preview goes once the pointer has left its target.
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let leaving;
@@ -1159,8 +1169,9 @@ function show(from, route, read = null, at, again = false, aim = false) {
     standing.holder !== holder &&
     !(standing.target instanceof Range)
   )
-    standing.holder.removeAttribute("data-lf-held");
-  if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
+    standing.holder.removeAttribute("data-lf-touch-held");
+  if (route === "hold" && !(target instanceof Range))
+    keeps(holder, "data-lf-touch-held", "");
   if (standing) record.described = standing.described;
   else {
     // A screen reader hears a preview shown on focus as what focus is on describes,
@@ -1209,13 +1220,13 @@ const standsBy = ({ target, holder, reading }) =>
 // what lies below and a point's axis stands under it.
 // Only where no side's room holds a line does the side the window gives the most room
 // stand over what it covers and let the pointer through to it (`data-lf-covers`).
+// It stands `GAP` clear of a range's line, and of the marks round a box, which a
+// focus ring, the aim or a comment's mark draws there, on each side as far as they
+// reach, as a thread's card does (mark-room.js, `markRoom`); further clear of a box a
+// finger holds, which covers what is under it.
 const EDGE = 8;
-const GAP = { line: 6, box: 11, hold: 27 };
+const GAP = { line: 6, box: 6, hold: 22 };
 const REACH = 23;
-
-/** @param {Box} box @param {number} x @param {number} y */
-const holds = (box, x, y) =>
-  x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
 
 // The nearest HTML element with a box of its own at or around `el`: a `display:
 // contents` element's first shown part, and a shape in a drawing's HTML host.
@@ -1249,8 +1260,10 @@ function takeWithin(record) {
   };
 }
 // What the preview stands by: its anchor element and the box inside it, in client
-// coordinates, the anchor's own where it stands for itself.
-/** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box} | null} */
+// coordinates; for an element, the box it shows as (geometry.js, `shownBox`), every
+// part of an element drawn through `display: contents` included, and the element,
+// whose marks the preview stands clear of too (`stand`).
+/** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box, subject?: Element} | null} */
 function anchorOf(record, reading) {
   const { target, holder, at } = record;
   if (target instanceof Range) {
@@ -1285,13 +1298,7 @@ function anchorOf(record, reading) {
   const el = declared?.isConnected ? declared : holder;
   const source = boxed(el);
   if (!source) return null;
-  return {
-    source,
-    box: (source === el || source.parentElement === el
-      ? source
-      : el
-    ).getBoundingClientRect(),
-  };
+  return { source, box: shownBox(el), subject: el };
 }
 
 // The source the preview was last shown with, where it stood then, what it said, and
@@ -1430,7 +1437,7 @@ function stand(record, reading, standing, aim = false) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
   if (!anchor) return away(record);
-  const { source, box } = anchor;
+  const { source, box, subject } = anchor;
   follow(source);
   const { target, holder, route } = record;
   const declared = reading.at;
@@ -1442,8 +1449,19 @@ function stand(record, reading, standing, aim = false) {
   // chart's point scrolls out of a box while the chart still shows around it.
   const clips = target instanceof Range || point ? clippedContents : clippedRect;
   if (!clips(box, source, new Map())) return away(record);
+  // What it keeps clear of: the box, as far out as the marks round it reach, and
+  // its gap past that.
   const gap =
     target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
+  const marks = subject ? markRoom(subject, box, gap) : null;
+  /** @param {"left" | "top" | "right" | "bottom"} side */
+  const past = (side) => Math.max(0, marks?.[side] ?? 0) + gap;
+  const clear = {
+    top: box.top - past("top"),
+    right: box.right + past("right"),
+    bottom: box.bottom + past("bottom"),
+    left: box.left - past("left"),
+  };
   const rtl = getComputedStyle(holder).direction === "rtl";
   keeps(tip, "dir", rtl ? "rtl" : "ltr");
   open(source, standing, moved);
@@ -1452,9 +1470,12 @@ function stand(record, reading, standing, aim = false) {
   // since the preview stands over all of it; its width bounds the preview's.
   const room = shownWindow({ gap: EDGE, item: tip });
   tip.style.setProperty("--lf-preview-span", layoutPx(room.width));
-  const by = source.getBoundingClientRect();
+  // Its edges stand at offsets from the box `anchor()` reads its source at, which in
+  // Firefox leaves out the source's transforms (css-anchors.js, `anchorBox`).
+  const by = anchorBox(source);
   // The size this decision read, which the observer of what it stands by compares.
-  followedSize = { width: by.width, height: by.height };
+  const { width: sourceWidth, height: sourceHeight } = source.getBoundingClientRect();
+  followedSize = { width: sourceWidth, height: sourceHeight };
   const width = tip.getBoundingClientRect().width;
   const height = atLayoutPrecision(wholeHeight());
   // What it is about stays in view: the box it stands by, and what its declaration
@@ -1470,9 +1491,9 @@ function stand(record, reading, standing, aim = false) {
   /** @param {Placement["y"]} y */
   const rowRoom = (y) =>
     y === "below"
-      ? room.bottom - (box.bottom + gap)
+      ? room.bottom - clear.bottom
       : y === "above"
-        ? box.top - gap - room.top
+        ? clear.top - room.top
         : room.bottom - box.top;
   // By the box's start or end edge, slid in along it until the window holds it, still
   // across the box, so the same side builds the same place from the same geometry.
@@ -1487,9 +1508,9 @@ function stand(record, reading, standing, aim = false) {
       : x === "right"
         ? slid(box.right - width)
         : x === "after"
-          ? box.right + gap
+          ? clear.right
           : x === "before"
-            ? box.left - gap - width
+            ? clear.left - width
             : Math.min(
                 Math.max(room.left + (room.width - width) / 2, box.left - width + 1),
                 box.right - 1,
@@ -1514,7 +1535,7 @@ function stand(record, reading, standing, aim = false) {
     placeAt(
       y,
       x,
-      y === "below" ? box.bottom + gap : y === "above" ? box.top - gap : box.top,
+      y === "below" ? clear.bottom : y === "above" ? clear.top : box.top,
       rowRoom(y),
       leftOf(x),
     );
@@ -1567,8 +1588,15 @@ function stand(record, reading, standing, aim = false) {
       Math.max(0, Math.min(height, at.room, towardSubject(at))),
     );
     if (reach < least) return reach;
-    const own = target instanceof Range ? box : holder.getBoundingClientRect();
-    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder, own)));
+    const room =
+      target instanceof Range
+        ? clearRoom(at, reach, holder, null, {
+            ...lined(box, target.startContainer),
+            left: -Infinity,
+            right: Infinity,
+          })
+        : clearRoom(at, reach, holder, holder.getBoundingClientRect(), null);
+    return Math.min(reach, atLayoutPrecision(room));
   };
   /** @type {Placement | null} */
   let chosen = null;
@@ -1666,7 +1694,7 @@ function stand(record, reading, standing, aim = false) {
   function towardSubject(at) {
     let until = Infinity;
     for (const [subject, clearing] of /** @type {const} */ ([
-      [box, gap],
+      [clear, 0],
       [about, 0],
     ])) {
       if (!subject || subject.left >= at.box.right || at.box.left >= subject.right)
@@ -1694,9 +1722,12 @@ function stand(record, reading, standing, aim = false) {
 // holder or what it holds, which are no other control, so it is not tested, as most of
 // a preview standing over a chart is not, which bounds its cost. A range's holder, the
 // element holding its words, holds other ranges on its other lines, as a paragraph does
-// other threads' marks, so for a range only its own line (`own`) goes untested.
-/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box} own */
-function clearRoom(at, reach, holder, own) {
+// other threads' marks, so for a range nothing is left untested (`own` is null). Only a
+// mark on its own line (`line`), across its leading (geometry.js, `lined`) and its whole
+// width, goes untested, since there the mark is the preview's own or one beside it; a
+// control there, as a button in a deep leading just below the words, is still tested.
+/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box | null} own @param {Box | null} line */
+function clearRoom(at, reach, holder, own, line) {
   const around = new Set(climb(holder));
   // The boxes around `holder` a press acts on (`targetAt`).
   /** @type {Set<Element>} */
@@ -1715,8 +1746,9 @@ function clearRoom(at, reach, holder, own) {
     const y = down ? at.from + off : at.from - off;
     let edge = Infinity;
     for (const x of across) {
-      if (holds(own, x, y)) continue;
-      const hit = targetAt(x, y, holder, around, taking);
+      if (own && holds(own, x, y)) continue;
+      const marks = !line || !holds(line, x, y);
+      const hit = targetAt(x, y, holder, around, taking, marks);
       if (!hit) continue;
       edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
     }
@@ -1787,8 +1819,8 @@ export function declareRanges(at) {
 // it (`taking`), as a card a press opens around a chart is. Rejected: counting every
 // box around it that takes the pointer, so inside `lf-toc`, drawn across the
 // column, no side holds a line and a row's preview stands over the next row.
-/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @returns {Box | null} */
-function targetAt(x, y, holder, around, taking) {
+/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @param {boolean} marks whether to ask the ranges' owners @returns {Box | null} */
+function targetAt(x, y, holder, around, taking, marks) {
   const hit = hitAt(x, y);
   if (!hit) return null;
   for (const at of climb(hit)) {
@@ -1797,6 +1829,7 @@ function targetAt(x, y, holder, around, taking) {
     if (!around.has(at) && keepsAccess(at))
       return renderedUnder(at, holder) ? null : at.getBoundingClientRect();
   }
+  if (!marks) return null;
   for (const owner of rangeOwners) {
     const box = owner(x, y, hit);
     if (box) return box;
@@ -1818,7 +1851,7 @@ function hide() {
     else described.el.setAttribute("aria-describedby", described.attribute);
   }
   if (record.route === "hold" && !(record.target instanceof Range))
-    record.holder.removeAttribute("data-lf-held");
+    record.holder.removeAttribute("data-lf-touch-held");
   follow(null);
   awaitView(null);
   placed = null;
@@ -1840,12 +1873,13 @@ function ended(record) {
     );
 }
 
-// The pointer's target changed: start its dwell, or show it at once while warm. A
+// The pointer's target changed: start its dwell, or show it at once while warm or where
+// it aims again inside the target it rested on (`again`). A
 // pointer that leaves its target for nothing, as on its way onto the preview, puts the
 // preview away only after a dwell, which its reaching the preview or the target cancels;
 // one that reaches another target shows that one at once.
-/** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] */
-function point(target, read = null, at) {
+/** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] */
+function point(target, read = null, at, again = false) {
   riding = false;
   if (sameTarget(target, pointing)) return;
   clearTimeout(leaving);
@@ -1854,6 +1888,7 @@ function point(target, read = null, at) {
   pointing = target;
   pointingRead = read;
   pointingAt = at;
+  rested = null;
   clearTimeout(dwell);
   // The preview the pointer leaves, which a focus preview never is.
   const left =
@@ -1873,11 +1908,14 @@ function point(target, read = null, at) {
   // The next target's preview replaces the one the pointer left at once, which reads
   // the next before the last ends, and takes its place where it stands by the same
   // element (`standsBy`); a next that says nothing leaves none.
-  if (left || performance.now() - cooled < WARM) {
+  if (left || again || performance.now() - cooled < WARM) {
+    rested = target;
     if (!show(target, "pointer", read, at) && shown === left) hide();
   } else
     dwell = setTimeout(() => {
-      if (pointing === target) show(target, "pointer", pointingRead, pointingAt);
+      if (pointing !== target) return;
+      rested = target;
+      show(target, "pointer", pointingRead, pointingAt);
     }, DWELL);
 }
 
@@ -2031,7 +2069,9 @@ function showHeld(held) {
 // a redraw. Where the user aimed at something new inside it (`aim`), as a chart's next
 // point, the aim is a new target: whatever put the last preview away, the route reading
 // the element shows it, focus the browser shows included; focus a press put there
-// without showing it leaves the aim to the pointer.
+// without showing it leaves the aim to the pointer, which shows it at once where it has
+// already rested inside the element (`rested`), as on a dial's depth whose press put its
+// preview away however long it was held, and after its dwell where it only just came.
 // What changed is the element that supplied the reading, its owner, which may stand
 // around what the route aims at, as a widget declares for the control in it that holds
 // focus.
@@ -2056,7 +2096,7 @@ function changed(node, aim) {
   else if (beneath && under(beneath, node) && !within(quiet)) {
     over = node;
     pointing = null;
-    point(node);
+    point(node, null, undefined, aim && within(rested));
   }
 }
 
@@ -2148,14 +2188,17 @@ export function mountPreviews(chrome) {
       if (onPreview()) return ride();
       // Something that arrives under a pointer the user hasn't moved takes it, but
       // shows nothing: the user pointed at what was there before. A pointer carrying a
-      // press, as a drag does, is acting, not reading.
+      // press, as a drag does, is acting, not reading. A target that only redraws
+      // under the pointer that came to it, as an entry's icon does, is still what the
+      // user pointed at, so the dwell their move began goes on.
       if (still || event.buttons) {
         const target = aimed();
-        if (!sameTarget(target, pointing)) {
+        const stays = sameTarget(target, pointing);
+        if (!stays) {
           pointing = target;
           pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
         }
-        clearTimeout(dwell);
+        if (!stays || event.buttons) clearTimeout(dwell);
         if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
       } else aim();
     },

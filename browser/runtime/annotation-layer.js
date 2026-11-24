@@ -10,6 +10,15 @@
    with a reload, and a new page opens with the layer shown: a lasting "never show
    markers" would hide every arrival on every page.
 
+   `g H` (Hidden) hides or shows it, one of Go-to's named rows (go-to-sequence.js),
+   rather than a key of its own: the user hides it rarely, so it spends none of the few
+   single letters the page has free. The user chose H for Hidden over leaving H to the
+   changes `h` walks, as `g T` and `g M` open the lists `t` and `m` walk. Hiding it is
+   no mode, though it lasts until the user shows it again: it changes what the page
+   shows, not what a key or the panel's field does. So the field keeps taking words, and
+   its standing words say the layer is hidden ("Annotations hidden", floating-panel.js,
+   `STANDING_PARTS`); a mode's chip would take the field's place.
+
    `setAnnotationsHidden` is the one writer. It states the fact on the chrome's root
    (`data-lf-annotations-hidden`) for the stylesheets, keeps it for the tab, and tells
    each watcher, so the margin can take focus and its card off what it hides and the
@@ -24,9 +33,7 @@
 import { signal } from "/runtime/framework.js";
 import { tabStore } from "./tab-store.js";
 import { chromeRoot } from "./chrome.js";
-import { pageCommand } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
-import { coarsePointer } from "./pointer.js";
 
 import { ANNOTATIONS_KEY } from "./restore-state.js";
 
@@ -41,33 +48,34 @@ export function watchAnnotations(watcher) {
   watchers.add(watcher);
 }
 
-export function mountAnnotationControls() {
-  pageCommand({
-    id: "annotations.toggle",
-    keys: ["o"],
-    title: () => (hidden.value ? "show annotations" : "hide annotations"),
-    touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
-    menu: "annotate",
-    // A notice while the press's result stands. Where its words say only what the page
-    // field's standing "Annotations hidden" says (floating-panel.js, `standing`), or
-    // that it went, it is about the annotations and shows where those words don't, as
-    // on the folded leaf; hiding them with a key names the key that brings them back,
-    // which the standing words don't, so that one shows in the field too.
-    run: () => {
-      const on = !hidden.value;
-      setAnnotationsHidden(on);
-      const key = on && !coarsePointer.matches;
-      notice(
-        !on
-          ? "Annotations shown"
-          : key
-            ? "Annotations hidden — o shows them"
-            : "Annotations hidden",
-        { about: key ? null : "annotations", stands: () => hidden.value === on },
-      );
-    },
-  });
-}
+// Go-to's row for the layer, which Go-to also declares to the page (leaf.js,
+// `directDestinations`), so the leaf's menu and a finger reach it as `g H` does.
+/** @type {import("./keyboard/bindings.js").Command} */
+export const ANNOTATIONS_TOGGLE = {
+  id: "annotations.toggle",
+  keys: ["Shift+h"],
+  title: () => (hidden.value ? "show annotations" : "hide annotations"),
+  touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
+  menu: "annotate",
+  // A notice while the press's result stands, about the annotations (notifications.js,
+  // `about`); hiding them offers Show annotations as its press.
+  run: () => {
+    const on = !hidden.value;
+    setAnnotationsHidden(on);
+    const stands = () => hidden.value === on;
+    notice(on ? "Annotations hidden" : "Annotations shown", {
+      about: "annotations",
+      stands,
+      press: on
+        ? {
+            action: "show-annotations",
+            command: "annotations.toggle",
+            stands,
+          }
+        : null,
+    });
+  },
+};
 
 /** @param {boolean} on */
 function setAnnotationsHidden(on) {

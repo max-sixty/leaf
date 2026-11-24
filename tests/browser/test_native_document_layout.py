@@ -5,6 +5,8 @@ import pytest
 from playwright.sync_api import expect
 from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
+from browser.margin import _comment_on
+
 DOCUMENT = """
 <aside id="route"><div class="layout-track">
   <p>Read the evidence before deciding.</p><nav><a href="#evidence">Evidence</a></nav>
@@ -51,7 +53,8 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     """A question's section draws no box of its own around its blocks, so they stand
     in the page's flow: its words and its options keep the prose's edge, and a block
     declaring more room takes it. A div keeps what it holds in the column, inside a
-    question or round it."""
+    question or round it. A section in an open disclosure stands in the page's flow
+    as well, so a comment on its heading stands by its words."""
     options = (
         '<lf-options id="{id}-options">'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
@@ -73,9 +76,13 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         )
         + "</section><div>"
         + question.format(id="kept", held=evidence.format(id="kept"))
-        + "</div>",
+        + "</div>"
+        + '<details open><summary>More</summary><section id="disclosed">'
+        + '<h2 id="disclosed-head">Held in a disclosure</h2>'
+        + evidence.format(id="disclosed")
+        + "</section></details>",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source, events=[_comment_on("disclosed-head")]))
     resized(page, 1728, 900)
     boxes = page.evaluate("""() => Object.fromEntries(
       [...document.querySelectorAll('[id]')].filter(el => el.closest('main'))
@@ -100,6 +107,10 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     marker = page.locator("[data-lf-margin-for='holds']")
     expect(marker).to_have_attribute("data-lf-place", "rail")
     assert marker.bounding_box()["x"] < column[1] + 100
+    assert boxes["disclosed-evidence"][1] > 1628, boxes
+    expect(page.locator("[data-lf-margin-for='disclosed-head']")).to_have_attribute(
+        "data-lf-place", "rail"
+    )
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -276,6 +287,69 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
     }""")
     assert moved["scrolls"], moved
     assert moved["moved"] == pytest.approx(0, abs=0.5), moved
+
+
+@pytest.mark.parametrize("shell", ["body", "part"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
+    request, serve, engine, shell
+):
+    """A sidebar page's stuck track stays where it sticks to the document's end, even
+    one reaching the window's foot, as the contents map does, so its start stays in
+    view through the last of the scroll. That holds for a
+    sidebar that is `main` and for one that is a part's. A footer, the sidebar's or one
+    the page writes after the sidebar, stops the track, so it never stands over the
+    footer."""
+    follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    regions = (
+        f'<aside id="route"><div class="layout-track" id="track">{follow_ups}</div>'
+        f'</aside><div id="body">{body}</div>'
+    )
+    source = (
+        leaf_page("sidebar track end", regions, layout="sidebar")
+        if shell == "body"
+        else leaf_page(
+            "sidebar track end",
+            '<header><h1>Release review</h1></header><lf-parts id="parts">'
+            '<lf-part id="plan" label="Plan">'
+            f'<div class="layout-sidebar">{regions}</div></lf-part></lf-parts>',
+            layout=None,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 600)
+    stood = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const track = document.getElementById('track');
+      const sidebar = track.closest('.layout-sidebar');
+      const atEnd = async () => {
+        scrollTo(0, document.scrollingElement.scrollHeight);
+        await frame();
+        return track.getBoundingClientRect();
+      };
+      const stops = async (place) => {
+        const footer = document.createElement('footer');
+        footer.textContent = 'Reviewed in March.';
+        place(footer);
+        const {bottom} = await atEnd();
+        // Firefox lays the two edges out a rounding error apart.
+        const stopped = bottom <= footer.getBoundingClientRect().top + 0.5;
+        footer.remove();
+        return stopped;
+      };
+      scrollTo(0, 1500);
+      await frame();
+      const {top: mid, bottom} = track.getBoundingClientRect();
+      return {mid, end: (await atEnd()).top, bottom, window: innerHeight,
+              after: await stops((footer) => sidebar.after(footer)),
+              inSidebar: await stops((footer) => sidebar.append(footer))};
+    }""")
+    # The track reaches the window's foot, short only by the gap it keeps there.
+    assert stood["bottom"] == pytest.approx(stood["window"] - 24, abs=1), stood
+    assert stood["end"] == pytest.approx(stood["mid"], abs=0.5), stood
+    assert stood["after"], stood
+    assert stood["inSidebar"], stood
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

@@ -3,16 +3,21 @@
 Read with [packages.md](packages.md), which holds the package contract and how styles
 compose. A theme is a page's look: a package whose rules style the page as a whole,
 whether or not it also declares widgets. Defaults that Layouts and the page's sheet
-should outrank, such as element rules, belong in `defaults.css`, in the layer with
-Leaf's own defaults; rules meant to win over widget defaults and Layouts belong in
-`overrides.css`. Idioms belong in either, declared in the package's registry.
+should outrank, such as element rules and the tokens a theme sets on `:root`, belong in
+`defaults.css`, in the layer with Leaf's own defaults; rules meant to win over widget
+defaults and Layouts belong in `overrides.css`. Idioms belong in either, declared in
+the package's registry.
 
-## Personal themes
+## A page's theme
+
+A page's theme is one of the packages it selects. Leaf composes the packages a page
+lists, in that order, and adds no theme of its own, so a page that selects none starts
+from the browser's defaults, as `page-authoring.md`, "Style the page", describes.
 
 A theme styles the page's own native controls as well as its markup, so they stand
 beside Leaf's controls as one set. Leaf bundles one theme, `reading`: the reading look,
-which styles the body's type and colour and the idioms such as `.callout`, and turns on
-the reading face markup wears in Leaf's own surfaces (headings, prose, lists, tables,
+which styles the body's type and colour and turns on the reading face markup wears in
+Leaf's own surfaces (headings, prose, lists, tables,
 code, quotes, figures, disclosures, definitions, rules and pictures, with a wide table
 scrolling inside itself, a code block's long lines wrapping, and a `language-…` code
 block coloured by its tokens) by setting `--lf-reading-face: 1` on the root. The face
@@ -20,59 +25,51 @@ also gives the page's own buttons, fields and labelled choices the faces of Leaf
 controls (the vocabulary's `button` and `input, select` entries), while a control Leaf
 builds keeps its own. The face's rules rank below every other rule of `lf-base`, so a
 theme's or package's rule for one of those elements outranks them whatever its weight,
-and a personal theme restyles the page's controls through the tokens they read or with
-rules of its own. A new page takes it unless the user names another default. A page that
-takes none (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing
-of the look reaches it, its tables, code blocks and controls included, while Leaf's
-widgets, threads and panel keep their own faces, in the browser's own canvas and text
-colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
+and another theme restyles the page's controls through the tokens they read or with
+rules of its own. A page or a theme may still set
 `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there. Each of
 the face's rules reads the element's parent, so the box itself still wears the face: set
 the input on a wrapper around the table or code block, not on it.
 
-A user can also keep several named themes and choose one default. Each is an ordinary
-installed package; its `instructions/author.md` describes the tasks it suits. Install
-the package with `leaf package install <directory>`, then list its name in
-`~/.config/leaf/themes.toml` (`$XDG_CONFIG_HOME/leaf/themes.toml` when set):
+A theme of your own is an ordinary package, often a single `defaults.css`. How the
+page selects it decides what the theme has to state:
 
-```toml
-themes = ["editorial", "dense"]
-default = "editorial"
-```
+- To build on `reading`, the page selects `reading` and then the theme: `leaf page init
+  <page> --package reading --package dense`. A later package's rule wins a tie with an
+  earlier one's, so the theme states only what it changes, such as its three colours, a
+  face and a corner.
+- To replace `reading`, the page selects the theme without it: `leaf page init <page>
+  --package editorial`. The theme then states the whole look.
 
-A personal theme builds on the reading look: `reading` composes first and the theme
-after it, so a theme states only what it changes, such as its three colours, a face
-and a corner, and its pages keep the look's idioms, such as `.callout` and `.tag`. A
-theme's rule wins a tie with the reading look's. A look that wants none of `reading`
-is a content package on a page that takes no theme: `leaf page init <page> --no-theme
---package dense`.
+Either way its pages keep Leaf's idioms, such as `.lf-callout` and `.lf-tag`, which
+Leaf draws on every page. Leaf's rules for them rank above the reading face's and below
+every other rule of `lf-base`, so a theme's rule for an idiom's element, such as
+`.lf-tag` or a bare `dt`, outranks Leaf's whatever its weight.
 
-`leaf theme list` returns the available choices, default and author instructions.
-The author's selection follows the user's request first, then the task and those
-instructions; leaving it unspecified uses the default on a new page. Select one with
-`leaf page init <page> --theme dense`. Content packages remain independent; the
-reading look and the selected theme compose right after Leaf's default package and
-before them, so a
-project package can restate a theme's idiom, such as `.callout`, and its rules win a
-tie with the theme's.
+Select a page's theme ahead of its other packages, so that a package's rule wins a tie
+with the theme's and a project package can restate what the theme declares.
+Re-initializing a page with `--package` replaces every package it selects, its theme
+among them, so name the theme again with each package the page keeps.
 
-A page captures its selected theme when initialized. Re-initializing preserves that
-choice, even if the user's default changes; an explicit `--theme` replaces it.
-`--no-theme` takes none, and a later plain init keeps none; `--no-packages` clears
-only the content packages.
-Developer fixture builders use an empty configuration home, so examples, the website
-and demo recordings take `reading` rather than the developer's personal default.
-`leaf page state <page>` exposes the effective name and whether it was explicit or
-default under `layer.theme`.
+A theme's `instructions/author.md` opens by saying when to select it and whether it
+follows `reading` or replaces it, and `leaf package list` prints that paragraph beside
+every other package the machine can select. The author's selection follows the user's
+request first, then the task and those instructions. A theme the user wants on every
+page is one they install with `leaf package install <directory>`: have its `author.md`
+say so, and save the preference in your harness's memory, where later sessions read it
+(the main skill's "Follow the user's preferences").
 
-A page records its theme's name, and the Leaf serving, checking or exporting it
-composes the theme package it finds by that name, so each of those needs the package
-installed; an export carries the theme's bytes. Live samples inherit their parent's
-layer; a sample may deliberately show different theme inputs as a style reference
-(`live-samples.md`). Applying the catalogue's current default to already-authored
-pages remains a possible later change.
+To try a theme while writing it, select its directory, which needs no install: `leaf
+page init <page> --package reading --package ./my-theme`.
+
+A page records the names of the packages it selects, and the Leaf serving, checking or
+exporting it composes the packages it finds by those names. So a theme selected by name
+has to be installed wherever the page is served, checked or exported, while one
+selected by path is copied into the page (`packages.md`, "Package reach"). An export
+carries the theme's rules. Live samples inherit their parent's layer; a sample may
+deliberately show different theme inputs as a style reference (`live-samples.md`).
 
 ## A theme change
 
@@ -101,7 +98,9 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the page's
 `--lf-paper`, which is the browser's `Canvas` until a theme or the page sets it. The
 reading theme paints the window that colour, and a look of your own on a page that
-takes no theme paints `html` the same way. Each solid containing surface
+selects no theme paints `html` the same way. The reading theme paints `body` in it too,
+so a theme built on `reading` draws a texture behind the page on `body`, since one on
+`html` alone lies under the body's ground. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -148,7 +147,8 @@ or in the host while no match exists. The declaration does not inherit. Declare
 `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
-Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+Leaf rings every box that holds visible focus, at a control's gap outside it, and its
+own word and symbol presses one band inside their edge. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
 its kind (`styles/tokens.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
 `0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
@@ -233,12 +233,13 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` does, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles
 the chrome beyond tokens does it through a package of its own, named beside every
-package the page keeps: `leaf page init <page> --package diff --package ./chrome-look`.
+package the page keeps: `leaf page init <page> --package reading --package diff
+--package ./chrome-look`.
 
 ## Theme tokens
 
@@ -299,10 +300,11 @@ Type, space and shape:
 | Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page                                                                                                                                                          |
 
 Changing `--lf-accent` does not choose the count's pair or the status palette. Check
-the foreground against each ground where it is used, in both color schemes. A theme
-may set `light-dark()` values so the browser's scheme preference selects the palette.
-Subtree overrides follow normal CSS inheritance: when changing a token locally,
-redeclare any value stepped from it that is needed there, such as `--lf-card` after
-`--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow` after `--lf-accent`. Keep
-the inherited `--lf-ground` surface contract described above so opaque nested controls
-match their containing surface.
+the foreground against each ground where it is used, in both color schemes. `page check
+--render` draws the light scheme only, so read the dark one on the served page in a
+browser set to dark. A theme may set `light-dark()` values so the browser's scheme
+preference selects the palette. Subtree overrides follow normal CSS inheritance: when
+changing a token locally, redeclare any value stepped from it that is needed there,
+such as `--lf-card` after `--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow`
+after `--lf-accent`. Keep the inherited `--lf-ground` surface contract described above
+so opaque nested controls match their containing surface.

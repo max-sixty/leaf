@@ -22,6 +22,7 @@ from render_harness import (
     example_media,
     expect_error_waits_in_menu,
     expect_panel_says,
+    field_press,
     holding,
     leaf_page,
     open_page,
@@ -137,9 +138,10 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     reselecting that exact passage. Words a user cannot find again are words they have
     lost, whatever localStorage still holds.
 
-    So the moment says what became of them and names the address that answers — and the
-    address is offered only while there is a draft still there to go to, which is the half
-    that keeps the sentence honest."""
+    So the moment says what became of them, and the panel field's end offers the press
+    that brings them back, Resume writing, with its keys — and only while there is a
+    draft still there to go to, which is the half that keeps the notice honest. The
+    press and its keys each bring the box back."""
     page = open_page(browser, serve(LONG_PAGE))
     kept = "Half a sentence, and then the panel."
 
@@ -149,18 +151,29 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    open_threads(page)
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    assert pending_text(page) == "", "a box off screen left its passage marked"
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    def put_away(gesture):
+        gesture()
+        expect(page.locator(".lf-composer")).to_be_hidden()
+        assert pending_text(page) == "", "a box off screen left its passage marked"
+        expect_panel_says(page, "Draft kept")
+        press = field_press(page)
+        expect(press.locator(".lf-compose-press-word")).to_have_text("Resume writing")
+        expect(press.locator("kbd")).to_have_text(["g", "i"])
+        assert "writing.resume" in available_commands(page)
+        return press
 
-    assert "writing.resume" in available_commands(page)
+    def came_back():
+        expect(page.locator(".lf-composer")).to_be_visible()
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
+        assert pending_text(page), "the box came back on nothing"
+
+    put_away(lambda: open_threads(page)).click()
+    came_back()
+    put_away(lambda: page.keyboard.press("Escape"))
     page.keyboard.press("g")
     page.keyboard.press("i")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
-    assert pending_text(page), "the box came back on nothing"
+    came_back()
 
 
 def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
@@ -360,7 +373,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     # Put away: the picture is words enough to keep, and to be told about.
     open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     assert "writing.resume" in available_commands(page)
     page.keyboard.press("g")
     page.keyboard.press("i")

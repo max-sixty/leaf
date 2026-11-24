@@ -12,7 +12,7 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      /* The panel's drawings are the theme's svg.drawing idiom. A figure of several
+      /* The panel's drawings are Leaf's svg.lf-drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
       .panels {
@@ -35,12 +35,12 @@
         font-size: 15px;
         margin-bottom: 2px;
       }
-      /* Marks particular to these drawings, on the same tokens as the theme's
-         svg.drawing idiom: the rail and a surface drawn over the page. */
-      svg.drawing .rail {
+      /* Marks particular to these drawings, on the same tokens as Leaf's
+         svg.lf-drawing idiom: the rail and a surface drawn over the page. */
+      svg.lf-drawing .rail {
         fill: var(--lf-accent-tint);
       }
-      svg.drawing .over {
+      svg.lf-drawing .over {
         fill: var(--lf-paper);
         fill-opacity: 0.92;
         stroke: var(--lf-accent);
@@ -67,7 +67,7 @@
           <p>Using a page</p>
           <h1>Using a Leaf page</h1>
         </hgroup>
-        <p class="lede" id="intro">
+        <p class="lf-lede" id="intro">
           An agent hands the user a page about its work. The user reads it, comments on
           exact passages, makes the choices it asks for, and follows what the agent is
           doing, by keyboard, pointer or touch.
@@ -123,10 +123,10 @@
               reading position.
             </p>
             <p id="chrome-bars">
-              The page reserves space at the bottom for the panel's row, so the last
-              lines can scroll above it. A view opens above the row and overlays the
-              page without moving its content. Escape or a press on the page closes the
-              view.
+              The panel's row floats over the foot of the page and takes no room from
+              it; press <kbd>.</kbd> to fold it to its leaf in the corner. A view opens
+              above the row and overlays the page without moving its content. Escape or
+              a press on the page closes the view.
               <a href="#phone">Phones and touch screens</a> describes the panel on a
               touch screen.
             </p>
@@ -136,20 +136,20 @@
               enough space: about 960px on a column page or about 1920px on a sidebar
               page. Where no rail fits, and inside a scrolling pane, a small pin appears
               beside the target on the page. Leaf places it clear of text and controls
-              when space permits. The <kbd>o</kbd> shortcut hides pins and passage
-              highlights.
+              when space permits. The <kbd>g</kbd> <kbd>H</kbd> shortcut hides pins and
+              passage highlights.
             </p>
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is
               narrower than the card, it overlaps the text's edge. Threads, a thread
-              opened from it, the On view and All pages open as views above the panel's
-              row, one at a time.
+              opened in the panel, the On view and All pages open as views above the
+              panel's row, one at a time.
             </p>
 
             <div class="panels" id="chrome-figure">
               <figure id="chrome-reserved">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="Leaf's panel floats at the window's foot, and the rail sits in the margin beside the column"
@@ -229,14 +229,13 @@
                 </svg>
                 <figcaption id="cap-chrome-reserved">
                   <strong>Panel and rail</strong> The panel's row floats over the foot
-                  of the window, where the page leaves room for it. On a column page,
-                  the rail sits in the margin beside the column and takes no width from
-                  it.
+                  of the window and takes no room from the page. On a column page, the
+                  rail sits in the margin beside the column and takes no width from it.
                 </figcaption>
               </figure>
               <figure id="chrome-surfaces">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="Threads, the On view and All pages open as a view above the panel's row"
@@ -271,7 +270,7 @@
               </figure>
               <figure id="chrome-card">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A thread card opens in the rail beside its marker"
@@ -363,10 +362,10 @@
                 </tr>
                 <tr id="panel-line-notice">
                   <td>
-                    A <a href="#updates-notices">notice</a> for four seconds, or until
-                    the next input for an undo's or one offering a press; Go-to finding
-                    nothing, while its filter waits for a key; a walk's position for
-                    four seconds after each step
+                    A <a href="#updates-notices">notice</a> for four seconds, and then
+                    until the next input for an undo's or one answering the user's own
+                    action with a press; Go-to finding nothing, while its filter waits
+                    for a key; a walk's position for four seconds after each step
                   </td>
                   <td>
                     <em>Updated to v4</em>, <em>No visible threads</em>,
@@ -388,9 +387,9 @@
             <p id="panel-line-thread">
               With a thread open, the field is that thread's reply box. It says whose
               turn it is beside the leaf, such as <em>Your turn</em>, and
-              <em>Reply</em> with the key that enters it at the line's end; a notice
-              takes their place while it stands, and a walk's position follows whose
-              turn it is.
+              <em>Reply</em> with the key that enters it at the line's end while that
+              key enters it; a notice takes the turn's place while it stands, and a
+              walk's position follows whose turn it is.
             </p>
             <p id="panel-line-mode">
               In a mode, such as Draw mode, the row is the mode's: its name in a word,
@@ -405,13 +404,15 @@
               in a mode <em>Close</em> <kbd>esc</kbd>, else <em>Open latest</em> on an
               older version, otherwise <em>Next On Me</em> <kbd>m</kbd> while something
               waits on the user, and <em>Comment…</em> <kbd>c</kbd> once nothing does.
-              After a Resolve it offers <em>Next thread</em> <kbd>t</kbd>. A press
-              stands there only while its key would make it, so with the caret in a
-              reply, where <kbd>m</kbd> types a letter, the end is empty until the caret
-              leaves, and <em>Close</em> leaves it while <kbd>esc</kbd> would first
-              close a thread opened in the mode. On a touchscreen the end shows the
-              press's word alone, but for <em>Close</em>, whose place the mode's ✕ takes
-              there.
+              After a Resolve it offers <em>Next thread</em> <kbd>t</kbd>, and with news
+              of changes since the version the user last saw, <em>Show changes</em>
+              <kbd>g</kbd> <kbd>V</kbd> <kbd>v</kbd>. A press stands there only while
+              its key would make it, so with the caret in a reply, where
+              <kbd>m</kbd> types a letter, the end is empty until the caret leaves, and
+              <em>Close</em> leaves it while <kbd>esc</kbd> would first close a thread
+              opened in the mode. A touchscreen shows no keys, so the end offers no
+              press there; the panel's menu and lists reach each one, and the mode's ✕
+              closes it.
             </p>
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
@@ -419,13 +420,12 @@
               before it. Only words the agent wrote, such as the line it gave its work,
               read in its voice; what Leaf says itself, such as <em>Stopped 3m ago</em>,
               is set in italic. Words the user is writing hide the line, while screen
-              readers still hear notices and changes of status. A press the line offers,
-              <em>Reply</em> or the selected words, reads in full ink with the key that
-              makes it, and everything else reads dimmer. The leaf and the tab's icon
-              keep the status's colour throughout. Where the field cuts its words short,
-              pointing at it or holding a finger on it shows them whole, and the leaf's
-              menu holds the status's full sentence. A folded panel shows notices beside
-              the leaf.
+              readers still hear notices and changes of status. The line's words read
+              dimmer than words written in it, and a passing notice a step brighter. The
+              leaf and the tab's icon keep the status's colour throughout. Where the
+              field cuts its words short, pointing at it or holding a finger on it shows
+              them whole, and the leaf's menu holds the status's full sentence. A folded
+              panel shows notices beside the leaf.
             </p>
           </section>
           <section id="on-me">
@@ -433,10 +433,11 @@
             <p id="on-me-what">
               The leaf at the end of the panel's row counts what waits on the user: each
               choice a widget asks them to make, each question the agent asks them in a
-              thread, and each update of theirs that failed to send. Pressing the leaf
-              opens the list;
-              <kbd>m</kbd> walks the items in the order the list shows them, landing on
-              each where it is answered.
+              thread, and each update of theirs that failed to send. Pressing the leaf,
+              or <kbd>o</kbd>, opens the list, and <kbd>←</kbd> / <kbd>→</kbd> turn to
+              the agent's list, Threads and the menu beside it; <kbd>m</kbd> walks the
+              items in the order the list shows them, landing on each where it is
+              answered.
             </p>
             <p id="on-me-answer">
               The user answers an item where it asks: with the widget's own pick, or
@@ -451,9 +452,10 @@
           <section id="updates-notices">
             <h2>Notices</h2>
             <p id="updates-notices-lede">
-              A notice stands in the panel's line for four seconds, an undo's until the
-              next input, and is announced to screen readers. Simultaneous news shares
-              one notice, such as
+              A notice stands in the panel's line for four seconds, and an undo's or one
+              answering the user's own action with a press then stays until the next
+              input. Each is announced to screen readers. Simultaneous news shares one
+              notice, such as
               <em>Not answered · New On Me</em>. Some news is only announced, since
               something on the page already shows it: an agent message the user hasn't
               read, which the leaf's dot and its margin marker show, and the user's own
@@ -530,8 +532,16 @@
             <p id="panel-route">
               The <strong>Threads</strong> tab of Leaf's On view, which the panel's On
               Me mark opens, lists the threads above the panel's row. Select a thread to
-              read its messages and reply in the panel's comment field. Its passage link
-              returns to the anchor on the page.
+              open it: a thread about a passage opens in its card beside the passage,
+              and a thread about the whole page in the panel, where you read its
+              messages and reply in the panel's comment field. A card's
+              <em>Open in panel</em> (<kbd>p</kbd>) moves its thread into the panel, and
+              the threads you open after it, by <kbd>t</kbd>, Threads or a press on
+              their words, open there too, until the panel's <em>Show on page</em>
+              (<kbd>p</kbd>) puts threads back beside their passages. A walk or a row of
+              Threads brings the thread's passage into view above the panel. The choice
+              lasts while the tab stays open. On a window too narrow for cards, every
+              thread opens in the panel.
             </p>
             <p id="reactions">
               A reaction records brief feedback on a passage or agent reply without
@@ -620,8 +630,8 @@
                 <tr id="reading-workflow">
                   <td>
                     <a href="/how-it-works/#stages">How far the agent has got</a> with
-                    an update: Queued for Claude, Up next, Replying, Not answered, Gone
-                    quiet
+                    an update: Queued for Claude, Delivered, Replying, Not answered,
+                    Gone quiet
                   </td>
                   <td>the message itself; the margin and Page Map entries</td>
                 </tr>
@@ -651,8 +661,12 @@
             <p id="resolving-agent">
               The agent resolves a thread only when the user asks, or when no review
               could change the outcome; the thread then reads “Resolved by” and the
-              agent's name. A new message from either side reopens a resolved thread. A
-              reaction, a progress message or a failure notice does not.
+              agent's name. The user's new message reopens a resolved thread, and so
+              does the agent's in a thread the agent resolved. In a thread the user
+              resolved, the agent's message goes in without reopening it, unless it asks
+              them a question; the agent reopens the thread itself where it judges they
+              would want to stop and read what it said. A reaction, a progress message
+              or a failure notice reopens nothing.
             </p>
             <p id="withdrawing">
               Outside a text box, <kbd>⌘Z</kbd> takes back the user's latest action, a
@@ -714,10 +728,12 @@
                   </td>
                 </tr>
                 <tr>
-                  <td>Move through threads</td>
+                  <td>Move through threads and drafts</td>
                   <td>
                     <kbd>t</kbd> advances; <kbd>Shift</kbd> + <kbd>t</kbd> goes back.
-                    Past either end, the walk comes round to the other.
+                    Past either end, the walk comes round to the other. At a comment you
+                    put away, its box opens with your words; <kbd>c</kbd> puts the caret
+                    in them.
                   </td>
                 </tr>
                 <tr>
@@ -725,6 +741,13 @@
                   <td>
                     <kbd>m</kbd> advances through them; <kbd>Shift</kbd> +
                     <kbd>m</kbd> goes back.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Open On Me, the agent's list or Threads</td>
+                  <td>
+                    <kbd>o</kbd> presses the leaf, opening the list it points at, and
+                    closes it again; <kbd>←</kbd> / <kbd>→</kbd> move between the lists.
                   </td>
                 </tr>
                 <tr>

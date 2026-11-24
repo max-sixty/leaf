@@ -144,7 +144,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     every cell as tall as the row's longest argument — and a page whose options
     held real argument would grow a comparison table and an "in detail" section
     outside the widget it decides in. Stacked, the
-    comparison stays inside the group: every option's `.facts` list docks right
+    comparison stays inside the group: every option's `.lf-facts` list docks right
     at one fixed width, so scalars align down the page like that table's column.
 
     The chip band is the one part no form places, and the reason is that its words
@@ -163,14 +163,14 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     )
 
     rails = [
-        page.locator(f"#{i} > dl.facts").bounding_box() for i in ("st-sd", "st-pi")
+        page.locator(f"#{i} > dl.lf-facts").bounding_box() for i in ("st-sd", "st-pi")
     ]
     for rail, card in zip(rails, (sd, pi), strict=True):
         assert rail["x"] > card["x"] + card["width"] / 2, "the facts rail docks right"
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 
     title = page.locator("#st-sd > strong").bounding_box()
-    chips = page.locator("#st-sd > small.tag")
+    chips = page.locator("#st-sd > small.lf-tag")
     expect(chips).to_have_text(["effort: low", "risk: high"])
     # `tone` is the author's judgement about one answer, so it lands on the chip that
     # declares it and nowhere else — the arrangement this replaced tinted whichever chip
@@ -216,7 +216,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         """title => {
             for (const text of ['review', 'owner: platform', 'phase: design']) {
                 const chip = document.createElement('small');
-                chip.className = 'tag';
+                chip.className = 'lf-tag';
                 chip.textContent = text;
                 title.before(chip);
             }
@@ -244,7 +244,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     # is still reachable. Last, because the width moves every box read above.
     page.set_viewport_size({"width": 400, "height": 900})
     gps = page.locator("#t-gps").bounding_box()
-    long_chips = page.locator("#t-gps > small.tag")
+    long_chips = page.locator("#t-gps > small.lf-tag")
     expect(long_chips).to_have_count(3)
     wrapped = [long_chips.nth(i).bounding_box() for i in range(3)]
     assert wrapped[-1]["y"] > wrapped[0]["y"], (
@@ -267,7 +267,7 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
         viewport={"width": 460, "height": 900}, color_scheme="light"
     )
     page.goto(serve(STACKED_OPTIONS_PAGE), wait_until="load")
-    rail = page.locator("#st-sd > dl.facts").bounding_box()
+    rail = page.locator("#st-sd > dl.lf-facts").bounding_box()
     prose = page.locator("#st-sd > p").bounding_box()
     card = page.locator("#st-sd").bounding_box()
     assert rail["width"] > card["width"] * 0.8, (
@@ -1677,7 +1677,7 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
         # The mark leads the row and the `for` reference ends it, so the words are what
         # stands between them, and the chip is read against both edges rather than
         # against whichever one the apparatus happened to be on.
-        chip = page.locator("#job-heater > small.tag")
+        chip = page.locator("#job-heater > small.lf-tag")
         expect(chip).to_have_text("reversible")
         ref = page.locator("#job-heater .lf-ref").bounding_box()
         mark = page.locator("#job-heater > .lf-pick").bounding_box()
@@ -1846,7 +1846,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(comparison).to_have_attribute("position", "100")
     assert not option.evaluate(picked), "clicking the shot answered the question"
     page.locator("#ro-shot").get_by_role("radio", name="Pair", exact=True).click()
-    expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "compare")
+    expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "pair")
     assert not option.evaluate(picked), "changing the shot view answered the question"
 
     page.locator("#ro-numbers summary").click()
@@ -1971,9 +1971,9 @@ def test_one_chip_holds_every_short_fact(browser, serve):
     worn = {
         where: (page.locator(sel).evaluate(face), page.locator(sel).bounding_box())
         for where, sel in [
-            ("in prose", "#intro > .tag"),
-            ("on a decision", "#p-keep > small.tag"),
-            ("in a facts list", "#owner-fact > .tag"),
+            ("in prose", "#intro > .lf-tag"),
+            ("on a decision", "#p-keep > small.lf-tag"),
+            ("in a facts list", "#owner-fact > .lf-tag"),
         ]
     }
     ((first, (look, box)), *rest) = worn.items()
@@ -2006,9 +2006,9 @@ def test_long_chip_labels_stay_inside_a_narrow_column(browser, serve):
     )
     page = open_page(browser, serve(source))
     for chip_selector in (
-        "#intro > .tag",
-        "#p-keep > small.tag",
-        "#owner-fact > .tag",
+        "#intro > .lf-tag",
+        "#p-keep > small.lf-tag",
+        "#owner-fact > .lf-tag",
     ):
         expect(page.locator(chip_selector)).to_have_text(label)
         geometry = page.locator(chip_selector).evaluate("""el => {
@@ -2270,7 +2270,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                     "description": "A block that can hold a local agent task.",
                     "attributes": {
                         "type": "object",
-                        "properties": {"id": {"type": "string"}},
+                        "properties": {},
                         "required": ["id"],
                         "additionalProperties": False,
                     },

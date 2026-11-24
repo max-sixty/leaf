@@ -14,17 +14,20 @@ import {
 } from "/runtime/annotation-overlay/comment-placement.js";
 import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
-// The card's widths and the room a mark takes, as tokens.css declares them, which the
-// placement reads off the root.
+// The card's widths, as tokens.css declares them, which the placement reads off the
+// root.
 document.documentElement.style.setProperty("--lf-thread-card-min", "320px");
 document.documentElement.style.setProperty("--lf-thread-card", "592px");
-document.documentElement.style.setProperty("--lf-focus-region-room", "8px");
+// The room the marks round a paragraph take past it on each side, their gap and band,
+// as the attachment reads it (geometry.js, `markedBox`).
+const paragraph = { left: 8, top: 8, right: 8, bottom: 8 };
 
 // A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
-// beside any columns, so its room across them is itself.
+// beside any columns, so its room across them is itself, and the window holds it.
 const windowBoundary = (left, top, width, height) => {
   const boundary = Object.assign(new DOMRect(left, top, width, height), {
     cut: null,
+    holders: { top: null, bottom: null },
     key: [left, top, left + width, top + height],
   });
   return Object.assign(boundary, { across: () => boundary });
@@ -32,6 +35,9 @@ const windowBoundary = (left, top, width, height) => {
 const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
+// The element a surface is about, which no sticky box holds, so a scroll of the page
+// carries it the whole way.
+const subject = document.body.appendChild(document.createElement("p"));
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
 const scroller = (scrollTop, height = 3000) => {
   const box = { scrollTop, scrollHeight: height, clientHeight: 850 };
@@ -55,9 +61,11 @@ const windowPlatform = (dimensions) => ({
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,
+    room: paragraph,
     extent: clear,
     boundary,
     width: 320,
+    element: subject,
     scroller: scroller(scrolled, document),
     coarse,
   });
@@ -112,8 +120,10 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     const clear = block(300, 660, 300, 500);
     const input = {
       clear,
+      room: paragraph,
       boundary,
       row: clear.top,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     };
@@ -165,7 +175,9 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
   const clear = block(120, 860, 300, 500);
   const input = {
     clear,
+    room: paragraph,
     row: clear.top,
+    element: subject,
     scroller: scroller(1000),
     coarse: false,
   };
@@ -205,12 +217,15 @@ test("beside, clearing a margin row never costs the card width", async () => {
     const placement = commentPlacement();
     const seat = placement.choose({
       clear,
+      room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
     return seat.options(ui, {
       clear,
+      room: paragraph,
       row: clear.top,
       margin: { left: rowRight - 40, right: rowRight },
       boundary,
@@ -314,12 +329,15 @@ test("zoom clearance reaches the solver through the floating driver", async () =
     const rule = commentPlacement();
     const seat = rule.choose({
       clear,
+      room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
     const { reference, placement, middleware, plane } = seat.options(ui, {
       clear,
+      room: paragraph,
       row: clear.top,
       margin: { left: rowRight - 40, right: rowRight },
       boundary,
@@ -376,13 +394,20 @@ test("a carried surface stands where it was dropped, past the attachment limit",
   ]) {
     const stand = async (moved) => {
       const rule = commentPlacement();
-      const input = { clear, boundary, scroller: scroller(1000), coarse: false };
+      const input = {
+        clear,
+        boundary,
+        element: subject,
+        scroller: scroller(1000),
+        coarse: false,
+      };
       assert.equal(rule.choose(input).side, side);
       rule.adopt({ box: dropped, placement: { ...rule.capture(), moved } });
       const seat = rule.choose(input);
       assert.equal(seat.fresh, false);
       const { reference, placement, middleware } = seat.options(ui, {
         clear,
+        room: paragraph,
         row: clear.top,
         boundary,
         fit() {},
@@ -419,13 +444,16 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
     const clear = block(300, 300, 700 - scrolled, 730 - scrolled);
     const seat = card.choose({
       clear,
+      room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
     const edge = "top";
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
+      room: paragraph,
       row: clear.top,
       lastRow: clear.bottom,
       boundary,
@@ -476,12 +504,15 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   const place = async (rises = false) => {
     const seat = card.choose({
       clear,
+      room: paragraph,
       boundary,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
+      room: paragraph,
       row: clear.top,
       lastRow: clear.bottom,
       boundary,
@@ -520,6 +551,7 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
   const seat = card.choose({
     clear: null,
     boundary,
+    element: subject,
     scroller: scroller(1000),
     coarse: false,
   });
@@ -537,28 +569,31 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
   assert.equal(answer.y, boundary.top + 8);
 });
 
-test("a surface starts by its subject right of it, or under words that leave it its width", async () => {
+test("a surface widens with its words right of its subject, or under words that leave it its width", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));
   // The side a surface on `clear` takes, quoting words that start at `column`, and
-  // whether its fit is told its start stands by them.
+  // whether its fit is told it may widen with its words there.
   const starts = async (clear, column = null) => {
     const surface = commentPlacement();
     const seat = surface.choose({
       clear,
+      room: paragraph,
       column,
       boundary,
+      element: subject,
       scroller: scroller(100),
       coarse: false,
     });
-    let fromSubject = null;
+    let widens = null;
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
+      room: paragraph,
       row: clear?.top ?? boundary.top,
       column,
       boundary,
       fit(room) {
-        ({ fromSubject } = room);
+        ({ widens } = room);
       },
     });
     await ui.computePosition(
@@ -566,7 +601,7 @@ test("a surface starts by its subject right of it, or under words that leave it 
       document.body,
       { placement, middleware, platform, strategy: "fixed" },
     );
-    return [seat.side, fromSubject];
+    return [seat.side, widens];
   };
   assert.deepEqual(await starts(block(300, 656, 300, 500)), ["right", true]);
   // Left of its words it holds the edge beside them, and starts at its far end.
@@ -596,13 +631,16 @@ test("chrome beside a card's columns leaves it the window's height", async () =>
     const card = commentPlacement();
     const seat = card.choose({
       clear,
+      room: paragraph,
       boundary: rowed,
+      element: subject,
       scroller: scroller(1000),
       coarse: false,
     });
     let offered = null;
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
+      room: paragraph,
       row: clear.top,
       boundary: rowed,
       fit: ({ room }) => (offered = room),
@@ -624,4 +662,43 @@ test("chrome beside a card's columns leaves it the window's height", async () =>
   const over = await placed(block(100, 400, 300, 330));
   assert.equal(over.room, rowed);
   assert.equal(over.foot, rowed.bottom);
+});
+
+test("a surface stands clear of chrome across the columns it may widen into", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 700 }));
+  // A panel like the floating panel stands at the window's foot right of 800. A surface
+  // 320px wide right of words ending at 400 stops short of it, but widening with its
+  // words to the measure would take it over the panel.
+  const whole = windowBoundary(8, 50, 1284, 842);
+  const paneled = Object.assign(windowBoundary(8, 50, 1284, 700), {
+    across: ({ right }) => (right > 800 ? paneled : whole),
+  });
+  const surface = commentPlacement();
+  const clear = block(100, 300, 300, 330);
+  const seat = surface.choose({
+    clear,
+    room: paragraph,
+    boundary: paneled,
+    element: subject,
+    scroller: scroller(1000),
+    coarse: false,
+  });
+  let offered = null;
+  const { reference, placement, middleware } = seat.options(ui, {
+    clear,
+    room: paragraph,
+    row: clear.top,
+    boundary: paneled,
+    fit: ({ room }) => (offered = room),
+    rises: true,
+  });
+  const { x, y } = await ui.computePosition(
+    { getBoundingClientRect: () => reference },
+    document.body,
+    { placement, middleware, platform, strategy: "fixed" },
+  );
+  assert.equal(x, 416);
+  assert.equal(offered, paneled);
+  assert.equal(y + 700, paneled.bottom);
 });

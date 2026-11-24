@@ -29,7 +29,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   version never moves as later saves go live. A static-site build may write these
   responses out as disposable delivery output, never an authority.
 
-- `layer.json` — the packages and theme the page selects, its generation and
+- `layer.json` — the packages the page selects, its generation and
   its page protocol (`registry.storage.LAYER`, [layer-registry.md](layer-registry.md)).
   Every Leaf that reads the page composes its registry, theme, instructions, widgets
   and package modules from it; none of them is a file in the page.
@@ -94,6 +94,11 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   activity, its draft reply and its reply reservations (`service.STREAM`). Readers load
   it through `service.read_stream`, and a missing file reads as an empty stream.
   [session-lifetime.md](session-lifetime.md) owns when each part stops being believed.
+
+- `init.lock` — the lock that holds a re-initialization of the page, a `page init` or
+  a renewal at this Leaf's page protocol, from the reading that decides it through the
+  restart of the page's service, so a second one decides after the first
+  (`vendoring._reinit`).
 
 - `waiter.lock` — the bare-shell wait lease; a harness session uses
   `<state-home>/sessions/<session>.wait` instead

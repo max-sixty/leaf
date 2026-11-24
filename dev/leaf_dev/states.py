@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 from playwright.sync_api import Locator, Page, expect
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
@@ -45,6 +45,15 @@ from leaf_dev.browser import (
 from leaf_dev.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
+
+
+def keyboard_modality(page: Page) -> None:
+    """Press Tab, so focus placed next draws as the keyboard's, and wait until the Tab's
+    step has ended. Focus arriving before then is the step's own, which opens the
+    focused control's preview (focus.js, `stepping`). The step ends in a timer the
+    Tab's keydown queued, and a timer queued now runs after it."""
+    page.keyboard.press("Tab")
+    page.evaluate("() => new Promise((done) => setTimeout(done))")
 
 
 def printed_exhibit(page: Page) -> None:
@@ -131,7 +140,7 @@ def long_source_selected(page: Page) -> None:
 def captured_source_by_keyboard(page: Page) -> None:
     """The captured source's scroller focused by keyboard, its ring over the lines."""
     captured_source(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-source-live .lf-text-document-listing > pre").focus()
 
 
@@ -168,7 +177,7 @@ def recorded_video_by_keyboard(page: Page) -> None:
     """The recording the keyboard stands on, where the browser's controls take its
     keys."""
     recorded_video(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-recording").focus()
 
 
@@ -199,7 +208,7 @@ def dynamic_request_preview(page: Page) -> None:
 
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-tab-btn").first.focus()
 
 
@@ -214,7 +223,7 @@ def boxed_tab_by_keyboard(page: Page) -> None:
         "Page & layout", exact=True
     ).click()
     page.locator("#bg-tabs").scroll_into_view_if_needed()
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#bg-tabs .lf-tab-btn").first.focus()
 
 
@@ -261,15 +270,17 @@ def paste_screenshot(page: Page, field: Locator) -> None:
     """Paste the feature gallery's screenshot into `field` and wait for its picture."""
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
         # This exercises the paste handler and shelf; keep its payload local to the
-        # tab so captures cannot overwrite or race the machine's clipboard.
+        # tab so captures cannot overwrite or race the machine's clipboard. Firefox
+        # drops a constructed ClipboardEvent's `clipboardData`, so the event carries
+        # the transfer as an own property, which every engine reads.
         field.evaluate("""async field => {
           const response = await fetch('/media/051bee487bfb5d13.png');
           const image = await response.blob();
           const transfer = new DataTransfer();
           transfer.items.add(new File([image], 'pasted.png', {type: 'image/png'}));
-          field.dispatchEvent(new ClipboardEvent('paste', {
-            bubbles: true, cancelable: true, clipboardData: transfer,
-          }));
+          const paste = new Event('paste', {bubbles: true, cancelable: true});
+          Object.defineProperty(paste, 'clipboardData', {value: transfer});
+          field.dispatchEvent(paste);
         }""")
     expect(
         page.get_by_role("button", name="Remove attached image 1", exact=True)
@@ -293,10 +304,22 @@ def page_comment_photo(page: Page) -> None:
     paste_screenshot(page, field)
 
 
+def thread_reply_photo(page: Page) -> None:
+    """An open thread in the floating panel with a screenshot pasted into its reply,
+    standing in the band the panel opens between the thread and the box."""
+    floating_thread(page)
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    page.keyboard.insert_text("Here is what I see")
+    paste_screenshot(page, field)
+
+
 def page_comment_photo_hover(page: Page) -> None:
-    """The panel's attached screenshot under the pointer, which shows its removal."""
+    """The panel's attached screenshot under a resting pointer, which shows its removal
+    and the preview naming the press that views it."""
     page_comment_photo(page)
     page.locator(".lf-fp-field .lf-composer-media-open").hover()
+    preview_shown(page)
 
 
 def panel_corner_hover(page: Page) -> None:
@@ -306,6 +329,13 @@ def panel_corner_hover(page: Page) -> None:
     page.mouse.move(box["x"] + 24, box["y"] + 8)
     expect(page.locator(".lf-fp-minimize")).to_be_visible()
     settle(page)
+
+
+def page_comment_photo_corner(page: Page) -> None:
+    """The panel's fold shown at its top-left corner below a draft's attached
+    screenshot."""
+    page_comment_photo(page)
+    panel_corner_hover(page)
 
 
 def share_link(page: Page) -> None:
@@ -391,13 +421,15 @@ def page_about(page: Page) -> None:
 def panel_leaf(page: Page) -> None:
     """The floating panel's leaf, which opens the On view, with its keyboard focus
     paint."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator(".lf-fp-leaf").focus()
 
 
 def panel_status_hover(page: Page) -> None:
-    """The expanded panel while the pointer rests over its leaf."""
+    """The expanded panel while the pointer rests over its leaf, whose preview says
+    what waits on the user."""
     page.locator(".lf-fp-leaf").hover()
+    preview_shown(page)
 
 
 def panel_status_cut(page: Page) -> None:
@@ -662,13 +694,21 @@ def control_preview(page: Page) -> None:
     the card alone."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview .lf-resolve").hover()
+    preview_shown(page)
+    settle(page)
+
+
+def preview_shown(page: Page) -> None:
+    """Wait until the preview of what the pointer rests on has opened, which it does
+    after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
+    state ending on such a hover waits here, or its still catches the preview in one
+    capture and not the next."""
     page.wait_for_function(
         """() => {
           const tip = document.getElementById('lf-preview');
           return !tip || tip.matches(':popover-open');
         }"""
     )
-    settle(page)
 
 
 # Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
@@ -780,9 +820,9 @@ def open_card(page: Page, marker: Locator) -> float:
     return before
 
 
-def summary_card(page: Page) -> None:
-    """A margin card a summary of the thread's opening messages opens, under its
-    actions, and the agent's latest reply after it."""
+def summarize_plan_stop() -> None:
+    """The plan's stop thread with a summary of its opening messages, and the agent's
+    latest reply after it."""
     root = "9303f850cbdc9b9f79f1725011251d36"
     as_agent("thread", "reply", root, "--text", "Export now checks the sandbox first.")
     # A summary speaks in its agent's voice, which a session gives it.
@@ -801,10 +841,31 @@ def summary_card(page: Page) -> None:
         LEAF_SESSION_ID="stills-summary",
         LEAF_AGENT="Codex",
     )
+
+
+def summary_card(page: Page) -> None:
+    """A margin card a summary of the thread's opening messages opens, under its
+    actions, and the agent's latest reply after it."""
+    summarize_plan_stop()
     wait_until_ready(
         page, PageClient(served_page.get().address).state(), through="state"
     )
     open_card(page, page.locator('[data-lf-margin-for="plan-stop"] .lf-margin-marker'))
+    page.mouse.move(0, 0)
+
+
+def summary_panel(page: Page) -> None:
+    """The same thread opened from Threads in the floating panel, its summary over the
+    agent's latest reply."""
+    summarize_plan_stop()
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    go_to_threads(page)
+    page.locator(".lf-fp-thread", has_text="background children").click()
+    expect(
+        page.locator(f"{panel_view('thread')} .lf-summary-checkpoint")
+    ).to_be_visible()
     page.mouse.move(0, 0)
 
 
@@ -872,11 +933,10 @@ def card_next_unread(page: Page) -> None:
     settle(page)
 
 
-def card_new_reply(page: Page) -> None:
-    """A margin card after the user's own turn, read back up its transcript, with the
-    agent's answer arrived past the transcript's foot behind New reply."""
-    long_reply("7b3e0a41")
-    open_card(page, page.locator(RESYNC_MARKER))
+def own_turn_in_card(page: Page) -> tuple[Locator, int]:
+    """The card `card_next_unread` opens after the user's own turn in it: the card's
+    messages, and how many."""
+    card_next_unread(page)
     card = page.locator(".lf-margin-preview")
     messages = card.locator(".lf-msg")
     sent = messages.count() + 1
@@ -885,7 +945,14 @@ def card_new_reply(page: Page) -> None:
     page.keyboard.press("ControlOrMeta+Enter")
     expect(messages).to_have_count(sent)
     settle(page)
-    card.locator(".lf-thread-transcript").hover()
+    return messages, sent
+
+
+def card_new_reply(page: Page) -> None:
+    """A margin card after the user's own turn, read back up its transcript, with the
+    agent's answer arrived past the transcript's foot behind New reply."""
+    messages, sent = own_turn_in_card(page)
+    page.locator(".lf-margin-preview .lf-thread-transcript").hover()
     page.mouse.wheel(0, -3000)
     page.wait_for_function(
         "() => document.querySelector('.lf-margin-preview .lf-thread-transcript')"
@@ -948,16 +1015,7 @@ def card_next_unread_cluster(page: Page) -> None:
 def card_answer_at_cap(page: Page) -> None:
     """A margin card at its cap, the user at its end after their own turn, with an answer
     too long to show arrived: their turn stays in sight above New reply."""
-    long_reply("7b3e0a41")
-    open_card(page, page.locator(RESYNC_MARKER))
-    card = page.locator(".lf-margin-preview")
-    messages = card.locator(".lf-msg")
-    sent = messages.count() + 1
-    card.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.insert_text("And over the weekend?")
-    page.keyboard.press("ControlOrMeta+Enter")
-    expect(messages).to_have_count(sent)
-    settle(page)
+    messages, sent = own_turn_in_card(page)
     answer_the_turn()
     expect(messages).to_have_count(sent + 1)
     settle(page)
@@ -1196,7 +1254,7 @@ def section_ring_by_keyboard(page: Page) -> None:
         '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
     )
     marker.wait_for()
-    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    keyboard_modality(page)
     marker.focus()
     page.keyboard.press("Enter")
     resolve = page.locator(".lf-margin-preview").get_by_role(
@@ -1301,7 +1359,11 @@ def card_after_interjection(page: Page) -> None:
     expect(reply).not_to_have_attribute("aria-busy", "true")
     settle(page)
     served = served_page.get()
-    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    delivery = json.loads(
+        served.leaf(
+            "wait", str(served.directory), timeout=SERVED_TIMEOUT_MS / 1000
+        ).stdout
+    )
     sent = reply.get_attribute("data-lf-event")
     reference = next(
         event["answer"]["ref"]
@@ -1314,7 +1376,7 @@ def card_after_interjection(page: Page) -> None:
         "thread",
         "reply",
         reference,
-        "--ephemeral",
+        "--done",
         "--text",
         "The answer continues with the detail requested in the interjection. " * 5,
     )
@@ -1338,8 +1400,8 @@ def seat_held_news(page: Page) -> None:
 
 def seat_comment_box(page: Page) -> None:
     """A goal's row with its comment box open under the conversation it holds, the
-    words of a second comment typed: the box stands in the row's own outlet, with the
-    send that holds the goal beside it."""
+    words of a second comment typed, long enough to wrap: the box stands in the row's
+    own outlet, with the send that holds the goal beside it."""
     as_agent(
         "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
     )
@@ -1350,7 +1412,8 @@ def seat_comment_box(page: Page) -> None:
     control.click()
     box = goal.locator(":scope > .atlas-task-threads .lf-fab-input")
     expect(box).to_be_focused()
-    page.keyboard.insert_text("Park it once the hunk lands")
+    page.keyboard.insert_text(LONG_DRAFT)
+    page.mouse.move(0, 0)
 
 
 def option_picked(page: Page) -> None:
@@ -1395,6 +1458,14 @@ def panel_draft_kept(page: Page) -> None:
             ".lf-fp-row [data-lf-drafts]:is(.lf-fp-news, .lf-fp-news-dot):visible"
         )
     ).to_be_visible()
+    settle(page)
+
+
+def walked_to_draft(page: Page) -> None:
+    """`t` from a page holding only a comment the user put away: the walk opens the
+    comment's box beside its paragraph, holding its words, with focus on the box."""
+    panel_draft_kept(page)
+    page.keyboard.press("t")
     settle(page)
 
 
@@ -1587,9 +1658,7 @@ def threads_drafts(page: Page) -> None:
     expect(field).to_be_focused()
     page.keyboard.type("Cite the telemetry window here.")
     page.keyboard.press("Escape")
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("t")
-    page.keyboard.press("c")
+    page.locator('[data-lf-margin-for="off-t-resync"] .lf-margin-marker').click()
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
     page.keyboard.type("And the support macro, before Friday.")
@@ -1713,6 +1782,9 @@ def retained_quote(page: Page) -> None:
     ).click()
     sample = page.locator("#bg-retained-quote-sample")
     sample.scroll_into_view_if_needed()
+    # Its page's body is inert until the page starts, and each attempt Playwright's
+    # click retries on it scrolls with another alignment, so the press waits for it.
+    sample.evaluate("sample => sample.ready")
     child = sample.frame_locator("iframe")
     go_to_threads(page, child)
     child.locator('.lf-fp-thread[data-lf-key="bg-retained-quote-thread"]').click()
@@ -1951,7 +2023,7 @@ LONG_DRAFT = (
 def composer_send_focused(page: Page) -> None:
     """The same comment with the keyboard on its Send."""
     composer(page)
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     send = page.locator(".lf-composer .lf-compose-submit")
     send.focus()
     expect(send).to_have_attribute("data-lf-focus-visible", re.compile(".*"))
@@ -1962,6 +2034,13 @@ def composer_long(page: Page) -> None:
     composer(page)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_error(page: Page) -> None:
+    """A comment being typed on a selected passage, with an error about its box standing
+    over its words."""
+    composer_long(page)
+    error_about(page, ".lf-fab-bar")
 
 
 def composer_scrolling(page: Page) -> None:
@@ -2033,6 +2112,56 @@ def page_comment_long(page: Page) -> None:
     page.keyboard.insert_text(LONG_DRAFT)
 
 
+def page_comment_send_shown(page: Page) -> None:
+    """The floating panel's field with a page comment whose last line runs under Send's
+    corner, and the pointer resting on Send, which stands over the words."""
+    field = page.locator(".lf-fp-field leaf-text")
+    field.click()
+    for word in LONG_DRAFT.split():
+        page.keyboard.insert_text(f"{word} ")
+        rendered(page)
+        if field.evaluate("(node) => node.matches(':state(corner-taken)')"):
+            break
+    else:
+        raise AssertionError("the draft never reached Send's corner")
+    box = page.locator(".lf-fp-field .lf-compose-submit").bounding_box()
+    assert box is not None
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page.mouse.move(x, y)
+    expect(page.locator(".lf-fp-field .lf-compose-field")).to_have_attribute(
+        "data-lf-send-armed", ""
+    )
+    # Armed, Send takes the pointer, which the hover reaches at the hand's next move,
+    # and the pointer resting there reads Send's preview.
+    page.mouse.move(x + 1, y)
+    expect(page.locator("#lf-preview")).to_be_visible()
+
+
+def error_about(page: Page, box: str) -> None:
+    """An error about the composer `box` names, standing over its words."""
+    page.locator(f"{box} leaf-text").evaluate("""async (subject) => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        raiseError('That writing place is unavailable', {subject});
+    }""")
+    expect(page.locator(f"{box} .lf-compose-error")).to_be_visible()
+
+
+def page_comment_error(page: Page) -> None:
+    """The floating panel's field holding the caret, with an error about it standing
+    over its words."""
+    page_comment_long(page)
+    error_about(page, ".lf-fp-field")
+
+
+def card_reply_error(page: Page) -> None:
+    """The first margin card's reply box holding the caret, with an error about it
+    standing over its words."""
+    card_reply_long(page)
+    error_about(page, ".lf-margin-preview .lf-thread-reply")
+
+
 def option_long(page: Page) -> None:
     """An option list's added option, typed long enough to wrap beside its Add press."""
     field = page.locator(".lf-another leaf-text").first
@@ -2047,11 +2176,13 @@ def option_long(page: Page) -> None:
 
 
 def option_add_hover(page: Page) -> None:
-    """A compact alternative's Add face beside its one-line draft."""
+    """A compact alternative's Add face beside its one-line draft, under a resting
+    pointer whose preview names the press and its key."""
     form = page.locator("#bg-choice > .lf-another")
     form.locator("leaf-text").click()
     page.keyboard.insert_text("Keep the current behavior")
     form.get_by_role("button", name="Add and select option", exact=True).hover()
+    preview_shown(page)
 
 
 def options_in_pane(page: Page) -> None:
@@ -2074,7 +2205,7 @@ def tally_after_an_answer(page: Page) -> None:
 
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
-    page.keyboard.press("Tab")
+    keyboard_modality(page)
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
@@ -2183,10 +2314,10 @@ def chart_preview(page: Page) -> None:
     gallery_metrics(page)
     chart = page.locator("#bg-chart")
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
-    run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
+    run = chart.locator('[data-lf-plot="x-axis tick label"] text').get_by_text(
         "2", exact=True
     )
-    value = chart.locator('[data-lf-part="y-axis tick label"] text').get_by_text(
+    value = chart.locator('[data-lf-plot="y-axis tick label"] text').get_by_text(
         "6", exact=True
     )
     x, y = run.bounding_box(), value.bounding_box()
@@ -2217,7 +2348,7 @@ def gallery_plans(page: Page) -> None:
 
 
 def gallery_drawing(page: Page) -> None:
-    """The reading theme's `svg.drawing`, with each of its text classes on its shapes."""
+    """A drawing (`svg.lf-drawing`), with each of its text classes on its shapes."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-drawing-figure").scroll_into_view_if_needed()
 
@@ -2247,6 +2378,10 @@ def theme_hierarchy(page: Page) -> None:
     page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
     page.keyboard.press("Enter")
     page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    # The disclosure's closing queues a pass of the margin's layout, which writes the
+    # scroll offset into each carrier's place. A pass that lands after the scroll below
+    # writes the same places with the new offset, which the styles read as moved rows.
+    settle(page)
     page.locator("#bg-theme-hierarchy").evaluate(
         "el => el.scrollIntoView({block: 'start'})"
     )
@@ -2414,6 +2549,53 @@ def diff_file_resolved(page: Page) -> None:
     expect(resolved).to_have_count(1)
     resolved.locator(":scope > summary").click()
     expect(resolved).to_have_attribute("open", "")
+
+
+def diff_line_threads(page: Page) -> None:
+    """Two conversations under a diff's lines, one holding an answer long enough to
+    wrap, standing as cards under their lines."""
+    diff = page.locator("#dfg-lines")
+    expect(diff.locator(".lf-page-thread")).to_have_count(2)
+    diff.evaluate("diff => diff.scrollIntoView({block: 'start'})")
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_comment(page: Page) -> None:
+    """A line's comment box opened from its number under the long conversation the line
+    holds, a draft long enough to wrap typed in it: the box stands in the line's outlet
+    under the card."""
+    diff_line_threads(page)
+    # Clear of the panel at the window's foot, which would keep the box from a seat
+    # under it (composing/surface.js, `seatFab`).
+    page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it").evaluate(
+        "thread => scrollBy(0, thread.getBoundingClientRect().top - 120)"
+    )
+    scroll_settled(page)
+    number = page.locator("#dfg-lines").get_by_role(
+        "button", name="Comment on src/sync/retry.py · new line 16"
+    )
+    number.locator("..").hover()
+    number.click()
+    box = page.locator("#dfg-lines .lf-diff-thread-outlet .lf-fab-input")
+    expect(box).to_be_focused()
+    page.keyboard.insert_text(LONG_DRAFT)
+    page.mouse.move(0, 0)
+    settle(page)
+
+
+def diff_line_thread_walked(page: Page) -> None:
+    """The long line conversation reached by Next thread (`t`), which rings its card
+    and brackets its line."""
+    diff_line_threads(page)
+    page.locator("#dfg-lines-guide").click()
+    thread = page.locator("#dfg-lines .lf-page-thread", has_text="nothing caps it")
+    for _ in range(3):
+        page.keyboard.press("t")
+        if thread.evaluate("t => t.hasAttribute('data-lf-focus-visible')"):
+            break
+    expect(thread).to_have_attribute("data-lf-focus-visible", "")
+    settle(page)
 
 
 def diff_line_composer(page: Page) -> None:
@@ -2640,7 +2822,57 @@ def versions_menu(page: Page) -> None:
     wait_until_ready(page, PageClient(served_page.get().address).state())
     more_menu(page)
     page.locator('.lf-fp-item[data-lf-row="versions"]').click()
+    versions_counted(page)
+
+
+def versions_counted(page: Page) -> None:
+    """Wait for Versions to stand with each older version's count of changes before
+    its Compare, which Versions counts after it opens for the versions in view. A
+    Leaf that counts none holds no room for a count."""
     page.locator(".lf-fp-version").first.wait_for()
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.lf-fp-changes')].every((count) => {
+          const view = count.closest('.lf-fp-view').getBoundingClientRect();
+          const box = count.getBoundingClientRect();
+          const shown = box.bottom > view.top && box.top < view.bottom;
+          return !shown || count.textContent.trim();
+        })"""
+    )
+
+
+def versions_last_seen(page: Page) -> None:
+    """Versions opened by its key on return to a page the agent stamped twice while
+    the tab was hidden: the version the user last saw reads last seen, and the key
+    lands on it, whose Compare `v` presses. Each older version's Compare says how many
+    changes stand since it before its word."""
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.__lfVisibility ?? 'visible',
+      });
+      window.__lfVisibility = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    client = PageClient(served_page.get().address)
+    while client.state().get("seen") is None:
+        page.wait_for_timeout(50)
+    source = served_page.get().directory / "index.html"
+    for old, new, note in (
+        ("remaining decision", "one decision left", "Named the decision left"),
+        ("one decision left", "last decision", "Shortened the status line"),
+    ):
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(old, new, 1), encoding="utf-8"
+        )
+        as_agent("page", "stamp", "--text", note)
+    page.evaluate("""() => {
+      window.__lfVisibility = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    expect(page.locator(".lf-live")).to_contain_text("since v3")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    versions_counted(page)
 
 
 def all_pages(page: Page) -> None:
@@ -2656,9 +2888,10 @@ def all_pages(page: Page) -> None:
             "session_cwd": f"/workspace/tend.{place}",
             "activity": {
                 **activity,
-                "kind": "working",
-                "dropped": None,
-                "awaiting": None,
+                "presence": "here",
+                "state": "running",
+                "reason": None,
+                "next_actor": "agent",
                 "detail": "Running the sandbox suite against both harnesses",
             },
         }
@@ -2748,7 +2981,8 @@ def contents_marks(page: Page) -> None:
 def contents_marks_changes(page: Page) -> None:
     """The contents' marks with the changes view on, each changed section marked."""
     contents_marks(page)
-    page.keyboard.press("v")
+    for key in ("g", "Shift+V", "v"):
+        page.keyboard.press(key)
     expect(page.locator(".lf-ins-block").first).to_be_attached()
     settle(page)
 
@@ -2857,12 +3091,6 @@ def playground_tall_stage(page: Page) -> None:
 def page_end(page: Page) -> None:
     """Scrolled to the page's end, where a rail beside a short window's stage stops."""
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
-
-
-def visual_review_inspection(page: Page) -> None:
-    """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator(".lf-vr-case:not([hidden]) .lf-vr-inspect").click()
-    page.mouse.move(0, 0)
 
 
 def code_reader_feedback(page: Page) -> None:
@@ -3125,6 +3353,7 @@ STATES = (
     State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
     State("panel-draft-kept", "lost-update", panel_draft_kept, region=".lf-fp-row"),
     State("leaf-draft-kept", "lost-update", leaf_draft_kept, region=".lf-fp-leaf"),
+    State("walked-to-draft", "lost-update", walked_to_draft),
     State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
     State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
     State(
@@ -3202,7 +3431,9 @@ STATES = (
         "feature-gallery",
         page_comment_photo_hover,
     ),
+    State("thread-reply-photo", "ship-review", thread_reply_photo),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
+    State("page-comment-photo-corner", "feature-gallery", page_comment_photo_corner),
     State(
         "share-link",
         "feature-gallery",
@@ -3306,11 +3537,6 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("image-preview", "feature-gallery", image_preview),
-    State(
-        "visual-review-inspection",
-        "visual-review-gallery",
-        visual_review_inspection,
-    ),
     State("diff-long-lines", "diff-thread-gallery", diff_long_lines),
     State(
         "diff-author-notes",
@@ -3344,6 +3570,24 @@ STATES = (
         diff_file_resolved_closed,
     ),
     State("diff-file-resolved", "diff-thread-gallery", diff_file_resolved),
+    State(
+        "diff-line-threads",
+        "diff-thread-gallery",
+        diff_line_threads,
+        region="#dfg-lines",
+    ),
+    State(
+        "diff-line-thread-walked",
+        "diff-thread-gallery",
+        diff_line_thread_walked,
+        region="#dfg-lines",
+    ),
+    State(
+        "diff-line-comment",
+        "diff-thread-gallery",
+        diff_line_comment,
+        region="#dfg-lines .lf-diff-thread-outlet:has(.lf-fab-bar)",
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
@@ -3543,6 +3787,12 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State(
+        "summary-panel",
+        "review-a-plan",
+        summary_panel,
+        region=".lf-fp-opened",
+    ),
+    State(
         "rewritten-quote-card",
         "review-a-plan",
         rewritten_quote_card,
@@ -3656,10 +3906,29 @@ STATES = (
         versions_menu,
         window=WINDOWS["phone"],
     ),
+    State(
+        "plan-versions-seen",
+        "review-a-plan",
+        versions_last_seen,
+        region=".lf-fp-opened",
+    ),
     State("all-pages", "review-a-plan", all_pages, region=".lf-fp-opened"),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State("plan-card-reply-error", "review-a-plan", card_reply_error),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-send-shown",
+        "review-a-plan",
+        page_comment_send_shown,
+        region=".lf-fp-row",
+    ),
+    State(
+        "plan-page-comment-error",
+        "review-a-plan",
+        page_comment_error,
+        region=".lf-fp-row",
+    ),
     State(
         "plan-page-comment-empty",
         "review-a-plan",
@@ -3724,6 +3993,12 @@ STATES = (
         "triage-composer-resting",
         "triage-board",
         composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-error",
+        "triage-board",
+        composer_error,
         region=".lf-fab-bar",
     ),
     State(

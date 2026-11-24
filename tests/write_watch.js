@@ -240,6 +240,12 @@
       what === "class" &&
       is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's Tile.sync writes a line's style whenever any of the line's attributes
+    // change, as its class does when the caret arrives or a write from elsewhere marks
+    // it, and its style is the same: a code line states its indent there (marks.css,
+    // `[data-lf-pre-line]`).
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces the children of a line, or of a mark in a
     // line, with equal nodes it reuses from elsewhere in the same update, in either
     // editor host. A line can get another line's break, and as the caret moves between
@@ -273,10 +279,9 @@
     (what, node) =>
       ["class", "style", "title", "aria-hidden", "children"].includes(what) &&
       is(node, ":is(div, img):is([class^='viewer-'], [class*=' viewer-'])"),
-    // The contents map decides which face it needs, roomy, compact or an open outline,
-    // by measuring its labels in each; a label's height is where it wraps in that face.
-    (what, node) =>
-      ["data-lf-compact", "data-lf-outline"].includes(what) && is(node, "lf-toc"),
+    // The contents map decides which face it needs, roomy or compact, by measuring its
+    // labels in each; a label's height is where it wraps in that face.
+    (what, node) => what === "data-lf-compact" && is(node, "lf-toc"),
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
@@ -447,7 +452,9 @@
           attribute: record.attributeName,
           target: place(record.target),
           ...(record.type === "childList"
-            ? { nodes: [...record.removedNodes, ...record.addedNodes].map(number) }
+            ? {
+                nodes: [...record.removedNodes, ...record.addedNodes].map(number),
+              }
             : {}),
         });
     }

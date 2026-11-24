@@ -136,38 +136,13 @@ ACTION_CREATES = {
     "additionalProperties": False,
 }
 
-# One package-neutral relation shape for authored attributes. An empty object accepts
-# any authored element. A typed relation selects a package registry map
-# and an equality predicate within that map; the names and values remain vocabulary.
-# `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`).
+# The relation an authored attribute names: an empty object, which accepts any element
+# id.
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {
-            "via": {
-                "type": "string",
-                "pattern": r"^\$[a-z][a-z0-9-]*(?:\.[a-z][A-Za-z0-9-]*)*$",
-            },
-            "where": {
-                "type": "object",
-                "minProperties": 1,
-                "additionalProperties": {
-                    "type": ["string", "number", "boolean", "null"]
-                },
-            },
-            "owns": {"const": True},
-        },
-        "dependentRequired": {
-            "via": ["where"],
-            "where": ["via"],
-            "owns": ["via"],
-        },
-        "additionalProperties": False,
-    },
+    "additionalProperties": {"type": "object", "additionalProperties": False},
 }
 
 
@@ -273,18 +248,8 @@ AWAITS_SCHEMA = {
         "when": AWAITING_CONDITION,
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "answered": ANSWERED_SCHEMA,
-        "records": {
-            "type": "object",
-            "properties": {
-                "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "label": {"type": "string", "minLength": 1},
-            },
-            "required": ["input", "label"],
-            "additionalProperties": False,
-        },
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["value", "answered"],
     "additionalProperties": False,
@@ -308,8 +273,9 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The `refers` attribute naming a widget, whose one output of this
+            # input's contract the input reads.
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
@@ -317,9 +283,8 @@ DATA_INPUTS_SCHEMA = {
             # produced the value written in the element's content.
             "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-        "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
-        "anyOf": [{"required": ["source"]}, {"required": ["reference", "output"]}],
+        "anyOf": [{"required": ["source"]}, {"required": ["reference"]}],
         "additionalProperties": False,
     },
 }
@@ -369,27 +334,8 @@ FACTS: dict[str, dict] = {
     "awaits": AWAITS_SCHEMA,
     "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "exhibit": _conditional({"const": True}),
-    # A view of another widget's answer (`shown_answers.py`): `reference` is the
-    # attribute (`refers`) naming that widget, as an input's `reference` names the
-    # element it reads, and `value` the attribute of the view's compound owner that
-    # names the answer it holds.
-    "shows": {
-        "type": "object",
-        "properties": {"reference": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
-        "required": ["reference", "value"],
-        "additionalProperties": False,
-    },
     "history": {"const": True},
     "owners": _TAGS,
-    "unique": {
-        "type": "object",
-        "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-        "additionalProperties": {
-            "type": "string",
-            "pattern": f"^{WIDGET_NAME}$",
-        },
-    },
     "refers": REFERENCE_SCHEMA,
     "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
@@ -439,10 +385,11 @@ FACTS: dict[str, dict] = {
     "flow": _conditional({"const": True}),
     "prepaint": _ATTRIBUTE_NAME,
     "inputs": DATA_INPUTS_SCHEMA,
+    # Each output's name is the element property holding it (data.js).
     "outputs": {
         "type": "object",
         "minProperties": 1,
-        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+        "propertyNames": {"pattern": "^[a-z][A-Za-z0-9]*$"},
         "additionalProperties": {
             "type": "object",
             "properties": {
@@ -477,9 +424,8 @@ DECLARATION_SCHEMA = {
     },
     "required": ["description", "attributes"],
     # A fact read through others needs them declared too: a member that leaves under
-    # its owner's decision reads its owners, and a view of another widget's answer its
-    # owners and its reference (`registry.widgets`).
-    "dependentRequired": {"retired-when": ["owners"], "shows": ["owners", "refers"]},
+    # its owner's decision reads its owners.
+    "dependentRequired": {"retired-when": ["owners"]},
     "additionalProperties": False,
 }
 # Every key `$keys` documents: each a declaration may hold but its `description`.
@@ -605,6 +551,71 @@ LAYER_FACTS = {
         "required": ["tokens"],
     },
 }
+# The work roles, which Leaf owns and `runtime/work.js` reads: what each role's
+# `$work.widgets` entry holds beside `role`, then which of those it must hold. A goal
+# or worker names its recorded state attribute and the values of it that mean done or
+# stopped, running or retired, and may name the attribute saying when it stopped or
+# which goal it works on; a scope or evidence holds nothing more.
+_WORK_VALUES = {"type": "array", "items": {"type": "string"}}
+_WORK_ROLES = {
+    "scope": ({}, []),
+    "evidence": ({}, []),
+    "goal": (
+        {
+            "state": _ATTRIBUTE_NAME,
+            "done": _WORK_VALUES,
+            "stopped": _WORK_VALUES,
+            "stoppedAt": _ATTRIBUTE_NAME,
+        },
+        ["state", "done", "stopped"],
+    ),
+    "worker": (
+        {
+            "state": _ATTRIBUTE_NAME,
+            "running": _WORK_VALUES,
+            "retired": _WORK_VALUES,
+            "on": _ATTRIBUTE_NAME,
+        },
+        ["state", "running", "retired"],
+    ),
+}
+# The shared layer facts a vocabulary may leave out, each held to its schema where a
+# layer declares it (`registry.validation.check_layer_facts`). A package maps its tags
+# onto the work roles in `$work.widgets`, and `registry.validation.validate_work_roles`
+# holds each entry to its tag's declaration.
+OPTIONAL_LAYER_FACTS = {
+    "$work": {
+        "type": "object",
+        "properties": {
+            "description": _NONEMPTY,
+            "widgets": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {"role": {"enum": list(_WORK_ROLES)}},
+                    "required": ["role"],
+                    # A clause per role, so a refusal names the key its role refused.
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {"role": {"const": role}},
+                                "required": ["role"],
+                            },
+                            "then": {
+                                "properties": {"role": True, **keys},
+                                "required": required,
+                                "additionalProperties": False,
+                            },
+                        }
+                        for role, (keys, required) in _WORK_ROLES.items()
+                    ],
+                },
+            },
+        },
+        "required": ["widgets"],
+        "additionalProperties": False,
+    },
+}
 # The facts whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all
 # of them, because the failure is one — the attribute is absent, so the pass reading the
@@ -614,7 +625,7 @@ LAYER_FACTS = {
 # attribute, and sharing a spelling is no reason to share a check. `awaits` and
 # `inputs` name attributes too and keep their own loops, having more to say about each
 # than that it exists.
-ATTRIBUTE_FACTS = ("prepaint", "refers", "unique")
+ATTRIBUTE_FACTS = ("prepaint", "refers")
 
 # The kernel compiled from ASSETS's modules (`runtime_selection.read_runtime`).
 KERNEL = PLUGIN_ROOT / "dist" / "kernel"
@@ -708,6 +719,8 @@ STREAM_FILE = "stream.json"
 SERVICE_FILE = "service.json"
 SERVER_LOCK = "server.lock"
 WAITER_LOCK = "waiter.lock"
+# The lock serializing re-initializations of an initialized page (`vendoring._reinit`).
+INIT_LOCK = "init.lock"
 # What a page records about who is working on it and how it is served, as against what
 # its author wrote (the source) and what it has accumulated (the log and its revisions).
 # Neither validation nor a revision's capture reads these, so a write to one is news to
@@ -715,6 +728,7 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STREAM_FILE,
     WAITER_LOCK,
+    INIT_LOCK,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
     DRAFTS_LOCK,

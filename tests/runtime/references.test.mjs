@@ -1,7 +1,7 @@
 /* Where a `refers` attribute resolves: in the referrer's own message before the
-   page, never in another message, and for a keyed contract in the referrer's own
-   scope. And a verb handed an attribute its entry doesn't declare is the caller's
-   error. `navigateToDatum` and widget data inputs both read references this way. */
+   page, never in another message. And a verb handed an attribute its entry doesn't
+   declare is the caller's error. `navigateToDatum` and widget data inputs both read
+   references this way. */
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
@@ -80,28 +80,6 @@ test("a reference resolves in its own message before the page, and never in anot
   }
   onPage.setAttribute("for", "elsewhere");
   assert.equal(home(onPage), "nothing");
-});
-
-test("a keyed reference names the member its own scope holds, never an id", () => {
-  Object.assign(registry, {
-    "lf-scope": {},
-    "lf-member": {
-      unique: { name: "lf-scope" },
-    },
-    "lf-keyed": {
-      refers: { for: { tag: "lf-member", key: "name" } },
-    },
-  });
-  document.body.innerHTML = `<main>
-    <lf-scope data-home="mine"><lf-member name="tone"></lf-member>
-      <lf-scope data-home="nested"><lf-member name="size"></lf-member></lf-scope>
-      <p><lf-keyed for="tone"></lf-keyed></p></lf-scope>
-    <lf-scope data-home="theirs"><lf-member name="size" id="tone"></lf-member></lf-scope>
-  </main>`;
-  const keyed = document.querySelector("lf-keyed");
-  assert.equal(home(keyed), "mine");
-  keyed.setAttribute("for", "size");
-  assert.equal(home(keyed), "nothing", "a nested scope's member is not this scope's");
 });
 
 test("an attribute the referrer's entry does not declare is the caller's error", () => {

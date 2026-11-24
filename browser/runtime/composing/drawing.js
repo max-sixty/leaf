@@ -52,11 +52,12 @@ import {
 } from "../passages.js";
 import { mayShow } from "../reading-place.js";
 import { anchoringIsReady, sectionOf } from "../anchor-resolution.js";
-import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
+import { pressIsKeyboardActivation } from "../pointer.js";
 import { pressHolds, pressRecords } from "../focus.js";
 import { under } from "../shadow-tree.js";
 import { shownScheme } from "../color-scheme.js";
-import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
+import { BACK_OUT, pageCommand, pageRung, pageScope } from "../keyboard/register.js";
+import { saying } from "../keyboard/control-keys.js";
 import {
   DRAWING_COORDINATE_LIMIT,
   MAX_DRAWING_POINTS,
@@ -167,7 +168,7 @@ function wordsUnder(ink) {
  * @property {(on: boolean, options?: {spoken?: boolean}) => unknown} setDesignMode
  * @property {() => unknown} closeTargetPicker
  * @property {() => unknown} closeReactionMode
- * @property {(message: string) => unknown} announce
+ * @property {typeof import("../notifications.js").announce} announce
  * @property {() => unknown} paintDrawings
  * @property {() => unknown} shiftDrawingPaint
  * @property {() => unknown} repaint
@@ -227,12 +228,12 @@ export function createDrawingController({
     if (!on) stroke = null;
     document.documentElement.toggleAttribute("data-lf-draw-mode", on);
     refreshAim();
+    // The words say what the mode does, and the register the keys that leave it (`saying`).
     if (spoken)
       announce(
         on
-          ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing, and z takes one back. ${
-              coarsePointer.matches ? "Exit Draw mode leaves." : "Escape leaves."
-            }`
+          ? () =>
+              `Draw mode: draw anywhere on the page; each stroke adds to one drawing. ${saying([...DRAW_MODE.rows, BACK_OUT])}`
           : "Draw mode off",
       );
     paintDrawings();
@@ -471,25 +472,29 @@ export function createDrawingController({
     rememberPoint(event.clientX, event.clientY);
   }
 
+  // The stroke a pointer event moves, ends or cancels, or null. The stroke's own events,
+  // and those of a press Draw mode still claims, stop here, so the page under the
+  // pointer doesn't act on them.
+  /** @param {PointerEvent} event */
+  function strokeOf(event) {
+    if (stroke && event.pointerId === stroke.pointerId) {
+      claim(event);
+      return stroke;
+    }
+    if (claimsPointer(event)) claim(event);
+    return null;
+  }
+
   /** @param {PointerEvent} event */
   function move(event) {
-    if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (claimsPointer(event)) claim(event);
-      return;
-    }
-    claim(event);
-    rememberPoint(event.clientX, event.clientY);
+    if (strokeOf(event)) rememberPoint(event.clientX, event.clientY);
   }
 
   /** @param {PointerEvent} event */
   function finish(event) {
-    if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (claimsPointer(event)) claim(event);
-      return;
-    }
-    claim(event);
+    const completed = strokeOf(event);
+    if (!completed) return;
     rememberPoint(event.clientX, event.clientY);
-    const completed = stroke;
     stroke = null;
     if (completed.invalid) {
       shiftDrawingPaint();
@@ -573,12 +578,7 @@ export function createDrawingController({
 
   /** @param {PointerEvent} event */
   function cancel(event) {
-    if (!stroke || event.pointerId !== stroke.pointerId) {
-      if (claimsPointer(event)) claim(event);
-      return;
-    }
-    claim(event);
-    dropStroke();
+    if (strokeOf(event)) dropStroke();
   }
 
   // The presses a claimed pointer's own sequence still owes the page, swallowed so a
@@ -706,7 +706,8 @@ export function createDrawingController({
   // Draw mode claims pointer strokes and hands their marks to an ordinary comment. Its own
   // scope keeps the toggle and Escape as the two ways out while the page underneath
   // remains the drawing surface rather than receiving the drag.
-  pageScope("draw mode", {
+  /** @type {import("../keyboard/bindings.js").Scope} */
+  const DRAW_MODE = {
     title: "In Draw mode",
     says: "Draw",
     at: drawModeActive,
@@ -737,7 +738,8 @@ export function createDrawingController({
         run: () => setDrawMode(false),
       },
     ],
-  });
+  };
+  pageScope("draw mode", DRAW_MODE);
   // As Design mode's: the drawing surface is state over the page, so it comes off the
   // ladder after anything standing over it and before the page itself.
   pageRung("draw mode", () =>

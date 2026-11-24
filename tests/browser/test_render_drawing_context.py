@@ -132,12 +132,15 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
         expect(button).to_be_visible()
         if touch:
             # Each control is a small mark on the drawing's corner whose press reaches
-            # the finger's 44px floor beyond what it paints.
+            # the finger's 44px floor beyond what it paints, up to the window's edge,
+            # past which no finger presses.
             assert button.evaluate("""button => {
               const box = button.getBoundingClientRect();
               const x = box.x + box.width / 2, y = box.y + box.height / 2;
+              const within = (at, end) => Math.min(Math.max(at, 0), end - 1);
               return [[-21, -21], [21, -21], [-21, 21], [21, 21]].every(
-                ([dx, dy]) => document.elementFromPoint(x + dx, y + dy) === button);
+                ([dx, dy]) => document.elementFromPoint(
+                  within(x + dx, innerWidth), within(y + dy, innerHeight)) === button);
             }"""), f"{label} must take a press across the finger's reach"
     target.evaluate("el => el.style.background = 'blue'")
     page.keyboard.type("A comment about this area")
@@ -406,7 +409,7 @@ def test_drawing_preview_contains_theme_colored_svg_strokes_inside_a_sample(
         "sample drawing context",
         '<h1 id="title">Practice</h1><lf-sample id="practice" window>'
         '<template id="practice-page" data-sample><h1>Field report</h1>'
-        '<figure id="routes"><svg class="drawing" viewBox="0 0 600 170">'
+        '<figure id="routes"><svg class="lf-drawing" viewBox="0 0 600 170">'
         '<path d="M30 80 Q150 0 285 80 T570 80" fill="none" '
         'stroke="var(--lf-accent)" stroke-width="8" />'
         '<path d="M30 140 L280 140 L570 80" fill="none" '

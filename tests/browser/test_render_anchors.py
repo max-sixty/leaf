@@ -57,6 +57,7 @@ from render_harness import (
     SAID_PAGE,
     _traffic,
     compare_with,
+    comparison_view,
     consume_browser_errors,
     expect_open_threads,
     expect_panel_says,
@@ -81,7 +82,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread, thread_row
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -105,7 +106,10 @@ def comment_ids(page_dir):
 def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
-    where they stand."""
+    where they stand. The tab chooses the panel for threads, and the thread opens by
+    its route without travel (`threadActions.open`), so reading its head moves and
+    reveals nothing on the page, as a row of Threads, which travels to the passage,
+    would."""
     page.evaluate(
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
@@ -113,8 +117,19 @@ def thread_head(page, thread_id):
         "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
-    open_panel_thread(page, thread_id)
-    return page.locator(PANEL_THREAD).locator(".lf-thread-quote-head")
+    choose_threads_in_panel(page)
+    page.evaluate(
+        """async (id) => {
+          const api = window.__lfThreadsApi;
+          const thread = api.readThreads().threads.find((t) => t.id === id);
+          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+        }""",
+        thread_id,
+    )
+    view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
+    expect(view).to_be_visible()
+    panel_settled(page, view="thread")
+    return view.locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -302,7 +317,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
-        ("#fence-option > small.tag", "effort: low", "fence-option"),
+        ("#fence-option > small.lf-tag", "effort: low", "fence-option"),
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
@@ -1534,7 +1549,7 @@ def test_a_box_off_the_reading_face_keeps_its_own_tables_code_and_comments(
     browser, serve
 ):
     """Content with its own design inside a themed page sits in a box that turns the
-    reading face off (`package-themes.md`, "Personal themes"). Its full-width table
+    reading face off (`package-themes.md`, "A page's theme"). Its full-width table
     stays a native table, its code keeps the spans and colours its author gave it with
     no clearance under the block, a plain block there stays uncoloured, and a comment
     still anchors on a word inside it. The code block outside keeps the face."""
@@ -3696,7 +3711,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
                     "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
                     "additionalProperties": False,
                 },
@@ -3753,10 +3768,10 @@ def clearance_page(browser, serve, rail=True):
 
     def place_bottom(offset):
         return page.evaluate(
-            """offset => {
+            """async offset => {
               const scroller = document.scrollingElement;
               const destination = document.getElementById('destination');
-              const clear = parseFloat(getComputedStyle(scroller).scrollPaddingBottom);
+              const clear = (await window.__lfWidgetApi()).landingInsets(scroller).bottom;
               const before = destination.getBoundingClientRect();
               scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
               const after = destination.getBoundingClientRect();
@@ -3793,14 +3808,15 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     covered = place_bottom(clear["clear"] / 2)
     assert covered["bottom"] <= covered["viewport"]
     assert covered["bottom"] > covered["viewport"] - covered["clear"]
+    clear_band = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.keyboard.press("t")
     page.wait_for_function(
-        """() => {
-          const clear = parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingBottom);
-          return document.getElementById('destination').getBoundingClientRect().bottom
-            <= innerHeight - clear + .5;
-        }"""
+        """clear => document.getElementById('destination').getBoundingClientRect().bottom
+            <= innerHeight - clear + .5""",
+        arg=clear_band,
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") != pytest.approx(
         covered["scroll"], abs=1
@@ -3893,7 +3909,6 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
 
     held = []
     requests = []
-    view_request = re.compile(r"/api/view\?")
 
     def hold_first_view(route):
         requests.append(route.request.url)
@@ -3902,7 +3917,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         else:
             route.continue_()
 
-    page.route(view_request, hold_first_view)
+    page.route(comparison_view, hold_first_view)
     released = False
     try:
         compare_with(page, 1)
@@ -3923,7 +3938,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
     finally:
         if held and not released:
             held[0].continue_()
-        page.unroute(view_request)
+        page.unroute(comparison_view)
 
 
 def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, serve):
@@ -3938,15 +3953,14 @@ def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, se
     expect(page.locator(".lf-ins-block")).to_have_count(2)
 
     held = []
-    view_request = re.compile(r"/api/view\?")
-    page.route(view_request, lambda route: held.append(route))
+    page.route(comparison_view, lambda route: held.append(route))
     compare_with(page, 2)
     holding(page, held, 1, "the replacement comparison")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     held[0].fulfill(status=500, json={"error": "comparison unavailable"})
     expect_panel_says(page, "Couldn't load v2")
     consume_browser_errors(page, http_error_console(500))
-    page.unroute(view_request)
+    page.unroute(comparison_view)
 
     menu = panel_menu(page, "versions")
     compare = menu.get_by_role("button", name="Compare with v2")
@@ -4481,8 +4495,8 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     if superseded:
         expect(search).to_be_focused()
-        thread_head(page, thread)
-        show_on_page(page)
+        # Its file now seats the thread, so the thread's row opens it there.
+        thread_row(page, thread).click()
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
@@ -4495,6 +4509,264 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
     thread_head(page, thread)
     show_on_page(page, key=True)
     landed()
+
+
+def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
+    browser, serve, subtests
+):
+    """A line thread in a file not yet opened stands by the file's row, which stands
+    in for the line. Reaching the thread opens the file: a walk to it, which Back
+    returns from however far down the file the line was, and a press on its marker,
+    which lands the user in the thread beside the line, with a Back entry too. A thread
+    on a line of earlier data stays on the file, which opens under its card all the
+    same."""
+    url = serve(
+        leaf_page(
+            "closed files",
+            '<h1 id="title">Review</h1>'
+            '<lf-diff id="walked" source="long-patch" collapsed></lf-diff>'
+            '<lf-diff id="earlier" source="earlier-patch" collapsed></lf-diff>'
+            '<lf-diff id="pressed" source="long-patch" collapsed></lf-diff>',
+        )
+    )
+    added = "".join(f"+line {number}\n" for number in range(1, 301))
+    long_file = {
+        "files": [
+            {
+                "path": "long.py",
+                "patch": "diff --git a/long.py b/long.py\n--- a/long.py\n"
+                f"+++ b/long.py\n@@ -1 +1,300 @@\n-old\n{added}",
+            }
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
+    data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
+    line = '["long.py","new",280]'
+    earlier = {"source": "earlier-patch", "source_revision": "0" * 16}
+    for section, datum, anchor in (
+        ("walked", line, {}),
+        ("earlier", '["second.py","new",1]', earlier),
+        ("pressed", line, {}),
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the {section} line.",
+                "anchor": {"section": section, "datum": datum, **anchor},
+            },
+        )
+    page = open_page(browser, url)
+    marker = '[data-lf-margin-for^="id:{}/"] .lf-margin-marker'
+    in_seat = """section => {
+      const chain = [];
+      for (let at = document.activeElement; at; at = at.shadowRoot?.activeElement)
+        chain.push(at);
+      return chain[0]?.id === section && chain.some((node) =>
+        node.closest?.('.lf-diff-thread-outlet .lf-page-thread'));
+    }"""
+
+    with subtests.test(case="walk"):
+        entries = page.evaluate("history.length")
+        page.keyboard.press("t")
+        expect(page.locator(f"#walked [data-lf-datum='{line}']")).to_be_in_viewport()
+        page.wait_for_function(in_seat, arg="walked")
+        assert page.evaluate("history.length") == entries + 1, (
+            "the walk moved the user down the file without a Back entry"
+        )
+        page.go_back()
+        expect(page.locator("#walked .lf-diff-file summary")).to_be_in_viewport()
+
+    with subtests.test(case="press"):
+        page.locator(marker.format("pressed")).click()
+        drawn = page.locator(f"#pressed [data-lf-datum='{line}']")
+        expect(drawn).to_be_in_viewport()
+        expect(drawn).to_have_class(re.compile(r"\blf-mark-here\b"))
+        page.wait_for_function(in_seat, arg="pressed")
+        page.go_back()
+        expect(page.locator("#pressed .lf-diff-file summary")).to_be_in_viewport()
+
+    with subtests.test(case="earlier data"):
+        page.locator(marker.format("earlier")).click()
+        expect(
+            page.locator("#earlier .lf-diff-file > details").nth(1)
+        ).to_have_attribute("open", "")
+        expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_have_text(
+            "Earlier data"
+        )
+        # Its thread still stands on the place the widget gives it, and a second
+        # press puts the card away as on any marker.
+        page.locator(marker.format("earlier")).click()
+        expect(page.locator(".lf-margin-preview .lf-anchor-status")).to_be_hidden()
+
+
+def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
+    browser, serve, subtests
+):
+    """A thread whose passage a closed box hides, a closed disclosure, a tab not
+    chosen or a diff file opened and closed again, stands its marker level with what
+    the page shows for the box, so the page shows that the box holds a thread. A press
+    on the marker opens the box and lands the user on the thread, on a phone too and
+    after the box closed round the thread's open card. A suggestion the box hides
+    offers no Accept until the box opens, even where a stylesheet lays the box out."""
+    url = serve(
+        leaf_page(
+            "closed boxes",
+            '<h1 id="title">Review</h1>'
+            '<details id="fold"><summary>Notes</summary>'
+            '<p id="folded">The retry waits grow without bound.</p></details>'
+            '<details id="offers"><summary>Offers</summary><p>Plain words '
+            '<lf-suggestion id="offer"><lf-old>two</lf-old><lf-new>three</lf-new>'
+            "</lf-suggestion> follow.</p></details>"
+            '<div id="laid" hidden="until-found"><p>Also '
+            '<lf-suggestion id="laid-offer"><lf-old>red</lf-old><lf-new>blue</lf-new>'
+            "</lf-suggestion>.</p></div>"
+            '<lf-tabs id="tabs">'
+            '<lf-tab id="tab-one" label="One"><p id="shown">First tab.</p></lf-tab>'
+            '<lf-tab id="tab-two" label="Two"><p id="unchosen">Second tab.</p></lf-tab>'
+            "</lf-tabs>"
+            '<lf-diff id="patch" source="patch" collapsed></lf-diff>',
+            # A package may lay a closed box out unseen.
+            head='<style>#laid[hidden="until-found"] '
+            "{ content-visibility: visible; visibility: hidden; }</style>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
+    for anchor in (
+        {"section": "folded"},
+        {"section": "unchosen"},
+        {"section": "patch", "datum": '["first.py","new",1]'},
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {anchor['section']}.",
+                "anchor": anchor,
+            },
+        )
+    page = open_page(browser, url)
+    file = page.locator("#patch .lf-diff-file > details").first
+    line = page.locator('#patch [data-lf-datum=\'["first.py","new",1]\']')
+    file.evaluate("details => { details.open = true; }")
+    expect(line).to_be_attached()
+    file.evaluate("details => { details.open = false; }")
+    suggestion = page.locator('.lf-margin-cluster[data-lf-margin-for="offer"]')
+    laid = page.locator('.lf-margin-cluster[data-lf-margin-for="laid-offer"]')
+
+    def marker(key):
+        return page.locator(f'[data-lf-margin-for^="{key}"] .lf-margin-marker')
+
+    with subtests.test(case="suggestion"):
+        expect(suggestion).to_be_hidden()
+        expect(laid).to_be_hidden()
+        page.locator("#offers > summary").click()
+        expect(suggestion).to_be_visible()
+        page.locator("#laid").evaluate("box => box.removeAttribute('hidden')")
+        expect(laid).to_be_visible()
+
+    for case, face, opened, key in (
+        ("tab not chosen", page.locator("#tabs"), "#unchosen", "unchosen"),
+        (
+            "file opened and closed again",
+            file.locator(":scope > summary"),
+            line,
+            "id:patch/",
+        ),
+        ("closed disclosure", page.locator("#fold > summary"), "#folded", "folded"),
+    ):
+        with subtests.test(case=case):
+            entry = marker(key)
+            entry.scroll_into_view_if_needed()
+            expect(entry).to_be_visible()
+            assert abs(entry.bounding_box()["y"] - face.bounding_box()["y"]) <= 2, (
+                "the marker stands apart from what the page shows for its closed box"
+            )
+            entry.click()
+            target = page.locator(opened) if isinstance(opened, str) else opened
+            expect(target).to_be_in_viewport()
+            expect(target).to_have_class(re.compile(r"\blf-mark-here\b"))
+
+    with subtests.test(case="closed round its card"):
+        expect(marker("folded")).to_have_attribute("aria-expanded", "true")
+        page.locator("#fold").evaluate("details => { details.open = false; }")
+        expect(marker("folded")).to_be_visible()
+        marker("folded").click()
+        expect(page.locator("#fold")).to_have_attribute("open", "")
+        expect(page.locator("#folded")).to_be_in_viewport()
+
+    with subtests.test(case="phone"):
+        page.get_by_role("tab", name="One").click()
+        resized(page, 400, 900)
+        entry = marker("unchosen")
+        entry.scroll_into_view_if_needed()
+        entry.click()
+        expect(page.locator("#unchosen")).to_be_visible()
+        expect(page.locator(PANEL_THREAD)).to_contain_text("About unchosen.")
+
+
+def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
+    browser, serve
+):
+    """Back or Forward takes the user elsewhere, so a trip to a thread still waiting
+    on its file lands nowhere once the file arrives, and leaves history as the
+    traversal left it."""
+    added = "".join(f"+line {number}\n" for number in range(1, 301))
+    url = serve(
+        leaf_page(
+            "closed file",
+            '<h1 id="title">Review</h1>'
+            '<lf-diff id="patch" source="long-patch" collapsed></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "long-patch",
+        {
+            "files": [
+                {
+                    "path": "second.py",
+                    "patch": "diff --git a/second.py b/second.py\n--- a/second.py\n"
+                    f"+++ b/second.py\n@@ -1 +1,300 @@\n-old\n{added}",
+                }
+            ]
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About line 280.",
+            "anchor": {"section": "patch", "datum": '["second.py","new",280]'},
+        },
+    )
+    page = open_page(browser, url, init_script=HOLD_SECOND_FILE)
+    page.evaluate("location.hash = 'title'")
+    page.evaluate("scrollTo(0, 0)")
+    entries = page.evaluate("history.length")
+    page.locator('[data-lf-margin-for^="id:patch/"] .lf-margin-marker').click()
+    page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
+    page.go_back()
+    page.wait_for_function("location.hash === ''")
+    page.evaluate("window.__leafReleaseSecond()")
+    line = page.locator('lf-diff [data-lf-datum=\'["second.py","new",280]\']')
+    expect(line).to_have_count(1)
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() =>"
+        " requestAnimationFrame(resolve)))"
+    )
+    expect(line).not_to_be_in_viewport()
+    assert page.evaluate("[history.length, location.hash]") == [entries, ""], (
+        "the trip Back left behind rewrote history when its file arrived"
+    )
+    page.go_forward()
+    page.wait_for_function("location.hash === '#title'")
 
 
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
@@ -4954,7 +5226,7 @@ LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
         "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
         "additionalProperties": False,
     },
@@ -6006,7 +6278,7 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
         ),
         (
             '<lf-group id="pick-q" label="What should a full store do?">'
-            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
+            '<lf-options id="pick"><lf-option id="drop"><small class="lf-tag ok">'
             "recommended</small><strong>Drop the oldest documents</strong> Editing "
             'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
             "</strong> Nothing leaves.</lf-option></lf-options></lf-group>",
@@ -6023,22 +6295,6 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
     and title, are found with a space between them, as they show."""
     url = serve(leaf_page("Apart by CSS", markup + "<p>More.</p>" * 4))
     page = open_page(request.getfixturevalue(engine), url)
-    page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill(words)
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    ("source", "words"),
-    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
-)
-def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
-    engine, source, words, request, serve
-):
-    """A figure caption in the product docs draws its title on a line of its own above
-    its text, and page search finds the title's last word and the text's first apart."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill(words)
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")

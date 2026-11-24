@@ -36,7 +36,8 @@
  * such as an image or a frame.
  */
 import { canvas2D } from "../canvas.js";
-import { overlaps } from "../rect.js";
+import { carriedBox, elementBorderFrame } from "../element-axes.js";
+import { hasArea, intersect, overlaps } from "../rect.js";
 import { describeFailure } from "../exception.js";
 /** @param {Blob} blob */
 const asDataUrl = async (blob) =>
@@ -143,36 +144,37 @@ export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
   /** @type {Set<string>} */
   const warnings = new Set();
-  // The crop meets the frame's content box in this viewport's coordinates; the
-  // child and the substitute's own box read it in the frame's, unscaled.
+  // The crop in window coordinates, at the page's scroll when called.
+  const shownClip = () => ({
+    left: clip.x - scrollX,
+    top: clip.y - scrollY,
+    right: clip.x - scrollX + clip.width,
+    bottom: clip.y - scrollY + clip.height,
+  });
+  // The crop carried into the frame's own viewport by the inverse of its frame
+  // (element-axes.js, `elementBorderFrame`), where the child and the substitute's own
+  // box read it, held to that viewport. A turned frame draws the box that covers the
+  // turned crop; the crop cuts what lies outside it from the image.
   /** @param {HTMLIFrameElement} frame */
   async function sampleContent(frame) {
     // SnapDOM applies the frame's box to the returned node, border included.
     const box = document.createElement("div");
     if (!frame.checkVisibility({ visibilityProperty: true })) return box;
-    const rect = frame.getBoundingClientRect();
-    const scaleX = rect.width / frame.offsetWidth || 1;
-    const scaleY = rect.height / frame.offsetHeight || 1;
-    const left = rect.left + frame.clientLeft * scaleX;
-    const top = rect.top + frame.clientTop * scaleY;
-    const right = Math.min(
-      left + frame.clientWidth * scaleX,
-      clip.x - scrollX + clip.width,
+    const { matrix } = elementBorderFrame(frame);
+    const area = intersect(
+      carriedBox(
+        matrix.translate(frame.clientLeft, frame.clientTop).inverse(),
+        shownClip(),
+      ),
+      { left: 0, top: 0, right: frame.clientWidth, bottom: frame.clientHeight },
     );
-    const bottom = Math.min(
-      top + frame.clientHeight * scaleY,
-      clip.y - scrollY + clip.height,
-    );
-    const start = {
-      x: (Math.max(left, clip.x - scrollX) - left) / scaleX,
-      y: (Math.max(top, clip.y - scrollY) - top) / scaleY,
-    };
+    if (!hasArea(area)) return box;
     const crop = {
-      ...start,
-      width: (right - left) / scaleX - start.x,
-      height: (bottom - top) / scaleY - start.y,
+      x: area.left,
+      y: area.top,
+      width: area.right - area.left,
+      height: area.bottom - area.top,
     };
-    if (crop.width <= 0 || crop.height <= 0) return box;
     try {
       const child = await sampleFrameImage(frame, crop);
       for (const warning of child.warnings) warnings.add(warning);
@@ -191,15 +193,7 @@ export async function pageImage(clip, { exclude = [] } = {}) {
     }
     return box;
   }
-  const { root, ground } = captureRoot(
-    {
-      left: clip.x - scrollX,
-      top: clip.y - scrollY,
-      right: clip.x - scrollX + clip.width,
-      bottom: clip.y - scrollY + clip.height,
-    },
-    exclude.join(", "),
-  );
+  const { root, ground } = captureRoot(shownClip(), exclude.join(", "));
   const image = await snapdom(root, {
     clip,
     backgroundColor: ground,

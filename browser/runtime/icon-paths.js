@@ -80,7 +80,10 @@ const SVG = "http://www.w3.org/2000/svg";
 /** @param {string} icon */
 export const iconMarkup = (icon) => {
   const markup = ICONS[icon];
-  if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
+  if (!markup)
+    throw new TypeError(
+      `Unknown Leaf icon: ${icon}. Leaf's icons are ${Object.keys(ICONS).sort().join(", ")}`,
+    );
   return markup;
 };
 
@@ -136,11 +139,19 @@ export const ACTIONS = {
   next: { name: "Next", icon: "next" },
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
-  // The next steps the floating panel's field offers at its end (floating-panel.js,
-  // `noticePress`): after a Resolve, and at rest while On Me lists anything
-  // (`pageOffer`), in the title case the user asked for.
+  // The presses the floating panel's field offers at its end, a notice's or the page's
+  // own (floating-panel.js, `pressReading`), in the title case the user asked for.
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
+  // A thread's way between Leaf's two places for it, its card beside the passage and the
+  // floating panel (thread/threads-in-panel.js).
+  "open-in-panel": { name: "Open in panel", icon: "expand" },
+  "open-latest": { name: "Open latest", icon: "next" },
+  "resume-writing": { name: "Resume writing", icon: "edit" },
+  "restore-edit": { name: "Restore edit", icon: "undo" },
+  "show-annotations": { name: "Show annotations", icon: "locate" },
+  "show-changes": { name: "Show changes", icon: "locate" },
+  "show-on-page": { name: "Show on page", icon: "locate" },
   "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },
@@ -166,7 +177,10 @@ export const ACTIONS = {
 /** @param {string} action */
 const namedAction = (action) => {
   const named = ACTIONS[action];
-  if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+  if (!named)
+    throw new TypeError(
+      `Unknown Leaf action: ${action}. Leaf's actions are ${Object.keys(ACTIONS).sort().join(", ")}`,
+    );
   return named;
 };
 /** The symbol `action` shows. @param {string} action */

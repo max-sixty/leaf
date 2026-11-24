@@ -195,11 +195,12 @@ export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 // reply (thread_titles.py), so one comes while a session holds the page's claim and the
 // agent owes the thread work. A turn that ended, stalled or was never picked up sends
 // none, nor does a page nobody has claimed, and the thread reads its opening words.
-/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly kind: string, readonly reason: string} | null}} thread */
+/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source: {readonly kind: string}} | null}} thread */
 export const titlePending = (thread) =>
   thread.title == null &&
-  thread.attention?.kind === "waiting" &&
-  thread.attention.reason === "workflow" &&
+  thread.attention?.next_actor === "agent" &&
+  thread.attention.source.kind === "update" &&
+  thread.attention.state !== "blocked" &&
   pageClaimed();
 
 // A thread's name wherever a surface draws it, as Threads, Page Map, On cards and the
@@ -242,10 +243,10 @@ export const PREVIEWED_LINE = 120;
 /** @param {import("./workflow.js").ThreadRecord} thread @param {string | null} said */
 function threadStands(thread, said) {
   const attention = threadAttention(thread, agentName());
-  const detail = attention?.kind === "waiting" ? attention.workflow?.detail : null;
+  const detail = attention?.turn === "agent" ? attention.workflow?.detail : null;
   const unread = thread.unread.length;
   return {
-    turn: attention?.kind === "needs_user" ? "user" : null,
+    turn: attention?.turn === "user" ? "user" : null,
     words: [
       ...(attention ? [attention.word] : []),
       ...(detail ? [agentSays(labelWords(detail))] : []),
@@ -695,7 +696,7 @@ export function messageReading(
       : null,
     editable: editable(message),
     failure: message.failure ?? null,
-    pending: workflow?.stage === "sending",
+    pending: Boolean(workflow?.local) && workflow?.state !== "blocked",
     // What a rewrite of the message is written over (`base` on an edit): its current
     // content version.
     base: message.content_version,
@@ -829,7 +830,7 @@ export class MessageView {
     // closed editor goes with its subscription and keys.
     const editing = model.editable && holdsMessageEdit(model.id, this);
     const editor = editing
-      ? (this.#editor ??= new MessageEditor(model.id, this, {
+      ? (this.#editor ??= new MessageEditor(model.id, {
           wireInput: this.#commands.reply.wireInput,
           said: () => presentation.model.body.text,
           base: () => presentation.model.base,

@@ -14,6 +14,7 @@ code of its own. Choose by what the state is:
 | Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                    | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
 | How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                       | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
 | Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
+| What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                                | the widgets on this page that name it, in this tab                                                                  | the widget sets it; a reader's bound property is set, and its `render()` runs                              |
 | A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                         | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
@@ -33,7 +34,12 @@ markup has a controller, and only under the `id` it had at upgrade: if the id ch
 user adds through a `creates` verb, such as a new option, has none; its parent draws it
 from its own state and passes the member's asynchronous drawing to
 `controller.present(promise)`. Leaf itself draws what the declaration alone decides,
-such as hiding a suggestion's `lf-old` once it is accepted (`retired-when`).
+such as hiding a suggestion's `lf-old` once it is accepted (`retired-when`). Off Leaf
+(`module-authoring.md`, "A widget that also runs off Leaf") `this.reading` is `null`,
+and `this.state` and `this.controller` throw, so a widget that also runs there reads
+`this.reading?.state` and records only where `this.reading` exists. A widget whose
+class is no `LeafElement` has neither: Leaf sets its state as a property and hears its
+actions as events (`module-plain-elements.md`).
 
 `read()` returns an immutable `{authored, state, memberships, thread, provenance,
 actions}`. `authored` is the state the page's markup sets, and `state` that with every
@@ -49,17 +55,24 @@ for the action. Before the document has loaded, `authored` and `state` may be mi
 Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})`, and
 undo one with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the
 action's Undo candidates. `says` names the gesture in the widget's words, such as
-`Chose “Fast”`, and Leaf's acknowledgement and Undo show it, so post no notice of your
-own for it. `dispatch` returns `null` when the action isn't available, throws for a verb
-the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
-already shows the result; `delivery` resolves to the event the server admitted, or
-`null`, and a refusal restores the server's state.
+`Chose “Fast”`. Leaf's acknowledgement shows it, and so does Undo in the tab that made
+the gesture, so post no notice of your own for it; another tab, or this one after a
+reload, names the gesture in Leaf's own words. `dispatch` returns `null` when the action
+isn't available, throws for a verb the widget doesn't declare, and otherwise returns
+`{reading, delivery}`. The reading already shows the result; `delivery` resolves to the
+event the server admitted, or `null`, and a refusal restores the server's state.
 
-During a live edit, or while the user rearranges the widget by pointer or keyboard, call
-`const resume = this.controller.defer()` before your first change to the DOM, so Leaf
-doesn't redraw under the user. Call `resume()` once `dispatch` has returned, or after
-cancelling has put the DOM back; it draws the newest reading. A dragged widget
-(`dragging`, `module-input.md`, "Pointer presses") defers for the whole drag.
+The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with the Undo
+row in the leaf's menu.
+
+A gesture in which the module itself changes the widget's nodes, such as a live edit or
+a drag that moves them, calls `const resume = this.controller.defer()` before its first
+change to the DOM, so no redraw puts the nodes back under the user. `render()` doesn't
+run while the hold stands, so a widget that shows a gesture's progress through
+`render()`, as a slider previewing its value does, leaves `defer()` alone. Call
+`resume()` once `dispatch` has returned, or after cancelling has put the DOM back; it
+draws the newest reading. A dragged widget (`dragging`, `module-input.md`, "Pointer
+presses") defers for the whole drag.
 
 Pass asynchronous preparation the page should wait for, such as a renderer loading, to
 `present(promise)`, or, from a widget that also runs off Leaf, dispatch it as a
@@ -90,6 +103,18 @@ finished failure doesn't fail every later draw.
 tab, such as which groups the user collapsed; set `null` to remove it. Read it during
 setup so the first visible state reflects it (`module-authoring.md`, "First paint").
 
+A widget that shows one member at a time (`views`, `module-authoring.md`, "First
+paint") keeps the open member in the tab too, through these helpers. A member's native
+`hidden` attribute is view state. Read `viewMembers(holder)` for the canonical member
+list, including holders a module creates. Reading members or the opening choice changes
+no DOM. During setup, open the member `openingView(holder)` returns, and show each
+later member with `keepView(holder, member)`, which applies native visibility and
+remembers it for reload. Passing null shows none without forgetting the last member.
+During an exit animation, `keepView(holder, member, leaving)` keeps one outgoing member
+visible too; call it again without that member when the animation ends. Only the
+selected member is saved. Pass `null` as a second argument to get null where neither
+the address nor the tab names a member, and choose then.
+
 ## Declared widget state
 
 `render()` draws the whole state each time it runs, and draws the same result if run
@@ -104,14 +129,15 @@ shape of its `unit`:
   other declared fields.
 - With a per-part unit, it holds `units`, each part's `{action, value, detail}` by id.
 - A position verb's `value` maps each container id to its ordered member ids, and
-  `ranks` gives each member's rank.
+  `ranks` gives each member's rank. Leaf moves no member: `render()` places each
+  container's members in that order (`module-authoring.md`, "Retained nodes").
 
-`detail` follows the payload [package-data.md, "User state"](package-data.md#user-state)
-gives each record kind. A recorded body, attribute or value sends `detail: {value}`. A
-move sends `detail: {unit, value, rank}`: the moved element's id, the destination
-container's id, and `rankAt(state.<verb>, container, index, unit)`, which places the
-unit at `index` among the container's others and keeps it there however other units
-move. A verb with no record sends what its `detail` schema declares.
+For a verb with a record, `detail` is the payload
+[package-data.md, "User state"](package-data.md#user-state) gives for its record kind. A
+move's `rank` is `rankAt(state.<verb>, container, index, unit)`, which takes the
+container's and the unit's ids, places the unit at `index` among the container's others
+and keeps it there however other units move. A verb with no record sends what its
+`detail` schema declares.
 
 A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On
@@ -144,15 +170,18 @@ render() {
 A widget bound to a source first draws once the page has read its data, or has gone
 offline without it, so until then it shows its first-paint box. Each delivery is a new
 copy, so a widget tells a new delivery by identity. A rerun with
-the same value delivers a new copy too. An input the markup leaves unbound, such as an
-`lf-diff` showing its inline patch, is left to the widget: Leaf doesn't set its
-property.
+the same value delivers a new copy too. Where the markup binds the input of a widget
+whose body is data (`content: data`) to nothing, as with an `lf-diff` showing its
+inline patch, Leaf sets the input's property once, at setup, to the text of its
+`<pre>`. Any other unbound input is left to the widget (`package-data.md`, "External
+or derived data").
 
-A widget output reads through the same property, as the value its producer published
-with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). The
-producer publishes in the turn that commits the matching rendering, and publishes
-`null` rather than keep stale records after a failed replacement. Leaf doesn't check a
-published value against its contract, so publish only values that fit it.
+An input bound to another widget's output reads through the same property, as the
+value that widget holds (package-data.md, "Widget outputs"). The producer sets its
+output property and says `change` in the turn that commits the matching rendering,
+and holds `null` rather than keep stale records after a failed replacement. The
+running page doesn't check a held value against its contract, so hold only values
+that fit it.
 
 ### Marking drawn data
 
@@ -182,22 +211,23 @@ that key as outdated. `data-lf-origin-path` is an optional JSON array naming the
 datum's place in the value. Take a mark off a node you keep once it no longer shows
 data; a node you remove takes its marks with it.
 
-The detail names the property and the value drawn from it, and Leaf stamps the marks
-with that value's source and revision, so a draw that finishes after a newer value
-arrived keeps the revision it drew. Name the value Leaf set, not a copy, or `null` for
-words no bound value supplied, such as records the widget composed itself. A string or
-number value can be one you still hold or one Leaf set after the value you last
-reported; after reporting a newer one, don't go back to an older one. A widget
-with several bound inputs marks the items of one of them and names that one, since a
-widget's marks carry one source. Marks on nodes inside a nested widget belong to that
-widget. On a page without Leaf, nothing listens and the marks mean nothing.
+The detail holds one key, the property its input names (`value` above), with the value
+drawn from it. Leaf stamps the marks with that value's source and revision, so a draw
+that finishes after a newer value arrived keeps the revision it drew. Name the value
+Leaf set, not a copy, or `null` for words no bound value supplied, such as records the
+widget composed itself. A string or number value can be one you still hold or one Leaf
+set after the value you last reported; after reporting a newer one, don't go back to an
+older one. A widget with several bound inputs marks the items of one of them and names
+that one, since a widget's marks carry one source. Marks on nodes inside a nested
+widget belong to that widget. On a page without Leaf, nothing listens and the marks
+mean nothing.
 
 ### Time readings
 
 `ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
 ago", "2h ago", "2d ago". Draw an age
 in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
-(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone and
+(`module-previews.md`), so pointing at it says when, in the reader's zone and
 as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 PM PT".
 Read `ago` synchronously in `render()`, which then redraws as the time's reading
 changes.

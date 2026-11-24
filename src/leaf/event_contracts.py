@@ -50,7 +50,6 @@ from leaf.registry.kernel import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
-from leaf.shown_answers import shown_widget
 from leaf.thread_context import thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
@@ -205,10 +204,6 @@ def position_record_error(
     unit = by_id.get(unit_id)
     if unit is None:
         return Finding("unknown-unit", values=named)
-    # A view's place is its widget's answer (`shown_answers.py`), so a move of it
-    # would be a second record of that answer.
-    if shows := shown_widget(unit, registry):
-        return Finding("shown-unit", values={**named, "shows": shows})
 
     target = by_id.get(target_id)
     if target is None:
@@ -741,7 +736,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
-    """A `todo` event stands on a thread, a live widget, an element, or the page; a
+    """A `todo` event stands on a thread, a declared widget, an element, or the page; a
     `todo_end` names an open to-do; and a start names explicit agent work or an owed
     update (`todos.todo_error`)."""
     from leaf.todos import start_reading

@@ -81,7 +81,6 @@ import {
   bodyText,
   commandsChanged,
   keeps,
-  layoutPx,
   listWalkPosition,
   whileConnected,
   failSoft,
@@ -436,7 +435,7 @@ customElements.define(
         // drawing measures, and only its width moves the observer.
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";
-        this.drawing.style.blockSize = layoutPx(height);
+        this.drawing.style.blockSize = `${Math.round(height * 64) / 64}px`;
         this.replaceChildren(this.drawing);
         await this.paint(Math.round(width));
         this.classList.add("lf-rendered");
@@ -783,7 +782,7 @@ customElements.define(
       for (const named of built.querySelectorAll("g")) {
         const label = named.getAttribute("aria-label");
         if (label === null) continue;
-        named.dataset.lfPart = label;
+        named.dataset.lfPlot = label;
         named.removeAttribute("aria-label");
       }
       if (!drawing) throw new Error("Plot did not draw its labelled SVG");

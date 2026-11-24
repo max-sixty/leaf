@@ -28,7 +28,6 @@ import {
   offer,
   LeafElement,
   onCurrentLocation,
-  plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
@@ -196,9 +195,12 @@ class FileTreeWidget extends LeafElement {
       mount();
       // Trees scrolls its virtualized list and focuses with preventScroll. The
       // row can still lie outside Leaf's outer reading viewport, so hand that
-      // remaining reveal to the same scrolling owner every widget uses.
+      // remaining reveal to the same scrolling owner every widget uses. A row the
+      // user pressed is where they aimed, so it stays there: focus arrives on the
+      // press's mousedown, and a reveal there would move the row from under the
+      // pointer before the mouseup, which would fall on another row and open neither.
       const stopCurrentLocation = onCurrentLocation(
-        (/** @type {Element | null} */ row) => {
+        (/** @type {Element | null} */ row, cause) => {
           // A route to this navigator lands on its usable entry control.
           if (row === this) {
             const input = root.querySelector("input");
@@ -209,15 +211,19 @@ class FileTreeWidget extends LeafElement {
             // native activation; an ancestor scope cannot own that press.
             row.lfCommands = fileActions;
             commandsChanged(row);
-            scrollIntoView(row, { block: "nearest" });
+            if (cause !== "press") scrollIntoView(row, { block: "nearest" });
           }
         },
       );
       this.addEventListener(
         "click",
         (event) => {
+          // A modified click keeps its usual meaning.
+          const plain =
+            event.button === 0 &&
+            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
           if (
-            plainPress(event) &&
+            plain &&
             event
               .composedPath()
               .some(

@@ -402,7 +402,6 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
     packages_model.cmd_package_init(registry_alias)
     (registry_alias / "registry.json").unlink()
     (registry_alias / "registry.json").symlink_to(package / "registry.json")
-    (registry_alias / "widgets").rmdir()
     (registry_alias / "widgets").symlink_to(
         package / "widgets", target_is_directory=True
     )
@@ -504,13 +503,18 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert created.exit_code == 0, created.output
 
     package = tmp_path / ".leaf"
+    # Only the registry and the sheet a theme's or a widget's rules go in; the author
+    # adds any other part of the layout when it has something to hold.
+    assert sorted(path.name for path in package.iterdir()) == [
+        "defaults.css",
+        "registry.json",
+    ]
     assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "overrides.css").is_file()
-    assert list((package / "instructions").iterdir()) == []
-    assert (package / "widgets").is_dir()
-    assert (package / "vendor").is_dir()
 
     entry = add_test_widget(package, "lf-callout", upgrade=True)
+    (package / "overrides.css").write_text(".callout-note { font-weight: bold; }\n")
+    (package / "instructions").mkdir()
+    (package / "vendor").mkdir()
     (package / "instructions" / "author.md").write_text(
         "# Callouts\n\nUse them for short notices.\n"
     )
@@ -646,8 +650,10 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     assert fetch(f"{server}/api/state")[0] == 200
 
 
-import pytest
+import gc
+import weakref
 
+from leaf import page_memory
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import vendoring as vendoring_model
@@ -746,7 +752,6 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     assert sorted(path.name for path in stored.iterdir()) == [
         "defaults.css",
         "instructions",
-        "overrides.css",
         "registry.json",
         "runtime",
         "vendor",
@@ -774,10 +779,12 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     assert initialized.exit_code == 0, initialized.output
     existing = add_test_widget(package, "lf-existing")
     instructions = package / "instructions" / "author.md"
+    instructions.parent.mkdir()
     instructions.write_text("Keep this package instructions.\n")
     helper = package / "runtime" / "existing-helper.js"
+    helper.parent.mkdir()
     helper.write_text("export const existing = true;\n")
-    theme = (package / "overrides.css").read_bytes()
+    theme = (package / "defaults.css").read_bytes()
 
     result = runner.invoke(
         cli_model.cli,
@@ -788,7 +795,7 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    assert (package / "overrides.css").read_bytes() == theme
+    assert (package / "defaults.css").read_bytes() == theme
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
@@ -861,3 +868,95 @@ def test_package_instructions_do_not_change_a_revisions_browser_address(
     assert second.package_copies != first.package_copies
     assert second.resources == first.resources
     assert second.identity == first.identity
+
+
+def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
+    tmp_path, monkeypatch
+):
+    """A layer that reads a page's own copy of a package is kept in the page's memory
+    beside the copy's stamp (`layer._held`). Each `page init` that replaces the copy
+    replaces that layer rather than keeping another beside it, so a process holds one
+    layer for the page however often its package is edited, and none once it drops
+    the page's memory. Forgetting the shared layers forgets it too."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "notes"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    page = tmp_path / "page"
+    kept = weakref.WeakSet()
+    for edit in range(3):
+        sheet = f".note {{ --edit: {edit}; }}"
+        (package / "defaults.css").write_text(sheet + "\n")
+        made = CliRunner().invoke(
+            cli_model.cli, ["page", "init", "--package", "./notes", str(page)]
+        )
+        assert made.exit_code == 0, made.output
+        record = registry_storage.layer_record(page)
+        assert record is not None
+        layer = registry_storage.selected(record, page)
+        assert sheet in layer.files["/theme.css"].decode()
+        kept.add(layer)
+    del layer
+    gc.collect()
+    assert len(kept) == 1
+
+    # A process that forgets the tree it read, as a preview does between servers
+    # (`layer.forget_layers`), composes the page's layer again.
+    [before] = kept
+    layer_model.forget_layers()
+    after = registry_storage.selected(record, page)
+    assert after is not before
+    kept.add(after)
+    del before, after
+    gc.collect()
+    assert len(kept) == 1
+
+    for n in range(page_memory.PageMemories.LIMIT):
+        page_memory.memory_of(tmp_path / f"other-{n}")
+    gc.collect()
+    assert len(kept) == 0
+
+
+def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_path):
+    """`package list` names what `page init --package NAME` selects: an installed
+    package under a name of its own beside the bundled ones, described by the first
+    paragraph of its author instructions and its entries' descriptions, and an
+    installed package in place of the bundled one whose name it takes. `default`, on
+    every page already, is not listed."""
+    team = tmp_path / "src" / "team-charts"
+    packages_model.cmd_package_init(team, "lf-trend")
+    (team / "instructions").mkdir(exist_ok=True)
+    (team / "instructions" / "author.md").write_text(
+        "## When to select it\n\n"
+        "Select this package for the analytics team's pages.\n"
+        "It charts in their house style.\n\n"
+        "Give every chart a label.\n"
+    )
+    diagram = tmp_path / "src" / "diagram"
+    packages_model.cmd_package_init(diagram)
+    for source in (team, diagram):
+        installed = CliRunner().invoke(
+            cli_model.cli, ["package", "install", str(source)]
+        )
+        assert installed.exit_code == 0, installed.output
+
+    listed = CliRunner().invoke(cli_model.cli, ["package", "list"])
+
+    assert listed.exit_code == 0, listed.output
+    packages = {each["name"]: each for each in json.loads(listed.output)["packages"]}
+    assert packages["team-charts"] == {
+        "name": "team-charts",
+        "installed": True,
+        "description": "Select this package for the analytics team's pages. "
+        "It charts in their house style.",
+        "entries": {
+            "lf-trend": packages_model.starter_element_declaration("lf-trend")[
+                "description"
+            ]
+        },
+    }
+    assert packages["diagram"]["installed"] is True
+    assert packages["diagram"]["entries"] == {}
+    assert packages["playwright"]["installed"] is False
+    assert "lf-trace" in packages["playwright"]["entries"]
+    assert "default" not in packages

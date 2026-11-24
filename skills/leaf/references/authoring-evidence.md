@@ -21,8 +21,8 @@ visual change between two versions as a before-and-after pair of captures, whose
 widget's instructions cover preparing the pair and the comparison controls. Capture
 both versions at the same viewport. Before writing the prose and `alt`, open both
 images and compare them where the change should be.
-For a small change, crop both frames to the subject rather than making the reader
-search a whole window. Captures that vary along other axes need each axis labelled
+For a small change, open the pair on the subject rather than making the reader search
+a whole window. Captures that vary along other axes need each axis labelled
 once, which a table does by default ("Source files and media").
 
 Write a diagram that automatic layout can place, such as a flowchart or a sequence
@@ -30,7 +30,7 @@ diagram, in a widget that lays it out. Its instructions cover checking the drawi
 reporting what you could verify.
 
 Draw what automatic layout can't place, such as a page layout, a wireframe or a
-thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
+thumbnail inside an option, as the `svg.lf-drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
 units in a 720px column draw an 11px label at 5px. Draw only the detail the figure's
@@ -47,7 +47,7 @@ Chart quantities in a chart, not in a diagram language's charts, such as Mermaid
 Keep a few numbers in prose when a sentence explains them clearly.
 
 Show an order of events between actors that you describe, such as a race between two
-jobs, as a timeline rather than drawing one in `svg.drawing`, whose labels you would
+jobs, as a timeline rather than drawing one in `svg.lf-drawing`, whose labels you would
 place by hand. A recorded browser journey is shown as its trace instead (below).
 
 A user can comment on a whole drawing. To let them comment on one part, give the part

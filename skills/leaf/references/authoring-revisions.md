@@ -66,7 +66,7 @@ provisional until the stamped revision its `handling` asks for.
 ## Make changes easy to find
 
 Before handing over a changed page, compare it with the last version the user saw and
-mark each significant addition, such as a `.tag` reading "new" beside a new section's
+mark each significant addition, such as a `.lf-tag` reading "new" beside a new section's
 heading. Remove those marks in the next version you hand over.
 
 ## Keep the current page current
@@ -82,9 +82,8 @@ user state follow ids (`page-authoring.md`, "Stable anchors"), so a passage you 
 keeps its id wherever it moves, and moving it needs neither a suggestion nor
 `restated`.
 
-When a revision removes a passage a thread quotes, the thread moves to the surviving
-section, or is detached if the section is gone too. When you know where the subject
-went, name the replacement passage (`threads.md`, "Preserve revised anchors").
+When a revision removes a passage a thread quotes, `threads.md`, "Preserve revised
+anchors", says where the thread goes and how to move it onto the passage's replacement.
 
 A work list shows unfinished items. When an item of a plan, backlog or list of
 problems is done, cut it down to its outcome and move it to the finished work,

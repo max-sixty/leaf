@@ -34,6 +34,7 @@ from interact_support import (
     refused_on,
     response_reference,
     served_updates,
+    state_json,
 )
 
 from leaf import cli as cli_model
@@ -106,28 +107,6 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     )
     assert current.exit_code == 0, current.output
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
-
-
-def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
-    """An agent writing a widget from memory can leave out the attribute that makes
-    it ask, and satisfying the refusal with `--obligation` would leave the widget
-    asking nothing. So the refusal names the attribute the widget's registry entry
-    asks with."""
-    asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which wording?"}
-    )
-    shown = '<lf-draft id="wording">\n<pre>\nShip on Monday.</pre></lf-draft>'
-    refused = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", response_reference(page_dir, asked)]
-        + ["--text", f"Edit it?\n\n{shown}"],
-    )
-
-    assert refused_on(refused.stdout).values == {
-        "tag": "lf-draft",
-        "id": "wording",
-        "needs": "`required`",
-    }
 
 
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
@@ -1227,7 +1206,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
     [workflow] = state["workflows"]
     [record] = served_updates(state["browser"])
     assert (workflow["obligation"], record["next_actor"]) == (record["id"], "user")
-    assert workflow["condition"]["kind"] == "failed"
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "failed")
     assert owed_answers(page_dir) == []
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
@@ -1330,6 +1309,24 @@ def test_failure_reply_is_refused_while_provider_still_owns_the_answer(page_dir)
         )[0]["text"]
         == "Provider final"
     )
+
+
+def test_a_final_into_a_thread_the_user_resolved_leaves_it_closed(page_dir, capfd):
+    """A provider's final message goes into a thread the user resolved without
+    reopening it, as an answer by command does. Leaf says nothing beside it: no
+    agent reads what a provider's process prints, so the note a command prints of a
+    thread that stayed closed would reach nobody."""
+    comment, _target, _delivery_id, stream = _reserved_author_response(page_dir)
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": comment["id"]}
+    )
+    capfd.readouterr()
+    assert stream.finish("completed", "No badge exists.") is None
+    final = events_model.read_events(page_dir)[-1]
+    assert (final["responds"], final["unannounced"]) == (comment["id"], True)
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] == "user"
+    assert "stays-closed" not in capfd.readouterr().err
 
 
 @pytest.mark.parametrize("settled", [False, True])

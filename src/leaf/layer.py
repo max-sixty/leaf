@@ -45,7 +45,7 @@ from .schema import (
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
 )
-from .state import PLUGIN_ROOT, plugin_cache_copy
+from .state import PLUGIN_ROOT, installed_copy
 
 
 def named_package(name: str) -> Path | None:
@@ -474,7 +474,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
-    such as the bundled `reading` look. A thread's transcript holds layer markup
+    such as the bundled `reading` look's. A thread's transcript holds layer markup
     wherever it is drawn, and a widget can seat one in its shadow tree, such as a
     diff's line threads, so every shadow tree also takes defaults.css within
     `@scope (.lf-thread-transcript)`, in lf-shadow after the package's
@@ -688,9 +688,9 @@ class LayerComposition:
 
 def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages`, its theme's among them (`themes.with_theme`): its core and
-    bundled packages, the user's installed ones, as this process first read them,
-    and the copies the page holds of packages it selects by path.
+    `packages`, in the order it lists them: its core and bundled packages, the
+    user's installed ones, as this process first read them, and the copies the page
+    holds of packages it selects by path.
 
     A page records only its selection (`registry.storage.LAYER`), so every Leaf
     that serves, checks or exports it composes its own layer, the way it supplies
@@ -844,11 +844,10 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
     at a higher number is refused as `newer-layer` (`newer_layer`), as is one whose
     layer record a newer Leaf wrote at a later shape, before this reading
     (`registry.storage.layer_record`), since its repair is a newer Leaf: this one
-    does not take it down (`vendoring._plan_page`). For a page at an
-    older number, the holding session's prompt and Stop hooks, and each of its
-    commands that names the page, take it to this Leaf's number first
-    (`vendoring.renew_layer`). Every server of the page's files, the website's
-    included (`http.page_endpoint`, `leaf_website.page_binding`), the one append
+    does not take it down (`vendoring._plan_page`). The session holding a page at
+    an older number takes it to this Leaf's number (`vendoring.renew_layer` says
+    when). Every server of the page's files, the website's included
+    (`http.page_endpoint`, `leaf_website.page_binding`), the one append
     door and the writers that ask it first (`event_contracts.write_refusal`), and
     `page check` refuse on this one reading, each naming its repair."""
     recorded = record.get("protocol")
@@ -900,9 +899,10 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
-    # version unset, so that component is the source commit SHA. The default root
-    # follows this module: a newer sibling cannot change the running copy's identity.
-    if plugin_cache_copy(root):
+    # version unset, so that component is the source commit SHA. Codex's and Pi's
+    # copies are clones, which Git reads below. The default root follows this module: a newer
+    # sibling cannot change the running copy's identity.
+    if installed_copy(root) and not (root / ".git").exists():
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
@@ -940,17 +940,16 @@ def payload_provenance(*, include_path: bool = False, root: Path | None = None) 
         text=True,
         check=True,
     ).stdout.strip()
+    if installed_copy(root):
+        # Nobody edits a harness's clone, but Codex's lacks what it strips on
+        # install, such as the `.agents/skills` link, and adds its own record,
+        # which Git would count as changes; and a status costs a hook that asks
+        # which Leaf it runs (`server.other_serving_leaf`) most of its reading.
+        provenance["dirty"] = False
+        return provenance
     try:
         dirty = subprocess.run(
-            [
-                *git,
-                "status",
-                "--porcelain",
-                "--untracked-files=all",
-                "--",
-                ".",
-                ":(top,exclude).codex-marketplace-install.json",
-            ],
+            [*git, "status", "--porcelain", "--untracked-files=all", "--", "."],
             capture_output=True,
             text=True,
             check=False,

@@ -438,7 +438,7 @@ export function createPrimaryReader(
         } else {
           const node = document.createElement("div");
           node.className = "lf-page-thread lf-ring-overlay lf-ui lf-primary-part";
-          node.dataset.lfPart = item.kind;
+          node.dataset.lfKind = item.kind;
           node.tabIndex = -1;
           node.dataset.lfRuntime = "";
           generatedElement(node, { says: false });
@@ -460,6 +460,7 @@ export function createPrimaryReader(
             declareThreadParts(node, {
               reply: () => replyOf(item.key),
               settlement: () => null,
+              move: () => null,
               whole: (part) => part,
             });
             /** @type {MessagePart} */
@@ -555,8 +556,7 @@ export function createPrimaryReader(
           // Only what a nomination may ask of its thread (module-annotations.md), so
           // nothing else it passed reaches the view, as a margin card's own head line
           // would move the package's element into the thread (thread-card.js,
-          // `CardOutlets`). A nomination that lands the user elsewhere is where taking
-          // back the settlement opens the thread again (`ViewOutlets`, `reader`).
+          // `CardOutlets`).
           const { head, reply, quote, scroller, landing } = item.options;
           view.setOutlets({
             ...(head && {
@@ -569,7 +569,7 @@ export function createPrimaryReader(
             ...(reply && { reply }),
             ...(quote && { quote }),
             ...(scroller && { scroller }),
-            ...(landing && { landing, reader: /** @type {const} */ ("primary") }),
+            ...(landing && { landing }),
           });
         }
         view.present(reading);

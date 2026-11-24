@@ -51,6 +51,7 @@ from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import codex_state as codex_state_model
+from leaf import completions as completions_model
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
@@ -195,13 +196,16 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
 @cache
 def model_layer(*packages: str) -> dict:
-    """The vocabulary `page init` vendors for one package selection.
+    """The vocabulary `page init` vendors for one package selection, a path in it
+    naming a package from the checkout's root, as `./tests/fixtures/packages/work`.
 
-    Composed from the bundled packages rather than read back out of a page, and
+    Composed from the packages rather than read back out of a page, and
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(
+        layer_model.layer_inputs(packages, base=ROOT)
+    )
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -274,10 +278,6 @@ class ModelPage:
         return {
             source: value["contract"] for source, value in self._data["sources"].items()
         }
-
-    def data(self, registry: dict) -> dict:
-        """The supplied validated data readings, empty unless a test names them."""
-        return self._data
 
     @property
     def within(self) -> dict:
@@ -465,6 +465,16 @@ def js_facts(command: str, files) -> str:
     ).stdout
 
 
+def shipped_sheets() -> list[Path]:
+    """The core's stylesheets and the bundled packages', less what they vendor."""
+    return [
+        sheet
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+    ]
+
+
 def shipped_core_registry() -> dict:
     """The kernel registry with the core layer's declarations beside it, the layer
     facts `page init` starts every composition from, unstamped."""
@@ -595,10 +605,10 @@ PAGE = f"""<!doctype html>
   <lf-group id="plan-choice-decision" label="Which plan should lead?">
     <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
-      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small> <strong>Flag first</strong>
+      <lf-option id="flag-first" label="Flag first"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: med</small> <strong>Flag first</strong>
         Ship dark.
       </lf-option>
-      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small> <strong>Backfill first</strong>
+      <lf-option id="backfill-first" label="Backfill first"><small class="lf-tag">effort: med</small><small class="lf-tag">risk: low</small> <strong>Backfill first</strong>
         Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
@@ -748,7 +758,6 @@ def declare_data_input(
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
@@ -921,13 +930,14 @@ def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
     the selections `obligations.collection` makes: the threads' obligations, or
     with `page` the document's obligations. The records the user's updates publish
-    are `served_updates`."""
+    are `served_updates`, and the agent's to-dos `served_todos`."""
     [view] = browser["views"].values()
     return collection(
         [
             item
             for item in view["obligations"]
-            if item["source"]["kind"] != "update" and (item["thread"] is None) == page
+            if item["source"]["kind"] not in {"update", "todo"}
+            and (item["thread"] is None) == page
         ]
     )
 
@@ -937,6 +947,23 @@ def served_updates(browser: dict) -> list[dict]:
     `browser` serves."""
     [view] = browser["views"].values()
     return [item for item in view["obligations"] if item["source"]["kind"] == "update"]
+
+
+def served_todos(browser: dict) -> list[dict]:
+    """The agent's to-dos, open and ended, as the obligation records the one view
+    `browser` serves them in (`todos`)."""
+    [view] = browser["views"].values()
+    return [item for item in view["obligations"] if item["source"]["kind"] == "todo"]
+
+
+def open_todos(state: dict) -> list[dict]:
+    """The to-dos the agent still owes among an agent-facing state's `obligations`, as
+    `page state` prints them for the page, a thread or a widget."""
+    return [
+        item
+        for item in state["obligations"]
+        if item["source"]["kind"] == "todo" and item["state"] != "done"
+    ]
 
 
 @pytest.fixture
@@ -1270,7 +1297,7 @@ def owed(state):
     its record names, with the record's id as `obligation` and the owed `answer`.
 
     `activity.obligations` names each by its record's id beside its answer, so this
-    is the join an agent makes to reach a move's stage or subject.
+    is the join an agent makes to reach where a move stands or its subject.
     """
     records = {item["id"]: item for item in state["obligations"]}
     by_input = {item["input"]: item for item in state["workflows"]}
@@ -1421,10 +1448,6 @@ def _report_authored_detail(registry):
     }
 
 
-def _report_without_overruled(registry):
-    del registry["lf-test-task"]["attributes"]["properties"]["overruled"]
-
-
 def _report_without_module(registry):
     registry["lf-test-bare"] = {
         **deepcopy(registry["lf-test-task"]),
@@ -1438,9 +1461,6 @@ def _user_verb_text(registry):
 
 def _agent_verb_answers(registry):
     registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
-    registry["lf-options"]["attributes"]["properties"]["overruled"] = {
-        "type": "boolean"
-    }
 
 
 def _body_record_with_prose(registry):
@@ -1518,7 +1538,6 @@ def trial_family(root: Path) -> None:
             "verbs": {"decide": deciding_verb(outcomes)},
             "example": example,
         }
-        declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
@@ -1666,13 +1685,16 @@ HELD_LEASES = []
 
 
 def fixture_service(directory, port: int, lifetime: str = "persistent") -> dict:
-    """Record the desired service of a `server run` on `port`, as it records its own."""
+    """Record the desired service of a `server run` on `port`, as it records its own,
+    naming this Leaf as the one serving it."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "runtime": {"path": str(cleanup_model.PLUGIN_ROOT)}
+        | layer_model.running_leaf(),
         "server_id": "fixture-server",
     }
     write_record(directory / "service.json", service)
@@ -1797,12 +1819,29 @@ def retire_test_services(tmp_path, isolated_session):
     """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
-    for path in (isolated_session / "sessions").glob(
-        f"*.{cleanup_model.SESSION_SUFFIX}"
-    ):
-        record = files_model.read_json(path)
-        if isinstance(record, dict) and isinstance(record.get("id"), str):
-            cleanup_model.end_session(record["id"])
+    sessions = [
+        record["id"]
+        for path in (isolated_session / "sessions").glob(
+            f"*.{cleanup_model.SESSION_SUFFIX}"
+        )
+        if isinstance(record := files_model.read_json(path), dict)
+        and isinstance(record.get("id"), str)
+    ]
+
+    def answer_completions():
+        # No hooks module runs for a test's Claude Code session, so a title
+        # worker's completion would wait out its whole deadline; answer each as a
+        # failed call, as the module reports one.
+        for session_id in sessions:
+            for asked in completions_model.pending(session_id):
+                completions_model.replied(
+                    session_id,
+                    {"basis": {"completion": asked["id"]}, "failed": "test ended"},
+                )
+
+    answer_completions()
+    for session_id in sessions:
+        cleanup_model.end_session(session_id)
     # A Claude Code hook leaves Leaf's bridge running while its session lives.
     for lock in (isolated_session / "bridge").glob("*.lock"):
         if leases_model.lock_is_held(lock):
@@ -1822,9 +1861,14 @@ def retire_test_services(tmp_path, isolated_session):
     )
     # Servers have stopped accepting input, so no new title request can start.
     # The worker reports under the page lock even when its generator fails.
+    # A worker can still ask for its completion after the answers above, so
+    # teardown answers until each worker ends.
+    deadline = time.monotonic() + STATED_TIMEOUT
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
-            worker.join(timeout=STATED_TIMEOUT)
+            while worker.is_alive() and time.monotonic() < deadline:
+                answer_completions()
+                worker.join(timeout=POLL_INTERVAL)
             assert not worker.is_alive(), "a title worker outlived its test's page"
 
 
@@ -1924,7 +1968,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 (
                     task["id"]
                     for task in TodoReading(events_model.read_events(page_dir)).owed
-                    if task["subject"] == {"kind": "page"}
+                    if task["source"]["subject"] == {"kind": "page"}
                 ),
                 None,
             )
@@ -1958,7 +2002,7 @@ def end_work(page_dir):
     from leaf.todos import TodoReading
 
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == {"kind": "page"}:
+        if task["source"]["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
                 {
@@ -1977,7 +2021,7 @@ def end_work_on(page_dir, subject):
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
     for task in TodoReading(events_model.read_events(page_dir)).owed:
-        if task["subject"] == named:
+        if task["source"]["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
             )
@@ -2020,7 +2064,7 @@ def working(page_dir, line, subject="page"):
         (
             task
             for task in TodoReading(log_model.read_events(page_dir)).owed
-            if task["subject"] == named
+            if task["source"]["subject"] == named
         ),
         None,
     )
@@ -2482,6 +2526,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
             "}\n"
         )
     if upgrade:
+        (package / "widgets").mkdir(exist_ok=True)
         (package / "widgets" / f"{tag}.js").write_bytes(
             packages_model.starter_widget_module(tag)
         )

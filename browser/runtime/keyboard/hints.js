@@ -36,6 +36,7 @@
 import { bindingEnabled, cycledRow, hasRows, spell } from "./bindings.js";
 import { html, render } from "/runtime/framework.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
+import { saying } from "./control-keys.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { layoutWindow } from "../geometry.js";
@@ -84,23 +85,6 @@ export function codedHints(members, alphabet = HINT_KEYS.join("")) {
         : code(shallow + Math.floor((index - shallow) / radix), depth) +
           alphabet.charAt((index - shallow) % radix),
   }));
-}
-
-// Lit sees only an opaque primitive. The native row or target remains controller state,
-// while an unchanged owner retains its seat, chip and keycaps across paint-only updates.
-export function renderKeys() {
-  /** @type {WeakMap<object, number>} */
-  const keys = new WeakMap();
-  let next = 1;
-  /** @param {object} owner */
-  return (owner) => {
-    let key = keys.get(owner);
-    if (key === undefined) {
-      key = next++;
-      keys.set(owner, key);
-    }
-    return key;
-  };
 }
 
 /** @param {HintBox} box @param {number} left @param {number} top @returns {HintBox} */
@@ -573,7 +557,7 @@ export function seatHints(
  * kept?: (candidate: C) => boolean,
  * layout: (candidates: C[], options: {current: C | undefined}) => {candidate: C, model: M, left: number, top: number, target: HintBox, placement: HintPlacement}[],
  * template: (model: M) => unknown, take: (candidate: C) => unknown,
- * words: {describe: (candidate: C) => string, take: string, all: string}, chrome: {barriers: () => HintBarrier[]}}} HintSessionOptions
+ * words: {describe: (candidate: C) => string, all: string}, chrome: {barriers: () => HintBarrier[]}}} HintSessionOptions
  */
 /** @template {{code: string}} C @template {{key: unknown, className: string}} M
  * @param {HintSessionOptions<C, M>} options */
@@ -603,6 +587,10 @@ export function createHintSession({
   /** @type {{barriers: HintBarrier[], withheld: Set<C>} | null} */
   let seating = null;
   const seats = chipSeats(layer);
+  // The row that takes the member the walk stands on (`walkRows`), whose key a heard
+  // member says.
+  /** @type {import("./bindings.js").Command[]} */
+  let choosing = [];
 
   const members = () => mapped;
   const hinted = () => mapped.filter(({ code }) => code.startsWith(prefix));
@@ -738,9 +726,8 @@ export function createHintSession({
     at = targets.indexOf(target);
     const said = words.describe(target);
     const stop = /[.!?]$/.test(said) ? "" : ".";
-    announce(
-      `${enabled(target) ? `Hint ${target.code}: ` : ""}${said}${stop} Press Enter to ${words.take}.`,
-    );
+    const heard = `${enabled(target) ? `Hint ${target.code}: ` : ""}${said}${stop}`;
+    announce(() => `${heard} ${saying(choosing)}`);
     repaint();
   }
 
@@ -760,6 +747,18 @@ export function createHintSession({
   // `choose`, and decides `when` the walk is offered.
   /** @param {{id: string, when?: () => boolean, choose: {description?: string, title: string}}} options @returns {import("./bindings.js").Command[]} */
   function walkRows({ id, when = () => members().length > 0, choose }) {
+    choosing = [
+      {
+        id: `${id}.choose`,
+        touch: false,
+        keys: ["Enter"],
+        description: choose.description,
+        title: choose.title,
+        travels: true,
+        when: () => at >= 0,
+        run: () => take(hinted()[at]),
+      },
+    ];
     return [
       {
         id: `${id}.walk`,
@@ -779,16 +778,7 @@ export function createHintSession({
         runKey: /** @param {string} binding */ (binding) =>
           walk(binding === "Tab" ? 1 : -1),
       },
-      {
-        id: `${id}.choose`,
-        touch: false,
-        keys: ["Enter"],
-        description: choose.description,
-        title: choose.title,
-        travels: true,
-        when: () => at >= 0,
-        run: () => take(hinted()[at]),
-      },
+      ...choosing,
     ];
   }
 

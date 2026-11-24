@@ -40,11 +40,19 @@
  *
  * A reading of a visual's inventory reads its version (kept.js, `version`), so a
  * reading kept from it is made again after the visual's `update()`, which a reveal that
- * draws calls too, or a registration for a source it found none for. */
+ * draws calls too, or a registration for a source it found none for.
+ *
+ * A visual that registers nothing marks its parts instead: each node in its light tree
+ * carrying `data-lf-part="<id>"` is the part of that id, named by its `aria-label` or
+ * else its words, in document order. A mark under a visual standing inside the source
+ * is that visual's, by the page's declarations (`declaredVisuals`). The marks are read
+ * as they stand, and a reading kept from them is made again once a widget says its
+ * layout changed (widget-upgrade.js, `layoutChanged`), which Leaf says for an element
+ * each time it sets the element's properties (element-integration.js). */
 
 import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
-import { layoutChanged } from "./widget-upgrade.js";
+import { layoutChanged, layoutsChanged } from "./widget-upgrade.js";
 import { version } from "./kept.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
@@ -63,6 +71,27 @@ import { version } from "./kept.js";
 const registrations = new WeakMap();
 // How many sources have registered, which a reading of a source with none reads.
 const registered = version();
+
+// Whether an element is a visual of its own, as the page declares them
+// (anchor-resolution.js). A document that says nothing has none.
+/** @type {(element: Element) => boolean} */
+let isVisual = () => false;
+/** @param {(element: Element) => boolean} declared */
+export const declaredVisuals = (declared) => {
+  isVisual = declared;
+};
+
+// The inventory of a source that registered none: the parts its nodes mark, less those
+// under a visual standing inside it.
+/** @param {Element} source @returns {VisualPart[]} */
+const markedParts = (source) =>
+  [...source.querySelectorAll("[data-lf-part]")].flatMap((element) => {
+    for (let at = element.parentElement; at && at !== source; at = at.parentElement)
+      if (isVisual(at)) return [];
+    const id = element.getAttribute("data-lf-part") ?? "";
+    const label = element.getAttribute("aria-label") ?? element.textContent ?? "";
+    return [{ id, element, label }];
+  });
 
 /** Register the current visual-part inventory for one rendered source.
  *
@@ -134,11 +163,12 @@ export function revealRegisteredVisualPart(source, id) {
   return registeredVisualPart(source, id);
 }
 
-/** Invalid registrations or ids outside a provider's declared prefixes. */
+/** Invalid records, or ids outside a provider's declared prefixes. A visual that
+ * offers no part has none: with marks, an empty inventory is a state its drawing can
+ * be in, and the picture is then one target. */
 /** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!registrations.has(source)) return [{ kind: "unregistered" }];
   const parts = registeredVisualParts(source);
   const admission = visualPartAdmission(source, declaration);
   const outside =
@@ -166,20 +196,24 @@ function checkedPart(source, part, number) {
   return { id, element, label, surface };
 }
 
+/** The source's inventory, each record checked: what it registered, or the parts it
+ * marks. */
 /** @param {Element} source */
 export function registeredVisualParts(source) {
   const registration = registrations.get(source);
-  (registration?.drawn ?? registered).read();
-  if (!registration) return [];
-  const { read } = registration;
+  if (registration) registration.drawn.read();
+  else {
+    registered.read();
+    layoutsChanged();
+  }
+  const read = registration?.read ?? (() => markedParts(source));
   const seenIds = new Set();
   const seenElements = new Set();
   const seenSurfaces = new Set();
   return [...read()].map((given, index) => {
     const part = checkedPart(source, given, index + 1);
     const { id, element, surface } = part;
-    if (seenIds.has(id))
-      throw new TypeError(`A visual source registered part ${id} twice`);
+    if (seenIds.has(id)) throw new TypeError(`A visual source names part ${id} twice`);
     if (seenElements.has(element))
       throw new TypeError("A visual source registered one element as two parts");
     if (seenSurfaces.has(surface))

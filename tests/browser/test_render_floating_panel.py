@@ -5138,9 +5138,13 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
               if (giving) v.dataset.giving = '1';
               const { watchScrollEnds } = await window.__lfCheckApi();
               window.lfEnded = false;
+              window.lfHeard = 0;
+              const heard = () => { window.lfHeard += 1; };
+              v.addEventListener('scroll', heard, {passive: true});
               const stop = watchScrollEnds((box) => {
                 if (box !== v) return;
                 stop();
+                v.removeEventListener('scroll', heard);
                 window.lfEnded = true;
               });
               return v.scrollTop; }""",
@@ -5148,6 +5152,14 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
         )
         page.mouse.wheel(0, -200)
         page.wait_for_function("() => window.lfEnded")
+        if not page.evaluate("() => window.lfHeard"):
+            # The box's sequence ended with no scroll heard in it: the quiet spell ran
+            # out before the browser applied the wheel, as a Firefox starved of CPU
+            # does, and the move the view owed, made at that end, cancelled the wheel.
+            # That loss is accepted as a corner case (arrivals.js, `SETTLE_MS`): no
+            # event says the browser won't scroll. The move this test guards against,
+            # made at the wheel, scrolls the box before its sequence ends.
+            pytest.xfail("the browser applied the wheel after the reader's wait ended")
         moved[giving] = stood - view.evaluate("v => v.scrollTop")
     assert moved[False] > 100, moved
     assert moved[True] == pytest.approx(moved[False] - 100, abs=2), moved

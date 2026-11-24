@@ -1895,9 +1895,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         workspace.locator('.lf-msg[data-lf-event="nested-question"]')
     ).to_be_focused()
     assert page.evaluate(
-        "api.currentLocationIn(document.querySelector('#workspace').reader)"
-    )
-    assert page.evaluate(
         "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )
     assert email.evaluate(

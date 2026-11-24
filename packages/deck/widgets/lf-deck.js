@@ -69,8 +69,6 @@ import {
   rowArrows,
   dragging,
   focusDestination,
-  focused,
-  currentLocationIn,
   keepView,
   keeps,
   keepsText,
@@ -114,6 +112,14 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 // them.
 /** @param {ReturnType<typeof obligationsIn>} held */
 const waitsOn = (held) => tally(held).onUser > 0;
+
+// The element focus is on, followed down through each open shadow tree, so that a
+// control inside a widget's tree is the one the deck blurs and asks about.
+const focusedElement = () => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at;
+};
 
 /** @typedef {ReturnType<typeof obligationsIn>} DeckHeld */
 /** @typedef {(card: HTMLElement) => DeckHeld} DeckReadings */
@@ -462,10 +468,12 @@ customElements.define(
     // pressed twice answers one card. Read before `leaving` goes.
     /** @param {HTMLElement[]} leaving */
     #carry(leaving) {
-      const here = focused();
+      const here = focusedElement();
       const place = here && placeOf(here);
       const inside = leaving.some(
-        (each) => currentLocationIn(each) || Boolean(place && under(place, each)),
+        (each) =>
+          (here !== null && here !== document.body && under(here, each)) ||
+          Boolean(place && under(place, each)),
       );
       const keyed = inside && here !== null && here.matches(":focus-visible");
       return (/** @type {HTMLElement | null} */ next, wait = 0) => {
@@ -485,7 +493,8 @@ customElements.define(
         if (!keyed) return;
         if (!wait) return this.#arrive(next);
         setTimeout(() => {
-          if (focused() === null || focused() === document.body) this.#arrive(next);
+          const at = document.activeElement;
+          if (at === null || at === document.body) this.#arrive(next);
         }, wait);
       };
     }
@@ -724,7 +733,7 @@ customElements.define(
       // answered.
       const { open, total } = tally(readings(card));
       const closed = total > 0 && open === 0;
-      const here = focused();
+      const here = focusedElement();
       const place = here && placeOf(here);
       const onCard =
         document.hasFocus() &&

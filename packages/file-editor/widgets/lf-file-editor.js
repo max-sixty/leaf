@@ -83,7 +83,6 @@ import {
   deferredArrival,
   el,
   focusDestination,
-  focused,
   iconTemplate,
   LeafElement,
   offered,
@@ -588,9 +587,15 @@ customElements.define(
       // Runs once a read or save of `of` ends. The open file paints, and hands the reader
       // back to the editor if the control they retried from went away; another file
       // announces its news. Then the file's own saves resume, and a read it owes runs.
+      // The control's tree keeps naming it as active while the window is in the
+      // background, as it may be when a request ends.
       /** @param {OpenFile} of @param {HTMLElement | null} returnFrom */
       function ended(of, returnFrom) {
-        const returning = connected && returnFrom && focused() === returnFrom;
+        const returning =
+          connected &&
+          returnFrom &&
+          /** @type {Document | ShadowRoot} */ (returnFrom.getRootNode())
+            .activeElement === returnFrom;
         if (of === file) {
           paint();
           if (returning && returnFrom.hidden) returnToEditor();

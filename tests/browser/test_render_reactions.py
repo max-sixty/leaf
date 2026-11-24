@@ -1544,10 +1544,11 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
     page.evaluate(
-        """() => {
+        """async () => {
+          const {layoutChanged} = await window.__lfWidgetApi();
           const visual = document.querySelector('#flow');
           visual.parts.find(part => part.id === 'outer').label = 'Outer revised';
-          visual.visualRegistration.update();
+          layoutChanged(visual);
         }"""
     )
 
@@ -1565,10 +1566,11 @@ def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
     page.evaluate("() => window.lfRetainedVisualControl.focus()")
 
     page.evaluate(
-        """() => {
+        """async () => {
+          const {layoutChanged} = await window.__lfWidgetApi();
           const visual = document.querySelector('#flow');
           visual.parts.reverse();
-          visual.visualRegistration.update();
+          layoutChanged(visual);
         }"""
     )
     page.wait_for_function(
@@ -1711,11 +1713,12 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     # The registered provider declares geometry changes inside the same SVG host.
     # That publication invalidates the native attachment without a scroll callback.
     before_part, before_field = start.bounding_box(), bar.bounding_box()
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
+      const {layoutChanged} = await window.__lfWidgetApi();
       const diagram = document.querySelector('#flow');
       const part = diagram.visualParts.get('node:S').element;
       part.setAttribute('transform', (part.getAttribute('transform') ?? '') + ' translate(0 60)');
-      return diagram.visualPartRegistration.update();
+      layoutChanged(diagram);
     }""")
     rendered(page)
     after_part, after_field = start.bounding_box(), bar.bounding_box()

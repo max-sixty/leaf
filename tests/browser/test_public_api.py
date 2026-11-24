@@ -75,18 +75,18 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         }
     with subtests.test("landing room"):
         initial = page.evaluate("""async () => {
-          const {landingInsets, registerRootHeader} = await window.__lfWidgetApi();
+          const {landingInsets} = await window.__lfWidgetApi();
           const before = landingInsets(document.documentElement).top;
           const make = (id, height) => {
             const header = document.createElement('div');
             header.id = id;
             header.style.cssText = `position:fixed; height:${height}px`;
+            header.toggleAttribute('data-lf-root-header', true);
             document.querySelector('main').append(header);
             return header;
           };
           const first = make('package-header-one', 19);
           const second = make('package-header-two', 31);
-          window.headerStops = [registerRootHeader(first), registerRootHeader(second)];
           return before;
         }""")
 
@@ -109,9 +109,13 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         assert added() == pytest.approx(43)
         page.evaluate("document.querySelector('main').append(window.detachedHeader)")
         assert added() == pytest.approx(74)
-        page.evaluate("window.headerStops[0]()")
+        page.locator("#package-header-one").evaluate(
+            "el => el.removeAttribute('data-lf-root-header')"
+        )
         assert added() == pytest.approx(31)
-        page.evaluate("window.headerStops[1]()")
+        page.locator("#package-header-two").evaluate(
+            "el => el.removeAttribute('data-lf-root-header')"
+        )
         assert added() == pytest.approx(0)
 
 

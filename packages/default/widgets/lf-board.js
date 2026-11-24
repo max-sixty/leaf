@@ -173,11 +173,9 @@ function valuelessFault(card, { owner, record }) {
  * answer a board can show (`shownWidget`), or a widget whose state has not loaded.
  * Reading it reads that widget's own published state, and changing it sends the
  * widget's own command through its controller, the same command its own control sends.
- * `render()` follows the controller's reading, so the board draws again when the
- * answer changes. The widget's `state` property holds the same answer, but Leaf sets
- * it on that widget alone and the board's own state does not change with it, so
- * nothing would draw the board again: a card read from the property stays in its
- * column after a pick.
+ * `render()` follows that reading, so the board draws again when the answer changes.
+ * The widget's own `state` property holds the same answer, but nothing tells the
+ * board when Leaf sets it.
  * `value` is the value the answer names now (null for none), `available` whether the
  * user can change it, `takes(value)` whether the widget can answer `value` (null
  * clears a pick), and `answer(value, says)` sends the widget's command, returning
@@ -1007,7 +1005,6 @@ customElements.define(
         }
         destination.push(card.id);
       }
-      // As the position fold orders a column.
       for (const cards of Object.values(columns)) cards.sort(byRank(ranks));
       return columns;
     }

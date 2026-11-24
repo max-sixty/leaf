@@ -12,8 +12,9 @@
    Authored units rank by their authored index, `authoredRank(i)`, a key that does not
    depend on how many siblings follow. A widget computes the rank of a unit it drops
    with `rankAt`, from the position verb's state it drew. `projection.py`'s
-   `authored_rank` and `RANK` state the same two rules for the Python fold and the
-   append door, and `tests/rank_cases.json` holds both runtimes to the same cases.
+   `authored_rank` and `registry/contract.py`'s `RANK` state the same two rules for
+   the Python fold and the append door, and `tests/rank_cases.json` holds both
+   runtimes to the same cases.
 
    A rank lies among the container's authored units on the revision the user moved on,
    so it holds while a revision authors them the same way. A revision that authors them

@@ -47,12 +47,12 @@ declaration alone decides, such as hiding a suggestion's `lf-old` once it is acc
 (`retired-when`).
 
 `widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read`, `dispatch` and `present`. A `LeafElement` whose
-`render()` calls `read()` draws again whenever that reading changes. One that reads
-another element's `state` property does not, since Leaf sets the property for that
-element and tells no other element when it changes. If the widget's id has changed
-since upgrade, `read()` reports every action unavailable and `dispatch()` returns
-`null`. `read()` returns an immutable `{authored, state, memberships, thread,
+own or another's, through `read`, `dispatch` and `present`. `read()` is a page
+reading (`module-authoring.md`, "Drawing what a widget reads"), so a `LeafElement`
+whose `render()` calls it draws again when it changes. Another element's `state`
+property is not a page reading, and nothing tells a widget that read it when Leaf
+sets it again. If the widget's id has changed since upgrade, `read()` reports every
+action unavailable and `dispatch()` returns `null`. `read()` returns an immutable `{authored, state, memberships, thread,
 provenance, actions}`. `authored` is the state the page's markup sets, and `state` that with every
 recorded action applied, including the user's latest gestures before the server admits
 them. `memberships` maps each attribute an `attribute` record marks to the ids of the
@@ -144,10 +144,11 @@ shape of its `unit`:
 
 For a verb with a record, `detail` is the payload
 [package-data.md, "User state"](package-data.md#user-state) gives for its record kind. A
-move's `rank` is the key the library's
-[`rank.js`](../../../browser/runtime/lib/rank.js) gives for the index the unit was
-dropped at among its container's others, which keeps the unit there however other
-units move. A verb with no record sends what its `detail` schema declares.
+move's `rank` comes from the library's
+[`rank.js`](../../../browser/runtime/lib/rank.js), which gives the key for the index
+the unit was dropped at among the container's other units. That key keeps the unit's
+place whichever other moves are in force. A verb with no record sends what its
+`detail` schema declares.
 
 A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On

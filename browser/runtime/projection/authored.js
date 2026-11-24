@@ -29,7 +29,7 @@ import { authoredRank } from "../lib/rank.js";
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists per container and each listed unit's authored rank
-     (projection/model.js);
+     (lib/rank.js);
    - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 

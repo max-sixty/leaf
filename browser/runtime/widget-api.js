@@ -76,7 +76,7 @@ export {
   showReadingSubject,
 } from "./reading-regions.js";
 export { named, phrasing, says } from "./passages.js";
-export { ago, agePreview, clockValue } from "./presence.js";
+export { clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";

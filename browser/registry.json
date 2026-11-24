@@ -51,6 +51,18 @@
     "retired-when": "reject",
     "instructions": "Omit this slot for a deletion."
   },
+  "lf-age": {
+    "description": "How long ago a moment was, as “12m ago”, kept current while the page is open: for a time the reader weighs by its age, such as when a check last ran.",
+    "attributes": {
+      "properties": {
+        "datetime": { "type": "string", "format": "date-time" }
+      },
+      "required": ["datetime"]
+    },
+    "inline": true,
+    "instructions": "Set `datetime` to the moment, with its seconds and its zone. On the page Leaf shows the age, and pointing at it reads the clock time in the reader's zone. Inside the element, write the time in your own words, which a reader sees wherever no script runs, such as a static export or the file opened without Leaf. Where you leave it empty, a static export shows the clock time there, with its zone, and the file alone shows nothing. An age changes width as it grows, and whatever follows it on its line, or takes its width from it as a table's column does, moves then: end the line with the age, or reserve its room in the page's CSS, with `display: inline-block` and a `min-width` (`page-layout.md`, \"Space for changing text\").",
+    "example": "<p>Last nightly import: <lf-age datetime=\"2026-11-24T02:10:00Z\">24 Nov, 02:10 UTC</lf-age></p>"
+  },
   "$languages": {
     "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list, and build/vendor.mjs builds a grammar for each. A block of code names its language with a `language-…` class, as HTML recommends, by one of these names or an alias the grammar's build gives it, such as `py` for python; `page check` advises on a class naming any other, which shows uncolored, except `math`, whose LaTeX the runtime typesets as a formula. `paths` maps a file extension to a language, for widgets with no class to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
     "why-diff-is-not-a-path": "`diff` is in `names` but not in `paths`. Coloring a .patch file inside a diff with the diff grammar would mark additions and deletions a second time, on top of the widget's own tints.",

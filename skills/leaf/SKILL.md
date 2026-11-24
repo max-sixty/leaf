@@ -213,8 +213,9 @@ summary from before a compaction, doesn't carry its rules.
   session's page.
 - `references/module-authoring.md`: before writing or changing a page-owned or
   package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page
-  script. It lists every function Leaf exports, under the section that describes it.
-  For a widget, read `references/module-plain-elements.md` with it, the protocol
+  script. It maps each kind of thing a package leans on Leaf for to the reference that
+  describes it, and lists every function Leaf exports, under the section that describes
+  it. For a widget, read `references/module-plain-elements.md` with it, the protocol
   between Leaf and a widget's element. Then, as the behavior needs them:
   `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state, data, authenticated

@@ -498,7 +498,8 @@ function standBlocks(state, blocks, out, line, blanks) {
       const last = lines.length - 1;
       lines.forEach((each, at) => {
         if (at === 0) named(each.from, `lf-face-gap lf-ends-${prior} lf-starts-p`);
-        else if (at === last) named(each.from, `lf-face-gap lf-ends-p lf-starts-${next}`);
+        else if (at === last)
+          named(each.from, `lf-face-gap lf-ends-p lf-starts-${next}`);
         else {
           named(each.from, "lf-face-p");
           if (blanks.mark && !holdsCaret(each)) out.push(blanks.mark.range(each.from));
@@ -553,7 +554,8 @@ function standBlocks(state, blocks, out, line, blanks) {
       named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
     const prior = before[level];
     if (prior && prior.to < from) gapLines(prior.to, from, prior.tag, tag);
-    else if (prior) named(from, `lf-face-gap-above lf-ends-${prior.tag} lf-starts-${tag}`);
+    else if (prior)
+      named(from, `lf-face-gap-above lf-ends-${prior.tag} lf-starts-${tag}`);
     // A block's reading can take in the blank lines after it, which part it from the next.
     let end = to;
     while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;

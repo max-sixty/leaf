@@ -75,7 +75,6 @@
     "description": "A measured number in prose, tied to the data run that produced it.",
     "attributes": {
       "properties": {
-        "source": { "type": "string" },
         "run": {
           "type": "string",
           "minLength": 1
@@ -102,7 +101,6 @@
     "description": "Text written in the page, or from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
     "attributes": {
       "properties": {
-        "source": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -110,8 +108,7 @@
         "preview": {
           "type": "string",
           "enum": ["markdown", "html"]
-        },
-        "for": { "type": "string" }
+        }
       },
       "required": ["id"],
       "if": {
@@ -295,8 +292,7 @@
         "lines": {
           "type": "string",
           "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
-        },
-        "for": { "type": "string" }
+        }
       },
       "required": ["id"]
     },

@@ -142,16 +142,15 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
 @pytest.mark.parametrize(
     "change",
     [
-        lambda entry: entry["attributes"]["properties"].pop("source"),
+        lambda entry: entry["attributes"]["properties"].update({"source": True}),
         lambda entry: entry["attributes"]["properties"].update(
             {"source": {"type": "number"}}
         ),
     ],
 )
 def test_a_data_source_attribute_not_declared_a_string_is_advice(page_dir, change):
-    """A source attribute declared as anything but a string still works, since each
-    element's source passes `leaf data`'s own grammar, so the registry advises
-    declaring it a string rather than refusing the declaration."""
+    """A source attribute the declaration gives a schema other than a string's draws
+    advice to declare it a string, not a refusal of the declaration."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
     change(registry["lf-test-data"])
@@ -533,11 +532,6 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
             "outputs": {"rows": {"contract": "rows"}},
         },
         "lf-consumer": {
-            "attributes": {
-                "properties": {
-                    name: {"type": "string"} for name in ("id", "source", "for")
-                },
-            },
             "content": "empty",
             "inputs": {
                 "rows": {
@@ -548,8 +542,9 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
             },
         },
     }
-    # As composing a layer leaves it: the consumer's input reads another widget through
-    # `for`, which declares `for` an element relation, and every element takes an `id`.
+    # As composing a layer leaves it: the consumer's input names `source` and `for`,
+    # which declares each an attribute and `for` an element relation, and every element
+    # takes an `id`.
     registry_contract.stamp_grammars(registry_contract.complete_declarations(registry))
 
     def errors(binding):
@@ -569,7 +564,6 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
         "ambiguous-data-binding"
     ]
     registry["lf-consumer"]["inputs"]["rows"].pop("source")
-    registry["lf-consumer"]["attributes"]["properties"].pop("source")
     assert errors('for="feed"') == []
     # The input reads the one output of its contract, whatever the producer names it.
     registry["lf-producer"]["outputs"]["more"] = {"contract": "other"}
@@ -587,21 +581,48 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
 
 
 @pytest.mark.parametrize(
-    ("declared", "refers"),
+    ("declared", "properties", "refers"),
     [
-        # A relation the entry declares for another attribute stays beside the input's.
-        ({"refers": {"about": {}}}, {"about": {}, "for": {}}),
-        # An entry that writes the input's relation out as well declares it once.
-        ({"refers": {"for": {}}}, {"for": {}}),
+        # Named by the input alone: each is a string attribute, and `for` a relation.
+        (
+            {},
+            {"source": {"type": "string"}, "for": {"type": "string"}},
+            {"for": {}},
+        ),
+        # A schema or a relation the entry writes stands beside what composition writes.
+        (
+            {
+                "attributes": {"properties": {"for": {"minLength": 2}}},
+                "refers": {"about": {}},
+            },
+            {"for": {"minLength": 2}, "source": {"type": "string"}},
+            {"about": {}, "for": {}},
+        ),
+        # An entry that writes the input's attributes out as well declares each once.
+        (
+            {
+                "attributes": {
+                    "properties": {"source": {"type": "string"}, "for": True}
+                },
+                "refers": {"for": {}},
+            },
+            {"source": {"type": "string"}, "for": True},
+            {"for": {}},
+        ),
         # A declaration of another shape is left as written, for validation to name.
-        ({"refers": ["for"]}, ["for"]),
-        ({"inputs": {"rows": {"contract": "rows", "reference": ["for"]}}}, None),
-        ({"inputs": ["rows"]}, None),
+        ({"attributes": {"properties": ["for"]}, "refers": ["for"]}, ["for"], ["for"]),
+        ({"inputs": {"rows": {"contract": "rows", "reference": ["for"]}}}, None, None),
+        ({"inputs": ["rows"]}, None, None),
     ],
 )
-def test_composing_declares_an_inputs_reference_an_element_relation(declared, refers):
-    entry = {"inputs": {"rows": {"contract": "rows", "reference": "for"}}} | declared
+def test_composing_declares_the_attributes_an_input_binds_by(
+    declared, properties, refers
+):
+    entry = {
+        "inputs": {"rows": {"contract": "rows", "source": "source", "reference": "for"}}
+    } | declared
 
     composed = registry_contract.complete_declarations({"lf-reader": entry})
 
+    assert composed["lf-reader"]["attributes"].get("properties") == properties
     assert composed["lf-reader"].get("refers") == refers

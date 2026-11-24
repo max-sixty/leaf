@@ -122,9 +122,10 @@ Every composition, `page init`'s layer and a page's own declarations over it, wr
 declaration says so. Composition also writes into each declaration the defaults it
 leaves out (`registry/contract.complete_declarations`): its `content`, its attribute
 schema, the `type` and `additionalProperties` of that schema and of each verb's
-`detail` schema, and in `refers` the attribute an input's `reference` names. It writes
-them before validation, so validation and every later reader read them whether the
-declaration or composition wrote them.
+`detail` schema, and each attribute an input binds by, as a string in the attribute
+schema and, for the one its `reference` names, in `refers`. It writes them before
+validation, so validation and every later reader read them whether the declaration or
+composition wrote them.
 
 Composition then stamps the facts the browser reads rather than derives
 (`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,

@@ -12,6 +12,7 @@ from leaf.schema import (
     DATA_CONTRACT_NAME,
     DATA_SOURCE_NAME,
     ELEMENT_ID,
+    INPUT_BINDINGS,
     RECORD_BINDING,
     WIDGET_NAME,
 )
@@ -124,8 +125,10 @@ def complete_declarations(registry: dict) -> dict:
     (`attributes`) and each verb's `detail` schema admit only what they name unless
     they say otherwise (`_closed_by_default`); validation refuses a `detail` that
     does. An element that declares no `attributes` takes none of its own, so its
-    schema is the one that names nothing. The attribute an input's `reference` names
-    is one naming an element (`refers`), whether or not the entry lists it there.
+    schema starts as the one that names nothing. An input (`inputs`) declares the
+    attributes it binds by (`schema.INPUT_BINDINGS`): each is a string attribute of
+    the element unless `attributes` gives it a schema, and the one its `reference`
+    names is one naming an element (`refers`), whether or not the entry lists it there.
 
     It runs before validation, so it completes only an entry of the shape it reads
     and leaves any other for validation to refuse."""
@@ -143,11 +146,17 @@ def complete_declarations(registry: dict) -> dict:
                 spec["detail"] = _closed_by_default(detail)
         inputs = entry.get("inputs")
         for spec in inputs.values() if isinstance(inputs, dict) else ():
-            reference = spec.get("reference") if isinstance(spec, dict) else None
-            if isinstance(reference, str) and isinstance(
-                entry.setdefault("refers", {}), dict
-            ):
-                entry["refers"].setdefault(reference, {})
+            for key in INPUT_BINDINGS if isinstance(spec, dict) else ():
+                if not isinstance(attribute := spec.get(key), str):
+                    continue
+                if isinstance(entry["attributes"], dict) and isinstance(
+                    properties := entry["attributes"].setdefault("properties", {}), dict
+                ):
+                    properties.setdefault(attribute, {"type": "string"})
+                if key == "reference" and isinstance(
+                    entry.setdefault("refers", {}), dict
+                ):
+                    entry["refers"].setdefault(attribute, {})
     return registry
 
 
@@ -755,12 +764,13 @@ def stamp_grammars(registry: dict) -> dict:
     the first of its attributes, and the grammar of each attribute `_named_attributes`
     finds, as its schema's `pattern`, replacing any the declaration gave. Leaf owns
     `id` and these grammars, so a package declares only whether an element requires
-    its `id`, and that each other such attribute is a string; validation and an author
-    reading the entry read the rest here. A schema a declaration lists for `id` is
-    replaced, not kept: Leaf names a created child, an asking widget and a pane by id,
-    and one whose `id` took no string could never be named. Another such attribute's
-    schema may be `true`, which then becomes the grammar alone, or `false`, which
-    admits no value already and is left as it is.
+    its `id` and that a verb's `contract` attribute is a string; an input's source
+    attribute is one already, written by `complete_declarations` where the declaration
+    left it out. Validation and an author reading the entry read the rest here. A
+    schema a declaration lists for `id` is replaced, not kept: Leaf names a created
+    child, an asking widget and a pane by id, and one whose `id` took no string could
+    never be named. Another such attribute's schema may be `true`, which then becomes
+    the grammar alone, or `false`, which admits no value already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for entry in element_declarations(registry).values():

@@ -114,7 +114,6 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         acquired = claim_record["acquisition"]
         before = state.session_record(sid)
         assert before is not None
-        assert Path(before["launcher"]) == ROOT / "bin/leaf"
         old = time.time() - timedelta(hours=12).total_seconds()
         claim_path = service.claim_path(page)
         claim = json.loads(claim_path.read_text())

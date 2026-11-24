@@ -802,14 +802,11 @@ def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     live, ordinary serving and reclaiming preserve the selected watch.
     """
     from leaf.harness import session_harness
-    from leaf.session_runtime import select_checkout
 
     harness = session_harness()
     if harness is None:
         raise Refused("only an agent harness session can claim a page")
     claim = prepare_claim(harness, page_dir)
-    # Before delivery prepares (`session_runtime.select_checkout`).
-    select_checkout(harness.session)
     preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
     with (
         preparation,

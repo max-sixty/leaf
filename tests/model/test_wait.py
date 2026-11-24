@@ -824,10 +824,10 @@ _RUNNING_FROM = """
 import sys
 from pathlib import Path
 
-from leaf import session_runtime, state
+from leaf import hooks, state
 from leaf.__main__ import main
 
-state.PLUGIN_ROOT = session_runtime.PLUGIN_ROOT = Path(sys.argv[1])
+state.PLUGIN_ROOT = hooks.PLUGIN_ROOT = Path(sys.argv[1])
 sys.argv = ["leaf", *sys.argv[2:]]
 main()
 """

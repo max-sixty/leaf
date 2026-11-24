@@ -62,7 +62,6 @@ from .service import (
     prepare_claim,
     same_claim,
 )
-from .session_runtime import select_checkout
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord
@@ -629,9 +628,7 @@ def cmd_serve(
     if acquire and not persistent and harness is not None:
         prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
         if handshake is None:
-            # The serve takes the page in this process, so it selects its Leaf
-            # before it prepares delivery (`session_runtime.select_checkout`).
-            select_checkout(harness.session)
+            # A detached serve's starter holds delivery for it (`claim_and_start`).
             delivery = harness.preparing_delivery()
     try:
         with delivery, page_locked(page_dir):
@@ -827,18 +824,14 @@ def claim_and_start(
     claim it prepared, and holds delivery preparation through this commit: a
     detached preview's launcher, whose child uses the captured lifetime and cwd
     rather than discovering its own ancestry, and a prompt hook, whose payload names
-    the session (`reconnect`). Neither selects a checkout here. The hook also passes
-    its own `deadline`; a start not ready and confirmed by then is refused.
+    the session (`reconnect`). The hook also passes its own `deadline`; a start not
+    ready and confirmed by then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     claim = prepared_claim
     delivery = contextlib.nullcontext()
     if claim is None and not persistent and harness is not None:
         claim = prepare_claim(harness, page_dir)
-        # The start takes the page in this process, so it selects its Leaf before
-        # it prepares delivery (`session_runtime.select_checkout`), as a detached
-        # preview's launcher did before preparing the claim it hands over.
-        select_checkout(harness.session)
         delivery = harness.preparing_delivery()
     with delivery:
         try:
@@ -926,7 +919,7 @@ def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
 
     held = page_claim(page_dir)
     if held is None or not claim_is_active(held):
-        renew_layer(page_dir, None, command=False)
+        renew_layer(page_dir, None)
     elif unready := renew_held(page_dir, held["id"]):
         from .clerk import queue
 

@@ -43,10 +43,15 @@ page's next revision or handoff. A brief for a subagent that writes the page nam
 content and the decisions to put to the user, and leaves how to pose them to those
 instructions.
 
-To make an existing page use the current checkout, serve it with the checkout
-launcher, and run that launcher's `page init` on a page at another protocol
-(`<root>/skills/leaf/references/serving-pages.md`, "Leaf updates"); fix or report a
-compatibility refusal rather than falling back to the installed plugin. A page built
+A page runs the runtime of the Leaf serving it, so serve a page with the checkout
+launcher to show it with this checkout's runtime. The session's hooks, its pages
+follower and the hooks module run the installed plugin whichever launcher you use, and
+read a page the session holds only at that plugin's page protocol. Where this
+checkout's protocol differs from the plugin's, serve a page the session doesn't hold,
+with `leaf-dev preview` without `--user` or `server start --lifetime persistent`, and
+hear it with the checkout's `bin/leaf wait PAGE`. To try a change to the hooks or the
+hooks module, run the agent journey ("Run the agent journey") or `uv run leaf-dev
+journey session`, whose Claude Code loads this checkout as its plugin. A page built
 in another checkout, such as a subagent's worktree, was checked against that
 checkout's Leaf, and markup and layout contracts change between commits with no
 protocol change. Serve it with that checkout's launcher, and judge it against that

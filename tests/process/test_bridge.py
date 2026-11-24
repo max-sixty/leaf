@@ -12,7 +12,6 @@ import threading
 import time
 
 import pytest
-from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT
 
 from leaf import bridge as bridge_model
@@ -154,32 +153,6 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     assert bridge_model.live_sessions()
     (job / "state.json").unlink()
     assert not bridge_model.live_sessions()
-
-
-def test_a_hook_starts_the_bridge_before_handing_itself_on(tmp_path):
-    """A session's hooks hand themselves to a checkout the session selected
-    (`session_runtime.py`), while its sandboxed bare `leaf` runs the bridge client
-    of the copy Claude Code loaded. So the copy the hook ran in registers the session
-    before handing the hook on, whatever the Leaf it hands to does."""
-    from leaf.session_runtime import select_launcher
-
-    session = os.environ["CLAUDE_CODE_SESSION_ID"]
-    selected = tmp_path / "selected" / "bin" / "leaf"
-    selected.parent.mkdir(parents=True)
-    selected.write_text("#!/bin/sh\necho handed\n")
-    selected.chmod(0o755)
-    state_model.ensure_session(session, {"pid": os.getpid()})
-    select_launcher(session, selected)
-    hooked = subprocess.run(
-        [*LEAF_COMMAND, "hook", "--harness", "claude-code"],
-        input=json.dumps({"hook_event_name": "PreToolUse", "session_id": session}),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (hooked.returncode, hooked.stdout) == (0, "handed\n"), hooked.stderr
-    assert bridge_model.live_sessions()
 
 
 def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):

@@ -14,8 +14,9 @@ hook that validates nothing."""
 
 import json
 from functools import cache
+from pathlib import Path
 
-from leaf.state import KERNEL_REGISTRY
+from leaf.state import KERNEL_REGISTRY, PLUGIN_ROOT
 from leaf.state import kernel_registry as _kernel
 
 
@@ -52,15 +53,15 @@ def kernel_protocol() -> int:
     return _kernel_events()["protocol"]
 
 
-def installed_protocol() -> int:
-    """The protocol of the kernel registry on disk now. It moves past
-    `kernel_protocol` when the checkout a long-running process loaded moves on under
-    it, as a worktree's does when its branch is updated: the process still speaks the
-    protocol it loaded, and the newer Leaf the session's hooks now run reads that
-    process's leases as no one's (`leases.lease_speaks_here`)."""
-    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))["$events"][
-        "protocol"
-    ]
+def installed_protocol(root: Path = PLUGIN_ROOT) -> int:
+    """The protocol of the kernel registry on disk now in the Leaf at `root`, this
+    one by default. In this one it moves past `kernel_protocol` when the checkout a
+    long-running process loaded moves on under it, as a worktree's does when its
+    branch is updated: the process still speaks the protocol it loaded, and the newer
+    Leaf the session's hooks now run reads that process's leases as no one's
+    (`leases.lease_speaks_here`)."""
+    registry = root / KERNEL_REGISTRY.relative_to(PLUGIN_ROOT)
+    return json.loads(registry.read_text(encoding="utf-8"))["$events"]["protocol"]
 
 
 def kernel_event_ownership() -> dict:

@@ -37,10 +37,10 @@ registered with it lives, by the lifetime its claims would record
 sitting, and its next sitting may run `leaf` from a script, before which no hook
 runs. That script reaches this bridge where the later sitting's copy ships the
 same file. Each process of a session that lives as its own pid keeps its own
-registration. Each Leaf a hook passes through registers the session before
-handing the hook on (`hooks.main`). Where this file differs between the copy Claude Code
-loaded, whose client a sandboxed bare `leaf` runs, and the Leaf delivering for the
-session, both bridges then serve it. The running bridge holds its lease
+registration. A hook registers the session from the copy Claude Code loaded
+(`hooks.main`), whose client a sandboxed bare `leaf` runs, so a checkout's sandboxed
+`bin/leaf` reaches a bridge only where it ships this file as that copy does. The
+running bridge holds its lease
 (`leases.take_lease`). A hook registers its session and tries the lease under the
 registrations' lock, and a retiring bridge reads the registrations a last time
 and releases the lease under that lock too (`retire`), so a session that

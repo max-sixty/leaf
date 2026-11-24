@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .event_log import initialized, start_log
-from .findings import Finding, note
+from .findings import Finding, Rejected, note
 from .harness import Harness, claim_harness, session_harness
 from .hosting import restarting_server
 from .layer import (
@@ -48,6 +48,7 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
+from .registry.kernel import installed_protocol, kernel_protocol
 from .registry.storage import (
     LAYER,
     IncompatibleLayer,
@@ -70,7 +71,6 @@ from .service import (
     claimant_matches,
     page_claim,
 )
-from .session_runtime import select_checkout
 from .state import (
     PLUGIN_ROOT,
     SESSION_SUFFIX,
@@ -137,35 +137,10 @@ def cmd_init(
                 raise
     # What the selected packages advise their authors, who chose them here.
     note(*advice)
-    if harness is not None:
-        _deliver_from_here(page_dir, harness)
     return {"page": str(page_dir), "packages": layer_packages(page_dir)}
 
 
-def _deliver_from_here(page_dir: Path, harness: Harness) -> None:
-    """Where the session holds the page this command initialized, make this Leaf
-    its delivering Leaf (`session_runtime.select_checkout`), since the copy the
-    session loaded may not read the page at this protocol. Where that changed the
-    selection, start delivery again: a Codex task's adapter running from the former
-    Leaf leaves once another is selected.
-
-    The session's hooks read only the pages it holds, so a page it doesn't hold
-    leaves the selection alone: one a plain preview or a scratch `page init`
-    builds, or one another session holds. That includes a scratch page a Claude
-    Code subagent builds in its own worktree, whose commands act for the session
-    (`ClaudeCodeHarness`)."""
-    claim = page_claim(page_dir)
-    if (
-        claim_is_active(claim)
-        and claimant_matches(claim, harness)
-        and select_checkout(harness.session)
-    ):
-        harness.ensure_delivery()
-
-
-def renew_layer(
-    page_dir: Path, harness: Harness | None, *, command: bool
-) -> Finding | None:
+def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     """Take a page at an older page protocol, which this Leaf cannot serve
     (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
     names, and say what still holds the page back, for its agent to act on.
@@ -184,11 +159,8 @@ def renew_layer(
     session does: another session may still run the
     Leaf that initialized the page, which renewing would lock out of it, and its own
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
-    initialized, which `_plan_page` refuses.
-
-    A `command` from a checkout also selects that checkout to deliver for the
-    session, where the session holds the page (`_deliver_from_here`); a hook leaves
-    the selection alone.
+    initialized, or one whose session's hooks run a Leaf at an older protocol, both
+    of which `_plan_page` refuses.
 
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -226,8 +198,6 @@ def renew_layer(
         return Finding(
             "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
-    if command and harness is not None:
-        _deliver_from_here(page_dir, harness)
     return _unready(page_dir, errors)
 
 
@@ -252,7 +222,7 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
         or hooks_root(session_id) != PLUGIN_ROOT
     ):
         return None
-    return renew_layer(page_dir, claim_harness(held), command=False)
+    return renew_layer(page_dir, claim_harness(held))
 
 
 def _reinit(
@@ -402,7 +372,9 @@ def _plan_page(
     updated, or an agent following an older Leaf's advice, would otherwise take the
     page down, and the newer Leaf's next command or hook up again, reloading the
     user's tabs each time. A page an older Leaf initialized keeps its selection
-    (`layer_packages`) under a new generation."""
+    (`layer_packages`) under a new generation, unless a live session holds the page
+    and its hooks run a Leaf at the older protocol (`_refuse_unheard`), whichever
+    session or checkout asks."""
     previous = None
     if not fresh:
         try:
@@ -439,7 +411,51 @@ def _plan_page(
     ):
         # A copy's new bytes change what an open document runs under.
         record = {**record, "generation": secrets.token_hex(16)}
+    if previous is None and not fresh:
+        # The page stands at an older protocol, which this record takes to this one.
+        claim = page_claim(page_dir)
+        if claim is not None and claim_is_active(claim):
+            _refuse_unheard(claim["id"], page_dir)
     return _PagePlan(record, copied, record != previous, advice)
+
+
+def _refuse_unheard(session_id: str, page_dir: Path) -> None:
+    """Refuse to take `page_dir`, which the live session `session_id` holds, to this
+    Leaf's page protocol where the Leaf that session's hooks run speaks an older one
+    (`state.hooks_root`, `installed_protocol`). Those hooks would then refuse the page
+    (`newer-layer`), and no Leaf takes a page back down, so the session could hear the
+    page again only once it loaded a Leaf at this protocol. A session no hook has run
+    for, or whose hooks' Leaf is gone, takes the change.
+
+    A claim gets no such check: the page a claim takes stands at the claiming Leaf's
+    protocol already, and where the session's hooks can't read it they say so
+    (`registry.storage.layer_record`), after which the agent can hear the page with
+    that Leaf's `leaf wait`. Only taking a held page to a later protocol can't be
+    undone once the hooks report it."""
+    root = hooks_root(session_id)
+    if root is None or root == PLUGIN_ROOT:
+        return
+    try:
+        heard = installed_protocol(root)
+    except (OSError, ValueError, KeyError):
+        return
+    if heard >= kernel_protocol():
+        return
+    raise Rejected(
+        [
+            Finding(
+                "unheard-protocol",
+                values={
+                    "page": str(page_dir),
+                    "session": session_id,
+                    "hooks": str(root),
+                    "heard": heard,
+                    "leaf": str(PLUGIN_ROOT),
+                    "protocol": kernel_protocol(),
+                },
+            )
+        ]
+    )
 
 
 def _copies(selected: tuple[str, ...]) -> dict[str, Path]:

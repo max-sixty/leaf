@@ -85,8 +85,8 @@ since no Leaf takes a page down, and `page init` under this Leaf for a lower one
 session holding a page at a lower number renews it at its first command that writes to
 the page or hook that reads its pages (`vendoring.renew_layer` says which do); a
 command that only reads the page leaves it and its server alone. A session's hooks and
-watch run the copy of Leaf its harness loaded, or a checkout the session selected
-(`session-lifetime.md`, "Which Leaf runs a session").
+watch run the copy of Leaf its harness loaded; `session-lifetime.md`, "Which Leaf runs
+a session", says what another Leaf may do to the pages the session holds.
 
 A change to the layer record's shape keeps `packages` as the page's selection, with the
 same meaning. It is the one field a Leaf reads from another Leaf's layer record, so that

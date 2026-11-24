@@ -697,7 +697,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    assert vendoring_model.renew_layer(claimed, None, command=True) is None
+    assert vendoring_model.renew_layer(claimed, None) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 

@@ -56,17 +56,16 @@ from leaf import file_changes as file_changes_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Rejected
 from leaf.json_block import read_json_block
 from leaf.registry.storage import LAYER, layer_record
 from leaf.served_state import context as context_model
@@ -2295,94 +2294,52 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     assert "page protocol" not in context
     assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
-    assert session_runtime_model.selected_launcher("s1") is None
 
 
-def select_another_leaf(tmp_path) -> Path:
-    """Have session s1 deliver through another checkout, and return its launcher."""
-    other = tmp_path / "other checkout" / "bin" / "leaf"
-    other.parent.mkdir(parents=True)
-    other.write_text("#!/bin/sh\n")
-    other.chmod(0o755)
-    session_runtime_model.select_launcher("s1", other)
-    return other.resolve()
-
-
-def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(claimed):
-    """A command from a checkout, such as a worktree's `bin/leaf`, that re-vendors
-    a page becomes its session's delivering Leaf where the session had no selection,
-    as an installed plugin's doesn't, so its hooks and watch can still read the
-    page."""
-    vendored_at_another_protocol(claimed)
-
-    vendoring_model.renew_layer(claimed, harness_model.session_harness(), command=True)
-
-    assert event_contracts_model.write_refusal(claimed) is None
-    own = session_runtime_model.own_launcher()
-    assert session_runtime_model.selected_launcher("s1") == own
-
-
-def deliveries_started(monkeypatch) -> list:
-    """The Leaf selected for session s1 each time a command starts its delivery."""
-    started = []
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness,
-        "ensure_delivery",
-        lambda harness: started.append(
-            session_runtime_model.selected_launcher(harness.session)
-        ),
+def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
+    """Have session s1's hooks last run another Leaf, one at `protocol`, and return
+    its root (`leases.mark_skill`, `registry.kernel.installed_protocol`)."""
+    root = tmp_path / f"leaf at {protocol}"
+    registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
+        cleanup_model.PLUGIN_ROOT
     )
-    return started
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    kernel = json.loads(cleanup_model.KERNEL_REGISTRY.read_text())
+    kernel["$events"]["protocol"] = protocol
+    registry.write_text(json.dumps(kernel))
+    leases_model.mark_skill("s1", f"{root}\nits skill")
+    return root
 
 
-def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
-    claimed, tmp_path, monkeypatch
+def test_a_leaf_ahead_of_its_sessions_hooks_leaves_a_page_they_read_alone(
+    claimed, tmp_path
 ):
-    """A checkout's `page init` of a page its session doesn't hold, as a scratch page
-    a subagent builds in its own worktree, which runs with its parent's session id,
-    leaves the session's hooks on the Leaf they run, since they never read that
-    page, and leaves its delivery running."""
-    other = select_another_leaf(tmp_path)
-    started = deliveries_started(monkeypatch)
+    """A Leaf at a later page protocol than the one its session's hooks run, as a
+    checkout's `bin/leaf` on a branch that bumps it, takes a page the session holds
+    to its own neither by renewal nor by `page init`: the hooks could then no longer
+    read the page, and no Leaf takes a page back down. Its refusal names the
+    session's own Leaf. At the hooks' protocol it renews the page as they would, and
+    a page already at its protocol it initializes again whatever the hooks run,
+    since that moves no protocol."""
+    older = vendored_at_another_protocol(claimed)
+    hooks = hooks_run_leaf_at(tmp_path, older)
 
-    vendoring_model.cmd_init(tmp_path / "scratch", ())
+    found = vendoring_model.renew_layer(claimed, harness_model.session_harness())
 
-    assert session_runtime_model.selected_launcher("s1") == other
-    assert started == []
+    assert found is not None and found.code == "renewal-refused"
+    assert f"`{hooks}/bin/leaf`" in str(found)
+    with pytest.raises(Rejected) as refused:
+        vendoring_model.cmd_init(claimed)
+    assert [finding.code for finding in refused.value.findings] == ["unheard-protocol"]
+    refusal = event_contracts_model.write_refusal(claimed)
+    assert refusal is not None and refusal.code == "foreign-layer"
 
+    hooks_run_leaf_at(tmp_path, LAYER.since)
+    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    assert event_contracts_model.write_refusal(claimed) is None
 
-@pytest.mark.parametrize("command", ["page claim", "server start", "server run"])
-def test_a_claim_makes_its_checkout_the_sessions_leaf_before_preparing_delivery(
-    claimed, tmp_path, monkeypatch, command
-):
-    """A command from a checkout that takes a page for its session makes that
-    checkout the session's Leaf, so its hooks can read the page, and does so before
-    it prepares delivery: a Codex task's adapter starts from the selected Leaf, and
-    one running from another Leaf leaves once this one is selected, so a selection
-    made after preparing would retire the adapter that preparing had joined."""
-    select_another_leaf(tmp_path)
-    seen = []
-
-    class Prepared(Exception):
-        pass
-
-    def prepare(harness):
-        seen.append(session_runtime_model.selected_launcher(harness.session))
-        raise Prepared
-
-    monkeypatch.setattr(harness_model.ClaudeCodeHarness, "ensure_delivery", prepare)
-    with pytest.raises(Prepared):
-        if command == "page claim":
-            service_model.cmd_claim(claimed)
-        elif command == "server start":
-            with hosting_model.claim_and_start(claimed):
-                pass
-        else:
-            hosting_model.cmd_serve(
-                claimed, harness=harness_model.session_harness(), acquire=True
-            )
-
-    assert seen == [session_runtime_model.own_launcher()]
+    hooks_run_leaf_at(tmp_path, older)
+    assert vendoring_model.cmd_init(claimed, ())["packages"] == []
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
@@ -2499,12 +2456,7 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
 
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
 
-    assert (
-        vendoring_model.renew_layer(
-            claimed, harness_model.session_harness(), command=True
-        )
-        is None
-    )
+    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
     assert json.loads(stamp.read_text()) == newer
 
 

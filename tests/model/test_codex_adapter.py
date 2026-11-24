@@ -61,7 +61,6 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -804,8 +803,7 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     )
     for directory in (".git", ".venv"):
         (root / directory).mkdir(parents=True)
-    for module in (cleanup_model, session_runtime_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+    monkeypatch.setattr(cleanup_model, "PLUGIN_ROOT", root)
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
         codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]
@@ -846,6 +844,40 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     assert codex_adapter_model.run_adapter("codex") == 0
     launcher = (root / "bin" / "leaf").resolve()
     assert started == [(["codex", "run", "--codex-path", "codex"], launcher)] * 2
+
+
+def test_a_new_adapter_runs_the_copy_its_tasks_hooks_run(monkeypatch, tmp_path):
+    """A claim from another Leaf, such as a checkout's `bin/leaf`, starts the task's
+    adapter through the launcher of the copy the task's hooks last ran, so the
+    task's delivery stays on that copy. Where the hooks ran this Leaf, or none ran,
+    it starts here."""
+    harness = harness_model.CodexHarness(session="codex-thread", agent="Codex")
+    monkeypatch.delenv(codex_adapter_model.APP_SERVER_ENV, raising=False)
+    monkeypatch.setattr(codex_adapter_model.shutil, "which", lambda _name: "/codex")
+    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: ["page"])
+    started = []
+
+    @contextmanager
+    def starting(_arguments, *, launcher, **_options):
+        started.append(launcher)
+        yield {}
+
+    monkeypatch.setattr(codex_adapter_model, "starting_detached", starting)
+    loaded = tmp_path / "codex copy" / "bin" / "leaf"
+    loaded.parent.mkdir(parents=True)
+    loaded.write_text("#!/bin/sh\n")
+    loaded.chmod(0o755)
+
+    with codex_adapter_model.preparing_adapter(harness):
+        pass
+    leases_model.mark_skill(harness.session, f"{cleanup_model.PLUGIN_ROOT}\nskill")
+    with codex_adapter_model.preparing_adapter(harness):
+        pass
+    leases_model.mark_skill(harness.session, f"{loaded.parents[1]}\nskill")
+    with codex_adapter_model.preparing_adapter(harness):
+        pass
+
+    assert started == [None, None, loaded]
 
 
 @pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])

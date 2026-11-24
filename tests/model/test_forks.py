@@ -28,7 +28,6 @@ from leaf import presence as presence_model
 from leaf import revision_artifact as revision_artifact_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf.interaction_log import read_interactions
@@ -690,15 +689,14 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
     ]
 
 
-@pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
-def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
+@pytest.mark.parametrize("moved", ["protocol", "removed"])
+def test_the_follower_ends_once_its_tree_moves_on_under_it(
     claimed, monkeypatch, capsys, moved
 ):
-    """A follower runs as long as its session, while the session's hooks hand
-    themselves to whichever Leaf delivers for it now: a checkout selected since, its
-    own checkout moved past a protocol bump, or another Leaf once its own is removed.
-    The follower then ends, giving up the lane, with EX_TEMPFAIL for the module to
-    start it again under that Leaf."""
+    """A follower runs as long as its session, while the tree it runs from can move
+    on under it: a checkout Claude Code loads in place moved past a protocol bump, or
+    a tree removed. The follower then ends, giving up the lane, with EX_TEMPFAIL for
+    the module to start it again from the tree as it stands."""
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
     monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
@@ -709,25 +707,19 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
         return True
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
-    if moved == "selected":
-        own = session_runtime_model.own_launcher()
-        monkeypatch.setattr(
-            session_runtime_model,
-            "delivering_launcher",
-            lambda _sid: own.with_name("other") if waited else own,
-        )
-    elif moved == "protocol":
+    if moved == "protocol":
         monkeypatch.setattr(
             kernel_model,
             "installed_protocol",
-            lambda: kernel_model.kernel_protocol() + len(waited),
+            lambda root=None: kernel_model.kernel_protocol() + len(waited),
         )
     else:
-        own = session_runtime_model.own_launcher()
+        launcher = state_model.PLUGIN_ROOT / "bin" / "leaf"
+        access = os.access
         monkeypatch.setattr(
-            session_runtime_model,
-            "own_launcher",
-            lambda: own.with_name("removed") if waited else own,
+            hooks_model.os,
+            "access",
+            lambda path, mode: not (waited and path == launcher) and access(path, mode),
         )
     with pytest.raises(SystemExit) as ended:
         hooks_model.cmd_pages(FOLLOWER)

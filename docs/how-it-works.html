@@ -1555,13 +1555,18 @@ sequenceDiagram
               </tbody>
             </table>
             <p id="leaf-copy-checkout">
-              A session working on Leaf itself can select a checkout instead. A preview
-              of the checkout, or a command from it that claims or initializes a page
-              the session holds, hands the session's hooks, the following of its pages
-              and its bare <code>leaf</code> to that checkout, until the session ends,
-              it selects another checkout or the checkout's launcher is gone. Only a
-              server from an installed copy moves, and only to an installed copy, so a
-              checkout's servers stay as they are, and no server moves onto a checkout.
+              A checkout of Leaf, run through its own <code>bin/leaf</code>, runs only
+              that command and any page server the command starts. The session's hooks,
+              the following of its pages, its bare <code>leaf</code> and a Codex task's
+              delivery adapter stay on the copy the session loaded. A checkout that
+              speaks that copy's page protocol and keeps the session's records in the
+              same shapes serves, claims and initializes the session's pages as the copy
+              would. A checkout at a later protocol doesn't take a page the session
+              holds to its own, since the session's hooks could no longer read it and no
+              Leaf takes a page back down; it serves pages the session doesn't hold, and
+              its own <code>leaf wait</code> hears them. Only a server from an installed
+              copy moves, and only to an installed copy, so a checkout's servers stay as
+              they are, and no server moves onto a checkout.
             </p>
             <p id="leaf-copy-contract">
               <a

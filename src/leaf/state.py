@@ -276,6 +276,16 @@ def hooks_root(session_id: str) -> Path | None:
     return Path(marked.rpartition("\n")[0])
 
 
+def hooks_launcher(session_id: str) -> Path | None:
+    """The launcher of the Leaf the session's hooks last ran (`hooks_root`), where
+    that is another Leaf than this one and its launcher still runs, or else None."""
+    root = hooks_root(session_id)
+    if root is None or root == PLUGIN_ROOT:
+        return None
+    launcher = root / "bin" / "leaf"
+    return launcher if os.access(launcher, os.X_OK) else None
+
+
 class LoadedCopy:
     """The installed copy of Leaf this process loaded, held so that a process that
     outlives the hooks that start it can tell once another copy should run it: a
@@ -325,13 +335,8 @@ class LoadedCopy:
         session's page onto a checkout."""
         if not self._installed:
             return None
-        root = hooks_root(session_id) if session_id is not None else None
-        if (
-            root is not None
-            and root != PLUGIN_ROOT
-            and installed_copy(root)
-            and os.access(root / "bin" / "leaf", os.X_OK)
-        ):
+        launcher = hooks_launcher(session_id) if session_id is not None else None
+        if launcher is not None and installed_copy(root := launcher.parents[1]):
             return root
         return PLUGIN_ROOT if self.replaced() else None
 
@@ -644,14 +649,10 @@ SESSION = Record(
                     "(`chat_exists`).",
                     STRING,
                 ),
-                "launcher": described(
-                    "The developer-selected delivery runtime (`session_runtime`).",
-                    STRING,
-                ),
             },
         ),
     ),
-    since=13,
+    since=56,
 )
 
 

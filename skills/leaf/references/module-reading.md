@@ -262,15 +262,16 @@ through its widget or thread. Act on a collection only when its `phase` is `read
 
 ### Work hierarchies
 
-`readWork(scope)` reads the work hierarchy within `scope`, such as goals and the
-workers on them, so a widget that counts its children's work reads it here rather than
-from their reports. Leaf owns the work roles, and a package maps its tags onto them in
-`$work.widgets` ([package-data.md, "Work roles"](package-data.md#work-roles)), which
-composition checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals,
-`liveWorkers`, and `running` and `quiet` workers, each with its authored `element`, and
-`done` counts finished leaves. `workAncestor(element, role)` returns the nearest element
-at or above `element` with that role. Atlas in `examples/command-hub.page/` is the
-worked example.
+`readWork(element)` reads the work hierarchy of the scope `element` is or stands in,
+such as its goals and the workers on them, so a widget that counts its children's work
+reads it here rather than from their reports. An element outside every scope reads
+the work on its page, or in its message, that stands in no scope. Leaf owns the work
+roles, and a package maps its tags onto them in `$work.widgets`
+([package-data.md, "Work roles"](package-data.md#work-roles)), which composition
+checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`,
+and `running` and `quiet` workers, each with its authored `element`, and `done` counts
+finished leaves; a goal or worker finds its own row by that `element`. Atlas in
+`examples/command-hub.page/` is the worked example.
 
 ### Page history and reports
 
@@ -280,11 +281,14 @@ thread, whether it was undone, the agent's name as `agent`, and a gesture's word
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads reports with `reportSequence(this)`, after checking
-`reportsReady(this)` and returning `noChange` while it is false. Each entry has `id`, `target`,
-`source`, `action`, `detail`, `text`, `ts` and `disposition`: `effective`, `outranked`
-by a newer report on the same unit and verb, or `settled` by a stamped version. Pass
-`{kind: "thread", id}` for a Thread's reports, or nothing for all of them.
+A widget an agent reports on reads `readReports(this)` in its render:
+`{phase, reports}`. `phase` turns `ready` once the server's reading has arrived and
+the state the reports describe is drawn; until then, return `noChange`, and the widget
+draws again as it turns. Each report has `id`, `target`, `source`, `action`,
+`detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
+on the same unit and verb, or `settled` by a stamped version. Pass
+`{kind: "thread", id}` for a Thread's reports, or nothing for all of them; their
+`phase` is the page's.
 
 ### Reading version changes
 

@@ -6,7 +6,14 @@ import { excludedByInert, renderedParent, skipped, under } from "./lib/shadow-tr
 import { uiInside } from "./ui-marks.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer, nativeLayerHolding } from "./lib/shadow-tree.js";
-import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
+import {
+  clippingAxes,
+  hasArea,
+  holds,
+  intersect,
+  overlapsAcross,
+  union,
+} from "./rect.js";
 import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
@@ -301,6 +308,19 @@ export function lined(rect, node) {
     top: rect.top - half,
     bottom: rect.bottom + half,
   };
+}
+
+// Whether the point lies over the character at `at` in a text node, or with `whole`
+// over its line (`lined`).
+/** @param {Node} node @param {number} at @param {number} x @param {number} y @param {boolean} [whole] */
+export function overCharacter(node, at, x, y, whole = false) {
+  if (at >= (node.textContent?.length ?? 0)) return false;
+  const character = document.createRange();
+  character.setStart(node, at);
+  character.setEnd(node, at + 1);
+  return [...character.getClientRects()].some((rect) =>
+    holds(whole ? lined(rect, node) : rect, x, y),
+  );
 }
 
 // The two bands of a scrollport, one reading each, beside the clip they start from.

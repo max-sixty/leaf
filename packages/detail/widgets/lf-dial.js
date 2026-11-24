@@ -126,6 +126,7 @@ import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { plainPress } from "/runtime/lib/keys.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -151,12 +152,6 @@ const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
-// Whether a press is the primary button with no modifier held, which the dial takes; a
-// modified one keeps its usual meaning.
-/** @param {MouseEvent} event */
-const plainPress = (event) =>
-  event.button === 0 &&
-  !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
 /** @param {Element} heading */

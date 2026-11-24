@@ -29,7 +29,7 @@ import {
   whileConnected,
 } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
-import { PRESS } from "/runtime/lib/keys.js";
+import { PRESS, plainPress } from "/runtime/lib/keys.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 let library;
@@ -218,11 +218,8 @@ class FileTreeWidget extends LeafElement {
         "click",
         (event) => {
           // A modified click keeps its usual meaning.
-          const plain =
-            event.button === 0 &&
-            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
           if (
-            plain &&
+            plainPress(event) &&
             event
               .composedPath()
               .some(

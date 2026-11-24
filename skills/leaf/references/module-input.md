@@ -313,9 +313,9 @@ the focused control that matches it `data-lf-control-focus`, and
 own attributes. Don't ask with `:has()` where focus is, by a mark or by `:focus`: in
 Chromium that makes every focus move restyle the page.
 
-Leaf rings the obligation the user is in. A widget whose own control shows that
-focus, as an option group's row does, declares `--lf-obligation-ring: none` on the
-control while it holds visible focus, and Leaf then draws no ring round the
+Leaf rings the obligation the user is in. A widget whose own control shows where
+the user is, as an option group's row does, declares `--lf-obligation-ring: none` on
+the control while it holds visible focus, and Leaf then draws no ring round the
 obligation.
 
 ### Layers
@@ -391,8 +391,8 @@ fires `input` only for the user's edits. Build it as a generated control
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink. Under a finger Leaf sets a field's
 type no smaller than `--lf-entry-floor`, so a widget that shows words and then opens a
-field on them sets those words at `max(var(--lf-entry-floor), 1em)`, and the two sizes
-agree.
+field on them sets those words' `font-size` to `max(var(--lf-entry-floor), 1em)`, and
+the two sizes agree.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the

@@ -155,19 +155,20 @@ change the fade, as a diagram does: `--lf-more-fade` sets how deep it runs, and
 `--lf-more-fade-to`, a colour, sets by its alpha how much of the content still shows
 at the edge.
 
-Leaf rings every box that holds visible focus, at a control's gap outside it
-(`--lf-focus-ring-gap`), and its
+Leaf rings every box that holds visible focus, at a control's gap outside it, and its
 own word and symbol presses one band inside their edge. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
 its kind (`styles/tokens.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
+`--lf-focus-ring-gap`, a control's gap, for a box on which a rule of yours draws a
+control's ring, where the ring would otherwise stand on the box's edge,
 `0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
-edge with others or a box whose clip leaves no room outside it. A rule that keeps
-room for a ring reads how far the ring reaches outside its box:
-`--lf-focus-ring-room` for a control's ring and `--lf-focus-region-room` for a block's. Leaf draws every mark
+edge with others or a box whose clip leaves no room outside it. Leaf draws every mark
 on a box as the box's own outline there, over any outline your rules give the box while
 the mark shows, so a comment's or an aim's brackets stand where the ring does. The
 brackets are a `clip-path` Leaf sets on the box, so a rule of yours that sets its
-`clip-path` replaces them. The declaration does not inherit.
+`clip-path` replaces them. `--lf-ring-at` does not inherit. A rule that keeps room
+for a ring reads how far the ring reaches outside its box: `--lf-focus-ring-room`
+for a control's ring and `--lf-focus-region-room` for a block's.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, reads the box's `data-lf-control-focus-visible`, which Leaf
@@ -308,10 +309,10 @@ Type, space and shape:
 | A widget's words | A whole font for the `font` shorthand, by kind (`packages.md`, "Styles and composition"): `--lf-font-ui`, `--lf-font-widget`, `--lf-font-small`, `--lf-font-title`, `--lf-font-heading`, `--lf-font-label`, `--lf-font-status`, `--lf-font-compact`, `--lf-font-choice`, `--lf-font-chip`, `--lf-font-count`, `--lf-font-fine`, `--lf-font-code`, `--lf-font-message`, `--lf-font-choice-stacked` |
 | Spacing          | `--lf-sp-1` to `--lf-sp-5`: 4, 8, 16, 24 and 32px, through `--lf-sp-2`, `--lf-sp-3` and `--lf-sp-4`; `--lf-clear`, the least room that stands a box clear of its frame's edge; `--lf-list-inset`, how far a list's items stand in; `--lf-chip-pad`, a chip's padding                                                                                                                              |
 | Corners          | `--lf-r`, a control's or box's; `--lf-r-s`, half of it, for a mark no taller than a line; `--lf-r-l`, twice it, for a surface floating over the page; `--lf-r-in`, for a box that meets a hairline frame's edge from inside it; `--lf-chip-r`, a chip's                                                                                                                                           |
-| Lift             | `--lf-raise-1`, `--lf-raise-2`, `--lf-raise-3`, the shadow of a box lying on the page, opening over it, or standing over it for a task, each cast in `--lf-shade`; `--lf-raise-1-drop` and `--lf-raise-1-blur`, how far the first falls and spreads, for a box that keeps room for it                                                                                                             |
+| Lift             | `--lf-raise-1`, `--lf-raise-2`, `--lf-raise-3`, the shadow of a box lying on the page, opening over it, or standing over it for a task, each cast in `--lf-shade`; `--lf-raise-1-drop` and `--lf-raise-1-blur`, how far the first falls and spreads: a theme changes that lift by setting them, and a box reads them to keep room for it                                                          |
 | Controls         | `--lf-line`, a one-line control's height; `--lf-aim-floor`, the smallest box a user aims at, larger under a finger; `--lf-reach-room`, the room a control's reach takes past its face; `--lf-choice-gap`, the room between a radio's or checkbox's mark and its words; `--lf-chooser`, the height of a radio group drawn as buttons, such as a choice of views                                    |
 | Focus            | `--lf-focus-ring` as an outline and `--lf-focus-shadow` as a shadow, set together; where a ring stands is `--lf-ring-at` ("A theme change")                                                                                                                                                                                                                                                       |
-| Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page; `--lf-view-height`, the window's height below its head                                                                                                                              |
+| Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page; `--lf-view-height`, the window's height less `--lf-head-room`                                                                                                                       |
 | Motion           | `--lf-motion-fold`, the time a removed item's room takes to close; `--lf-motion-return`, the shorter time a frame takes to return from an editor to its reading; `--lf-motion-disclosure`, a disclosure opening or a control fading in; `--lf-motion-mark`, a mark moving to where it now stands                                                                                                  |
 
 Changing `--lf-accent` does not choose the count's pair or the status palette. Check

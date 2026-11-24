@@ -157,8 +157,8 @@ returns the text to copy. Leaf stands the button right after the block while bot
 the page, and a page without Leaf shows none. A widget that draws marks of its own over
 the block, as `lf-code` draws its notes mark and a draft its editing marks, sets the
 block's `lfBar` to the `.lf-mark-bar` it places and shows over the block, and Leaf
-stands Copy last in it. The bar takes the seat a lone Copy has: inside the block's
-top-right corner, past the block's 1px edge and `--lf-clear` clear of it. A copy that stands among a widget's own controls rather than
+stands Copy last in it. Place the bar in the seat a lone Copy has: inside the block's
+top-right corner, `--lf-block-control-inset` from both of the block's outer edges. A copy that stands among a widget's own controls rather than
 over a block, such as in a popover's header, is `copyControl(className, {label,
 success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol; to
 copy through a press of your own built by its role, pass it as `trigger` instead. Set

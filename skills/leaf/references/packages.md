@@ -177,6 +177,8 @@ Custom properties come in four kinds:
 A Layout declares further facts about the boxes it arranges. A rule reads one with a
 style query on a container of the element it styles, or with `var()` where it is a
 length. `--lf-layout-box` doesn't inherit, so a module reads it off the box itself.
+The page's body is the size container `lf-shell`, whose width a rule asks with
+`@container lf-shell (width < 640px)`.
 
 | Declaration            | The Layout declares it on                                             | It says                                                                |
 | ---------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------- |

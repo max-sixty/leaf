@@ -197,9 +197,9 @@ revealed control lands exactly there. Put the stacked value on a box that doesn'
 itself.
 
 A box a package makes scroll sets `--lf-top: 0px` beside its `overflow`, so a header
-inside it sticks at its top from the first paint. It sets `--lf-top-covered: 0px` with
-it, which tells Leaf that no header covers the top of the box, so a landing inside the
-box stops just below that top. Leaf also restarts `--lf-top` on a box
+inside it sticks at its top from the first paint. It sets `--lf-top-covered` to the
+same value with it: the part of `--lf-top` the box's own `scroll-padding` already
+clears, so a landing inside the box keeps clear only the headers stuck inside it. Leaf also restarts `--lf-top` on a box
 marked as a scroll surface, such as a registered reading region's body, once it finds
 the box scrolling and not sticking, `overflow: hidden` included. Leaf reads no other
 box's overflow, so in a box that scrolls without that declaration or the mark, a header
@@ -316,9 +316,9 @@ has not taken, such as a value the server refused (`module-plain-elements.md`,
 "`lf-error`").
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
-but the screen doesn't show: Leaf writes them there while the attribute stands, in a
-first child of class `lf-quiet` that takes no room, and
-takes them away with it. Set the whole quiet word each time. Leaf writes
+but the screen doesn't show: Leaf writes them there while the attribute stands, and
+takes them away with it. The words stand in a first child of class `lf-quiet`, which
+takes no room. Set the whole quiet word each time. Leaf writes
 quiet words for elements it marks as rewritten, changed or reported, so declare them only
 on parts the module builds or owns, such as a code line or a suggestion's slot. A page
 without Leaf, whose theme would leave them on screen, writes none. Where a control's

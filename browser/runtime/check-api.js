@@ -40,7 +40,7 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export { uiInside } from "./ui-marks.js";
+export { inChrome, uiInside } from "./ui-marks.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { NOTICE_MS, notice } from "./notifications.js";

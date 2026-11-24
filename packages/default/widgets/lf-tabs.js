@@ -104,7 +104,7 @@ import {
   restorePlace,
   tabStore,
   focusDestination,
-  fragmentTarget,
+  elementById,
   scrollIntoView,
   landingInsets,
   LeafElement,
@@ -592,12 +592,13 @@ export class TabSet extends LeafElement {
     return this.#pageFlow && previous ? preserveReadingRegions(this, change) : change();
   }
 
-  // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
-  // the traversal and the landing agree on an id inside a widget's shadow tree.
+  // The panel holding what the fragment names, which reaches inside a widget's shadow
+  // tree as Leaf's own arrival does, so the traversal and the landing agree on an id
+  // there.
   /** @param {readonly Element[]} panels @param {string} [hash] */
   #panelForLocation(panels, hash = location.hash) {
     if (!this.#root) return null;
-    const target = fragmentTarget(hash);
+    const target = elementById(hash);
     return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
   }
 

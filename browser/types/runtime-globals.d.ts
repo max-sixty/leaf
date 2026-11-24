@@ -15,7 +15,7 @@ interface DocumentInputs {
   holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
   readonly away: number;
-  readonly within: number;
+  readonly entered: number;
   holdKeys(
     hold: {
       holds(event: KeyboardEvent): boolean;

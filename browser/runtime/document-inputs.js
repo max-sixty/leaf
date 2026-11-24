@@ -20,13 +20,13 @@
   // for another application while a slow reload arrives is the commoner case, and
   // counting it would lose their place for good.
   let away = 0;
-  // The user's acts within the entry they stand at (`within`): the inputs since their
-  // latest step Back or Forward to it, or since the document started, but for leaving
-  // the window. A return to that entry's record yields to these alone (history.js;
-  // focus.js, `entryInputCount`), so what the user did at the entry they left doesn't
-  // keep them from the record of the one they reached, though the step came before Leaf
-  // started handling steps.
-  let within = 0;
+  // The user's inputs, `away` aside, as they last stepped Back or Forward, or none
+  // before any step (`entered`). The arrival counts their acts within the entry it
+  // arrives at from there (history.js, `beginArrival`), so what they did at the entry
+  // they left doesn't keep them from the record of the one they reached, though the
+  // step came before Leaf handled steps. The count itself only grows, so a return an
+  // act of theirs superseded stays superseded.
+  let entered = 0;
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
   // waits for is not superseded by it. The hold hears of every other input the clock
@@ -145,8 +145,8 @@
     get away() {
       return away;
     },
-    get within() {
-      return within;
+    get entered() {
+      return entered;
     },
     holdKeys(next) {
       hold = next;
@@ -174,10 +174,7 @@
     if (event instanceof KeyboardEvent && hold?.holds(event)) return;
     inputs++;
     if (event.type === "blur") away++;
-    else {
-      within++;
-      hold?.counted(false);
-    }
+    else hold?.counted(false);
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
@@ -192,7 +189,7 @@
   const step = () => {
     inputs++;
     away++;
-    within = 0;
+    entered = inputs - away;
     hold?.counted(true);
   };
   if (window.navigation?.currentEntry)

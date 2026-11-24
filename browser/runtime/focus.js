@@ -1092,10 +1092,13 @@ addEventListener(
 // it, and each of the user's ways of scrolling begins with one that is.
 
 export const inputCount = () => inputs.count;
-// The user's inputs within the entry they are on, since they stepped to it or the
-// document started, but for leaving the window (document-inputs.js, `within`). A
-// return to an entry's record (history.js) yields to these alone.
-export const entryInputCount = () => inputs.within;
+// The user's inputs within the entry they are on: all of them but those that take
+// them away from it, their steps Back and Forward and their leaving the window
+// (document-inputs.js, `away`). A return to an entry's record (history.js) yields to
+// these alone, counted from where it began, or for the document's arrival from the
+// user's latest step (`enteredInputCount`).
+export const entryInputCount = () => inputs.count - inputs.away;
+export const enteredInputCount = () => inputs.entered;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 /** @type {typeof inputs.observe} */

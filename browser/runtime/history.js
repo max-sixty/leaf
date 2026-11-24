@@ -134,6 +134,7 @@ import { setScroll } from "./arrivals.js";
 import {
   deepFocus,
   drawn,
+  enteredInputCount,
   entryInputCount,
   focusDestination,
   readCaret,
@@ -730,9 +731,9 @@ function beginRestoration(record, intent, ended = null, since = entryInputCount(
 // restoration of the record that entry kept, where the document came by a reload or by
 // Back or Forward from another document (the Navigation API's `activation`), and of
 // none for a fresh visit, whose address alone says where to go, under the arrival's
-// intent still. Its intent counts the user's inputs within that entry, since the
-// document started or the user stepped to it, as a document arrival's does
-// (user-intent.js; focus.js, `entryInputCount`).
+// intent still. Its intent counts the user's inputs within that entry from the latest
+// step to it, or from the document's start, as a document arrival's does
+// (user-intent.js; focus.js, `enteredInputCount`).
 export function beginArrival() {
   const entry = window.navigation.currentEntry;
   const type = window.navigation.activation?.navigationType;
@@ -740,8 +741,9 @@ export function beginArrival() {
     type === "reload" || type === "traverse"
       ? (/** @type {EntryRecord | undefined} */ (entry?.getState()) ?? null)
       : null;
-  const intent = retainUserIntent({ count: entryInputCount, since: 0 });
-  return beginRestoration(record, intent, null, 0);
+  const since = enteredInputCount();
+  const intent = retainUserIntent({ count: entryInputCount, since });
+  return beginRestoration(record, intent, null, since);
 }
 // The restoration under way, whose record a departure writes while it owes it.
 export const pendingRestoration = () => restoring;

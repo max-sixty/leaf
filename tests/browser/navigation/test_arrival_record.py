@@ -748,6 +748,46 @@ def test_a_key_pressed_before_forward_to_the_reload_s_entry_goes_with_the_step(
     expect(reply).to_have_js_property("value", "Hold")
 
 
+def test_a_step_after_the_user_left_a_pending_return_keeps_their_newer_place(
+    browser, serve
+):
+    """A reload brings an entry back while the page's state is still on its way, and
+    the user moves on there before it lands, then steps Back and Forward: Forward
+    returns them where they had moved to, not where the reload would have put them."""
+    page = open_page(browser, live_url(serve(LONG_PAGE)))
+    page.evaluate("document.getElementById('p20').scrollIntoView({block: 'start'})")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#p20'")
+    page.wait_for_url(re.compile("#p20$"))
+    page.wait_for_function("navigation.transition === null")
+    held = hold_the_next_documents_reading(page)
+    try:
+        with page.expect_navigation(wait_until="commit"):
+            page.evaluate("setTimeout(() => location.reload())")
+        holding(page, held, 1, "the reloaded document's first reading")
+        # The panel mounts in the task that installs the arrival (leaf.js).
+        page.wait_for_function(
+            "document.querySelector('.lf-floating-panel:not([data-lf-served])') !== null"
+        )
+        page.keyboard.press("End")
+        page.wait_for_function(
+            "scrollY + innerHeight >= document.body.scrollHeight - 4"
+        )
+        page.go_back(wait_until="commit")
+        page.wait_for_function("location.hash === ''")
+        release(page, held)
+        wait_until_ready(page)
+        page.go_forward(wait_until="commit")
+        page.wait_for_function("location.hash === '#p20'")
+        wait_until_ready(page)
+        scroll_settled(page)
+        assert page.evaluate(
+            "scrollY + innerHeight >= document.body.scrollHeight - 4"
+        ), page.evaluate("[scrollY, innerHeight, document.body.scrollHeight]")
+    finally:
+        release(page, held)
+
+
 @pytest.mark.parametrize("engine", ENGINES)
 def test_back_before_leaf_starts_leaves_the_reload_s_place_to_its_entry(
     request, serve, engine

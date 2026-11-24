@@ -69,8 +69,6 @@ export function foldProjection({
 } = {}) {
   /** @type {Map<string, ProjectionEntry>} */
   const actions = new Map();
-  /** @type {Map<string, ProjectionEntry[]>} */
-  const reports = new Map();
   /** @type {Map<string, ClassifiedEntry>} */
   const classified = new Map();
   /** @type {Map<string, ProjectionEntry>} */
@@ -89,13 +87,10 @@ export function foldProjection({
     const entry = byId.get(id);
     if (entry && !entry.terminal) actions.set(entry.coordinate, entry);
   }
-  for (const id of reportIds) {
-    const entry = byId.get(id);
-    if (!entry || entry.terminal) continue;
-    const reported = reports.get(entry.coordinate) ?? [];
-    reported.push(entry);
-    reports.set(entry.coordinate, reported);
-  }
+  const reports = Map.groupBy(
+    reportIds.flatMap((id) => byId.get(id) ?? []).filter((entry) => !entry.terminal),
+    (entry) => entry.coordinate,
+  );
   for (const id of desiredIds) {
     const entry = byId.get(id);
     if (entry && !entry.terminal) desired.set(entry.coordinate, entry);

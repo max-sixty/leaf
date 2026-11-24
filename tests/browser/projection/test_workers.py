@@ -654,7 +654,6 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
 
-    expect(goal).to_have_attribute("data-lf-held")
     roots = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]

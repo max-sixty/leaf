@@ -1392,10 +1392,8 @@ def _author_stateful_verbatim_widget(tmp_path):
     declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "verbatim": True,

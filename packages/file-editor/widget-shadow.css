@@ -89,7 +89,7 @@
 :host(lf-file-editor) .lf-file-editor-choices:popover-open {
   display: flex;
 }
-:host(lf-file-editor) .lf-file-editor-choices > button {
+:host(lf-file-editor) .lf-file-editor-choices > [role^="menuitem"] {
   text-align: left;
 }
 :host(lf-file-editor) .lf-file-editor-edit {

@@ -126,10 +126,8 @@ def starter_element_declaration(tag: str) -> dict:
     return {
         "description": "A yes-or-no choice the user makes with a press.",
         "attributes": {
-            "type": "object",
             "properties": {"choice": {"type": "string", "enum": ["yes", "no"]}},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {

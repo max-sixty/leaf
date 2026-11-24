@@ -180,11 +180,9 @@ PROGRESSIVE_REGISTRY = {
     "lf-progressive-proof": {
         "description": "A progressive widget retaining native authored children.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "label": {"type": "string"},
             },
-            "additionalProperties": False,
             "required": ["id"],
         },
         "content": "markup",

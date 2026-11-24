@@ -69,10 +69,8 @@ customElements.define('lf-thread-reader', class extends LeafElement {
 THREAD_READER_DECLARATION = {
     "description": "A read-only package thread view.",
     "attributes": {
-        "type": "object",
         "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
@@ -103,12 +101,10 @@ customElements.define('lf-thread-filter', class extends LeafElement {
 THREAD_FILTER_DECLARATION = {
     "description": "An instance-local filter over Leaf's shared Thread reading.",
     "attributes": {
-        "type": "object",
         "properties": {
             "filter": {"type": "string"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-filter id="example"></lf-thread-filter>',
@@ -843,10 +839,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             "lf-controller-stage": {
                 "description": "A declared shadow stage for the controller lifetime.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "shadow": True,
@@ -1238,10 +1232,8 @@ customElements.define('lf-thread-actions', class extends LeafElement {
 THREAD_ACTIONS_DECLARATION = {
     "description": "A package's own Thread action controls.",
     "attributes": {
-        "type": "object",
         "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
@@ -1566,10 +1558,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
             "lf-keyed-slot-list": {
                 "description": "A keyed shadow row with a native slotted editor.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "shadow": True,
@@ -1799,11 +1789,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "empty",
         "shadow": True,
     }

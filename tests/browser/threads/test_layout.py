@@ -696,10 +696,8 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
                 "lf-theme-box": {
                     "description": "A widget beside a page-wide theme.",
                     "attributes": {
-                        "type": "object",
                         "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "markup",
                 }

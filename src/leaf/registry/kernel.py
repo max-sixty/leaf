@@ -45,9 +45,10 @@ def title_limit() -> int:
 
 
 def kernel_protocol() -> int:
-    """The number of the contract between a page and the Leaf serving it, which a
-    page's layer record names as `protocol` (`layer.incompatible_layer`). It
-    versions the records Leaf keeps outside a page too (`state.Record`)."""
+    """The page protocol: the number of the contract between a page and the Leaf
+    serving it, which a page's layer record names in its `format`
+    (`registry.storage.LAYER`). It versions the other records Leaf keeps outside a
+    page too (`state.Record`)."""
     return _kernel_events()["protocol"]
 
 

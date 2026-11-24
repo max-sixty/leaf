@@ -804,7 +804,6 @@ def tail_cases() -> list[dict]:
         **model_layer(),
         "lf-value-ask": {
             "attributes": {
-                "type": "object",
                 "properties": {
                     "active": {"type": "boolean"},
                     "value": {
@@ -813,7 +812,6 @@ def tail_cases() -> list[dict]:
                     },
                 },
                 "required": ["id"],
-                "additionalProperties": False,
             },
             "content": "none",
             "awaits": {

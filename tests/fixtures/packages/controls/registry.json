@@ -2,12 +2,10 @@
   "lf-select": {
     "description": "One choice from a dropdown, drawn by Web Awesome's select, a component that knows nothing of Leaf. Write the library's `wa-select` inside it, with a `wa-option` for each choice, and put it in an `lf-group` whose label asks the question. Write a starting choice as this element's `value`.",
     "attributes": {
-      "type": "object",
       "properties": {
         "value": { "type": "string" }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "verbs": {
       "choose": {
@@ -21,15 +19,13 @@
   "lf-level": {
     "description": "A level on a scale, set on a range the element holds, which says `level-change` at every change of its value, a script's set included.",
     "attributes": {
-      "type": "object",
       "properties": {
         "value": { "type": "string" },
         "min": { "type": "string" },
         "max": { "type": "string" },
         "label": { "type": "string" }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "content": "empty",
     "verbs": {

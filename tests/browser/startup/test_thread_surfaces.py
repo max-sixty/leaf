@@ -75,12 +75,10 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     entry = {
         "description": "A project-supplied thread surface.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -356,11 +354,7 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     shows, and the instance beside it, which has an id, opens its box."""
     entry = {
         "description": "A card that seats the threads about it.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "example": '<lf-test-card id="card-example">A card.</lf-test-card>',
     }
     module = """
@@ -578,13 +572,11 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     entry = {
         "description": "An exact source seat.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "style": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -736,12 +728,10 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     entry = {
         "description": "An exact datum seat.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {

@@ -1001,13 +1001,13 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
  * it, without the kind word a thread's § coordinate adds, and rides at the words' end,
  * out of the way of what the row says. The user chose the block's name over showing
  * its raw id as "what it is". */
-.lf-ref {
+:where(lf-option) > .lf-ref {
   font: var(--lf-font-small);
   color: var(--lf-muted);
   text-decoration: none;
   white-space: nowrap;
 }
-.lf-ref:hover {
+:where(lf-option) > .lf-ref:hover {
   color: var(--lf-accent);
   text-decoration: underline;
 }

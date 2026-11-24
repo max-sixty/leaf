@@ -1,11 +1,7 @@
 {
   "lf-review-summary": {
     "description": "A review checklist with a recorded pass or fail result, keeping authored evidence and nested widgets readable.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "verbs": {
       "review": {
         "unit": "widget",

@@ -13,13 +13,11 @@
   "lf-verdict": {
     "description": "A ship-or-hold decision on a release, each choice a comment target. Put it in an `lf-group` whose label asks the question.",
     "attributes": {
-      "type": "object",
       "properties": {
         "verdict": { "type": "string", "enum": ["ship", "hold"] },
         "source": { "type": "string" }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "empty",
     "verbs": {

@@ -1,10 +1,10 @@
 import {
   PAGE_INTERFACE,
-  keeps,
   frameFor,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 // Illustrative source timings and alternatives, not recordings. The optional
 // motion package owns playback; these drawings are pure functions of its clock.

@@ -49,7 +49,7 @@
    one; each other moment's producer gives it, news as it arrives rather than when its
    notice shows. */
 import { el, elementDirective } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";

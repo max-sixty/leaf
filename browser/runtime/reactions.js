@@ -45,7 +45,7 @@ import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offerAction, responseAction } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 
 import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";

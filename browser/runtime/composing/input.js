@@ -61,7 +61,7 @@ import { capitalized, counted } from "../words.js";
 import { describeFailure } from "../lib/exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import {
   advertisesKeys,
   ariaBindings,

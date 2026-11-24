@@ -70,8 +70,6 @@ import {
   dragging,
   focusDestination,
   keepView,
-  keeps,
-  keepsText,
   layoutChanged,
   LeafElement,
   motion,
@@ -95,6 +93,7 @@ import {
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
 // to leave, and the next to come up; and how long a card that came up takes no press.

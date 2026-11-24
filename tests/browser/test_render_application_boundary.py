@@ -1213,7 +1213,8 @@ def arrived(page, thread_id):
 
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
-import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
+import { LeafElement, readThreads, threadActions } from '/runtime/widget-api.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +

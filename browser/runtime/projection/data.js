@@ -75,7 +75,7 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { queryAllUnder } from "../shadow.js";
 import { composedParentNode } from "../shadow-tree.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 // The nodes a projection stamped under its root, in the trees that hold the page's

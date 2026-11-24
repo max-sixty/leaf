@@ -4,8 +4,6 @@ import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
-  keeps,
-  keepsText,
   offer,
   offerAction,
   LeafElement,
@@ -26,6 +24,7 @@ import {
   threadTurns,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 customElements.define(
   "lf-conversation-workspace",

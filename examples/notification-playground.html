@@ -212,12 +212,11 @@
     <script type="module">
       import {
         generatedElement,
-        keeps,
-        keepsText,
         layoutChanged,
         once,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const EVENTS = [
         {

@@ -26,7 +26,7 @@ import {
   scrollAxes,
 } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},

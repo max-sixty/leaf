@@ -53,7 +53,7 @@ import {
 import { copyControl, pressCopy } from "./copy-control.js";
 import { anchorReading, headerLevels, nameAnchor } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
-import { inlineStyle, keeps, keepsHidden, layoutPx } from "./keeps.js";
+import { inlineStyle, keeps, keepsHidden, layoutPx } from "./lib/keeps.js";
 import { pageScope } from "./keyboard/register.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, inChrome, pageQueryAll } from "./passages.js";

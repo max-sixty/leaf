@@ -80,6 +80,15 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
 
+# Where a panel thread's message stands: its offset within the view, the view's scroll,
+# and the view's and the message's tops in the window.
+MESSAGE_PLACE = """m => {
+  const view = m.closest('.lf-fp-view');
+  const top = m.getBoundingClientRect().top, viewTop = view.getBoundingClientRect().top;
+  return {offset: top - viewTop, scroll: view.scrollTop, view_top: viewTop, top};
+}"""
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("reply_size", ["short", "tall"])
 def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_size):
@@ -94,13 +103,7 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     page.evaluate(RELEASE_FOCUS)
     message = thread.locator(".lf-msg").first
     rendered(page)
-    before = {
-        "offset": message.evaluate(
-            "m => m.getBoundingClientRect().top"
-            " - m.closest('.lf-fp-view').getBoundingClientRect().top"
-        ),
-        "scroll": thread.evaluate("view => view.scrollTop"),
-    }
+    before = message.evaluate(MESSAGE_PLACE)
     words = "The answer arrived without another click."
     if reply_size == "tall":
         words = "\n\n".join([words] * 30)
@@ -113,11 +116,12 @@ def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_
     # growth carries the message up from where it stood on screen to that place
     # (box-motion.js), so the place is read where the panel's motion ends.
     panel_settled(page, view="thread")
-    assert message.evaluate(
-        "m => m.getBoundingClientRect().top"
-        " - m.closest('.lf-fp-view').getBoundingClientRect().top"
-    ) == pytest.approx(before["offset"], abs=0.5)
-    assert thread.evaluate("view => view.scrollTop") == before["scroll"]
+    after = message.evaluate(MESSAGE_PLACE)
+    # One comparison of the whole reading, so a failure shows whether the view
+    # scrolled, moved on screen, or the message moved within it.
+    assert after["offset"] == pytest.approx(before["offset"], abs=0.5) and (
+        after["scroll"] == before["scroll"]
+    ), {"before": before, "after": after}
 
 
 def test_walking_the_threads_lands_each_on_its_latest_message(browser, serve):

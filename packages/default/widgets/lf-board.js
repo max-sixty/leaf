@@ -823,9 +823,9 @@ customElements.define(
           says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
         },
       );
-      // A gesture can outlive the reading that enabled it. If admission has already
-      // closed by commit time, resuming the deferred controller repaints the moved
-      // native node from current semantic state immediately.
+      // A gesture can outlive the state that enabled it. If admission has already
+      // closed by commit time, releasing the hold repaints the moved native node from
+      // the current state immediately.
       this.#finishGesture();
     }
 

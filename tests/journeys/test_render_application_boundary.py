@@ -348,9 +348,9 @@ def test_thread_presentation_waits_for_its_own_widgets_only(browser, serve):
           window.__heldLocalPresentations = new Map([
             ['thread-local', threadPreparation.promise],
           ]);
-          document.querySelector('#page-local').controller.present(
-            pagePreparation.promise
-          );
+          (await window.__lfWidgetApi())
+            .widgetController(document.querySelector('#page-local'))
+            .present(pagePreparation.promise);
           window.whenLeafPresented = presentation.whenApplicationPresented;
           window.whenLeafRegionsPresented =
             presentation.whenApplicationRegionsPresented;

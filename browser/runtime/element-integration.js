@@ -16,7 +16,9 @@
    on the element's render region. So a gesture's result is drawn before the
    `dispatchEvent` that recorded it returns, and the page reads as presented, and as
    showing a data delivery, only once the setters have returned and the drawing they
-   announced with `pending-task` is in. A visual may have redrawn the parts it marks by
+   announced with `pending-task` is in. A `pending-task` the element dispatches on
+   itself at any other time is a draw it started by itself, and holds the same region
+   until it is in; one from a node inside it is preparation (widget-controller.js). A visual may have redrawn the parts it marks by
    then, which the pass says with `layoutChanged` (visual-parts.js).
 
    Where one publication moves several readings, their `state`s are set in the page's
@@ -42,7 +44,12 @@ import {
   attachWidgetPresentation,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { widgetController, widgetMounted, widgetState } from "./widget-controller.js";
+import {
+  takeDrawing,
+  widgetController,
+  widgetMounted,
+  widgetState,
+} from "./widget-controller.js";
 import { ElementData } from "./element-data.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { liveStages, watchArrivals, watchOwner } from "./arrivals.js";
@@ -124,14 +131,26 @@ function host(element) {
       (element.shadowRoot ?? element).append(placed);
       return true;
     });
-  // The drawing that the sets of the pass under way announce.
+  // The drawing that the sets of the pass under way announce, and the drawing the
+  // element announced while a claim stood open for a pass still to come.
   /** @type {PromiseLike<unknown>[] | null} */
   let announced = null;
-  element.addEventListener(PENDING_TASK, (event) =>
-    announced?.push(
-      /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (event).complete,
-    ),
-  );
+  /** @type {PromiseLike<unknown>[]} */
+  let carried = [];
+  element.addEventListener(PENDING_TASK, (event) => {
+    if (event.target !== element) return;
+    takeDrawing(event);
+    const { complete } = /** @type {import("./widget-upgrade.js").PendingTaskEvent} */ (
+      event
+    );
+    if (announced) announced.push(complete);
+    else if (ticket) carried.push(complete);
+    // A draw the element started by itself holds its region until it is in.
+    else
+      region
+        ?.present((reason) => failSoftUnreported(element, reason))
+        .resolve(complete);
+  });
   // One set the element is owed, made whether or not another threw.
   /** @param {unknown[]} failures @param {() => void} owed */
   const attempt = (failures, owed) => {
@@ -192,16 +211,16 @@ function host(element) {
     const drawing = ticket;
     ticket = null;
     const reading = controller?.read() ?? null;
+    const tasks = carried;
+    carried = [];
     // A revision's replacement lacks its verbs until its document is adopted.
     if (
       (reading && !verbs.every((verb) => verb in reading.state)) ||
       data.awaitsDelivery()
     ) {
-      drawing?.resolve();
+      drawing?.resolve(Promise.all(tasks));
       return;
     }
-    /** @type {PromiseLike<unknown>[]} */
-    const tasks = [];
     /** @type {unknown[]} */
     const failures = [];
     announced = tasks;

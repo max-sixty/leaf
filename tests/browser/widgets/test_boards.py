@@ -522,11 +522,11 @@ def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route)
             page.keyboard.press(key)
         else:
             card.evaluate(
-                """(el, column) => el.closest('lf-board').controller.dispatch({
-                  kind: 'action', verb: 'move',
-                  detail: {unit: el.id, value: column, rank: '0i'},
-                  says: 'Moved card',
-                })""",
+                """(el, column) => void el.closest('lf-board').record(
+                  'move',
+                  {unit: el.id, value: column, rank: '0i'},
+                  {says: 'Moved card'},
+                )""",
                 column,
             )
         expect(page.locator(f"#{column} #card-heater")).to_have_count(1)

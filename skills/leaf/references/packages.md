@@ -150,7 +150,7 @@ contribution. Inherited values cross every widget boundary. Adjust another widge
 internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet through `LeafElement` for `shadow`, or through
+the composed shared stylesheet through a `LeafElement` that says `static shadow`, or through
 `shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.

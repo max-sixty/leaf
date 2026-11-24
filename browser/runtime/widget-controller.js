@@ -10,9 +10,10 @@
 
    A widget's element reaches the controller through events Leaf hears at the
    document. It says it has drawing under way with `pending-task` (`PendingTaskEvent`,
-   widget-upgrade.js), which reaches the preparation region of the nearest widget the
-   event passed through, or a region of the dispatching element's where it passed
-   through none. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
+   widget-upgrade.js). One an element Leaf drives dispatches on itself is that
+   element's own drawing and holds its render claim (element-integration.js); any
+   other reaches the preparation region of the nearest widget the event passed
+   through, or a region of the dispatching element's where it passed through none. It records with `lf-action` and `lf-undo`, which reach `dispatch`.
    And it says a gesture holds its nodes with `lf-hold` (`HoldEvent`), at whose end the
    document-wide renderers read the page again. */
 import { untracked } from "/runtime/framework.js";
@@ -203,11 +204,21 @@ const widgetOn = (event, holds = () => true) =>
       return descriptor && holds(descriptor);
     });
 
-// Drawing an element announces: the nearest widget the event passed through on its way
-// out holds its presentation on it, as `present` does. Where it passed through none, as
-// from an element with no id or one of Leaf's own surfaces, the page holds a region of
-// that element's on it, so the page still reads as presented only once the drawing is in.
+// The `pending-task` events an element Leaf drives dispatched on itself: its own
+// drawing, which holds its render claim (element-integration.js) and reaches no
+// preparation region.
+/** @type {WeakSet<Event>} */
+const drawingsTaken = new WeakSet();
+/** @param {Event} event */
+export const takeDrawing = (event) => drawingsTaken.add(event);
+
+// Drawing announced from anywhere else: the nearest widget the event passed through on
+// its way out holds its presentation on it, as `present` does. Where it passed through
+// none, as from an element with no id or one of Leaf's own surfaces, the page holds a
+// region of that element's on it, so the page still reads as presented only once the
+// drawing is in.
 document.addEventListener(PENDING_TASK, (event) => {
+  if (drawingsTaken.has(event)) return;
   const owner = widgetOn(event);
   if (owner) return void widgetController(owner).present(event.complete);
   const [origin] = event.composedPath();

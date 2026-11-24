@@ -288,28 +288,35 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-`LeafElement` is a `LitElement` that draws everything in one `render()`.
-A `shadow` widget uses an ordinary shadow root; other widgets draw into
+`LeafElement` is a `LitElement` that draws everything in one `render()`, on the
+protocol `module-plain-elements.md` describes. A widget whose class says
+`static shadow = true` draws into an open shadow root; other widgets draw into
 themselves or a generated part `createRenderRoot()` returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the
 rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
-the widget draws nothing after it.
+the widget draws nothing after it. The element first draws inside
+`connectedCallback`, so a module that creates one sets what its first draw reads
+before adding it to the page.
 
-`render()` reads through Leaf's readers: `this.reading` and `this.state`, the
-property a bound source sets (module-state.md, "Bound data and projections"), and page
-readings such as `readObligations`,
-`reportSequence` or `ago`. The element redraws whenever anything it read synchronously
-changes, parents before children; DOM reads and reads after an `await` are not
-tracked. Return a template, `nothing` when the render places retained nodes itself, or
-`noChange`. Work that reads what the render drew goes in `updated()`, and drawing that
-finishes later starts there and extends `getUpdateComplete` (`module-state.md`, "The
-widget controller"). Call `requestUpdate()` after a change Leaf can't see, such as
-revealing held news, and `performUpdate()` to draw at once.
+`render()` reads `this.state` (`module-plain-elements.md`, "`state`"), each property a
+bound source sets, which the class declares as a Lit reactive property
+(`static properties = { value: { attribute: false } }`; `module-state.md`, "Bound data
+and projections"), and page readings such as `readObligations`, `reportSequence` or
+`ago`. The element redraws when Leaf sets its `state` or a bound property, and whenever
+a page reading it read synchronously changes; DOM reads and reads after an `await` are
+not tracked. A new `state` is drawn before Leaf's set returns, a parent's before a
+child's; every other redraw runs on Lit's schedule, in no promised order. Return a
+template, `nothing` when the render places retained nodes itself, or `noChange`. Work
+that reads what the render drew goes in `updated()`, and drawing that finishes later
+starts there and extends `getUpdateComplete` (`module-state.md`, "The widget
+controller"). Call `requestUpdate()` after a change Leaf can't see, such as revealing
+held news, and `performUpdate()` to draw at once.
 
 `LeafElement` is portable: a plain host supplies reactive properties and chooses
-`createRenderRoot()`. Leaf adds page readings, controllers, presentation and
-bound-data delivery. `this.defer()` holds drawing through a synchronous rewrite; its
-idempotent release draws current properties.
+`createRenderRoot()`, and `this.state` stays undefined. Leaf adds `state`, page
+readings, presentation and bound-data delivery. `this.defer()` holds drawing through a
+gesture that rewrites the widget's nodes; its idempotent release draws current
+properties.
 
 Portable focus, scrolling and controls use the document's native behavior; Leaf
 adds reading regions and chrome styling. `langForPath` reads shipped defaults on
@@ -337,10 +344,11 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 Declare `shadow` where the user should quote and comment on the words a widget's
 shadow root shows; a root attached any other way is opaque to comments.
 
-For `shadow`, `LeafElement` creates the root, applies the shared stylesheet and
-annotation support, and owns its Lit render. Return the template from `render()` and
-use native slots for authored children. Read presentation inputs from the host and its
-authored children; read decisions through `this.reading` and `this.state`.
+A `LeafElement` whose tag declares `shadow` says `static shadow = true` on its class.
+It then creates the root and owns its Lit render, and Leaf applies the shared
+stylesheet and annotation support. Return the template from `render()` and use native
+slots for authored children. Read presentation inputs from the host and its authored
+children; read decisions through `this.state`.
 
 An imperative renderer overrides `createRenderRoot()` to keep Lit out of its stage
 and uses `shadowStage(host, nodes)`, never `attachShadow`; it applies

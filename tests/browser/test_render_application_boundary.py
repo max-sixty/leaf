@@ -258,10 +258,11 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
 
     # Unrelated preparation prevents global presentation proof, while the reply's
     # own rendered words are already visible. Feedback telemetry must not wait on it.
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfWidgetApi();
       const held = Promise.withResolvers();
       window.releaseTimingPreparation = held.resolve;
-      document.querySelector('#timing-local').controller.present(held.promise);
+      widgetController(document.querySelector('#timing-local')).present(held.promise);
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
         view = open_panel_thread(page, question["id"])
@@ -499,7 +500,7 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     """\
     if (!this.dataset.startupInvalidated) {
       this.dataset.startupInvalidated = "1";
-      this.controller.defer()();
+      this.defer()();
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 )
@@ -703,7 +704,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.route("**/api/event", lambda route: held.append(route))
     deferred_at = page.evaluate(
         "window.pageLocal = document.querySelector('#page-local'); "
-        "window.resumeLocal = pageLocal.controller.defer(); "
+        "window.resumeLocal = pageLocal.defer(); "
         "Number(pageLocal.dataset.readings)"
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
@@ -732,12 +733,17 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.unroute("**/api/event")
 
     assert page.evaluate(
-        "pageLocal = document.querySelector('#page-local'); "
-        "pageLocal.controller.dispatch({kind: 'undo', target: 'not-a-candidate'}) === null"
+        """async () => {
+          window.localController = (await window.__lfWidgetApi()).widgetController;
+          window.pageLocal = document.querySelector('#page-local');
+          return localController(pageLocal)
+            .dispatch({kind: 'undo', target: 'not-a-candidate'}) === null;
+        }"""
     )
     # A verb the widget does not send throws rather than vanishing without a word.
     assert 'cannot dispatch "chose"' in page.evaluate(
-        "(() => { try { pageLocal.controller.dispatch({kind: 'action', verb: 'chose'});"
+        "(() => { try {"
+        " localController(pageLocal).dispatch({kind: 'action', verb: 'chose'});"
         " return ''; } catch (error) { return error.message; } })()"
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
@@ -747,7 +753,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     drifted = page.evaluate(
         """() => {
           pageLocal.id = 'drifted-local';
-          const reading = pageLocal.controller.read();
+          const reading = localController(pageLocal).read();
           return {
             available: reading.actions.choose.available,
             undo: reading.actions.choose.undo.length,
@@ -761,7 +767,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.route("**/api/event", lambda route: undo.append(route))
     stale_refused = page.evaluate(
         """() => {
-          const controller = pageLocal.controller;
+          const controller = localController(pageLocal);
           const candidate = controller.read().actions.choose.undo[0];
           const objectTarget = controller.dispatch({
             kind: 'undo',
@@ -886,11 +892,13 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
     returned = page.evaluate(
-        """() => {
+        """async () => {
+          window.localController = (await window.__lfWidgetApi()).widgetController;
           window.firstPreparation = heldPreparation();
           window.secondPreparation = heldPreparation();
-          const first = pageLocal.controller.present(firstPreparation.promise);
-          const second = pageLocal.controller.present(secondPreparation.promise);
+          const controller = localController(pageLocal);
+          const first = controller.present(firstPreparation.promise);
+          const second = controller.present(secondPreparation.promise);
           window.preparationReady = false;
           whenLeafPresented().then(() => { preparationReady = true; });
           return {
@@ -916,7 +924,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     before = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate("() => { window.resumeLocal = pageLocal.controller.defer(); }")
+    page.evaluate("() => { window.resumeLocal = pageLocal.defer(); }")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
@@ -983,9 +991,9 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     page.evaluate(
         """() => {
           window.beforeDetachedReading = Number(pageLocal.dataset.readings);
-          window.resumeDetached = pageLocal.controller.defer();
+          window.resumeDetached = pageLocal.defer();
           window.reconnectPreparation = heldPreparation();
-          pageLocal.controller.present(reconnectPreparation.promise);
+          localController(pageLocal).present(reconnectPreparation.promise);
           window.beforeRemovalReady = false;
           whenLeafPresented().then(() => { beforeRemovalReady = true; });
           localLifetimeOwner.remove();
@@ -1100,7 +1108,8 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
             },
         ),
     )
-    page.locator("#page-local").evaluate("""owner => {
+    page.locator("#page-local").evaluate("""async owner => {
+      window.preparationController = (await window.__lfWidgetApi()).widgetController;
       window.preparationOwner = owner;
       window.preparationParent = owner.parentNode;
     }""")
@@ -1112,7 +1121,8 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         window.finishPreparation = done;
         window.rejectPreparation = fail;
       });
-      owner.controller.present(first.then(() => { owner.dataset.late = 'committed'; }));
+      preparationController(owner)
+        .present(first.then(() => { owner.dataset.late = 'committed'; }));
     }""")
     if mode == "registered-detached":
         append_command(
@@ -1133,7 +1143,7 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
     page.evaluate("""() => {
       const owner = preparationOwner;
       const second = new Promise(done => { window.releaseSibling = done; });
-      owner.controller.present(second);
+      preparationController(owner).present(second);
     }""")
     if mode in {"reconnected", "registered-detached"}:
         if mode == "reconnected":

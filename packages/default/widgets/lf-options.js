@@ -568,7 +568,7 @@ customElements.define(
       option.append(ref);
     }
 
-    // Generated controls are retained DOM. The controller paints them synchronously
+    // Generated controls are retained DOM. `render()` paints them synchronously
     // while authored options keep their identities, words, and nested evidence.
     /** @param {HTMLElement} option @param {boolean} pressable */
     #control(option, pressable) {

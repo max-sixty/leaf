@@ -4,9 +4,8 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 module owes.
 
 A widget needs no base class. On an element whose tag declares `verbs` or `inputs`,
-and whose class is no `LeafElement`, Leaf sets the widget's state and bound data as
-properties and hears what it records as events, so its module needs none of Leaf's
-helpers. This one draws with Lit:
+Leaf sets the widget's state and bound data as properties and hears what it records as
+events, so its module needs none of Leaf's helpers. This one draws with Lit:
 
 ```js
 import { html, render } from "/vendor/lit.js";
@@ -87,8 +86,10 @@ On Me and admits the ids its buttons mark:
   is set as `value` with those first sets, where its `<pre>` still stands, so the
   element leaves the `<pre>` in place until then.
 - **`lf-action`.** The element, or a node inside it, records a gesture by dispatching
-  a bubbling, composed `CustomEvent`. Its `detail` holds the `verb`, `detail` and
-  `says` that `dispatch` takes (`module-state.md`, "The widget controller"). Leaf has
+  a bubbling, composed `CustomEvent`. Its `detail` holds the `verb`, `detail`, `says`
+  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller");
+  `attempt` is the id `sendDraft` hands its `send` (`module-input.md`, "Text entry and
+  drafts"), so a refusal returns the words to their draft. Leaf has
   set the resulting `state` by the time `dispatchEvent` returns. On an event it sends,
   Leaf sets the event's `delivery` property, a promise of the event the server
   admitted, or of `null` where the server refuses it and Leaf sets the server's state
@@ -102,7 +103,28 @@ On Me and admits the ids its buttons mark:
   whose `complete` property is a promise of that drawing. A setter that throws is the
   widget's failure: Leaf reports it as `failSoft` does (`module-authoring.md`,
   "Upgrade"), stands the box after the element's content, and sets the property again
-  with the next change.
+  with the next change. Where one change moves the state of several widgets, Leaf sets
+  a widget's before the state of any widget inside it, so a setter that moves a member
+  runs before that member draws.
+- **Drawing again unasked.** An element that redraws by itself, as for a timer or a
+  value it holds, dispatches the same `pending-task` on itself, and the page waits for
+  that drawing too. Leaf promises it no order among the page's other drawing.
+- **`lf-connect`.** Leaf first sets an element's properties once it sees the element
+  in the page, which is after `connectedCallback` has returned. An element that builds
+  or draws from them as it connects dispatches a bubbling, composed, cancelable
+  `lf-connect` event from `connectedCallback`, and Leaf makes the sets it can before
+  `dispatchEvent` returns. Leaf cancels the event where it will set `state`, at once
+  or when the state and bound data arrive, so an element whose event was cancelled
+  draws nothing until `state` is set. On such an element whose tag declares no verbs,
+  `state` is empty and says its inputs are set. Leaf also gives the open shadow root of
+  an element that says `lf-connect` the page's styles and comment support.
+- **`lf-hold`.** A gesture in which the element itself rewrites its nodes, such as a
+  drag that moves them, dispatches a bubbling, composed `lf-hold` event as it starts.
+  The event's `complete` property is a promise that settles as the gesture ends, and
+  Leaf reads the page again then, since the nodes changed outside any drawing it
+  waited for.
+- **`redraw()`.** `page check --render` calls this method on an element that has one,
+  to draw the same state again, and reports a draw that changes the page.
 - **Building.** `connectedCallback` runs again each time a revision or a thread puts
   the element back, so the element guards what it builds once, as `once()` does for a
   module that imports it.
@@ -110,7 +132,9 @@ On Me and admits the ids its buttons mark:
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
   target (`module-annotations.md`, "Visual parts").
 
-Extend `LeafElement` instead (`module-authoring.md`, "Drawing what a widget reads")
-where the widget draws from a page reading, such as obligations, history or the time,
-which only a `LeafElement`'s `render()` follows, or holds its drawing through a
-gesture (`defer`). Leaf sets no `state` on a `LeafElement`.
+`LeafElement` (`module-authoring.md`, "Drawing what a widget reads") is a Lit element
+on this protocol. It says `lf-connect`, announces each of its updates with
+`pending-task`, defines `redraw()`, and wraps the events as `record()`, `takeBack()`
+and `defer()` (`module-state.md`, "The widget controller"). Extend it where the widget
+draws from a page reading, such as obligations, history or the time, which its
+`render()` follows.

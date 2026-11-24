@@ -213,8 +213,8 @@ customElements.define(
 
     setup() {
       // Presentation, not input, so an exhibited pending change gets it too: quoting
-      // gates the action channel, never what a change looks like. Both consume the
-      // controller's application selection; painted attributes are output only.
+      // gates the action channel, never what a change looks like. Both read the
+      // state Leaf set; painted attributes are output only.
       this.#emphasize();
       this.#voice();
     }

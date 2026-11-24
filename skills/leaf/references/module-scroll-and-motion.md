@@ -198,12 +198,13 @@ an `overflow: hidden` box scrolls away with the page.
 
 ### Headers over the document
 
-`registerRootHeader(header)` contributes the actual border-box height of a header the
-package places over the document. Independent contributions add, and resizing,
-disconnecting and reconnecting the element update the total. Call its returned stop
-when the header becomes local navigation. Only a header over the document belongs
-here: a nested scroller uses the local sticky and landing inputs above. Packages own
-where their headers are positioned; Leaf owns the aggregate root landing inset.
+Mark a header the package places over the document `data-lf-root-header`, and Leaf
+adds its actual border-box height to the root's landing inset while it stands in the
+page with the mark. Independent headers add, and resizing the element, removing it or
+taking its mark off updates the total, so take the mark off when the header becomes
+local navigation. Only a header over the document belongs here: a nested scroller uses
+the local sticky and landing inputs above. Packages own where their headers are
+positioned; Leaf owns the aggregate root landing inset.
 
 ### Sideways scrollers and container queries
 

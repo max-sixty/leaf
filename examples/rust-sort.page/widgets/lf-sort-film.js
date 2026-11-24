@@ -10,10 +10,10 @@ import {
   frameFor,
   generatedElement,
   inlineMarkdownFragment,
+  layoutChanged,
   loadMarkdown,
   offer,
   once,
-  registerVisualParts,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -103,7 +103,7 @@ customElements.define(
     #relayout = frameFor(this, () => {
       this.#layout();
       this.#paint();
-      this.parts?.update();
+      layoutChanged(this);
     });
 
     connectedCallback() {
@@ -168,9 +168,8 @@ customElements.define(
       // Each slot of v, the scratch lane, the run stack and each collapse() clause is a
       // visual part: Leaf's Alt-click targets that part, and the click pauses the sort
       // so the part holds still under the comment.
-      this.parts = registerVisualParts(
-        this,
-        () => [
+      this.lfParts = {
+        read: () => [
           ...this.painter.parts(),
           {
             id: this.momentEl.dataset.part,
@@ -178,8 +177,9 @@ customElements.define(
             label: momentLabel(this.momentEl.dataset.part),
           },
         ],
-        { reveal: (id) => this.#revealMoment(id), label: momentLabel },
-      );
+        reveal: (id) => this.#revealMoment(id),
+        label: momentLabel,
+      };
       stage.addEventListener("click", (e) => {
         if (e.target.closest?.("[data-part]")) this.#pause();
       });
@@ -369,7 +369,7 @@ customElements.define(
           this.dispatchEvent(new Event("change"));
         }
         // The stack and the clauses move as runs push and merge; re-read their geometry.
-        this.parts?.update();
+        layoutChanged(this);
       }
     }
 

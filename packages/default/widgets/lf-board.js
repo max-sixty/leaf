@@ -85,7 +85,6 @@ import {
   offer,
   offerAction,
   generatedElement,
-  quoted,
   labelOf,
   layoutChanged,
   saying,
@@ -250,7 +249,7 @@ customElements.define(
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.#allCards()) {
         this.#grip(card);

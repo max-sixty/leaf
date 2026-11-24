@@ -131,7 +131,8 @@ On Me and admits the ids its buttons mark:
   module that imports it.
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
-  target (`module-annotations.md`, "Visual parts").
+  target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
+  parts").
 
 `LeafElement` (`module-authoring.md`, "Drawing what a widget reads") is a Lit element
 on this protocol. It says `lf-connect`, announces each of its updates with

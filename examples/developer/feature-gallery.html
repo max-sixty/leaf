@@ -183,7 +183,6 @@
         generate,
         once,
         PAGE_INTERFACE,
-        quoted,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
@@ -191,7 +190,8 @@
 
       document.addEventListener(PAGE_INTERFACE, () => {
         const section = document.querySelector("#bg-http");
-        if (!section || quoted(section) || !once(section)) return;
+        if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
+          return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
         whileConnected(section, (signal) => {
@@ -219,7 +219,8 @@
 
       document.addEventListener(PAGE_INTERFACE, () => {
         const section = document.querySelector("#bg-llm");
-        if (!section || quoted(section) || !once(section)) return;
+        if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
+          return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
         whileConnected(section, (signal) => {

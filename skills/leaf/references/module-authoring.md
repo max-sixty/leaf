@@ -88,7 +88,7 @@ through events and element declarations that a plain host can ignore:
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
   it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
   the widget shows neither.
-- Comment targets: `data-lf-part` marks or `registerVisualParts`
+- Comment targets: `data-lf-part` marks or an element's `lfParts`
   (`module-annotations.md`, "Visual parts"), which only Leaf reads.
 - Words for a listener: an `lf-announce` event (`module-scroll-and-motion.md`,
   "Notices and spoken words"), which only Leaf says.
@@ -106,7 +106,7 @@ script", lists.
 - Build once, in a widget's `setup()` or behind `once()` in any other element, and
   hold each connection's listeners, observers and registrations in `whileConnected`
   ("Upgrade", "Connection lifetimes").
-- Check `quoted()` before wiring anything that sends input back ("Upgrade").
+- Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
@@ -135,10 +135,12 @@ connection, or with a guard of its own where it imports nothing. Use `disconnect
 as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
 callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one whose `exhibit` declaration
-applies (including its optional `when` condition), such as `lf-sample`. A quoted widget
-never takes the user's edits, so check `quoted` before wiring a choice, a drag grip or
-anything else that sends input back. Its presentation and view state still work.
+A widget inside an element whose `exhibit` declaration applies (including its optional
+`when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
+`data-lf-exhibit`. A quoted widget never takes the user's edits. Its verbs are never
+`available`, and before wiring a drag grip, a command or anything else that sends
+input back, it asks `this.matches("[data-lf-exhibit] *")`. Its presentation and view
+state still work.
 
 When an upgrade or one part of it fails, `failSoft(element, error, source)` replaces
 the widget or part with an error box naming it, with `source` beneath when given, and

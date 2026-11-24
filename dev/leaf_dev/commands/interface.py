@@ -17,13 +17,14 @@ Each part is read from the list that defines it, as the check that guards it rea
 - The widget protocol: what Leaf sets on an element, hears from it and reads off it.
   Code keeps only its events: those Leaf's runtime listens for or makes (`events`)
   that the library exports by name, as `lib/widget-events.js` does. The rest is read
-  from the protocol's index,
-  `module-plain-elements.md`, "The widget protocol": each entry's lead name, and each
-  name the section gives in code of a member of the element or its class (`lf` then
-  a capital, `static name`, or `name()` where no function has that name), a mark
-  (`data-lf-…`), or an event Leaf's runtime listens for or makes. A lead named by a
-  registry field, as `record.property` is, belongs to the declaration key `verbs`. Names
-  that other references give and the index doesn't, such as `lfCopy`, are left out.
+  from the protocol's index, `module-plain-elements.md`, "The widget protocol": each
+  entry's lead name, and each name the section gives in code of a member of the
+  element or its class (`lf` then a capital, `static name`, or `name()` where no
+  function has that name), a mark (`data-lf-…`), or an event Leaf's runtime listens
+  for or makes. A lead named by a registry field, as `record.property` is, belongs to
+  the declaration key `verbs`. The census reads no other reference, and
+  `dev/tests/model/test_interface.py` holds the index to the members and events the
+  other references give.
 - Functions: `widget-api.js`'s exports, `export *` followed, as
   `tests/runtime/widget-api.test.mjs` reads them. A function's form is the section the
   references' index (`module-authoring.md`, "Functions") files it under, and whether it
@@ -336,20 +337,25 @@ class Tree:
             for match in matches(CONSTANTS, script)
         }
 
-    @cached_property
-    def constants(self) -> dict[str, str]:
-        """The strings the library's modules export, by name, among them the events a
-        widget dispatches (`lib/widget-events.js`)."""
+    def runtime_strings(self, within: str) -> dict[str, str]:
+        """The strings the runtime's modules under `within` export, by name."""
         return {
             name: value
             for path in self.files
-            if path.startswith(LIBRARY) and path.endswith(".js")
+            if path.startswith(within) and path.endswith(".js")
             for name, value in self.exported(path).items()
         }
 
+    @cached_property
+    def constants(self) -> dict[str, str]:
+        """The strings the runtime's modules export, by name, among them the events
+        they make or hear (`PAGE_INTERFACE` in `presentation.js`) and those the library
+        hands a widget to dispatch (`lib/widget-events.js`)."""
+        return self.runtime_strings("browser/runtime/")
+
     def events(self, path: str) -> set[str]:
         """The events a file's scripts listen for or make: each event call's first
-        argument, a string or the library constant naming one, and each string handed
+        argument, a string or the runtime's constant naming one, and each string handed
         to a function of the script's own that hands its first parameter to an event
         call, as `LeafElement.record` hands `"lf-action"` to `#send`."""
         if not path.endswith(SCRIPTS):
@@ -467,7 +473,8 @@ def protocol(tree: Tree, functions: dict[str, Name]) -> dict[str, Name]:
     leads = set(re.findall(r"^- \*\*`([^`]+)`", prose, re.M))
     # The events Leaf hears or makes that the library exports by name are the
     # protocol's whether or not the index names them.
-    rows = {name: Name("event") for name in tree.heard & set(tree.constants.values())}
+    library = set(tree.runtime_strings(LIBRARY).values())
+    rows = {name: Name("event") for name in tree.heard & library}
     for span in (" ".join(found.split()) for found in re.findall(r"`([^`]+)`", prose)):
         name = re.sub(r"^static |\(\)$|=.*$", "", span)
         if "." in name:

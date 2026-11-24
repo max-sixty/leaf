@@ -1037,6 +1037,38 @@ lf-options:not(:has(> lf-option:where([label]))) > lf-option > .lf-key-badge {
   bottom: 0;
   margin: auto 0;
 }
+/* A row's digit stands in its own column, before the control it labels, where a card's
+ * stands over its mark. While the digit shows, the control reaches back over that
+ * column, so a press on the digit is a press on its control, as on a card: on a mark it
+ * picks the row, whatever words of the row are selected, and leaves the user on the
+ * mark; on the add field it puts the user in the field, as a press on the field's own
+ * padding does. The digit takes no pointer (surfaces.css, `.lf-binding-seat`), and
+ * without the reach the press would land on the row or the add form, neither of them a
+ * control. The mark's reach is the digit's height, centred as the digit is; the field's
+ * stands against the add form, from its start edge to the field. Only while the digit
+ * shows: each reach is a positioned box, which Chromium's hit test visits on every call
+ * (surfaces.css), and at rest a drag that starts in the column selects the row's words. */
+lf-options:not(:has(> lf-option:where([label])))
+  > lf-option
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ .lf-pick::after {
+  content: "";
+  position: absolute;
+  inset-block: calc((100% - var(--lf-key-badge-size)) / 2);
+  inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
+}
+lf-options:not(:has(> lf-option:where([label])))
+  > .lf-another
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ leaf-composition-field
+  > .lf-compose-field
+  > leaf-text::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: calc(var(--lf-key-badge-col) + var(--lf-pick-col) + var(--lf-row-gap));
+}
 /* Paper prints the group as never choosable: the offers go with the rest of the UI and
  * the chosen card's mark stays, because its label declares a word the page says
  * (lf-options.js); without it greyscale would lose the decision.

@@ -98,6 +98,25 @@ On Me and admits the ids its buttons mark:
 - **`lf-undo`.** The same kind of event, with `detail` `{verb}`, or `{verb, unit}`
   for a verb with a per-part unit, takes back the action in force there while
   `undoable` says it may.
+- **`record.property`.** A component written without Leaf, such as a library's form
+  control, records with no `lf-action`. Its verb's `record` names the property that
+  holds the component's value, as
+  `{ "kind": "value", "attr": "value", "property": "value" }` does, and the `event`
+  the component dispatches when the user changes the value, where that event is not
+  `change`. Leaf sets the property to the recorded value, which is a string, or to
+  the empty string while there is none, so the property must take both. When the
+  component dispatches the event, Leaf records the property's value, as a string, as
+  the verb's action, with `detail` `{value}`. An event the component dispatches from
+  inside Leaf's set, or while the property holds the recorded value, records
+  nothing, so a component may announce Leaf's set as it announces the user's change.
+  Where the action can't be recorded, as on a quoted widget, or the server refuses
+  it, Leaf sets the property back to the recorded value. `attr` names the attribute
+  in which a page's markup writes the starting value, as for any value record. Leaf
+  sets `state` on the component too, as on any widget, so this form doesn't suit a
+  component with a `state` property of its own. The module only defines the tag:
+  `customElements.define("lf-picker", class extends Picker {})` for a library's
+  `Picker` class. Undo names the action in Leaf's own words (`module-state.md`, "The
+  widget controller").
 - **Drawing.** The page counts the widget as drawn once its setters return. A setter
   whose drawing finishes later dispatches a bubbling, composed `pending-task` event
   whose `complete` property is a promise of that drawing. A setter that throws is the

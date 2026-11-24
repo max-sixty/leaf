@@ -7,8 +7,29 @@
    - `state`, where the element is a widget whose tag declares `verbs`: its reading
      (`widgetState`, widget-controller.js), once its class is defined and again each
      time the reading moves, whoever moved it;
+   - with `state`, the property a verb's record names (`record.property`, the
+     registry's `$verbs.record`), to that verb's value ("Recorded properties" below);
    - the property each bound input names, and a written data body as its `value`
      (element-data.js, "Bound values").
+
+   Recorded properties. An element that knows nothing of Leaf keeps a value in a
+   property and says the user changed it with an event, as a form control does with
+   `value` and `change`. Where a verb's record names that property, Leaf sets it to
+   the verb's value as text, the empty string while the verb has none, and only when
+   that value has moved since the last set and the property reads otherwise: a value
+   the user is still changing, as on a slider mid-drag, survives every other move of
+   the reading. On the record's event Leaf reads the property and records it as the
+   verb's action, through the controller `lf-action` reaches. Leaf's own set is no
+   act of the user's, so an event the element dispatches in answer to it records
+   nothing. An event dispatched from inside the set is such an answer, whatever the
+   property then reads, as where the element keeps the value within a range and says
+   so. So is an event at which the property reads the verb's value, which covers an
+   element that answers the set later. An element that both answers later and keeps
+   another value than it was set has that value recorded, since nothing then tells
+   its answer from the user's change. Where nothing can be sent, as on a quoted
+   widget, a page with no server or a verb the agent writes, Leaf sets the property
+   back to the verb's value, and a refusal moves the reading, so the element shows
+   no value the page does not hold.
 
    Leaf sets none of them until the reading holds every declared verb and the page has
    read the data a bound source names, so the element never draws a reading nobody has
@@ -78,6 +99,17 @@ import { tick } from "./version-signal.js";
 let regions = 0;
 // What `state` holds on an element that only reads data, once its inputs are set.
 const NO_VERBS = Object.freeze({});
+// A recorded property's value as the attribute its record names would read it
+// ("Recorded properties").
+/** @param {unknown} value */
+const text = (value) => (value == null ? "" : String(value));
+// The text of the value `reading` gives a verb whose record is a value.
+/** @param {import("./widget-controller.js").WidgetReading | null} reading
+ * @param {string} verb */
+const valueOf = (reading, verb) => {
+  const state = reading?.state[verb];
+  return text(state && "value" in state ? state.value : null);
+};
 // An arrival offers an element again whenever its children change (arrivals.js).
 /** @type {WeakSet<Element>} */
 const hosted = new WeakSet();
@@ -108,6 +140,13 @@ function host(element) {
   const descriptor = widgetDescriptor(element);
   const verbs = Object.keys(descriptor?.declaration.verbs ?? {});
   const controller = verbs.length ? widgetController(element) : null;
+  // The verbs whose value the element keeps in a property ("Recorded properties").
+  const properties = Object.entries(descriptor?.declaration.verbs ?? {}).flatMap(
+    ([verb, { record }]) =>
+      record?.kind === "value" && record.property
+        ? [{ verb, property: record.property, event: record.event ?? "change" }]
+        : [],
+  );
   // A tag that declares verbs has a `state` only where the page captured the widget.
   const records = Boolean(registry[element.localName]?.verbs);
   const visual = Boolean(registry[element.localName]?.visual);
@@ -188,8 +227,40 @@ function host(element) {
   const setState = (reading, failures) =>
     attempt(failures, () => {
       const state = reading ? widgetState(reading) : NO_VERBS;
-      untracked(() => Object.assign(element, { state }));
+      untracked(() => {
+        Object.assign(element, { state });
+        for (const { verb, property } of properties) {
+          const value = valueOf(reading, verb);
+          if (shown && valueOf(shown, verb) === value) continue;
+          if (text(Reflect.get(element, property)) !== value)
+            setProperty(property, value);
+        }
+      });
       shown = reading;
+    });
+  // Whether Leaf is setting a recorded property, when an event the element dispatches
+  // is its answer to that set.
+  let setting = false;
+  /** @param {string} property @param {string} value */
+  const setProperty = (property, value) => {
+    setting = true;
+    try {
+      Reflect.set(element, property, value);
+    } finally {
+      setting = false;
+    }
+  };
+  // The user's change of a recorded property, recorded as its verb's action.
+  for (const { verb, property, event } of properties)
+    element.addEventListener(event, () => {
+      if (setting) return;
+      const reading = controller?.read() ?? null;
+      const value = text(Reflect.get(element, property));
+      if (value === valueOf(reading, verb)) return;
+      const sent =
+        reading?.actions[verb] &&
+        controller?.dispatch({ kind: "action", verb, detail: { value } });
+      if (!sent) setProperty(property, valueOf(reading, verb));
     });
   // What a pass's sets came to, said to whoever hears it: the claim, the page's error
   // report, and the readers of a visual's layout.

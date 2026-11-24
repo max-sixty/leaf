@@ -621,12 +621,17 @@ export function createThreadPreview({
   }
   // The landing of the placement that stands a card whose size has changed since it
   // last stood (off-flow.js, `standing`), started here, since the frame that follows
-  // the change has yet to ask for it. Nothing where the card stands at its size, or
-  // where no placement can start, as with its entry gone: the card is then judged as
-  // it stands rather than whenever a later placement lands.
+  // the change has yet to ask for it. Nothing where the card stands at its size, where
+  // the grip carries it, or where no placement can start, as with its entry gone: the
+  // card is then judged as it stands rather than whenever a later placement lands.
   const standingThreadPreview = () => {
     const session = previewSession;
-    if (!session || !placementDriver.resized()) return null;
+    if (
+      !session ||
+      preview.hasAttribute("data-lf-carried") ||
+      !placementDriver.resized()
+    )
+      return null;
     session.positionResult ??= Promise.withResolvers();
     const { promise } = session.positionResult;
     return placeNow(session) ? promise : null;

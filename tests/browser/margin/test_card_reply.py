@@ -1960,6 +1960,81 @@ def test_a_growing_draft_in_a_card_the_window_s_head_holds_grows_it_down(
             assert now[edge] > earlier[edge] + 10, (edge, earlier, now)
 
 
+def test_a_full_card_s_draft_keeps_its_first_line_as_lines_and_a_picture_come_and_go(
+    browser, serve
+):
+    """A card beside its words that an answer has grown to the window's head, its
+    transcript scrolling, still keeps the reply's first line where it stands: a line
+    added grows the card down, the line taken away again shortens it from its foot,
+    where a card allowed the height it stood at with the longer draft would give that
+    line to its transcript and move down by it, and a picture pasted into the draft
+    stands over the line."""
+    from browser.threads import paste_image
+
+    source = leaf_page(
+        "Room for a conversation",
+        '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
+        '<section id="open"><h2>The question</h2><p>What should this cost?</p>'
+        '<div style="height: 150vh"></div></section>'
+        '<div style="height: 200vh"></div>',
+    )
+    page = open_page(browser, serve(source, events=[LONG_THREAD_ROOT]))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 864)
+    marker = page.locator('[data-lf-margin-for="open"] .lf-margin-marker')
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 60)")
+    rendered(page)
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", "right")
+    editor = preview.locator(".lf-thread-reply leaf-text")
+    expect(editor).to_be_focused()
+    editor.type("words")
+    rendered(page)
+    answer = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": LONG_THREAD_ROOT["id"],
+            "text": "An agent answer arriving while the user types. " * 8,
+        },
+    )
+    told(page)
+    expect(preview.locator(f'[data-lf-event="{answer["id"]}"]')).to_be_attached()
+    rendered(page)
+    full = page.evaluate(CARD_AND_REPLY)
+    assert full["cardTop"] == pytest.approx(full["head"], abs=0.5), full
+    assert preview.locator(".lf-thread-transcript").evaluate(
+        "list => list.scrollHeight > list.clientHeight"
+    )
+
+    editor.press("Shift+Enter")
+    rendered(page)
+    longer = page.evaluate(CARD_AND_REPLY)
+    assert longer["cardBottom"] > full["cardBottom"] + 10, (full, longer)
+    editor.press("Backspace")
+    rendered(page)
+    # The placement that follows the edit's own lands a frame later.
+    page.evaluate("() => new Promise(done => requestAnimationFrame(() => done()))")
+    rendered(page)
+    shorter = page.evaluate(CARD_AND_REPLY)
+    assert shorter["cardBottom"] == pytest.approx(full["cardBottom"], abs=0.5), (
+        full,
+        shorter,
+    )
+    paste_image(editor, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    expect(preview.locator(".lf-composer-media img")).to_have_count(1)
+    rendered(page)
+    pictured = page.evaluate(CARD_AND_REPLY)
+    for now in (longer, shorter, pictured):
+        for edge in ("cardTop", "editorTop"):
+            assert now[edge] == pytest.approx(full[edge], abs=0.5), (edge, full, now)
+
+
 def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve):
     """Each new line keeps a card under its words on its side and the reply's first
     line where it was, until the card's foot meets the window's; further lines scroll

@@ -625,7 +625,8 @@ export function commentPlacement() {
   // The last landed rectangle, in client pixels from the attachment line.
   /** @type {HeldBox | null} */
   let held = null;
-  // The tallest the surface has stood since its line last moved, and that line.
+  // The tallest the surface has stood since its line last moved, less what stood under
+  // the line it may hold (`under`), and that line.
   /** @type {{height: number, line: number} | null} */
   let tallest = null;
   // How much of the surface stands under the line it may hold, as the last request
@@ -866,12 +867,15 @@ export function commentPlacement() {
         // boundary's height. The room is read from where the rule stands the
         // surface, so where the boundary's head holds it in, lower than that, the
         // room above its foot is less than it stands in and only this lets the words
-        // typed under its line grow it down.
+        // typed under its line grow it down. The tallest is of what stands over the
+        // line, so a line taken from under it gives the surface's height back rather
+        // than room to what stands over it, which would move the line.
+        const under = held?.under ?? 0;
         const tall = held
           ? Math.max(
-              held.foot - held.top,
+              held.foot - held.top - under,
               tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
-            )
+            ) + under
           : 0;
         const stood =
           Math.min(tall + grown(state, scale), Math.max(tall, shown.height)) / scale.y;
@@ -1125,14 +1129,16 @@ export function commentPlacement() {
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const height = middlewareData.held.height * scale.y;
+      const under = underLine?.() ?? null;
+      const over = height - (under ?? 0);
       tallest = {
         height:
           tallest && Math.abs(tallest.line - line) < 0.5
-            ? Math.max(tallest.height, height)
-            : height,
+            ? Math.max(tallest.height, over)
+            : over,
         line,
       };
-      held = { top, foot: top + height, under: underLine?.() ?? null };
+      held = { top, foot: top + height, under };
       return { scale };
     },
   };

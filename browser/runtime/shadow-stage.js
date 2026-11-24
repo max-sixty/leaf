@@ -10,7 +10,7 @@
    imperative staging keeps them alongside the rendering. */
 import { setChildren } from "./dom-children.js";
 import { watchArrivalsIn } from "./arrivals.js";
-import { stagesFailure } from "./widget-upgrade.js";
+import { stagesFailure } from "./lib/failure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 
 /** @type {((root: ShadowRoot) => Node[]) | null} */

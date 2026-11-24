@@ -100,33 +100,45 @@ On Me and admits the ids its buttons mark:
 - **`lf-undo`.** The same kind of event, with `detail` `{verb}`, or `{verb, unit}`
   for a verb with a per-part unit, takes back the action in force there while
   `undoable` says it may.
-- **`record.property`.** A component written without Leaf, such as a library's form
-  control, records with no `lf-action`. Its verb's `record` names the property that
-  holds the component's value, as
+- **`record.property`.** An element that keeps a value in a property and dispatches an
+  event when the user changes it, as a form control does, records with no
+  `lf-action`, so a component written without Leaf can be a widget. The verb's
+  `record` names the property, as
   `{ "kind": "value", "attr": "value", "property": "value" }` does, and the `event`
-  the component dispatches when the user changes the value, where that event is not
-  `change`. Leaf sets the property to the recorded value, which is a string, or to
-  the empty string while there is none, so the property must take both. When the
-  component dispatches the event, Leaf records the property's value, as a string, as
-  the verb's action, with `detail` `{value}`. An event the component dispatches from
-  inside Leaf's set, or while the property holds the recorded value, records
-  nothing, so a component may announce Leaf's set as it announces the user's change.
-  Where the action can't be recorded, as on a quoted widget, or the server refuses
-  it, Leaf sets the property back to the recorded value. `attr` names the attribute
-  in which a page's markup writes the starting value, as for any value record. Leaf
-  sets `state` on the component too, as on any widget, so this form doesn't suit a
-  component with a `state` property of its own. The module only defines the tag:
-  `customElements.define("lf-picker", class extends Picker {})` for a library's
-  `Picker` class. Undo names the action in Leaf's own words (`module-state.md`, "The
-  widget controller").
+  that reports the user's change, where that event is not `change`. Leaf sets the
+  property to the recorded value, which is a string, or to the empty string while
+  there is none, so the property must take both. When Leaf hears the event on the
+  element, it records the property's value, as a string, as the verb's action, with
+  `detail` `{value}`. An event it hears from inside its own set, or while the
+  property holds the recorded value, records nothing, so an element may announce
+  Leaf's set as it announces the user's change. Where the action can't be recorded,
+  as on a quoted widget, or the server refuses it, Leaf sets the property back to the
+  recorded value. `attr` names the attribute in which a page's markup writes the
+  starting value, as for any value record. Leaf sets `state` on the element too, as
+  on any widget, so this form doesn't suit an element with a `state` property of its
+  own. Undo names the action in Leaf's own words (`module-state.md`, "The widget
+  controller").
+- **A third-party component.** A component from a third-party library keeps its own
+  tag, since the library's styles and the component's own children find it by that
+  tag. The page writes it inside the element the registry declares, as in
+  `<lf-picker id="plan"><ui-picker>…</ui-picker></lf-picker>` for a library's
+  `ui-picker`. Where the declaration's `record` names a property, the `lf-picker`
+  module imports the library and defines that property to read and write the
+  component's own:
+  `get value() { return this.querySelector("ui-picker").value; }`, and the setter
+  to match. The component's event reaches `lf-picker` by bubbling, and a module
+  whose component's event doesn't bubble dispatches one of the same name on
+  `lf-picker`. The page writes the starting value on `lf-picker`, with every other
+  attribute the declaration names, and the component's own attributes on the
+  component. A component the package's author writes is the declared element itself,
+  under its `lf-` tag, and needs none of this.
 - **Drawing.** The page counts the widget as drawn once its setters return. A setter
   whose drawing finishes later dispatches a bubbling, composed `pending-task` event
   whose `complete` property is a promise of that drawing. A setter that throws is the
-  widget's failure: Leaf reports it as `failSoft` does (`module-authoring.md`,
-  "Upgrade"), stands the box after the element's content, and sets the property again
-  with the next change. Where one change moves the state of several widgets, Leaf sets
-  a widget's before the state of any widget inside it, so a setter that moves a member
-  runs before that member draws.
+  widget's failure: Leaf reports it as an `error` (below), stands an error box after
+  the element's content, and sets the property again with the next change. Where one
+  change moves the state of several widgets, Leaf sets a widget's before the state of
+  any widget inside it, so a setter that moves a member runs before that member draws.
 - **Drawing again unasked.** An element that redraws by itself, as for a timer or a
   value it holds, dispatches the same `pending-task` on itself, and the page waits for
   that drawing too. Leaf promises it no order among the page's other drawing.
@@ -170,10 +182,9 @@ On Me and admits the ids its buttons mark:
   size, as a view swap does, dispatches a bubbling, composed `lf-layout` event on
   itself. Leaf then reads again whatever it measured or read inside the element, such
   as where a margin entry stands and which parts are comment targets.
-- **`error`.** An element that shows a failure its own way reports it by dispatching a
-  bubbling, composed `ErrorEvent` named `error` on itself, whose `error` property is
-  the failure. Leaf reports it to the agent as a page error naming the widget, which
-  fails `page check`.
+- **`error`.** An element reports a failure by dispatching a bubbling, composed
+  `ErrorEvent` named `error` on itself, whose `error` property is the failure. Leaf
+  reports it to the agent as a page error naming the widget, which fails `page check`.
 - **`lf-error`.** To tell the user that something they did has not taken, such as a
   value the server refused, dispatch an `lf-error` event on the window whose `detail`
   is the words, as `lf-announce` is dispatched (`module-scroll-and-motion.md`,

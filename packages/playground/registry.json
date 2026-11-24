@@ -105,7 +105,7 @@
     },
     "content": "empty",
     "owners": ["lf-playground-preset"],
-    "instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, and a radio's or option's value."
+    "instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, a radio's or option's value, and for a `<select multiple>` the values of the options it selects, separated by spaces."
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration; an `<output for>` inside shows a field's value.",

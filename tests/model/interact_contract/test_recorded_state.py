@@ -21,6 +21,7 @@ from leaf import event_log as events_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import validation as registry_validation
+from leaf.validation import composition as composition_model
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
@@ -457,6 +458,71 @@ def test_a_position_record_s_container_stands_inside_the_widget(page_dir):
     assert found(
         findings, "record-within", "<lf-board>", verb="move", within="lf-board"
     )
+
+
+def _column_records_positions(registry):
+    with_modules(registry, "lf-column")["lf-column"]["verbs"] = {
+        "sort": {"unit": "unit", "record": {"kind": "position", "within": "lf-card"}}
+    }
+
+
+@pytest.mark.parametrize(
+    ("within", "change", "containers", "says"),
+    [
+        # A holder the board's structure never reaches: an <lf-options> could stand
+        # only in a card's markup, so the board's own drops all fail.
+        (
+            "lf-options",
+            None,
+            ["lf-column"],
+            "set `verbs.move.record.within` to <lf-column>",
+        ),
+        # The moved units' tag, which holds no members.
+        (
+            "lf-card",
+            None,
+            ["lf-column"],
+            "set `verbs.move.record.within` to <lf-column>",
+        ),
+        # A column that records positions itself is the nearer owner of its cards.
+        (
+            "lf-column",
+            _column_records_positions,
+            [],
+            "declare a container tag of your own whose `owners` names this widget,"
+            " name that tag in place of this widget in the `owners` of <lf-column>,"
+            " and set `verbs.move.record.within` to it",
+        ),
+    ],
+)
+def test_a_position_container_the_declarations_never_place_is_advice(
+    within, change, containers, says
+):
+    """A `within` that no declared membership places inside the widget leaves a drop
+    of the widget's own members refused at admission, where nothing tells the agent.
+    Another package could still declare the membership, so the registry advises,
+    saying what to write instead."""
+    registry = deepcopy(model_layer())
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = within
+    if change:
+        change(registry)
+    registry_validation.validate_registry(registry, "test registry")
+    [said] = composition_model.declaration_advice(
+        {"lf-board": registry["lf-board"]}, registry, "test"
+    )
+    assert (said.code, said.at, said.severity, said.values) == (
+        "position-container",
+        "<lf-board>",
+        "advice",
+        {
+            "verb": "move",
+            "within": within,
+            "containers": containers,
+            "members": ["lf-column"],
+            "registry": "test",
+        },
+    )
+    assert said.said.endswith(says)
 
 
 def _independent_member_records():

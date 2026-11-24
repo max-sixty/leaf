@@ -400,7 +400,11 @@ import {
   closestAcross,
 } from "./lib/shadow-tree.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
-import { commandKeysNow, commandSteps } from "./keyboard/control-keys.js";
+import {
+  commandBindingsNow,
+  commandKeysNow,
+  commandSteps,
+} from "./keyboard/control-keys.js";
 import {
   escapeInvocation,
   innermostStance,
@@ -4894,7 +4898,7 @@ export function createFloatingPanel({
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
             .lfPreview=${() => {
-              const steps = opens && current !== name ? commandKeysNow(opens) : [];
+              const steps = opens && current !== name ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
             }}
             @click=${() => {

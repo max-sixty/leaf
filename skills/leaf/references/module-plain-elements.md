@@ -178,6 +178,9 @@ On Me and admits the ids its buttons mark:
   has Leaf read again the rows of every scope already declared on the element or
   inside it, as after a redraw of the nodes those rows read; it declares no scope.
   Leaf reports a declaration it refuses as the element's failure.
+- **`lf-walk`.** An element whose keys step the user through something of its own, as
+  a diff's do through its hunks, says where each step landed with a bubbling, composed
+  `lf-walk` event (`module-input.md`, "Walks").
 - **`lf-layout`.** An element that rearranges what it holds without changing its own
   size, as a view swap does, dispatches a bubbling, composed `lf-layout` event on
   itself. Leaf then reads again whatever it measured or read inside the element, such

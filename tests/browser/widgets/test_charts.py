@@ -29,6 +29,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from browser.widgets import hear_walks, walks_said
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 
@@ -751,6 +752,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(chart).to_be_focused()
     expect(preview).to_have_attribute("data-lf-route", "focus")
     assert said(page) == ["week w1", "kind features", "hours 21"]
+    hear_walks(page)
     for key, words in (
         ("ArrowRight", ["week w2", "kind features", "hours 18"]),
         ("ArrowDown", ["week w2", "kind fixes", "hours 14"]),
@@ -761,6 +763,14 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
         page.keyboard.press(key)
         expect(preview.locator(".lf-preview-detail")).to_have_text(words[1:])
         assert said(page) == words, key
+    # Each step said its point's place in its series to the page.
+    assert walks_said(page) == [
+        "Point 2 of 2",
+        "Point 2 of 2",
+        "Point 1 of 2",
+        "Point 1 of 2",
+        "Point 2 of 2",
+    ]
 
     # Focus arriving on a point the pointer reads takes it over: the pointer leaving
     # leaves it, and the arrows step on from it.

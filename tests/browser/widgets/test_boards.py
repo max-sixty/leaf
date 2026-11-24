@@ -13,6 +13,7 @@ from render_cases_navigation import actions
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
+    PREVIEW,
     clocked,
     consume_browser_errors,
     http_error_console,
@@ -23,6 +24,7 @@ from render_harness import (
     scroll_settled,
     sending,
     stamp_page,
+    tab_onto,
     told,
     undo,
     wait_for_check_api,
@@ -233,9 +235,16 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
 
-    # Grab the second card and push it into the next column, the keyboard's path.
-    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
+    # Grab the second card and push it into the next column, the keyboard's path. The
+    # grip's own Enter and Space grab it, which its preview names, and the grab tells a
+    # listener where the card starts and which keys act on it now.
+    tab_onto(board.get_by_role("button", name="Move: Squirrel baffle — Todo"))
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(["⏎", "space"])
     page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_have_text(
+        "Squirrel baffle grabbed — Todo, position 2 of 2 — "
+        "arrows move, Enter or Space drop, Escape cancel the move"
+    )
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     page.wait_for_selector("#col-done #card-baffle")

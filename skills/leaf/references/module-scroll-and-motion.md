@@ -288,9 +288,11 @@ It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 To announce words already on screen, dispatch an `lf-announce` event on the window
 with the words as its `detail`:
 `window.dispatchEvent(new CustomEvent("lf-announce", { detail: words }))`. Leaf says
-them in its live region, and a page without Leaf leaves them unsaid. Words that read
-the page, as ones naming keys with `saying(rows)` do, are a function returning the
-words, which Leaf reads as it says them.
+them in its live region, and a page without Leaf leaves them unsaid. To tell a
+listener which keys act next, as after a card is grabbed, give `detail` as
+`{ words, rows }`, where `rows` holds the command rows that act (`module-input.md`,
+"Command rows"). After the words Leaf names each row's keys and title, such as
+`Escape cancel`, leaving out a row no key would run as the words are said.
 
 An `lf-error` event, dispatched the same way, tells the user that something they did
 has not taken, such as a value the server refused (`module-plain-elements.md`,

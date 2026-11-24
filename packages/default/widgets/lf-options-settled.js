@@ -8,10 +8,10 @@ import {
   DISCLOSE,
   comparisonChanges,
   generated,
-  selectableOffer,
   tabStore,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { selectableOffer } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 const SETTLED_KEY = "lf-settled:";

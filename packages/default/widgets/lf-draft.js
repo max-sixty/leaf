@@ -75,10 +75,7 @@ import {
   commandScope,
   motion,
   returnDuration,
-  offered,
-  offeredAction,
   LeafElement,
-  offer,
   TEXT_FIELD,
   quoted,
   sendDraft,
@@ -101,6 +98,7 @@ import {
   worksInside,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 
 // Each control's key and the action whose mark it shows.
 /** @type {[string, string][]} */

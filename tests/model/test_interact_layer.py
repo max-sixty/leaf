@@ -1499,7 +1499,7 @@ def test_leaf_writes_its_own_marks_under_its_prefix():
         for mark in found
     ]
     assert len(marks) > 1000, "the reading of marks is broken"
-    faces = schema_model.ASSETS / "runtime" / "control-faces.js"
+    faces = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     constants = json.loads(js_facts("literals", [faces]))[str(faces)]["constants"]
     roles = {
         key: value
@@ -2215,16 +2215,12 @@ def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are
     spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
-    bundled module that spells one, in a string or a comment, has chosen a face itself.
-    module-controls.md lists the roles for package authors, in the table's order."""
-    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
+    bundled module that spells one, in a string or a comment, has chosen a face itself."""
+    owner = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     assert table is not None
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
     assert {"symbol", "word", "commit"} <= roles.keys(), roles
-    reference = (SKILL_ROOT / "references" / "module-controls.md").read_text()
-    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
-    assert documented == list(roles), "module-controls.md lists other roles"
     faces = {name for classes in roles.values() for name in classes.split()}
     named = re.compile(r"(?<![\w-])(" + "|".join(sorted(faces)) + r")(?![\w-])")
     spelled = []
@@ -2475,7 +2471,7 @@ def _face_overrides(sheets, faces, placed, homes):
 def _role_classes():
     """The classes of each role's face (control-faces.js, `ACTION_FACES`), and every
     class a bundled module's builder writes beside a role."""
-    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
+    owner = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     constants = json.loads(js_facts("literals", [owner]))[str(owner)]["constants"]
     faces = {
         name

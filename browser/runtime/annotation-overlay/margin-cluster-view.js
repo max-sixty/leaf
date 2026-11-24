@@ -16,12 +16,8 @@ import {
   presentContributionEntry,
   presentContributionReceipts,
 } from "../contribution-controls.js";
-import {
-  el,
-  generatedElement,
-  offerAction,
-  offerActionElement,
-} from "../widget-elements.js";
+import { el, generatedElement } from "../widget-elements.js";
+import { offerAction, offerActionElement } from "../lib/controls.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 import { holdFocus } from "../focus.js";
 

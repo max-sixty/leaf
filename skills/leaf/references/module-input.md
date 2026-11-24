@@ -196,9 +196,9 @@ where the step landed.
 
 ### Go-to targets
 
-Every visible button, checkbox, radio or selectable control a widget builds with
-`offer()` or `selectableOffer()` is a target the `g` key reaches, with nothing more to
-declare.
+Every visible button, checkbox, radio or selectable control a widget builds with the
+library's control constructors (`module-controls.md`) is a target the `g` key reaches,
+with nothing more to declare.
 
 ## Focus and layers
 
@@ -346,9 +346,9 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 
 ## Text entry and drafts
 
-A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which behaves
-like a textarea and fires `input` only for the user's edits. `TEXT_FIELD` is its
-tag. The field matches `:state(ready)` once
+A widget's own text box is Leaf's Markdown editor, built as a generated control
+(`module-controls.md`) whose tag is `TEXT_FIELD`, which behaves like a textarea and
+fires `input` only for the user's edits. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 

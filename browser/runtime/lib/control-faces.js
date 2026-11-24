@@ -65,7 +65,8 @@
      its block (`data-lf-place="pin"`) fills its entries with the pin's attention
      colour.
    - `reaction`: a reaction's token in a message's strip, its own glyph rather than
-     an action's symbol, quiet until hovered and kept in the accent while in force.
+     an action's symbol, quiet until hovered and kept in the accent while in force
+     (`aria-pressed="true"`).
    - `response`: a choice of the response bar, Comment, Suggest or a reaction, which
      floats over the page and so wears the field's frame, height and lift
      (widget-elements.js, `responseAction`); a reaction among them is a toggle

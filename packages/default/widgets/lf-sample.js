@@ -48,11 +48,8 @@ import {
   frameFor,
   growthIsSeen,
   whileConnected,
-  nameAction,
   mountSample,
   once,
-  offer,
-  offerAction,
   generatedElement,
   widgetController,
   focusDestination,
@@ -60,6 +57,7 @@ import {
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 

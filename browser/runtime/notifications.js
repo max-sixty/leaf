@@ -48,7 +48,8 @@
    included (floating-panel.js, `GESTURES`). A notice of the user's own command is
    one; each other moment's producer gives it, news as it arrives rather than when its
    notice shows. */
-import { el, elementDirective } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { elementDirective } from "./lib/controls.js";
 import { keeps } from "./lib/keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";

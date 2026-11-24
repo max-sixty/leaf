@@ -5,7 +5,6 @@
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   LeafElement,
-  offered,
   whileConnected,
   tabStore,
   HeldReading,
@@ -16,6 +15,7 @@ import {
   markdownReady,
   renderMarkdown,
 } from "/runtime/widget-api.js";
+import { offered } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 import { GitHubFeed } from "../github-feed.js";

@@ -98,7 +98,6 @@ const exactClosures = {
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",
-    "role-button-press.js",
     "pointer.js",
     "user-intent.js",
     "registry.js",

@@ -1,12 +1,8 @@
 /* The timeline has one browser view. Labels pack by their measured extents in the
  * actual ruler column; stepping changes states and the playhead, never geometry. */
 import { html, nothing, repeat } from "/vendor/lit.js";
-import {
-  offered,
-  offeredAction,
-  selectableOffered,
-  generated,
-} from "/runtime/portable-api.js";
+import { generated } from "/runtime/portable-api.js";
+import { offered, offeredAction, selectableOffered } from "/runtime/lib/controls.js";
 import { textWidth } from "/runtime/lib/text-width.js";
 import {
   assignRows,

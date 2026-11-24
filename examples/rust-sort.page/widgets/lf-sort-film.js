@@ -11,12 +11,12 @@ import {
   generatedElement,
   inlineMarkdownFragment,
   loadMarkdown,
-  offer,
   once,
   registerVisualParts,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
   INPUTS,

@@ -103,7 +103,6 @@ import {
   layoutChanged,
   listWalkPosition,
   whileConnected,
-  offer,
   generated,
   openingView,
   viewMembers,
@@ -113,7 +112,6 @@ import {
   registerRootHeader,
   replaceEntry,
   restorePlace,
-  selectableOffered,
   sizeObserver,
   tabStore,
   focusDestination,
@@ -125,6 +123,7 @@ import {
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { offer, selectableOffered } from "/runtime/lib/controls.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";

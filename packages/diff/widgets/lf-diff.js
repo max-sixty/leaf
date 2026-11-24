@@ -40,14 +40,11 @@ import {
   generatedElement,
   holdFocus,
   inChrome,
-  nameAction,
   langForPath,
   layoutChanged,
   listWalkPosition,
   move,
   nextRender,
-  offer,
-  offerAction,
   LeafElement,
   PendingTaskEvent,
   threadSurface,
@@ -62,6 +59,7 @@ import {
   scrollIntoView,
   commandsChanged,
 } from "/runtime/portable-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";

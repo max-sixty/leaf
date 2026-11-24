@@ -65,7 +65,6 @@ import {
   setScroll,
   afterPresentation,
   once,
-  offer,
   failSoft,
   frameFor,
   placesFailure,
@@ -81,6 +80,7 @@ import {
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
 import "/vendor/webawesome-views.js";

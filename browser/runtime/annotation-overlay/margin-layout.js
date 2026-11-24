@@ -130,7 +130,7 @@ import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { layoutPx, inlineStyle } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { objectIds } from "../ids.js";
-import { offerActionElement } from "../widget-elements.js";
+import { offerActionElement } from "../lib/controls.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { registry } from "../registry.js";
 import { visibleTargetParts } from "../visible-target-parts.js";

@@ -1,10 +1,10 @@
 import {
   agePreview,
-  offerActionElement,
   fragmentTarget,
   generatedElement,
   tabStore,
 } from "/runtime/widget-api.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.

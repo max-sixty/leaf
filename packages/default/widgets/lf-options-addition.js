@@ -7,7 +7,6 @@ import {
   loadMarkdown,
   markdownReady,
   move,
-  offer,
   saveDraft,
   sendDraft,
   TEXT_FIELD,
@@ -15,6 +14,7 @@ import {
   whileConnected,
   wireInput,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 
 const ANOTHER = "Another option";
 

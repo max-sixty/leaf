@@ -122,8 +122,6 @@ import {
   LeafElement,
   landInThread,
   markdownWords,
-  offer,
-  offerAction,
   placePreview,
   quoted,
   reachedForWords,
@@ -134,6 +132,7 @@ import {
   scrollIntoView,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's

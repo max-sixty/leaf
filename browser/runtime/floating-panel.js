@@ -207,7 +207,8 @@ import {
   repeat,
   signal,
 } from "/runtime/framework.js";
-import { el, offeredAction, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { offeredAction } from "./lib/controls.js";
 import { actionTemplate, iconTemplate } from "./lib/icons.js";
 import { actionName } from "./lib/icon-paths.js";
 import { canCopy, copyControl } from "./copy-control.js";

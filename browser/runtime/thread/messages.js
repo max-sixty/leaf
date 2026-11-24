@@ -24,7 +24,8 @@ import {
   render,
 } from "/runtime/framework.js";
 import { setRenderedChildren } from "../dom-children.js";
-import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
+import { generatedElement, worksInside } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import {
   loadMarkdown,
   markdownReady,

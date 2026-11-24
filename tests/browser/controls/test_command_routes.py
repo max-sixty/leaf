@@ -31,7 +31,8 @@ KEYBOARD_HINT_REGISTRY = {
 
 
 KEYBOARD_HINT_MODULE = """\
-import { commandScope, offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandScope, commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keeps, keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
@@ -105,7 +106,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 
 KEYBOARD_ROUTE_MODULE = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
@@ -214,7 +216,8 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
 
 
 CONTEXT_COMMAND_MODULE = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
@@ -344,7 +347,8 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
     module = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
@@ -415,7 +419,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
     module = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
@@ -489,7 +494,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
     module = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
@@ -537,7 +543,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 
 ROUTE_HINT_OVERRIDE_MODULE = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-verdict', class extends HTMLElement {
@@ -610,7 +617,8 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
 
 
 SHIFTING_CONTROL_MODULE = """\
-import { offer, commandsChanged } from '/runtime/widget-api.js';
+import { commandsChanged } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {

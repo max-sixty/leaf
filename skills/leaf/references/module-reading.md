@@ -164,16 +164,11 @@ goes on as written.
 ### Icons
 
 A press shows its action's symbol, so each action looks the same wherever it is
-offered: `offerAction("symbol", className, label, {action: "comment"})` draws one
-(`module-controls.md`). The action names are the keys of `ACTIONS` in the library's
-[`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its symbol and
-the words its press says. For a symbol whose action follows its state, such as Expand
-all turning to Collapse all, `nameAction(control, action, {label, title, className})`
-swaps in the new action's symbol and says its name as the tooltip and accessible name,
-unless `label` or `title` says more.
-
-For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`.
+offered: the library's control constructors draw a press from its action's name
+(`module-controls.md`), and redraw it where the action follows the press's state, as
+Expand all turns to Collapse all. The action names are the keys of `ACTIONS` in the
+library's [`icon-paths.js`](../../../browser/runtime/lib/icon-paths.js), each with its
+symbol and the words its press says.
 
 ## Page readings
 

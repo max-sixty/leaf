@@ -109,9 +109,9 @@ script", lists.
 - Check `quoted()` before wiring anything that sends input back ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page").
-- Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
-  that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
-  mark the words they write with `generatedElement()` (`module-controls.md`).
+- Build injected controls, and a press that looks like Leaf's controls by its role,
+  with the library's control constructors, and mark the words they write with
+  `generatedElement()` (`module-controls.md`).
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write a value

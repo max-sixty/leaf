@@ -2,8 +2,8 @@
  * every surface (browser/AGENTS.md, "Controls are few and quiet"). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nameAction } from "/runtime/control-labels.js";
-import { offerAction, offeredAction } from "/runtime/widget-elements.js";
+import { nameAction } from "/runtime/lib/controls.js";
+import { offerAction, offeredAction } from "/runtime/lib/controls.js";
 import { html, render } from "/runtime/framework.js";
 
 const symbolOf = (control) =>

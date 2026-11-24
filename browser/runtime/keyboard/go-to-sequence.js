@@ -73,7 +73,7 @@ import {
 import { html, nothing } from "/runtime/framework.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
-import { actionClass } from "../control-faces.js";
+import { actionClass } from "../lib/control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";

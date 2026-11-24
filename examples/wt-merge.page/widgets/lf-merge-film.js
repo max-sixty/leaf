@@ -24,7 +24,6 @@ import {
   generatedElement,
   holdFocus,
   layoutChanged,
-  offer,
   once,
   preserveReadingRegions,
   registerReadingRegion,
@@ -34,6 +33,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";

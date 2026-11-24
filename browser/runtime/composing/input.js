@@ -70,7 +70,7 @@ import {
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, keepsNotice } from "../notifications.js";
-import { selectableOffered } from "../element-markers.js";
+import { selectableOffered } from "../lib/controls.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -104,7 +104,7 @@ import { holdRendering, sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 import { PRESS } from "../lib/keys.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing

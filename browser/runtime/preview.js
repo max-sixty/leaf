@@ -329,7 +329,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
-import { actionClass } from "./control-faces.js";
+import { actionClass } from "./lib/control-faces.js";
 import { aimableAt, PRESSABLE } from "./widget-elements.js";
 import { MODIFIER_KEYS, PRESSES, WORKS } from "./control-selectors.js";
 import {

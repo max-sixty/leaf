@@ -9,7 +9,6 @@
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
 import {
-  actionClass,
   cancelRender,
   el,
   generatedElement,
@@ -17,13 +16,14 @@ import {
   layoutChanged,
   nextRender,
   once,
-  offer,
   openingView,
   viewMembers,
   quoted,
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer } from "/runtime/lib/controls.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import "./lf-trace.js";
 

@@ -40,8 +40,6 @@ import {
   setChildren,
   focusDestination,
   generatedElement,
-  offer,
-  offerAction,
   loadMarkdown,
   renderMarkdown,
   reportFailure,
@@ -50,6 +48,7 @@ import {
   MAX_EDIT_LENGTH,
   afterPresentation,
 } from "/runtime/widget-api.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import {
   codeLanguage,

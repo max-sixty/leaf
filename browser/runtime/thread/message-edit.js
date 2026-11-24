@@ -126,7 +126,7 @@ import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
-import { offer, offerAction } from "../widget-elements.js";
+import { offer, offerAction } from "../lib/controls.js";
 import { raiseError } from "../errors.js";
 import { signal } from "/runtime/framework.js";
 

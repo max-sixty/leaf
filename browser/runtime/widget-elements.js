@@ -1,20 +1,13 @@
 export { searchField } from "./control-labels.js";
-import { offerAction } from "./element-markers.js";
-export {
-  generatedElement,
-  offer,
-  offerAction,
-  offerActionElement,
-  elementDirective,
-  offered,
-  offeredAction,
-} from "./element-markers.js";
+import { offerAction } from "./lib/controls.js";
+export { generatedElement } from "./element-markers.js";
 /* The chrome a widget injects and the words it labels.
 
-   A behavior module builds injected controls with `offer`, a press wearing one of
-   Leaf's control faces with `offerAction` by its role, marks words it writes that
-   should stand apart from the author's with `generatedElement`. A Lit template reaches
-   the same writers through element directives built by `elementDirective`. A behavior module
+   A behavior module builds injected controls with the library's `offer`, a press
+   wearing one of Leaf's control faces with `offerAction` by its role (lib/controls.js),
+   marks words it writes that should stand apart from the author's with
+   `generatedElement`. A Lit template reaches the same writers through element
+   directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-lf-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module that
@@ -24,7 +17,7 @@ export {
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
    accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, so `selectableOffer` (element-markers.js)
+   chosen option — has to stay selectable, so `selectableOffer` (lib/controls.js)
    builds it as a span with the role. One with a button's role takes a button's Enter and Space from
    role-button-press.js, on any page; for another role its widget supplies the keyboard
    pattern the native element would have. A `<button>` would not do:
@@ -269,7 +262,7 @@ const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empt
 // anchoring reads where no label speaks nearer; `data-lf-gen` for words the author
 // didn't write; `data-lf-offer` for a thing to work, which paper drops because there is
 // nothing there to press.
-// DOM writers and template directives share these markers through element-markers.js.
+// DOM writers and template directives share these markers through lib/controls.js.
 //
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a

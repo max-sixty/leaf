@@ -4,7 +4,7 @@ import { isHTML } from "../lib/shadow-tree.js";
    The strip below a reply's words holds its reactions; its trigger stands with the
    message's other controls at its head (messages.js), which draws `trigger`. */
 import { html, ref, render, repeat } from "/runtime/framework.js";
-import { offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
 
 /** @typedef {{registerSurface: ReturnType<typeof import("../reactions.js").createReactionController>["registerReactSurface"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "setReaction">,

@@ -363,8 +363,8 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     }
     module = """
 import {nothing} from '/vendor/lit.js';
-import {LeafElement, offer, offerAction, threadSurface}
-  from '/runtime/widget-api.js';
+import {LeafElement, threadSurface} from '/runtime/widget-api.js';
+import {offer, offerAction} from '/runtime/lib/controls.js';
 customElements.define('lf-test-card', class extends LeafElement {
   setup() {
     this.threads = offer('div', 'lf-test-threads');

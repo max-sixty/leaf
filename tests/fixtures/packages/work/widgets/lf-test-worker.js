@@ -1,7 +1,8 @@
 /* An anonymous report consumer keeps clock and report identity tests independent
  * of the Atlas example's composition. */
 import { html, noChange } from "/vendor/lit.js";
-import { ago, LeafElement, readReports, readWork } from "/runtime/widget-api.js";
+import { ago, readReports, readWork } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-worker",

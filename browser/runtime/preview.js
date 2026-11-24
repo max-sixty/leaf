@@ -42,13 +42,13 @@
      for the rest, as "and 26 more threads" (`fit`), where another preview's last line
      that fits ends in an ellipsis. When what it says changes under an aim
      that stays inside the element, as a chart's point, it says so (`lf-preview`,
-     widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
-     on the element or a finger holding it reads it; a preview the user put away stays
-     away, whatever the element declares, until they aim again. When its preview goes,
-     whatever puts it away, the pointer or focus leaving, the press after a finger's
-     hold, Escape or another target's taking its place, though not while a focus
-     reading is only suspended out of sight, the element hears `lf-preview-ended`
-     (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
+     lib/widget-events.js), and a standing preview redraws in place, or a pointer
+     resting on the element or a finger holding it reads it; a preview the user put
+     away stays away, whatever the element declares, until they aim again. When its
+     preview goes, whatever puts it away, the pointer or focus leaving, the press
+     after a finger's hold, Escape or another target's taking its place, though not
+     while a focus reading is only suspended out of sight, the element hears
+     `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
      `detail.declared` is what its `lfPreview` returned for the reading that ended, the
      last it returned while that preview stood, a new object for each reading, so a mark it drew for that reading, as a
      chart's ring on its point, comes off then, and one it drew for a reading it has
@@ -321,7 +321,7 @@ import {
   renderedUnder,
   under,
 } from "./lib/shadow-tree.js";
-import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
+import { PREVIEW, PREVIEW_ENDED } from "./lib/widget-events.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
 import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";

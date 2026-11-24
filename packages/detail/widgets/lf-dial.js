@@ -111,7 +111,6 @@ import {
   nameOf,
   focusDestination,
   holdPlace,
-  LeafElement,
   motion,
   move,
   phrasing,
@@ -121,6 +120,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";

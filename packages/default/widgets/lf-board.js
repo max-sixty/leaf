@@ -79,7 +79,6 @@ import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
   elementById,
-  LeafElement,
   move,
   labelOf,
   saying,
@@ -91,6 +90,7 @@ import {
   layerFact,
   widgetController,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";

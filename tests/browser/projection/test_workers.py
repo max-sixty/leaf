@@ -481,6 +481,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {
             projectionRegionsPresented,
             readApplicationPresentation,
@@ -490,7 +491,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          customElements.define('lf-report-proof', class extends api.LeafElement {
+          customElements.define('lf-report-proof', class extends LeafElement {
             render() {
               // The watcher draws nothing until the owner's own drawing is in, and
               // asks to draw again once it is.

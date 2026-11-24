@@ -109,8 +109,8 @@ import {
   elementById,
   scrollIntoView,
   landingInsets,
-  LeafElement,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate } from "/runtime/lib/icons.js";

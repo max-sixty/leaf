@@ -245,7 +245,7 @@ def test_a_control_previews_the_quiet_words_its_face_leaves_unsaid(browser, serv
 # A widget's worded control that `f` presses, as its command row names it (`lfCommands`,
 # `control`).
 KEYED = """import { nothing } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offerAction } from "/runtime/lib/controls.js";
 customElements.define("lf-keyed", class extends LeafElement {
   setup() {

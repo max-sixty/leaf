@@ -1,8 +1,9 @@
 /* Leaf's side of the protocol a widget has with its host. Every custom element whose
    tag declares `verbs` or `inputs` is driven the same way, from outside
    (`hostDeclaredElements`), whether its class is a plain `HTMLElement` or a
-   `LeafElement` (leaf-element.js), so its module needs none of Leaf's helpers. While
-   such an element stands in the document or a declared shadow stage, Leaf sets on it:
+   `LeafElement` (lib/leaf-element.js), so its module needs none of Leaf's helpers.
+   While such an element stands in the document or a declared shadow stage, Leaf sets
+   on it:
 
    - `state`, where the element is a widget whose tag declares `verbs`: its reading
      (`widgetState`, widget-controller.js), once its class is defined and again each
@@ -58,11 +59,11 @@
    pass whose sets all return.
 
    An element is driven from the moment Leaf sees it arrive with its class defined. One
-   that says `lf-connect` as it connects (`CONNECT`, widget-upgrade.js) is driven before
-   that event returns instead, so what it builds and first draws can read what Leaf
-   set, and Leaf cancels the event where it will set the element's `state`: a widget's
-   reading, or, on an element that only reads data, an empty one once its inputs are
-   set. Leaf also dresses the open shadow root of an element that says it
+   that says `lf-connect` as it connects (`CONNECT`, lib/widget-events.js) is driven
+   before that event returns instead, so what it builds and first draws can read what
+   Leaf set, and Leaf cancels the event where it will set the element's `state`: a
+   widget's reading, or, on an element that only reads data, an empty one once its
+   inputs are set. Leaf also dresses the open shadow root of an element that says it
    (shadow-stage.js), whatever its tag declares. */
 import { effect, signal, untracked } from "/runtime/framework.js";
 import {
@@ -83,7 +84,7 @@ import {
 import { ElementData } from "./element-data.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { liveStages, watchArrivals, watchOwner } from "./arrivals.js";
-import { CONNECT, layoutChanged } from "./widget-upgrade.js";
+import { CONNECT, layoutChanged } from "./lib/widget-events.js";
 import { PENDING_TASK } from "./lib/pending-task.js";
 import {
   failurePlaced,

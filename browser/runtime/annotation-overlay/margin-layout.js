@@ -132,7 +132,7 @@ import { layoutPx, inlineStyle } from "../lib/keeps.js";
 import { move } from "../dom-move.js";
 import { objectIds } from "../ids.js";
 import { offerActionElement } from "../lib/controls.js";
-import { LAYOUT } from "../widget-upgrade.js";
+import { LAYOUT } from "../lib/widget-events.js";
 import { registry } from "../registry.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {

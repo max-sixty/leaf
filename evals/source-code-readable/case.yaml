@@ -389,7 +389,7 @@ variants:
         ```js
         // <lf-search-steps>: one binary search over a fixed list, a step at a time.
         import { html } from "/vendor/lit.js";
-        import { LeafElement } from "/runtime/portable-api.js";
+        import { LeafElement } from "/runtime/lib/leaf-element.js";
 
         const ITEMS = [3, 8, 13, 21, 34, 55, 89];
         // Searching for 34. Each step leaves the bounds [lo, hi) it names.

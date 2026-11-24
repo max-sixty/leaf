@@ -149,7 +149,7 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { PendingTaskEvent } from '/runtime/lib/pending-task.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 customElements.define('lf-delayed-body', class extends LeafElement {

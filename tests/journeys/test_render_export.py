@@ -79,7 +79,7 @@ def requested_documents(page):
 
 OFFLINE_WIDGET = """\
 import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;

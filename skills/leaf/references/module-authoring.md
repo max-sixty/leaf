@@ -297,10 +297,12 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-`LeafElement` is a `LitElement` that draws everything in one `render()`, on the
-protocol `module-plain-elements.md` describes. A widget whose class says
-`static shadow = true` draws into an open shadow root; other widgets draw into
-themselves or a generated part `createRenderRoot()` returns, never over authored
+`LeafElement`, from the library's
+[`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js), is a `LitElement`
+that draws everything in one `render()`, on the protocol `module-plain-elements.md`
+describes. A widget whose class says `static shadow = true` draws into an open shadow
+root; other widgets draw into themselves or a generated part `createRenderRoot()`
+returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the
 rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
 the widget draws nothing after it.

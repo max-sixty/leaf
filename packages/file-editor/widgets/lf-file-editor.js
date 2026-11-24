@@ -78,13 +78,13 @@ import {
   afterPresentation,
   boundFile,
   focusDestination,
-  LeafElement,
   onCurrentLocation,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rove } from "/runtime/lib/roving.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";

@@ -93,7 +93,8 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {LeafElement, setChildren} from '/runtime/widget-api.js';
+import {setChildren} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
 const layout = () => new CustomEvent('lf-layout', {bubbles: true, composed: true});
 customElements.define('lf-test-surface', class extends LeafElement {
   setup() {
@@ -364,7 +365,8 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     }
     module = """
 import {nothing} from '/vendor/lit.js';
-import {LeafElement, threadSurface} from '/runtime/widget-api.js';
+import {threadSurface} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
 import {offer, offerAction} from '/runtime/lib/controls.js';
 customElements.define('lf-test-card', class extends LeafElement {
   setup() {
@@ -595,7 +597,8 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {LeafElement, setChildren} from '/runtime/widget-api.js';
+import {setChildren} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
 customElements.define('lf-test-seat', class extends LeafElement {
   setup() {
     const row = document.createElement('section');
@@ -751,7 +754,8 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {LeafElement,setChildren} from '/runtime/widget-api.js';
+import {setChildren} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
 customElements.define('lf-test-seat',class extends LeafElement{
   setup(){
     this.style.cssText='display:block;height:360px;overflow:auto';

@@ -88,7 +88,6 @@ import {
   alreadyShown,
   focusDestination,
   holdFocus,
-  LeafElement,
   move,
   onUserInput,
   scopedMediaUrl,
@@ -98,6 +97,7 @@ import {
   showReadingSubject,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";

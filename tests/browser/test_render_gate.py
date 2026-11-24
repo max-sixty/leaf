@@ -1407,7 +1407,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { LeafElement } from "/runtime/widget-api.js";\n'
+        'import { LeafElement } from "/runtime/lib/leaf-element.js";\n'
         'import { keepsText } from "/runtime/lib/keeps.js";\n'
         'customElements.define("lf-stateful", class extends LeafElement {\n'
         "  render() {\n"
@@ -4060,7 +4060,7 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     )
     module = widgets / "lf-callout.js"
     source = module.read_text()
-    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
+    runtime_import = 'import { LeafElement } from "/runtime/lib/leaf-element.js";'
     assert source.count(runtime_import) == 1
     source = source.replace(
         runtime_import,

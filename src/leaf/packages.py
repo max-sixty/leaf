@@ -137,7 +137,7 @@ def starter_widget_module(tag: str) -> bytes:
     no help from the module. A module that draws state adds `render()`, which reads
     `this.state` and is drawn again whenever it changes."""
     return (
-        'import { LeafElement } from "/runtime/widget-api.js";\n\n'
+        'import { LeafElement } from "/runtime/lib/leaf-element.js";\n\n'
         "customElements.define(\n"
         f'  "{tag}",\n'
         "  class extends LeafElement {},\n"

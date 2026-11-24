@@ -33,6 +33,7 @@ import {
   visualPartFocus,
   visualPartAdmission,
   declaredVisuals,
+  layoutsChanged,
 } from "./visual-parts.js";
 import {
   blockAt,
@@ -64,7 +65,6 @@ import { registry, tagsDeclaring } from "./registry.js";
 import { authoredElement } from "./references.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
-import { layoutsChanged } from "./widget-upgrade.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   accessibleName,
@@ -301,7 +301,7 @@ const outermostAcross = (element, selector) => {
 // panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
 // pictures (widget-elements.js, PRESSES). What makes a press, such as a role, is not
 // what the page's reading hears, so it follows the document changing
-// (`documentChanged`) and a widget's layout (widget-upgrade.js, `layoutsChanged`).
+// (`documentChanged`) and a widget's layout (visual-parts.js, `layoutsChanged`).
 /** @param {Element} element */
 const claimsVisualGesture = (element) => {
   documentChanged();

@@ -8,7 +8,7 @@ import { counted } from "../lib/words.js";
 import { searchField } from "../widget-elements.js";
 import { el } from "../lib/elements.js";
 import { offerAction } from "../lib/controls.js";
-import { LAYOUT } from "../widget-upgrade.js";
+import { LAYOUT } from "../lib/widget-events.js";
 import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {

@@ -42,13 +42,13 @@ import {
   anchorLabel,
   elementById,
   layerFact,
-  LeafElement,
   nameOf,
   threadActions,
   readThreads,
   readHistory,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdown.js";
 import { excerptWords } from "/runtime/lib/words.js";

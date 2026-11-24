@@ -61,13 +61,13 @@ import {
   frameFor,
   holdFocus,
   landingInsets,
-  LeafElement,
   readObligations,
   readThreads,
   scrollerFor,
   whileConnected,
   named,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 

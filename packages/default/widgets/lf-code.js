@@ -78,13 +78,13 @@
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
 import {
-  LeafElement,
   alreadyShown,
   onUserInput,
   scrollersOf,
   scrollIntoView,
   tabStore,
 } from "/runtime/portable-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { bodyText } from "/runtime/lib/data-body.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";

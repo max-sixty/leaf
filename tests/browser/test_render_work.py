@@ -137,7 +137,7 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             }
         },
     }
-    module = """import { LeafElement } from "/runtime/widget-api.js";
+    module = """import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-project-milestone", class extends LeafElement {
   render() { keeps(this, "phase", this.state.phase.value); }

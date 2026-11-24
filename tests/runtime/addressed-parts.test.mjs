@@ -35,7 +35,7 @@ import {
 import { targetElement } from "/runtime/resolved-target.js";
 import { registry } from "/runtime/registry.js";
 import { visualPartProblems } from "/runtime/visual-parts.js";
-import { layoutChanged } from "/runtime/widget-upgrade.js";
+import { layoutChanged } from "/runtime/lib/widget-events.js";
 import { kept } from "/runtime/kept.js";
 import { focusDestination, handBack } from "/runtime/focus.js";
 

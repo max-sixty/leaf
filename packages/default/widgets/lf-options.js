@@ -117,7 +117,6 @@ import {
   nameOf,
   elementById,
   threadInput,
-  LeafElement,
   landInThread,
   placePreview,
   rowWalk,
@@ -125,6 +124,7 @@ import {
   focusDestination,
   scrollIntoView,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";

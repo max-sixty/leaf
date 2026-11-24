@@ -67,7 +67,6 @@ import {
   answerWords,
   focusDestination,
   keepView,
-  LeafElement,
   motion,
   obligationActions,
   placeOf,
@@ -79,6 +78,7 @@ import {
   scrollIntoView,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";

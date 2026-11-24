@@ -52,7 +52,7 @@ import { el } from "./lib/elements.js";
 import { elementDirective } from "./lib/controls.js";
 import { keeps } from "./lib/keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
-import { ANNOUNCE } from "./widget-upgrade.js";
+import { ANNOUNCE } from "./lib/widget-events.js";
 import { leafSays, wordsText } from "./voice.js";
 import { onUserInput } from "./focus.js";
 
@@ -144,7 +144,7 @@ export function announce(msg) {
   }, 30);
 }
 
-// A widget's words for a listener (`announce`, widget-upgrade.js), said here.
+// A widget's words for a listener (`ANNOUNCE`, lib/widget-events.js), said here.
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
 
 // An undo ("Undone: Chose “Fast” just now"), an arrival ("Updated to v3"): the

@@ -15,7 +15,7 @@
 import { watchScrolls } from "./arrivals.js";
 import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { coarsePointer } from "./pointer.js";
-import { LAYOUT } from "./widget-upgrade.js";
+import { LAYOUT } from "./lib/widget-events.js";
 import { keepsOnOne, keepsText } from "./lib/keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { elementFromPointAcross, leafSurface } from "./passages.js";

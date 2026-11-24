@@ -35,7 +35,7 @@
      A set Leaf makes meanwhile is not drawn, so the page counts it as presented only
      once the hold has ended and the release has drawn; and the gesture rewrote the
      element's nodes outside any draw, so Leaf reads the document again then.
-   - `error`, for an update that throws anywhere (`failSoft`, lib/failure.js). The
+   - `error`, for an update that throws anywhere (`failSoft`, failure.js). The
      fail-soft box stands at the end of the render root after what the element drew,
      since a render may paint retained nodes no later draw would make again and nothing
      drawn moves for it; the next update that draws takes the box away. A `setup()`
@@ -56,10 +56,10 @@
    undefined and the element draws what its markup and its own properties give it. */
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
-import { COMMANDS, CONNECT, DeferEvent } from "./widget-upgrade.js";
-import { PendingTaskEvent } from "./lib/pending-task.js";
-import { failSoft, placesFailure } from "./lib/failure.js";
-import { inWindowDocument, once } from "./lib/once.js";
+import { COMMANDS, CONNECT, DeferEvent } from "./widget-events.js";
+import { PendingTaskEvent } from "./pending-task.js";
+import { failSoft, placesFailure } from "./failure.js";
+import { inWindowDocument, once } from "./once.js";
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.
 class UpdateBoundary extends LitElement {
@@ -76,7 +76,7 @@ class UpdateBoundary extends LitElement {
   }
 }
 
-/** @typedef {ReturnType<typeof import("./widget-controller.js").widgetState>} WidgetState */
+/** @typedef {ReturnType<typeof import("../widget-controller.js").widgetState>} WidgetState */
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** Whether the element draws into an open shadow root of its own. */
@@ -179,7 +179,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   connectedCallback() {
-    // A copy connected in another document neither sets up nor draws (lib/once.js).
+    // A copy connected in another document neither sets up nor draws (once.js).
     if (!inWindowDocument(this)) return;
     // A paint that mounts the element connects it inside that paint, and what the
     // element reads to connect is its own to follow, never that paint's.

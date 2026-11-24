@@ -1,13 +1,8 @@
 /* Atlas owns roster composition. A visible report keeps its reading until the
  * user asks for the latest, while identity and state come from the public projection. */
 import { html, noChange } from "/vendor/lit.js";
-import {
-  ago,
-  HeldReading,
-  LeafElement,
-  readReports,
-  readWork,
-} from "/runtime/widget-api.js";
+import { ago, HeldReading, readReports, readWork } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-worker",

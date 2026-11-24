@@ -58,7 +58,7 @@ import { blockAt, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
-import { LAYOUT } from "../../widget-upgrade.js";
+import { LAYOUT } from "../../lib/widget-events.js";
 import { under } from "../../lib/shadow-tree.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";

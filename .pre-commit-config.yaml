@@ -68,6 +68,14 @@ repos:
         entry: uv run ty check
         pass_filenames: false
         files: '(\.(py|pyi)$|(^|/)pyproject\.toml$|^uv\.lock$)'
+      # Whole-graph check, in the order `.config/importlinter.ini` keeps; files only
+      # wakes it.
+      - id: import-linter
+        name: import-linter
+        language: system
+        entry: uv run lint-imports --config .config/importlinter.ini
+        pass_filenames: false
+        files: '^(src/leaf/.*\.py|\.config/importlinter\.ini|pyproject\.toml|uv\.lock)$'
       # Whole-graph check; files only wakes it. Install independently of pnpm setup.
       - id: dependency-cruiser
         name: dependency-cruiser

@@ -1,6 +1,8 @@
-/* Leaf's data integration for an element lifecycle. The element calls initialize
-   before setup, deliver before its update gate, and connect with its presentation
-   region on each arrival. The returned disconnect releases that region's data hold.
+/* Leaf's data integration for an element lifecycle. Whoever runs that lifecycle, a
+   `LeafElement` for itself or element-integration.js for any other element, calls
+   initialize before the element's first draw from Leaf, deliver before each draw's
+   gate, and connect with its presentation region on each arrival. The returned
+   disconnect releases that region's data hold.
    The widget itself reads ordinary properties and reports drawn marks; this owner
    associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
@@ -31,6 +33,7 @@
    primitive values share a revision, a digest of the value. A null value, or an input
    the markup leaves unbound, names words no bound value supplied, stamped without a
    source. Off a Leaf page no one listens, and the marks mean nothing. */
+import { untracked } from "/runtime/framework.js";
 import {
   awaitsData,
   bindsInput,
@@ -47,9 +50,10 @@ export class ElementData {
   #stage;
   /** @type {{input: string, property: string, bound: boolean, read: ReturnType<typeof dataReader> | null}[]} */
   #inputs;
-  // Each property's last supplied snapshot, and primitive values a later drawing
-  // can still name. Object values carry their snapshot through suppliedSnapshot.
-  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
+  // Each property's last supplied snapshot, undefined once its setter threw, and
+  // primitive values a later drawing can still name. Object values carry their snapshot
+  // through suppliedSnapshot.
+  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null | undefined, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
   #sent = new Map();
 
   /** @param {Element} element @param {() => void} stage */
@@ -103,8 +107,13 @@ export class ElementData {
     return registry[this.#element.localName]?.inputs ? joinDataDelivery(region) : null;
   }
 
-  // Read before shouldUpdate, so an unchanged-value gate still follows delivery.
+  // Read before shouldUpdate, so an unchanged-value gate still follows delivery. A
+  // setter that throws leaves its input owed the value again at the next delivery, and
+  // every other input is still read and set, so the caller follows each one's next
+  // delivery; the first failure is thrown once all are set.
   deliver() {
+    /** @type {{error: unknown} | null} */
+    let failed = null;
     for (const entry of this.#inputs) {
       if (!entry.bound) continue;
       entry.read ??= dataReader(this.#element, entry.input, this.#stage);
@@ -117,9 +126,18 @@ export class ElementData {
         primitives.delete(value);
         primitives.set(value, snapshot);
       }
+      // Recorded before the set, since a setter may draw and report `drawn` inside it.
       this.#sent.set(entry.property, { snapshot, primitives });
-      Object.assign(this.#element, { [entry.property]: value });
+      try {
+        // The caller follows the delivery it read above; what the element's setter
+        // reads is the element's own to follow.
+        untracked(() => Object.assign(this.#element, { [entry.property]: value }));
+      } catch (error) {
+        this.#sent.set(entry.property, { snapshot: undefined, primitives });
+        failed ??= { error };
+      }
     }
+    if (failed) throw failed.error;
   }
 
   /** @param {Record<string, unknown>} detail */

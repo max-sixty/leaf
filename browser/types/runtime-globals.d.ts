@@ -261,8 +261,10 @@ interface DocumentEventMap {
     verb: string;
     detail?: Record<string, unknown>;
     says?: string;
-  }> & { delivery?: unknown };
-  "lf-undo": CustomEvent<{ verb: string; unit?: string }> & { delivery?: unknown };
+  }> & { delivery?: PromiseLike<unknown> };
+  "lf-undo": CustomEvent<{ verb: string; unit?: string }> & {
+    delivery?: PromiseLike<unknown>;
+  };
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests

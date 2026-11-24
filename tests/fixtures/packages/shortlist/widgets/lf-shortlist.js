@@ -49,7 +49,6 @@ customElements.define(
           new CustomEvent("lf-action", {
             bubbles: true,
             composed: true,
-            cancelable: true,
             detail: {
               verb: "pick",
               detail: { candidate: key, picked },

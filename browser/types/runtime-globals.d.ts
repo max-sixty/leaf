@@ -19,7 +19,8 @@ interface DocumentInputs {
   holdKeys(
     hold: {
       holds(event: KeyboardEvent): boolean;
-      /** `stepped`: the input is the user's own step Back or Forward. */
+      /** `stepped`: the input is a step Back or Forward the browser says the user
+       * took; otherwise it is an act within the entry. */
       counted(stepped: boolean): void;
     } | null,
   ): void;

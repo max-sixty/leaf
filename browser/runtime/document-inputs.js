@@ -29,10 +29,11 @@
   let entered = 0;
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
-  // waits for is not superseded by it. The hold hears of every other input the clock
-  // counts (`counted`), and whether it is the user's own step Back or Forward, which
-  // leaves the entry the held keys were typed at, but not of leaving the window, after
-  // which the keys still land where they were typed for (bootstrap.js,
+  // waits for is not superseded by it. The hold hears of the other inputs the clock
+  // counts (`counted`): an act within the entry, and a step Back or Forward the
+  // browser says the user took, which leaves the entry the held keys were typed at
+  // (`step`). It hears of no step the page's script takes, nor of leaving the window,
+  // after which the keys still land where the user then stands (bootstrap.js,
   // `holdEarlyKeys`).
   /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
   let hold = null;
@@ -186,24 +187,26 @@
   // the page no input. Where the Navigation API runs, the step counts as it begins,
   // before Leaf's own handler for it (history.js) retains its intent; elsewhere Leaf has
   // no such handler, and the `popstate` that follows the step counts. An opaque frame,
-  // as a live sample is, has the API with no entries and fires only `popstate`. The
-  // Navigation API says whether the browser's own controls took the step
-  // (`userInitiated`), rather than the page's script; `popstate` can't, so its step is
-  // taken as the user's. Firefox reports no step as the user's, the browser's own Back
-  // included (Gecko bug 1903552), so there a held run outlives the user's step and its
-  // keys run at the entry the step reached.
+  // as a live sample is, has the API with no entries and fires only `popstate`. Every
+  // step moves the clock and the arrival's baseline (`entered`), but only one the
+  // browser says the user took (`userInitiated`), rather than the page's script, lets
+  // held keys go; any other leaves them to run where the user then stands. `popstate`
+  // can't say who took a step, so it lets nothing go, and nor does Firefox, which
+  // reports no step as the user's, the browser's own Back included (Gecko bug
+  // 1903552): there a held run outlives the user's step and its keys run at the entry
+  // the step reached.
   /** @param {boolean} user */
   const step = (user) => {
     inputs++;
     away++;
     entered = inputs - away;
-    hold?.counted(user);
+    if (user) hold?.counted(true);
   };
   if (window.navigation?.currentEntry)
     window.navigation.addEventListener("navigate", (event) => {
       if (event.navigationType === "traverse") step(event.userInitiated);
     });
-  else window.addEventListener("popstate", () => step(true));
+  else window.addEventListener("popstate", () => step(false));
 
   Reflect.set(window, key, state);
 })();

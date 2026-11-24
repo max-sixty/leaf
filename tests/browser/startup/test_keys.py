@@ -4,7 +4,9 @@ controls waiting for saved history, and the help overlay."""
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
+from render_cases_interaction import live_url
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
     PANEL,
@@ -26,6 +28,7 @@ from browser.startup import (
     _hold_startup,
     first_frame,
 )
+from browser.startup.test_readiness import answer_as_another_runtime
 from leaf import event_log as events_model
 from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -873,13 +876,28 @@ def test_held_keys_still_to_run_go_when_the_user_steps_back(browser, serve):
     expect(page.locator(".lf-held-key")).to_have_count(0)
 
 
-def test_held_words_outlast_a_step_the_page_takes_itself(browser, serve):
+# A document that hears of steps Back and Forward only through `popstate`, as a live
+# sample's opaque frame does, whose Navigation API holds no entries.
+POPSTATE_ONLY = """Object.defineProperty(navigation, "currentEntry", {
+  get: () => null,
+  configurable: true,
+});"""
+
+
+@pytest.mark.parametrize(
+    "reload", ["the user's", "Leaf's, handing back a place", "heard by popstate alone"]
+)
+def test_held_words_outlast_a_step_the_page_takes_itself(browser, serve, reload):
     """Keys the user typed while the page started stay held through a step Back the
     page's own script takes, which the user didn't ask for, and land once Leaf starts:
-    `c` opens the comment box and the rest are its words."""
-    url = serve(HELD_KEYS_PAGE)
+    `c` opens the comment box and the rest are its words. So they do after a reload
+    Leaf asked for, which hands back where the user was, and where the page hears of
+    steps only through `popstate`, which can't say who took one."""
+    url = live_url(serve(HELD_KEYS_PAGE))
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
+    if reload == "heard by popstate alone":
+        page.add_init_script(POPSTATE_ONLY)
     page.goto(url)
     wait_until_ready(page)
     page.wait_for_function("navigation.transition === null")
@@ -887,10 +905,20 @@ def test_held_words_outlast_a_step_the_page_takes_itself(browser, serve):
     page.wait_for_url(re.compile("#said$"))
     page.wait_for_function("navigation.transition === null")
     held, release = _hold_startup(page, "module")
-    with page.expect_navigation(wait_until="commit"):
-        page.evaluate("setTimeout(() => location.reload())")
+    if reload.startswith("Leaf's"):
+        answer_as_another_runtime(page)
+        with page.expect_navigation(wait_until="commit"):
+            append_carried_log_record(
+                serve.page_dir,
+                {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
+            )
+    else:
+        with page.expect_navigation(wait_until="commit"):
+            page.evaluate("setTimeout(() => location.reload())")
     holding(page, held, 1, "the runtime module")
     expect(page.locator("#said")).to_be_attached()
+    if reload.startswith("Leaf's"):
+        assert page.evaluate("window.lfStorage.placesUser()")
     for key in ["c", "h", "i"]:
         page.keyboard.press(key)
     expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i"])
@@ -899,6 +927,9 @@ def test_held_words_outlast_a_step_the_page_takes_itself(browser, serve):
     expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i"])
     release()
     expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi")
+    if reload.startswith("Leaf's"):
+        page.unroute("**/api/**")
+        page.unroute("**/registry.json")
 
 
 @pytest.mark.parametrize("ending", ["Enter", "ControlOrMeta+a"])

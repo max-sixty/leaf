@@ -760,9 +760,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         has_text="Which map should the sample team carry?"
     )
     expect(map_obligation).to_have_count(1)
-    expect(map_obligation).to_have_attribute(
-        "data-lf-key", '["widget","widget:bg-choice"]'
-    )
+    expect(map_obligation).to_have_attribute("data-lf-key", "widget:bg-choice")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     gallery_tab("tab", name="Decisions").click()

@@ -75,7 +75,9 @@ On Me and admits the ids its buttons mark:
   changes, whether this tab, another one, Undo or a new version changed it. It is
   immutable, and holds each declared verb by name, in the shape `module-state.md`,
   "Declared widget state", gives. Beside that shape each verb holds `available`,
-  whether the user may act on it now, which a quoted widget's never is, and
+  whether the user may act on it now, which a quoted widget's never is;
+  `unavailable`, why they may not, as a phrase the widget can show, such as
+  `no agent or server is available`, or `null` where Leaf gives no reason; and
   `undoable`, whether `lf-undo` would take back the action in force. A verb with a
   per-part unit holds `undoable` on each of its `units` instead. The setter draws the
   whole state, and Leaf may set an equal state twice.

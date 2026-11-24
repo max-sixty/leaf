@@ -21,8 +21,9 @@ and changes it by asking the owner with a command the owner turns into its own v
 log then holds one answer whichever widget the user changed it in, Undo takes back
 that one action, and the same two modules work off Leaf, where the owner keeps the
 answer itself. A view whose own place on the page is that answer, as a board card
-stands in the column of a pick, declares `shows` instead ("Views of an answer"),
-since the server has to place it.
+stands in the column of a pick, declares `shows` instead: its module reads the
+owner's state and records the owner's verb through `widgetController(owner)`
+([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
 
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
@@ -236,7 +237,7 @@ keep its widget on the page, such as a decided question collapsed with its optio
 obligation's question, its region and its words (`authoring-on-me.md`, "On the page"),
 so a widget needs no prompt of its own.
 
-The module reads and records this state through `widgetController(owner)`
+The module reads this state as `this.state` and records it with `record()`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`

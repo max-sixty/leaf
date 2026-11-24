@@ -59,16 +59,15 @@ import { ShotView } from "./shot-view.js";
  * scrolling them never opens the viewer. Image options holds scale, outlines and the
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
-// A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
   afterPresentation,
   failSoft,
   frameFor,
   placesFailure,
+  PendingTaskEvent,
   focusDestination,
   scopedMediaUrl,
-  widgetController,
   move,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -125,8 +124,6 @@ export class Shot extends HTMLElement {
   #capture = null;
   /** @type {Element | null} */
   #error = null;
-  /** @type {((promise: Promise<unknown>) => void) | undefined} */
-  _lfPresentGenerated;
   static observedAttributes = ["alt", "before", "after", "density", ...FOCUS];
 
   get difference() {
@@ -311,8 +308,7 @@ export class Shot extends HTMLElement {
    * waits for what this shot draws when it lands.
    * @param {Promise<unknown>} promise */
   #present(promise) {
-    if (this._lfPresentGenerated) this._lfPresentGenerated(promise);
-    else widgetController(this).present(promise);
+    this.dispatchEvent(new PendingTaskEvent(promise));
   }
 
   /** @param {Capture} capture @param {string | null} [pixels] */

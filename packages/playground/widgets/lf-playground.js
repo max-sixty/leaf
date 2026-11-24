@@ -75,7 +75,6 @@ import {
   wear,
   whileConnected,
   worksInside,
-  widgetController,
 } from "/runtime/widget-api.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
@@ -685,12 +684,9 @@ customElements.define(
         values: this.#values,
         instruction: this.#renderedInstruction.value,
         chosen: () => this.#chosen(),
-        // The submission's action says why it can't be sent (module-state.md, "The
-        // widget controller"), so the bar keeps no rule of its own about delivery.
-        // `state` says only whether it can, so the reason comes from the controller.
-        unavailable:
-          (this.state && widgetController(this).read().actions.choose?.unavailable) ??
-          null,
+        // The submission's state says why it can't be sent, so the bar keeps no rule
+        // of its own about delivery.
+        unavailable: this.state?.choose?.unavailable ?? null,
       });
       this.#paint();
       return template;

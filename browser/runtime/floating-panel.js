@@ -302,7 +302,7 @@ import { draftOf, standsAtItsBox, syncInput, writesIn } from "./composing/input.
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { focusPlace, holdPlace, standsAt } from "./user-place.js";
-import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
+import { onUserCount, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
 import {
@@ -316,8 +316,8 @@ import {
 import { agePreview, ago, shortAgo, timeOfDay } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
-import { answeredInWords, readObligations } from "./obligations/model.js";
-import { obligationPlace } from "./obligations/place.js";
+import { answeredInWords } from "./obligations/model.js";
+import { obligationPlace, readObligations } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
@@ -4144,10 +4144,7 @@ export function createFloatingPanel({
   // is not drawn.
   /** @param {readonly PanelQueueItem[]} items */
   function forgetOpened(items) {
-    if (
-      opening.openItem &&
-      !items.some((item) => queueItemKey(item) === opening.openItem)
-    )
+    if (opening.openItem && !items.some((item) => item.id === opening.openItem))
       opening.openItem = null;
   }
   // Escape folds the open card back to its line, where it leaves the user.
@@ -4245,7 +4242,7 @@ export function createFloatingPanel({
       record?.source.kind === "widget" && thread
         ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
         : null;
-    const key = queueItemKey(item);
+    const key = item.id;
     const opened = opening.openItem === key;
     const reader = presentation?.primary !== false;
     const message =
@@ -4319,7 +4316,7 @@ export function createFloatingPanel({
           ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
-            void queueActions.open(queueItemKey(item)).then((arrived) => {
+            void queueActions.open(item.id).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });
           }}
@@ -4610,7 +4607,7 @@ export function createFloatingPanel({
    * @param {readonly G[]} groups @param {(item: PanelQueueItem, group: G) => unknown} line */
   function groupedItems(groups, line) {
     return html`<div class="lf-fp-on-list lf-rows">
-      ${bandedGroups(groups, queueItemKey, line)}
+      ${bandedGroups(groups, (item) => item.id, line)}
     </div>`;
   }
 
@@ -4644,7 +4641,7 @@ export function createFloatingPanel({
   /** @param {ReturnType<typeof queueLists>} lists */
   function onMeView(lists) {
     const all = [...lists.you, ...lists.agent, ...lists.done];
-    const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
+    const byKey = new Map(all.map((item) => [item.id, item]));
     // The items this opening of the view holds: those it showed, still in the reading
     // wherever they now stand, so an answered one stays, and any that joined the list
     // since. They stand in the walk's groups and order, one joining included, so `m`
@@ -4659,7 +4656,7 @@ export function createFloatingPanel({
     // answered.
     if (seated === null) carrying.clear();
     for (const item of lists.you) {
-      const key = queueItemKey(item);
+      const key = item.id;
       const elsewhere = new Set(
         [...carrying].flatMap(([other, ids]) => (other === key ? [] : ids)),
       );
@@ -4671,21 +4668,21 @@ export function createFloatingPanel({
       ]);
     }
     const carried = new Set(
-      (seated ?? []).flatMap((item) => carrying.get(queueItemKey(item)) ?? []),
+      (seated ?? []).flatMap((item) => carrying.get(item.id) ?? []),
     );
     const retained = (seated ?? []).flatMap((previous) => {
-      const current = byKey.get(queueItemKey(previous));
+      const current = byKey.get(previous.id);
       return current ? [current] : [];
     });
-    const retainedKeys = new Set(retained.map(queueItemKey));
+    const retainedKeys = new Set(retained.map((item) => item.id));
     const items = [
       ...retained,
       ...lists.you.filter(
-        (item) => !retainedKeys.has(queueItemKey(item)) && !carried.has(item.id),
+        (item) => !retainedKeys.has(item.id) && !carried.has(item.id),
       ),
     ];
     seated = items;
-    const seatedKeys = new Set(items.map(queueItemKey));
+    const seatedKeys = new Set(items.map((item) => item.id));
     /** @type {Set<string>} */
     const drawing = new Set();
     /** @param {PanelQueueItem} item @returns {PanelQueueList} */
@@ -4698,11 +4695,9 @@ export function createFloatingPanel({
     const grouping = onMe.grouping();
     const says = grouping === "plan" ? null : grouping;
     // A record a card carries is drawn on that card, ended or not, and not in Done too.
-    const held = new Set(
-      items.flatMap((item) => carrying.get(queueItemKey(item)) ?? []),
-    );
+    const held = new Set(items.flatMap((item) => carrying.get(item.id) ?? []));
     const finished = lists.done.filter(
-      (item) => !seatedKeys.has(queueItemKey(item)) && !held.has(item.id),
+      (item) => !seatedKeys.has(item.id) && !held.has(item.id),
     );
     // A group counts what still waits in it; the cards answered here keep their seats,
     // so a group keeps its band while the view stands. Every group has its band, one
@@ -4739,7 +4734,7 @@ export function createFloatingPanel({
                 card: true,
                 says,
                 leads: group.leads.has(item),
-                also: carrying.get(queueItemKey(item)),
+                also: carrying.get(item.id),
                 drawing,
               }),
       ),
@@ -5995,19 +5990,18 @@ export function createFloatingPanel({
   // the chooser turns it back.
   /** @param {string} todo */
   function showTodo(todo) {
-    const key = queueItemKey({ kind: "todo", id: todo });
     chooseQueueTab("agent");
     if (layoutOf() !== "list") {
       agentLayout.write("list");
       refit();
     }
     if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
-    opening.openItem = key;
+    opening.openItem = todo;
     fitting = true;
     paint();
     const view = shownView();
     const line = view?.querySelector(
-      `.lf-fp-on-item[data-lf-key="${CSS.escape(key)}"] .lf-fp-on-line`,
+      `.lf-fp-on-item[data-lf-key="${CSS.escape(todo)}"] .lf-fp-on-line`,
     );
     if (view) focusDestination(pressLed() || !line ? view : line, "move");
   }

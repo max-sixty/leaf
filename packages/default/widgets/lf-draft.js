@@ -47,7 +47,9 @@
  *
  * The editor reads as an ordinary text box: its words stand in the field until the user
  * leaves it, and the field's own undo walks them back. Two ways out throw its changes
- * away, Discard and Escape, as a message rewrite's do; every other way out saves them
+ * away, Discard and Escape, as a message rewrite's do, and Restore discarded edit, the
+ * press their notice offers, puts them back (drafts.js, `discardDraft`), so a stray
+ * press on Discard loses nothing for good; every other way out saves them
  * as Save does, which submits one absolute edit through the shared send generation. A
  * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
  * phone keeps what was typed without finding Save first, and Android's back
@@ -500,7 +502,10 @@ customElements.define(
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
           motionTime("--lf-motion-return"),
         );
-      if (discard) this.#edit.clear();
+      // Words the box already says are no loss, so only changed ones are kept for
+      // Restore discarded edit.
+      if (discard && this.#editor.value === this.#savedText) this.#edit.clear();
+      else if (discard) this.#edit.discard();
       this.#stopPressAway?.();
       this.#stopPressAway = null;
       // Only where the user was in it. A close this tab's own gesture made

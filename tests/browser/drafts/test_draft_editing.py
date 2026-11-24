@@ -12,10 +12,13 @@ from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_DRAWN, JOURNEY_V1, _publish
 from render_harness import (
     CHROME_ROOT,
+    available_commands,
     compare_with,
     consume_browser_errors,
     draft_control,
     example_media,
+    expect_panel_says,
+    field_press,
     hold_selection,
     holding,
     http_error_console,
@@ -918,7 +921,54 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     expect(editor).to_have_count(0)
 
 
-def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
+def test_a_discarded_draft_edit_comes_back(browser, serve):
+    """A press on Discard can be a stray one, aimed at the words under the toolbar, so
+    it loses nothing for good. Its notice offers Restore edit at the panel field's end,
+    which opens the draft again on the discarded words, sending nothing, and `g D`
+    does the same after Escape. Discarding words the draft already says leaves nothing
+    to restore."""
+    url = serve(
+        leaf_page(
+            "Discarded draft",
+            '<h1>Discarded draft</h1><lf-draft id="note"><pre>Saved words.</pre></lf-draft>',
+        )
+    )
+    page = open_page(browser, url)
+    editor = page.locator("#note leaf-text")
+    edit = draft_control(page, "edit", "note")
+    typed = "Words typed, then thrown away."
+
+    def edits():
+        return [
+            e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"
+        ]
+
+    page.locator("#note .lf-draft-body").click()
+    write(editor, typed)
+    press_draft_control(page, "cancel", "note")
+    expect(editor).to_have_count(0)
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Saved words.")
+    expect_panel_says(page, "Edit discarded")
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Restore edit")
+    expect(press.locator("kbd")).to_have_text(["g", "D"])
+    press.click()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    expect(edit).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", typed)
+    assert edits() == []
+
+    write(editor, "Saved words.")
+    page.keyboard.press("Escape")
+    expect(editor).to_have_count(0)
+    assert "writing.restore" not in available_commands(page)
     """An open editor's words come back on reload whenever they differ from the
     current text, words that walk a saved edit back to the authored text included."""
     url = serve(

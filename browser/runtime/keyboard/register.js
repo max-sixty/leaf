@@ -96,7 +96,7 @@ const RUNG_LADDER = [
 const PAGE_COMMANDS = [
   "comment.create",
   "writing.resume",
-  "message.edit.restore",
+  "writing.restore",
   "selection.restore",
   "target.picker.open",
   "reaction.open",

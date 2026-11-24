@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as editing from "/runtime/thread/message-edit.js";
 import { createCompositionInputs } from "/runtime/composing/input.js";
-import { clearDraft, loadDraft, rewriteContext, saveDraft } from "/runtime/drafts.js";
+import {
+  clearDraft,
+  createWritingResume,
+  loadDraft,
+  rewriteContext,
+  saveDraft,
+} from "/runtime/drafts.js";
 import { applicationState } from "/runtime/semantic-state.js";
 import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
 import { dispatchKey } from "/runtime/keyboard/dispatch.js";
@@ -45,7 +51,8 @@ test("restore keeps the latest changed rewrite and its revision, without replaci
   discard("empty", "");
   const visits = [];
   let present = true;
-  const restore = editing.createRewriteRestore({
+  const { restore } = createWritingResume({
+    arriveEditor: async () => undefined,
     holdsThreadDraft: () => present,
     revealInThread: async (ctx) => {
       visits.push(ctx);
@@ -77,9 +84,12 @@ test("restore keeps the latest changed rewrite and its revision, without replaci
 test("g D restores the discarded rewrite", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const visits = [];
-  const restore = editing.createRewriteRestore({
+  const { restore } = createWritingResume({
+    arriveEditor: async () => undefined,
     holdsThreadDraft: () => true,
-    revealInThread: async (ctx) => visits.push(ctx),
+    revealInThread: async (ctx) => {
+      visits.push(ctx);
+    },
   });
   const door = { shows: () => false, press: () => {} };
   const goTo = createGoToSequence({

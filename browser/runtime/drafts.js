@@ -87,6 +87,24 @@
    destination, and the refusal's notice names that address, for every gesture the
    refusal took down (`keepRefusedWords`).
 
+   An editor's Discard and Escape throw its changed words away (`discardDraft`), as a
+   message rewrite and an `lf-draft` edit do: the draft settles in every tab, as Cancel
+   settles it, and this document keeps the words, with their payload, until another
+   discard takes their place or the document reloads. Restore discarded edit (`g D`, a
+   keyboard's convenience as Resume writing is, with no row on every page's menu) puts
+   them back in their draft and opens their box on them as Resume writing opens it. The
+   notice the discard leaves, "Edit discarded", offers it as its press, Restore edit
+   (notifications.js, `press`), which the panel field's end shows only while `g D`
+   would make it, so a pointer or finger has it too. So a stray Escape or Discard loses
+   nothing for good. Restoring has no timer and never writes over words the draft holds
+   of its own, typed since here or in another tab.
+   Rejected, by the user, for a rewrite's Escape: a timed Undo chip after the discard, a
+   target the user cannot learn (notifications.js), and a row of every page's menu for
+   a pointer or finger, which put a command on each page for a mishap of one keyboard
+   gesture. Rejected too: ⌘Z restoring the words. ⌘Z walks the user's logged gestures in the order the server
+   keeps them (undo.js), and a draft never reaches the log, so ⌘Z would have to order
+   this document's discards among the server's gestures.
+
    Settlement is generation-specific. `activeDraftRecord` filters settled records and
    the generation this document is sending. The server never hands this document a
    generation the log admitted (`drafts.py`), so nothing here asks the log whether
@@ -770,11 +788,35 @@ function transferDraft(from, to, text) {
 // Put words the user put away back into `ctx`, as a new generation every view shows,
 // unless it holds words of its own: those are newer than the words coming back.
 /** @param {string} ctx @param {string} text @param {DraftPayload} [payload] */
-export function restoreDraft(ctx, text, payload) {
+function restoreDraft(ctx, text, payload) {
   if (draftHasContent(ctx)) return false;
   saveDraft(ctx, text, payload);
   tellDraft(ctx, text, payload);
   return true;
+}
+// The words this document's latest discard threw away, with their payload: values,
+// never the closed editor, and no draft, so the discard still settles the draft in
+// every tab and Resume writing goes back where it went before.
+/** @type {{ctx: string, text: string, payload: DraftPayload | undefined} | null} */
+let discarded = null;
+const RESTORE = "writing.restore";
+// Throw away the words `ctx`'s draft holds, as an editor's Discard and Escape do,
+// keeping them for Restore discarded edit, which the notice the discard leaves offers
+// (the header). A draft holding no words leaves nothing to restore and no notice. The
+// editor calls it only where its words differ from what its subject already says.
+/** @param {string} ctx */
+export function discardDraft(ctx) {
+  const record = activeDraftRecord(ctx);
+  clearDraft(ctx);
+  if (!record?.text) return;
+  const thrown = (discarded = { ctx, text: record.text, payload: record.payload });
+  notice("Edit discarded", {
+    press: {
+      action: "restore-edit",
+      command: RESTORE,
+      stands: () => discarded === thrown,
+    },
+  });
 }
 /** @param {string} ctx */
 export const loadDraft = (ctx) => activeDraftRecord(ctx);
@@ -1292,7 +1334,7 @@ function moveToPage(ctx) {
  * intent?: ReturnType<typeof retainUserIntent>}} DraftRoute */
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>, route?: DraftRoute) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, restore: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string, route?: DraftRoute) => Promise<void>, showDraft: (ctx: string, route?: DraftRoute) => Promise<boolean>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -1392,6 +1434,14 @@ export function createWritingResume({
     });
     return Boolean(frame) && intent();
   };
+  // The words the latest discard threw away, while they can go back: their draft holds
+  // no words of its own, which would be newer, and this document holds a box for it.
+  const restorable = () => {
+    const candidate = discarded;
+    return candidate && !draftHasContent(candidate.ctx) && holdsBox(candidate.ctx)
+      ? candidate
+      : null;
+  };
   return {
     command: {
       id: "writing.resume",
@@ -1402,6 +1452,26 @@ export function createWritingResume({
       travels: true,
       when: () => writingPlace !== null,
       run: resume,
+    },
+    // Restore discarded edit (the header): the words go back to their draft, and its
+    // box opens on them where Resume writing opens it, a rewrite's message raising its
+    // warning where the message changed since.
+    restore: {
+      id: RESTORE,
+      keys: ["Shift+d"],
+      title: "Restore discarded edit",
+      touch: "Restore discarded edit",
+      menu: "keys",
+      travels: true,
+      when: () => Boolean(restorable()),
+      run: async () => {
+        const candidate = restorable();
+        if (!candidate) return;
+        const { ctx, text, payload } = candidate;
+        if (!restoreDraft(ctx, text, payload)) return;
+        discarded = null;
+        await resumeDraft(ctx);
+      },
     },
     resumeDraft,
     showDraft,
@@ -1545,6 +1615,7 @@ export const draft = (ctx) => ({
   /** @param {string} text @param {DraftPayload} [payload] */
   save: (text, payload) => saveDraft(ctx, text, payload),
   clear: () => clearDraft(ctx),
+  discard: () => discardDraft(ctx),
   /** @param {(value: string | null, payload?: DraftPayload) => void} callback
    * @param {{input?: DraftField | (() => DraftField | null), resume?: () => EditorDestination | null, box?: () => Element | null}} [options] */
   watch: (callback, options) => watchDraft(ctx, callback, options),

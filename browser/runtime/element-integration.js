@@ -19,16 +19,17 @@
    that value has moved since the last set and the property reads otherwise: a value
    the user is still changing, as on a slider mid-drag, survives every other move of
    the reading. On the record's event Leaf reads the property and records it as the
-   verb's action, through the controller `lf-action` reaches. Two rules keep Leaf's
-   own set from being recorded as the user's act. An event dispatched from inside
-   the set records nothing, whatever the property then reads, as where the element
-   keeps the value within a range and says so. An event at which the property reads
-   the verb's value records nothing either, which covers an element that answers the
-   set later. An element that both answers later and keeps another value than it was
-   set has that value recorded, since nothing then tells its answer from the user's
-   change. Where nothing can be sent, as on a quoted widget, a page with no server or
-   a verb the agent writes, Leaf sets the property back to the verb's value, and a
-   refusal moves the reading, so the element shows no value the page does not hold.
+   verb's action, through the controller `lf-action` reaches. Leaf's own set is no
+   act of the user's, so an event the element dispatches in answer to it records
+   nothing. An event dispatched from inside the set is such an answer, whatever the
+   property then reads, as where the element keeps the value within a range and says
+   so. So is an event at which the property reads the verb's value, which covers an
+   element that answers the set later. An element that both answers later and keeps
+   another value than it was set has that value recorded, since nothing then tells
+   its answer from the user's change. Where nothing can be sent, as on a quoted
+   widget, a page with no server or a verb the agent writes, Leaf sets the property
+   back to the verb's value, and a refusal moves the reading, so the element shows
+   no value the page does not hold.
 
    Leaf sets none of them until the reading holds every declared verb and the page has
    read the data a bound source names, so the element never draws a reading nobody has

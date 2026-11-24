@@ -137,10 +137,11 @@ On Me and admits the ids its buttons mark:
   never shows them as a change. To set apart words it writes, such as a count after an
   authored sentence, it marks the element holding them `data-lf-gen="1"`. `named()`
   then leaves them out, and a comment's quote doesn't run across them into the
-  author's words. Words in a generated control or box of controls
-  (`module-controls.md`), such as a control's label, are apparatus: they take no comment, and a printed page drops the
-  box. Marked `data-lf-said`, the box keeps words that are the page speaking, as a
-  pick mark reading "selected" does: they take comments and print. Marked
+  author's words. Words in a generated control, such as its label, or in a generated
+  box of controls (`module-controls.md`) are apparatus: they take no comment, and a
+  printed page drops the control or box. Marked `data-lf-said`, it keeps words that
+  are the page speaking, as a pick mark reading "selected" does: they take comments
+  and print. Marked
   `data-lf-echo`, it keeps words that copy what the page says elsewhere, such as a
   worker's name: they print and take no comment, which the user leaves where the page
   says them.

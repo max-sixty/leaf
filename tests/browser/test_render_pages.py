@@ -3382,7 +3382,7 @@ def test_the_write_gate_rejects_unchanged_authored_style_writes(
 # The type of a word press Leaf builds by role, as a widget builds one
 # (`offerAction`), which the page's own controls are held to.
 LEAF_PRESS_TYPE = """async () => {
-  const {offerAction} = await window.__lfWidgetApi();
+  const {offerAction} = await import("/runtime/lib/controls.js");
   const press = document.querySelector('main').appendChild(
     offerAction('word', '', 'Leaf'));
   const s = getComputedStyle(press);

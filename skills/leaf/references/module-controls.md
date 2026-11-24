@@ -4,13 +4,14 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 module owes.
 
 Build each control the widget injects, and each box of controls, with the library's
-control constructors (`module-authoring.md`, "Shared web code"). They build the native
-element, so the browser keeps its activation, focus and accessibility, and mark it as
-Leaf-generated, which Leaf reads to tell the widget's apparatus from the author's
-words. A press that looks like Leaf's own controls is built by its role, so every
-control of one kind wears one face, and a press that shows a symbol names its action
-(`module-reading.md`, "Icons"). A class of the widget's places the control; don't
-restyle its face. Shared control styles (`page-layout.md`, "Page CSS and Leaf's
+control constructors (`module-authoring.md`, "Shared web code"). Each builds the native
+element, so the browser keeps its activation, focus and accessibility. Each also marks
+the element as Leaf-generated, which tells Leaf the widget's apparatus from the
+author's words. A press that looks like Leaf's own controls is built by its role, so
+every control of one kind wears one face, and a press that shows a symbol names its
+action (`module-reading.md`, "Icons"). Use a symbol where a standard symbol for the
+action exists, one readers know from other software, and words where none does. A
+class of the widget's places the control; don't restyle its face. Shared control styles (`page-layout.md`, "Page CSS and Leaf's
 controls") apply to generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay

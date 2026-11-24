@@ -5,8 +5,8 @@
  * writers do not name. They load in any document; a host without Leaf simply does not
  * interpret the marks.
  *
- * The marks are attributes and classes Leaf reads off the element, written here as a
- * module that marks its own words writes them (module-plain-elements.md, "Words it
+ * The marks are attributes and classes Leaf reads off the element. A module that marks
+ * its own words writes the same attributes itself (module-plain-elements.md, "Words it
  * writes"):
  *
  * - `lf-ui`, Leaf's chrome, and `lf-ui-face` on a native element, the default Leaf
@@ -123,9 +123,11 @@ const selectableOfferElement = (node, role, cls, face) => {
 };
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
-// settled decision. WebKit begins no text selection inside a form control, whatever its
-// `user-select`, so those few controls deliberately remain spans, focusable, with the
-// role: `selectableOffer(role, className, label, face)`, where `face` is the role whose
+// settled decision. Chromium and Firefox begin a selection inside a button styled
+// `user-select: text`, but WebKit, so Safari and every iOS browser, begins none inside a
+// form control whatever its style (notes/browser-support.md, "Selecting words inside a
+// button in WebKit"), so those few controls deliberately remain spans, focusable, with
+// the role: `selectableOffer(role, className, label, face)`, where `face` is the role whose
 // face a press wears, named last as every press names it, as in
 // `selectableOffer("button", className, label, "row")`. One with a button's role takes a
 // button's Enter and Space from role-button-press.js, with Leaf or without, and any
@@ -181,10 +183,8 @@ export const offered = elementDirective("offered", offerElement);
 // `control-faces.js` lists the roles; `className` places the control and never restyles
 // its face. A symbol or mark names its `action` (icon-paths.js, `ACTIONS`), whose
 // symbol it shows and whose name it says as its accessible name and preview unless
-// `label` says more. Use a symbol where a standard symbol for the action exists, one
-// readers know from other software, and words where none does; whether a page's own
-// press is a word or a symbol stays its author's call, so a page's "Done" may stay a
-// word.
+// `label` says more. Whether a page's own press is a word or a symbol stays its
+// author's call, so a page's "Done" may stay a word.
 /** @param {LeafActionRole} role @param {string | undefined} label @param {string | undefined} action */
 function actionFace(role, label, action) {
   if (role !== "symbol" && role !== "mark") {

@@ -346,9 +346,9 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 
 ## Text entry and drafts
 
-A widget's own text box is Leaf's Markdown editor, built as a generated control
-(`module-controls.md`) whose tag is `TEXT_FIELD`, which behaves like a textarea and
-fires `input` only for the user's edits. The field matches `:state(ready)` once
+A widget's own text box is Leaf's Markdown editor, which behaves like a textarea and
+fires `input` only for the user's edits. Build it as a generated control
+(`module-controls.md`) whose tag is `TEXT_FIELD`. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 

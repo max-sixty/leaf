@@ -281,9 +281,9 @@ declares `content: members`.
 nested widgets in authored order, so users can quote those words; the render check
 refuses a page where they changed. Declare it on a wrapper round authored content, and
 leave it off a widget whose module rewrites or reorders what it holds. Whatever the
-module adds to a verbatim widget stands inside a generated box (`module-controls.md`),
-with no words marked `data-lf-said`, which would make them the page's
-(`module-plain-elements.md`, "Words it writes").
+module adds to a verbatim widget stands inside a box of controls the library built
+(`module-controls.md`), with no words marked `data-lf-said`, which would make them the
+page's (`module-plain-elements.md`, "Words it writes").
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element

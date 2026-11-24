@@ -197,8 +197,8 @@ that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 Where the product already answers a question, use its answer: `root_overflow` for
 sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
 entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
-`__lfOverlayApi()` for overlay geometry); tests can't import private source
-paths.
+`__lfOverlayApi()` for overlay geometry), and a library module by its served path,
+`import("/runtime/lib/<module>.js")`; tests can't import private source paths.
 
 Give a corpus source its own case only when its content is the cause under test. Put a
 probe's independent faults on one composed page beside clean controls and call the gate

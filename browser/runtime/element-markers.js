@@ -1,7 +1,6 @@
 /* The marks the runtime writes on words and presses of its own that the library's
  * control constructors don't build (lib/controls.js): a box of words it wrote, and a
- * press that is content of its own. They load without Leaf's runtime; a host without
- * Leaf simply does not interpret its markers. */
+ * press that is content of its own. */
 import { keeps } from "./lib/keeps.js";
 import { actionClass } from "./lib/control-faces.js";
 

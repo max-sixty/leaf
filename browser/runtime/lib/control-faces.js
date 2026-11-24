@@ -56,8 +56,8 @@
    - `answer`: one of the answers a question offers, such as a decision's choices on
      an On Me card, framed so the set reads as one to pick from, the chosen one
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
-   - `entry`: a margin entry, a glyph out in the page's margin whose label a pointer
-     or a key reveals, framed by what it promises: an action raised, a disclosure
+   - `entry`: a margin entry, which Leaf builds, a glyph out in the page's margin
+     whose label a pointer or a key reveals, framed by what it promises: an action raised, a disclosure
      ringed, a status ghosted (contribution-controls.js), with its tone
      (`data-lf-tone`) on its glyph. A change's entry, a disclosure, is raised as an
      action is (`data-lf-kinds="change"`). One in force (`aria-pressed`), as a reaction the
@@ -67,8 +67,8 @@
    - `reaction`: a reaction's token in a message's strip, its own glyph rather than
      an action's symbol, quiet until hovered and kept in the accent while in force
      (`aria-pressed="true"`).
-   - `response`: a choice of the response bar, Comment, Suggest or a reaction, which
-     floats over the page and so wears the field's frame, height and lift
+   - `response`: a choice of the response bar, which Leaf builds: Comment, Suggest or
+     a reaction, which floats over the page and so wears the field's frame, height and lift
      (widget-elements.js, `responseAction`); a reaction among them is a toggle
      (`aria-pressed`) and wears a reaction's states. The comment box's face while the
      box rests (`data-lf-rest` on its bar) wears the corner of the card it becomes.
@@ -90,7 +90,8 @@
      comment note), a picture and its declared parts (their response proxies). Its face
      is an invisible carrier, a pixel out of flow that takes no pointer, since what it
      stands for is what the user sees. Its focus rings that thing with the ring the
-     thing would wear focused itself, and that thing is in view: a gloss's proxy stands
+     thing would wear focused itself, which the module that builds the proxy draws on
+     the thing, and that thing is in view: a gloss's proxy stands
      at its phrase, so the browser's own focus scroll shows it, and the phrase wears
      the ring on visible focus, since a press on the phrase focuses it too (gloss.css);
      a note or a picture's proxy stands on the details shelf, apart from the page,
@@ -124,6 +125,9 @@ const ACTION_FACES = {
   proxy: "lf-proxy",
 };
 
+// The classes of `role`'s face, then `className`, which places the press: for a Lit
+// template that writes a press's whole `class` itself. A press built by its role
+// (controls.js) wears these already.
 /** @param {LeafActionRole} role */
 export function actionClass(role, className = "") {
   const face = ACTION_FACES[role];

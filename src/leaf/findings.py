@@ -1739,8 +1739,8 @@ _TEXT = {
     ),
     "record-unit": _declared(
         lambda v: (
-            f"verb `{v['verb']}` (`verbs`) record `{v['kind']}` requires unit:"
-            f" {v['unit']!r}"
+            f"verb `{v['verb']}` (`verbs`) names a `unit` its `{v['kind']}` record"
+            f" already decides ({v['unit']!r}); leave `unit` out"
         )
     ),
     "record-within": _declared(

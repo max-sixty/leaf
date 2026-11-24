@@ -164,9 +164,7 @@
     "verbs": {
       "status": {
         "writer": "agent",
-        "unit": "widget",
         "record": {
-          "kind": "value",
           "attr": "status"
         }
       }
@@ -190,10 +188,8 @@
     "verbs": {
       "state": {
         "writer": "agent",
-        "unit": "widget",
         "text": true,
         "record": {
-          "kind": "value",
           "attr": "state"
         }
       }

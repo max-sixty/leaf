@@ -2169,7 +2169,6 @@ flowchart TD
               <pre><code class="language-json">
 "verbs": {
   "choose": {
-    "unit": "widget",
     "record": {"kind": "attribute", "attr": "selected"}
   },
   "add": {
@@ -2180,7 +2179,7 @@ flowchart TD
     "unit": "option",
     "creates": {"child": "lf-option", "words": "text"}
   },
-  "answer": {"detail": {}, "unit": "widget"}
+  "answer": {"detail": {}}
 },
 "awaits": {
   "value": "choose",
@@ -2192,36 +2191,34 @@ flowchart TD
 </code></pre>
               <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
-                <code>action</code>.</lf-note
+                <code>action</code>. The verb names no <code>unit</code>, so its unit is
+                the whole <code>lf-options</code>: every pick uses the same coordinate
+                and a later pick replaces an earlier one.</lf-note
               >
               <lf-note at="3"
-                >One unit for the whole <code>lf-options</code>, so every pick uses the
-                same coordinate and a later pick replaces an earlier one.</lf-note
-              >
-              <lf-note at="4"
                 >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
                 next version.</lf-note
               >
-              <lf-note at="11"
+              <lf-note at="10"
                 >The unit is the value of <code>detail.option</code>, so each added
                 option has a coordinate of its own.</lf-note
               >
-              <lf-note at="12"
+              <lf-note at="11"
                 >The action adds an <code>lf-option</code> to the options, with
                 <code>detail.text</code> as its text.</lf-note
               >
-              <lf-note at="14"
+              <lf-note at="13"
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
-              <lf-note at="17"
+              <lf-note at="16"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
               >
-              <lf-note at="18"
+              <lf-note at="17"
                 >A single choice is answered when an option is selected. A multiple
                 choice is answered when the user presses Done. Undo can make the
                 obligation unanswered again.</lf-note
@@ -2229,11 +2226,11 @@ flowchart TD
             </lf-code>
             <p id="coordinate">
               An action's <strong>coordinate</strong> is its widget, its unit, and its
-              verb. <code>unit: "widget"</code> means the widget itself; any other value
-              names the detail field that holds the unit. A pick therefore uses
-              <code>[ship, ship, choose]</code>, and adding an option uses
-              <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete only
-              when their coordinates are equal, so a pick never displaces an added
+              verb. A verb that names no <code>unit</code> has the widget itself as its
+              unit; one that names a detail field has the value of that field. A pick
+              therefore uses <code>[ship, ship, choose]</code>, and adding an option
+              uses <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete
+              only when their coordinates are equal, so a pick never displaces an added
               option.
             </p>
             <details id="all-verbs-list">
@@ -5577,7 +5574,7 @@ flowchart LR
               <strong>properties</strong> on the element, which are values assigned to
               the element object, as in <code>element.state = …</code>. It hears the
               <strong>events</strong> the element dispatches, which are named messages
-              that travel up the page to whoever listens. The element draws itself and
+              that reach whoever listens on the element. The element draws itself and
               says what the user did, and needs no base class and no function of Leaf’s
               to do either.
             </p>
@@ -5792,14 +5789,14 @@ verdict/
   "lf-verdict": {
     "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
     "attributes": {
-      "properties": { "verdict": { "type": "string", "enum": ["ship", "hold"] } },
+      "properties": { "verdict": { "enum": ["ship", "hold"] } },
       "required": ["id"]
     },
     "content": "empty",
     "verbs": {
-      "decide": { "unit": "widget", "record": { "kind": "value", "attr": "verdict" } }
+      "decide": { "record": { "attr": "verdict" } }
     },
-    "awaits": { "value": "decide", "answered": { "decide": {} } },
+    "awaits": { "value": "decide" },
     "example": "&lt;lf-group id=\"release\" label=\"Ship 4.2 today?\"&gt;&lt;lf-verdict id=\"verdict\"&gt;&lt;/lf-verdict&gt;&lt;/lf-group&gt;"
   }
 }
@@ -5812,9 +5809,11 @@ verdict/
                 >The attributes the tag may carry in a page’s markup, as a JSON Schema.
                 An attribute is a <code>name="value"</code> pair in a tag, and
                 <code>leaf page check</code> refuses one this schema doesn’t name.
-                <code>enum</code> lists the answers the server accepts, which the module
-                offers as buttons. Any tag may carry an <code>id</code>, and
-                <code>required</code> makes this one carry it.</lf-note
+                <code>enum</code> lists the answers the server accepts, each a string
+                because an attribute’s value is text, and the module offers them as
+                buttons. Any tag may carry an <code>id</code>, and
+                <code>required</code> makes this one carry it, because Leaf keeps a
+                widget’s answer under its <code>id</code>.</lf-note
               >
               <lf-note at="8"
                 >The tag holds nothing the page’s author writes. The module draws all of
@@ -5823,22 +5822,25 @@ verdict/
               <lf-note at="11"
                 >A verb is one kind of action the user takes on the widget, under a name
                 the package chooses, and the server refuses an action whose verb the
-                declaration lacks. <code>unit</code> keeps one answer for the whole
-                widget, so a later press replaces an earlier one.
-                <code>record</code> ties the answer to the
-                <code>verdict</code> attribute: the server checks an action’s value
-                against that attribute’s schema before it appends the action to the
-                <a href="#event-log">event log</a>. When the agent next revises the
+                declaration lacks. A verb keeps one answer for the whole widget unless
+                its declaration says otherwise, so a later press replaces an earlier
+                one. <code>record</code> names the attribute that holds the answer: the
+                server checks an action’s value against the
+                <code>verdict</code> attribute’s schema before it appends the action to
+                the <a href="#event-log">event log</a>. When the agent next revises the
                 page, it writes the answer into that attribute, so the markup shows the
-                decision.</lf-note
+                decision. A verb that keeps an answer for each part of a widget, or
+                records something other than one attribute, says so with keys this
+                widget leaves out (<a href="/extending/#keys">Registry keys</a
+                >).</lf-note
               >
               <lf-note at="12"
                 >The widget asks the user something, where one that only records would
                 leave <code>awaits</code> out. The question is the label of the group
                 around the widget, and it stays on On Me, the user’s list of everything
                 waiting on them, until it is answered. <code>value</code> names the verb
-                whose state is the answer, and <code>answered</code> says the question
-                is settled once any <code>decide</code> action is recorded.</lf-note
+                whose value is the answer, so the question is answered once
+                <code>decide</code> has one.</lf-note
               >
             </lf-code>
             <h3 id="verdict-module-heading">Module</h3>
@@ -5869,13 +5871,8 @@ customElements.define(
     }
 
     press(value) {
-      this.dispatchEvent(
-        new CustomEvent("lf-action", {
-          bubbles: true,
-          composed: true,
-          detail: { verb: "decide", detail: { value } },
-        }),
-      );
+      const action = { verb: "decide", detail: { value } };
+      this.dispatchEvent(new CustomEvent("lf-action", { detail: action }));
     }
   },
 );
@@ -5900,17 +5897,20 @@ customElements.define(
                 <code>aria-disabled</code> marks a button the user may not press now, as
                 when the page has no server to record the action.</lf-note
               >
-              <lf-note at="21"
-                >A press dispatches an <code>lf-action</code> event. Leaf has set the
-                new <code>state</code> by the time <code>dispatchEvent</code> returns,
-                so the press shows at once. If the server then refuses the action, Leaf
-                sets <code>state</code> back to what the server holds.</lf-note
+              <lf-note at="22"
+                >An action names its verb and carries its own <code>detail</code>. For a
+                verb with a <code>record</code>, the detail is the value to record,
+                under the key <code>value</code>, which Leaf then sets as
+                <code>decide.value</code>.</lf-note
               >
-              <lf-note at="28"
-                >The event’s <code>detail</code> names the verb and carries the action’s
-                own detail, which here is the value. <code>bubbles</code> and
-                <code>composed</code> let the event reach Leaf from wherever the element
-                stands.</lf-note
+              <lf-note at="23"
+                >The element dispatches the action on itself, as the
+                <code>detail</code> of an <code>lf-action</code> event. Leaf listens on
+                the element it sets <code>state</code> on, so the event needs no other
+                option. Leaf has set the new <code>state</code> by the time
+                <code>dispatchEvent</code> returns, so the press shows at once. If the
+                server then refuses the action, Leaf sets <code>state</code> back to
+                what the server holds.</lf-note
               >
             </lf-code>
             <h3 id="verdict-stylesheet-heading">Stylesheet</h3>

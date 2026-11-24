@@ -34,7 +34,7 @@ import re
 from pathlib import Path
 
 from leaf.media import media_name
-from leaf.registry.contract import is_element_name
+from leaf.registry.contract import complete_declarations, is_element_name
 from leaf.schema import ASSETS, BUNDLED_PACKAGES, MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument, splice
@@ -124,9 +124,12 @@ def registries() -> list[Path]:
 
 
 def verb_rows() -> list[str]:
+    """A row for each verb, read as composition completes its declaration, so a verb
+    that names no `unit` shows the one its record decides."""
     rows = []
     for path in registries():
-        for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
+        declared = complete_declarations(json.loads(path.read_text(encoding="utf-8")))
+        for tag, element in declared.items():
             if not is_element_name(tag):
                 continue
             for verb, verb_state in element.get("verbs", {}).items():

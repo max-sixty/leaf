@@ -811,18 +811,20 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
         assert found(findings, code, f"<{tag}>", **values), findings
 
 
-def test_a_local_obligation_declares_its_answered_condition(page_dir):
+def test_a_local_obligation_names_the_verb_that_answers_it(page_dir):
+    """`awaits` needs only its `value`, and one that names none is refused for that,
+    never for the `answered` composition would have written from it."""
     registry = vocabulary(page_dir)
-    registry["lf-test-task"]["awaits"] = {"value": "answer"}
+    registry["lf-options"]["awaits"] = {"when": {"settled": [False]}}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
     assert status != 0
     [refused] = found(
-        findings, "invalid-declaration", "<lf-test-task>", keyword="required"
+        findings, "invalid-declaration", "<lf-options>", keyword="required"
     )
-    assert "answered" in refused.values["reason"]
+    assert "'value'" in refused.values["reason"]
 
 
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):

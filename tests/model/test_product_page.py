@@ -385,7 +385,6 @@ def test_the_event_log_page_quotes_the_registry():
         noted.append(lines[int(position) - 1].strip())
     explained = [
         '"choose": ',
-        '"unit": "widget"',
         '"record": ',
         '"unit": "option"',
         '"creates": ',

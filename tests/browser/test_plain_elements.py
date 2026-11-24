@@ -68,10 +68,10 @@ HIRES = """
 # What a module does to record or take back. It answers what the module knows as
 # `dispatchEvent` returns: whether Leaf took the event, and the decision the element's
 # state then holds. The outcome of a taken event lands on `window.sent`.
-SEND = """([id, type, detail]) => {
+SEND = """([id, type, detail, inside]) => {
   const element = document.getElementById(id);
-  const event = new CustomEvent(type, {bubbles: true, composed: true, detail});
-  element.dispatchEvent(event);
+  const event = new CustomEvent(type, {detail, bubbles: Boolean(inside)});
+  (inside ? element.querySelector(inside) : element).dispatchEvent(event);
   window.sent = {taken: Boolean(event.delivery), settled: false};
   event.delivery?.then((admitted) =>
     Object.assign(window.sent, {settled: true, admitted}));
@@ -79,11 +79,11 @@ SEND = """([id, type, detail]) => {
 }"""
 
 
-def send(page, widget, kind, detail):
-    """Dispatch one event from `widget` as its module would. Answers what `SEND` read
-    as `dispatchEvent` returned and, for an event Leaf took, what its `delivery`
-    resolved to as `admitted`."""
-    sent = page.evaluate(SEND, [widget, kind, detail])
+def send(page, widget, kind, detail, inside=None):
+    """Dispatch one event from `widget` as its module would, or a bubbling one from
+    the node `inside` it. Answers what `SEND` read as `dispatchEvent` returned and, for
+    an event Leaf took, what its `delivery` resolved to as `admitted`."""
+    sent = page.evaluate(SEND, [widget, kind, detail, inside])
     if sent["taken"]:
         page.wait_for_function("() => window.sent.settled")
         sent["admitted"] = page.evaluate("() => window.sent.admitted")
@@ -177,7 +177,8 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
     """The state holds an action's result as `dispatchEvent` returns. `delivery`
     resolves to the event the server admitted, or to null where the server refuses it
     and the state returns. `lf-undo` takes back the action in force, on the unit it
-    names where the verb has a state for each. A quoted element's event is never sent."""
+    names where the verb has a state for each. A quoted element's event is never sent,
+    and neither is one that reached the element from a node inside it."""
     url = live_url(
         serve(
             leaf_page("Release 4.2", QUESTION + QUOTED + HIRES),
@@ -209,6 +210,7 @@ def test_a_plain_element_learns_what_became_of_each_event(browser, serve):
         "aria-disabled", "true"
     )
     assert not send(page, "quoted-verdict", "lf-action", decide("ship"))["taken"]
+    assert not send(page, "verdict", "lf-action", decide("hold"), "button")["taken"]
     round_trip(page)
     assert decisions(serve.page_dir) == [("verdict", "ship")]
 

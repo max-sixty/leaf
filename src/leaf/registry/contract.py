@@ -130,6 +130,16 @@ def complete_declarations(registry: dict) -> dict:
     the element unless `attributes` gives it a schema, and the one its `reference`
     names is one naming an element (`refers`), whether or not the entry lists it there.
 
+    A verb (`verbs`) keeps one state for the whole widget (`unit: "widget"`) unless it
+    names the detail field that tells its members apart, and a verb recording
+    positions always tells them apart by `unit`, so only a verb with a `detail` schema
+    that keeps a state for each member says its `unit`. A record that names no `kind`
+    is one value in the attribute it names (`kind: "value"`). An obligation (`awaits`)
+    is answered while the verb its `value` names has a state (`answered:
+    {<verb>: {}}`) unless `answered` says when. So the fold, admission and each
+    event's stored `meaning.state` read the same `unit`, `record` and `answered`
+    whether the declaration spelt them or left them to their defaults.
+
     It runs before validation, so it completes only an entry of the shape it reads
     and leaves any other for validation to refuse."""
     for entry in element_declarations(registry).values():
@@ -139,11 +149,19 @@ def complete_declarations(registry: dict) -> dict:
             entry["attributes"] = _closed_by_default(attributes)
         entry.setdefault("content", "markup")
         verbs = entry.get("verbs")
-        for spec in verbs.values() if isinstance(verbs, dict) else ():
-            if isinstance(spec, dict) and isinstance(
-                detail := spec.get("detail"), dict
-            ):
+        for verb, spec in list(verbs.items()) if isinstance(verbs, dict) else ():
+            if not isinstance(spec, dict):
+                continue
+            if isinstance(detail := spec.get("detail"), dict):
                 spec["detail"] = _closed_by_default(detail)
+            if isinstance(record := spec.get("record"), dict):
+                spec["record"] = record = {"kind": "value", **record}
+            position = isinstance(record, dict) and record["kind"] == "position"
+            # Each default stands first, where a declaration that writes it puts it.
+            verbs[verb] = {"unit": "unit" if position else "widget", **spec}
+        awaits = entry.get("awaits")
+        if isinstance(awaits, dict) and isinstance(value := awaits.get("value"), str):
+            awaits.setdefault("answered", {value: {}})
         inputs = entry.get("inputs")
         for spec in inputs.values() if isinstance(inputs, dict) else ():
             for key in INPUT_BINDINGS if isinstance(spec, dict) else ():

@@ -90,9 +90,9 @@
    * scrolls on its own where it holds more names than that leaves it, a height it holds
    * on purpose (`--lf-holds-height`), as a sticking block does. The package that draws
    * the parts sets only how the list looks (the default package's tabs.css, "A page's
-   * parts"), and finds the column where the parts stand, as a child of the page's
-   * `main`: `page check` refuses parts in a `main` that carries a Layout
-   * (`parts-in-layout`), so no package needs to know the Layouts' names.
+   * parts"), where the parts' `main` carries no Layout (`--lf-layout-box`). In a `main`
+   * that carries one, which `page check` advises against (`parts-in-layout`), the parts
+   * draw as a strip of tabs inside that Layout.
    * So the column stands still whichever part is open
    * and wherever it is read, the rubber band at the page's end included: every engine
    * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck

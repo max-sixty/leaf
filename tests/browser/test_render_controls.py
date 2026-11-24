@@ -101,7 +101,7 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
     resized(page, 1440, 900)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.evaluate("async () => (await window.__lfWidgetApi()).raiseError('Not saved')")
+    page.evaluate("async () => (await window.__lfCheckApi()).raiseError('Not saved')")
     panel_settled(page, open=False)
     leaf = page.locator(".lf-fp-leaf > .lf-badges")
     marks = [leaf.locator(name) for name in (".lf-fp-badge", ".lf-fp-news-dot")]

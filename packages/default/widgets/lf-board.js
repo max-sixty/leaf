@@ -85,7 +85,6 @@ import {
   offer,
   offerAction,
   labelOf,
-  layoutChanged,
   saying,
   dragging,
   motion,
@@ -97,8 +96,6 @@ import {
   declarationFor,
   authoredScope,
   widgetController,
-  commandsChanged,
-  reportFailure,
 } from "/runtime/widget-api.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -567,7 +564,6 @@ customElements.define(
         },
       ];
       grip.lfCommands = { title: "On a card grip", rows };
-      commandsChanged(grip);
       return rows;
     }
     /** @param {BoardCard} card */
@@ -590,6 +586,9 @@ customElements.define(
         });
       });
       card.append(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {BoardCard} card */
@@ -964,7 +963,13 @@ customElements.define(
         if (fault === null) this.#reported.delete(card);
         else if (this.#reported.get(card) !== fault) {
           this.#reported.set(card, fault);
-          reportFailure(card, new Error(fault));
+          card.dispatchEvent(
+            new ErrorEvent("error", {
+              error: new Error(fault),
+              bubbles: true,
+              composed: true,
+            }),
+          );
         }
       }
     }
@@ -1062,9 +1067,15 @@ customElements.define(
           if (played) movements.push(played.finished);
         }
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       if (movements.length)
-        void Promise.allSettled(movements).then(() => layoutChanged(this));
+        void Promise.allSettled(movements).then(() =>
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          ),
+        );
     }
   },
 );

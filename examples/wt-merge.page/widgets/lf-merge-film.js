@@ -22,7 +22,6 @@
 import {
   compoundReadingRegionId,
   holdFocus,
-  layoutChanged,
   offer,
   once,
   preserveReadingRegions,
@@ -419,7 +418,9 @@ customElements.define(
       if (painter !== this.painter)
         void preserveReadingRegions(this, () => {
           this.#draw(narrow, painter);
-          layoutChanged(this);
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         });
       else this.#draw(narrow, painter);
     }
@@ -462,7 +463,9 @@ customElements.define(
       this.scrub.value = this.#t;
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       this.frame = {
         chapter: fr.chapter,
         caption: fr.caption,

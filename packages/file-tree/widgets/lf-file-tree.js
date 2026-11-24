@@ -28,7 +28,6 @@ import {
   scrollIntoView,
   shadowStage,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 import { PRESS } from "/runtime/lib/keys.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -123,7 +122,9 @@ class FileTreeWidget extends LeafElement {
     // reads no rows: what it costs doesn't grow with the tree.
     const modelChanged = () => {
       paintEmpty();
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     };
     const mount = () => {
       if (!tree || mounted || !files.length) return;
@@ -184,7 +185,9 @@ class FileTreeWidget extends LeafElement {
       },
     ]);
     this.lfCommands = fileActions;
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     whileConnected(this, (signal) => {
       mount();
       // Trees scrolls its virtualized list and focuses with preventScroll. The
@@ -204,7 +207,9 @@ class FileTreeWidget extends LeafElement {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.
             row.lfCommands = fileActions;
-            commandsChanged(row);
+            row.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            );
             if (cause !== "press") scrollIntoView(row, { block: "nearest" });
           }
         },

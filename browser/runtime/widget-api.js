@@ -111,7 +111,6 @@ export {
   scrollerFor,
   showReadingSubject,
 } from "./reading-regions.js";
-export { raiseError } from "./errors.js";
 export { named, phrasing, says } from "./passages.js";
 export { ago, agePreview, clockValue } from "./presence.js";
 export { boundFile } from "./file-api.js";

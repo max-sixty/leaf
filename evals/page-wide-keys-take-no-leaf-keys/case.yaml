@@ -25,8 +25,8 @@ assert:
     value: |
       Pass only if the shortcuts are handled where they take none of Leaf's own keys:
       a `keydown` listener on `document` or `window` in the bubble phase, or a command
-      scope declared through `lfCommands` and `commandsChanged` from
-      /runtime/widget-api.js on `document.body` or `document.documentElement`.
+      scope declared as the `lfCommands` of `document.body` or
+      `document.documentElement`, with an `lf-commands` event dispatched on that element.
       Fail if the listener that handles them is on `document.body`, on the deck's
       section, or on another element wrapping the page's content, or if it is added
       with `capture: true` (or a third argument of `true`) on `document` or `window`.

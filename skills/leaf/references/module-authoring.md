@@ -73,10 +73,11 @@ through events and element declarations that a plain host can ignore:
   Components Community Group's `pending-task` protocol. Leaf holds the page's
   presentation until `promise` settles, as it does for `present(promise)`
   (`module-state.md`, "The widget controller").
-- A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
-  which Leaf reports to the author as the page's error.
-- Keys: an element's `lfCommands` and `commandsChanged` (`module-input.md`, "Commands
-  and keyboard routes"). A plain page binds none and advertises none. A button that must
+- A failure: an `error` event, which `failSoft` dispatches ("Upgrade") and a widget
+  that shows a failure its own way dispatches itself. Leaf reports it to the author as
+  the page's error.
+- Keys: an element's `lfCommands` and its `lf-commands` event (`module-input.md`,
+  "Commands and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
   can't act, which is the availability Leaf reads. Where a key takes the user is the
@@ -153,8 +154,8 @@ A native renderer that retains its nodes can register `placesFailure(element, pl
 to place the box beside them: `place(box)` returns true when it handles the box, and
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
-failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports.
+failed part its own way, as `lf-diff` does for a patch it cannot draw, it dispatches
+the `error` event itself (`module-plain-elements.md`, "`error`"), which only reports.
 
 ## Connection lifetimes
 

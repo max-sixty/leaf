@@ -155,14 +155,14 @@ customElements.define(
           type="button"
           aria-pressed=${{choose.value === value}}
           aria-disabled=${{!choose.available}}
-          @click=${{() => this.choose(value)}}
+          @click=${{() => this.press(value)}}
         >
           ${{label}}
         </button>`;
       render([button("yes", "Yes"), button("no", "No")], this);
     }}
 
-    choose(value) {{
+    press(value) {{
       this.dispatchEvent(
         new CustomEvent("lf-action", {{
           bubbles: true,
@@ -412,9 +412,11 @@ def init_starter_widgets(
     composition: LayerComposition,
     widgets: tuple[str, ...],
 ) -> None:
-    """Add each tag's starter widget, all of them or none: its declaration to
-    `registry.json`, its rule to the end of `defaults.css`, and its module, which
-    replaces no file the package holds. The whole candidate is checked first."""
+    """Add each tag's starter widget: its declaration to `registry.json`, its rule to
+    the end of `defaults.css`, and its module, which replaces no file the package
+    holds. Every tag and the whole candidate are checked before any file changes.
+    The registry is written last, so a write that fails leaves no declaration without
+    its module, and at most a rule that no declaration names."""
     registry_path = package / "registry.json"
     styles_path = package / "defaults.css"
     registry = read_json(registry_path) or {}
@@ -441,8 +443,8 @@ def init_starter_widgets(
         modules[module_path] = starter_widget_module(widget)
 
     replaces = {
-        registry_path: json_bytes(registry, indent=2),
         styles_path: b"\n\n".join(filter(None, styles)) + b"\n",
+        registry_path: json_bytes(registry, indent=2),
     }
     validate_starter_candidate(
         package,

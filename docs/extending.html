@@ -2031,11 +2031,11 @@ packages/callout/
               press: its element declaration, its browser module and its style rule. It
               checks the complete candidate before changing the package, and each part
               is there to be changed into the widget you need. The tutorial below stays
-              with the smaller CSS-only form so each contract remains visible. A
-              behavior module imports Leaf's package API from
-              <code>/runtime/widget-api.js</code>; it declares each interactive
-              capability once, as the <code>lfCommands</code> of the element it applies
-              in. The same live command rows feed keyboard dispatch, help, accessibility
+              with the smaller CSS-only form so each contract remains visible. A module
+              that needs Leaf's functions imports them from
+              <code>/runtime/widget-api.js</code>, and one that adds keys declares each
+              command once, as the <code>lfCommands</code> of the element it applies in.
+              The same live command rows feed keyboard dispatch, help, accessibility
               shortcuts, and—when <code>decision</code> names the action—the controls
               shown inline for an obligation.
             </p>

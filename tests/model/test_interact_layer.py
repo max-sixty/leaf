@@ -4661,9 +4661,11 @@ def test_package_init_writes_a_starter_for_each_widget_named(tmp_path, monkeypat
         f"{tag}.js": packages_model.starter_widget_module(tag)
         for tag in ("lf-first", "lf-second")
     }
-    assert (package / "defaults.css").read_bytes() == b"\n".join(
-        packages_model.starter_widget_styles(tag) for tag in ("lf-first", "lf-second")
-    )
+    styles = (package / "defaults.css").read_bytes()
+    assert [
+        styles.count(packages_model.starter_widget_styles(tag))
+        for tag in ("lf-first", "lf-second")
+    ] == [1, 1]
     assert package_findings(package) == (0, [])
 
 

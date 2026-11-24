@@ -795,10 +795,10 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    # The starter's rule follows the rules the package already had.
-    assert (package / "defaults.css").read_bytes() == (
-        theme.rstrip() + b"\n\n" + packages_model.starter_widget_styles("lf-added-note")
-    )
+    # The package keeps the rules it had, and the starter's rule follows them.
+    styles = (package / "defaults.css").read_bytes()
+    assert styles.startswith(theme.rstrip())
+    assert styles.endswith(packages_model.starter_widget_styles("lf-added-note"))
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 

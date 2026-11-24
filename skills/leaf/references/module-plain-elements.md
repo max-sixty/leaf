@@ -50,10 +50,8 @@ customElements.define(
 
 Lit's `render` calls an `@event` handler with the node it listens on as `this`, so
 where a handler is a method of the element, pass `{ host: this }` as `render`'s third
-argument. The starter `leaf package init --widget` writes
-([packages.md, "Package reach"](packages.md#package-reach)) is a smaller widget of
-this kind. This one's declaration ([packages.md, "A widget"](packages.md#a-widget))
-puts the question on On Me and admits the ids its buttons mark:
+argument. Its declaration ([packages.md, "A widget"](packages.md#a-widget)) puts the
+question on On Me and admits the ids its buttons mark:
 
 ```json
 "lf-verdict": {
@@ -73,6 +71,10 @@ puts the question on On Me and admits the ids its buttons mark:
   "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
 }
 ```
+
+`leaf package init --widget` writes a smaller widget of this kind to start from
+([packages.md, "Package reach"](packages.md#package-reach)). It has the same `state`
+setter and `lf-action`, and puts no question on On Me and marks no comment target.
 
 Each `lf-` event the element dispatches, and `pending-task` and `error`, bubbles and is
 composed, so Leaf hears it from inside any shadow tree. Where an entry says an event

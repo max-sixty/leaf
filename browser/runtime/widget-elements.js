@@ -323,6 +323,9 @@ addEventListener(
 );
 
 // The node the selection's focus end stands in, or null where no words are selected.
+// It reads the selected words as the page's reading does (`pageRange`), since the
+// question is whether a press reached for words, not where the caret is drawn
+// (`userCaret`).
 function selectionFocus() {
   const sel = getSelection();
   if (!sel?.rangeCount) return null;

@@ -1,4 +1,4 @@
-import { createPlayground } from "./playground-view.js";
+import { createPlayground, same } from "./playground-view.js";
 /* lf-playground: one form's working configuration, with one durable decision.
  *
  * Authors write the form as native fields among the preview's own markup, with presets
@@ -101,23 +101,6 @@ const ONE_PRESS = [
   'input:is([type="checkbox"], [type="radio"], [type="range"])',
 ].join(", ");
 
-/** @param {readonly string[]} left @param {readonly string[]} right */
-const sameKeys = (left, right) =>
-  left.length === right.length && left.every((key, index) => key === right[index]);
-
-// Configuration objects have no meaningful key order, including contributor slices.
-/** @param {unknown} value */
-const configurationJSON = (value) =>
-  JSON.stringify(value, (_key, /** @type {unknown} */ item) =>
-    item && typeof item === "object" && !Array.isArray(item)
-      ? Object.fromEntries(
-          Object.entries(item).sort(([left], [right]) =>
-            left < right ? -1 : left > right ? 1 : 0,
-          ),
-        )
-      : item,
-  );
-
 /** @param {unknown} value @param {string} [path] @returns {JSONSnapshot} */
 function jsonSnapshot(value, path = "configuration") {
   if (value === null || typeof value === "string" || typeof value === "boolean")
@@ -198,7 +181,7 @@ customElements.define(
     #submit = null;
     /** @type {HTMLButtonElement | null} */
     #reset = null;
-    /** @type {string | null | undefined} */
+    /** @type {unknown} */
     #drawn = undefined;
     #ready = false;
     #interactive = false;
@@ -410,7 +393,7 @@ customElements.define(
     #normalize(candidate) {
       const names = Object.keys(this.#defaults).sort();
       const keys = Object.keys(candidate).sort();
-      if (!sameKeys(names, keys))
+      if (!same(names, keys))
         throw new Error(
           `configuration needs exactly these fields: ${names.join(", ")}`,
         );
@@ -426,7 +409,8 @@ customElements.define(
       const field = this.#fields.get(name);
       if (!field) return jsonSnapshot(value, `contributor ${name}`);
       if (!field.holds(value)) throw new Error(`field ${name} can't hold ${value}`);
-      return /** @type {JSONSnapshot} */ (value);
+      // A multiple select's list, read from the log, freezes as a slice's does.
+      return jsonSnapshot(value, `field ${name}`);
     }
 
     // Native range focus and dragging share a default: cancelling it cancels the
@@ -603,7 +587,7 @@ customElements.define(
       const recorded = this.#tune()?.detail.values ?? this.#defaults;
       if (!this.state?.tune?.available) return;
       this.#unsent.clear();
-      if (configurationJSON(values) === configurationJSON(recorded)) return;
+      if (same(values, recorded)) return;
       this.record("tune", { values }, { says: "Changed the playground's settings" });
     }
 
@@ -657,8 +641,7 @@ customElements.define(
       );
       return (
         choice.detail.instruction === this.#instruction() &&
-        configurationJSON(recorded) ===
-          configurationJSON({ ...Object.fromEntries(waiting), ...this.#values })
+        same(recorded, { ...Object.fromEntries(waiting), ...this.#values })
       );
     }
 
@@ -677,8 +660,8 @@ customElements.define(
     // paints the keys.
     render() {
       const tune = this.#tune();
-      const drawn = tune ? configurationJSON(tune.detail.values) : null;
-      if (this.#drawn !== drawn) {
+      const drawn = tune ? tune.detail.values : null;
+      if (!same(this.#drawn, drawn)) {
         this.#drawn = drawn;
         // An edit the tune in force already holds, such as a value the browser restored
         // on a reload, is recorded already.
@@ -686,7 +669,7 @@ customElements.define(
           tune?.detail.values ?? this.#defaults
         );
         for (const name of this.#unsent)
-          if (Object.is(recorded[name], this.#values[name])) this.#unsent.delete(name);
+          if (same(recorded[name], this.#values[name])) this.#unsent.delete(name);
         const unsent = [...this.#unsent].map((name) => [name, this.#values[name]]);
         this.#restore({
           ...recorded,

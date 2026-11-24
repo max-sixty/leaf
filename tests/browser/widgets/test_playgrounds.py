@@ -490,6 +490,52 @@ def test_playground_select_keeps_the_same_working_configuration(browser, serve):
     expect(stream).to_have_value("billing")
 
 
+def test_a_multiple_select_sends_and_restores_every_option_it_selects(browser, serve):
+    """A `<select multiple>` holds every option it selects: the instruction and the
+    choice name each pick, a reload selects them all again, and a preset that names its
+    options in any order selects them and still reads as pressed after a reload."""
+    source = leaf_page(
+        "Rollout regions",
+        '<lf-group id="rollout-q" label="Which regions?"><lf-playground id="rollout">'
+        '<aside><label id="regions">Regions <select name="regions" multiple>'
+        '<option value="eu-west" selected>EU West</option>'
+        '<option value="us-east">US East</option>'
+        '<option value="ap-south">AP South</option></select></label></aside>'
+        '<lf-playground-preset id="preset-east" label="East">'
+        '<lf-playground-setting for="regions" value="ap-south us-east">'
+        "</lf-playground-setting></lf-playground-preset><p>Preview</p>"
+        '<lf-playground-output>Roll out to <output for="regions"></output>.'
+        "</lf-playground-output></lf-playground></lf-group>",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#rollout")
+    regions = playground.get_by_role("listbox", name="Regions")
+    regions.select_option(["eu-west", "ap-south"])
+    expect(playground.locator("lf-playground-output")).to_have_text(
+        "Roll out to eu-west, ap-south."
+    )
+    expect(playground).to_have_attribute("data-playground-regions", "eu-west ap-south")
+    with sending(page, "the chosen regions"):
+        playground.get_by_role("button", name="Use these settings").click()
+    choice = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "rollout" and event.get("action") == "choose"
+    )
+    assert choice["detail"]["values"] == {"regions": ["eu-west", "ap-south"]}
+    page.reload()
+    wait_until_ready(page)
+    expect(regions).to_have_values(["eu-west", "ap-south"])
+    east = playground.get_by_role("button", name="East", exact=True)
+    with sending(page, "the preset's regions"):
+        east.click()
+    expect(regions).to_have_values(["us-east", "ap-south"])
+    page.reload()
+    wait_until_ready(page)
+    expect(regions).to_have_values(["us-east", "ap-south"])
+    expect(east).to_have_attribute("aria-pressed", "true")
+
+
 def test_playground_preview_stays_readable_until_its_controls_load(browser, serve):
     """Authored content is readable while loading; upgrade applies control defaults."""
     page = browser.new_page(viewport={"width": 1280, "height": 900})

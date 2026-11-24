@@ -52,6 +52,7 @@
    Raw report and history readings remain direct semantic selections. */
 import { applicationRegionsPresented, readPart } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
+import { askHistory } from "./layer-client.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
 /** @param {unknown} target @returns {ReportTarget | null} */
@@ -112,12 +113,21 @@ export const saidAt = (el) => {
 // already carrying its thread, whether it was undone, and a gesture's words as its own
 // document had them, and the application's `phase`, so a widget never replaces a
 // reading it retained with the empty one a page shows before it is `ready`. The server
-// sends the events only to a page holding a widget that declares `history`;
-// elsewhere they are empty.
-export const readHistory = readPart((root) => ({
-  phase: root.phase,
-  events: root.authoritative?.browser.history ?? [],
-}));
+// sends the events only to a tab that asks for them, so the first read asks
+// (`askHistory`), and the reading stays `waiting` until an answer holding them
+// arrives: one request after the page's first answer, on a page whose first read
+// went out before any widget asked.
+const historyReading = readPart((root) => {
+  const events = root.authoritative?.browser.history;
+  return {
+    phase: events || root.phase !== "ready" ? root.phase : "waiting",
+    events: events ?? [],
+  };
+});
+export const readHistory = () => {
+  askHistory();
+  return historyReading();
+};
 
 // A report can speak only once the renderer of its widget and coordinate chrome have
 // committed, and any required asynchronous preparation, the same coordinator region

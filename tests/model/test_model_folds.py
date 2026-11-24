@@ -671,6 +671,7 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
             },
             {"kind": "resolve", "author": "agent", "parent": "e1"},
         ),
+        with_history=True,
     )
 
     thread = model.threads(state)["e1"]

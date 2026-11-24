@@ -16,8 +16,9 @@ Bookkeeping stays out: `read`, `pickup`, `receipt`, `summary`, `thread_title`,
 `reanchor`, `error`, and `undo`, which marks the gesture it took back instead of
 appearing as its own row.
 
-`history` is a served reading only a page that renders it pays for: the state
-carries it when the page's markup holds a widget whose entry declares `history`.
+`history` is a served reading only a tab that reads it pays for: a state answer
+carries it when the tab asks (`Leaf-History`, `http.py`), and a capture's always does
+(`served_state.service.PageStateService.page_state`).
 """
 
 from .events import taken_back
@@ -35,16 +36,6 @@ SHOWN = THREAD_KINDS | {
     "report",
     "note",
 }
-
-
-def wants_history(readings) -> bool:
-    """Whether any of these documents (`SourceReading`s) holds a widget declaring
-    `history` in its own registry."""
-    return any(
-        reading.registry.get(record["tag"], {}).get("history")
-        for reading in readings
-        for record in reading.document.lf_elements
-    )
 
 
 def _report(event: dict, words: GestureWords) -> dict:

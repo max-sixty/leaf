@@ -156,6 +156,44 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
         assert (exported.count(sentinel), body.count(sentinel)) == (0, 1)
 
 
+def test_an_export_holds_the_history_a_feed_asks_for(page_dir, tmp_path):
+    """An export answers every read its runtime makes from the one state it holds, and
+    no server stands behind it to ask, so that state holds the page's history for the
+    activity feed to draw."""
+    (page_dir / "index.html").write_text(
+        leaf_page(
+            "Feed",
+            '<h1>Feed</h1><lf-group id="ask" label="Which one?">'
+            '<lf-options id="picks"><lf-option id="a">A</lf-option>'
+            '<lf-option id="b">B</lf-option></lf-options></lf-group>'
+            '<lf-activity id="feed"></lf-activity>',
+        )
+    )
+    publish(page_dir)
+    chosen = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["b"]},
+        },
+    )
+    out = tmp_path / "feed.html"
+    exporting_model.cmd_export(page_dir, out, None, runtime=True)
+    package = SourceDocument(out.read_text(encoding="utf-8")).tree.select_one(
+        "script[data-lf-export]"
+    )
+    assert package is not None
+    document = SourceDocument(json.loads(package.text)["document"])
+    payload = document.tree.select_one("script[data-lf-offline]")
+    assert payload is not None
+    history = json.loads(payload.text)["state"]["browser"]["history"]
+    assert history[0]["id"] == chosen["id"], history
+
+
 def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_path):
     """Whoever opens the file reads the page and the decisions on it, and no word of what
     the user and the agent said to each other, on screen or in its source.

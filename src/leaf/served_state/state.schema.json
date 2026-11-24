@@ -849,7 +849,7 @@
           "additionalProperties": false
         },
         "history": {
-          "description": "The newest rows, newest first, sent only to a page holding a widget that declares `history`.",
+          "description": "The newest rows, newest first, sent only to a tab that asks for them with `Leaf-History`, and always in a capture.",
           "type": "array",
           "items": { "$ref": "#/$defs/HistoryRow" }
         },

@@ -130,6 +130,7 @@ def served_reading(
     presence: dict | None = None,
     data: dict | None = None,
     held: str | None = None,
+    with_history: bool = False,
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
@@ -138,7 +139,8 @@ def served_reading(
     document, through the same route as the browser. The reading is named and
     remembered as the page server names what it serves; `held` is the
     `browser.basis.key` of an earlier one, which makes the answer the changes since
-    it where this process remembers it (`served_state.tail`).
+    it where this process remembers it (`served_state.tail`). `with_history` reads
+    it for a tab that asks for the page's history.
 
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
@@ -162,6 +164,7 @@ def served_reading(
     state = read_served_page(
         _fold(documents, events, registry=registry, presence=presence, data=data),
         view_revision=view_revision,
+        with_history=with_history,
     ).state
     sent = answer(state, held, FOLDED_PAGE)
     assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
@@ -296,6 +299,7 @@ def reading(
     registry: dict | None = None,
     view_revision: int | None = None,
     data: dict | None = None,
+    with_history: bool = False,
 ) -> dict:
     """The semantic browser projection beside its page-wide work readings.
 
@@ -303,7 +307,12 @@ def reading(
     for the complete `/api/state` answer.
     """
     state = served_reading(
-        documents, events, registry=registry, view_revision=view_revision, data=data
+        documents,
+        events,
+        registry=registry,
+        view_revision=view_revision,
+        data=data,
+        with_history=with_history,
     )
     return {
         **state["browser"],

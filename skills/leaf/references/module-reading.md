@@ -298,10 +298,11 @@ worked example.
 
 ### Page history and reports
 
-A widget that shows the page's history declares `history` and reads
-`readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
-thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
-widget restoring something from `tabStore` compares it with the history once `phase` is
+A widget that shows the page's history reads `readHistory()`: `{phase, events}`, the
+server's rows, newest first, each carrying its thread, whether it was undone, the
+agent's name as `agent`, and a gesture's words. The first call asks the server for the
+rows, and `phase` reads `waiting` until an answer holding them arrives. A widget
+restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
 A widget an agent reports on reads reports with `reportSequence(this)`, after checking

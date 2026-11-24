@@ -422,13 +422,13 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"value": ["live-mine"]}
 
 
-def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
+def test_history_reaches_only_a_tab_that_asks_and_keeps_a_pick_as_made():
     """The served history words a pick from the document it was made in.
 
     A later version that removes the question leaves the row naming the option the
     user picked, by its label rather than its words, and a withdrawn pick stays a row
-    marked undone. A page whose markup holds no widget declaring `history` is not
-    served the reading.
+    marked undone. A reading for a tab that didn't ask for the history holds none,
+    whatever the page holds.
     """
     question = model.leaf_page(
         "Route",
@@ -449,7 +449,9 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
         {"kind": "undo", "undoes": "e2"},
     )
 
-    history = model.reading({1: question, 2: retired}, events)["history"]
+    history = model.reading({1: question, 2: retired}, events, with_history=True)[
+        "history"
+    ]
     for row in history:
         assert served_state_error(row, "HistoryRow") is None
     assert [(row["id"], row["gesture"], row["undone"]) for row in history] == [
@@ -457,8 +459,7 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
         ("e1", {"form": "choice", "chosen": ["Fast path"]}, False),
     ]
 
-    unwatched = question.replace('<lf-activity id="feed"></lf-activity>', "")
-    assert "history" not in model.reading(unwatched, events)
+    assert "history" not in model.reading({1: question, 2: retired}, events)
 
 
 def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
@@ -499,7 +500,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         pick,
     )
 
-    history = model.reading(question, events)["history"]
+    history = model.reading(question, events, with_history=True)["history"]
     for row in history:
         assert served_state_error(row, "HistoryRow") is None
     assert [(row["id"], row["gesture"]) for row in history] == [

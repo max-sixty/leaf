@@ -50,10 +50,11 @@ def read_served_page(
     publication: dict | None = None,
     source_error: str | None = None,
     view_revision: int | None = None,
+    with_history: bool = False,
 ) -> ServedPage:
-    """The whole answer."""
+    """The whole answer, with the page's history `with_history`."""
     active = context.active
-    projected = project_browser_state(context, view_revision)
+    projected = project_browser_state(context, view_revision, with_history=with_history)
     browser, reading = projected if projected is not None else (None, None)
     work = context.work
     state = {

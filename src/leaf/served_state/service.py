@@ -208,7 +208,13 @@ class PageStateService:
         self.preview = preview
         self.publication = publication
 
-    def page_state(self, view_revision: int | None = None) -> dict:
+    def page_state(
+        self, view_revision: int | None = None, *, asks_history: bool = False
+    ) -> dict:
+        """The state answer, holding the page's history where the reader asks for it
+        (`history.py`). A capture, the source that takes no writes, gives every reader
+        one answer, as an export's runtime and leaf.page's saved answers read it, so
+        its answer holds the history whoever asked."""
         with self.source.state_read() as (context, reading, source_error):
             served = served_page.read_served_page(
                 context,
@@ -216,6 +222,7 @@ class PageStateService:
                 publication=self.publication,
                 source_error=source_error,
                 view_revision=view_revision,
+                with_history=asks_history or not self.source.writable,
             ).state
             state = {
                 "layer": served_page.served_layer_identity(context, view_revision),

@@ -126,7 +126,6 @@ The default board declares `move` as a position record in
 {
   "verbs": {
     "move": {
-      "unit": "unit",
       "record": { "kind": "position", "within": "lf-column" }
     }
   }
@@ -150,8 +149,9 @@ The record kind fixes the event's payload, a closed object with every field requ
   attribute `record.attr` names.
 - `value` sends `{value}`, matching the schema of the attribute `record.attr` names in
   the widget's `attributes`. That schema is a string or a string enum, since an
-  attribute holds no other JSON type, so a number is recorded as its digits. The
-  record may also name the element's property that holds the value, so that Leaf
+  attribute holds no other JSON type, so a number is recorded as its digits. It is
+  the kind of a record that names none, so `{ "attr": "verdict" }` is a value record.
+  The record may also name the element's property that holds the value, so that Leaf
   records it with no module code (`module-plain-elements.md`,
   "`record.property`").
 - `position` sends `{unit, value, rank}`: the moved element's id, the destination
@@ -170,11 +170,12 @@ their order, the moves made before it stay in the log but no longer place their
 members: that version's author writes each container's members in the `order` the
 active version showed, and those moves can no longer be undone.
 
-These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
-detail field holding the moved element. A verb with no record declares its own
-`detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
-naming what the verb's state is about, by element id or by data key, as a playground's
-submitted settings do. That schema holds only `properties`, which names its fields, and
+A recorded verb names no `unit`, since its record decides what its state is about:
+the moved element for a position record, and the whole widget for any other. A verb
+with no record declares its own `detail` JSON Schema. It keeps one state for the whole
+widget, as a playground's `choose` keeps its submitted settings, unless its `unit` names
+a required string detail field that says what each action is about, by element id or by
+data key; the verb then keeps a state for each. That schema holds only `properties`, which names its fields, and
 `required`, so a rule across fields, such as `if`/`then`, is refused; each property
 takes any schema. Leaf writes the schema's `type` and `additionalProperties`
 (`packages.md`, "A widget"), so an action's detail holds only the fields `properties`
@@ -211,22 +212,24 @@ still in force selects the same id if it returns. A widget that needs its own ac
 or services belongs in authored markup.
 
 A verb the agent writes, such as the task `status` on the Atlas example page, declares
-`"writer": "agent"`, `unit: "widget"`, and an `attribute` or `value` record. A worker sets
+`"writer": "agent"` and an `attribute` or `value` record. A worker sets
 it with `leaf page report`; the page shows it at once, and it stays until a new version
 answers it. `text: true` requires each report to carry short news for a person in
 `detail.text`. Each verb has one writer, so no key holds both a user's action and an
 agent's report. A widget with such a verb takes a boolean `overruled` attribute, which a
-version sets to keep its authored state over the report. A widget whose user verb has
-`unit: "widget"` takes a boolean `restated` the same way, which a version sets to take
-the user's decision back. Leaf writes both into the composed declaration, so the
+version sets to keep its authored state over the report. A widget with a user verb
+that keeps one state for the whole widget takes a boolean `restated` the same way,
+which a version sets to take the user's decision back. Leaf writes both into the composed declaration, so the
 package's own lists neither. An element that another widget's verb names by id, as
 `lf-board`'s `move` names an `lf-card`, lists `restated` itself.
 
 `awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
-`awaits.answered` separately says when the obligation is complete: `{}` once the
-verb has a state, which a starting value the page's markup writes gives it too, `when`
+The obligation is complete once that verb has a state, which a starting value the
+page's markup writes gives it too. Where it is complete at another moment,
+`awaits.answered` maps each answering verb to its condition: `{}` once the verb has a
+state, `when`
 for instances with matching attributes, and `empty` while the one container of the
 verb's position record (`within`) whose attributes match its `when` has no members.
 `every: {member}` holds once each `member` element in the widget has an action of a
@@ -298,7 +301,7 @@ package maps its tags onto them in `$work.widgets`:
 
 - `scope` bounds a hierarchy; a reading stops at a nested scope.
 - `goal` is a piece of work. `state` names the attribute holding its state, which
-  exactly one `unit: "widget"` value verb records, and `done` and `stopped` list the
+  exactly one verb's value record names, and `done` and `stopped` list the
   values that mean finished and stopped. `stoppedAt` may name an attribute saying
   when it stopped.
 - `worker` is an agent doing the work, with `state`, the values that mean `running`

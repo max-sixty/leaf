@@ -4,6 +4,13 @@ Read with [module-authoring.md](module-authoring.md).
 
 ## Scrolling
 
+A widget whose box keeps a height of its own and scrolls what it holds, as a log or a
+feed does, declares `bound` in its tag's declaration rather than scrolling a box
+itself. Leaf then keeps the reader's place in the box, and an `end` bound follows the
+newest entry while the reader is at the end (`page-layout.md`, "Bounds and widths").
+To bound a box inside the widget instead, as under a caption, see `package-themes.md`,
+"A theme change".
+
 ### Reading regions
 
 A pane widget declares `reading-role: pane` and `content: markup`, and holds one

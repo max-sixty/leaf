@@ -360,12 +360,9 @@
   const changedState = (node) => ({
     id: node.id,
     name: node.localName,
-    ...(node instanceof HTMLDetailsElement
-      ? { open: node.open }
-      : node instanceof HTMLInputElement &&
-          (node.type === "checkbox" || node.type === "radio")
-        ? { checked: node.checked }
-        : "value" in node && { value: node.value }),
+    ...(inputs.holdsOpen(node) && { open: node.open }),
+    ...(inputs.holdsValue(node) && { value: node.value }),
+    ...(inputs.holdsTick(node) && { checked: node.checked }),
   });
   /** @type {() => unknown} */
   let handingOn = () =>

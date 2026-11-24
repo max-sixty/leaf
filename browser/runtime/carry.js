@@ -22,8 +22,8 @@
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
- * Value capture supports text boxes (`TEXT_BOX`) and non-file inputs; checked state supports checkbox
- * and radio inputs. Select values, contenteditable markup, and file-input values are
+ * Which state a control carries is document-inputs.js's (`holdsValue`, `holdsTick`,
+ * `holdsOpen`): select values, contenteditable markup, and file-input values are
  * excluded.
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install,
@@ -46,11 +46,10 @@
  */
 import { setScroll } from "./arrivals.js";
 import { focusDestination, likeSelector, readCaret, focused } from "./focus.js";
-import { TEXT_BOX } from "./control-selectors.js";
+import { inputs } from "./inputs.js";
 import {
   closestAcross,
   hostIn,
-  isHTML,
   renderedUnder,
   skipped,
   upFrom,
@@ -67,13 +66,7 @@ import { drawnThreadId, THREAD, threadPart, wholeThread } from "./thread/selecto
 /** @param {Element} part */
 const partOwner = (part) => closestAcross(upFrom(part), "[id]");
 
-/** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
-const holdsValue = (node) =>
-  isHTML(node) &&
-  (node.matches(TEXT_BOX) || (isHTML(node, "input") && node.type !== "file"));
-/** @param {Element} node @returns {node is HTMLInputElement} */
-const holdsTick = (node) =>
-  isHTML(node, "input") && (node.type === "checkbox" || node.type === "radio");
+const { holdsValue, holdsTick, holdsOpen } = inputs;
 
 // A key names a page element by `id` and `name`, its tag, with `part` and `partName`
 // for a generated control's `data-lf-carry` key and tag; or a part of a thread by
@@ -235,7 +228,7 @@ export function captureCarry(root, authored) {
     const record = { id: node.id, name: node.localName };
     if (focus?.id === node.id && focus.name === node.localName)
       Object.assign(record, focus, { focus: true });
-    if (isHTML(node, "details") && isHTML(wrote, "details") && node.open !== wrote.open)
+    if (holdsOpen(node) && holdsOpen(wrote) && node.open !== wrote.open)
       record.open = node.open;
     if (!skipped(node)) {
       if (node.scrollTop && !regionBodies.has(node)) record.scrollTop = node.scrollTop;
@@ -287,8 +280,7 @@ export function restoreCarry(
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
     // Only a disclosure's record says whether it was open.
-    if (record.open !== undefined && isHTML(arrived, "details"))
-      arrived.open = record.open;
+    if (record.open !== undefined && holdsOpen(arrived)) arrived.open = record.open;
     if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
     if (record.checked !== undefined && holdsTick(arrived))
       arrived.checked = record.checked;

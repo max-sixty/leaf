@@ -108,12 +108,30 @@
     typesText(node) ||
     (node instanceof Element &&
       (node.localName === "select" || node.getAttribute("role") === "option"));
+  // The state a reload carries for a control and puts back (carry.js; prepaint.js,
+  // `handingOn`), each where the control holds it: the words in a text box or in an
+  // input other than a file input, whose value only the browser sets; the tick of a
+  // checkbox or radio; and whether a disclosure is open.
+  /** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
+  const holdsValue = (node) =>
+    node instanceof HTMLElement &&
+    (node.matches(textBox) ||
+      (node instanceof HTMLInputElement && node.type !== "file"));
+  /** @param {Element} node @returns {node is HTMLInputElement} */
+  const holdsTick = (node) =>
+    node instanceof HTMLInputElement &&
+    (node.type === "checkbox" || node.type === "radio");
+  /** @type {DocumentInputs["holdsOpen"]} */
+  const holdsOpen = (node) => node instanceof HTMLDetailsElement;
   /** @type {DocumentInputs} */
   const state = {
     textField,
     textBox,
     typesText,
     takesLetters,
+    holdsValue,
+    holdsTick,
+    holdsOpen,
     get count() {
       return inputs;
     },

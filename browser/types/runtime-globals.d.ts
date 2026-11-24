@@ -4,6 +4,15 @@ interface DocumentInputs {
   readonly textBox: string;
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
+  /** Which state a reload carries for a control (document-inputs.js). */
+  holdsValue(
+    node: Element,
+  ): node is
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLElementTagNameMap["leaf-text"];
+  holdsTick(node: Element): node is HTMLInputElement;
+  holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
   readonly away: number;
   holdKeys(

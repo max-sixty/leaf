@@ -256,9 +256,9 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
-      // A sent message's picture is the one its message draws (markdown.js, the image
-      // rule), in a paragraph of its own as the message sets it, with the removal mark
-      // a rewrite adds.
+      // A sent message's picture is the one its message draws (page-markdown.js,
+      // `pageLinks`), in a paragraph of its own as the message sets it, with the removal
+      // mark a rewrite adds.
       return sent
         ? html`<p class="lf-composer-media-item">
             <button

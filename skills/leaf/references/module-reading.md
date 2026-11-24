@@ -104,29 +104,22 @@ to its parts.
 
 ### Markdown
 
+Leaf reads Markdown in one dialect, the library's
+[`markdown.js`](../../../browser/runtime/lib/markdown.js), whose header says how it
+reads a message a person typed and a Markdown file. A widget that renders Markdown on
+the page passes `pageLinks` to the dialect's renderers, so a picture of the page's
+media answers at the page's address and opens in Leaf's viewer, and a link that leaves
+the page opens in a new tab.
+
 A widget whose entry declares `content: markdown` has its data body arrive
-rendered as block Markdown while the recorded body stays the source. It reads as a
-Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
-`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
-`markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
-source.
+rendered as block Markdown, read as a Markdown file, while the recorded body stays the
+source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into it.
 
 An entry declaring `prepaint` names the attribute that gives the notation of the
 widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
 its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
 page first paints at that rendering's size. The module still reads the `<pre>`, and
 replaces both when it draws.
-
-`inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
-string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
-read text as a message a person typed: each line break stays a line, a line's leading
-spaces are dropped rather than starting code, and `---` under a line is a rule.
-`renderMarkdown(text, false)` and `markdownWords(text, false)` read a Markdown file as
-CommonMark does: its soft line breaks are spaces, so its paragraphs wrap to the box, a
-block indented four spaces is code, and a line of `=` or `-` underlines a heading.
-Until the renderer has loaded, they return the escaped source; `loadMarkdown()`
-resolves once it has, and `markdownReady()` says whether it has, so a widget showing
-changing prose repaints then.
 
 ### Code
 
@@ -154,12 +147,6 @@ success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol
 copy through a press of your own built by its role, pass it as `trigger` instead. Set
 its `value` before it copies, and it reports `success` or `error` as a code block's
 does.
-
-### Text alignment
-
-A widget that walks its own units with jsdiff, such as a document's lines, gives up
-after `MAX_EDIT_LENGTH` edits and treats the whole text as replaced, as Leaf's own
-alignment does.
 
 ### Media URLs
 

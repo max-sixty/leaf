@@ -152,7 +152,7 @@ import {
   PHRASING,
   TEXT_BLOCK,
 } from "./kernel-facts.js";
-import { textUnits } from "./text-alignment.js";
+import { textUnits } from "./lib/text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
 

@@ -12,10 +12,9 @@ import {
   threadActions,
   readThreads,
   quoted,
-  loadMarkdown,
-  markdownReady,
-  renderMarkdown,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 import { GitHubFeed } from "../github-feed.js";
@@ -41,7 +40,7 @@ const date = new Intl.DateTimeFormat("en-US", {
 // Markdown stays source evidence; resolve its relative links against its own home.
 function sourceMarkdown(item) {
   const fragment = document.createElement("template");
-  fragment.innerHTML = renderMarkdown(item.body);
+  fragment.innerHTML = renderMarkdown(item.body, pageLinks);
   for (const link of fragment.content.querySelectorAll("a[href]"))
     link.setAttribute("href", new URL(link.getAttribute("href"), item.source_url).href);
   const imageBase =
@@ -489,13 +488,13 @@ class RepoFeed extends LeafElement {
           <a href=${item.url} target="_blank" rel="noreferrer">${item.headline}</a>
         </h3>
         <div class="feed-commentary">
-          ${unsafeHTML(renderMarkdown(item.commentary))}
+          ${unsafeHTML(renderMarkdown(item.commentary, pageLinks))}
         </div>
         <div class="feed-context" data-distance=${item.distance}>
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2 8h10M8 4l4 4-4 4" />
           </svg>
-          <div>${unsafeHTML(renderMarkdown(item.reason))}</div>
+          <div>${unsafeHTML(renderMarkdown(item.reason, pageLinks))}</div>
         </div>
         <div class="feed-actions">
           <details

@@ -145,13 +145,13 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { bodyIsData, registry, tagsDeclaring, upgrades } from "./registry.js";
+import { inlineMarkdownFragment, paintMarkdown } from "./lib/markdown.js";
 import {
-  inlineMarkdownFragment,
-  paintMarkdown,
+  pageLinks,
   loadDeclaredMarkdown,
   formatDeclaredMarkdown,
   prepaintDeclaredFiles,
-} from "./markdown.js";
+} from "./page-markdown.js";
 import {
   chosenSince,
   moveScrollerBy,
@@ -174,7 +174,7 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { tabStore } from "./tab-store.js";
-import { alignInlineText } from "./text-alignment.js";
+import { alignInlineText } from "./lib/text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
 import { settleDocumentLayout } from "./content-layout.js";
@@ -904,7 +904,7 @@ function paintBodies(doc, widgets) {
       if (body) {
         if (typeof value.value !== "string")
           throw new Error("A body record requires Markdown text");
-        paintMarkdown(body, value.value);
+        paintMarkdown(body, value.value, pageLinks);
       }
     }
 }
@@ -929,7 +929,7 @@ function placeCreated(doc, widgets) {
         const text = detail[words];
         if (typeof text !== "string")
           throw new Error("A created child requires its declared words");
-        created.append(doc.importNode(inlineMarkdownFragment(text), true));
+        created.append(doc.importNode(inlineMarkdownFragment(text, pageLinks), true));
         owner.append(created);
       }
     }
@@ -1511,7 +1511,7 @@ const shows = (/** @type {Change} */ { blocks, removed }) =>
     const words = blockWords(block);
     return words && words.was !== words.is;
   });
-/** @typedef {{kind: "heading" | "code" | "text", runs: import("./text-alignment.js").TextRun[]}} RedlineBlock */
+/** @typedef {{kind: "heading" | "code" | "text", runs: import("./lib/text-alignment.js").TextRun[]}} RedlineBlock */
 // A block's kind on the card, which keeps a heading and code recognisable.
 const kindOf = (/** @type {string} */ tag) =>
   /^h[1-6]$/.test(tag) ? "heading" : tag === "pre" ? "code" : "text";

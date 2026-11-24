@@ -92,5 +92,5 @@ export function nameAction(control, action, { label, className } = {}) {
 // keeps them and a quote can run across them. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
-// unmarks authored nodes as their data comes and goes, markdown.js serializes its
+// unmarks authored nodes as their data comes and goes, page-markdown.js serializes its
 // media button as HTML, and revision_delivery.py writes prepaint faces on the server.

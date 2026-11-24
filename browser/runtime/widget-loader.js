@@ -32,7 +32,7 @@ import {
   loadDeclaredMarkdown,
   formatDeclaredMarkdown,
   prepaintDeclaredFiles,
-} from "./markdown.js";
+} from "./page-markdown.js";
 import { widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.

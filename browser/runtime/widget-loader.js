@@ -1,6 +1,6 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
-import { isElement } from "./shadow-tree.js";
+import { isElement } from "./lib/shadow-tree.js";
 
 import {
   paintDeclaredWords,

@@ -160,7 +160,7 @@ def test_a_projected_external_link_wears_the_mark_its_href_earns(browser, serve)
     module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
     module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        DATA_PROJECTION_MODULE.replace("{ keeps,", "{ keeps, keepsText,").replace(
+        DATA_PROJECTION_MODULE.replace("{ keeps }", "{ keeps, keepsText }").replace(
             "const row = document.createElement('p');\n"
             "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);

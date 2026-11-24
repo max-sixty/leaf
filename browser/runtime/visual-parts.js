@@ -51,7 +51,7 @@
  * each time it sets the element's properties (element-integration.js). */
 
 import { labelWords } from "./words.js";
-import { under, upFrom } from "./shadow-tree.js";
+import { under, upFrom } from "./lib/shadow-tree.js";
 import { layoutChanged, layoutsChanged } from "./widget-upgrade.js";
 import { version } from "./kept.js";
 

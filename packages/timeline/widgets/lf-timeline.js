@@ -19,7 +19,7 @@ import {
  * `/runtime/` and `/vendor/` draws it too, and steps it by its buttons, rows and marks,
  * which are the widget's own presses, by pointer or by Enter and Space. What Leaf adds
  * it reads from outside: the keys as `lfCommands`, the step a key reached as words for
- * a listener (`announce`), where a key from a row of the step list leaves the user
+ * a listener (`lf-announce`), where a key from a row of the step list leaves the user
  * (`lands`), and the events as visual parts.
  * The element draws the drawing's template itself, in the task that changes the step or
  * the layout, so nothing waits on it, and a failure shows where it happened
@@ -27,7 +27,6 @@ import {
  * a reply shares. */
 import { render } from "/vendor/lit.js";
 import {
-  announce,
   commandsChanged,
   failSoft,
   once,
@@ -257,7 +256,11 @@ class Timeline extends HTMLElement {
     const events = selected.events
       .map((event) => `${event.lane.name}: ${event.label}`)
       .join("; ");
-    announce(`Step ${step + 1} of ${model.steps.length}. ${events}`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", {
+        detail: `Step ${step + 1} of ${model.steps.length}. ${events}`,
+      }),
+    );
   }
 }
 

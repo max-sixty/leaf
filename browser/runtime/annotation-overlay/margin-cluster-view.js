@@ -22,7 +22,7 @@ import {
   offerAction,
   offerActionElement,
 } from "../widget-elements.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 import { holdFocus } from "../focus.js";
 
 /** @typedef {import("../contributions.js").ContributionOffer} ContributionOffer

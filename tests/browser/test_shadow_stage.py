@@ -15,8 +15,9 @@ def test_a_host_stages_retained_shadow_content_without_leaf(browser):
 </head><body><div id="host"><pre>authored input</pre></div>
 <script type="module">
 try {{
-  const {{ shadowStage, move, setChildren, setChildLists, keeps, keepsText }} =
+  const {{ shadowStage, move, setChildren, setChildLists }} =
     await import("/runtime/portable-api.js");
+  const {{ keeps, keepsText }} = await import("/runtime/lib/keeps.js");
   const host = document.querySelector("#host");
   const field = document.createElement("input");
   field.value = "reader's draft";

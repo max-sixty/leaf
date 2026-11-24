@@ -513,7 +513,7 @@ def _refuse_unstarted(page) -> None:
 
 
 # Every box holding `frame` in its document, across shadow roots as `renderedParent`
-# walks them (shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
+# walks them (lib/shadow-tree.js), with its scroll offsets; `_PUT_BACK` scrolls each back.
 # Written out here since it runs in each sample's own document, which no probe reaches.
 _HOLDERS = """frame => {
   const held = [];

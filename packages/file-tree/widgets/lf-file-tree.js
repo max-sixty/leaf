@@ -19,10 +19,8 @@
  */
 import { render } from "/vendor/lit.js";
 import {
-  PRESS,
   commandScope,
   focusDestination,
-  keeps,
   navigateToDatum,
   offer,
   LeafElement,
@@ -32,6 +30,8 @@ import {
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { PRESS } from "/runtime/lib/keys.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 let library;
 const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));

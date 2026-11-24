@@ -417,11 +417,10 @@
     <script type="module">
       import {
         generatedElement,
-        keeps,
-        keepsText,
         once,
         whileInterfaceConnected,
       } from "/runtime/widget-api.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       // The app's current tokens (tokens.css), as layers.
       const L = (x, y, blur, spread, opacity) => ({ x, y, blur, spread, opacity });

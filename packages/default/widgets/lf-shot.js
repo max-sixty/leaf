@@ -64,7 +64,6 @@ import { render } from "/vendor/lit.js";
 import {
   setScroll,
   afterPresentation,
-  announce,
   once,
   offer,
   failSoft,
@@ -73,7 +72,6 @@ import {
   focusDestination,
   nextFrame,
   layoutChanged,
-  keeps,
   scopedMediaUrl,
   widgetController,
   move,
@@ -83,6 +81,7 @@ import {
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
 import "/vendor/webawesome-views.js";
 
@@ -387,7 +386,9 @@ export class Shot extends HTMLElement {
       this.#drawing.view = view;
       this.#fit();
     }
-    announce(`Showing ${label.toLowerCase()}`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", { detail: `Showing ${label.toLowerCase()}` }),
+    );
   }
 
   #syncComparison() {

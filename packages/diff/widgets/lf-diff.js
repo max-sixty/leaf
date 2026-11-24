@@ -33,18 +33,14 @@
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
-  announce,
   beginWalk,
   failSoft,
-  ensureSyntaxLanguage,
   focusDestination,
   generated,
   generatedElement,
   holdFocus,
   inChrome,
   nameAction,
-  keeps,
-  keepsText,
   langForPath,
   layoutChanged,
   listWalkPosition,
@@ -66,6 +62,8 @@ import {
   scrollIntoView,
   commandsChanged,
 } from "/runtime/portable-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,
@@ -1798,7 +1796,7 @@ customElements.define(
       if (this.filesBody) {
         const { top, height } = this.filesBody.getBoundingClientRect();
         const hold = needle
-          ? `${Math.round(Math.max(0, Math.min(height, innerHeight - top)) * 64) / 64}px`
+          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
           : "";
         if (this.filesBody.style.minBlockSize !== hold)
           this.filesBody.style.minBlockSize = hold;
@@ -1872,7 +1870,11 @@ customElements.define(
       const open = folds.some((details) => !details.open);
       for (const details of folds) if (details.open !== open) details.open = open;
       this.paintFoldAll();
-      announce(`${open ? "Expanded" : "Collapsed"} all files`);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${open ? "Expanded" : "Collapsed"} all files`,
+        }),
+      );
     }
 
     paintFoldAll() {
@@ -1988,7 +1990,9 @@ customElements.define(
         if (!head) continue;
         this.land(head.node);
         const said = this.markHunkWalk() ?? `Hunk ${head.hunk + 1} of ${heads.length}`;
-        announce(`${said}: ${entry.record.path}`);
+        window.dispatchEvent(
+          new CustomEvent("lf-announce", { detail: `${said}: ${entry.record.path}` }),
+        );
         return;
       }
       this.markHunkWalk();
@@ -2020,7 +2024,11 @@ customElements.define(
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
       const said = this.markFileWalk();
-      announce(said ? `${said}: ${entry.record.path}` : entry.record.path);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: said ? `${said}: ${entry.record.path}` : entry.record.path,
+        }),
+      );
     }
 
     // Arrival: scrolled to the band the document declares landable, which the pinned

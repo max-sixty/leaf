@@ -11,11 +11,11 @@
 
 import { nextRender } from "./rendering.js";
 import { move } from "./dom-move.js";
-import { keeps } from "./keeps.js";
-import { inChrome } from "./passages.js";
+import { keeps } from "./lib/keeps.js";
 import { inkedBox, markedBox, readMarkerSides, shownParts } from "./geometry.js";
 import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
+import { inChrome } from "./ui-marks.js";
 
 // One mark: an attribute on what it marks at a time (page-paint.js), which is each box
 // the element shows through (`shownParts`), so an element with no box of its own, such

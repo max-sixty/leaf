@@ -20,10 +20,11 @@ import {
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
 import { addressableAt } from "../thread/messages.js";
-import { authored, elementById, inChrome, renderRetired } from "../passages.js";
+import { authored, elementById, renderRetired } from "../passages.js";
 import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
+import { inChrome } from "../ui-marks.js";
 
 // Paint each unit's origin mark, and return every element that wears one or just lost
 // one. `marked` holds the elements the last paint marked with each origin attribute.

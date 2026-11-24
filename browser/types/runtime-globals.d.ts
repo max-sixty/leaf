@@ -205,7 +205,7 @@ interface WindowEventMap {
     page?: boolean;
   }>;
   /** A widget's words for a listener, which Leaf says in its live region
-   * (`widget-upgrade.js`, `announce`): the words, or a function returning words read off
+   * (`widget-upgrade.js`, `ANNOUNCE`): the words, or a function returning words read off
    * the page, such as keys (`saying`), which a listener calls as it says them. */
   "lf-announce": CustomEvent<
     import("../runtime/voice.js").Words | (() => import("../runtime/voice.js").Words)
@@ -320,7 +320,8 @@ interface ShadowRoot {
 
 interface Element {
   /** The word a widget's module names its kind by where it depends on the element
-   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
+   * (`addressable-names.widgetWord`); a fixed word is the element's
+   * `aria-roledescription`. */
   lfWord?(): string;
   lfSays?(): string;
 }

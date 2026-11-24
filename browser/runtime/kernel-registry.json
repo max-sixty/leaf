@@ -8,6 +8,14 @@
       "/vendor/floating-ui.esm.js",
       "/runtime/lib/canvas.js",
       "/runtime/lib/exception.js",
+      "/runtime/lib/icon-paths.js",
+      "/runtime/lib/icons.js",
+      "/runtime/lib/keeps.js",
+      "/runtime/lib/keys.js",
+      "/runtime/lib/obligation-tally.js",
+      "/runtime/lib/shadow-tree.js",
+      "/runtime/lib/syntax-languages.js",
+      "/runtime/lib/syntax-tokens.js",
       "/runtime/lib/text-width.js",
       "/runtime/lib/time-axis.js"
     ]

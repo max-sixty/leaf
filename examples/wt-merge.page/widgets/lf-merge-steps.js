@@ -5,12 +5,8 @@
 // button is an authored `--seek` command on the film whose value names the step, so a
 // press holds that step's result for reading; a press elsewhere on the step presses it.
 
-import {
-  LeafElement,
-  generatedElement,
-  keeps,
-  keepsText,
-} from "/runtime/widget-api.js";
+import { LeafElement, generatedElement } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 customElements.define(
   "lf-merge-steps",

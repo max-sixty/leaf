@@ -59,7 +59,7 @@ import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-upgrade.js";
-import { under } from "../../shadow-tree.js";
+import { under } from "../../lib/shadow-tree.js";
 import { union } from "../../rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";
@@ -72,7 +72,7 @@ import {
 } from "../comment-placement.js";
 import { railEdge, railStandsBeside } from "../margin-layout.js";
 import { pointBand } from "../../pointed-place.js";
-import { keeps, roomPx } from "../../keeps.js";
+import { keeps, roomPx } from "../../lib/keeps.js";
 import { pageScroller } from "../../scrolling.js";
 
 /** @typedef {import("../../../types/domain.js").Anchor} Anchor */

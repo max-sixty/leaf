@@ -135,7 +135,6 @@ import {
   authored,
   elementById,
   focusInPage,
-  inChrome,
   inPage,
   LEAF_SURFACE,
   leafSurface,
@@ -179,7 +178,7 @@ import { alignInlineText } from "./text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
 import { settleDocumentLayout } from "./content-layout.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
@@ -224,7 +223,7 @@ import {
   reindexPassageOwners,
   rememberPassageParts,
 } from "./widget-loader.js";
-import { byRenderedOrder, under } from "./shadow-tree.js";
+import { byRenderedOrder, under } from "./lib/shadow-tree.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { reloadAt } from "./history.js";
 import {
@@ -239,6 +238,7 @@ import {
 } from "./reading-place.js";
 import { holdingError, raiseError } from "./errors.js";
 import { tick } from "./version-signal.js";
+import { inChrome } from "./ui-marks.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 

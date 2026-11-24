@@ -44,7 +44,8 @@ def test_overlapping_identical_live_announcements_are_fresh_changes(browser, ser
             childList: true,
             subtree: true,
           });
-          const {announce} = await window.__lfWidgetApi();
+          const announce = (words) =>
+            window.dispatchEvent(new CustomEvent('lf-announce', {detail: words}));
           announce('Same update');
           announce('Same update');
         }"""

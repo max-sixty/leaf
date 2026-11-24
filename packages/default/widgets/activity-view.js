@@ -3,9 +3,9 @@ import {
   offerActionElement,
   fragmentTarget,
   generatedElement,
-  keeps,
   tabStore,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the

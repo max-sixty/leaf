@@ -5,11 +5,11 @@
    Callers choose their own clipping, bounds and seat from these parts; this reading only
    answers whether the target has a drawn representation at all. A target in content the
    browser skips, such as a closed disclosure's, has none, and is answered without a
-   geometry read, which would lay that content out to say so (shadow-tree.js, `skipped`);
+   geometry read, which would lay that content out to say so (lib/shadow-tree.js, `skipped`);
    so has a boxless target's part there, such as a closed tab's panel holds. */
 import { drawn } from "./focus.js";
 import { shownParts } from "./geometry.js";
-import { skipped } from "./shadow-tree.js";
+import { skipped } from "./lib/shadow-tree.js";
 
 /** @param {Element} target */
 export function visibleTargetParts(target) {

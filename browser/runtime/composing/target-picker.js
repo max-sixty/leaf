@@ -11,7 +11,6 @@ import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,
-  inChrome,
   pageMatches,
   pageReadingVersion,
   readingHolding,
@@ -22,7 +21,7 @@ import {
   segmentsBox,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
-import { skipped } from "../shadow-tree.js";
+import { skipped } from "../lib/shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { holds, intersect, union } from "../rect.js";
@@ -45,7 +44,7 @@ import {
   progressSteps,
 } from "../keyboard/key-sequence.js";
 import { announce, notice } from "../notifications.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { beginWalk, walkPosition, walkPositionLabel } from "../walk-position.js";
 
 import {
@@ -55,6 +54,7 @@ import {
   pageScope,
   pageScopes,
 } from "../keyboard/register.js";
+import { inChrome } from "../ui-marks.js";
 
 // Hints and the active search result are paint only. The floating panel seats the
 // search's own native field and match controls in its main row, keeping the comment

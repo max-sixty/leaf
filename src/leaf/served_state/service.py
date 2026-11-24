@@ -31,6 +31,7 @@ from ..projection import page_reading
 from ..provenance import revision_places, saved_after
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
+from ..rows import compact_activity
 from ..service import PageTransaction
 from . import browser as served_browser
 from . import page as served_page
@@ -234,8 +235,6 @@ class PageStateService:
         The user's counts are the active view's, as the Leaf panel's marks count
         them: its On Me list, and its threads by `thread_counts`.
         """
-        from ..server_rows import compact_activity
-
         with self.source.state_read() as (context, reading, _source_error):
             work = context.work
             projected = served_browser.project_browser_state(context)

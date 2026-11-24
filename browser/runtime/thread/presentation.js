@@ -17,9 +17,9 @@
    may be a margin card, and runs independently: its selected route may itself need
    this renderer to finish. Its caret follows the actual returned editor; its failures
    reach the page's existing asynchronous error channel. */
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { reportPageError } from "../layer-client.js";
-import { elementById, inChrome } from "../passages.js";
+import { elementById } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
 import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
@@ -28,6 +28,7 @@ import { beginThreadSeats, commitThreadSeats, retainThreadSeats } from "./inline
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
 import { runtime } from "../context.js";
 import { draftAnchor, draftsReading } from "../drafts.js";
+import { inChrome } from "../ui-marks.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.

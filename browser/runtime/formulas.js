@@ -25,7 +25,7 @@
    (`reportPageError`). */
 import { reportPageError } from "./layer-client.js";
 import { inBaseLayer } from "./base-layer.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { DATA_BODY } from "./syntax.js";
 

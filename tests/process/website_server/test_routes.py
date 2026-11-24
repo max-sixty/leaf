@@ -17,6 +17,7 @@ from interact_support import (
     revision_root,
     running_http_server,
     served_state_error,
+    vendored_at_another_protocol,
 )
 
 import leaf_website as website_server
@@ -25,11 +26,10 @@ from leaf.file_bindings import bind_file
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
-from leaf.registry.storage import LAYER, layer_record, load_registry
+from leaf.registry.storage import load_registry
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.runtime_selection import executing, serving_runtime
-from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from leaf_dev.commands.journey import _journey as journey
@@ -383,10 +383,7 @@ def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tm
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    record = layer_record(published)
-    (published / LAYER_FILE).unlink()
-    assert record is not None
-    LAYER.write(published / LAYER_FILE, {**record, "protocol": 999})
+    vendored_at_another_protocol(published, newer=True)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"

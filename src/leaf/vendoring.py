@@ -48,8 +48,12 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
-from .registry.kernel import kernel_protocol
-from .registry.storage import LAYER, layer_packages, layer_record
+from .registry.storage import (
+    LAYER,
+    IncompatibleLayer,
+    layer_packages,
+    layer_record,
+)
 from .schema import (
     HTML_NAME,
     INIT_LOCK,
@@ -397,18 +401,20 @@ def _plan_page(
     than taken back to this Leaf's: a process the session started before its plugin
     updated, or an agent following an older Leaf's advice, would otherwise take the
     page down, and the newer Leaf's next command or hook up again, reloading the
-    user's tabs each time."""
+    user's tabs each time. A page an older Leaf initialized keeps its selection
+    (`layer_packages`) under a new generation."""
+    previous = None
     if not fresh:
-        from .event_contracts import write_refusal
-
-        if (refusal := write_refusal(page_dir)) and refusal.code == "newer-layer":
-            raise Refused(str(refusal))
-    previous = None if fresh else layer_record(page_dir)
+        try:
+            previous = layer_record(page_dir)
+        except IncompatibleLayer as refused:
+            if refused.findings[0].code == "newer-layer":
+                raise
     # A selection the caller names resolves where they run; the page's own, against
     # the copies it holds.
     named = selected is not None
     if not named:
-        selected = tuple(previous["packages"]) if previous else ()
+        selected = () if fresh else tuple(layer_packages(page_dir) or ())
     inputs = layer_inputs(selected, Path.cwd() if named else page_dir)
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
@@ -457,15 +463,12 @@ def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
 
 
 def _record(selected: tuple[str, ...], previous: dict | None) -> dict:
-    """The layer record selecting `selected` at this Leaf's protocol, keeping
-    `previous`'s generation where it selects the same: a generation names a change in
-    what an open document runs under, not an invocation."""
-    record = {"packages": list(selected), "protocol": kernel_protocol()}
-    if previous is not None and all(
-        previous.get(key) == value for key, value in record.items()
-    ):
+    """The layer record selecting `selected`, keeping `previous`'s generation where
+    it selects the same: a generation names a change in what an open document runs
+    under, not an invocation."""
+    if previous is not None and previous["packages"] == list(selected):
         return previous
-    return {**record, "generation": secrets.token_hex(16)}
+    return {"packages": list(selected), "generation": secrets.token_hex(16)}
 
 
 def _write_record(page_dir: Path, plan: _PagePlan) -> None:

@@ -642,7 +642,9 @@ def checked(session_id: str, payload: dict) -> dict:
 
 def question(session_id: str) -> dict | None:
     """What to fork `session_id`'s conversation with, as `{"prompt", "basis"}`, or
-    None where it holds no page."""
+    None where it holds no page this Leaf reads. A page at another page protocol
+    is left out (`registry.storage.layer_record`): this Leaf could write nothing the
+    fork finds there."""
     from .service import owned_pages
 
     facts = [
@@ -698,6 +700,7 @@ def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) ->
 def _facts(page_dir: Path) -> dict | None:
     from .agent_state import page_state
     from .files import latest_revision
+    from .registry.storage import IncompatibleLayer
     from .service import PageTransaction
 
     try:
@@ -708,7 +711,7 @@ def _facts(page_dir: Path) -> dict | None:
                 return {**facts, "text": ""}
             passages = _reading(page_dir, page.events, revision).passages()
             return {**facts, "text": page_text(passages)}
-    except FileNotFoundError:
+    except (FileNotFoundError, IncompatibleLayer):
         return None
 
 

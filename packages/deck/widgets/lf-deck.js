@@ -66,7 +66,6 @@ import {
   agentName,
   answerWords,
   nameAction,
-  dragging,
   focusDestination,
   keepView,
   LeafElement,
@@ -144,7 +143,7 @@ customElements.define(
     // Ends the motion in flight at once, landing every element where it belongs.
     /** @type {((upcoming?: HTMLElement | null) => void) | null} */
     #landing = null;
-    /** @type {{id: number, x: number, y: number, dx: number, moving: boolean} | null} */
+    /** @type {{id: number, x: number, y: number, dx: number, moving: boolean, held?: PromiseWithResolvers<void>} | null} */
     #drag = null;
     // Whether the deck opened on its first card only because this tab kept no card
     // and the address named none, so the first reading may open the first that waits.
@@ -575,7 +574,14 @@ customElements.define(
         if (Math.abs(drag.dx) < 8) return;
         drag.moving = true;
         card.setPointerCapture(event.pointerId);
-        dragging(this, true);
+        // The swipe holds the page until it settles, so no revision or undo
+        // replaces the card under the finger.
+        drag.held = Promise.withResolvers();
+        this.dispatchEvent(
+          Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+            complete: drag.held.promise,
+          }),
+        );
       }
       card.style.translate = `${drag.dx}px`;
       card.style.rotate = `${drag.dx / 30}deg`;
@@ -597,7 +603,7 @@ customElements.define(
 
     #settle() {
       const card = this.#open.value;
-      if (this.#drag?.moving) dragging(this, false);
+      this.#drag?.held?.resolve();
       this.#drag = null;
       if (!card?.style.translate) return;
       card.style.removeProperty("translate");

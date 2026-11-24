@@ -9,8 +9,9 @@
 
    The widget tells its host what Leaf needs to hear through standard events, which Leaf
    reads from outside and a plain page may ignore. That it has connected and wants what
-   its host sets on it is `lf-connect` (`CONNECT`), and a gesture's hold on its own nodes
-   is `lf-hold` (`HoldEvent`). A failure is an `error` ErrorEvent,
+   its host sets on it is `lf-connect` (`CONNECT`), a hold it has on its own drawing is
+   `lf-defer` (`DeferEvent`), and the user's hold on something in it is `lf-hold`
+   (`HOLD`). A failure is an `error` ErrorEvent,
    bubbling and composed, which a Leaf page reports to the agent as the page's error,
    naming the widget (layer-client.js, `failureOf`). Drawing still under way is a
    `pending-task` event (`PendingTaskEvent`), the Web Components Community Group's draft
@@ -72,18 +73,27 @@ export class PendingTaskEvent extends Event {
 // element arrive, a microtask later.
 export const CONNECT = "lf-connect";
 
-// A hold an element has on its own nodes through a gesture that rewrites them, such
-// as a drag that moves them or an edit in place: `complete` settles as the hold ends.
-// A Leaf page reads the document again then (widget-controller.js), since the gesture
-// changed the element's nodes outside any draw.
-export const HOLD = "lf-hold";
-export class HoldEvent extends Event {
+// A hold an element has on its own drawing while it rewrites its nodes itself, such
+// as through a drag that moves them or an edit in place: `complete` settles as the hold
+// ends. A Leaf page counts what it set meanwhile as drawn only then, and reads the
+// document again (widget-controller.js), since the element changed its nodes outside
+// any draw. The page goes on applying revisions and Undo.
+export const DEFER = "lf-defer";
+export class DeferEvent extends Event {
   /** @param {PromiseLike<unknown>} complete */
   constructor(complete) {
-    super(HOLD, { bubbles: true, composed: true });
+    super(DEFER, { bubbles: true, composed: true });
     this.complete = complete;
   }
 }
+
+// A hold the user has on something in an element, as through a drag, a keyboard grab or
+// a scrub: a bubbling, composed event the element dispatches as the hold starts, whose
+// `complete` property is a promise it settles as the hold ends. While it stands a Leaf
+// page applies no revision and takes nothing back (widget-elements.js, `dragHeld`), so
+// nothing replaces the nodes under the user's hand. It says nothing of the element's
+// drawing, which `lf-defer` holds.
+export const HOLD = "lf-hold";
 
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while
 // rearranging descendants, so the widget states that geometry change explicitly, with a

@@ -118,12 +118,20 @@ On Me and admits the ids its buttons mark:
   draws nothing until `state` is set. On such an element whose tag declares no verbs,
   `state` is empty and says its inputs are set. Leaf also gives the open shadow root of
   an element that says `lf-connect` the page's styles and comment support.
-- **`lf-hold`.** A gesture in which the element itself rewrites its nodes, such as a
-  drag that moves them, dispatches a bubbling, composed `lf-hold` event as it starts.
-  The event's `complete` property is a promise that settles as the gesture ends. A
-  set Leaf makes meanwhile counts as drawn only once it has, so the element may leave
-  that set undrawn until then, and Leaf reads the page again as the gesture ends,
-  since the nodes changed outside any drawing it waited for.
+- **`lf-hold`.** An element in which the user holds something, as through a drag, a
+  keyboard grab or a scrub, dispatches a bubbling, composed `lf-hold` event as the
+  hold starts. The event's `complete` property is a promise the element settles as
+  the hold ends, is cancelled, or the element leaves the page. While it stands, Leaf
+  applies no revision and takes nothing back with Undo, so nothing replaces the
+  nodes under the user's hand. Leaf goes on setting `state` meanwhile.
+- **`lf-defer`.** An element that rewrites its own nodes for a while, as a drag that
+  moves them or an editor standing in place of its words does, and leaves what Leaf
+  sets undrawn until it is done, dispatches a bubbling, composed `lf-defer` event as
+  it starts. The event's `complete` property is a promise that settles as it ends.
+  A set Leaf makes meanwhile counts as drawn only once it has, and Leaf reads the
+  page again then, since the nodes changed outside any drawing it waited for.
+  Revisions and Undo go on, so a gesture that needs the page held says `lf-hold`
+  too.
 - **`lf-commands`.** An element's keys are its `lfCommands` property
   (`module-input.md`, "Commands and keyboard routes"). Leaf reads the property each
   time the element dispatches a bubbling, composed `lf-commands` event on itself, so

@@ -12,10 +12,9 @@
  * below; there Down past a column's last card continues into the column below and Up
  * past its first into the one above, the next slot the user sees (#step). Escape also
  * cancels a pointer drag.
- * For the whole gesture the board holds
- * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
- * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
- * completed move
+ * For the whole gesture the board holds the page (`lf-hold`), so no new revision or
+ * undo replaces the cards under it, and defers its own drawing (`defer`), so no foreign
+ * move replays mid-gesture; a completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. Its render receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
@@ -86,7 +85,6 @@ import {
   offerAction,
   labelOf,
   saying,
-  dragging,
   motion,
   scrollerFor,
   rankAt,
@@ -235,6 +233,9 @@ customElements.define(
     #sortables = new Set();
     /** @type {(() => void) | null} */
     #resumeProjection = null;
+    // The gesture's hold on the page, settled as the card is put down.
+    /** @type {PromiseWithResolvers<void> | null} */
+    #held = null;
     // The fault last reported for each card, so the author hears of it once rather
     // than at every draw.
     /** @type {WeakMap<Element, string>} */
@@ -734,12 +735,19 @@ customElements.define(
     }
 
     #beginGesture() {
-      this.#resumeProjection ??= this.defer();
-      dragging(this, true);
+      if (this.#resumeProjection) return;
+      this.#resumeProjection = this.defer();
+      this.#held = Promise.withResolvers();
+      this.dispatchEvent(
+        Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+          complete: this.#held.promise,
+        }),
+      );
     }
 
     #finishGesture() {
-      dragging(this, false);
+      this.#held?.resolve();
+      this.#held = null;
       this.#resumeProjection?.();
       this.#resumeProjection = null;
     }
@@ -750,6 +758,11 @@ customElements.define(
     #release(grab) {
       grab.card.classList.remove("lf-lift");
       this.#grabbed = null;
+      // The grip's rows read the grab, and a drag that takes a grab over keeps the
+      // page's hold, whose start and end are what paint them otherwise.
+      grab.grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       grab.grip.dispatchEvent(
         new CustomEvent("lf-preview", { bubbles: true, composed: true }),
       );

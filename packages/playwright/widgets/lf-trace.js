@@ -86,7 +86,6 @@ import {
 } from "/vendor/lit.js";
 import {
   alreadyShown,
-  dragging,
   compoundReadingRegionId,
   registerReadingRegion,
   el,
@@ -452,7 +451,9 @@ export class Trace extends LeafElement {
   set #cursorTime(time) {
     this.#cursor.value = time;
   }
-  #scrubbing = false;
+  // A scrub's hold on the page, settled as the pointer lets go.
+  /** @type {PromiseWithResolvers<void> | null} */
+  #scrubbing = null;
   // Nodes of the Lit view that their imperative owners below read and write.
   /** @type {import("lit/directives/ref.js").Ref<HTMLElement>} */
   #timelineHost = createRef();
@@ -682,7 +683,6 @@ export class Trace extends LeafElement {
       if (this.#trace) this.#draw();
       return () => {
         this.pause(false);
-        dragging(this, false);
         stopInput();
         for (const stop of stopReading.toReversed()) stop();
         resizer.disconnect();
@@ -1035,10 +1035,7 @@ export class Trace extends LeafElement {
   /** @param {number} elapsed @param {boolean} final */
   #seek(elapsed, final) {
     if (this.#playing) this.pause(false);
-    if (this.#scrubbing !== !final) {
-      this.#scrubbing = !final;
-      dragging(this, !final);
-    }
+    if (Boolean(this.#scrubbing) !== !final) this.#scrub(!final);
     this.#chosenBookmark = null;
     const point = this.#pointAt(elapsed);
     this.#cursorTime = elapsed;
@@ -1079,11 +1076,24 @@ export class Trace extends LeafElement {
     this.#playFrame = 0;
     this.#playing = false;
     this.#playbackWanted = null;
-    if (this.#scrubbing) {
-      this.#scrubbing = false;
-      dragging(this, false);
-    }
+    if (this.#scrubbing) this.#scrub(false);
     if (draw) this.#draw();
+  }
+  // A scrub holds the page until the pointer lets go, so no revision or undo
+  // replaces the recording under it.
+  /** @param {boolean} on */
+  #scrub(on) {
+    if (on) {
+      this.#scrubbing = Promise.withResolvers();
+      this.dispatchEvent(
+        Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+          complete: this.#scrubbing.promise,
+        }),
+      );
+    } else {
+      this.#scrubbing?.resolve();
+      this.#scrubbing = null;
+    }
   }
   #startPlayback() {
     const points = this.#items();

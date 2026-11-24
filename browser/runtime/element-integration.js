@@ -20,7 +20,7 @@
    itself at any other time is a draw it started by itself. Every claim on the region
    waits for all the drawing the element has announced and not finished, so a later
    pass never lets go of an earlier draw, and for a gesture's hold on the element
-   (`lf-hold`) that stood when the claim's sets were made, under which the element
+   (`lf-defer`) that stood when the claim's sets were made, under which the element
    draws nothing; a `pending-task` from a node inside the element is preparation
    (widget-controller.js). A visual may have redrawn the parts
    it marks by the time a pass's drawing is in, which the pass says with

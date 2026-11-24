@@ -795,6 +795,9 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     draft = page.locator("#first-draft")
     draft_control(page, "edit", "first-draft").click()
     write(draft.locator("leaf-text"), "Changed words.")
+    # The open editor holds the draft's own drawing and says no hold to the page, so
+    # revisions and Undo go on while the user writes.
+    assert not page.evaluate("async () => (await window.__lfCheckApi()).dragHeld()")
     before = page.locator("#following").bounding_box()
     held = []
     page.route("**/api/event", lambda route: held.append(route))

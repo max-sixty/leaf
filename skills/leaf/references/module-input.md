@@ -335,10 +335,10 @@ A click on words a thread marks opens that thread, unless the click landed on a 
 or a handler took it. So a handler that acts on a click on anything but a control, such
 as a card, a mark or a phrase, calls `event.preventDefault()`.
 
-Call `dragging(this, true)` when the user starts dragging the widget and
-`dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;
-meanwhile the page applies no revision or undo. A widget whose drag moves its own nodes
-holds its drawing with `defer()` (`module-state.md`, "The widget controller").
+While the user drags, grabs or scrubs something in the widget, hold the page with an
+`lf-hold` event (`module-plain-elements.md`, "`lf-hold`"); meanwhile the page applies
+no revision or undo. A widget whose gesture moves its own nodes also holds its drawing
+with `defer()` (`module-state.md`, "The widget controller").
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each

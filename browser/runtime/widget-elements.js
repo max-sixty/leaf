@@ -58,6 +58,7 @@ import { pageRange, selectionBackward } from "./native-selection.js";
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
+import { HOLD } from "./widget-upgrade.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./lib/icons.js";
@@ -137,35 +138,50 @@ export function el(tag, cls, text) {
   return node;
 }
 
-// The user's hand on a widget, in the layer's own word: a drag the log has not taken
-// yet. This module holds it, and everything that has to wait for the hand asks here:
-// `dragHeld` is whether any widget holds one. The widget calls `dragging` as it takes
-// the hand up and puts it down, and puts it down in `disconnectedCallback` too, since a
-// widget that leaves with the hand up would hold every waiter for the rest of the
-// page's life. The hand holds back what would replace or take back the nodes under it,
-// a new revision and an undo (`unaccountedGesture`, composing/engagement.js, and the
-// undo of an action still in the ledger, undo.js's `travelling`); the
-// widget holds its own drawing through its controller's `defer()`, and every other
-// widget goes on drawing.
+// The user's hand on a widget, in the layer's own word: a drag, a keyboard grab or a
+// scrub the log has not taken yet. The element says it with an `lf-hold` event whose
+// promise settles as the hand comes off (`HOLD`, widget-upgrade.js), and settles it
+// as the element leaves the page too, since one that left with the hand up would hold
+// every waiter for the rest of the page's life. This module holds each one, and
+// everything that has to wait for the hand asks here: `dragHeld` is whether any stands.
+// The hand holds back what would replace or take back the nodes under it, a new
+// revision and an undo (`unaccountedGesture`, composing/engagement.js, and the undo of
+// an action still in the ledger, undo.js's `travelling`). What the element draws
+// meanwhile is its own to hold (`lf-defer`, which `LeafElement.defer()` says), and
+// every other widget goes on drawing. An element that holds only its own drawing, as
+// while an editor stands in place of its words, says no `lf-hold`, and revisions and
+// Undo go on.
+//
+// Holding while a pointer is down anywhere would need no declaration, and is not done.
+// A grab by keyboard has no pointer; a press whose release the window never hears
+// stays down until the next press (focus.js, `pressing`), which would hold every
+// revision on a page the user is only reading; and Undo's availability follows these
+// hands as a signal, so a pointer's would drop its chip at every press.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's ⌘Z row — a row no widget declares. The hands are a
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
-/** @type {import("@preact/signals-core").Signal<Set<Element>>} */
+/** @type {import("@preact/signals-core").Signal<Set<Event>>} */
 const hands = signal(new Set());
 
 export const dragHeld = () => hands.value.size > 0;
 
-/** @param {Element} el @param {boolean} on */
-export const dragging = (el, on) => {
-  const held = new Set(hands.peek());
-  if (on) held.add(el);
-  else held.delete(el);
-  hands.value = held;
-  paintKeysWithin(el);
-};
+document.addEventListener(HOLD, (event) => {
+  const [origin] = event.composedPath();
+  /** @param {boolean} on */
+  const move = (on) => {
+    const held = new Set(hands.peek());
+    if (on) held.add(event);
+    else held.delete(event);
+    hands.value = held;
+    if (origin instanceof Element) paintKeysWithin(origin);
+  };
+  move(true);
+  const ended = () => move(false);
+  Promise.resolve(event.complete).then(ended, ended);
+});
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds or what holds it. This is the second: the nearest thing

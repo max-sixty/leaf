@@ -16,9 +16,8 @@
   // While a reload Leaf asked for hands a place back, a key the bootstrap holds acts
   // only once the hold replays it, so until then it is no input, and the hand-back it
   // waits for is not superseded by it. The hold hears of every input the clock does
-  // count (`counted`), and whether it was a step Back or Forward, which moves the user
-  // to another entry rather than acting within the one the hand-back returns them to
-  // (bootstrap.js, `holdEarlyKeys`).
+  // count, a step Back or Forward included (`counted`), each of which ends the
+  // hand-back the held keys were typed for (bootstrap.js, `holdEarlyKeys`).
   /** @type {Parameters<DocumentInputs["holdKeys"]>[0]} */
   let hold = null;
   /** @type {Set<(event: Event) => void>} */
@@ -33,7 +32,11 @@
   // or in one tree where they have none, and disclosures of one name in one tree. A
   // page's own script makes no trusted input, so a value it writes reads as its own,
   // even one written in answer to the user, as a script that takes their paste and
-  // writes it itself does, and so does a disclosure find-in-page opens.
+  // writes it itself does, and so does a disclosure find-in-page opens. Two more
+  // readings stand by what they cost: a click on a control inside a summary marks its
+  // disclosure, and its group, though nothing toggled, which needs such a control and a
+  // press during a start; and a form's native Reset is no change, so the arrival puts
+  // back words in the fields the user didn't touch, where they see them come back.
   /** @type {WeakSet<Element>} */
   const changed = new WeakSet();
   /** @type {WeakMap<Node, Set<string>>} */
@@ -134,7 +137,7 @@
       return;
     if (event instanceof KeyboardEvent && hold?.holds(event)) return;
     inputs++;
-    hold?.counted(false);
+    hold?.counted();
     for (const read of inputReaders) read(event);
   };
   for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
@@ -149,7 +152,7 @@
   const step = () => {
     inputs++;
     steps++;
-    hold?.counted(true);
+    hold?.counted();
   };
   if (window.navigation?.currentEntry)
     window.navigation.addEventListener("navigate", (event) => {

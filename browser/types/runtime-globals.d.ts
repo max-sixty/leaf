@@ -7,7 +7,7 @@ interface DocumentInputs {
   readonly count: number;
   readonly steps: number;
   holdKeys(
-    hold: { holds(event: KeyboardEvent): boolean; counted(step: boolean): void } | null,
+    hold: { holds(event: KeyboardEvent): boolean; counted(): void } | null,
   ): void;
   /** Whether the user has changed `node` in this document (document-inputs.js). */
   edited(node: Element): boolean;

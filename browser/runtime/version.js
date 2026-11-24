@@ -2461,29 +2461,40 @@ export function createVersionController({
   // typed while the reload loaded included. The reload lands at `revision` or a newer
   // one, at `url`; installArrival consumes the handoff once its arrival has put back
   // what it carries. It holds only what the entry's record doesn't (the header).
+  // Where the page's words can't be anchored yet, the document has no place to read,
+  // so the handoff carries what the document holds alone: the values, ticks and
+  // disclosures, the comparison and the pointer.
   /** @param {{revision: number, url: string}} landing */
   function handOff({ revision, url }) {
     const live = pageDocument();
     const source = authoredSource;
     if (!live || !source)
       throw new Error("A revision handoff requires its authored document");
+    const records = captureCarry(live, source).records;
+    const content = {
+      obligationCurrentLocation: null,
+      comparison: selectedBase(),
+      pointer: pointerAt(),
+      revision,
+      url,
+    };
+    if (!anchoringIsReady()) {
+      window.lfStorage.handOff({ ...content, carry: documentState(records) });
+      return;
+    }
     const view = captureView();
     tabStore.set(VIEW_KEY, JSON.stringify(view));
     window.lfStorage.handOff({
+      ...content,
       view: { ...view, page: null },
       ...captureEditingContinuity(),
-      obligationCurrentLocation: null,
-      carry: captureCarry(live, source).records,
-      comparison: selectedBase(),
-      pointer: pointerAt(),
+      carry: records,
       // Whether the user was writing in a box, which comes back: the arriving
       // document's key hold then takes even a Space as text for it (bootstrap.js,
       // `typingBack`).
       typing: typesText(focused()),
       // The entry the user left, where the handoff's place belongs (`installArrival`).
       entry: window.navigation?.currentEntry?.key ?? null,
-      revision,
-      url,
     });
   }
   // Where a revision's reload lands, at the address the user sees once the arriving
@@ -3246,17 +3257,19 @@ export function createVersionController({
     )?.type;
     const currentRevision = runtime.currentRevision;
     // The handoff prepaint read for a reload of its address. It stays in the tab while
-    // this arrival owes what it carries, until it has put that back (history.js,
-    // `settled`) or an input of the user's has ended it (bootstrap.js, `holdEarlyKeys`),
-    // so a document that goes before then, as by a second reload Leaf asks for, leaves
-    // the next one the same handoff (`pagehide`); then it is dropped. One that isn't
-    // this document's is dropped as the document arrives, however it arrived.
+    // this arrival owes it, so a document that goes before then, as by a second reload
+    // Leaf asks for, leaves the next one the same handoff, and it is dropped once the
+    // arrival has put back what it carries (history.js, `settled`). An input of the
+    // user's ends the arrival's claim on where they were, never on what they wrote:
+    // a document that goes after one hands a reload Leaf asks for what it holds then,
+    // what its arrival put back and their newer changes, and leaves nothing to any
+    // other (`pagehide`). One that isn't this document's is dropped as the document
+    // arrives, however it arrived.
     const handoff = (() => {
       const value = /** @type {any} */ (window.lfStorage.handoff);
       return currentRevision !== null &&
         Number.isInteger(value?.revision) &&
-        value.revision <= currentRevision &&
-        Number.isInteger(value.view?.revision)
+        value.revision <= currentRevision
         ? value
         : null;
     })();
@@ -3287,11 +3300,13 @@ export function createVersionController({
       // The arrival still owes the user the handoff's place, so the tab keeps that
       // handoff for the next document.
       if (handoff && arrival.owes()) return;
-      if (!anchoringIsReady()) return;
       const revision = runtime.currentRevision;
-      if (leafReloads() && revision !== null)
+      if (leafReloads() && revision !== null) {
         handOff(reloadLanding ?? { revision, url: location.href });
-      else if (!pendingRestoration()?.owes())
+        return;
+      }
+      window.lfStorage.handOff(null);
+      if (anchoringIsReady() && !pendingRestoration()?.owes())
         tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     // The handoff is part of the document's arrival (history.js, `beginArrival`), whose
@@ -3309,7 +3324,8 @@ export function createVersionController({
     // `edited`); so its record goes unrestored.
     const currentIntent = arrival.intent;
     const placed =
-      handoff && handoff.entry === window.navigation?.currentEntry?.key
+      Number.isInteger(handoff?.view?.revision) &&
+      handoff.entry === window.navigation?.currentEntry?.key
         ? handoff
         : null;
     /** @param {readonly import("./carry.js").CarryRecord[] | null | undefined} records */

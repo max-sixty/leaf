@@ -676,6 +676,28 @@ def reload_in_a_row(page, serve, waits, slow=()):
     page.remove_listener("request", navigated)
 
 
+def test_a_value_typed_into_the_page_rides_a_reload_after_a_scroll(browser, serve):
+    """A value the user typed into the page's own form comes back after two reloads
+    Leaf asks for in a row though they scrolled in the document between, which ended
+    its arrival before it had put them back where they were, while something slow to
+    upgrade still held back that document's anchoring: an input ends the reload's claim
+    on where the user was, never on what they typed."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><p><label>Name <input id="who" autocomplete="off">'
+            "</label></p>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.add_init_script(HOLD_INTERFACES % json.dumps([1]))
+    release = reload_with_its_answers_held(page, serve, anchored=False)
+    scroll_away(page)
+    release(True)
+    expect(page.locator("#who")).to_have_value("Ada")
+
+
 def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
     """A value the user typed into the page's own form, and an option they chose before
     the one its author chose, come back after two reloads Leaf asks for in a row, the
@@ -893,14 +915,14 @@ def scroll_away(page):
     page.wait_for_function('Reflect.get(window, Symbol.for("leaf.inputs")).count > 0')
 
 
-def reload_with_its_answers_held(page, serve):
+def reload_with_its_answers_held(page, serve, anchored=True):
     """A reload Leaf asks for, as a server restarted under another Leaf causes, whose
     document then waits on the server's answers, as on a slow server, with its runtime
-    started and the page's words anchored, so the document records where the user is as
-    it goes. Returns `release(again, then)`: `then()` runs, as a reload the user asks
-    for, say, and the document's waiting requests are answered, as another Leaf would
-    answer them where `again`, which has it reload once more as Leaf asks; it returns
-    once the document then standing is ready."""
+    started and, where `anchored`, the page's words anchored, so the document records
+    where the user is as it goes. Returns `release(again, then)`: `then()` runs, as a
+    reload the user asks for, say, and the document's waiting requests are answered, as
+    another Leaf would answer them where `again`, which has it reload once more as Leaf
+    asks; it returns once the document then standing is ready."""
     documents = {"count": 0, "again": False}
     held = []
 
@@ -936,7 +958,11 @@ def reload_with_its_answers_held(page, serve):
             {"kind": "comment", "author": "user", "revision": 1, "text": "Wake."},
         )
     holding(page, held, 1, "the arriving document's first answer")
-    wait_for_check_api(page, "(api) => api.anchoringIsReady()")
+    if anchored:
+        wait_for_check_api(page, "(api) => api.anchoringIsReady()")
+    else:
+        # The panel mounts in the task that begins the document's arrival (leaf.js).
+        page.wait_for_function("document.querySelector('.lf-floating-panel') !== null")
 
     def answer_held(again):
         for route in held:

@@ -935,7 +935,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sendBtn.lfPreview = () => {
         const line = advertisesKeys() ? lineKeyOf(sendKey()) : "";
         return {
-          keys: sendBindings().slice(0, 1),
+          keys: [sendBindings().slice(0, 1)],
           detail: [line && html`${NEW_LINE} <kbd class="lf-key-badge">${line}</kbd>`],
         };
       };

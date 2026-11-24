@@ -154,7 +154,7 @@ arrow that opens or closes it, and lists the press in the command reference as o
 close. In a thread's message only Enter and Space work one. The library names the keys
 that press a button and the arrows along a row in its text direction
 (`module-authoring.md`, "Shared web code"). Leaf spells and says keys itself: a
-preview takes each press it adds as a binding (`module-previews.md`), and an
+preview takes each press it adds as bindings (`module-previews.md`), and an
 announcement takes the rows whose keys it names (`module-scroll-and-motion.md`,
 "Notices and spoken words").
 

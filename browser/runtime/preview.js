@@ -31,8 +31,9 @@
      at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
      accessible name where that says more than the face should; `keys` are presses the
-     control's own chips leave out, as a grip's activation keys, given as bindings,
-     which the face spells as it spells those chips (`lines`); `at` is where to stand,
+     control's own chips leave out, as a grip's activation keys or the keys of a Go-to
+     door, each the bindings of its steps, which the face spells as it spells those
+     chips (`lines`); `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `about` is what it
      is about, which it leaves in view as it does the box it stands by, as a margin
@@ -352,7 +353,7 @@ import { anchorBox } from "./css-anchors.js";
  * @typedef {readonly (readonly string[])[]} Presses
  * @typedef {Words | null | undefined | false} Line
  * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: readonly string[], detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
+ * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
@@ -854,7 +855,7 @@ function lines(declared, own) {
     ? [
         ...new Map(
           [
-            ...(declared?.keys ?? []).map((binding) => [spell(binding)]),
+            ...(declared?.keys ?? []).map((press) => press.map(spell)),
             ...(own.keys ?? []),
           ].map((steps) => [steps.join(" "), steps]),
         ).values(),

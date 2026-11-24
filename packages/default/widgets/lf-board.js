@@ -512,7 +512,8 @@ customElements.define(
       const drag = "Drag to move";
       grip.setAttribute("aria-description", drag);
       // Grabbed, the card is moving, so the grip says nothing over it until it drops.
-      grip.lfPreview = () => !held() && { keys: grab.keys, detail: [drag] };
+      grip.lfPreview = () =>
+        !held() && { keys: grab.keys.map((binding) => [binding]), detail: [drag] };
       /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,

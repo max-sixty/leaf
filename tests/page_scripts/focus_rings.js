@@ -856,8 +856,12 @@
       const cs = getComputedStyle(el, "::after");
       if (cs.content !== "none" && ringed(cs)) carriers.push([el, "after"]);
     };
+    // The stop's own outline shows where the keyboard is in any ink: an author's
+    // outline replaces Leaf's ring as it replaces the browser's (surfaces.css, "The
+    // user chose this").
     const cs = getComputedStyle(e);
-    if (cs.outlineStyle === "auto" || ringed(cs)) return null;
+    if (cs.outlineStyle !== "none" && Number.parseFloat(cs.outlineWidth) > 0)
+      return null;
     if (shadowBand(cs, accent, mixed) > 0) return null;
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even

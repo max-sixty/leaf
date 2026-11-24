@@ -655,10 +655,10 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
     assert [event["detail"]["value"] for event in edits] == [saved]
 
 
-def test_typing_puts_the_toolbar_away_until_the_pointer_moves(browser, serve):
+def test_typing_puts_the_toolbar_away_until_the_pointer_comes_to_it(browser, serve):
     """The toolbar stands over the first line's last words, so typing puts it away at
-    once, the pointer resting where it opened the editor or not, and the pointer moving
-    over the box brings it back. Put away, it takes no press: a press that hasn't moved
+    once, the pointer resting where it opened the editor or not, and the pointer coming
+    to it brings it back. Put away, it takes no press: a press that hasn't moved
     places the caret in the words rather than pressing a Discard the user can't see, and
     the toolbar takes presses again once the pointer rests on it or Tab reaches it."""
     page = open_page(
@@ -685,6 +685,10 @@ def test_typing_puts_the_toolbar_away_until_the_pointer_moves(browser, serve):
     page.mouse.up()
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Keep this source editable. Now")
+    # A move over the words leaves it away; the pointer coming to it brings it back.
+    words = page.locator("#note").bounding_box()
+    page.mouse.move(words["x"] + 30, words["y"] + words["height"] / 2)
+    assert tools.evaluate("el => getComputedStyle(el).opacity") == "0"
     page.mouse.move(box["x"] + box["width"] / 2 + 2, box["y"] + box["height"] / 2)
     expect(tools).to_have_css("opacity", "1")
     expect(tools).to_have_css("pointer-events", "auto")

@@ -102,16 +102,16 @@ lf-draft > pre {
      seat for every block's marks over keeping the edited line clear by standing the
      toolbar on the top border. So typing puts it away at once (`:state(typing)`,
      lf-draft.js), as a document editor's block handles go, since the user asked that
-     it not cover the words they type. The pointer moving over the box shows it again
-     (`:state(pointed)`), and it takes presses once the pointer has rested on it, as a
+     it not cover the words they type. The pointer coming to its corner shows it again
+     (`:state(pointed)`), and it takes presses once the pointer has rested there, as a
      composer's Send over its last line does, so a press aimed at the first line's end
-     places the caret rather than pressing a Discard that has only begun to show. A key
-     reaching its marks, or a refused save's status, shows it and gives its presses
+     places the caret rather than pressing a Discard that has only begun to show. Focus
+     leaving the editor, or a refused save's status, shows it and gives its presses
      back. Rejected: the open editor showing it always, which covered the first line's
-     end through all the typing; showing it while the pointer is over the box, since
-     the pointer rests there after the click that opened the editor; and taking presses
-     as soon as the pointer moves, which pressed Discard under a press meant for the
-     words. A finger sees it always, so it stands on the bottom border there: in the
+     end through all the typing; showing it again at any pointer move over the box,
+     which a nudge of the mouse brought back over the line being typed, standing there
+     before it took presses; and taking presses as soon as the pointer moves, which
+     pressed Discard under a press meant for the words. A finger sees it always, so it stands on the bottom border there: in the
      corner, its finger-wide reach would take every press meant for the first line's
      end. */
   .lf-draft-tools {
@@ -137,7 +137,7 @@ lf-draft > pre {
       :has(> .lf-draft-edit)
     )
     .lf-draft-tools,
-  lf-draft:state(pointed):hover .lf-draft-tools,
+  lf-draft:state(pointed) .lf-draft-tools,
   .lf-draft-tools[data-lf-focus-within],
   .lf-draft-tools:has(> .lf-draft-status:not([hidden])) {
     opacity: 1;

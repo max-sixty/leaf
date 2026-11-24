@@ -15,8 +15,9 @@
  * the pencil gives the box back unchanged. When the toolbar shows and takes presses is
  * draft.css's, which reads two custom states this module keeps: `typing`, from a
  * keystroke in the editor until the pointer has rested on the toolbar (`restArming`) or
- * focus leaves the editor, and `pointed`, once the pointer has moved over the box since
- * that keystroke. Clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * focus leaves the editor, and `pointed`, while the pointer is on the toolbar meanwhile.
+ * Clicking the prose still opens the editor at that spot. Rejected: a resting row under
+ * the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
  * and changed the box's size as the editor opened. The same
@@ -168,9 +169,13 @@ customElements.define(
     /** @type {Promise<void> | undefined} */
     #dressing;
     #states = this.attachInternals().states;
-    // The toolbar takes presses again, after typing put it away, once the pointer has
-    // rested on it.
-    #arming = restArming(() => this.#tools, { arm: () => this.#keepTools() });
+    // The toolbar shows again, after typing put it away, while the pointer is on it, and
+    // takes presses once the pointer has rested there.
+    #arming = restArming(() => this.#tools, {
+      point: () => this.#states.add("pointed"),
+      arm: () => this.#keepTools(),
+      unpoint: () => this.#states.delete("pointed"),
+    });
 
     setup() {
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
@@ -183,14 +188,14 @@ customElements.define(
       if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
-      // The pointer coming to the box brings back the toolbar typing put away, and
-      // resting on it gives it its presses back.
-      this.addEventListener("pointermove", (event) => {
-        if (!this.#states.has("typing")) return;
-        if (event.pointerType !== "touch") this.#states.add("pointed");
-        this.#arming.move(event);
-      });
-      this.addEventListener("pointerleave", (event) => this.#arming.move(event));
+      // The pointer coming to the toolbar brings it back after typing put it away, and
+      // resting there gives it its presses back.
+      /** @param {PointerEvent} event */
+      const point = (event) => {
+        if (this.#states.has("typing")) this.#arming.move(event);
+      };
+      this.addEventListener("pointermove", point);
+      this.addEventListener("pointerleave", point);
       // Capture only the pointer Discard's old allocation. The command still owns
       // closing, discarding and focus; its new reading is true before this effect.
       this.addEventListener(
@@ -366,7 +371,6 @@ customElements.define(
     #keepTools() {
       this.#arming.reset();
       this.#states.delete("typing");
-      this.#states.delete("pointed");
     }
 
     /** @param {string} key @returns {HTMLButtonElement | null} */
@@ -447,7 +451,6 @@ customElements.define(
       editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
         this.#states.add("typing");
-        this.#states.delete("pointed");
         this.#arming.reset();
         this.#edit.save(editor.value);
         if (this.#failed) {

@@ -472,8 +472,8 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir, kind):
     [
         (
             "lf-activity",
-            lambda entry: entry.update(bound="top"),
-            "at `bound`: 'top' is not one of ['start', 'end']",
+            lambda entry: entry.update(space="narrow"),
+            "at `space`: 'narrow' is not one of ['wide', 'available']",
         ),
         (
             "lf-options",

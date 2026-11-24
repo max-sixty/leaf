@@ -5,7 +5,7 @@
  * The shown case seats the threads on it, and the comment box, in its own outlet;
  * a hidden case seats none, so its threads stay in the margin. */
 import { html, nothing, repeat } from "/vendor/lit.js";
-import { LeafElement, threadSurface } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-test-review",
@@ -29,7 +29,9 @@ customElements.define(
       this.#shown = id;
       this.requestUpdate();
       this.performUpdate();
-      threadSurface(this).update();
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets */

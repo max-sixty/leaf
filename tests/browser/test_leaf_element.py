@@ -15,7 +15,7 @@ def test_a_host_updates_and_reconnects_a_portable_element(browser):
 </head><body><div id="host"><host-reading id="reading"></host-reading></div>
 <script type="module">
 try {{
-  const {{ LeafElement, shadowStage, whileConnected, threadSurface, releaseOutlets }} = await import("/runtime/portable-api.js");
+  const {{ LeafElement, shadowStage, whileConnected, threadSurface }} = await import("/runtime/portable-api.js");
   const {{ html }} = await import("/vendor/lit.js");
   window.reading = document.querySelector("#reading");
   shadowStage(document.querySelector("#host"), [reading]);
@@ -37,9 +37,8 @@ try {{
   }});
   // The same thread handle can be kept before a host registers a surface.
   window.surface = threadSurface(reading);
-  surface.update();
   window.initialOpener = surface.open;
-  releaseOutlets(reading);
+  surface.release(reading);
   window.drawings = [];
   reading.addEventListener("drawn", event => drawings.push({{
     value: event.detail.value, words: reading.querySelector("p").textContent,

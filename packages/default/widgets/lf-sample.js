@@ -50,7 +50,6 @@ import {
   whileConnected,
   nameAction,
   mountSample,
-  once,
   offer,
   offerAction,
   widgetController,
@@ -59,6 +58,7 @@ import {
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 

@@ -81,7 +81,7 @@ import { union } from "./rect.js";
 import { scrollBehavior } from "./lib/motion-timing.js";
 import { retainUserIntent } from "./user-intent.js";
 import { LAYOUT } from "./widget-upgrade.js";
-import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { keeps, layoutPx } from "./lib/keeps.js";
 import { pageRung } from "./keyboard/register.js";
 

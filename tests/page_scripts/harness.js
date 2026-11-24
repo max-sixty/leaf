@@ -150,7 +150,7 @@
         new Error().stack
           .split("\n")
           .slice(2)
-          .find((line) => !line.includes("/runtime/rendering.js"))
+          .find((line) => !/\/runtime\/(?:rendering|lib\/frame-pass)\.js/.test(line))
           ?.trim() ?? "";
       return request.call(window, (time) => {
         rest.frames[site] = (rest.frames[site] ?? 0) + 1;

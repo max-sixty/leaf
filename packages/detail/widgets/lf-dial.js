@@ -115,7 +115,6 @@ import {
   LeafElement,
   motion,
   move,
-  nextRender,
   offer,
   offerAction,
   phrasing,
@@ -125,6 +124,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";

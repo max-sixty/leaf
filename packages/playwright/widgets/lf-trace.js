@@ -104,10 +104,10 @@ import {
   scrollIntoView,
   setChildren,
   showReadingSubject,
-  sizeObserver,
   whileConnected,
   actionClass,
 } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { actionTemplate, iconTemplate } from "/runtime/lib/icons.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";

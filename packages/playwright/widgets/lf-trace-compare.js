@@ -10,17 +10,15 @@
  * measured height clears focus and navigation inside those views. */
 import {
   actionClass,
-  cancelRender,
   el,
   keepView,
-  nextRender,
-  once,
   offer,
   openingView,
   viewMembers,
-  sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { cancelRender, nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { once } from "/runtime/lib/once.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import "./lf-trace.js";
 

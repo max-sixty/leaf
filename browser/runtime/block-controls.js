@@ -31,7 +31,7 @@ import { chromeRoot } from "./chrome.js";
 import { focusDestination } from "./focus.js";
 import { move } from "./dom-move.js";
 import { keepsHidden, layoutPx } from "./lib/keeps.js";
-import { nextRender } from "./rendering.js";
+import { nextRender } from "./lib/frame-pass.js";
 import { skipped } from "./lib/shadow-tree.js";
 
 const home = document.createElement("div");

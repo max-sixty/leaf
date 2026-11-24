@@ -31,7 +31,7 @@
    frames a glide writes it in (arrivals.js, `watchScrollEnds`). Like that record, this
    reads the document's own scrollers, not those inside a shadow root. */
 
-import { cancelRender, nextFrame, sizeObserver } from "./rendering.js";
+import { cancelRender, nextFrame, sizeObserver } from "./lib/frame-pass.js";
 import {
   browserScrolls,
   holdScroll,

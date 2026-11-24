@@ -138,7 +138,6 @@ export {
   onFrameVisibility,
   readSampleVisibility,
 } from "./frame-visibility.js";
-export { observeQueuedWork, bindQueuedWork } from "./queued-work.js";
 export { createPresentationSchedule } from "/runtime/framework.js";
 export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";

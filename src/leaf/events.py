@@ -552,40 +552,24 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. The user rewriting a covered
-    message, or undoing such a rewrite, retires every summary covering it, and so
-    does the user taking back a message its thread held when the summary was
-    written, which its words or label may report wherever the message stood: a
-    summary the agent wrote cannot account for the user's change. The agent's own
-    edit leaves the summary standing, since the agent knows what it changed and
-    says whether the summary still holds (`thread.cmd_edit`). A summary folds no
-    progress: the thread shows only the steps nothing has superseded, as working
-    messages (`progress_completions`).
+    A summary stands until a later one overlapping it replaces it whole, or until a
+    message bounding its range leaves the thread. An edit or a take-back of any other
+    message, the user's or the agent's, leaves it standing as written: the agent hears
+    of the change, judges whether the summary still holds, and summarizes the range
+    again where it doesn't (`thread.cmd_edit` names the summary over a message the
+    agent edits). The maintainer chose this. Retiring a summary on the user's change,
+    which a later change might reach for so that no summary hides the user's words,
+    decides for the agent whether the summary still holds, as root `AGENTS.md`'s
+    "Leaf's role" says code doesn't. A summary folds no progress: the thread shows
+    only the steps nothing has superseded, as working messages
+    (`progress_completions`).
     """
-    edits = {}
-    edited = {}
-    said = {}
-    taken = {}
     written = {}
     for event in events:
-        if event["kind"] in kinds_declaring("message"):
-            # The thread a message was said in, and when, whatever became of it since.
-            thread = said[event["parent"]][0] if "parent" in event else event["id"]
-            said[event["id"]] = (thread, event["seq"])
-        elif event["kind"] == "edit" and event["author"] != "agent":
-            edited[event["id"]] = event["message"]
-            edits[event["message"]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in edited:
-            edits[edited[event["undoes"]]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in said:
-            thread, made = said[event["undoes"]]
-            taken.setdefault(thread, []).append((made, event["seq"]))
-        elif event["kind"] == "summary" and event["thread"] in threads:
+        if event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {
-        thread_id: _thread_summaries(
-            thread, written.get(thread_id, []), edits, taken.get(thread_id, [])
-        )
+        thread_id: _thread_summaries(thread, written.get(thread_id, []))
         for thread_id, thread in threads.items()
     }
 
@@ -618,9 +602,7 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
-def _thread_summaries(
-    thread: dict, summaries: list, edits: dict, taken: list
-) -> list[dict]:
+def _thread_summaries(thread: dict, summaries: list) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
     # The summaries in force cover disjoint messages, so each message names the one
@@ -637,10 +619,6 @@ def _thread_summaries(
         for replaced in {holder[identity] for identity in covers if identity in holder}:
             for identity in active.pop(replaced)["covers"]:
                 del holder[identity]
-        if any(edits.get(identity, 0) > event["seq"] for identity in covers) or any(
-            made < event["seq"] < undone for made, undone in taken
-        ):
-            continue
         active[event["id"]] = {
             "id": event["id"],
             "seq": event["seq"],

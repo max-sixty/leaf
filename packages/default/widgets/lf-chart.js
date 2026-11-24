@@ -74,14 +74,14 @@
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
 import {
-  PendingTaskEvent,
   beginWalk,
-  bodyText,
   listWalkPosition,
   whileConnected,
-  failSoft,
   frameFor,
 } from "/runtime/portable-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { bodyText } from "/runtime/lib/data-body.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { measure } from "/runtime/lib/shown-box.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { once } from "/runtime/lib/once.js";

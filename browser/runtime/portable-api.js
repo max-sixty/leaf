@@ -19,12 +19,6 @@
    tests/smoke/test_plain_page.py holds the portable widgets to that. A portable widget
    also imports the library's modules (lib/), each of which loads in any document. */
 export { whileConnected, frameFor } from "./arrivals.js";
-export {
-  PendingTaskEvent,
-  bodyText,
-  failSoft,
-  placesFailure,
-} from "./widget-upgrade.js";
 export { tabStore } from "./tab-store.js";
 
 export { shadowStage } from "./shadow-stage.js";

@@ -83,7 +83,8 @@ import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
 import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
-import { COMMANDS, reportFailure } from "../widget-upgrade.js";
+import { COMMANDS } from "../widget-upgrade.js";
+import { reportFailure } from "../lib/failure.js";
 
 /** @typedef {import("./bindings.js").Command} Command
  * @typedef {import("./bindings.js").CommandRoute} CommandRoute

@@ -9,8 +9,8 @@
    rendering readiness until completion or removal.
 
    A widget's element reaches the controller through events Leaf hears at the
-   document. It says it has drawing under way with `pending-task` (`PendingTaskEvent`,
-   widget-upgrade.js). One an element Leaf drives dispatches on itself is that
+   document. It says it has drawing under way with `pending-task`
+   (lib/pending-task.js). One an element Leaf drives dispatches on itself is that
    element's own drawing and holds its render claim (element-integration.js). Any
    other reaches the preparation region of the nearest widget the event passed
    through, or, where it passed through none, a region of the dispatching element's.
@@ -25,7 +25,9 @@ import {
 } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
-import { DEFER, PENDING_TASK, failSoftUnreported } from "./widget-upgrade.js";
+import { DEFER } from "./widget-upgrade.js";
+import { PENDING_TASK } from "./lib/pending-task.js";
+import { showFailure } from "./lib/failure.js";
 import { watchOwner } from "./arrivals.js";
 import { holdRendering } from "./rendering.js";
 
@@ -114,7 +116,7 @@ function createWidgetController(owner) {
 
   /** @param {PreparationHandle} handle @param {Preparation} preparation */
   const presentPreparation = (handle, { completion }) =>
-    handle.present((reason) => failSoftUnreported(owner, reason)).resolve(completion);
+    handle.present((reason) => showFailure(owner, reason)).resolve(completion);
 
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to connect is its own, never that paint's.
@@ -298,7 +300,7 @@ function ownRegion(origin) {
   region.handle ??= attachApplicationPresentation(
     `element:${origin.localName}:drawing:${++regions}`,
   );
-  return region.handle.present((reason) => failSoftUnreported(origin, reason));
+  return region.handle.present((reason) => showFailure(origin, reason));
 }
 
 // A hold an element has on its own drawing while it rewrites its nodes

@@ -34,12 +34,8 @@ import { render as motionTemplate } from "./motion-view.js";
  * touch or text inside the study but outside its transport, or the window losing
  * focus), read from the window as Leaf's prepaint counts input. */
 import { render } from "/vendor/lit.js";
-import {
-  failSoft,
-  placesFailure,
-  tabStore,
-  whileConnected,
-} from "/runtime/portable-api.js";
+import { tabStore, whileConnected } from "/runtime/portable-api.js";
+import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
 
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];

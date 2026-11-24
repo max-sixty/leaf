@@ -117,8 +117,8 @@ PORTABLE = [
     ),
 ]
 
-# A body the chart cannot draw: the box and the event are the shared upgrade
-# lifecycle's (`failSoft`), so one widget answers for every portable one.
+# A body the chart cannot draw: the box and the event are the library's (`failSoft`,
+# lib/failure.js), so one widget answers for every portable one.
 REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
 # Two widgets to a row, aligned at their tops, so one growing as it draws moves no other.

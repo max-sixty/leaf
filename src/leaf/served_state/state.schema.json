@@ -158,9 +158,10 @@
               "type": "object",
               "properties": {
                 "state": { "enum": ["busy", "waiting", "idle"] },
-                "since": { "type": "string" }
+                "since": { "type": "string" },
+                "command": { "type": "boolean" }
               },
-              "required": ["state", "since"],
+              "required": ["state", "since", "command"],
               "additionalProperties": false
             },
             { "type": "null" }

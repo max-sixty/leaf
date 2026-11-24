@@ -151,12 +151,12 @@ Each item you start shows its line where the user looks for that work: in its
 thread, in On <your name>, and in the panel's status while it is the newest start. So start every item whose work is running, a worker's included, rather
 than the one that best describes your own step. A start goes stale after about 15
 minutes without a new line, and once your session stops working: your turn has
-ended and your harness reports no agent of yours still working in the background.
+ended and your harness reports nothing of yours still running in the background.
 While a worker produces an update's answer, start that update before you end your
-turn. The start holds the update through your later turns while your harness reports
-agents of yours working in the background, as Claude Code does, so leave it to the
-worker; once nothing holds it, Leaf names it in your next turn: answer it or start it
-again.
+turn. Where your harness reports your background work, as Claude Code does, the start
+holds the update through your later turns while an agent of yours works, and until
+your next turn while only a command of yours runs. Leave the update to that work. Once
+nothing holds it, Leaf names it in your next turn: answer it or start it again.
 
 For work that outlasts the turn, such as a worker's build, a wait on CI, or a change
 you promise for the next version, answer the thread with a to-do, and while its work

@@ -790,8 +790,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             len(page.events),
             claim and claim["turn"],
             claim and claim["turn_closed"],
-            live.get("state"),
-            live.get("since"),
+            tuple(sorted(live.items())),
         )
         if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
             owed[page.page_dir] = kept = (key, left_owed(page))

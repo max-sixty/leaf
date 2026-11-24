@@ -21,7 +21,7 @@ import {
   markdownReady,
   placedMarkdownTokens,
   isBlockPlacement,
-} from "../markdown.js";
+} from "../lib/markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
 
 /** @typedef {import("@codemirror/state").EditorState} EditorState
@@ -57,7 +57,7 @@ const touches = (state, from, to) =>
 // item is an item from its marker on, though the message reads an empty one as words of
 // the paragraph above it. Nothing is placed in the word itself. Empty until the renderer
 // has loaded.
-/** @param {EditorState} state @param {boolean} message the reading (markdown.js,
+/** @param {EditorState} state @param {boolean} message the reading (lib/markdown.js,
  * `renderMarkdown`) */
 const read = (state, message) => {
   const source = state.doc.toString();
@@ -77,9 +77,9 @@ const columns = (text) => {
   for (const ch of text) col = ch === "\t" ? col + 4 - (col % 4) : col + 1;
   return col;
 };
-/** @typedef {import("../markdown.js").PlacedToken} Placement
- * @typedef {Placement & import("../markdown.js").BlockPlacement["list_item_open"] & {token: import("markdown-it").Token & {type: "list_item_open"}}} ItemPlacement
- * @typedef {Placement & import("../markdown.js").BlockPlacement["blockquote_open"] & {token: import("markdown-it").Token & {type: "blockquote_open"}}} QuotePlacement
+/** @typedef {import("../lib/markdown.js").PlacedToken} Placement
+ * @typedef {Placement & import("../lib/markdown.js").BlockPlacement["list_item_open"] & {token: import("markdown-it").Token & {type: "list_item_open"}}} ItemPlacement
+ * @typedef {Placement & import("../lib/markdown.js").BlockPlacement["blockquote_open"] & {token: import("markdown-it").Token & {type: "blockquote_open"}}} QuotePlacement
  * @typedef {ItemPlacement | QuotePlacement} ContainerPlacement
  */
 const ITEM = "list_item_open";
@@ -662,7 +662,8 @@ function fieldEditor(
 
   // A picture's syntax, while the caret is away, is the picture the message shows for it,
   // from the source the parser resolved, a reference's included, at the address the
-  // renderer gives page media (markdown.js). A press on it puts the caret in its source.
+  // renderer gives page media (page-markdown.js, `pageLinks`). A press on it puts the
+  // caret in its source.
   class Picture extends WidgetType {
     /** @param {string} src @param {string} alt */
     constructor(src, alt) {
@@ -832,7 +833,7 @@ function fieldEditor(
             : Decoration.replace({ widget }).range(from, to),
         );
       } else if (token.type === "html_inline") {
-        // A task item's box (markdown.js), drawn in place of its brackets.
+        // A task item's box (lib/markdown.js), drawn in place of its brackets.
         if (touches(state, from, to)) add(from, to, dim);
         else
           out.push(
@@ -869,7 +870,7 @@ function fieldEditor(
         const markers = placement.markers ?? [];
         const body = token.content.split("\n");
         if (body.at(-1) === "") body.pop();
-        // Words on the opening line are the code's first line (markdown.js,
+        // Words on the opening line are the code's first line (lib/markdown.js,
         // `fence_words`), which then takes the padding its fence line stood for.
         const opening = state.doc.lineAt(from);
         const inline = markers.length > 0 && (markers[0]?.[1] ?? 0) < opening.to;
@@ -1128,7 +1129,7 @@ function fieldEditor(
     isBlockPlacement(c, "blockquote_open") ? "> " : " ".repeat(c.token.lfSource.indent);
 
   // A field that edits a Markdown body in place reads its words as the body does, as a
-  // file (markdown.js, `paintMarkdown`), where a line break among a paragraph's words,
+  // file (lib/markdown.js, `paintMarkdown`), where a line break among a paragraph's words,
   // in a code span or a link's destination as anywhere else, is a space, and only a
   // hard break's is a line. Each such break, with the spaces ending its line and the
   // next line's markers and indent, stands as one space the caret steps over, and

@@ -160,8 +160,8 @@ def scope_page_urls(value, page_root: str):
     A response carries version addresses in their canonical, root-relative form;
     beneath a prefix they answer at the page root, as the live page's media does. A
     message's media is the browser's to address as it renders the message
-    (`scopedMediaUrl` in markdown.js and thread/messages.js), since only its rendering
-    tells a reference from words that spell one.
+    (`scopedMediaUrl` in page-markdown.js and thread/messages.js), since only its
+    rendering tells a reference from words that spell one.
     """
     if not page_root:
         return value

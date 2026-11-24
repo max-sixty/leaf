@@ -29,8 +29,8 @@ import { render } from "/vendor/lit.js";
 import {
   commandsChanged,
   failSoft,
+  layoutChanged,
   once,
-  registerVisualParts,
   reportFailure,
   sizeObserver,
   tabStore,
@@ -78,8 +78,6 @@ class Timeline extends HTMLElement {
   }
   /** @type {ReturnType<typeof timelineLayout> | undefined} */
   #layout;
-  /** @type {ReturnType<typeof registerVisualParts> | undefined} */
-  #parts;
   // Labels are laid out against the ruler's width, so they follow it in the same
   // frame: a timeline first shown in a closed tab places them before it paints.
   // The ruler's own size doesn't change with the layout, so this never loops.
@@ -93,7 +91,7 @@ class Timeline extends HTMLElement {
         `600 ${style.fontSize} ${style.fontFamily}`,
       );
       this.#draw();
-      this.#parts?.update();
+      layoutChanged(this);
     }
   };
 
@@ -189,9 +187,8 @@ class Timeline extends HTMLElement {
     const describe = (
       /** @type {import("./timeline-view.js").TimelineEvent} */ event,
     ) => `${event.lane.name}: ${event.label}`;
-    this.#parts = registerVisualParts(
-      this,
-      () =>
+    this.lfParts = {
+      read: () =>
         model.events.flatMap((event) => {
           const element = drawing.eventElement(event.id);
           if (!element) return [];
@@ -203,17 +200,15 @@ class Timeline extends HTMLElement {
             { id: `event:${event.id}`, element, surface, label: describe(event) },
           ];
         }),
-      {
-        label: (/** @type {string} */ id) => {
-          const event = events.get(id.slice("event:".length));
-          return event ? describe(event) : null;
-        },
-        reveal: (/** @type {string} */ id) => {
-          const event = events.get(id.slice("event:".length));
-          if (event) this.#go(event.step, false);
-        },
+      label: (/** @type {string} */ id) => {
+        const event = events.get(id.slice("event:".length));
+        return event ? describe(event) : null;
       },
-    );
+      reveal: (/** @type {string} */ id) => {
+        const event = events.get(id.slice("event:".length));
+        if (event) this.#go(event.step, false);
+      },
+    };
     whileConnected(this, (signal) => {
       const pick = (/** @type {Event} */ event) => {
         if (!(event.target instanceof Element)) return;
@@ -249,7 +244,7 @@ class Timeline extends HTMLElement {
     const selected = drawing.model.steps[step];
     if (!selected) throw new Error(`Timeline has no step ${step}`);
     tabStore.set(`timeline:${this.id}`, String(selected.time));
-    this.#parts?.update();
+    layoutChanged(this);
     commandsChanged(this);
     if (!keyed) return;
     const { model } = drawing;

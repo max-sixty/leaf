@@ -1,5 +1,5 @@
-/* A registered visual whose parts can be drawn together or revealed in stages. */
-import { once, registerVisualParts } from "/runtime/widget-api.js";
+/* A visual stating its parts (`lfParts`), drawn together or revealed in stages. */
+import { layoutChanged, once } from "/runtime/widget-api.js";
 
 export function defineVisualFixture({
   tag = "lf-test-visual",
@@ -45,27 +45,24 @@ export function defineVisualFixture({
           { id: "html", element: html, surface: htmlSurface, label: "HTML target" },
         ];
         if (staged) inner.style.display = "none";
-        this.visualRegistration = registerVisualParts(
-          this,
-          () =>
+        this.lfParts = {
+          read: () =>
             staged
               ? this.parts.filter(
                   (part) => part.id !== "inner" || inner.style.display !== "none",
                 )
               : this.parts,
-          staged
-            ? {
-                reveal: (id) => {
-                  if (id !== "inner") return;
-                  inner.style.display = "";
-                  this.visualRegistration.update();
-                },
+          reveal: staged
+            ? (id) => {
+                if (id !== "inner") return;
+                inner.style.display = "";
+                layoutChanged(this);
               }
-            : {},
-        );
+            : undefined,
+        };
         this.redraw = () => {
           outerSurface.setAttribute("rx", "28");
-          this.visualRegistration.update();
+          layoutChanged(this);
         };
       }
     },

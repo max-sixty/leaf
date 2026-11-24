@@ -3,14 +3,14 @@
    reading of the renderer that draws it. A rule the renderer enables whose tokens the
    preview doesn't draw leaves its construct as source in the field while the message
    or body renders it. This holds every rule either reading's parser enables
-   (markdown.js, `makeMarkdown`) to the token types the preview draws (`DRAWN`), or to
+   (lib/markdown.js, `makeMarkdown`) to the token types the preview draws (`DRAWN`), or to
    an exception that says why its source stays as typed. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { DRAWN } from "/runtime/composing/field-editor.js";
-import { makeMarkdown } from "/runtime/markdown.js";
+import { makeMarkdown } from "/runtime/lib/markdown.js";
 
 // What each rule emits that a reader sees, by the token type the preview reads it as:
 // markdown-it's own rules, the task-list plugin's and Leaf's. [] is a rule that emits

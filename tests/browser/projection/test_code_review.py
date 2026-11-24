@@ -392,7 +392,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         held.pop(0).continue_()
         page.evaluate(
             """async () => {
-              const {loadMarkdown} = await window.__lfWidgetApi();
+              const {loadMarkdown} = await import("/runtime/lib/markdown.js");
               await loadMarkdown();
             }"""
         )

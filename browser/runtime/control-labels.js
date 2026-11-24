@@ -86,5 +86,5 @@ export function nameAction(control, action, { label, className } = {}) {
 // a change, but `wrote` keeps them and a quote can run across them. Three of the
 // runtime's writers write the attributes themselves: the datum projection
 // (projection/data.js) marks and unmarks authored nodes as their data comes and goes,
-// markdown.js serializes its media button as HTML, and revision_delivery.py writes
+// page-markdown.js serializes its media button as HTML, and revision_delivery.py writes
 // prepaint faces on the server.

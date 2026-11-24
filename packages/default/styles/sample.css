@@ -7,7 +7,7 @@
  * that rule forbids: a quotation's gutter marks provenance, an accent bar demands
  * attention. The content itself renders at full fidelity
  * (an exhibit must show the real thing), so the gutter alone says "mention, not
- * use". Input never leaves one: the interactive widgets check quoted() before
+ * use". Input never leaves one: the interactive widgets check the exhibit's mark before
  * wiring (lf-options.js, lf-board.js), so a quoted group shows its options and takes
  * no pick, and a quoted board stays the static board the theme already renders.
  *

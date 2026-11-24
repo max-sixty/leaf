@@ -10,6 +10,7 @@ metadata:
   purpose: A widget written to run off Leaf too reads no authored words with textContent and animates in its stylesheet, importing nothing that needs Leaf.
   tags:
     - packages
+    - package-interface
 vars:
   prompt: |
     I'm writing a Leaf package widget, lf-poll. The same module also has to run on

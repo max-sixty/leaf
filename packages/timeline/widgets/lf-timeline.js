@@ -30,12 +30,12 @@ import {
   commandsChanged,
   failSoft,
   layoutChanged,
-  once,
   reportFailure,
-  sizeObserver,
   tabStore,
   whileConnected,
 } from "/runtime/portable-api.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 
 /** @param {HTMLElement} host */
 function drawingFor(host) {

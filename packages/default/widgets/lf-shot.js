@@ -63,23 +63,22 @@ import { ShotView } from "./shot-view.js";
 import { render } from "/vendor/lit.js";
 import {
   afterPresentation,
-  once,
   offer,
   failSoft,
   frameFor,
   placesFailure,
   focusDestination,
-  nextFrame,
   layoutChanged,
   scopedMediaUrl,
   widgetController,
   move,
   whileConnected,
-  sizeObserver,
   registerReadingRegion,
   compoundReadingRegionId,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
+import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";

@@ -1,5 +1,6 @@
 /* A visual stating its parts (`lfParts`), drawn together or revealed in stages. */
-import { layoutChanged, once } from "/runtime/widget-api.js";
+import { layoutChanged } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 export function defineVisualFixture({
   tag = "lf-test-visual",

@@ -43,7 +43,8 @@ def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
     return f"""\
-import {{ once, commandsChanged }} from "/runtime/widget-api.js";
+import {{ commandsChanged }} from "/runtime/widget-api.js";
+import {{ once }} from "/runtime/lib/once.js";
 
 customElements.define(
   "{tag}",

@@ -83,7 +83,7 @@ whitespace. A mark inside a shadow root is not read.
 
 Where marks can't say it, the element states its parts as its `lfParts` property, an
 object Leaf reads each time it needs the parts. Set it where the widget builds itself
-(`setup()`, or behind `once()`). Its `read()` returns the parts drawn now as
+(`setup()`, or behind its first-connection guard). Its `read()` returns the parts drawn now as
 `{id, element, label}`, in place of the marks, and may name an element in the visual's
 shadow root. `reveal(id)` shows a part when someone follows its thread, even if it is
 visible already, so cancel work that would hide it. `label(id)` names a part in

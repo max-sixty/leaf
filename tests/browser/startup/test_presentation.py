@@ -265,7 +265,8 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
-import {{ once, shadowStage }} from '/runtime/widget-api.js';
+import {{ shadowStage }} from '/runtime/widget-api.js';
+import {{ once }} from '/runtime/lib/once.js';
 customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (!once(this)) return;
@@ -373,7 +374,8 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
             layer_registry={"lf-settled-link": settled, "lf-shadow-link": shadow},
             layer_widgets={
                 "lf-settled-link.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
+import {widgetController} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -389,7 +391,8 @@ customElements.define('lf-settled-link', class extends HTMLElement {
 });
 """,
                 "lf-shadow-link.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;

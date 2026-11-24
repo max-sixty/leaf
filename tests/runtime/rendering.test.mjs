@@ -35,19 +35,17 @@ globalThis.ResizeObserver = class {
 };
 
 const {
-  nextRender,
-  nextFrame,
-  cancelRender,
   afterScript,
   afterOwedFrame,
   afterSettling,
-  sizeObserver,
   renderingState,
   holdRendering,
   observePreparations,
 } = await import("/runtime/rendering.js");
+const { nextRender, nextFrame, cancelRender, sizeObserver } =
+  await import("/runtime/lib/frame-pass.js");
 
-const { observeQueuedWork } = await import("/runtime/queued-work.js");
+const { observeQueuedWork } = await import("/runtime/lib/queued-work.js");
 
 async function update({ delivering = [] } = {}) {
   const due = [...queued.values()];

@@ -33,13 +33,13 @@
 import {
   PendingTaskEvent,
   bodyText,
-  once,
   failSoft,
   frameFor,
   layoutChanged,
-  sizeObserver,
   whileConnected,
 } from "/runtime/portable-api.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 
 // Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
 // classic track consume this same padding, retaining 1px around the marks.

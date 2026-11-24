@@ -10,11 +10,11 @@ import {
   frameFor,
   layoutChanged,
   offer,
-  once,
-  sizeObserver,
   whileConnected,
   pageLinks,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {

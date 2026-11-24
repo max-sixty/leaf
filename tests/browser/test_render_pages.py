@@ -3440,7 +3440,8 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`@layer lf-base {
   @layer library { .library { font: 18px Georgia; } }

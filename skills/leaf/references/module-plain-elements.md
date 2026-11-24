@@ -127,8 +127,8 @@ On Me and admits the ids its buttons mark:
 - **`redraw()`.** `page check --render` calls this method on an element that has one,
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** `connectedCallback` runs again each time a revision or a thread puts
-  the element back, so the element guards what it builds once, as `once()` does for a
-  module that imports it.
+  the element back, so the element guards what it builds once (`module-authoring.md`,
+  "Upgrade").
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual

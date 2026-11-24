@@ -37,12 +37,12 @@ import { render } from "/vendor/lit.js";
 import {
   commandsChanged,
   failSoft,
-  once,
   placesFailure,
   reportFailure,
   tabStore,
   whileConnected,
 } from "/runtime/portable-api.js";
+import { once } from "/runtime/lib/once.js";
 
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];
 // A user who asked for less motion is shown the study's end rather than its playback.

@@ -24,14 +24,14 @@ import {
   holdFocus,
   layoutChanged,
   offer,
-  once,
   preserveReadingRegions,
   registerReadingRegion,
   scrollIntoView,
   shownWindow,
-  sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";

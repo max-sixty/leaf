@@ -13,7 +13,6 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   external: "data-lf-external",
   viewMember: "data-lf-view",
   obligation: "data-lf-obligation",
-  done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
   settlement: "data-lf-state",

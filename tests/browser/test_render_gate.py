@@ -131,7 +131,8 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # diagram package's does.
 SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
-import {PendingTaskEvent, once} from '/runtime/portable-api.js';
+import {PendingTaskEvent} from '/runtime/portable-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-sketch', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -1091,7 +1092,7 @@ def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -1353,7 +1354,7 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
         "  connectedCallback() { once(this); }\n"
         "});\n"
@@ -3378,7 +3379,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'import { shadowStage } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"
@@ -4021,7 +4023,6 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     page = open_page(browser, url)
     widget = page.locator("#custom-note")
-    expect(widget).to_have_attribute("data-lf-done", "1")
     expect(widget).to_have_attribute("data-helper", "project-owned helper")
     assert widget.evaluate(
         "(el) => ({display: getComputedStyle(el).display, "
@@ -4127,7 +4128,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'import { shadowStage } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"

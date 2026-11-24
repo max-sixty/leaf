@@ -16,7 +16,7 @@ export {
    should stand apart from the author's with `data-lf-gen` (the runtime's own with
    `generatedElement`). A Lit template reaches the offers' writers through element
    directives built by `elementDirective`. A behavior module
-   reads a box from inside `measure` (shown-box.js). A label
+   reads a box from inside `measure` (lib/shown-box.js). A label
    whose words change holds one room for all of them with `data-lf-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module that
    rearranges what it holds inside an unchanged box says so with `layoutChanged`

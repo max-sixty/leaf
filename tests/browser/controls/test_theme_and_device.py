@@ -210,7 +210,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 
     page.emulate_media(reduced_motion="no-preference")
 
-    # A glide shares a frame the page already asked for (rendering.js), so with none
+    # A glide shares a frame the page already asked for (lib/frame-pass.js), so with none
     # asked for, its frames are the ones held here.
     rendered(page)
     page.evaluate(

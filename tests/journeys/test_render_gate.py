@@ -1088,7 +1088,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/widget-api.js";\n'
+            'import { once } from "/runtime/lib/once.js";\n'
             f'customElements.define("{tag}", class extends HTMLElement {{\n'
             + body
             + "});\n"

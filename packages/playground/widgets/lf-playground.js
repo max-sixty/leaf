@@ -75,13 +75,13 @@ import {
   registerReadingRegion,
   reachedForWords,
   says,
-  sizeObserver,
   wear,
   whileConnected,
   worksInside,
   commandsChanged,
   widgetController,
 } from "/runtime/widget-api.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
 

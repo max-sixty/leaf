@@ -9,7 +9,7 @@
 
 import { ringBox, visibleFocus } from "./focus.js";
 import { lined, shownParts } from "./geometry.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import {
   readingOrder,
   readingPlace,

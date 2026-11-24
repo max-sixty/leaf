@@ -62,8 +62,8 @@ classifier.dispatchEvent(
 );
 ```
 
-An element a template draws takes its scope the same way, once the render that places
-it has run.
+An element a template draws takes its scope the same way once the render has placed
+it, as from a `ref` callback.
 
 ### Command rows
 

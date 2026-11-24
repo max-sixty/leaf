@@ -256,7 +256,9 @@ customElements.define(
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);
       this.toggleAttribute("data-lf-scroll", true);
-      this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

@@ -56,13 +56,17 @@ export function defineVisualFixture({
             ? (id) => {
                 if (id !== "inner") return;
                 inner.style.display = "";
-                this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+                this.dispatchEvent(
+                  new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+                );
               }
             : undefined,
         };
         this.redraw = () => {
           outerSurface.setAttribute("rx", "28");
-          this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         };
       }
     },

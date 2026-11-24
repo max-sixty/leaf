@@ -1852,12 +1852,16 @@ export class Trace extends LeafElement {
           },
           moved: () => {
             this.#rememberPictureView(pending.viewer);
-            this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           },
           zoomed: () => {
             this.#rememberPictureView(pending.viewer);
             this.#imageZoom();
-            this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           },
         });
       }, failed);
@@ -2723,9 +2727,7 @@ export class Trace extends LeafElement {
       if (!marked.has(element)) for (const name of MARKS) element.removeAttribute(name);
     this.#marked = marked;
     this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.#trace } }));
-    this.dispatchEvent(
-      new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-    );
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
     );

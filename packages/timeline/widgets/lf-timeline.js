@@ -88,7 +88,9 @@ class Timeline extends HTMLElement {
         `600 ${style.fontSize} ${style.fontFamily}`,
       );
       this.#draw();
-      this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   };
 
@@ -250,9 +252,7 @@ class Timeline extends HTMLElement {
     const selected = drawing.model.steps[step];
     if (!selected) throw new Error(`Timeline has no step ${step}`);
     tabStore.set(`timeline:${this.id}`, String(selected.time));
-    this.dispatchEvent(
-      new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-    );
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
     );

@@ -608,7 +608,9 @@ customElements.define(
       this.#telling = true;
       nextRender(() => {
         this.#telling = false;
-        this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       });
     }
 

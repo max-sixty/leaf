@@ -101,7 +101,9 @@ customElements.define(
     #relayout = frameFor(this, () => {
       this.#layout();
       this.#paint();
-      this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     });
 
     connectedCallback() {
@@ -369,7 +371,9 @@ customElements.define(
           this.dispatchEvent(new Event("change"));
         }
         // The stack and the clauses move as runs push and merge; re-read their geometry.
-        this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       }
     }
 

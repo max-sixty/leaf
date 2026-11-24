@@ -463,7 +463,9 @@ customElements.define(
       this.scrub.value = this.#t;
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
-      this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       this.frame = {
         chapter: fr.chapter,
         caption: fr.caption,

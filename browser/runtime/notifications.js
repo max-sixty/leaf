@@ -209,7 +209,7 @@ function retireNotice() {
 // panel says the press at the field's end, so one leaving on its timer would take it
 // from under a hand on its way there. The user's inputs within its time leave it
 // standing, so the Escape that takes the caret out of a reply box, where the field shows
-// no press, shows Restore edit rather than ending its notice. News passes on its time,
+// no press, shows a discard's Undo rather than ending its notice. News passes on its time,
 // its press with it, since it answers nothing the user did: the user chose that news
 // never hold the seat until they act (since-seen.js). A press stands no longer than it
 // can act: a gesture the log refused, or one taken back by any route, takes its notice

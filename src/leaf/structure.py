@@ -77,12 +77,18 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The page-wide allocations the runtime reads from `body`, which a sample template
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
-# The `lf-` classes an author writes: those the kernel's selector idioms name, such as
-# `lf-scroll` on a box the page scrolls (browser/registry.json).
-AUTHORED_CLASSES = frozenset(
-    name
-    for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
-    for name in re.findall(r"\.(lf-[\w-]+)", key)
+
+
+def authored_classes(registry: Mapping) -> frozenset[str]:
+    """The `lf-` classes an author writes: those the selector idioms of `registry`, the
+    core layer's, name, such as `lf-scroll` on a box the page scrolls."""
+    return frozenset(
+        name for key in registry for name in re.findall(r"\.(lf-[\w-]+)", key)
+    )
+
+
+AUTHORED_CLASSES = authored_classes(
+    json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
 )
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in

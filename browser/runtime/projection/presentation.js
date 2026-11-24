@@ -21,44 +21,26 @@ import { addressableAt } from "../thread/messages.js";
 import { authored, elementById, renderRetired } from "../passages.js";
 import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
-import { keeps } from "../lib/keeps.js";
+import { keeps, keepsOnEach } from "../lib/keeps.js";
 import { inChrome } from "../ui-marks.js";
 
-// Paint each unit's origin mark, and return every element that wears one or just lost
-// one. `marked` holds the elements the last paint marked with each origin attribute.
-// This region is the attribute's only writer, so a paint takes the mark off the
-// elements it no longer wants from there rather than finding them by a query of the
-// whole page.
+// Paint each unit's origin mark, through each origin attribute's writer
+// (lib/keeps.js, `keepsOnEach`), and return every element that wears one or just lost
+// one.
 /** @param {import("../../types/domain.js").Projection} projection
- * @param {Map<string, Set<Element>>} marked */
-function paintStateOrigins(projection, marked) {
-  /** @type {Set<Element>} */
-  const userOverride = new Set();
-  /** @type {Set<Element>} */
-  const reported = new Set();
-  const marks = new Map([
-    [PAGE_PAINT_ATTRIBUTE.userOverride, userOverride],
-    [PAGE_PAINT_ATTRIBUTE.reported, reported],
-  ]);
+ * @param {{user: ReturnType<typeof keepsOnEach>, reported: ReturnType<typeof keepsOnEach>}} paint */
+function paintStateOrigins(projection, paint) {
+  /** @type {Map<Element, string>} */
+  const user = new Map();
+  /** @type {Map<Element, string>} */
+  const reported = new Map();
   for (const { origin, unit } of projectionOrigins(authoredStates(), projection)) {
     if (origin === "restated") continue;
     const target = elementById(unit);
     if (!target || inChrome(target)) continue;
-    (origin === "user" ? userOverride : reported).add(target);
+    (origin === "user" ? user : reported).set(target, "1");
   }
-  const touched = new Set();
-  for (const [attr, wanted] of marks) {
-    for (const target of marked.get(attr) ?? []) {
-      touched.add(target);
-      if (!wanted.has(target)) keeps(target, attr, null);
-    }
-    for (const target of wanted) {
-      touched.add(target);
-      keeps(target, attr, "1");
-    }
-    marked.set(attr, wanted);
-  }
-  return touched;
+  return [...paint.user(user), ...paint.reported(reported)];
 }
 
 // A widget whose tag has a deciding verb (`decisionFor`) is settled when that verb's
@@ -145,8 +127,10 @@ export function createProjectionPresentation() {
   };
   watchPresentation(updateCoverage);
 
-  /** @type {Map<string, Set<Element>>} */
-  const originMarked = new Map();
+  const originPaint = {
+    user: keepsOnEach(PAGE_PAINT_ATTRIBUTE.userOverride),
+    reported: keepsOnEach(PAGE_PAINT_ATTRIBUTE.reported),
+  };
   function presentCurrent() {
     const projection = currentProjection();
     // Until the server's first state or the offline fallback arrives, the page cannot
@@ -169,8 +153,7 @@ export function createProjectionPresentation() {
         marked.add(target);
       }
     paintSettlements(widgetStates());
-    for (const target of paintStateOrigins(projection, originMarked))
-      marked.add(target);
+    for (const target of paintStateOrigins(projection, originPaint)) marked.add(target);
     sayQuietFacts(marked);
     return projection;
   }

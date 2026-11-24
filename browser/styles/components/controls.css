@@ -2184,7 +2184,7 @@ wa-copy-button.lf-icon-action {
   padding: 5px 8px;
   color: var(--lf-muted);
 }
-/* A time axis, drawn by every widget that has one (`axisTicks`, runtime/time-axis.js).
+/* A time axis, drawn by every widget that has one (`axisTicks`, runtime/lib/time-axis.js).
    Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
    (`.lf-axis-gridline`) and a widget's own marks, labels and playhead (`.lf-on-axis`),
    stands at its fraction of the axis (`--lf-axis-at`) inside the drawing's edge

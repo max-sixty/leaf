@@ -51,11 +51,11 @@ import {
   sizeObserver,
   layoutPx,
   syntax,
-  textWidth,
   nextFrame,
   MAX_EDIT_LENGTH,
   afterPresentation,
 } from "/runtime/widget-api.js";
+import { textWidth } from "/runtime/lib/text-width.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 // A Markdown preview of text written in the page, whose rendering sets the box both

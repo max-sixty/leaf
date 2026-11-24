@@ -16,7 +16,11 @@
    widget-api.js re-exports all of it, so these are the same helpers by either path.
    Each home re-exported here must load, and work, in a document Leaf did not compose:
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
-   tests/smoke/test_plain_page.py holds the portable widgets to that. */
+   tests/smoke/test_plain_page.py holds the portable widgets to that.
+
+   A module of the library (lib/) loads in any document by the rule on its imports
+   (browser/AGENTS.md, "The library of shared web code"), so a portable widget imports
+   one by its own path and this file re-exports none. */
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 export {
@@ -45,17 +49,6 @@ export {
   syntaxNow,
   tokenLines,
 } from "./syntax-tokens.js";
-// The time axis the Playwright timeline and lf-timeline both draw on.
-export {
-  AXIS_EDGE,
-  AXIS_LABEL_CHROME,
-  AXIS_LABEL_GAP,
-  AXIS_TICK_SPACING,
-  assignRows,
-  axisTicks,
-  seconds,
-  textWidth,
-} from "./time-axis.js";
 
 export { actionClass } from "./control-faces.js";
 export { actionTemplate } from "./icons.js";

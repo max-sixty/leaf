@@ -403,7 +403,8 @@ the first paint, holds keys pressed before upgrade and shows a startup failure.
 
 Content modules import only `runtime/widget-api.js`, the public helper surface, or a
 widget that also runs off Leaf only its part any document loads,
-`runtime/portable-api.js`;
+`runtime/portable-api.js`, and either may import the library's modules ("The library of
+shared web code");
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
@@ -460,6 +461,31 @@ name the widgets they style, so a rule several packages need belongs in the kern
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
+
+### The library of shared web code
+
+Web code that packages share with one another or with the runtime has one home that
+any of them can import, so that no package copies it and it adds nothing to Leaf's
+interface. `runtime/lib/` is that home. It holds code that keeps none of the page's
+state and calls nothing of Leaf's, such as a time axis's ticks or the words for a
+thrown value. A function that reads the page's state, the registry or anything else
+Leaf composes into a page is not library code, and stays in its owner behind
+`widget-api.js`.
+
+- A library module imports only `/vendor/` bundles and the modules beside it, which
+  lint holds (the library's block in `../eslint.config.mjs`). So it loads in a document
+  Leaf didn't compose. A stateless helper it needs from the runtime moves into the
+  library with every caller, or, where the helper only wraps a browser call, the
+  module writes that call.
+- The runtime imports a library module by relative path, and a package or page by its
+  served path, `/runtime/lib/<module>.js`. `$public-modules` in
+  `runtime/kernel-registry.json` admits that import, and lists every module of the
+  directory (`../tests/runtime/widget-api.test.mjs`).
+- A module holds one concern, and nothing re-exports it: `widget-api.js` and
+  `portable-api.js` re-export none of the library, and a widget that also runs off Leaf
+  imports a library module directly.
+- A module's header and JSDoc are its whole documentation. The package references say
+  where the library is and describe none of its functions.
 
 ### What a style rule costs
 

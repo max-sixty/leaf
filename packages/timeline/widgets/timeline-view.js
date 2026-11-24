@@ -6,14 +6,16 @@ import {
   offeredAction,
   selectableOffered,
   generated,
+} from "/runtime/portable-api.js";
+import { textWidth } from "/runtime/lib/text-width.js";
+import {
   assignRows,
   axisTicks,
   seconds,
-  textWidth,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_LABEL_CHROME as LABEL_CHROME,
-} from "/runtime/portable-api.js";
+} from "/runtime/lib/time-axis.js";
 
 /** @typedef {{label: string, abbr: string | null, row: number}} TimelineRun */
 /** @typedef {{id: string, label: string, lane: TimelineLane, at: number, end: number | null, step: number}} TimelineEvent */

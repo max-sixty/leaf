@@ -1,11 +1,14 @@
 {
   "$public-modules": {
-    "description": "The module paths a page or package may import. Admission, linting and bundling read this list; module-authoring.md describes their capabilities.",
+    "description": "The module paths a page or package may import. Admission, linting and bundling read this list; module-authoring.md describes their capabilities. Those under `/runtime/lib/` are the library of shared web code, every module of that directory (browser/AGENTS.md, \"The library of shared web code\").",
     "paths": [
       "/vendor/lit.js",
       "/runtime/widget-api.js",
       "/runtime/portable-api.js",
-      "/vendor/floating-ui.esm.js"
+      "/vendor/floating-ui.esm.js",
+      "/runtime/lib/exception.js",
+      "/runtime/lib/text-width.js",
+      "/runtime/lib/time-axis.js"
     ]
   },
   "$authored": {

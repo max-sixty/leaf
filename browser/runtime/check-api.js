@@ -3,7 +3,7 @@
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
 export { canvas2D } from "./canvas.js";
-export { exceptionText } from "./exception.js";
+export { exceptionText } from "./lib/exception.js";
 export { startNearWork } from "./presentation.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";

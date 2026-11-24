@@ -67,6 +67,7 @@ import {
   whenNear,
   whenNone,
 } from "/runtime/widget-api.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 
 export class Sample extends HTMLElement {
   /** @typedef {Awaited<ReturnType<typeof mountSample>>} SampleHost */
@@ -441,9 +442,7 @@ export class Sample extends HTMLElement {
       (error.name === "AbortError" || error.name === "SampleDepartedError")
     )
       return;
-    this.#sayFailure(
-      error instanceof Error ? error.message || error.name : String(error),
-    );
+    this.#sayFailure(describeFailure(error));
     keeps(this.#reset, "aria-disabled", null);
   }
 

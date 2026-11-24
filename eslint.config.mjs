@@ -322,6 +322,12 @@ const ownerBoundary = {
   "no-restricted-syntax": ["error", ...ownerRuntimeSyntax],
 };
 
+// What a module of the library (browser/runtime/lib/) may import: a /vendor/ bundle or
+// a module beside it in that flat directory.
+const librarySpecifier = "(?:/vendor/|\\./[^/]+$)";
+const LIBRARY_MESSAGE =
+  "The library imports only /vendor/ bundles and its own modules (browser/AGENTS.md, “The library of shared web code”): code that needs the runtime is not library code.";
+
 const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
 const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
@@ -1827,6 +1833,28 @@ export default [
           selector:
             "ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
           message: "Runtime primitives import statically and re-export nothing.",
+        },
+      ],
+    },
+  },
+  {
+    // The library of shared web code holds none of the page's state and reaches none
+    // of Leaf's (browser/AGENTS.md, "The library of shared web code"), so a module of
+    // it names only a /vendor/ bundle and the modules beside it. That keeps the
+    // runtime, its facade (/runtime/framework.js) and the kernel registry out by
+    // every spelling, and each module loading in a document Leaf did not compose.
+    files: ["browser/runtime/lib/**/*.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [{ regex: `^(?!${librarySpecifier})`, message: LIBRARY_MESSAGE }] },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...ownerRuntimeSyntax,
+        {
+          selector: `ImportExpression[source.type="Literal"]:not([source.value=/^${librarySpecifier.replaceAll("/", "\\/")}/])`,
+          message: LIBRARY_MESSAGE,
         },
       ],
     },

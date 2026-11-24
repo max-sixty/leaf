@@ -12,7 +12,10 @@
 
    The helpers that load in any document are portable-api.js's, re-exported here whole,
    so a widget that must also run off a Leaf page imports from there and every other
-   widget keeps importing from here. */
+   widget keeps importing from here.
+
+   Shared web code that reaches none of Leaf's is the library's (lib/), which a module
+   imports by path. Neither file re-exports it. */
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";

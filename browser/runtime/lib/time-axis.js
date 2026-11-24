@@ -1,10 +1,18 @@
 /* Geometry for a horizontal time axis, shared by the widgets that draw one: the
  * Playwright recording timeline (`packages/playwright/widgets/timeline.js`) and
- * `lf-timeline` (`packages/timeline/widgets/timeline-view.js`). Times are milliseconds from the axis origin; positions are
- * pixels along the drawn span, which starts and ends AXIS_EDGE inside the drawing.
- * Nothing here touches the DOM except the canvas that measures text, so each widget
- * can call it while drawing. The ruler's look is one rule, `.lf-axis-tick`
- * (`styles/components/controls.css`).
+ * `lf-timeline` (`packages/timeline/widgets/timeline-view.js`). Times are milliseconds
+ * from the axis origin; positions are pixels along the drawn span, which starts and
+ * ends AXIS_EDGE inside the drawing. Nothing here touches the DOM, so each widget can
+ * call it while drawing, before its upgrade as well as after.
+ *
+ * A drawing sets `--lf-axis-edge` to AXIS_EDGE pixels and places whatever stands on the
+ * axis at its fraction of the span, `--lf-axis-at`: each tick a `span.lf-axis-tick` in
+ * an `.lf-axis-ruler`, with `data-lf-major` and `data-lf-flip` as the tick says; a
+ * `span.lf-axis-gridline` for each major tick, with its `data-lf-flip`, in an
+ * `.lf-axis-grid` over the lanes; and its own marks, labels and playhead with the
+ * class `lf-on-axis`. Those rules are `styles/components/controls.css`'s, with
+ * `--lf-axis-x`, where each stands from its box's start, which a label reads to fit
+ * the room on either side of it.
  *
  * Ruler ticks fall on 1, 2 and 5 × 10^k milliseconds, the smallest step that keeps
  * major ticks AXIS_TICK_SPACING apart, with four or five minor ticks between them. A
@@ -13,8 +21,6 @@
  * extent ended at or before its start, so overlapping extents never share a row and
  * the row count is the smallest that greedy order allows.
  */
-
-import { canvas2D } from "./canvas.js";
 
 /** How far inside the drawing the axis's span starts and ends, in pixels. */
 export const AXIS_EDGE = 12;
@@ -87,14 +93,4 @@ export function assignRows(items, start, end) {
     rowOf.set(item.id, row);
   }
   return rowOf;
-}
-
-/** @type {ReturnType<typeof canvas2D> | null} */
-let measuring = null;
-/** The advance width of `text` set in a CSS `font` shorthand. */
-/** @param {string} text @param {string} font */
-export function textWidth(text, font) {
-  measuring ??= canvas2D(document.createElement("canvas"));
-  measuring.font = font;
-  return measuring.measureText(text).width;
 }

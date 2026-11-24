@@ -114,7 +114,7 @@ const exactClosures = {
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",
-    "exception.js",
+    "lib/exception.js",
     "page-paint.js",
     "kept.js",
   ],

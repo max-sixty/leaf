@@ -38,7 +38,7 @@
 import { canvas2D } from "../canvas.js";
 import { carriedBox, elementBorderFrame } from "../element-axes.js";
 import { hasArea, intersect, overlaps } from "../rect.js";
-import { describeFailure } from "../exception.js";
+import { describeFailure } from "../lib/exception.js";
 /** @param {Blob} blob */
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;

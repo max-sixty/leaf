@@ -494,9 +494,7 @@ def test_o_presses_the_leaf_and_the_arrows_turn_the_on_view_s_tabs(browser, serv
     # A tab the view doesn't show names the door that opens its list from anywhere.
     page.mouse.move(2, 2)
     page.locator(".lf-fp-tab", has_text=agent).hover()
-    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(
-        re.compile(r"^\s*g\s*A\s*$")
-    )
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys kbd")).to_have_text(["g", "A"])
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(tab).to_contain_text(agent)

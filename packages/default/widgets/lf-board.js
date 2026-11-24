@@ -80,8 +80,6 @@ import { nothing } from "/vendor/lit.js";
 import {
   elementById,
   move,
-  labelOf,
-  saying,
   motion,
   scrollerFor,
   focusDestination,
@@ -515,10 +513,7 @@ customElements.define(
       grip.setAttribute("aria-description", drag);
       // Grabbed, the card is moving, so the grip says nothing over it until it drops.
       grip.lfPreview = () =>
-        !held() && {
-          keys: grab.keys.map((binding) => [labelOf({ ...grab, keys: [binding] })]),
-          detail: [drag],
-        };
+        !held() && { keys: grab.keys.map((binding) => [binding]), detail: [drag] };
       /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,
@@ -652,9 +647,7 @@ customElements.define(
         index + 1
       } of ${cards.length}`;
       window.dispatchEvent(
-        new CustomEvent("lf-announce", {
-          detail: () => [grabbed, saying(rows)].filter(Boolean).join(" — "),
-        }),
+        new CustomEvent("lf-announce", { detail: { words: grabbed, rows } }),
       );
     }
 

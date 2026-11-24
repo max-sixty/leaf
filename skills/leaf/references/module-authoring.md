@@ -89,6 +89,8 @@ through events and element declarations that a plain host can ignore:
   (`module-annotations.md`, "Visual parts"), which only Leaf reads.
 - Words for a listener: an `lf-announce` event (`module-scroll-and-motion.md`,
   "Notices and spoken words"), which only Leaf says.
+- Where a step of its own walk landed: an `lf-walk` event (`module-input.md`,
+  "Walks"), which only Leaf shows.
 - State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
   there answers null.
 
@@ -329,8 +331,7 @@ properties.
 
 Portable focus, scrolling and controls use the document's native behavior; Leaf
 adds reading regions and chrome styling. `langForPath` reads shipped defaults on
-a plain host and its composed language map on Leaf. `beginWalk` declares navigation
-position; only Leaf supplies the status presentation.
+a plain host and its composed language map on Leaf.
 
 ### Retained nodes
 

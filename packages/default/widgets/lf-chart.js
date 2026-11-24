@@ -73,12 +73,7 @@
  * as a `pending-task` event, which holds the page's presentation until it is in, and a
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
-import {
-  beginWalk,
-  listWalkPosition,
-  whileConnected,
-  frameFor,
-} from "/runtime/portable-api.js";
+import { whileConnected, frameFor } from "/runtime/portable-api.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { bodyText } from "/runtime/lib/data-body.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -707,10 +702,12 @@ customElements.define(
     }
 
     // A key's step is a walk along the reading's series, a new aim wherever it lands; a
-    // redraw that keeps the reader on their point is none. It tells a listener where it
-    // landed: the point's words, then its place in its series. The series' first and
-    // last points bound the list, each by its shape, or by the drawing where the chart
-    // draws no shape of the point's own, as a line's or a dot's.
+    // redraw that keeps the reader on their point is none. It says where it landed, to
+    // Leaf's panel (`lf-walk`) and to a listener: the point's words, then its place in
+    // its series. A point stands in the page as its shape, or as the drawing where the
+    // chart draws no shape of the point's own, as a line's or a dot's: the place is
+    // said on that, so it goes with the drawing a redraw replaces, and the series'
+    // first and last points bound the list by theirs.
     /** @param {Point | null} point */
     #step(point) {
       this.#place = null;
@@ -718,19 +715,27 @@ customElements.define(
       const reading = this.#reading;
       if (!point || !reading) return;
       const series = reading.series[point.series] ?? [];
-      const ends = [series[0], series.at(-1)];
-      const place = beginWalk(
-        "chart-point",
-        "Point",
-        () => listWalkPosition(series, this.#at),
-        {
-          list: () => ends.map((end) => (end && shapeOf(reading, end)) ?? reading.svg),
-        },
+      const [position, total] = [series.indexOf(point) + 1, series.length];
+      /** @param {Point | undefined} at */
+      const drawn = (at) => (at && shapeOf(reading, at)) ?? reading.svg;
+      drawn(point).dispatchEvent(
+        new CustomEvent("lf-walk", {
+          bubbles: true,
+          composed: true,
+          detail: {
+            noun: "Point",
+            position,
+            total,
+            list: [drawn(series[0]), drawn(series.at(-1))],
+          },
+        }),
       );
       const { name, detail } = sayPoint(point);
       window.dispatchEvent(
         new CustomEvent("lf-announce", {
-          detail: [name, ...detail, place].filter(Boolean).join(", "),
+          detail: [name, ...detail, `Point ${position} of ${total}`]
+            .filter(Boolean)
+            .join(", "),
         }),
       );
     }

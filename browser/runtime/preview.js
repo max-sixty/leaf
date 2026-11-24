@@ -30,7 +30,10 @@
      and left as they are where they come back the same: `{name, keys, detail, list,
      at, about, excerpt, unseen}`, every field optional (module-previews.md). On a control its
      lines stand under the control's own name and keys, and its name replaces the
-     accessible name where that says more than the face should; `at` is where to stand,
+     accessible name where that says more than the face should; `keys` are presses the
+     control's own chips leave out, as a grip's activation keys or the keys of a Go-to
+     door, each the bindings of its steps, which the face spells as it spells those
+     chips (`lines`); `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `about` is what it
      is about, which it leaves in view as it does the box it stands by, as a margin
@@ -306,7 +309,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { drawnKeys } from "./keyboard/command-hints.js";
-import { advertisesKeys } from "./keyboard/bindings.js";
+import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
@@ -851,10 +854,10 @@ function lines(declared, own) {
   const keys = advertisesKeys()
     ? [
         ...new Map(
-          [...(declared?.keys ?? []), ...(own.keys ?? [])].map((steps) => [
-            steps.join(" "),
-            steps,
-          ]),
+          [
+            ...(declared?.keys ?? []).map((press) => press.map(spell)),
+            ...(own.keys ?? []),
+          ].map((steps) => [steps.join(" "), steps]),
         ).values(),
       ]
     : [];

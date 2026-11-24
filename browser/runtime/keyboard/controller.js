@@ -42,8 +42,7 @@ import { readLeavingKeys } from "../field-keys.js";
 import { authoredScope } from "../passages.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
 // a server serving another layer, ends bootstrap's hold: nothing in it will run what
-// was held, so those keys are let go (bootstrap.js, `letGo`) and later ones reach the
-// page as they come.
+// was held, so those keys are dropped and later ones reach the page as they come.
 export function letHeldKeysGo() {
   /** @type {DocumentEventMap["lf-held-keys"]} */
   const taking = new CustomEvent("lf-held-keys", {
@@ -206,16 +205,15 @@ export function mountKeyboard({
       },
     });
     document.dispatchEvent(taking);
-    const { keys, writing, pressed, pause, release } = taking.detail;
+    const { keys, pressed, pause, release } = taking.detail;
     // An empty or ended hold has nothing to hand over.
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      // The user's writing only ever types into a box, as does any held key with
-      // single-key commands off; the release lets go of the rest (bootstrap.js,
-      // `letGo`).
+      // With single-key commands off, a held key only ever types into a box; the
+      // release lets go of the rest.
       const [key] = keys;
-      if (!key || ((writing || !quickShortcuts()) && !typesText(focused()))) {
+      if (!key || (!quickShortcuts() && !typesText(focused()))) {
         release();
         pressingHeld = false;
         return;

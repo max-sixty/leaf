@@ -68,7 +68,7 @@
  * the values typed, the words being written with their native editing session, the
  * comparison and the pointer. A field's focus is the one thing both hold, and there
  * the handoff's is the newer, since words typed through the reload move its caret
- * (bootstrap.js, `letGo`), so the record's return leaves it to the handoff
+ * (bootstrap.js, `typeBack`), so the record's return leaves it to the handoff
  * (`returnTo`). The record's thread opens where the user stands, moving
  * no scroller, so a card whose passage the revision hid opens in the floating panel
  * (thread/address.js, `claim`). The panel's hold of where the user stepped in from

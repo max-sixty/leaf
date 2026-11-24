@@ -361,10 +361,11 @@
   // pressed on the page starts it, and every printed key after it
   // joins. Any other key ends the run, and so does a pointer press, which puts the user
   // somewhere the keys were not aimed at: what was held is dropped and the new press
-  // keeps its own meaning, unless the run is the user's writing (`letGo`). A chord never
-  // starts a run, and a modifier alone is half a press, which neither starts nor ends
-  // one. After a beat the held keys are shown, so a press visibly landed; a runtime that
-  // takes the run within the beat shows nothing.
+  // keeps its own meaning. Words typed through Leaf's reload are no run: they go into
+  // their box as they are typed (`typeBack`). A chord never starts a run, and a
+  // modifier alone is half a press, which neither starts nor ends one. After a beat
+  // the held keys are shown, so a press visibly landed; a runtime that takes the run
+  // within the beat shows nothing.
   //
   // They are shown where the page says what it is doing, the floating panel's field,
   // in place of the status: before the panel mounts, in the row the document served
@@ -384,9 +385,9 @@
   const { takesLetters, holdKeys } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))
   );
-  // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words the hold
-  // lets go for a draft (`letGo`). The event of the same name tells the runtime that
-  // words wait there.
+  // Where the tab keeps the run of held keys (`holdEarlyKeys`), and the words typed
+  // through Leaf's reload for a draft (`typeBack`). The event of the same name tells
+  // the runtime that words wait there.
   const HELD_KEYS = "lf-held-keys";
   const HELD_WORDS = "lf-held-words";
   const HALF_PRESSES = new Set([
@@ -403,9 +404,9 @@
     // `placesUser`); a handoff of values alone hands back none. While the place comes
     // back a held key is no input (`holdKeys`, below). Where the user was writing in a
     // box (`typing`), a user typing through the reload means their keys as words for
-    // that box: a Space starts a run as a letter does, rather than scrolling the page,
-    // and the hold takes keys whatever the single-key preference. Once an input of
-    // theirs ends the hand-back (`counted`), their keys are the page's again.
+    // that box (`typeBack`): a Space is a word space rather than a scroll of the page,
+    // whatever the single-key preference. Once an input of theirs ends the hand-back
+    // (`counted`), their keys are the page's again.
     const { handoff, tabStore, placesUser } = window.lfStorage;
     let moved = false;
     const typingBack = () => placesUser() && handoff?.typing === true && !moved;
@@ -425,46 +426,34 @@
       }
     };
     // The words the tab keeps for their drafts until the runtime types them in
-    // (`letGo`), in the order they were typed, each saying whether the return of the
+    // (`typeBack`), in the order they were typed, each saying whether the return of the
     // user's place had ended.
     /** @returns {{context: string, words: string, ended: boolean}[]} */
     const keptWords = () => {
       const kept = read(HELD_WORDS);
       return Array.isArray(kept) ? kept : [];
     };
-    /** @param {string} context @param {string} words @param {boolean} ended */
-    const keepWords = (context, words, ended) =>
-      tabStore.set(
-        HELD_WORDS,
-        JSON.stringify([...keptWords(), { context, words, ended }]),
-      );
+    /** @param {{context: string, words: string, ended: boolean}[]} kept */
+    const storeWords = (kept) =>
+      tabStore.set(HELD_WORDS, kept.length ? JSON.stringify(kept) : null);
     // The run is kept in the tab as it changes, as each key is held, pressed or let go
     // (`save`), so a document that goes leaves the keys it held and never pressed. A
     // reload Leaf asks for of the same address hands a place back, and its document's
     // run starts with those keys, even where the document before it had put its own
-    // place back and was pressing them as it went. Any other load starts a run of its
-    // own, and lets the user's writing it finds there go (`letGo`).
+    // place back and was pressing them as it went; any other load starts a run of its
+    // own.
     const stored = read(HELD_KEYS);
-    /** @type {KeyboardEventInit[]} */
-    const storedKeys = Array.isArray(stored?.keys) ? stored.keys : [];
-    if (!placesUser() && stored?.context && storedKeys.length)
-      keepWords(stored.context, storedKeys.map(({ key }) => key).join(""), true);
     /** @type {KeyboardEvent[]} */
-    const held = placesUser()
-      ? storedKeys.map((init) => new KeyboardEvent("keydown", init))
-      : [];
-    // Whether the run is the user's writing: words for the box Leaf's reload hands back
-    // (`typingBack`), a draft's or a field's. It is read when the run's first key is
-    // held; a key typed once it no longer holds lets the run go (`queue`).
-    const writes = () => typingBack() && (draft !== null || field !== undefined);
-    let writing = held.length > 0 && writes();
+    const held =
+      placesUser() && Array.isArray(stored)
+        ? stored.map((init) => new KeyboardEvent("keydown", init))
+        : [];
     const save = () =>
       tabStore.set(
         HELD_KEYS,
         held.length
-          ? JSON.stringify({
-              context: writing ? draft : null,
-              keys: held.map(
+          ? JSON.stringify(
+              held.map(
                 ({ key, code, location, shiftKey, ctrlKey, altKey, metaKey }) => ({
                   key,
                   code,
@@ -475,7 +464,7 @@
                   metaKey,
                 }),
               ),
-            })
+            )
           : null,
       );
     save();
@@ -491,15 +480,18 @@
     // What the held keys say, wherever they show: each key as its badge, then Leaf's
     // words. The keys lead, so a narrow field that cuts the line short keeps them.
     /** @returns {HeldWords} */
-    const words = () => [
-      ...held.flatMap(({ key }, at) => [
-        ...(at ? [" "] : []),
-        { key: key === " " ? "Space" : key },
-      ]),
-      held.length === 1
-        ? " runs when the page is ready"
-        : " run when the page is ready",
-    ];
+    const words = () => {
+      const keys = [...[...typed].map((key) => ({ key })), ...held];
+      return [
+        ...keys.flatMap(({ key }, at) => [
+          ...(at ? [" "] : []),
+          { key: key === " " ? "Space" : key },
+        ]),
+        keys.length === 1
+          ? " runs when the page is ready"
+          : " run when the page is ready",
+      ];
+    };
     // Words already shown are not shown again: the panel's field repaints for each, and
     // each of its paints asks the keyboard owner to take the keys again
     // (controller.js, `watchCommandAvailability`), which pauses on the same key.
@@ -520,28 +512,29 @@
       if (seat) seat(null);
       else row?.say(null);
     };
-    // Words the user types through Leaf's reload reach their box by the run's replay
-    // once the reload has put the user back in it, and otherwise when the run is let go.
-    // A run of writing is words for its box, and nothing that ends the run says the user
-    // no longer wants them: a scroll, a press elsewhere, a key that prints nothing or a
-    // step away ends the return of their place, and a page that can't start ends the
-    // hold, but none takes back what they typed. So letting go of the run keeps its
-    // words in the tab with their draft rather than dropping them, and the runtime
-    // types them into the draft, now or as a document of the page next loads
-    // (drafts.js, `takeHeldWords`). Words for a field of the page's own go into it at
-    // once (`typeIntoField`).
     const letGo = () => {
-      if (writing && held.length) {
-        const typed = held.map(({ key }) => key).join("");
-        if (!draft) typeIntoField(typed);
-        else {
-          keepWords(draft, typed, moved);
-          document.dispatchEvent(new Event(HELD_WORDS));
-        }
-      }
       held.length = 0;
       save();
       hide();
+    };
+    // A key the user types through Leaf's reload is a word for the box it hands back
+    // as soon as it is typed, so nothing that ends the hold can drop it: a scroll, a
+    // press elsewhere, a step away or a page that can't start ends the return of the
+    // user's place, not their wish for the words. A field of the page's own takes it
+    // at once (`typeIntoField`). A draft's takes it through the tab, which keeps it
+    // until the runtime types it in, at once where the runtime has loaded and else as
+    // a document of the page next loads (drafts.js, `takeHeldWords`), so the box comes
+    // back holding it. Until then the hold shows the draft's words as it shows held
+    // keys (`typed`).
+    let typed = "";
+    /** @param {string} key */
+    const typeBack = (key) => {
+      if (!draft) return typeIntoField(key);
+      typed += key;
+      storeWords([...keptWords(), { context: draft, words: key, ended: false }]);
+      document.dispatchEvent(new Event(HELD_WORDS));
+      if (shown) show();
+      else beat ||= setTimeout(show, 150);
     };
     // A field of the page's own takes the words in the value and caret the reload
     // carries for it, which the arrival puts back (carry.js, `restoreCarry`), and in the
@@ -581,10 +574,6 @@
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
-      // A key typed once the user's writing is no longer theirs, as after a step to
-      // another entry, starts a run of its own.
-      if (writing && !typingBack()) letGo();
-      if (!held.length) writing = writes();
       held.push(event);
       save();
       if (taken) return;
@@ -625,7 +614,8 @@
     const hold = (event) => {
       if (!window.lfKeyboard.quick && !typingBack()) return letGo();
       if (holds(event)) {
-        queue(event);
+        if (typingBack() && (draft || field)) typeBack(event.key);
+        else queue(event);
         event.preventDefault();
         event.stopImmediatePropagation();
       } else if (
@@ -646,7 +636,9 @@
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
+      typed = "";
       if (!held.length) {
+        hide();
         if (!keep?.()) stopHoldingKeys();
         return;
       }
@@ -654,7 +646,6 @@
       clearTimeout(beat);
       beat = 0;
       event.detail.keys = held;
-      event.detail.writing = writing;
       event.detail.pressed = () => {
         held.shift();
         save();
@@ -677,12 +668,13 @@
     };
     shownKeys = () => (shown ? words() : null);
     stopHoldingKeys = () => {
-      letGo();
       holdKeys(null);
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
       document.removeEventListener("lf-held-keys-seat", seated);
+      typed = "";
+      letGo();
       endRow();
     };
     // Where Leaf's reload hands a place back, a key the hold keeps is no input until it
@@ -710,6 +702,13 @@
       counted: (stepped) => {
         if (!stepped && (taken || !placesUser())) return;
         moved = true;
+        // Words typed for a draft stay in it, with nothing now to put them back where
+        // the user was, which the panel says.
+        if (typed) {
+          typed = "";
+          storeWords(keptWords().map((kept) => ({ ...kept, ended: true })));
+          document.dispatchEvent(new CustomEvent(HELD_WORDS, { detail: "ended" }));
+        }
         letGo();
       },
     });
@@ -719,11 +718,6 @@
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
-    // Leaving asks first while the tab keeps the user's writing, held or let go, which
-    // no write carries yet (drafts.js, `beforeunload`).
-    document.addEventListener("lf-held-writing", ({ detail }) => {
-      detail.held ||= (writing && held.length > 0) || keptWords().length > 0;
-    });
     if (held.length) beat = setTimeout(show, 150);
   }
 

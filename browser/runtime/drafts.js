@@ -463,18 +463,14 @@ const writeWaiting = () => {
 // close. The prompt a reload Leaf asks for raises asks nothing (layer-client.js,
 // `takeLeafUnload`): it is no close, and after a server restarted under another Leaf,
 // which refuses this document's writes, every word typed since would otherwise put the
-// prompt in front of a reload the user never asked for. Words the early key hold keeps
-// for their box, typed through a reload, are such work too (bootstrap.js, `letGo`).
+// prompt in front of a reload the user never asked for.
 addEventListener("beforeunload", (event) => {
   if (takeLeafUnload()) return;
   const stranded = [...draftCache].some(
     ([ctx, { durable }]) =>
       !durable && !writing.has(ctx) && holdsWork(activeDraftRecord(ctx)),
   );
-  /** @type {DocumentEventMap["lf-held-writing"]} */
-  const asking = new CustomEvent("lf-held-writing", { detail: { held: false } });
-  document.dispatchEvent(asking);
-  if (stranded || asking.detail.held) event.preventDefault();
+  if (stranded) event.preventDefault();
 });
 const WAITING_DRAFTS = "lf-drafts-waiting";
 addEventListener("pagehide", () => {
@@ -1607,21 +1603,24 @@ export function mirrorDraft(
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
-// Words the user typed through a reload Leaf asked for, which the early key hold let
-// go before they could go into their box (bootstrap.js, `letGo`), each batch with the
-// context of the draft they were typed for. They go into that draft, among its words
+// Words the user typed through a reload Leaf asked for, which the early key hold
+// keeps for their box (bootstrap.js, `typeBack`), each batch with the context of the
+// draft they were typed for. They go into that draft, among its words
 // and before any pictures it holds (media.js, `readAttachedMedia`): at the caret the
 // reload's record of the box being written holds (`captureDraftEditing`), while the
 // draft is still the generation that record was read at (`draftEditingStands`), and
 // after its words otherwise. That record moves with them, so a reload that still puts
 // the user back in the box puts the caret after them (version.js,
-// `restoreEditingContinuity`). Where the return of the user's place had ended, the words
-// left the panel's field, where the keys stood, with nothing to put them back, so the
-// panel says the draft is kept, with Resume writing, which goes to their end. A document
-// served without the drafts takes them once its first reading has told it what the
-// draft holds (`hearReading`).
+// `restoreEditingContinuity`). Where the return of the user's place has ended, or
+// this document doesn't put them back there, the words left the panel's field, where
+// the keys stood, with nothing to put them back, so the panel says the draft is kept,
+// with Resume writing, which goes to their end. A document served without the drafts
+// takes them once its first reading has told it what the draft holds
+// (`hearReading`).
 const HELD_WORDS = "lf-held-words";
-function takeHeldWords() {
+/** @param {Event} [event] */
+function takeHeldWords(event) {
+  if (event instanceof CustomEvent && event.detail === "ended") noticeDraftKept();
   if (heard.store === null && !offlineInteractive) return;
   const left = tabStore.get(HELD_WORDS);
   if (!left) return;
@@ -1658,7 +1657,8 @@ function takeHeldWords() {
         attempt: activeDraftRecord(context)?.attempt,
       });
   }
-  if (kept.some(({ ended }) => ended)) noticeDraftKept();
+  if (kept.some(({ ended }) => ended) || !window.lfStorage?.placesUser())
+    noticeDraftKept();
 }
 
 // The drafts start from the copies the page this tab reloaded left waiting

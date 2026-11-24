@@ -37,8 +37,9 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead. That word is the
-element's `aria-roledescription`, which the page's author writes or the widget that
-builds the element writes, as `lf-playground` writes "preset" on each of its presets.
+element's `aria-roledescription`, which the module that builds the element writes along
+with a role for it, since ARIA ignores the attribute on an element with no role, as
+`lf-playground` makes each preset a `group` it calls "preset".
 Without one, it is what the element answers from an `lfWord()` method, for a word that
 depends on the element, as `lf-suggestion` says "insertion" or "rewrite"; else its tag
 without `lf-`. Where a widget's words alone

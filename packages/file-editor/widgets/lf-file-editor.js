@@ -218,6 +218,9 @@ customElements.define(
       let file = fileFor(/** @type {string} */ (bindings[0]));
       const label = (/** @type {OpenFile} */ of) =>
         of.api.label ?? of.base?.label ?? of.binding;
+      // A file takes typing once its text is known and its binding can be written.
+      const readOnly = (/** @type {OpenFile} */ of) =>
+        of.base === null || !of.api.writable;
       this.#shown = () => file.binding;
       this.#label = (binding) => (files.has(binding) ? label(fileFor(binding)) : null);
       // The host's grid gives the comparison half the editing room while it is open.
@@ -417,7 +420,7 @@ customElements.define(
         const of = file;
         const name = label(of);
         editor.setLabel(name);
-        editor.readOnly = of.base === null || !of.api.writable;
+        editor.readOnly = readOnly(of);
         // With no file to show, as on an export or an unbound page, or while a slow
         // first read waits, the empty editor says why, where a finger and the eye
         // already are.
@@ -566,8 +569,28 @@ customElements.define(
         menu: choicesMenu,
         first: firstChoice,
       };
+      // A draft this tab kept, as across a reload, stands over the file until a read
+      // settles it. Drafts come back before the editor exists, so it starts as editable
+      // as the file it shows rather than switching within the same task.
+      /** @param {OpenFile} of */
+      const recover = (of) => {
+        const pending = tabStore.get(of.recoveryKey);
+        if (!pending || !of.api.writable) return;
+        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
+        const recovered = JSON.parse(pending);
+        of.base = recovered.base;
+        of.sent = recovered.sent;
+        of.recovering = true;
+        return recovered.text;
+      };
+      /** @type {Map<OpenFile, string>} */
+      const drafts = new Map();
+      for (const of of files.values()) {
+        const draft = recover(of);
+        if (draft !== undefined) drafts.set(of, draft);
+      }
       const editor = createEditor(mount, {
-        readOnly: true,
+        readOnly: readOnly(file),
         onChange() {
           file.generation++;
           remember(file);
@@ -762,24 +785,9 @@ customElements.define(
         );
         stopWatch = () => stops.forEach((stop) => stop());
       };
-      // A draft this tab kept, as across a reload, stands over the file until a read
-      // settles it.
-      /** @param {OpenFile} of */
-      const recover = (of) => {
-        const pending = tabStore.get(of.recoveryKey);
-        if (!pending || !of.api.writable) return;
-        /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
-        const recovered = JSON.parse(pending);
-        of.base = recovered.base;
-        of.sent = recovered.sent;
-        of.recovering = true;
-        return recovered.text;
-      };
       // Every file's draft comes back, the closed ones' kept as if left in this load,
       // so each settles against its file as the open one does.
-      for (const of of files.values()) {
-        const draft = recover(of);
-        if (draft === undefined) continue;
+      for (const [of, draft] of drafts) {
         if (of === file) editor.value = draft;
         else of.kept = editor.keep(draft);
       }

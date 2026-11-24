@@ -215,10 +215,12 @@ list's first and last stops. At a step taken while both stand in view the panel 
 nothing, since the focus ring shows where the step landed among stops the user sees;
 without `list` it says every step. The place goes sooner if the element it was said on
 leaves the page, as when a redraw replaces it, so a widget whose stops are not elements
-of their own dispatches on the part of its drawing that holds the stop. The panel
-shows the place and says nothing aloud: the widget announces it, with what else a
-listener should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken
-words"). Off Leaf, nothing hears the event.
+of their own dispatches on the part of its drawing that holds the stop. Leaf hears an
+element leave the page or a shadow stage it builds (`shadowStage`), not a shadow root
+the widget attaches itself, where the place stays its few seconds. The panel shows the
+place and says nothing aloud: the widget announces it, with what else a listener
+should hear of the stop (`module-scroll-and-motion.md`, "Notices and spoken words").
+Off Leaf, nothing hears the event.
 
 ### Go-to targets
 

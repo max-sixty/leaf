@@ -4,6 +4,7 @@
    (tests/browser/test_render_floating_panel.py). */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setImmediate } from "node:timers";
 
 import { NOTICE_MS } from "/runtime/notifications.js";
 import { walkPosition } from "/runtime/walk-position.js";
@@ -17,16 +18,16 @@ const say = (stop, position) =>
       detail: { noun: "Hunk", position, total: 7 },
     }),
   );
+// A stop in the page, on a clock the test runs, so no step's moment outlives its test.
 /** @param {import("node:test").TestContext} t */
 function row(t) {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const stop = document.body.appendChild(document.createElement("div"));
   t.after(() => stop.remove());
   return stop;
 }
 
 test("a place a widget's step says stands for the step's moment", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  t.after(() => window.happyDOM.cancelAsync());
   const stop = row(t);
   say(stop, 3);
   assert.deepEqual(
@@ -48,6 +49,6 @@ test("a place goes as the stop it was said on leaves the page", async (t) => {
   assert.equal(walkPosition()?.text, "Hunk 3 of 7");
   stop.remove();
   // The page hears a departure with its next batch of mutations.
-  await new Promise((resolve) => setTimeout(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(walkPosition(), null);
 });

@@ -170,9 +170,9 @@ schedulePaint = frameFor(this, () => this.measure());
 setup() {
   whileConnected(this, (signal) => {
     window.addEventListener("resize", this.schedulePaint, { signal });
-    const edits = new MutationObserver(this.schedulePaint);
-    edits.observe(this, { childList: true });
-    return () => edits.disconnect();
+    // The widget's size observer ("Scheduling paints"), which calls schedulePaint.
+    this.sizes.observe(this);
+    return () => this.sizes.disconnect();
   });
 }
 ```

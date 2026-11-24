@@ -59,9 +59,10 @@ Words a module writes into the page are the page's words unless it marks them ap
 
 A widget can upgrade inside a shut panel where every box measures zero, so take a
 measurement only once the element shows a box, which the library's
-[`shown-box.js`](../../../browser/runtime/lib/shown-box.js) waits for. After a view swap that rearranges a widget's contents without resizing it, call
-`layoutChanged(element)`, which dispatches `lf-layout` to the widgets and runtime readers
-that measure what they hold, so they read again.
+[`shown-box.js`](../../../browser/runtime/lib/shown-box.js) waits for. After a view swap
+that rearranges a widget's contents without resizing it, call `layoutChanged(element)`,
+which dispatches `lf-layout` to the widgets and runtime readers that measure what they
+hold, so they read again.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
 with Leaf's frame, label, editor and Clear button; the widget owns the query and

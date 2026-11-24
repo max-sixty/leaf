@@ -7,9 +7,11 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from interact_support import publish
 
-from leaf import render_checks, user_views
+from leaf import page_snapshot, render_checks, user_views
 from leaf.findings import Finding, Rejected
+from leaf.leases import lock_is_held
 from leaf.render_gate import command as render_gate_command
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
@@ -20,6 +22,8 @@ from leaf.render_gate.command import (
     desktop_viewport,
     user_engine,
 )
+from leaf.state import EVENTS_FILE
+from leaf.structure import SourceDocument
 from leaf.validation.command import check_page
 from model.test_user_views import report
 
@@ -257,6 +261,28 @@ def test_a_render_check_takes_no_screens_of_a_page_that_never_got_ready(
         "not-ready"
     ]
     assert "screens" not in unready["browser"], unready
+
+
+def test_a_render_checks_capture_holds_the_page_lease_only_to_read_the_log(
+    page_dir, monkeypatch
+):
+    """Every gesture waits for the page's append lease, so the capture a render check
+    serves holds the lease only while it reads the log and what is read with it. It
+    executes the candidate before it takes the lease and each stored revision after
+    it releases the lease."""
+    publish(page_dir)
+    held = []
+    execute = page_snapshot.executing
+
+    def executing(artifact):
+        held.append(lock_is_held(page_dir / EVENTS_FILE))
+        return execute(artifact)
+
+    monkeypatch.setattr(page_snapshot, "executing", executing)
+    candidate = SourceDocument((page_dir / "index.html").read_text())
+    page_snapshot.capture_page_snapshot(page_dir, candidate, 2, url="/")
+    # The candidate, then revision 1.
+    assert held == [False, False]
 
 
 def test_the_render_check_reads_the_desktop_in_the_last_reported_window(

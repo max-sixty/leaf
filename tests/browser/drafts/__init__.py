@@ -26,7 +26,8 @@ def choose_comment_target(page, selector):
 
 
 def cancel_draft(page, draft_id="draft-ops"):
-    """Discard stands beside Save throughout an engaged draft edit."""
+    """Discard stands beside Save in an open draft editor, for a pointer that comes
+    to it after typing too."""
     press_draft_control(page, "cancel", draft_id)
 
 

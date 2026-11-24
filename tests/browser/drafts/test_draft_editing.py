@@ -659,7 +659,8 @@ def test_typing_puts_the_toolbar_away_until_the_pointer_moves(browser, serve):
     """The toolbar stands over the first line's last words, so typing puts it away at
     once, the pointer resting where it opened the editor or not, and the pointer moving
     over the box brings it back. Put away, it takes no press: a press that hasn't moved
-    places the caret in the words rather than pressing a Discard the user can't see."""
+    places the caret in the words rather than pressing a Discard the user can't see, and
+    the toolbar takes presses again once the pointer rests on it or Tab reaches it."""
     page = open_page(
         browser,
         serve(
@@ -686,6 +687,14 @@ def test_typing_puts_the_toolbar_away_until_the_pointer_moves(browser, serve):
     expect(editor).to_have_js_property("value", "Keep this source editable. Now")
     page.mouse.move(box["x"] + box["width"] / 2 + 2, box["y"] + box["height"] / 2)
     expect(tools).to_have_css("opacity", "1")
+    expect(tools).to_have_css("pointer-events", "auto")
+
+    page.keyboard.type(" Then")
+    expect(tools).to_have_css("opacity", "0")
+    page.keyboard.press("Tab")
+    expect(draft_control(page, "save", "note")).to_be_focused()
+    expect(tools).to_have_css("opacity", "1")
+    expect(tools).to_have_css("pointer-events", "auto")
 
 
 def test_the_draft_box_is_its_own_door(browser, serve):

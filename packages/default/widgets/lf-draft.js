@@ -12,10 +12,11 @@
  * so the box is the same size with its controls as without them, and opening the
  * editor adds no row of buttons under it; a refused save's status joins the toolbar.
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
- * the pencil gives the box back unchanged. Which states show the toolbar is draft.css's;
- * typing in the open editor puts it away until the pointer next moves over the box,
- * which this module says as the custom state `typing`, so it stands over none of the
- * words being typed. Clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * the pencil gives the box back unchanged. When the toolbar shows and takes presses is
+ * draft.css's, which reads two custom states this module keeps: `typing`, from a
+ * keystroke in the editor until the pointer has rested on the toolbar (`restArming`) or
+ * focus leaves the editor, and `pointed`, once the pointer has moved over the box since
+ * that keystroke. Clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
  * and changed the box's size as the editor opened. The same
@@ -83,6 +84,7 @@ import {
   focusDestination,
   retainUserIntent,
   scrollIntoView,
+  onCurrentLocation,
   onPressAway,
   pageLinks,
 } from "/runtime/widget-api.js";
@@ -90,6 +92,7 @@ import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
+import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import {
   paintMarkdown,
@@ -177,6 +180,9 @@ customElements.define(
     /** @type {Promise<void> | undefined} */
     #dressing;
     #states = this.attachInternals().states;
+    // The toolbar takes presses again, after typing put it away, once the pointer has
+    // rested on it.
+    #arming = restArming(() => this.#tools, { arm: () => this.#keepTools() });
 
     setup() {
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
@@ -189,8 +195,14 @@ customElements.define(
       if (this.matches("[data-lf-exhibit] *")) return;
 
       this.#offerControls();
-      // The pointer coming to the box brings back the toolbar typing put away.
-      this.addEventListener("pointermove", () => this.#states.delete("typing"));
+      // The pointer coming to the box brings back the toolbar typing put away, and
+      // resting on it gives it its presses back.
+      this.addEventListener("pointermove", (event) => {
+        if (!this.#states.has("typing")) return;
+        if (event.pointerType !== "touch") this.#states.add("pointed");
+        this.#arming.move(event);
+      });
+      this.addEventListener("pointerleave", (event) => this.#arming.move(event));
       // Capture only the pointer Discard's old allocation. The command still owns
       // closing, discarding and focus; its new reading is true before this effect.
       this.addEventListener(
@@ -234,6 +246,11 @@ customElements.define(
       // paint whatever the log ends up saying.
       whileConnected(this, () => {
         const stopDraft = this.#watchDraft();
+        // Typing lasts while the caret does: a box the user has left shows Save and
+        // Discard, so it never reads as saved while it still holds their words.
+        const stopLocation = onCurrentLocation((node) => {
+          if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
+        });
         // An editor a refused save reopened while the draft was out of the page says
         // its keys as the draft returns.
         this.#editor?.dispatchEvent(
@@ -246,6 +263,7 @@ customElements.define(
           this.#stopPressAway?.();
           this.#stopPressAway = null;
           stopDraft?.();
+          stopLocation();
           this.#resumeProjection?.();
           this.#resumeProjection = null;
         };
@@ -357,6 +375,13 @@ customElements.define(
       );
     }
 
+    // The toolbar stands and takes presses as it does before any typing.
+    #keepTools() {
+      this.#arming.reset();
+      this.#states.delete("typing");
+      this.#states.delete("pointed");
+    }
+
     /** @param {string} key @returns {HTMLButtonElement | null} */
     #control(key) {
       return this.#tools?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
@@ -435,6 +460,8 @@ customElements.define(
       editor.setAttribute("aria-label", `Edit ${this.#named()}`);
       editor.addEventListener("input", () => {
         this.#states.add("typing");
+        this.#states.delete("pointed");
+        this.#arming.reset();
         saveEdit(this.id, editor.value);
         if (this.#failed) {
           this.#failed = false;
@@ -495,7 +522,7 @@ customElements.define(
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
       this.#editor = null;
-      this.#states.delete("typing");
+      this.#keepTools();
       this.#failed = false;
       this.#paintTools();
       if (stood) {

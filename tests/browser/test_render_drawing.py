@@ -25,6 +25,7 @@ from render_harness import (
     open_page,
     open_threads,
     panel_settled,
+    press_draft_control,
     resized,
     sending,
     stance_exit,
@@ -979,9 +980,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         editor.click()
         write(editor, f"Revised words in {mode} mode.")
         with sending(page, f"document edit in {mode} mode"):
-            # Typing put the toolbar away until the pointer comes back over the box.
-            draft.hover()
-            draft.get_by_role("button", name="Save", exact=True).click()
+            press_draft_control(page, "save", "draft")
         expect(draft.locator(".lf-draft-body")).to_have_text(
             f"Revised words in {mode} mode."
         )

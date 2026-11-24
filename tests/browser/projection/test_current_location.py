@@ -614,10 +614,11 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
 
 
 def test_focus_shown_inside_a_decision_carries_the_band_alone(browser, serve):
-    """Whatever holds visible focus inside a decision rings itself, and the decision's
+    """Whatever Leaf rings for the user's focus inside a decision, the decision's
     location ring stands down, so one band says where the user is. A draft's editor
     rings the draft's frame just inside the question's ring, so keeping both drew two
-    boxes round the words being typed; a link in the premise is the same fact."""
+    boxes round the words being typed; a link in the premise, and a comment's note on
+    the details shelf, which rings the heading it is about, are the same fact."""
     page = open_page(
         browser,
         serve(
@@ -630,18 +631,27 @@ def test_focus_shown_inside_a_decision_carries_the_band_alone(browser, serve):
 <lf-draft id="opening-draft" required><pre>
 Once the session has built up some context, the model decides.</pre></lf-draft>
 </lf-group>""",
-            )
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Should the heading say README?",
+                    "anchor": {"section": "opening-h"},
+                    "id": "c" * 32,
+                }
+            ],
         ),
     )
     question = page.locator("#opening")
-    page.keyboard.press("m")
-    expect(question).to_be_focused()
-    rendered(page)
-    assert question.evaluate(LOCATION_RING)[0] == "solid"
-
+    link = page.locator("#opening-link")
+    link.focus()
+    page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#opening-link")).to_be_focused()
+    expect(link).to_be_focused()
     rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
     assert question.evaluate(LOCATION_RING)[0] == "none", (
         "the question kept its ring round the focused link"
     )
@@ -650,9 +660,19 @@ Once the session has built up some context, the model decides.</pre></lf-draft>
     draft = page.locator("#opening-draft")
     expect(draft.locator("leaf-text")).to_be_focused()
     rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
     assert draft.evaluate(RING)[0] == "solid", "the draft's frame shows no focus"
     assert question.evaluate(LOCATION_RING)[0] == "none", (
         "the question kept its ring round the draft being edited"
+    )
+
+    # Assistive technology reaches the note; its ring stands round the heading.
+    page.locator(".lf-mark-note").focus()
+    expect(page.locator("#opening-h")).to_have_attribute("data-lf-proxied", "")
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the heading the note rings"
     )
 
 

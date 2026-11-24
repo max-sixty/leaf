@@ -13,7 +13,8 @@ import { nextRender } from "./lib/frame-pass.js";
 import { move } from "./dom-move.js";
 import { keeps } from "./lib/keeps.js";
 import { inkedBox, markedBox, readMarkerSides, shownParts } from "./geometry.js";
-import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { renderedUnder } from "./lib/shadow-tree.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 import { inChrome } from "./ui-marks.js";
 
@@ -43,6 +44,7 @@ function markOne(attribute) {
       draw();
     },
     refresh: () => target && draw(),
+    marks: () => target,
   };
 }
 
@@ -141,6 +143,7 @@ export function paintTrace(element, surface = element) {
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintProxyRing(element, surface = element) {
   proxyMark.mark(element && surface?.isConnected ? surface : null);
+  drawLocation();
 }
 
 /** @type {Element | null} */
@@ -153,12 +156,30 @@ const PROJECTED_LOCATION = RUNTIME_PAINT_ATTRIBUTE.location;
 // The location ring round `element`, the decision the user stands in, or none
 // (obligations/view.js, `markHere`). Each box the decision shows through draws it, as
 // it would its focus ring, so it is also the focus ring of a decision the user arrived
-// on, and the focus floor draws none of its own there (surfaces.css). Visible focus
-// inside the decision stands it down (page-paint.js, `locationStandsDown`).
+// on, and the focus floor draws none of its own there (surfaces.css). A focus ring
+// inside the decision stands it down (`locationStandsDown`).
 /** @param {Element | null} element */
 export function paintLocation(element) {
   locationElement = element;
   drawLocation();
+}
+
+// Whether Leaf draws the user's focus ring on something inside the decision
+// `element`: visible focus there, or the proxy ring round what a focused note on the
+// details shelf stands for. That ring already says where the user is, so the location
+// ring stands down rather than drawing a second band round the same place: one band
+// says where the user is, whichever widget holds the focus. Rejected: each widget
+// declaring that its focus carries the location, which leaves two bands round every
+// widget that doesn't say so.
+/** @param {Element} element */
+export function locationStandsDown(element) {
+  if (
+    element.hasAttribute("data-lf-focus-visible-within") &&
+    !element.hasAttribute("data-lf-focus-visible")
+  )
+    return true;
+  const proxied = proxyMark.marks();
+  return proxied !== null && proxied !== element && renderedUnder(proxied, element);
 }
 
 function drawLocation() {

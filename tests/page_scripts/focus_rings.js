@@ -105,8 +105,8 @@
   //
   // Asked of every box painting one, rather than of the focused one.
   // The two are not the same set: three rules draw the ring on something other than the
-  // control holding focus — a decision wears it for whichever of its controls the user
-  // reached, a joined option group wears the one its picks give up, and an element
+  // control holding focus — a decision wears it while the user is on its margin
+  // marker, a joined option group wears the one its picks give up, and an element
   // a focused thread is anchored to wears it with no focus of its own — and a reading that
   // asks only `getComputedStyle(activeElement)` returns `no ring here` for every one, so a
   // cut planted on one of those carriers would pass the entire example corpus.
@@ -313,10 +313,9 @@
           if (getComputedStyle(a).position === "fixed") return true;
         return false;
       };
-      // A decision's ring while Tab is inside it follows the landing's rule
-      // (landing-scroll.js): the runtime reveals that ring only if the decision fits its
-      // room, so a decision taller than its room is held only through the control's own
-      // ring, not the edge rule below.
+      // A decision's ring while the user is on its margin marker: the landing reveals
+      // the marker, not the decision, so a decision taller than its room is held only
+      // through the marker's own ring, not the edge rule below.
       const unlanded = !own && el.matches("[data-lf-obligation]") && !fitsWhole(el);
       const pastFoot =
         !own &&

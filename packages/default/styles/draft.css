@@ -95,23 +95,25 @@ lf-draft > pre {
   /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), in the seat a
      code block's lone Copy takes, inside the box's top-right corner: Edit and Copy at
      rest, Save, Discard and Copy while editing, Copy keeping the last seat, and a
-     refused save's status before them. At rest a pointer sees it while over the box or
-     a key is in it, and a draft that asks for an edit (`required`) shows it always,
-     since there Edit is the way to answer. While it shows it covers the first line's
-     last words, the editor's too: the user chose one seat for every block's marks
-     over keeping the edited line clear by standing the toolbar on the top border.
-     So in the open editor it shows only while the pointer is over the box, and typing
-     puts it away at once until the pointer next moves there (`:state(typing)`,
-     lf-draft.js), as a block's handles go while a document editor takes typing: the
-     user asked that it not cover the words they type. A key on its marks, or a refused
-     save's status, still shows it. Rejected: the open editor showing it always, which
-     covered the first line's end through all the typing; and showing it while the
-     pointer is over the box alone, since the pointer rests there after the click
-     that opened the editor. Put away by typing, it takes no presses, so a press
-     meant for the first line's end places the caret there rather than pressing a
-     Discard the user can't see. A finger sees it always, so it stands on the bottom
-     border there: in the corner, its finger-wide reach would take every press meant
-     for the first line's end. */
+     refused save's status before them. A pointer sees it while over the box or a key
+     is in it, and the open editor and a draft that asks for an edit (`required`)
+     always, since there Edit is the way to answer, until the user types. While it
+     shows it covers the first line's last words, the editor's too: the user chose one
+     seat for every block's marks over keeping the edited line clear by standing the
+     toolbar on the top border. So typing puts it away at once (`:state(typing)`,
+     lf-draft.js), as a document editor's block handles go, since the user asked that
+     it not cover the words they type. The pointer moving over the box shows it again
+     (`:state(pointed)`), and it takes presses once the pointer has rested on it, as a
+     composer's Send over its last line does, so a press aimed at the first line's end
+     places the caret rather than pressing a Discard that has only begun to show. A key
+     reaching its marks, or a refused save's status, shows it and gives its presses
+     back. Rejected: the open editor showing it always, which covered the first line's
+     end through all the typing; showing it while the pointer is over the box, since
+     the pointer rests there after the click that opened the editor; and taking presses
+     as soon as the pointer moves, which pressed Discard under a press meant for the
+     words. A finger sees it always, so it stands on the bottom border there: in the
+     corner, its finger-wide reach would take every press meant for the first line's
+     end. */
   .lf-draft-tools {
     position: absolute;
     z-index: 1;
@@ -128,9 +130,14 @@ lf-draft > pre {
     font: var(--lf-font-ui);
     white-space: nowrap;
   }
-  lf-draft:not(:has(> .lf-draft-edit)):is(:hover, [data-lf-focus-within], [required])
+  lf-draft:not(:state(typing)):is(
+      :hover,
+      [data-lf-focus-within],
+      [required],
+      :has(> .lf-draft-edit)
+    )
     .lf-draft-tools,
-  lf-draft:has(> .lf-draft-edit):hover:not(:state(typing)) .lf-draft-tools,
+  lf-draft:state(pointed):hover .lf-draft-tools,
   .lf-draft-tools[data-lf-focus-within],
   .lf-draft-tools:has(> .lf-draft-status:not([hidden])) {
     opacity: 1;
@@ -138,6 +145,8 @@ lf-draft > pre {
   @media (hover: hover) {
     lf-draft:state(typing) .lf-draft-tools {
       pointer-events: none;
+    }
+    lf-draft:state(typing):not(:state(pointed)) .lf-draft-tools {
       transition: none;
     }
   }

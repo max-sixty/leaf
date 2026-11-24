@@ -7,7 +7,7 @@ import { under, renderedUnder, shadowHost } from "../shadow-tree.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { HOLDS, MessageView, messageReading } from "./messages.js";
 import { createReplyView } from "./replies.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 import { generatedElement } from "../widget-elements.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";

@@ -12,7 +12,7 @@ import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { eventSource } from "./pointer.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 
 // Scroll owners opt into reach: the page's markup with the `lf-scroll` class, and code,
 // Leaf's or a package's, with `data-lf-scroll`, a name a page's own CSS can't reach by

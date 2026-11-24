@@ -136,7 +136,7 @@ import {
   reveal as openFolds,
 } from "../widget-elements.js";
 import { readingPlace } from "../resolved-target.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../lib/keeps.js";
 
 import { cycledRow, rowArrows, nativePress } from "../keyboard/bindings.js";
 import { rowWalk } from "../walk-position.js";

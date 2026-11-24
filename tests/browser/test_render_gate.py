@@ -1359,7 +1359,8 @@ def _author_stateful_verbatim_widget(tmp_path):
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'import { LeafElement } from "/runtime/widget-api.js";\n'
+        'import { keepsText } from "/runtime/lib/keeps.js";\n'
         'customElements.define("lf-stateful", class extends LeafElement {\n'
         "  render() {\n"
         "    const { state } = this;\n"

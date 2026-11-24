@@ -43,8 +43,6 @@ import {
   holdFocus,
   inChrome,
   nameAction,
-  keeps,
-  keepsText,
   langForPath,
   layoutChanged,
   listWalkPosition,
@@ -68,6 +66,7 @@ import {
   currentLocationIn,
   commandsChanged,
 } from "/runtime/portable-api.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,
@@ -1795,7 +1794,7 @@ customElements.define(
       if (this.filesBody) {
         const { top, height } = this.filesBody.getBoundingClientRect();
         const hold = needle
-          ? `${Math.round(Math.max(0, Math.min(height, innerHeight - top)) * 64) / 64}px`
+          ? layoutPx(Math.max(0, Math.min(height, innerHeight - top)))
           : "";
         if (this.filesBody.style.minBlockSize !== hold)
           this.filesBody.style.minBlockSize = hold;

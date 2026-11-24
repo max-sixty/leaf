@@ -23,7 +23,6 @@ import {
   commandScope,
   focused,
   focusDestination,
-  keeps,
   navigateToDatum,
   offer,
   LeafElement,
@@ -33,6 +32,7 @@ import {
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 let library;
 const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));

@@ -2,7 +2,7 @@
    word and action markers; an ordinary host needs no page services to build them. */
 import { offer, titlesName } from "./element-markers.js";
 import { actionName, showAction } from "./icon-paths.js";
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 
 // Runtime searches share the vendor's native editor, frame and focus band. Callers

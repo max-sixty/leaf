@@ -17,7 +17,7 @@
    may be a margin card, and runs independently: its selected route may itself need
    this renderer to finish. Its caret follows the actual returned editor; its failures
    reach the page's existing asynchronous error channel. */
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";

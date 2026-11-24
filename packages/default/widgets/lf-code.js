@@ -85,7 +85,6 @@ import {
   codeLanguage,
   commandsChanged,
   failSoft,
-  keeps,
   layoutChanged,
   nameAction,
   offer,
@@ -98,6 +97,7 @@ import {
   tabStore,
   tokenLines,
 } from "/runtime/portable-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 // How long a playhead stands on a line before the block counts it as resting there
 // (see the header): longer than a playing animation's one-step visits, shorter than a

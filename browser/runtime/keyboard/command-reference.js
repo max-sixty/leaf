@@ -89,7 +89,7 @@ import {
   blurFocused,
 } from "../focus.js";
 import { closeControl, offeredAction, searchField } from "../widget-elements.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { renderedOrder } from "../shadow-tree.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
 import { doorSteps } from "./control-keys.js";

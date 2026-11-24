@@ -69,7 +69,7 @@ import {
   untilFound,
 } from "./shadow-tree.js";
 
-import { keeps } from "./keeps.js";
+import { keeps } from "./lib/keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
 
 // A scroll target can sit inside a collapsed container: a closed <details> or popover,
@@ -350,7 +350,7 @@ export const closeControl = ({ name, className = "" }) =>
 // margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape. A reaction shows its glyph,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
-// a control already wears writes nothing (keeps.js).
+// a control already wears writes nothing (lib/keeps.js).
 /** @template {HTMLElement} T @param {T} control
  * @param {{glyph?: string | null, action?: string | null, label: string, behavior?: string, collapse?: boolean}} options @returns {T} */
 export function responseAction(

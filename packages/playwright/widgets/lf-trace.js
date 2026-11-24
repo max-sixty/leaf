@@ -98,8 +98,6 @@ import {
   inBaseLayer,
   offered,
   offeredAction,
-  keeps,
-  keepsText,
   LeafElement,
   move,
   onUserInput,
@@ -117,6 +115,7 @@ import {
   commandsChanged,
   actionClass,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";

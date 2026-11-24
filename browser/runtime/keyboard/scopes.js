@@ -76,7 +76,7 @@ import {
 } from "../shadow-tree.js";
 import { repaint } from "../repaint.js";
 import { installMoveKeys } from "../dom-move.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 

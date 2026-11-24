@@ -104,7 +104,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   keepView,
-  keeps,
   layoutChanged,
   listWalkPosition,
   whileConnected,
@@ -132,6 +131,7 @@ import {
   LeafElement,
   commandsChanged,
 } from "/runtime/widget-api.js";
+import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 const PLACE_KEY = "lf-tabs-place:";
 // The document's own scroller, which scrolls a page-flow set's views.
@@ -751,7 +751,7 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      run.style.setProperty("--lf-tab-group-size", `${Math.round(size * 64) / 64}px`);
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
       scrollIntoView(btn, { block: "nearest", within });
       return;
     }

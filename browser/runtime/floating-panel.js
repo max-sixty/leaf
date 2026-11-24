@@ -2729,7 +2729,7 @@ export function createFloatingPanel({
   // knows before pressing that it leads further rather than acting.
   /** @param {unknown} label @param {unknown} end @param {(event: MouseEvent) => unknown} press
    * @param {{urgent?: boolean, disabled?: boolean, role?: string | null, row?: string | null,
-   * opens?: boolean, title?: string | null, current?: boolean}} [options] */
+   * key?: string | null, opens?: boolean, title?: string | null, current?: boolean}} [options] */
   const menuItem = (
     label,
     end,
@@ -2738,6 +2738,7 @@ export function createFloatingPanel({
       urgent = false,
       disabled = false,
       row = null,
+      key = null,
       opens = false,
       title = null,
       current = false,
@@ -2746,6 +2747,7 @@ export function createFloatingPanel({
     html`<button
       type="button"
       data-lf-row=${row ?? nothing}
+      data-lf-key=${key ?? nothing}
       .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "true" : nothing}
@@ -3047,6 +3049,12 @@ export function createFloatingPanel({
   const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   // The room a count holds: three digits, past which a count is cut.
   const CHANGES_ROOM = "100 changes";
+  // Each row of Versions is named by the version it is (`rowKey`), so the row the
+  // user stood on comes back as they left it (history.js), whichever versions the list
+  // has gained since.
+  /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry */
+  const versionKey = (entry) =>
+    `${entry.version === null ? "draft" : "version"}:${entry.revision}`;
   /** @param {ReturnType<typeof versionsReading>["rows"][number]} entry
    * @param {ReturnType<typeof versionsReading>["selection"]} selection */
   function comparePress(entry, selection) {
@@ -3054,6 +3062,7 @@ export function createFloatingPanel({
     const said = n === null ? "" : n ? counted(n, "change") : "No changes";
     return html`<button
       type="button"
+      data-lf-key=${`compare:${versionKey(entry)}`}
       ${offeredAction("word", "lf-fp-compare")}
       ${countWhenShown(entry.revision)}
       aria-pressed=${String(selection.on && selection.base === entry.revision)}
@@ -3085,8 +3094,7 @@ export function createFloatingPanel({
       <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(
           versions,
-          (entry) =>
-            `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+          versionKey,
           (entry) =>
             html`<div
               class="lf-fp-version"
@@ -3106,7 +3114,7 @@ export function createFloatingPanel({
                 }`,
                 nothing,
                 () => showVersion(entry),
-                { current: entry.current },
+                { current: entry.current, key: versionKey(entry) },
               )}${
                 entry.current
                   ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`

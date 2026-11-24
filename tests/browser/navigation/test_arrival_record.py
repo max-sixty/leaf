@@ -232,6 +232,41 @@ def test_a_reload_keeps_where_the_user_stood_in_the_panel(
 
 
 @pytest.mark.parametrize("engine", ENGINES)
+@pytest.mark.parametrize("control", ["version", "Compare"])
+def test_a_reload_keeps_the_user_on_the_versions_row_they_were_on(
+    request, serve, engine, control
+):
+    """In Versions the user stands on a row as in any list, the press that shows a
+    version or the Compare beside it, and a reload returns them to it rather than to
+    the version Versions opens at: each row is named by the version it is (the entry's
+    record, history.js)."""
+    url = live_url(serve(LONG_PAGE))
+    for mark in ["two", "three"]:
+        stamp_page(
+            serve.page_dir,
+            LONG_PAGE.replace("Paragraph 0.", f"Paragraph {mark}."),
+            mark,
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    view = panel_menu(page, "versions")
+    expect(page.locator(".lf-fp-title")).to_have_text("Versions")
+    expect(view.locator(".lf-fp-version")).to_have_count(3)
+    # An earlier version than the one Versions opens at, which the latest, shown,
+    # offers to compare with.
+    other = view.locator(
+        ".lf-fp-version:not([data-lf-current]):not([data-lf-at])"
+    ).first
+    row = other.locator(
+        ":scope > .lf-fp-item" if control == "version" else ":scope > .lf-fp-compare"
+    )
+    row.focus()
+    expect(row).to_be_focused()
+    reload(page)
+    expect(page.locator(".lf-fp-title")).to_have_text("Versions")
+    expect(row).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ENGINES)
 def test_back_from_another_document_returns_to_the_link_followed(
     request, serve, engine
 ):

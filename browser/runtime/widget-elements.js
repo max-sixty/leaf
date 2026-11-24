@@ -9,7 +9,7 @@ export { generatedElement } from "./element-markers.js";
    behavior module reads a box from inside `measure` (shown-box.js). A label whose words
    change holds one room for all of them with `data-lf-room`, which the theme sizes
    without script and which cuts words past it (controls.css). A module that rearranges
-   what it holds inside an unchanged box says so with `layoutChanged`
+   what it holds inside an unchanged box says so with `lf-layout`
    (widget-upgrade.js).
 
    The shared drag guard (`reachedForWords`) distinguishes a click from the mouseup

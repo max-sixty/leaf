@@ -100,7 +100,6 @@ QUICK_KEYS_PAGE = leaf_page(
 </div>
 """,
     head="""<script type="module">
-import { commandsChanged } from "/runtime/widget-api.js";
 const note = document.querySelector("#shortcut-note");
 document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sample", rows: [{
   id: "note.focus",
@@ -111,7 +110,7 @@ document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sa
   description: "Focus the sample note",
   run: () => note.focus(),
 }] };
-commandsChanged(document.querySelector("#local-shortcuts"));
+document.querySelector("#local-shortcuts").dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 </script>""",
 )
 
@@ -322,7 +321,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
     it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
-    and announced it with `layoutChanged`. A box the window grows out of scrolling gives
+    and announced it with an `lf-layout` event. A box the window grows out of scrolling gives
     all three back. The window's case asks its height, which no box's size follows. A
     table first drawn when its disclosure opens is read in the size delivery that draws
     it, and a script announcing from a size delivery is heard, both without a
@@ -364,20 +363,19 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     page.evaluate(
         """async () => {
         document.getElementById('holder').style.width = '400px';
-        const { layoutChanged } = await window.__lfWidgetApi();
         const box = document.getElementById('by-script');
         new ResizeObserver((entries, observer) => {
             observer.disconnect();
             box.classList.add('scrolls');
-            layoutChanged(box);
+            box.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
         inserted.className = 'lf-scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
-        layoutChanged(inserted);
-        layoutChanged(document.getElementById('meter'));
+        inserted.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
+        document.getElementById('meter').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }"""
     )
     boxes["insert"] = page.locator("#by-insert")

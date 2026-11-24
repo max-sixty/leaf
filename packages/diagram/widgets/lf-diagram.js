@@ -36,7 +36,6 @@ import {
   once,
   failSoft,
   frameFor,
-  layoutChanged,
   sizeObserver,
   whileConnected,
 } from "/runtime/portable-api.js";
@@ -257,7 +256,9 @@ customElements.define(
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);
       this.toggleAttribute("data-lf-scroll", true);
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

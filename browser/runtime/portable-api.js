@@ -23,12 +23,9 @@ export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.j
 export {
   PendingTaskEvent,
   bodyText,
-  commandsChanged,
   failSoft,
-  layoutChanged,
   once,
   placesFailure,
-  reportFailure,
 } from "./widget-upgrade.js";
 export { measure } from "./shown-box.js";
 export { tabStore } from "./tab-store.js";

@@ -163,7 +163,6 @@
     <script type="module">
       import {
         frameFor,
-        layoutChanged,
         once,
         sizeObserver,
         whileConnected,
@@ -296,7 +295,9 @@
                 `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
               );
             }
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           });
         },
       );

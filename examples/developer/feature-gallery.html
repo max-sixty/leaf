@@ -178,7 +178,6 @@
     <script type="module">
       import {
         afterPresentation,
-        commandsChanged,
         connection,
         generate,
         once,
@@ -274,7 +273,9 @@
           },
         ],
       };
-      commandsChanged(localShortcuts);
+      localShortcuts.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',

@@ -68,7 +68,6 @@ import {
   copyControl,
   focusDestination,
   holdFocus,
-  layoutChanged,
   onCurrentLocation,
   onPress,
   LeafElement,
@@ -79,7 +78,6 @@ import {
   wear,
   whileConnected,
   worksInside,
-  commandsChanged,
   widgetController,
 } from "/runtime/widget-api.js";
 import { under } from "/runtime/lib/shadow-tree.js";
@@ -366,7 +364,11 @@ customElements.define(
             { capture: true },
           );
           initial.copy = copy;
-          instruction.addEventListener("toggle", () => commandsChanged(this));
+          instruction.addEventListener("toggle", () =>
+            this.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            ),
+          );
         }
         this.addEventListener("mousedown", (event) => {
           const target = event.target;
@@ -529,7 +531,9 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} name @param {JSONSnapshot} value */
@@ -595,8 +599,12 @@ customElements.define(
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       for (const paint of this.#views) paint(this.#values);
-      layoutChanged(this);
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #providedInstruction() {

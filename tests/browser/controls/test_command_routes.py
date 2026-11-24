@@ -31,7 +31,7 @@ KEYBOARD_HINT_REGISTRY = {
 
 
 KEYBOARD_HINT_MODULE = """\
-import { commandScope, commandsChanged } from '/runtime/widget-api.js';
+import { commandScope } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keeps, keepsText } from '/runtime/lib/keeps.js';
 
@@ -49,21 +49,21 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const disable = offer('button', '', 'Toggle disabled');
     disable.onclick = () => {
       this.disabled = !this.disabled;
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
     ariaDisable.onclick = () => {
       this.ariaRefused = !this.ariaRefused;
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     const guard = offer('button', '', 'Toggle availability');
-    guard.onclick = () => { this.allowed = !this.allowed; commandsChanged(this); };
+    guard.onclick = () => { this.allowed = !this.allowed; this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true })); };
     const replace = offer('button', '', 'Replace action control');
     replace.onclick = () => {
       const prior = this.seat;
       this.makeControl();
       prior.replaceWith(this.seat);
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     const quiet = offer('button', '', 'Quiet action');
     this.append(disable, ariaDisable, guard, replace, quiet);
@@ -82,14 +82,14 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       },
     ]);
     this.lfCommands = scope;
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     editor.lfCommands = scope;
-    commandsChanged(editor);
+    editor.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     this.closest('main').lfCommands = { title: 'Outside the widget', rows: [{
       id: 'probe.outer', title: 'Outer digit', keys: ['1'],
       run: () => keepsText(this.result, 'Outer applied'),
     }] };
-    commandsChanged(this.closest('main'));
+    this.closest('main').dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 
   makeControl() {
@@ -106,7 +106,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 
 KEYBOARD_ROUTE_MODULE = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -139,12 +138,12 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       ],
       run: apply,
     }] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     this.closest('section').lfCommands = { title: 'Outside parameterized actions', rows: [{
       id: 'probe.outer', keys: ['1'], title: 'Apply the outer action', line: 'outer action',
       run: () => keepsText(result, 'Outer applied'),
     }] };
-    commandsChanged(this.closest('section'));
+    this.closest('section').dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -216,7 +215,6 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
 
 
 CONTEXT_COMMAND_MODULE = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -234,13 +232,13 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     }
     this.append(result);
     this.lfCommands = { title: 'In explicit actions', rows: rows };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     const replace = offer('button', '', 'Replace declaration');
     replace.onclick = () => {
       this.lfCommands = { title: 'In explicit actions', rows: [{id: 'probe.replacement', title: 'Replacement',
         contextKeys: ['2'], run: () => keepsText(result, 'Replacement applied')}] };
-      commandsChanged(this);
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     this.append(replace);
   }
@@ -347,7 +345,6 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
     module = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -360,7 +357,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.lfCommands = { title: 'In escape operation', rows: [{id: 'probe.escape', title: 'Apply operation',
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
       run: () => keepsText(result, `Applied ${++count}`)}] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -419,7 +416,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
     module = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -436,7 +432,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       {id: 'probe.apply.context', title: 'Neighbour operation', keys: ['F9'],
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
     ] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -494,7 +490,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
     module = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -506,7 +501,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.lfCommands = { title: 'In guarded operation', rows: [{id: 'probe.guarded', title: 'Guarded operation',
       contextKeys: ['F8'], runFromCommandReference: false,
       run: () => keepsText(result, `Applied ${++count}`)}] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -543,7 +538,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 
 ROUTE_HINT_OVERRIDE_MODULE = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -564,7 +558,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
       }],
       runKey: binding => keepsText(result, `${binding}:${++count}`),
     }] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -617,7 +611,6 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
 
 
 SHIFTING_CONTROL_MODULE = """\
-import { commandsChanged } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keepsText } from '/runtime/lib/keeps.js';
 
@@ -627,12 +620,12 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const control = offer('button', '', 'Apply');
     const result = offer('output', '', '0');
     this.append(neighbour, control, result);
-    this.shift = (by) => { control.style.translate = by; commandsChanged(this); };
+    this.shift = (by) => { control.style.translate = by; this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true })); };
     this.lfCommands = { title: 'In the probe', rows: [{
       id: 'probe.apply', title: 'Apply', contextKeys: ['1'], control,
       bindingBadge: null, run: () => keepsText(result, 'Applied'),
     }] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """

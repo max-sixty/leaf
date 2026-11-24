@@ -99,7 +99,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   keepView,
-  layoutChanged,
   listWalkPosition,
   whileConnected,
   openingView,
@@ -118,7 +117,6 @@ import {
   landingInsets,
   signal,
   LeafElement,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
 import { actionTemplate } from "/runtime/lib/icons.js";
@@ -331,8 +329,10 @@ export class TabSet extends LeafElement {
         },
       ],
     };
-    commandsChanged(strip);
     this.prepend(strip);
+    strip.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses
     // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
@@ -601,9 +601,14 @@ export class TabSet extends LeafElement {
 
       for (const panel of previous ? [previous, active] : [active]) {
         const child = soleSubstantiveElement(panel);
-        if (child) layoutChanged(child);
+        if (child)
+          child.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     };
     return this.#pageFlow && previous ? preserveReadingRegions(this, change) : change();
   }
@@ -646,8 +651,13 @@ export class TabSet extends LeafElement {
     // A set that changed flow drew its open panel at another width.
     if (wasFlow !== this.#pageFlow && this.#active.value) {
       const child = soleSubstantiveElement(this.#active.value);
-      if (child) layoutChanged(child);
-      layoutChanged(this);
+      if (child)
+        child.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   }
 

@@ -128,7 +128,6 @@ import {
   named,
   focusDestination,
   scrollIntoView,
-  commandsChanged,
 } from "/runtime/widget-api.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
@@ -506,7 +505,9 @@ customElements.define(
             },
           ],
         };
-        commandsChanged(mark);
+        mark.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
       }
       const input = this.#addition.input;
       if (input)
@@ -541,7 +542,9 @@ customElements.define(
           run: () => this.#answer(),
         });
       this.lfCommands = { title: SECTION, rows: answerRows };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The block this option is about. A pointer, not a voice: it names the block by the

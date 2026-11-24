@@ -77,7 +77,6 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],
@@ -357,15 +356,15 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
         "description": "A card that seats the threads about it.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "additionalProperties": False,
         },
         "example": '<lf-test-card id="card-example">A card.</lf-test-card>',
     }
     module = """
 import {nothing} from '/vendor/lit.js';
-import {keepsHidden, LeafElement, offer, offerAction, threadSurface}
-  from '/runtime/widget-api.js';
+import {LeafElement, threadSurface} from '/runtime/widget-api.js';
+import {offer, offerAction} from '/runtime/lib/controls.js';
 customElements.define('lf-test-card', class extends LeafElement {
   setup() {
     this.threads = offer('div', 'lf-test-threads');
@@ -379,7 +378,7 @@ customElements.define('lf-test-card', class extends LeafElement {
     return targets.map(() => this.threads);
   }
   render() {
-    keepsHidden(this.comment, !threadSurface(this).open);
+    this.comment.toggleAttribute('hidden', !threadSurface(this).open);
     return nothing;
   }
 });
@@ -442,11 +441,11 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'review', target: document.getElementById('subject'),
-        read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
-          icon: 'dot', label: 'Mark reviewed'})]}),
+        read: () => ({entries: [{key: 'reviewed', behavior: 'action',
+          icon: 'dot', label: 'Mark reviewed'}]}),
         activate: (key) => { window.activated = key; }});
       const {consumeAnnotations} = await window.__lfWidgetApi();
       const box = document.querySelector('#review');
@@ -578,7 +577,6 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "style": {"type": "string"},
                 "source": {"type": "string"},
             },
@@ -736,7 +734,6 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],

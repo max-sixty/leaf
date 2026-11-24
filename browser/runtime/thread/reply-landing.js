@@ -43,7 +43,7 @@ import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor } from "../reading-regions.js";
 import { edgeAt, returnTo } from "../scroll-containers.js";
-import { under } from "../shadow-tree.js";
+import { under } from "../lib/shadow-tree.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { standsAt } from "../user-place.js";

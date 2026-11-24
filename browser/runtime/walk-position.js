@@ -2,7 +2,7 @@
    of focusable rows (`rowWalk`). Walk owners keep their list and motion; the portable
    declaration holds their live position reader. Native focus traversal and gestures
    that rearrange state are not walks through a named list. */
-import { capitalized } from "./words.js";
+import { capitalized } from "./lib/words.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { answerStep, gesture } from "./notifications.js";

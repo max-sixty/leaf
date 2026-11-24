@@ -169,6 +169,24 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     ]
 
 
+def test_a_moved_card_keeps_its_title_beside_its_grip(browser, serve):
+    """A card the user moved says so to a screen reader with a word written before its
+    title, and the title still stands where it stood, level with the grip, rather than
+    dropping below the grip's room and pushing every card under it down."""
+    page = open_page(browser, serve(BOARD_PAGE))
+    title_top = """card => card.querySelector(':scope > strong').getBoundingClientRect().top
+      - card.getBoundingClientRect().top"""
+    card = page.locator("#card-heater")
+    before = card.evaluate(title_top)
+    card.locator(".lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(card.locator(":scope > .lf-quiet")).to_have_text("my change")
+    assert card.evaluate(title_top) == before
+
+
 def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     browser, serve
 ):

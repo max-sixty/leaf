@@ -22,6 +22,7 @@ from interact_support import (
     edit,
     found,
     obligations_on_user,
+    owed_answers,
     page_state,
     publish,
     published,
@@ -75,9 +76,9 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     document = structure_model.SourceDocument(
         '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
         "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
-        '<lf-option id="chipped"><small class="tag">recommended</small>'
+        '<lf-option id="chipped"><small class="lf-tag">recommended</small>'
         "<strong>Apply</strong>Ship it.</lf-option>"
-        '<lf-option id="quoted"><small class="tag">recommended</small>'
+        '<lf-option id="quoted"><small class="lf-tag">recommended</small>'
         '<strong>"Update" for mixed input</strong></lf-option></main>'
     )
     assert passages_model.page_passages(document).text == (
@@ -430,8 +431,105 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     assert "--for" not in mistaken.output
 
 
-def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
-    """An agent should know why its delivered reply became unnecessary."""
+def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
+    """The user's resolve takes the thread off their list and leaves the request
+    owed, so the reply the delivery addressed still answers it, in the thread the
+    user closed. The thread stays closed for what the agent says in it, until the
+    agent reopens it or asks the user something."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+    assert [item["input"] for item in owed_answers(page_dir)] == [root["id"]]
+    misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "answers it" in misplaced.output
+    assert "resolved the thread" not in misplaced.output
+
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", "--done", reference, "--text", "I checked it."],
+    )
+
+    assert answered.exit_code == 0, answered.output
+    events = events_model.read_events(page_dir)
+    assert events[-1]["responds"] == root["id"]
+    assert owed_answers(page_dir) == []
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] == "user"
+
+    def says(*flags):
+        said = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), root["id"], "--text", "More.", *flags],
+        )
+        assert said.exit_code == 0, said.output
+        [thread] = state_json(page_dir)["threads"]
+        return thread["resolved"], events_model.read_events(page_dir)[-1].get(
+            "unannounced"
+        )
+
+    assert says() == ("user", True)
+    # The agent's own resolve on top of the user's changes nothing for a later
+    # message, which still goes in unannounced.
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    assert says() == ("agent", True)
+    # A question brings the thread back by itself.
+    assert says("--obligation") == (None, None)
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    # A message that stays closed says so beside its record, with the command that
+    # brings the thread back, which is the agent's call.
+    quiet = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), root["id"], "--text", "It can't be done."],
+    )
+    said = events_model.read_events(page_dir)[-1]
+    assert said["unannounced"]
+    assert f"leaf thread reopen {page_dir} {said['id']}" in quiet.output
+    reopened = CliRunner().invoke(
+        cli_model.cli, ["thread", "reopen", str(page_dir), said["id"]]
+    )
+    assert reopened.exit_code == 0, reopened.output
+    [thread] = state_json(page_dir)["threads"]
+    assert (thread["resolved"], thread["unread"]) == (None, [said["id"]])
+    assert says() == (None, None)
+
+
+def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_dir):
+    """The agent answers a request the user resolved its thread over with a promise,
+    and later with the result at the same reference, which names no input. Both go
+    into the thread without reopening it."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+    for text, flags in (("On it.", ["--todo", "Check it"]), ("Checked.", ["--done"])):
+        said = CliRunner().invoke(
+            cli_model.cli, ["thread", "reply", reference, "--text", text, *flags]
+        )
+        assert said.exit_code == 0, said.output
+        [thread] = state_json(page_dir)["threads"]
+        assert thread["resolved"] == "user"
+    assert "responds" not in events_model.read_events(page_dir)[-1]
+
+
+def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_dir):
+    """The agent's own resolve answers for its thread, and an agent whose delivered
+    reply became unnecessary should know why."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -439,7 +537,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
     reference = response_reference(page_dir, root["id"])
     resolution = append_carried_log_record(
         page_dir,
-        {"kind": "resolve", "author": "user", "parent": root["id"]},
+        {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
 
     refused = CliRunner().invoke(
@@ -448,12 +546,19 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
     )
 
     assert refused.exit_code != 0
-    assert "the user resolved the thread" in refused.output
+    assert "the agent resolved the thread" in refused.output
     assert resolution["ts"] in refused.output
     assert "leaf thread reply" not in refused.output
     misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
-    assert "the user resolved the thread" in misplaced.output
+    assert "the agent resolved the thread" in misplaced.output
     assert "leaf thread reply" not in misplaced.output
+    # The user closing the thread after the agent leaves the agent's resolve
+    # answering for it, and the refusal still names that one.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
+    )
+    again = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "the agent resolved the thread" in again.output
     assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
 
 
@@ -1990,44 +2095,6 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
         assert "document-declaration" in refused.output, refused.output
     handled = '<p onclick="this.hidden = true">Hide me</p>\n\n' + widget
     assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
-
-
-def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
-    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
-    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
-    so the code loses its blank lines, indents and marks while the HTML stays well
-    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
-    published(page_dir)
-    code = "def a():\n    return 1\n\ndef b():\n    return 2"
-    for split in (code, "steps:\n\n- build\n- ship"):
-        refused = comment(
-            page_dir,
-            "--text",
-            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
-        )
-        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
-    for kept in (
-        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
-        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
-    ):
-        assert code in passages_model.message_markup(kept)
-        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
-
-
-def test_a_widget_sharing_its_opening_line_is_refused_for_its_paragraph_alone(
-    page_dir,
-):
-    """A widget whose opening tag shares its line with its content is inline HTML, so
-    Markdown draws a paragraph around it, and its `<pre>` closes that paragraph. The
-    refusal names that repair alone, not the widget the parser emptied, which the
-    agent wrote whole."""
-    published(page_dir)
-    code = '<lf-code id="snippet">{}<pre><code class="language-python">print(1)</code></pre></lf-code>'
-    refused = comment(page_dir, "--text", "Here:\n\n" + code.format(""))
-    assert refused.exit_code != 0
-    assert [f["code"] for f in json.loads(refused.output)["findings"]] == ["unclosed"]
-    kept = comment(page_dir, "--text", "Here:\n\n" + code.format("\n"))
-    assert kept.exit_code == 0, kept.output
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():

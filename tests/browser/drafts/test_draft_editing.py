@@ -833,16 +833,18 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
         context=context,
     )
     draft = page.locator("#local")
+    # Hidden before the box opens: Go-to doesn't arm over a box that claims Escape.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     edit = draft_control(page, "edit", "local")
     edit.click()
     editor = draft.locator("leaf-text")
     write(editor, "Unsent `source`.")
     page.keyboard.press("Tab")
     expect(draft_control(page, "save", "local")).to_be_focused()
-    page.keyboard.press("o")
-    expect(page.locator(CHROME_ROOT)).to_have_attribute(
-        "data-lf-annotations-hidden", ""
-    )
     expect(draft_control(page, "save", "local")).to_be_visible()
     expect(draft_control(page, "cancel", "local")).to_be_visible()
     expect(draft.locator("[data-lf-draft-action]:visible")).to_have_count(2)

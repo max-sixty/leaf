@@ -354,9 +354,10 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one for each "
-        "summary a summary fork wrote or left to the agent (`summary_fork`). Each "
-        "says whether it wakes the session (`wake`): a "
+        "clerk wrote and each finding it passes on (`clerk`), one for each summary "
+        "a summary fork wrote or left to the agent (`summary_fork`), and one for "
+        "each time the session's hooks moved to a Leaf with another skill "
+        "(`hooks.skill_changed`). Each says whether it wakes the session (`wake`): a "
         "line that tells it of work it now owes wakes it while it is idle, until a "
         "hook has printed the line.",
         object_schema(
@@ -390,7 +391,6 @@ def page_facts(state: dict, events: list) -> dict:
 
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
-    todos = {todo["id"]: todo for todo in state["todos"]}
     updates = {workflow["id"]: workflow for workflow in state["workflows"]}
 
     # What each message asking a question says now, edits included: a question asked
@@ -439,7 +439,7 @@ def page_facts(state: dict, events: list) -> dict:
         """How a question On Me no longer holds ended, or None while it stands: the
         user's answer, or a resolve of its thread (`obligations`), by whoever the
         thread stands resolved by where it still does."""
-        if record["status"] != "open":
+        if record["state"] == "done":
             return "answered"
         if record["next_actor"] is not None:
             return None
@@ -462,8 +462,9 @@ def page_facts(state: dict, events: list) -> dict:
             )
     started = []
     for item, start in item_starts(events).items():
-        if todos.get(item, {}).get("state") == "open":
-            about = f'the agent\'s to-do "{todos[item]["title"]}"'
+        todo = obligations.get(item)
+        if todo and todo["source"]["kind"] == "todo" and todo["state"] != "done":
+            about = f'the agent\'s to-do "{todo["prompt"]["text"]}"'
         elif item in updates:
             subject = updates[item]["subject"]
             about = (
@@ -597,26 +598,18 @@ def checked(session_id: str, payload: dict) -> dict:
     (`resent`, noted as `request`) where the harness gives them (`take_answer`), and a
     line for the module's debug log saying what came of it. An answer `ANSWER` refuses
     writes nothing, and says why (`refused`)."""
+    from .forks import run_facts
     from .refusals import Refused
 
     basis = payload["basis"]
     asked = (
         {"turn": basis["turn"], "opened": basis["opened"]} if "turn" in basis else None
     )
-    run = {
-        "usage": payload.get("usage"),
-        "elapsedMs": payload.get("elapsed_ms"),
-        "request": payload.get("resent"),
-        "failed": payload.get("failed"),
-    }
+    failed = payload.get("failed")
+    run = run_facts(payload) | ({"failed": failed} if failed is not None else {})
     text = payload.get("answer")
     try:
-        applied = take_answer(
-            session_id,
-            text,
-            asked,
-            {name: value for name, value in run.items() if value is not None},
-        )
+        applied = take_answer(session_id, text, asked, run)
     except Refused as error:
         return {
             "wrote": [],
@@ -626,7 +619,7 @@ def checked(session_id: str, payload: dict) -> dict:
             "log": f"the clerk wrote nothing: {error}",
         }
     if text is None:
-        return {**applied, "log": f"the clerk's fork gave no answer ({run['failed']})"}
+        return {**applied, "log": f"the clerk's fork gave no answer ({failed})"}
     counts = [
         f"{len(applied[part])} {noun}{'' if len(applied[part]) == 1 else 's'}"
         for part, noun in (
@@ -689,19 +682,17 @@ def take_answer(
 
 def _note(page_dir: Path, session_id: str, asked: dict | None, outcome: dict) -> None:
     """Note what came of a turn-end fork in `page_dir`'s diagnostics."""
-    from .interaction_log import append_interactions
+    from .forks import note
 
-    record = {
-        "source": "cli",
-        "type": "turn_end_check",
-        "session": session_id,
-        "turn": asked and asked["turn"],
-        **outcome,
-    }
-    try:
-        append_interactions(page_dir, [record])
-    except OSError:
-        pass
+    note(
+        page_dir,
+        {
+            "type": "turn_end_check",
+            "session": session_id,
+            "turn": asked and asked["turn"],
+            **outcome,
+        },
+    )
 
 
 def _facts(page_dir: Path) -> dict | None:
@@ -1234,7 +1225,7 @@ def _held(session_id: str) -> list[dict]:
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk and from line forks."""
+    """The lines queued for the session's next step (`QUEUED`)."""
     return [held["line"] for held in _held(session_id)]
 
 

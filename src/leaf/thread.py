@@ -17,7 +17,12 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import active_summaries, build_threads, is_answer, taken_back
+from leaf.events import (
+    active_summaries,
+    build_threads,
+    is_answer,
+    taken_back,
+)
 from leaf.files import (
     latest_revision,
     require_revision,
@@ -376,7 +381,7 @@ def ask_again(
 ) -> dict | None:
     """The agent's message asking `question` (`message:<id>`, or the bare id) again in
     its thread in `page`, an open transaction, from a `body` already checked; like
-    any spoken reply it reopens the thread if it was resolved. Where its HTML holds a widget that asks, such as a
+    a message that asks, it reopens the thread if it was resolved. Where its HTML holds a widget that asks, such as a
     choice, the message asks with it. Otherwise it asks in words: a question first
     asked in words stands open on it under its own id, as `leaf thread reply <page>
     <message> --obligation <question>` posts it, and one a widget asked is asked
@@ -649,6 +654,18 @@ def post_reply(
         )
     if claimed_session is None:
         note(*addressed.advice)
+        if record.get("unannounced"):
+            # The agent may not have heard of the user's resolve, and what it just
+            # said may be news they would want to stop for, which only it can judge.
+            note(
+                Finding(
+                    "stays-closed",
+                    values={
+                        "thread": addressed.thread,
+                        "command": f"leaf thread reopen {page_dir} {record['id']}",
+                    },
+                )
+            )
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -781,7 +798,7 @@ def _resolve_obligation(
                     todo for todo in TodoReading(events).owed if todo["id"] in opened
                 ]
                 promised = [
-                    {"todo": todo["id"], "title": todo["title"]}
+                    {"todo": todo["id"], "title": todo["prompt"]["text"]}
                     for todo in owed_todos
                     if done
                 ]
@@ -1006,6 +1023,17 @@ def _compose_and_append(
     if asks_back and not explicit_obligation and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
+    # Admission refuses a reply whose thread is taken back, so where the thread is
+    # gone from the reading there is nothing to say of it.
+    before = build_threads(events, active_enclosing(page_dir)).get(thread_id)
+    unannounced = (
+        before is not None
+        and _goes_in_unannounced(before, asks=bool(explicit_obligation or asking))
+        and not ephemeral
+        and failure is None
+    )
+    if unannounced:
+        event["unannounced"] = True
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
@@ -1044,14 +1072,44 @@ def _compose_and_append(
         record, _ = append_admitted(page, event)
     # Said once the message stands, which a later gate could still refuse.
     note(*twice)
-    if title is not None:
+    if title is not None and before and before["title"] not in (None, title):
         # A thread keeps the first title it was given (`events.build_threads`), so
-        # the agent hears which one stands. Admission has refused a reply whose
-        # thread is taken back, so the thread is there to read.
-        standing = build_threads(events, active_enclosing(page_dir))[thread_id]["title"]
-        if standing not in (None, title):
-            note(Finding("title-kept", values={"title": standing}))
+        # the agent hears which one stands.
+        note(Finding("title-kept", values={"title": before["title"]}))
     return record, published
+
+
+def _goes_in_unannounced(thread: dict, *, asks: bool) -> bool:
+    """Whether the agent's message goes into `thread` without reopening it, which
+    the reply records as `unannounced` (`events.build_threads`): the user resolved
+    the thread and it has not reopened since, whatever closed it after, and the
+    message asks them nothing, in words or with a widget.
+
+    A thread the user resolved stays off their list until someone reopens it. The
+    user chose that: they end most threads with a last word and then Resolve, which
+    means they are done with the thread and not that they took the word back, so
+    the request stays owed (`events.owed_turns`) and its answer, like the result of
+    work the agent promised, brings nothing back to their list.
+
+    The user also chose that bringing the thread back is the agent's call (root
+    `AGENTS.md`, "Leaf's role"), which it makes with `cmd_reopen`, before or after
+    the message, so no rule here reads the call off the message. The reply's
+    command says that it stayed closed (`stays-closed`, `post_reply`), since the
+    user's resolve reaches the agent only where it retires a question, and the
+    agent that was never told can still bring back what it just said. A provider's
+    final message ends its turn and prints nothing its agent reads, so the
+    handling Leaf delivers with a turn's answer (the kernel registry's clause for
+    `answer.writer: "turn"`) has the agent post such news with the command.
+
+    A rule that kept every message quiet would leave a question as the agent's only
+    way to say it could not do what was asked. A rule keyed on the answer would
+    reopen the thread for a promised result, which names no input, and leave it
+    closed for the promise. A flag on the reply would have to be chosen before the
+    agent knows the thread is closed, and a provider's final message could not
+    carry it. A message that asks reopens the thread by itself, since the user
+    answers a question in its thread and ends one they won't answer by resolving
+    it."""
+    return thread["closed_by_user"] and not asks
 
 
 def post_response(
@@ -1421,4 +1479,17 @@ def cmd_resolve(page_dir: Path, parent: str) -> dict:
             "author": "agent",
             "parent": parent,
         }
+        return append_admitted(page, event)[0]
+
+
+@contract_writer
+def cmd_reopen(page_dir: Path, parent: str) -> dict:
+    """Reopen a thread, as the user's own Reopen does: the same event, addressed as
+    `cmd_resolve` addresses its own. It is how the agent brings a thread the user
+    resolved back to their list (`_goes_in_unannounced`). Like any reopening, it
+    puts back a turn of theirs that a closing had ended unanswered
+    (`events.owed_turns`)."""
+    with PageTransaction(page_dir) as page:
+        _thread_id, parent = thread_addressed(page_dir, page.events, parent)
+        event = {"kind": "unresolve", "author": "agent", "parent": parent}
         return append_admitted(page, event)[0]

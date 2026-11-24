@@ -146,7 +146,7 @@ lf-option[recommended]::before {
     & > strong {
       margin-inline-end: 0.35em;
     }
-    & > .tag {
+    & > .lf-tag {
       float: inline-end;
       margin: 0 0 0 6px;
     }
@@ -154,11 +154,11 @@ lf-option[recommended]::before {
 }
 /* An option's chips wear the package's chip face (chip.css). The band adds the margins
  * that space and wrap a row. */
-lf-option > .tag {
+lf-option > .lf-tag {
   margin: 0 6px 2px 0;
 }
 /* The titled form: cards stacked full width and read down, whatever their length. A
- * `dl.facts` list at the top of an option docks right where the row can spare it, so
+ * `dl.lf-facts` list at the top of an option docks right where the row can spare it, so
  * scalars align down the group, and stacks above the prose where it cannot. */
 lf-options:has(> lf-option:where([label])) {
   display: block;
@@ -179,20 +179,20 @@ lf-options:has(> lf-option:where([label])) {
   }
   /* The rail declares its frame, so its first term's margin is trimmed rather than
    * collapsing into the option's padding and dropping the rail below the case. */
-  & > lf-option > dl.facts {
+  & > lf-option > dl.lf-facts {
     display: block;
     margin: 0 0 var(--lf-sp-2);
     --lf-block-frame: 1;
   }
   @container (min-width: calc(9.5em + 16px + 20em)) {
-    & > lf-option > dl.facts {
+    & > lf-option > dl.lf-facts {
       float: right;
       clear: right;
       width: 9.5em;
       margin: 0 0 var(--lf-sp-2) var(--lf-sp-3);
     }
   }
-  & > lf-option > dl.facts dt {
+  & > lf-option > dl.lf-facts dt {
     color: var(--lf-muted);
     font: var(--lf-font-small);
     text-transform: uppercase;
@@ -200,7 +200,7 @@ lf-options:has(> lf-option:where([label])) {
     margin-top: 6px;
     padding: 0;
   }
-  & > lf-option > dl.facts dd {
+  & > lf-option > dl.lf-facts dd {
     font: var(--lf-font-widget);
     margin: 0;
   }
@@ -310,12 +310,13 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-sp-2);
     }
-    /* An empty draft's binding badge takes the Add seat while Add is hidden; once the
-    * field has words, the write route's badge takes the inner seat. Both seats are
-    * reserved before either face appears. */
+    /* An empty draft's binding badge stands in the Add seat while Add is hidden, at the
+    * digit column every card's badge shares; once the field has words, the write
+    * route's badge takes the inner seat. Both seats are reserved before either face
+    * appears. */
     & > .lf-another > .lf-key-badge {
       inset-inline-start: auto;
-      inset-inline-end: var(--lf-option-add-badge-inset);
+      inset-inline-end: var(--lf-sp-2);
       top: auto;
       bottom: var(--lf-option-add-badge-end);
       margin: 0;
@@ -424,8 +425,8 @@ lf-option[selected] > .lf-pick {
   color: var(--lf-settled-ink);
 }
 /* The pick fills the box and cuts the layer's check out of it (`check`,
- * runtime/icon-paths.js), so the option's ground shows through the check. A ✓ glyph
- * needed a type size of its own, 8px, to stand clear of the ring. */
+ * runtime/lib/icon-paths.js), so the option's ground shows through the check. A ✓
+ * glyph needed a type size of its own, 8px, to stand clear of the ring. */
 lf-option[selected] > .lf-pick::before {
   border-color: var(--lf-settled);
   background: var(--lf-settled);
@@ -464,10 +465,14 @@ lf-option > .lf-key-badge {
   inset-inline-start: var(--lf-key-badge-start);
 }
 /* Done completes a multiple-choice obligation; pressed, it wears the commit's settled
- * tone (controls.css). It is the joined control's final cell. */
+ * tone (controls.css). It is the joined control's final cell. Done fills its cell and
+ * takes the cell's corners (`--lf-joined-r`, controls.css): its own rounding where it
+ * stands as a press of its own, and none in a joined group (below), whose clip rounds
+ * the corners Done shares with the group. */
 lf-options > lf-options-done {
   display: grid;
   padding: 0;
+  --lf-joined-r: var(--lf-r);
 }
 /* Done is the group's last row, and a stack keeps no room between its rows for a reach,
  * so its face is the floor's height where that is taller than the line, and it hangs
@@ -632,11 +637,50 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
-    /* The group clips to its frame, so its controls stand their rings, and every mark
-     * on them, inside their edges (base.css, "Where it stands"), or the clip cuts
-     * them. */
-    & .lf-btn {
+    /* Done joins as a cell: square and edgeless in it (controls.css, `data-lf-joined`),
+     * its cell wearing its ring, as a row wears its mark's (below). */
+    & > lf-options-done {
+      --lf-joined-r: 0px;
       --lf-ring-at: var(--lf-focus-ring-inset);
+      &[data-lf-control-focus-visible] {
+        outline: var(--lf-focus-ring);
+        --lf-wears-ring: 1;
+      }
+      & > .lf-done {
+        --lf-focus-box: lf-options-done;
+        &[data-lf-focus-visible] {
+          outline: none;
+        }
+      }
+    }
+    /* A cell standing in the group's corners takes its rounding there (`--lf-r-in`), so a
+     * ring the cell draws inside its edge, a pick's or the keyboard's, follows the frame
+     * rather than squaring a corner the clip then thins. The first cell takes the head's
+     * start corner and the last cell the foot's end corner. A cell filling its row takes
+     * both corners at that end of the group, as every cell does in a stack and Add and
+     * Done always do. Options laid across (`--lf-option-in-row`) share the head: the last
+     * takes its end corner and, where no cell follows them, the first takes the foot's
+     * start corner. Each selector names its cell, an option, Add or Done, since a
+     * subject after the group's `:has()` names an element, one key per selector
+     * (browser/AGENTS.md, "What a style rule costs"). Options come first, so the first
+     * option is the first cell, though not always the first child: a word for a screen
+     * reader, such as "my change", stands before it (declared-words.js). */
+    & > lf-option:first-of-type {
+      border-start-start-radius: var(--lf-r-in);
+      border-start-end-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
+    }
+    & > lf-option:last-child,
+    & > .lf-another:last-child,
+    & > lf-options-done:last-child {
+      border-end-start-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
+      border-end-end-radius: var(--lf-r-in);
+    }
+    & > lf-option:last-of-type:not(:first-of-type) {
+      border-start-end-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
+    }
+    &:not(:has(> lf-option:last-of-type ~ *))
+      > lf-option:first-of-type:not(:last-child) {
+      border-end-start-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -738,18 +782,20 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * need a box around a card's chips, and a card's children stay as the author wrote
    * them. */
   lf-options:has(> lf-option:where([label])) > lf-option {
-    --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
     align-content: first baseline;
+    &:not(:only-of-type) {
+      --lf-option-in-row: clamp(0, sign(100cqi - var(--lf-options-row-width)) + 1, 1);
+    }
   }
   @container style(--lf-option-in-row: 1) {
     /* Each chip's row is the seat's height, so the chips wrap level beside the seat and
      * under it rather than stepping down where the seat ends. */
-    lf-option[label] > .tag:has(~ strong),
+    lf-option[label] > .lf-tag:has(~ strong),
     lf-option[label][recommended]:has(> strong)::before {
       float: inline-start;
       margin-block-end: calc(var(--lf-card-state-height) - 1lh);
     }
-    lf-options:has(> lf-option[label]:is([recommended], :has(> .tag ~ strong)))
+    lf-options:has(> lf-option[label]:is([recommended], :has(> .lf-tag ~ strong)))
       > lf-option
       > strong {
       clear: both;
@@ -785,16 +831,18 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   .lf-another {
     --lf-ring-at: var(--lf-focus-ring-inset);
-    --lf-option-add-seat-inset: var(--lf-sp-1);
+    /* Add stands clear of the row's edges (`--lf-clear`) at any density: its face is
+       the row's line and a pixel either side, inside the row's least padding
+       (`--lf-option-pad-min`), and it stands that clearance from the row's end. Its
+       hit box is worked out again from its face, for the seats below. */
+    --lf-icon-action-face: calc(var(--lf-option-line) + 2px);
+    --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
+    --lf-option-add-seat-inset: var(--lf-clear);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(
       var(--lf-option-pad-block) +
         (var(--lf-option-line) - var(--lf-icon-action-face)) / 2
-    );
-    --lf-option-add-badge-inset: calc(
-      var(--lf-option-add-seat-inset) +
-        (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-add-badge-end: calc(
       var(--lf-option-add-seat-end) +

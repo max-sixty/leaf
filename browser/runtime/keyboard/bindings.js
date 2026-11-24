@@ -79,6 +79,12 @@
      other command leaves the control it was pressed on where it stood on screen
      (browser/AGENTS.md, "The page holds still under the user's aim"). The dispatcher announces it with the
      invocation, where the suite's shift watch reads it.
+   - `opens`, on a row of the page's scopes, is the scope a press of the command
+     enters, as `g` enters the Go-to sequence's and `g V` Versions'; the scope's `at`
+     says whether that scope stands already. A row in that scope shows the command's
+     steps before its own (control-keys.js, `commandSteps`), and the command's keys
+     before its own wherever its own key doesn't reach it (`pressNow`), so Open latest
+     says `g V l` wherever Versions isn't open.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
@@ -107,9 +113,9 @@
    only when their `when` predicates make the states exclusive. `parsed` and `answers`
    share the supported modifiers `Mod`, `Alt`, and `Shift`. Unknown modifier names are
    errors rather than bindings that accidentally fire on a bare key. `spell` is the one
-   platform-aware display of a binding. `PRESS` states the native key behavior of
-   controls, and `DISCLOSE` reads the whole set a disclosure answers off the element it is
-   asked about; links retain their platform distinction from buttons.
+   platform-aware display of a binding. `PRESS` (lib/keys.js) states the native key
+   behavior of controls, and `DISCLOSE` reads the whole set a disclosure answers off the
+   element it is asked about; links retain their platform distinction from buttons.
 
    A label names this press, not the broad feature. Prefer "Resume writing" or "Hide
    comments" to "Comment" or "Toggle". Compute the word through `word` when visible state
@@ -130,7 +136,6 @@
    only once its first key is pressed, so the complete route stays in the keyboard command
    reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
-export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
 import { runtime } from "../context.js";
 
@@ -168,8 +173,9 @@ import { runtime } from "../context.js";
  * @property {boolean} [sequenceControl]
  * @property {() => boolean} [commandReferenceWhen]
  * @property {import("../page-controls.js").PageControlGroup} [menu]
- * @property {keyof typeof import("../icon-paths.js").ACTIONS} [action]
+ * @property {keyof typeof import("../lib/icon-paths.js").ACTIONS} [action]
  * @property {Cell<readonly CommandRoute[]>} [routes]
+ * @property {() => Scope | null} [opens]
  * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command
  * @typedef {Command & {binding?: string, [ROUTED_COMMAND]?: CommandReference}} CommandRoute
  * @typedef {Object} Scope
@@ -181,7 +187,6 @@ import { runtime } from "../context.js";
  * @property {Cell<Element | Document | null>} [root]
  * @property {(binding: string) => boolean} [shadow]
  * @property {Cell<readonly string[]>} [sequence]
- * @property {Cell<readonly string[]>} [sequencePrefix]
  * @property {boolean} [contextual]
  * @property {object} [identity]
  * @property {Element} [el]
@@ -446,6 +451,17 @@ const scopeReadiness = new WeakMap();
 // Terminal absence is known input too. Availability still comes from the owner's
 // `when` (widget actions require a complete reading); only unfinished input queues.
 export const savedReadingSettled = () => runtime.statePhase !== "waiting";
+// Whether the page has finished restoring the place a reload Leaf asked for handed it
+// (version.js, `installArrival`). Until then no key is ready, so a printed key waits
+// in the early hold (controller.js, `takeHeldKeys`): a user typing through the reload
+// meant it for the box they were writing in, which the restore brings back, not as one
+// of the page's commands.
+let handingBack = false;
+export const placeHandedBack = () => !handingBack;
+/** @param {boolean} pending */
+export const handingBackPlace = (pending) => {
+  handingBack = pending;
+};
 // A scope supplies a shared input contract without replacing its rows or their identity.
 /** @param {readonly Command[]} rows @param {(() => boolean) | undefined} ready */
 export function declareCommandReadiness(rows, ready) {

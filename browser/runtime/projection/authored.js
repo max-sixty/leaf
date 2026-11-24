@@ -13,11 +13,7 @@ import { authoredRank } from "./model.js";
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
 /** @typedef {import("../../types/domain.js").StateRecord} StateRecord */
 
-/* The authored initial condition, read once from validated source before upgrade.
-   These typed values are inputs to the complete widget projection; no cloned DOM,
-   inverse action, or restoration statement is retained.
-
-   `rememberAuthoredParents` records parent identities before imports for anchor
+/* `rememberAuthoredParents` records parent identities before imports for anchor
    ownership. `stageAuthoredStates` decodes source elements while their validated
    attributes, member order, and data bodies are intact. The complete staged document
    enters the application publisher before its content modules render. Page revisions

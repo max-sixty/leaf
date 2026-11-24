@@ -62,7 +62,7 @@ screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where
 keeps a `scrollbar-gutter` across states.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`).
+page's, which is the document's own (`document.scrollingElement`).
 
 When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
@@ -78,6 +78,11 @@ content the user is reading. It calls `change` immediately when no hold is neede
 otherwise it waits until the growth is out of view or the reading is interrupted.
 The returned function cancels the pending change. When a user's own gesture requests
 that change, cancel the hold and apply the change in that gesture.
+
+To end a wait of your own once an element's growth would move nothing the user sees,
+call `whenNone([element], growthIsSeen, leave)`: it calls `leave` once that holds for
+every element, and again each time it holds after it stopped holding, and returns the
+step that stops watching.
 
 When a widget redraws or resizes content where the user is reading, the browser's
 scroll anchoring keeps their place: don't restore `scrollTop` or set
@@ -113,28 +118,41 @@ To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, wh
 region, the box that scrolls it as the user reads, and every other box that scrolls
 it, inside or around that region, reveals it at the nearest edge, so a start landing in
 a bounded pane aligns it in the pane and moves the page only to show it; `block`
-defaults to `start`. Sideways, each box reveals it at the nearest edge. A `nearest`
+defaults to `start`. A `smooth` landing glides, and lands at once for a user who asked
+for less motion. Sideways, each box reveals it at the nearest edge. A `nearest`
 landing moves nothing where the target is already shown: the user sees all of it where
 it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
-inside a live sample. Use it only for a deliberate move; focusing a visible control or
-redrawing keeps the scroll.
+it is, pass that box as `within`: the box places the item at `block` with `behavior`,
+as a reading region does, and the boxes inside it reveal it nearest at once. Unlike
+native `Element.scrollIntoView`, it stays inside a live sample. Use it only for a
+deliberate move; focusing a visible control or redrawing keeps the scroll.
+
+`scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
+to the page's `document.scrollingElement`. A widget that keeps something in view as
+another widget moves, as `lf-code` keeps the line a film runs, passes the first as
+`within` unless it is the page, so the page stays where the reader left it. It,
+`alreadyShown` and `onUserInput` ([module-input.md](module-input.md)), which says when
+the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
-To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
-available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
-readers before that position paints, including writes during resize delivery. Smooth
-scrolling reports its positions through the browser's scroll events.
+To set a box's scroll position, call the browser's own
+`box.scrollTo({top, left, behavior: "instant"})`. Leaf hears that write as it is made,
+and updates its scroll readers before the position paints, including a write during
+resize delivery. Say the `behavior`: left out, the box's `scroll-behavior` decides,
+which a page may set to smooth, and a smooth scroll reports its positions only through
+the browser's scroll events. A write of the position a box already holds stops a scroll
+the browser is driving there, so a module that may write one, as it restores an offset
+or keeps one box beside another, first asks whether the write would move the box
+(`/runtime/lib/scroll-range.js`).
 
-`scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
-there. `landingInsets(scroller)` is how far a landing keeps from each edge of a
+`landingInsets(scroller)` is how far a landing keeps from each edge of a
 scroller: its `scroll-padding`, and on the document the band Leaf states for its
 chrome, which holds while the user writes in a floating box.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
@@ -185,12 +203,13 @@ an `overflow: hidden` box scrolls away with the page.
 
 ### Headers over the document
 
-`registerRootHeader(header)` contributes the actual border-box height of a header the
-package places over the document. Independent contributions add, and resizing,
-disconnecting and reconnecting the element update the total. Call its returned stop
-when the header becomes local navigation. Only a header over the document belongs
-here: a nested scroller uses the local sticky and landing inputs above. Packages own
-where their headers are positioned; Leaf owns the aggregate root landing inset.
+Mark a header the package places over the document `data-lf-root-header`, and Leaf
+adds its actual border-box height to the root's landing inset while it stands in the
+page with the mark. Independent headers add, and resizing the element, removing it or
+taking its mark off updates the total, so take the mark off when the header becomes
+local navigation. Only a header over the document belongs here: a nested scroller uses
+the local sticky and landing inputs above. Packages own where their headers are
+positioned; Leaf owns the aggregate root landing inset.
 
 ### Sideways scrollers and container queries
 
@@ -222,11 +241,13 @@ the browser's find-in-page does: it opens each closed `<details>` holding it, an
 `beforematch` at each element holding it that is `hidden="until-found"`, then removes
 that attribute. It also opens a closed popover holding the target. A widget that folds
 content hides it with `hidden="until-found"` and opens it on `beforematch`, as `lf-tabs`
-does for a panel, so the browser's find reaches it too. A widget that switches view sets
+does for a panel, so the browser's find reaches it too; print shows it open. Take a
+folded element that is itself a Tab stop out of the Tab order, since the fold hides
+only what it holds. A widget that switches view sets
 `hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
 handler returns; Leaf reads that as a replaced view and places the target at once rather
 than scrolling from the old view's reading position. A widget that keeps the box of
-what it hides, as `lf-visual-review` stacks its cases in one cell, may set
+what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view
@@ -249,29 +270,33 @@ page doesn't show once the handler finishes, Leaf reveals that place and lands t
 Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can animate
 its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
 for less motion, and before `body[data-lf-presented]`; treat that as a finished
-animation. `reducedMotion()`, `scrollBehavior()` and
-`onMotionPreferenceChange(listener)` read the preference where a module must branch on
-it. Animate only to help the eye follow a box from where it was to where it is, and draw
-a result the module already has during the gesture, not after a delay.
+animation. Where a module must branch on the preference itself, as for the `behavior`
+of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
+Animate only to help the eye follow a box from where it was to where it is, and draw a
+result the module already has during the gesture, not after a delay.
 
-A widget removing an item asks `foldDuration()` each time rather than choosing a
-number, and a retained frame returning from an editor to its reading uses the shorter
-`returnDuration()`.
+A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
+than choosing a number, and a retained frame returning from an editor to its reading
+takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
+library (`module-authoring.md`, "Shared web code") reads a token's time in
+milliseconds.
 
-`backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
+`backgroundFlash(element)` gives an element a brief yellow tint that fades to its
 own background, and tints each box inside it that paints a background of its own too.
-`flashDuration()` is how long Leaf's own arrival tint lasts, as on a newly arrived
-message.
+It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
 
 ## Notices and spoken words
 
-`announce(message)` announces words already on screen: it dispatches an `lf-announce`
-event on the window carrying `message` as its `detail`, which Leaf says in its live
-region and a page without Leaf leaves unsaid.
+To announce words already on screen, dispatch an `lf-announce` event on the window
+with the words as its `detail`:
+`window.dispatchEvent(new CustomEvent("lf-announce", { detail: words }))`. Leaf says
+them in its live region, and a page without Leaf leaves them unsaid. Words that read
+the page, as ones naming keys with `saying(rows)` do, are a function returning the
+words, which Leaf reads as it says them.
 
-`raiseError(message)` tells the user a gesture failed, such as a value the server
-refused, and the Leaf panel shows it until they have dealt with it. Its handle's
-`clear()` takes the error down once it no longer holds. Use it for failures only.
+An `lf-error` event, dispatched the same way, tells the user that something they did
+has not taken, such as a value the server refused (`module-plain-elements.md`,
+"`lf-error`").
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and
@@ -282,4 +307,4 @@ without Leaf, whose theme would leave them on screen, writes none. Where a contr
 quiet words are all its face leaves unsaid, its preview reads them alone, as a check's
 verdict; a widget whose quiet words the page shows another way, as a column's head
 shows each cell's run, declares the control's `lfPreview` returning `false`
-(`module-input.md`, "Previews").
+(`module-previews.md`).

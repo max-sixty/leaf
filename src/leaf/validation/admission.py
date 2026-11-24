@@ -28,6 +28,7 @@ from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
+    invoker_errors,
     markup_findings,
     message_settlement_advice,
     reference_errors,
@@ -114,11 +115,16 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
         owed = thread_obligation(events, responses, value)
         if owed is None:
             thread = build_threads(events, {}).get(thread_names(events)[value])
-            resolution = thread["resolved"] if thread else None
-            if resolution is not None and resolution["kind"] == "resolve":
-                actor = "the user" if resolution["author"] == "user" else "the agent"
+            # The agent's resolve answers for its thread, whatever the user closed
+            # after it; the user's settles nothing the agent owes
+            # (`events.owed_turns`).
+            resolution = thread["answered_by"] if thread else None
+            if resolution is not None and (
+                resolution["kind"],
+                resolution["author"],
+            ) == ("resolve", "agent"):
                 return (
-                    f"{held}; {actor} resolved the thread at {resolution['ts']}, "
+                    f"{held}; the agent resolved the thread at {resolution['ts']}, "
                     "so no reply is owed"
                 )
             return (
@@ -340,19 +346,16 @@ def _message_stages(
     yield [Finding("ids-taken", values={"ids": clash})] if clash else []
     logged = sorted(frag.ids & logged_ids(events))
     yield [Finding("ids-taken-by-events", values={"ids": logged})] if logged else []
-    replaced = thread.fragments.get(replacing)
-    standing = thread.ids - replaced.ids if replaced else thread.ids
+    # A reference reads the message's own document and then the page
+    # (`runtime/references.js`), so an id in another message would resolve to nothing.
+    ids = page.ids | frag.ids
     yield reference_errors(
         frag.lf_elements,
         registry,
-        page.ids | standing | frag.ids,
-        {
-            **page.by_id,
-            **{i: r for i, r in thread.by_id.items() if i in standing},
-            **frag.by_id,
-        },
+        ids,
+        {**page.by_id, **frag.by_id},
         thread_ids=thread_ids(events),
-    )
+    ) + invoker_errors(frag, ids)
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.
     looping = sorted(

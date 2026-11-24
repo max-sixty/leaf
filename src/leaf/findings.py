@@ -274,7 +274,6 @@ _DECIDES = "each decision the user makes is recorded and reads back as made"
 _SUGGESTS = "a suggestion the user decides changes exactly the words it shows"
 _REFERS = "each reference a widget makes reaches the element it names"
 _DATA = "each widget reads the data its markup names, in its declared contract"
-_VIEWS = "each view the user moves changes the answer it shows"
 _UNSTYLED = "the page looks as its source says, whatever its threads hold"
 _OPENS = "each live sample opens from the template its id names"
 _LAYS_OUT = "Leaf and the page lay out each allocation as one of the values it takes"
@@ -294,7 +293,6 @@ _SAMPLED = (
     "a live sample opens with its authored history, every event one the log admits"
 )
 _DECLARED = "each widget's declaration means one thing to every part of Leaf"
-_RETRACTS = "every version can take back a decision or report it supersedes"
 _CAPTURED = "each revision draws every file it names, the same wherever it is shown"
 _CONFINED = "no file from outside the page enters a revision or its export"
 _NAMES = "each write acts on the item its id names"
@@ -330,10 +328,7 @@ def _explained(console: list[dict]) -> str:
 
 
 def _visual_problem(problem: dict) -> str:
-    kind = problem["kind"]
-    if kind == "unregistered":
-        return "did not call registerVisualParts"
-    return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
+    return f"named parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
 def _verbatim(at: str, v: dict) -> str:
@@ -474,24 +469,6 @@ def _seat(seat: dict) -> str:
     return (
         f"{seat['document']} <{seat['tag']}> input `{seat['input']}`"
         f" (line {seat['line']})"
-    )
-
-
-def _reference_contract(at: str, v: dict) -> str:
-    expected = ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-    found = (
-        ", ".join(f"{key}={_json(value)}" for key, value in v["found"].items())
-        if v["found"] is not None
-        else "no declaration"
-    )
-    actual = (
-        f"<{v['target_tag']}> has {found}"
-        if v["target_tag"] is not None
-        else "the target is not a registered widget"
-    )
-    return (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
-        f" where {expected}; {actual}"
     )
 
 
@@ -809,6 +786,15 @@ _TEXT = {
         _WORKS,
         lambda at, v: f"widgets rendered with no usable size: {_json(v['boxes'])}",
     ),
+    "unread-commands": _fails(
+        _WORKS,
+        lambda at, v: (
+            f"{at} sets lfCommands, but no lf-commands event from it reached Leaf, so"
+            " its keys bind nothing and the buttons its rows name do nothing; dispatch"
+            " a bubbling, composed lf-commands event on the element once it stands in"
+            " the page (module-plain-elements.md, lf-commands)"
+        ),
+    ),
     "unmarkable": _fails(
         _MARKS,
         lambda at, v: (
@@ -945,15 +931,6 @@ _TEXT = {
             f" {_json(v['covered'])}"
         ),
     ),
-    "under-panel": _fails(
-        _REACHES,
-        lambda at, v: (
-            f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
-            " far the page scrolls, so leave the panel's room, var(--lf-foot-room),"
-            " between the last words and the window's foot (page-authoring.md, \"Style"
-            ' the page")'
-        ),
-    ),
     # What the author decides.
     "unreduced-motion": lambda at, v: (
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
@@ -962,7 +939,7 @@ _TEXT = {
     "uncoloured-code": lambda at, v: (
         f"{at} declares {v['language']}, but no reading face reaches it, so Leaf"
         " leaves its tokens uncoloured; to colour it, set --lf-reading-face: 1 on a"
-        " box around the <pre>, or take the reading theme"
+        " box around the <pre>, or select the reading package"
     ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
@@ -1290,9 +1267,9 @@ _TEXT = {
     ),
     "ungrouped-question": lambda at, v: (
         f"{_line(at, v)}: asks the user, but no group holds its question, so On Me"
-        " names it by the widget's label alone and selects the widget without its"
-        f" premise; write its premise and this widget in {_question_group(v)}, its"
-        " label asking the question"
+        " names it by the widget's label alone and selects only the widget; where"
+        " its premise stands outside it, write that premise and this widget in"
+        f" {_question_group(v)}, its label asking the question"
     ),
     "unnamed-question": _refuses(
         _ASKS,
@@ -1307,20 +1284,20 @@ _TEXT = {
             + " asking the question"
         ),
     ),
-    "repeated-key": _refuses(
-        _DECIDES,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
-            f" {v['first_line']} in the same <{v['scope']}>"
-        ),
-    ),
     "unknown-reference": _refuses(
         _REFERS,
         lambda at, v: (
             f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
         ),
     ),
-    "reference-contract": _refuses(_REFERS, _reference_contract),
+    "work-assignment": _refuses(
+        _REFERS,
+        lambda at, v: (
+            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a goal, but '
+            + (f"<{v['target_tag']}>" if v["target_tag"] else "the element it names")
+            + " has no role goal in $work.widgets"
+        ),
+    ),
     "ambiguous-data-binding": _refuses(
         _DATA,
         lambda at, v: (
@@ -1330,62 +1307,17 @@ _TEXT = {
     "output-contract": _refuses(
         _DATA,
         lambda at, v: (
-            f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
+            f"{_line(at, v)}: input {v['input']!r} reads the one output of"
+            f" {v['target']!r} with contract {v['contract']!r}, and it declares "
+            + (", ".join(repr(name) for name in v["outputs"]) or "none")
         ),
     ),
-    "shows-outside": _refuses(
-        _VIEWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
-            " document; a view shows answers in the page or message it stands in"
-        ),
-    ),
-    "shows-no-answer": _refuses(
-        _VIEWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
-            " view can show: its `awaits` value verb records neither a value nor members"
-            " an `awaits` key names"
-        ),
-    ),
-    "shows-without-open": lambda at, v: (
-        f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
-        f" so none can hold it while {v['target']}'s answer names no value; add a"
-        f" <{v['place']}> without `{v['value_attr']}`"
-    ),
-    "shows-untakeable": lambda at, v: (
-        f"{_line(at, v)}: {v['target']} has no answer {v['value']!r}, which a"
-        f" <{v['place']}> beside it holds, so that <{v['place']}> takes no drop of"
-        " it"
-    ),
-    "shown-elsewhere": lambda at, v: (
-        f"{_line(at, v)}: stands in a <{v['place']}> holding "
-        + (f"{v['stands']!r}" if v["stands"] else "no value")
-        + f", but {v['target']}'s answer is "
-        + (
-            f"{v['answer']!r}, so it moves there when the page draws; move it to the"
-            f" <{v['place']}> whose `{v['value_attr']}` is {v['answer']!r}"
-            if v["answer"]
-            else f"no value, so it moves when the page draws; move it to a"
-            f" <{v['place']}> without `{v['value_attr']}`"
-        )
-    ),
-    "outside-reference": _refuses(
+    "unknown-command": _refuses(
         _REFERS,
         lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
-            " own document, which it fills"
-        ),
-    ),
-    "unowned": lambda at, v: (
-        f"{_line(at, v)}: no <{v['referrer']}> names it in `{v['attr']}`, so"
-        " nothing draws into it"
-    ),
-    "owned-twice": _refuses(
-        _SHOWS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" is already named by'
-            f" {v['first']} (line {v['first_line']}); only one element may name it"
+            f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s'
+            " commands nor a custom command, which starts with --, so the button"
+            " would do nothing"
         ),
     ),
     "nested-suggestion": _refuses(
@@ -1573,6 +1505,25 @@ _TEXT = {
             " must be self-contained"
         )
     ),
+    # Its work role, which `$work.widgets` maps the declaration onto.
+    "work-reference": _declared(
+        lambda v: (
+            f"$work worker assignment `{v['attr']}` must be declared in `refers`"
+            ", as {}"
+        )
+    ),
+    "work-state": _declared(
+        lambda v: (
+            f"$work state `{v['attr']}` must be recorded by a verb with unit widget"
+            " and a value record on it"
+        )
+    ),
+    "work-value": _declared(
+        lambda v: (
+            f"$work {v['key']} lists {_json(v['values'])}, which state attribute"
+            f" `{v['attr']}` does not admit"
+        )
+    ),
     # An element declaration, on its own.
     "invalid-declaration": _declared(
         lambda v: (
@@ -1588,17 +1539,16 @@ _TEXT = {
         lambda v: f"`example` is invalid: {Finding.loads(v['finding']).said}",
         keeps=None,
     ),
-    "markdown-needs-data": _declared(lambda v: "block Markdown requires content: data"),
     "data-input": _declared(
-        lambda v: (
-            "its <pre> is the text of its one input when the markup binds"
-            " none, so content: data takes "
-            + {
-                "inputs": "at most one input",
-                "words": "no input with `text-format`: markdown, whose <pre> is its words",
-                "state": "no input with a body record, whose <pre> is its state",
-            }[v["reason"]]
-        )
+        lambda v: {
+            "inputs": "its <pre> is the text of its `value` input when the markup"
+            " binds none, so content: data takes at most one `value` input",
+            "words": "content: markdown takes no `value` input, since its <pre> is"
+            " its words",
+            "state": "its <pre> is the text of its `value` input when the markup"
+            " binds none, so content: data takes no `value` input with a body"
+            " record, whose <pre> is its state",
+        }[v["reason"]]
     ),
     "requires": _declared(
         lambda v: f"`{v['key']}` requires {v['needs']}: {_plain(v['value'])}"
@@ -1626,14 +1576,6 @@ _TEXT = {
     ),
     "reading-role-attr": _declared(
         lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
-    ),
-    "addressable-id": _declared(
-        lambda v: (
-            f"`{v['key']}` instances are addressable, but the element declaration"
-            " declares no string `id` attribute, so each instance's own id is checked"
-            " where it stands"
-        ),
-        keeps=None,
     ),
     "data-contract": _declared(
         lambda v: (
@@ -1675,29 +1617,9 @@ _TEXT = {
         ),
         keeps=None,
     ),
-    # A relation no declared widget meets: each reference an instance makes is
-    # still held to it (`reference-contract`), so this tells the declaration's
-    # author that every such reference will be refused.
-    "refers-unknown-map": _declared(
-        lambda v: (
-            f"`refers` `{v['attr']}` names unknown registry map {v['via']!r}, so"
-            " every reference an instance makes through it is refused"
-        ),
-        keeps=None,
-    ),
-    "refers-unmatched": _declared(
-        lambda v: (
-            f"`refers` `{v['attr']}` requires {v['via']} where "
-            + ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-            + ", but no declared widget matches, so every reference an instance"
-            " makes through it is refused"
-        ),
-        keeps=None,
-    ),
     "visual-id": _declared(
         lambda v: (
-            "has addressable visual parts but does not require a string `id`"
-            " for their anchor"
+            "has addressable visual parts but does not require an `id` for their anchor"
         )
     ),
     # Its conditions, read against its own attributes.
@@ -1724,18 +1646,6 @@ _TEXT = {
         )
     ),
     # Its interactions: its obligation, and the state its verbs write.
-    "awaits-records": _declared(
-        lambda v: (
-            "`awaits.records` must name an input (`inputs`) whose contract declares"
-            " records and whose binding names only an external source attribute"
-        )
-    ),
-    "answering-record": _declared(
-        lambda v: _answering(
-            v,
-            "must use the same record unit as `awaits.value`, with custom detail and no empty condition",
-        )
-    ),
     "answering-detail": _declared(
         lambda v: _answering(
             v, f"detail condition names an undeclared or invalid field `{v['field']}`"
@@ -1750,23 +1660,6 @@ _TEXT = {
     "awaits-value": _declared(
         lambda v: "`awaits` value must name a user-written verb (`verbs`)"
     ),
-    "awaits-key": _declared(
-        lambda v: (
-            f"`awaits` key `{v['key']}` needs an attribute-record value verb whose"
-            f" members declare `{v['key']}` in `unique` for this widget"
-        )
-    ),
-    "shows-reference": _declared(
-        lambda v: (
-            f"`shows` reference `{v['attr']}` must be a `refers` relation to any element"
-        )
-    ),
-    "shows-value": _declared(
-        lambda v: (
-            f"`shows` value `{v['attr']}` is no attribute of "
-            + ", ".join(f"<{owner}>" for owner in v["owners"])
-        )
-    ),
     "awaits-retired": _declared(
         lambda v: (
             f"`awaits` retires with `{v['flag']}`, but its `when` does not"
@@ -1778,22 +1671,6 @@ _TEXT = {
             f"`awaits` blanket answer `{v['outcome']}` is not an outcome of a"
             " deciding verb that answers its obligation"
         )
-    ),
-    "unoverruled": _declared(
-        lambda v: (
-            "declares agent-written `verbs`"
-            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
-            " version sets to overrule a worker's report"
-        ),
-        keeps=_RETRACTS,
-    ),
-    "unrestated": _declared(
-        lambda v: (
-            "declares user `verbs` on the whole widget but no boolean"
-            " `restated` attribute, which a version sets to retract the user's"
-            " decision"
-        ),
-        keeps=_RETRACTS,
     ),
     "verb-detail-schema": _declared(
         lambda v: (
@@ -1825,9 +1702,6 @@ _TEXT = {
     ),
     "creates-required": _declared(
         lambda v: _created(v, "which must require id and no other authored attributes")
-    ),
-    "creates-id": _declared(
-        lambda v: _created(v, "whose required id must be declared a string")
     ),
     "creates-semantic-owner": _declared(
         lambda v: _created(
@@ -1863,14 +1737,15 @@ _TEXT = {
     ),
     "record-within": _declared(
         lambda v: (
-            f"verb `{v['verb']}` (`verbs`) records a position within unknown"
-            f" widget <{v['within']}>"
+            f"verb `{v['verb']}` (`verbs`) records a position within"
+            f" <{v['within']}>, but a position's container is a declared element"
+            " inside the widget, whose children are the units it orders"
         )
     ),
     "body-content": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) records its body, so content must be"
-            " data; projection states text rather than a prose subtree"
+            " data or markdown; projection states text rather than a prose subtree"
         )
     ),
     "body-nested": _declared(
@@ -2076,7 +1951,8 @@ _TEXT = {
         lambda at, v: (
             f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
             f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
-            " write the page. Use a newer Leaf."
+            " write the page. Use a newer Leaf; in Claude Code, /reload-plugins loads"
+            " the installed copy."
         ),
     ),
     "no-registry": _refuses(
@@ -2175,13 +2051,6 @@ _TEXT = {
         lambda at, v: (
             f"{_invalid_record(v)}position record unit {v['unit']!r} is not owned by"
             f" action widget {v['widget']!r}"
-        ),
-    ),
-    "shown-unit": _refuses(
-        _ADMITS,
-        lambda at, v: (
-            f"{_invalid_record(v)}{v['unit']!r} shows the answer of {v['shows']!r}, which"
-            " decides where it stands; change that answer instead"
         ),
     ),
     "nested-unit": _refuses(
@@ -2445,10 +2314,11 @@ _TEXT = {
         " stays stopped."
     ),
     # `page check`'s advice on a page whose live server runs another Leaf
-    # (`server.another_leaf_serving`).
+    # (`server.other_serving_leaf`), named by the path and commit it records.
     "another-leaf-serving": lambda at, v: (
-        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
-        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f"{v['page']}'s server runs the Leaf at {v['path']}"
+        + (f" ({v['commit']})" if v["commit"] else "")
+        + ", not this one, so the user's tab may not draw what this Leaf checked;"
         f" restart it with `leaf server stop {v['page']}` then"
         f" `leaf server start {v['page']}`"
     ),
@@ -2641,6 +2511,12 @@ _TEXT = {
         f"message {v['message']!r} is folded under summary {v['summary']!r}, which"
         " stands as you wrote it; if this edit changes what it reports, summarize"
         f" {v['from']!r} through {v['through']!r} again with `leaf thread summarize`"
+    ),
+    "stays-closed": lambda at, v: (
+        f"the user resolved thread {v['thread']!r}, so this message went into it"
+        " without bringing it back to their list, which suits the answer or result"
+        f" they asked for; `{v['command']}` brings it back where the message holds"
+        " news they would want to stop and read"
     ),
     "title-kept": lambda at, v: (
         f"the thread is already titled {v['title']!r}, so the reply's title went"

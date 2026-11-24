@@ -392,7 +392,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         held.pop(0).continue_()
         page.evaluate(
             """async () => {
-              const {loadMarkdown} = await window.__lfWidgetApi();
+              const {loadMarkdown} = await import("/runtime/lib/markdown.js");
               await loadMarkdown();
             }"""
         )
@@ -1171,7 +1171,14 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     # document scrolls inside its box, so the card may open over that box or under it.
     # Under it, the card stands a mark's room and a gap clear (`place-clear`).
     reopened = card.bounding_box()
-    clear = page.evaluate("async () => (await window.__lfOverlayApi()).subjectGap()")
+    clear = page.evaluate(
+        """async () => {
+          const {COMMENT_GAP, markRoom, subjectGap} = await window.__lfOverlayApi();
+          const datum = document.querySelector('#source [data-lf-datum]');
+          const box = datum.getBoundingClientRect();
+          return subjectGap(markRoom(datum, box, COMMENT_GAP), 'bottom');
+        }"""
+    )
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
     assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + clear + 2

@@ -44,6 +44,7 @@ from .server import (
     exit_serving_on_signals,
     host_key,
     loopback_only,
+    other_serving_leaf,
     page_access,
     page_origin,
     page_url,
@@ -221,6 +222,12 @@ class LeafHTTPServer:
     samples: dict
 
     def __init__(self, address, endpoint) -> None:
+        # Requests run on a thread pool, and the first to validate imports jsonschema
+        # (`registry/schema.py`). jsonschema's submodules import their package, so one
+        # thread importing the package while another imports a submodule first
+        # deadlocks on CPython's per-module import locks, and that request answers 500.
+        # The server loads the package before any request can.
+        import jsonschema  # noqa: F401
         import uvicorn
 
         from .http import page_app
@@ -785,8 +792,11 @@ def start_server(
     revive: bool = False,
     *,
     harness: Harness | None,
+    deadline: float | None = None,
 ) -> PageStart:
-    """Start or reuse a server for `harness` without acquiring page ownership.
+    """Start or reuse a server for `harness` without acquiring page ownership,
+    refusing a start not ready and confirmed by `deadline`, a `time.monotonic()`
+    reading.
 
     A revival commits only while the desired service remains enabled and
     `harness`'s session still owns it. The detached producer checks those facts
@@ -794,7 +804,7 @@ def start_server(
     the page transition lock. Every revival retains the recorded address.
     """
     with _starting_server(
-        page_dir, host, persistent, revive, harness=harness
+        page_dir, host, persistent, revive, harness=harness, deadline=deadline
     ) as started:
         pass
     return started
@@ -853,28 +863,25 @@ def claim_and_start(
 
 def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     """`leaf server start`: take and serve the page (`claim_and_start`) with this
-    Leaf, restarting at its address a running server another Leaf started.
+    Leaf, restarting at its address a running server another Leaf started
+    (`server.other_serving_leaf`).
 
     A server keeps the Leaf it started under, and markup and layout contracts move
     between commits with no protocol change, so the agent asking to serve a page
     must get the Leaf whose `page check` it read, not one an older session or a
-    deleted checkout left running. Another Leaf is another install or checkout, or
-    this one at another commit (`layer.payload_provenance`). Uncommitted edits don't
-    count, since the record can't say whether they changed after the server started.
+    deleted checkout left running.
 
     Whether this Leaf can serve the page is decided first, as a fresh bind decides
     it (`http.page_endpoint`), so a refusal leaves the page with its owner and the
     other Leaf serving it. The restart is `page init`'s (`restarting_server`), made
     once the page is taken, since a session service comes back only for the
     session holding it; one that can't start again leaves the service enabled and
-    down, for a revival to bring back. Only this command restarts: a hook or watch
-    reviving a page may run an older Leaf than the server it finds."""
-    from .http import page_endpoint
-
-    replacing = _served_by_another_leaf(page_dir)
+    down, for a revival to bring back. A server from an installed copy itself moves
+    to the installed copy its session's hooks run (`server.stop_when_service_ends`);
+    a watch reviving a page restarts nothing."""
+    replacing = other_serving_leaf(page_dir) is not None
     if replacing:
-        with page_locked(page_dir):
-            page_endpoint(page_dir, host_key())
+        check_servable(page_dir)
     with claim_and_start(page_dir, host, persistent) as started:
         pass
     if replacing:
@@ -883,18 +890,60 @@ def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
     return started
 
 
-def _served_by_another_leaf(page_dir: Path) -> bool:
-    """Whether the page's running server records a Leaf other than this one, by
-    path or commit (`start_page`)."""
-    from .layer import payload_provenance
+def check_servable(page_dir: Path) -> None:
+    """Refuse a page this Leaf can't serve, as a fresh bind decides it
+    (`http.page_endpoint`), before a restart takes the page from the Leaf serving
+    it, so a refusal leaves that Leaf serving."""
+    from .http import page_endpoint
 
-    existing = running_server(page_dir)
-    if not existing:
-        return False
-    here = payload_provenance(include_path=True)
-    return any(
-        existing["runtime"].get(key) != here.get(key) for key in ("path", "commit")
-    )
+    with page_locked(page_dir):
+        page_endpoint(page_dir, host_key())
+
+
+def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
+    """`server _follow`: restart at its address, under this Leaf, the server
+    `server_id` names, which another installed copy started and which asked
+    (`server.stop_when_service_ends`): the copy this Leaf replaced at the same path,
+    or one the session holding the page ran before its hooks ran this Leaf.
+
+    The answer through `handshake` says only that this copy runs, since only a
+    failed launch is worth the server's trying again. A page at an older page
+    protocol, as an update can leave it, is renewed first, for the live session
+    holding the page (`vendoring.renew_held`) or while none does
+    (`vendoring.renew_layer`), and what holds the renewal back is queued for that
+    session's next step (`clerk.queue`). After an update in place, no hook runs
+    before this renewal, so the successors of the session's watch and of Codex's
+    adapter read the page once it lands. The renewal restarts the server itself,
+    and takes turns with a hook's renewal of the same page (`vendoring._reinit`).
+
+    Otherwise the restart (`restarting_server`) follows, for the session holding the
+    page, unless the page changed since the server asked: a page this Leaf still
+    can't serve, as one whose renewal was refused, stays with the server serving it
+    (`check_servable`); a server another start put in place, such as a checkout's or
+    a renewal's, keeps running; and a session service whose session has ended
+    retires after its grace, as it would have on the old copy. These checks come
+    last, so that little time passes between them and the stop."""
+    if not handshake.announce():
+        return
+    from .vendoring import renew_held, renew_layer
+
+    held = page_claim(page_dir)
+    if held is None or not claim_is_active(held):
+        renew_layer(page_dir, None, command=False)
+    elif unready := renew_held(page_dir, held["id"]):
+        from .clerk import queue
+
+        queue(held["id"], [str(unready)], wake=True)
+    check_servable(page_dir)
+    running = running_server(page_dir)
+    held = page_claim(page_dir)
+    live = claim_is_active(held)
+    if running is None or running["server_id"] != server_id:
+        return
+    if running["lifetime"] == "session" and not live:
+        return
+    with restarting_server(page_dir, claim_harness(held) if held and live else None):
+        pass
 
 
 class _StopScope(Enum):
@@ -977,7 +1026,9 @@ def cmd_stop(
 
 
 @contextlib.contextmanager
-def restarting_server(page_dir: Path, harness: Harness | None):
+def restarting_server(
+    page_dir: Path, harness: Harness | None, *, deadline: float | None = None
+):
     """Hold a page's service down for the block, and start it again after, for the
     session `harness` names.
 
@@ -1007,8 +1058,9 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     this writes carries a mark of its own, which any other stop replaces, and the
     service is enabled again only while the mark is still there. The start that
     follows is a revival, "only if still enabled", so a stop after that is kept
-    too. A start the server then refuses leaves the service enabled and down, as
-    a dead server is, for a watching `leaf wait` to revive or report. Nothing but
+    too. A start the server then refuses, or one not ready by `deadline`, a
+    `time.monotonic()` reading, leaves the service enabled and down, as a dead
+    server is, for a watching `leaf wait` to revive or report. Nothing but
     this block reads the mark, so one a killed restart leaves behind is inert: the
     next start or stop writes a record without it.
     """
@@ -1055,9 +1107,15 @@ def restarting_server(page_dir: Path, harness: Harness | None):
         note(Finding("stopped-during-init", values={"page": str(page_dir)}))
         return
     try:
-        start_server(page_dir, persistent=persistent, revive=True, harness=harness)
+        start_server(
+            page_dir,
+            persistent=persistent,
+            revive=True,
+            harness=harness,
+            deadline=deadline,
+        )
     except StartRefused as error:
-        raise Refused(f"{page_dir}'s server did not start again: {error}") from error
+        raise Refused(f"the page's server did not start again: {error}") from error
 
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:

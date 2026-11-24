@@ -16,7 +16,7 @@ import {
   presentContributionReceipts,
 } from "./contribution-controls.js";
 import { declareSide } from "./current-target.js";
-import { under } from "./shadow-tree.js";
+import { under } from "./lib/shadow-tree.js";
 import { annotationItems, entryControls } from "./margin-model.js";
 
 /** @typedef {import("./annotation-inventory.js").InventoryEntry} Entry

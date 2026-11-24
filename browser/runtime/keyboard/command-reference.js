@@ -39,7 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
-import { labelWords } from "../words.js";
+import { labelWords } from "../lib/words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
@@ -88,10 +88,12 @@ import {
   currentLocationIn,
   blurFocused,
 } from "../focus.js";
-import { closeControl, offeredAction, searchField } from "../widget-elements.js";
-import { keeps } from "../keeps.js";
-import { renderedOrder } from "../shadow-tree.js";
+import { closeControl, searchField } from "../widget-elements.js";
+import { offeredAction } from "../lib/controls.js";
+import { keeps } from "../lib/keeps.js";
+import { renderedOrder } from "../lib/shadow-tree.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
+import { doorSteps } from "./control-keys.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { EVERYTHING } from "./text-entry.js";
 import { pruneScopedElements, scopeRefs, scopesAt, scopesFor } from "./scopes.js";
@@ -206,13 +208,15 @@ function declaredStack(origin) {
     return id;
   };
   /** @param {Scope} scope @returns {[string | symbol, ReferenceRow][]} */
-  const referenceRows = (scope) =>
-    scope.rows.map((row) => [
+  const referenceRows = (scope) => {
+    const sequence = doorSteps(scope) ?? scope.sequence;
+    return scope.rows.map((row) => [
       referenceIdentity(scope, row),
       // Presentation metadata belongs beside the registered row. Cloning a sequence
       // row loses the identity used by the dispatcher's route-availability snapshot.
-      { row, sequence: scope.sequencePrefix ?? scope.sequence },
+      { row, sequence },
     ]);
+  };
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
       merge(sections, { ...scope, rows: referenceRows(scope) });
@@ -1234,9 +1238,9 @@ registerPageControl({
   label: "Keyboard shortcuts",
   shortcut: ["?"],
   group: "page",
-  press: (held) => {
+  press: async (held) => {
     const door = focused();
-    if (held) returnPlace(held);
+    if (held) await returnPlace(held);
     openReference(door);
   },
 });

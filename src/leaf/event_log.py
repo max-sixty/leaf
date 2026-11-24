@@ -26,6 +26,7 @@ from leaf.state import (
     flocked,
     now_iso,
     replace_bytes,
+    session_record,
 )
 
 
@@ -183,10 +184,30 @@ def start_log(page_dir: Path, events: list[dict] | tuple[dict, ...] = ()) -> Non
     replace_bytes([(page_dir / EVENTS_FILE, stored.encode(), False)])
 
 
+def session_context(session: str | None, claim: dict | None = None) -> dict | None:
+    """Capture native session metadata as it stands at the write boundary."""
+    if session is None:
+        return None
+    from .harness import session_harness
+
+    owner = claim if claim and claim["id"] == session else None
+    writer = session_harness() if owner is None else None
+    lifecycle = session_record(session)
+    return {
+        "harness": owner["harness"]
+        if owner
+        else writer.name
+        if writer and writer.session == session
+        else None,
+        "cwd": owner.get("cwd") if owner else None,
+        "transcript_path": lifecycle.get("transcript_path") if lifecycle else None,
+        "turn": lifecycle["turn"] if lifecycle else None,
+        "provider": lifecycle["provider"] if lifecycle else None,
+    }
+
+
 def append_event(page_dir: Path, event: dict) -> dict:
     # This low-level fixture seam can start a log in an existing directory.
-    from .interaction_log import session_context
-
     log = page_dir / EVENTS_FILE
     with open(log, "a", encoding="utf-8"):
         pass

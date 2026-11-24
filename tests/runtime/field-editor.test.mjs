@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadMarkdown } from "/runtime/markdown.js";
+import { loadMarkdown } from "/runtime/lib/markdown.js";
 import { loadFieldEditor } from "/runtime/composing/field-editor.js";
 import { keymap } from "/vendor/codemirror.esm.js";
 
@@ -345,7 +345,7 @@ function sentBlocks(source, renderMarkdown) {
 }
 
 test("what a draft's keys meant is what its message holds", async () => {
-  const { loadMarkdown, renderMarkdown } = await import("/runtime/markdown.js");
+  const { loadMarkdown, renderMarkdown } = await import("/runtime/lib/markdown.js");
   assert.equal(await loadMarkdown(), true);
   for (const draft of DRAFTS) {
     const steps = keysOf(draft);

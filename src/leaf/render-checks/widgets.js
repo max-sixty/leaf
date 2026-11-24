@@ -1,16 +1,17 @@
-import { inChrome, quoted } from "/runtime/widget-api.js";
+import { inChrome } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
   textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,
+  commandsUnread,
   pageDocument,
   inPage,
   TEXT_BOX,
-  upFrom,
   userScrollport,
   visualPartProblems,
 } from "/runtime/check-api.js";
+import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -224,7 +225,7 @@ export function retiredSlots(holders) {
   };
   for (const h of holders) {
     const el = find(h.id);
-    if (!el || inChrome(el) || quoted(el)) continue;
+    if (!el || inChrome(el) || el.matches("[data-lf-exhibit] *")) continue;
     const mark = el.getAttribute("data-lf-state");
     const at = locate(el);
     if (mark !== (h.outcome ?? null)) {
@@ -457,6 +458,20 @@ export function heldScrollers(tags) {
         });
     }
   return found;
+}
+
+// Each element that holds an `lfCommands` Leaf never read, since no `lf-commands` event
+// reached Leaf from it, as where the element said so before it was placed. Its keys
+// bind nothing and the buttons its rows name do nothing, and nothing else reports it.
+// One walk of the document and every open root.
+export function unreadCommands() {
+  return openRoots(document.documentElement)
+    .flatMap((root) => [
+      ...(root instanceof Element ? [root] : []),
+      ...root.querySelectorAll("*"),
+    ])
+    .filter(commandsUnread)
+    .map((element) => ({ code: "unread-commands", at: locate(element) }));
 }
 
 // Each command in one of `tags`' widgets that declares context keys and no

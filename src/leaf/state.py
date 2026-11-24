@@ -34,7 +34,6 @@ import functools
 import hashlib
 import json
 import os
-import re
 import secrets
 import stat
 import sys
@@ -53,18 +52,37 @@ if TYPE_CHECKING:
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 
-def plugin_cache_copy(root: Path) -> bool:
-    """Whether `root` is a copy Claude Code installed from a marketplace into its
-    plugin cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`, rather
-    than a checkout. Leaf leaves its manifest version unset, so the version
-    component is the source commit's SHA."""
+def installed_copy(root: Path) -> bool:
+    """Whether `root` is a copy of Leaf a harness installed, which only that harness
+    writes, rather than a checkout someone develops in.
+
+    Claude Code and Codex install a plugin from a marketplace into their plugin
+    cache, `<config>/plugins/cache/<marketplace>/leaf/<version>`. Claude Code
+    installs each update as a new copy without `.git`, whose version component is
+    the source commit's SHA, since Leaf leaves its manifest version unset. Codex
+    keeps one clone, at the version `local`, and replaces it in place. Pi clones a
+    git package into `~/.pi/agent/git/<host>/<path>`, or a project's
+    `.pi/git/<host>/<path>`, and resets the clone in place to update it. Where a
+    copy is updated in place, only the commit it holds tells two versions apart
+    (`layer.payload_provenance`)."""
     parents = root.parents
-    return (
+    if (
         len(parents) >= 4
         and root.parent.name == "leaf"
         and parents[2].name == "cache"
         and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", root.name) is not None
+    ):
+        return True
+    return any(
+        directory.name == "git"
+        and (
+            directory.parent.name == ".pi"
+            or (
+                directory.parent.name == "agent"
+                and directory.parent.parent.name == ".pi"
+            )
+        )
+        for directory in parents
     )
 
 
@@ -110,6 +128,8 @@ TOOLS_SUFFIX = "tools"
 # The harness process its Leaf module last ran in, or whose user Leaf told it
 # didn't (`leases.mark_module`).
 MODULE_SUFFIX = "module"
+# The Leaf its hooks last ran and the skill it ships (`leases.mark_skill`).
+SKILL_SUFFIX = "skill"
 # When its tool boundaries last checked its pages' status lines
 # (`hook_transport.status_reminders`), by the file's mtime.
 STATUS_CHECKED_SUFFIX = "status-checked"
@@ -243,6 +263,100 @@ def still_named(held: int, path: Path) -> bool:
         return os.path.samestat(os.fstat(held), os.stat(path))
     except FileNotFoundError:
         return False
+
+
+def hooks_root(session_id: str) -> Path | None:
+    """The root of the Leaf the session's hooks last ran, which each of them records
+    with the skill it ships (`hooks.skill_mark`, `leases.mark_skill`), or None where
+    no hook of the session has run."""
+    try:
+        marked = session_file(session_id, SKILL_SUFFIX).read_text()
+    except FileNotFoundError:
+        return None
+    return Path(marked.rpartition("\n")[0])
+
+
+class LoadedCopy:
+    """The installed copy of Leaf this process loaded, held so that a process that
+    outlives the hooks that start it can tell once another copy should run it: a
+    page server and Codex's delivery adapter ask `successor`, and a watch between
+    turns asks only `replaced`, since a newer watch from the session's copy takes
+    over from it (`session.watch_between_turns`).
+
+    A session runs the Leaf its hooks run (`session-lifetime.md`, "Which Leaf runs
+    a session"), and a harness changes that Leaf in one of two ways. Claude Code
+    installs each update at a new path, as a copy without `.git`, and a process of
+    the session that loads the update runs hooks that record the new path
+    (`hooks_root`). Codex and Pi each keep one clone and update it in place
+    (`installed_copy`), between hooks, so the path the hooks record stays the same.
+    Codex moves the copy aside, renames a new one into its path and deletes the old
+    one. Pi resets the clone to the new commit and then removes every file Git
+    doesn't track (`git clean -fdx`). Either way the copy's environment, the `.venv`
+    its launcher's `uv run` makes, goes once the code beside it has changed. So the
+    holder keeps a descriptor on that environment, which keeps its inode from
+    passing to another directory, and asks each pass whether the environment at the
+    copy's path is still the one it holds, which takes two stat calls (`replaced`).
+    Asking Git which commit the copy holds would take a process each pass, and would
+    answer between Pi's reset and its clean, when a successor's environment would
+    still be deleted.
+
+    Claude Code may delete an old copy while a process still runs it, its
+    environment possibly before its directory, so a process from its copy holds no
+    environment. A process from a checkout follows nothing, since whoever runs it
+    changes it when they choose, and neither does one that finds no environment at
+    its copy's path as it starts."""
+
+    def __init__(self) -> None:
+        self._installed = installed_copy(PLUGIN_ROOT)
+        self._held: int | None = None
+        if self._installed and (PLUGIN_ROOT / ".git").exists():
+            with contextlib.suppress(FileNotFoundError):
+                self._held = os.open(PLUGIN_ROOT / ".venv", os.O_RDONLY)
+
+    def successor(self, session_id: str | None) -> Path | None:
+        """The root of the copy that should now run this process for the session
+        `session_id` names: another installed copy the session's hooks last ran, or
+        else another copy standing at this one's path (`replaced`), or None while
+        this copy stays the session's.
+
+        The maintainer chose that only an installed copy's process follows, and only
+        to an installed copy, so a follow neither replaces a process someone started
+        from a checkout, such as a preview or a trial of a change, nor moves a
+        session's page onto a checkout."""
+        if not self._installed:
+            return None
+        root = hooks_root(session_id) if session_id is not None else None
+        if (
+            root is not None
+            and root != PLUGIN_ROOT
+            and installed_copy(root)
+            and os.access(root / "bin" / "leaf", os.X_OK)
+        ):
+            return root
+        return PLUGIN_ROOT if self.replaced() else None
+
+    def replaced(self) -> bool:
+        """Whether another copy now stands at this copy's path. Between the two
+        renames that replace Codex's copy, none does."""
+        return (
+            self._held is not None
+            and not still_named(self._held, PLUGIN_ROOT / ".venv")
+            and PLUGIN_ROOT.is_dir()
+        )
+
+    def close(self) -> None:
+        if self._held is not None:
+            os.close(self._held)
+            self._held = None
+
+
+class CopyReplaced(Exception):
+    """A watch between turns has found another copy in place of the installed copy
+    it loaded (`LoadedCopy.replaced`), as Pi puts one there when it updates its
+    clone, and has stopped reading pages and let its lease go for that copy's watch
+    to take (`hooks.main`). It is defined here rather than beside the watch so that
+    `hooks.main` catches it without importing the watch, which a hook in a session
+    holding no page never loads."""
 
 
 def now_iso() -> str:
@@ -739,7 +853,8 @@ def close_session_turn(
 ) -> bool:
     """Close the session's turn. `ended_at` is when the harness saw the turn end, in
     POSIX seconds, for a close that reaches here later: a turn a prompt opened or
-    renewed since then is a newer one, which an unnamed close must not end."""
+    renewed since then is a newer one, which an unnamed close must not end, and a
+    turn already closed keeps the close it has."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
@@ -747,8 +862,14 @@ def close_session_turn(
             or (expected is not ... and record != expected)
             or (
                 ended_at is not None
-                and record["turn_opened"] is not None
-                and datetime.fromisoformat(record["turn_opened"]).timestamp() > ended_at
+                and (
+                    turn_closed(record)
+                    or (
+                        record["turn_opened"] is not None
+                        and datetime.fromisoformat(record["turn_opened"]).timestamp()
+                        > ended_at
+                    )
+                )
             )
         ):
             return False

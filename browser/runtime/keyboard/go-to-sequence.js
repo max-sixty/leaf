@@ -18,13 +18,15 @@
    edges (navigation.js, `stepReading`); from a focused thread, `g k` and `g j` place
    its card at an edge of the list; `g p` returns focus to the page while leaving open
    surfaces in place. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g M` On Me, `g L` All pages, `g P` the
-   searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
-   panel's view of that name, and `g V` its Versions, through the panel's own doors
-   (`doors`, floating-panel.js), as its marks and menu rows open them. Completing one that
-   opens a surface leaves the user in that surface, whose own Escape step is the way out
-   of it — the same step for a surface the user already had, and none of this sequence's
-   to declare; completing the mnemonic again closes it.
+   global destinations: `g T` Threads, `g M` On Me, `g A` On <agent>, `g L` All pages,
+   `g P` the searchable Page Map and `g V` Versions, and one named view, `g H`, which
+   hides or shows the annotation layer (annotation-layer.js). `g T`, `g M`, `g A` and
+   `g L` open the floating panel's view of that name, and `g V` its Versions, through
+   the panel's own doors (`doors`, floating-panel.js), as its leaf, tabs and menu rows
+   open them.
+   Completing one that opens a surface leaves the user in that surface, whose own Escape
+   step is the way out of it — the same step for a surface the user already had, and
+   none of this sequence's to declare; completing the mnemonic again closes it.
 
    Named destinations contribute complete command rows. Each has an unbound semantic route for the
    command reference and a prefixed keyboard presentation; arming the sequence changes
@@ -51,8 +53,8 @@
    not an Escape rung, because it gives no layer back. The Go-to address states what
    remains open: `g p` returns to the document and keeps the panel's open view.
 
-   A destination declares no way back. `g T`, `g M` and `g L` may exchange one of the
-   panel's views for another, and the surface the user ends in owns the one step that
+   A destination declares no way back. `g T`, `g M`, `g A` and `g L` may exchange one of
+   the panel's views for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
    is not put back; the user reaches it the way they reached it the first time.
@@ -61,7 +63,8 @@
    the hints just painted. */
 import { bindings, commandRun, labelOf, live, nativePress } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { createHintSession, HINT_KEYS, codedHints, renderKeys } from "./hints.js";
+import { createHintSession, HINT_KEYS, codedHints } from "./hints.js";
+import { objectIds } from "../ids.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -70,19 +73,21 @@ import {
 import { html, nothing } from "/runtime/framework.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
-import { actionClass } from "../control-faces.js";
+import { actionClass } from "../lib/control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce } from "../notifications.js";
-import { closestAcross, inPage, pageQueryAll } from "../passages.js";
+import { inPage, pageQueryAll } from "../passages.js";
 
-import { claimsEsc, saying } from "./scopes.js";
+import { claimsEsc } from "./scopes.js";
+import { saying } from "./control-keys.js";
 import { repaint } from "../repaint.js";
 import { landGlides } from "../scrolling.js";
-import { counted } from "../words.js";
+import { counted } from "../lib/words.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -96,9 +101,9 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
  * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
  * @typedef {{id: string, key: string, words: [string, string], matches: (target: TargetMember) => boolean}} TargetFilter
- * `words` names one target it keeps and many, as `counted` takes them (words.js).
+ * `words` names one target it keeps and many, as `counted` takes them (lib/words.js).
  * @typedef {Object} GoToOptions
- * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "leaves">} doors
+ * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "agent" | "leaves">} doors
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
  * @property {() => unknown} openPageMap
  * @property {() => readonly Command[]} directDestinations
@@ -120,13 +125,6 @@ export function createGoToSequence({
   placeThreadEdge,
   stepReading,
 }) {
-  // How a destination in this sequence is written where the sequence itself is not on screen —
-  // a notice naming the way back to a draft that has just gone down, say. Spelled off the
-  // row's own binding, so a rebinding cannot leave a sentence promising the old press.
-  /** @param {Command} row */
-  const formatGoToAddress = (row) =>
-    [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
-
   // ---------- the g sequence: visible page targets ----------
   // These queries declare which page actions join the generated namespace. A link belongs
   // to the authored body, including link apparatus a page widget generated: lf-toc's
@@ -202,6 +200,7 @@ export function createGoToSequence({
       keys: ["Shift+t"],
       title: () => (doors.threads.shows() ? "close Threads" : "Threads"),
       run: () => doors.threads.press(),
+      opens: () => doors.threads.scope,
       when: () => true,
     },
     {
@@ -211,6 +210,17 @@ export function createGoToSequence({
       // the user's rather than closing.
       title: () => (doors.queue.shows() ? "close On Me" : "On Me"),
       run: () => doors.queue.press(),
+      opens: () => doors.queue.scope,
+      when: () => true,
+    },
+    {
+      id: "navigation.panel.agent",
+      keys: ["Shift+a"],
+      // On Me's door turned the other way: A for the agent, whatever its name.
+      title: () =>
+        doors.agent.shows() ? `close ${doors.agent.name()}` : doors.agent.name(),
+      run: () => doors.agent.press(),
+      opens: () => doors.agent.scope,
       when: () => true,
     },
     {
@@ -218,6 +228,7 @@ export function createGoToSequence({
       keys: ["Shift+l"],
       title: () => (doors.leaves.shows() ? "close All pages" : "All pages"),
       run: () => doors.leaves.press(),
+      opens: () => doors.leaves.scope,
       when: () => doors.leaves.shows() || leavesOffered(),
     },
     {
@@ -228,12 +239,6 @@ export function createGoToSequence({
       when: () => true,
     },
   ];
-  // Whether each door's surface stands, by the door's id.
-  const DOOR_STANDS = new Map([
-    ["navigation.panel.threads", () => doors.threads.shows()],
-    ["navigation.panel.queue", () => doors.queue.shows()],
-    ["navigation.panel.leaves", () => doors.leaves.shows()],
-  ]);
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard
   // remain one behavior.
@@ -375,7 +380,9 @@ export function createGoToSequence({
     ...(targetFilter ? [targetFilter.key] : []),
     ...hints.prefix(),
   ];
-  const hintRenderKey = renderKeys();
+  // Lit receives a number for each candidate's row, so an unchanged row keeps its seat,
+  // chip and keycaps across paint-only updates.
+  const hintRenderKey = objectIds();
   /** @param {ReturnType<typeof visibleCandidates>[number]} candidate @param {boolean} current @returns {GoToHintModel} */
   const goToHintModel = (candidate, current) => {
     const steps = [...candidate.code];
@@ -445,7 +452,6 @@ export function createGoToSequence({
     },
     words: {
       describe: (candidate) => `${candidate.kind}, ${candidate.says}`,
-      take: "go there",
       all: "All go-to hints.",
     },
     chrome: hintChrome,
@@ -472,7 +478,8 @@ export function createGoToSequence({
     // to exactly the user who cannot see them.
     hints.arm((found) =>
       announce(
-        `Go to — ${found.length ? `${counted(found.length, "visible target")}; ${hearThem(found.length)}. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+        () =>
+          `Go to — ${found.length ? `${counted(found.length, "visible target")}.` : "No visible targets."} ${saying(GO_TO_SCOPE.rows)}`,
       ),
     );
     repaint();
@@ -493,15 +500,13 @@ export function createGoToSequence({
     const found = hints.narrow();
     announce(
       found.length
-        ? `${counted(found.length, ...visible(chosen))}; ${hearThem(found.length)}.`
+        ? () =>
+            `${counted(found.length, ...visible(chosen))}. ${saying(GO_TO_SCOPE.rows)}`
         : `No visible ${chosen.words[1]}`,
     );
   }
   /** @param {TargetFilter} filter @returns {[string, string]} */
   const visible = ({ words: [one, many] }) => [`visible ${one}`, `visible ${many}`];
-  /** @param {number} count */
-  const hearThem = (count) =>
-    `type a hint or press Tab to hear ${count === 1 ? "it" : "them"}`;
 
   // Hint chips show the eye that the sequence waits for a key. Where none shows, the
   // page's targets or a filter's being out of view, the field says so for as long as
@@ -528,16 +533,15 @@ export function createGoToSequence({
     root: () => document,
     reach: "with g armed",
     sequence: sequenceKeys,
-    sequencePrefix,
     liveInCommandReference: true,
     at: () => goToActive,
     claims: allButCommandReference,
     // Built on first use, after composition supplied the other owners' destination rows.
-    // The door to a surface that stands leads them all: its press closes what the user
-    // stands beside, and a line too narrow for every door keeps that one.
+    // The door whose scope (`opens`) stands leads them all: its press closes what the
+    // user stands beside, and a line too narrow for every door keeps that one.
     get rows() {
       goRows ??= build();
-      const open = goRows.filter((row) => DOOR_STANDS.get(row.id)?.());
+      const open = goRows.filter((row) => row.opens?.()?.at?.());
       return open.length
         ? [...open, ...goRows.filter((row) => !open.includes(row))]
         : goRows;
@@ -727,6 +731,7 @@ export function createGoToSequence({
     title: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),
+    opens: () => GO_TO_SCOPE,
   };
 
   const goToSequenceActive = () => goToActive;
@@ -745,7 +750,6 @@ export function createGoToSequence({
 
   return {
     goToStatus,
-    formatGoToAddress,
     setGoToSequence,
     paintGoToHints: hints.paint,
     goToSequenceActive,

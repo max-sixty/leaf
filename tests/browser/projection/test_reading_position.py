@@ -440,7 +440,8 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     declarations["lf-shadow-reading"]["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
-        """import { once, shadowStage } from "/runtime/widget-api.js";
+        """import { shadowStage } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -839,9 +840,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "description": "A test-owned reading scroller.",
         "attributes": {
             "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-            },
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },

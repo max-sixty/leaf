@@ -1,88 +1,70 @@
-/* A widget that draws what it reads: the one paint route of a `LeafElement`.
+/* A widget that draws what it reads, as a Lit element on the protocol any custom
+   element has with its host: properties in, events out, and nothing asked of Leaf.
 
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
-   into its staged shadow root when the registry declares `shadow`, otherwise the
-   element itself, unless `createRenderRoot()` names a part it generated.
-   `render()` reads whatever it shows through readers: the widget's own reading
-   (`this.reading`, `this.state`), obligations, reports, work, the time (`ago`,
-   `clockValue`), and a bound data source through the property Leaf sets ("Bound
-   values"). Every reader it calls synchronously is
-   tracked by Lit's Preact SignalWatcher. Lit's reactive properties update it too,
-   for state the widget keeps itself. Presentation readiness (`reportsReady`) instead
-   waits once for prerequisites to finish, then requests an unclaimed update: claiming
-   a new presentation for readiness would invalidate the proof it just received.
+   into the element itself, unless `createRenderRoot()` names a part it generated or
+   the class says `static shadow = true`, which draws into an open shadow root.
+   `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
+   whose tag declares `verbs`, each bound input through the property Leaf sets
+   (element-data.js, "Bound values"), Lit's reactive properties for state the widget
+   keeps itself, and any signal-backed reader, such as obligations, reports, work or
+   the time (`ago`, `clockValue`). Every signal `render()` reads synchronously is
+   tracked by Lit's Preact SignalWatcher, so the element draws again when one moves.
 
-   The element owns one presentation region: its widget's render region when the
-   registry declares it a widget, so startup, thread readers, gesture release and report
-   narration wait on it as they did on the controller's, and otherwise a region of its
-   own. A move claims that region synchronously, inside the publication that made it,
-   and the next update that draws settles the claim once all of it, `updated` included,
-   has run; a claim no update can draw yet stays open until one does. An update that
-   throws anywhere settles it with the fail-soft box, which stands at the end of the
-   render root after what the element drew, since a render may paint retained nodes no
-   later draw would make again and nothing drawn moves for it; the next update that
-   draws takes the box away. One no
-   claim waits on, such as a mechanical redraw, reports and shows its failure the same
-   way, and so does a failed preparation (`present()`) or a module's own
-   `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
-   nothing after it. A move draws in the presentation pass the
-   publication starts, parents first and every widget before the document-wide renderers
-   (`queueWidgetUpdate`, semantic-state.js): a suggestion measures the slot it folds
-   before the layer marks it retired.
+   What it says to its host, all of it events a plain element could dispatch:
 
-   Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
-   nothing while away. A return requests a Lit update to reconnect its dependencies
-   and draw the current reading; unchanged template parts keep their nodes. It claims
-   its region on every return, so a returning widget never leaves its epoch waiting. A widget whose reading lacks a declared verb, as a revision's
-   replacement does before its document is adopted, draws nothing until it has them all
-   (before the first state read, the authored state supplies every verb); its claim
-   settles with nothing drawn. One bound to a page data source likewise draws nothing
-   until the page has delivered its data (`awaitsData`, data.js), so it never draws the
-   empty reading of a source nobody has read yet; the theme's first-paint box stands
-   until then. While its controller's `defer()` holds it, its claim stays
-   open; the release draws the newest reading at once, changed or not, since the gesture
-   may have rewritten its nodes. An update's claim settles once `updateComplete` does,
-   which a widget whose drawing finishes after the render, such as highlighting or a
-   loading frame, extends by overriding `getUpdateComplete`, as any Lit element does;
-   a rejection there is the update's failure. So an element whose tag declares `inputs`
-   holds the page's data version while it stands, until it has drawn what was
-   delivered and finished that drawing. Lit's own completion, without the extension, is
-   what dependent DOM readers wait for (`#committed`).
+   - `lf-connect`, each time it connects, before `setup()`. Leaf answers before the
+     event returns: it dresses the element's open shadow root and makes the sets it
+     can, each bound input and then `state`, so `setup()` reads them. Leaf cancels the
+     event where it will set `state` on the element, and such an element draws nothing
+     until `state` is set: Leaf sets nothing while it waits for a source nobody has
+     read yet or for a revision's replacement to be adopted. An ancestor hears a
+     descendant's `lf-connect` and draws again, since it may own the place of a part a
+     renderer mounted anew.
+   - `pending-task`, once for each update Lit schedules, made in the stack that asked
+     for the update, with a promise that settles once `updateComplete` has: the page
+     reads as presented only after the draw, and a set Leaf makes holds its claim on
+     the drawing the set started. A widget whose drawing finishes after the render,
+     such as highlighting or a loading frame, extends that by overriding
+     `getUpdateComplete`, as any Lit element does.
+   - `lf-commands`, after each draw, at its render root: the render may have changed
+     what the keys declared in what it drew read from those nodes. A draw leaves what
+     the page wrote beside a part it draws into as it was, such as a tab set's panels,
+     so their keys aren't read again.
+   - `lf-hold`, as `defer()` starts, with a promise that settles as the hold ends.
+     A set Leaf makes meanwhile is not drawn, so the page counts it as presented only
+     once the hold has ended and the release has drawn; and the gesture rewrote the
+     element's nodes outside any draw, so Leaf reads the document again then.
+   - `error`, for an update that throws anywhere (`failSoft`, widget-upgrade.js). The
+     fail-soft box stands at the end of the render root after what the element drew,
+     since a render may paint retained nodes no later draw would make again and nothing
+     drawn moves for it; the next update that draws takes the box away. A `setup()`
+     that throws shows its failure, and the element draws nothing after it.
+   - `lf-action` and `lf-undo`, through `record()` and `takeBack()`.
+
+   It draws before the caller returns when Leaf sets its `state`, as a plain element
+   draws in its setter, so a document-wide renderer that reads its nodes next finds
+   them drawn. Every other update, its first, a signal or a reactive property moving, a
+   return, an input Leaf set, runs on Lit's schedule.
+   It draws nothing while away; a return requests a Lit update to reconnect its
+   dependencies and draw the current reading, and unchanged template parts keep their
+   nodes. While `defer()` holds it, it draws nothing; the release draws the newest
+   reading at once, changed or not, since the gesture may have rewritten its nodes.
    `setup()` runs once, on the first connection, before the first render.
 
-   The element loads in an ordinary document without Leaf's page owners. Leaf installs
-   its presentation, command and data capabilities through element-integration.js;
-   outside that host updates use Lit's schedule, with no page claims or bound delivery.
-
-   Leaf's bound-value integration lives in element-data.js. It initializes authored
-   inputs before setup, delivers values before the update gate, and stamps the marks
-   a widget reports through its ordinary `drawn` event. Objects and primitives keep
-   the snapshot that supplied the drawing, including one completed after a newer
-   delivery. This lifecycle owns when those operations run, not their data meaning. */
+   Off a Leaf page nobody answers `lf-connect` or hears the rest, so `state` stays
+   undefined and the element draws what its markup and its own properties give it. */
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import {
+  COMMANDS,
+  CONNECT,
+  HoldEvent,
+  PendingTaskEvent,
   failSoft,
-  failSoftUnreported,
-  inWindowDocument,
-  once,
   placesFailure,
-  reportFailure,
 } from "./widget-upgrade.js";
-import { watchOwner } from "./arrivals.js";
-import { adoptShadowStage } from "./shadow-stage.js";
-
-// Leaf installs its page capabilities before widgets upgrade. Without a page host,
-// the same lifecycle follows Lit's native schedule and reports ordinary drawn events;
-// there is no page presentation region or data delivery to join.
-/** @type {typeof import("./element-integration.js").elementIntegration | null} */
-let integration = null;
-/** @param {typeof import("./element-integration.js").elementIntegration} host */
-export function installElementIntegration(host) {
-  integration = host;
-}
-
-let regions = 0;
+import { inWindowDocument, once } from "./lib/once.js";
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.
 class UpdateBoundary extends LitElement {
@@ -99,138 +81,132 @@ class UpdateBoundary extends LitElement {
   }
 }
 
+/** @typedef {ReturnType<typeof import("./widget-controller.js").widgetState>} WidgetState */
+
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
+  /** Whether the element draws into an open shadow root of its own. */
+  static shadow = false;
+
   /** @type {{error?: unknown}} */
   #signalError = {};
-  /** @type {(() => void) | null} */
-  #stopReadiness = null;
   /** @param {unknown} error */
   signalUpdateFailed(error) {
     this.#signalError.error = error;
+  }
+
+  /** @type {WidgetState | undefined} */
+  #state;
+  // A host answered `lf-connect`: it sets `state`, and nothing draws before it has.
+  #hosted = false;
+  // It has been through its first update: from here a `state` Leaf sets is drawn at
+  // once.
+  #ready = false;
+  // The hold a gesture has on drawing, settled as it releases.
+  /** @type {PromiseWithResolvers<void> | null} */
+  #hold = null;
+  // The update Lit has pending is already announced.
+  #announced = false;
+  #updating = false;
+  // The fail-soft box standing until the next update that draws; a `setup()` that threw
+  // leaves the element broken, drawing nothing.
+  /** @type {HTMLElement | null} */
+  #box = null;
+  #broken = false;
+
+  /** The widget's reading as Leaf set it (`module-plain-elements.md`, "`state`"):
+   *  each declared verb's state with every admitted and unresolved record folded in,
+   *  whether the user may act on it now (`available`), and whether `takeBack` would
+   *  take its action in force back (`undoable`). An element whose tag declares no verb
+   *  holds an empty one once Leaf has set its inputs. Undefined where no host set it:
+   *  off a Leaf page, and for a widget the page did not capture, such as one with no
+   *  id.
+   *  @returns {WidgetState} */
+  get state() {
+    return /** @type {WidgetState} */ (this.#state);
+  }
+  /** @param {WidgetState | undefined} value */
+  set state(value) {
+    const old = this.#state;
+    this.#state = value;
+    this.requestUpdate("state", old);
+    this.#drawNow();
   }
 
   /** @param {Parameters<LitElement["requestUpdate"]>} args */
   requestUpdate(...args) {
     const wasPending = this.isUpdatePending;
     const result = super.requestUpdate(...args);
-    // Lit owns change detection and coalescing. A request made during render can
-    // belong to the active update; one made after Lit clears its pending flag, as
-    // in updated(), schedules a new update and needs its own claim. The first
-    // constructor request precedes this class's private fields.
-    if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
-      untracked(() => {
-        if (this.#connected && this.#region && !this.#ticket)
-          this.#ticket = this.#claim(this.#region);
-      });
+    // Lit owns change detection and coalescing. A request made during render belongs
+    // to the active update; one made after Lit clears its pending flag, as in
+    // updated(), schedules a new update, announced in its turn. Lit's constructor
+    // requests the first update before this class's private fields exist.
+    if (
+      #announced in this &&
+      this.isConnected &&
+      this.isUpdatePending &&
+      (!wasPending || !this.#updating)
+    )
+      this.#announce();
     return result;
   }
 
-  /** Finish this render when its presentation prerequisites are ready. Readiness
-   * does not claim another presentation, which would invalidate its own proof. A plain
-   * host has no page presentation prerequisites to wait for. */
-  /** @param {() => unknown} read */
-  whenReady(read) {
-    if (!integration || untracked(read)) return true;
-    if (!this.#stopReadiness) {
-      this.#stopReadiness = integration.watchPresentation(() => {
-        if (!untracked(read)) return;
-        this.#stopReadiness?.();
-        this.#stopReadiness = null;
-        super.requestUpdate();
-      });
-    }
-    return false;
+  // Tell the host a draw is under way until the update Lit has pending is in. A
+  // failure of that drawing shows and reports here, so the promise only settles.
+  #announce() {
+    if (this.#announced) return;
+    this.#announced = true;
+    untracked(() =>
+      this.dispatchEvent(
+        new PendingTaskEvent(
+          this.updateComplete.then(
+            () => undefined,
+            (error) => failSoft(this, error),
+          ),
+        ),
+      ),
+    );
   }
 
-  /** @type {import("./framework/application.js").WidgetDescriptor | null} */
-  #descriptor = null;
-  /** @type {import("./widget-controller.js").WidgetController | null} */
-  #controller = null;
-  /** @type {string[]} */
-  #verbs = [];
-  /** @type {import("./framework/presentation.js").PresentationHandle | null} */
-  #region = null;
-  /** @type {string | null} */
-  #regionName = null;
-  #connected = false;
-  /** @type {HTMLElement | null} */
-  #connectedParent = null;
-  // The open claim the next update that draws settles.
-  /** @type {import("./framework/presentation.js").PresentationTicket | null} */
-  #ticket = null;
-  #held = false;
-  // The fail-soft box standing until the next update that draws; a `setup()` that threw
-  // leaves the element broken, drawing nothing.
-  /** @type {HTMLElement | null} */
-  #box = null;
-  #broken = false;
-  // The claim the update under way draws, settled once `updated` has run too.
-  /** @type {import("./framework/presentation.js").PresentationTicket | null} */
-  #drawing = null;
-  #updating = false;
-  /** @type {(() => unknown) | null} */
-  #leaveData = null;
-  /** @type {Promise<void> | null} */
-  #scheduled = null;
-  /** @type {import("./element-data.js").ElementData | null} */
-  #data = null;
+  // Draw the pending update before the caller returns.
+  #drawNow() {
+    if (!this.#ready || !this.isConnected || this.#updating || !this.isUpdatePending)
+      return;
+    this.#announce();
+    this.performUpdate();
+  }
 
   /** @returns {HTMLElement | DocumentFragment} */
   createRenderRoot() {
-    if (!integration?.shadows(this)) return this;
-    const root = super.createRenderRoot();
-    if (!(root instanceof ShadowRoot))
-      throw new Error("A shadow widget needs a shadow render root");
-    return adoptShadowStage(root);
-  }
-
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-
-  // Lit's own completion of the update's DOM, without the drawing a widget's
-  // `getUpdateComplete` adds: what a nested widget or a document renderer waits for
-  // is the committed DOM, never the widget's later preparation.
-  #committed() {
-    return super.getUpdateComplete();
-  }
-
-  #queueUpdate() {
-    if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = integration?.queueWidgetUpdate(
-      this.#descriptor.id,
-      () => {
-        if (this.#scheduled !== scheduled) return;
-        this.#scheduled = null;
-        return super.scheduleUpdate();
-      },
-      () => this.#committed(),
-    );
-    this.#scheduled = scheduled ?? null;
-    return scheduled;
+    return /** @type {typeof LeafElement} */ (this.constructor).shadow
+      ? super.createRenderRoot()
+      : this;
   }
 
   connectedCallback() {
-    // A copy connected in another document neither sets up nor draws (widget-upgrade.js).
+    // A copy connected in another document neither sets up nor draws (lib/once.js).
     if (!inWindowDocument(this)) return;
-    if (once(this)) this.#setup();
-    super.connectedCallback();
+    // A paint that mounts the element connects it inside that paint, and what the
+    // element reads to connect is its own to follow, never that paint's.
+    untracked(() => {
+      const first = once(this);
+      // A shadow root exists before the host is asked, so the host can dress it.
+      if (first && /** @type {typeof LeafElement} */ (this.constructor).shadow)
+        Object.assign(this, { renderRoot: this.createRenderRoot() });
+      const answered = !this.dispatchEvent(
+        new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
+      );
+      this.#hosted ||= answered;
+      if (first) this.#setup();
+      super.connectedCallback();
+    });
   }
 
   #setup() {
-    this.#descriptor = integration?.widgetDescriptor(this) ?? null;
-    if (this.#descriptor) {
-      this.#controller = integration?.widgetController(this) ?? null;
-      integration?.drawsItself(this, {
-        hold: () => this.#hold(),
-        refresh: () => this.#refresh(),
-      });
-      this.#verbs = Object.keys(this.#descriptor.declaration.verbs ?? {});
-    }
-    this.#regionName = this.#descriptor
-      ? null
-      : `element:${this.localName}#${this.id}:${++regions}`;
-    this.#data = integration?.data(this, () => this.#stage()) ?? null;
+    // A listener on a shadow host sees itself as the target of an event from inside
+    // its root, so the element that connected is read off the path.
+    this.addEventListener(CONNECT, (event) => {
+      if (event.composedPath()[0] !== this && this.hasUpdated) this.requestUpdate();
+    });
     placesFailure(this, (box) => {
       const root = this.renderRoot ?? this;
       // A widget showing a shadow stage over its host shows the box as that stage,
@@ -246,91 +222,80 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       return true;
     });
     try {
-      this.#data?.initialize();
       this.setup();
     } catch (error) {
       this.#broken = true;
       failSoft(this, error);
     }
-    // The element is an owner of its own: a paint that mounts it connects it inside that
-    // paint, and what it reads to connect is its own to follow, never that paint's.
-    watchOwner(this, {
-      connect: () => untracked(() => this.#connect()),
-      disconnect: () => this.#disconnect(),
-    });
   }
 
   /** The module's one-time build, on the first connection, before the first render. */
   setup() {}
 
-  /** The widget's complete reading (`widgetController(this).read()`), collected; null
-   *  for an element the registry does not declare a widget, such as a quoted one. */
-  get reading() {
-    return this.#controller?.read() ?? null;
+  /** Record an action of the widget's own: an `lf-action` event Leaf sends, after
+   *  which `this.state` already shows the result. Returns the event's `delivery`, a
+   *  promise of the event the server admitted, or of `null` once it refuses and Leaf
+   *  has set the server's state again; `null` at once where nothing records the
+   *  action, as off a Leaf page or while it is not `available`. `attempt` names the
+   *  draft the words were written in (`sendDraft`).
+   *  @param {string} verb @param {Record<string, unknown>} detail
+   *  @param {{says?: string, attempt?: string | null | undefined}} [options]
+   *  @returns {Promise<unknown> | null} */
+  record(verb, detail, { says, attempt } = {}) {
+    return this.#send("lf-action", {
+      verb,
+      detail,
+      ...(says && { says }),
+      ...(attempt && { attempt }),
+    });
   }
 
-  /** The widget's state, with every admitted and unresolved record folded in. */
-  get state() {
-    return this.controller.read().state;
+  /** Take back the action in force for a verb, or for one of its units: an `lf-undo`
+   *  event. Returns as `record` does.
+   *  @param {string} verb @param {string} [unit] */
+  takeBack(verb, unit) {
+    return this.#send("lf-undo", { verb, ...(unit !== undefined && { unit }) });
   }
 
-  /** The widget's controller, for `dispatch` and `present`. */
-  get controller() {
-    if (!this.#controller)
-      throw new Error(`${this.localName} has no authored widget controller`);
-    return this.#controller;
+  /** @param {"lf-action" | "lf-undo"} type @param {Record<string, unknown>} detail
+   *  @returns {Promise<unknown> | null} */
+  #send(type, detail) {
+    const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
+      new CustomEvent(type, { bubbles: true, composed: true, detail })
+    );
+    this.dispatchEvent(event);
+    return event.delivery ?? null;
   }
 
-  /** Hold drawing during a synchronous DOM rewrite, then draw the newest input.
-   * Leaf's controller also invalidates its page reading when the hold ends. */
+  /** Hold drawing through a gesture that rewrites the element's nodes, and return the
+   *  release, which draws the newest reading at once. A second hold is refused, and a
+   *  release acts once. */
   defer() {
-    return this.#controller ? this.#controller.defer() : this.#hold();
-  }
-
-  // The controller's `defer` for this widget, which refuses a second hold and releases
-  // once: hold its presentation through a gesture that rewrites its nodes; the release
-  // draws the newest reading at once.
-  #hold() {
-    if (this.#held) throw new Error("Widget presentation is already deferred");
-    this.#held = true;
-    let released = false;
+    if (this.#hold) throw new Error("Widget presentation is already deferred");
+    /** @type {PromiseWithResolvers<void>} */
+    const hold = (this.#hold = Promise.withResolvers());
+    this.dispatchEvent(new HoldEvent(hold.promise));
     return () => {
-      if (released) return;
-      released = true;
-      this.#held = false;
-      this.#refresh();
+      if (this.#hold !== hold) return;
+      this.#hold = null;
+      hold.resolve();
+      if (!this.isConnected) return;
+      this.requestUpdate();
+      this.#drawNow();
     };
-  }
-
-  #complete() {
-    if (!this.#controller) return true;
-    const { state } = this.#controller.read();
-    return this.#verbs.every((verb) => verb in state);
   }
 
   /** @param {Parameters<LitElement["shouldUpdate"]>[0]} changed */
   shouldUpdate(changed) {
-    // A draw queued as the element left waits for its return, whether or not the arrival
-    // batch has told it yet.
-    if (!this.#connected || !this.isConnected) {
-      return false;
-    }
-    if (this.#held) return false;
-    // The claim this update draws, from its gate on; one its own reads claim while it
-    // runs is the next's. Before the first successful draw, Lit can retry a skipped
-    // update without requestUpdate claiming it. Every connected update owns a claim,
-    // including one that draws nothing and settles immediately.
-    this.#drawing = this.#ticket ?? this.#claim(this.#region);
-    this.#ticket = null;
-    if (!this.#draws()) return false;
-    this.#data?.deliver();
+    // A draw queued as the element left waits for its return, which requests another.
+    if (!this.isConnected || this.#hold || !this.#draws()) return false;
     return super.shouldUpdate(changed);
   }
 
-  // Whether the element has a reading to draw: none after a `setup()` that threw,
-  // while its reading lacks a declared verb, or while its data is undelivered.
+  // Whether the element has a reading to draw: none after a `setup()` that threw, or
+  // until the host that answered it has set its `state`.
   #draws() {
-    return !this.#broken && this.#complete() && !this.#data?.awaitsDelivery();
+    return !this.#broken && !(this.#hosted && this.#state === undefined);
   }
 
   /** @param {Parameters<LitElement["update"]>[0]} changed */
@@ -340,51 +305,32 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#box = null;
   }
 
-  // An update settles its claim once all of it has run, `updated` included, and its
-  // `updateComplete` has resolved; one that failed anywhere, its gate and that
-  // completion too, reports once and shows its failure. Lit has marked it done, so the
-  // next move draws again. A draw that `updated` asks for at once, as a module's own
-  // paint may, settles its own claim inside this one; with no claim of its own, its
-  // failure is the enclosing claimed update's.
+  // An update that fails anywhere, its gate and `updated` included, reports once and
+  // shows its failure. Lit has marked it done, so the next move draws again.
   performUpdate() {
-    const outer = this.#drawing;
+    if (!this.isUpdatePending) return;
     const updating = this.#updating;
-    this.#drawing = null;
     this.#updating = true;
+    this.#announced = false;
+    this.#ready = true;
     try {
       const boundary = (this.#signalError = {});
       super.performUpdate();
       if ("error" in boundary) throw boundary.error;
-      this.#settleDrawing();
     } catch (error) {
-      if (outer && !this.#drawing) throw error;
-      this.#failed(error, this.#drawing);
+      failSoft(this, error);
     } finally {
-      this.#drawing = outer;
       this.#updating = updating;
     }
   }
 
-  #settleDrawing() {
-    this.#drawing?.resolve(
-      this.updateComplete.then(
-        () => undefined,
-        (error) => {
-          reportFailure(this, error);
-          throw error;
-        },
-      ),
-    );
-  }
-
-  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
-   *  failure thrown rather than shown: the render check's replay
-   *  (render-checks/replay.js), which holds a draw of the same reading to change
-   *  nothing. `updated()` does not run, since what follows a draw may start
-   *  preparation that would claim the widget's presentation and land after the check
-   *  reads the page. An update Lit has queued stays queued, with its claim. An element
-   *  with no reading to draw draws nothing here either, so one whose `setup()` threw
-   *  keeps showing that failure. */
+  /** The render drawn again at once, outside Lit's own schedule, with a failure thrown
+   *  rather than shown: the render check's replay (render-checks/replay.js), which
+   *  reads this method off any element that has one and holds a draw of the same
+   *  reading to change nothing. `updated()` does not run, since what follows a draw
+   *  may start preparation that would land after the check reads the page. An update
+   *  Lit has queued stays queued. An element with no reading to draw draws nothing
+   *  here either, so one whose `setup()` threw keeps showing that failure. */
   redraw() {
     if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
   }
@@ -392,78 +338,15 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** @param {Parameters<LitElement["updated"]>[0]} changed */
   updated(changed) {
     super.updated(changed);
-    // The render may have changed what this widget's commands read from the nodes it
-    // drew, which are its render root's: the element itself, its shadow tree, or the
-    // part it draws into, as a tab set's strip, whose paint reaches the element around
-    // it too. A draw leaves what the page wrote beside that part as it was, such as a
-    // tab set's panels, so their keys aren't read again: reading every panel's
-    // document would hold up each tab switch on a page of large panels.
-    untracked(() => integration?.paintKeysWithin(this.renderRoot));
-  }
-
-  // Every failure is reported here, naming the widget; a claim's rejection then shows
-  // the box through the coordinator's fallback, which reports nothing again.
-  /** @param {unknown} error @param {import("./framework/presentation.js").PresentationTicket | null} ticket */
-  #failed(error, ticket) {
-    if (!ticket) return failSoft(this, error);
-    reportFailure(this, error);
-    ticket.reject(error);
-  }
-
-  // A claim on the region for the reading as it stands, which a failure settles with
-  // the fail-soft box.
-  /** @param {import("./framework/presentation.js").PresentationHandle | null} [region] */
-  #claim(region = this.#region) {
-    return region?.present((reason) => failSoftUnreported(this, reason)) ?? null;
-  }
-
-  // Claim the region for a reading that draws later, leaving the claim open.
-  #stage() {
-    if (this.#ticket || !this.#region) return;
-    this.#ticket = this.#claim(this.#region);
-  }
-
-  // Claim the region for the reading as it stands, and draw it on the next update; a
-  // claim the next update cannot draw stays open until one does.
-  #present({ now = false } = {}) {
-    this.#ticket = this.#claim();
-    if (this.#held) return;
-    this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
-  }
-
-  #refresh() {
-    if (this.#connected) this.#present({ now: true });
-  }
-
-  #connect() {
-    this.#connected = true;
-    const name = this.#descriptor
-      ? `widget:${this.#descriptor.id}:render`
-      : (this.#regionName ??= `element:${this.localName}#${this.id}:${++regions}`);
-    this.#region = this.#descriptor
-      ? (integration?.attachWidgetPresentation(this.#descriptor.id, "render") ?? null)
-      : (integration?.attachApplicationPresentation(name) ?? null);
-    const parentChanged = this.#connectedParent !== this.parentElement;
-    this.#connectedParent = this.parentElement;
-    this.#leaveData = this.#data?.connect(name) ?? null;
-    this.#present();
-    if (this.#descriptor)
-      integration?.widgetMounted(this, this.#descriptor, parentChanged);
-  }
-
-  #disconnect() {
-    this.#connected = false;
-    const region = this.#region;
-    this.#region = null;
-    this.#stopReadiness?.();
-    this.#stopReadiness = null;
-    this.#leaveData?.();
-    this.#leaveData = null;
-    this.#ticket = null;
-    region?.disconnect();
+    const root = this.renderRoot;
+    untracked(() =>
+      (root instanceof Element ? root : this).dispatchEvent(
+        new CustomEvent(COMMANDS, {
+          bubbles: true,
+          composed: true,
+          detail: { within: true },
+        }),
+      ),
+    );
   }
 }

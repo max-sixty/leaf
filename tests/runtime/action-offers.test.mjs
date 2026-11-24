@@ -2,8 +2,7 @@
  * every surface (browser/AGENTS.md, "Controls are few and quiet"). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nameAction } from "/runtime/control-labels.js";
-import { offerAction, offeredAction } from "/runtime/widget-elements.js";
+import { nameAction, offerAction, offeredAction } from "/runtime/lib/controls.js";
 import { html, render } from "/runtime/framework.js";
 
 const symbolOf = (control) =>
@@ -48,7 +47,9 @@ test("a press can't show a symbol without naming one of Leaf's actions", () => {
   assert.throws(() => offerAction("symbol", "", "Retry"), /names the action/);
   assert.throws(
     () => offerAction("symbol", "", undefined, { action: "spin" }),
-    /Unknown Leaf action/,
+    // The refusal names the choices, so a module that guessed a name finds the one
+    // it meant.
+    /Unknown Leaf action: spin\. Leaf's actions are accept, .*\bretry\b/,
   );
   assert.throws(
     () => offerAction("word", "", "Go", { action: "next" }),

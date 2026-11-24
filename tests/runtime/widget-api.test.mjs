@@ -1,6 +1,11 @@
 /* Every export of widget-api.js is a supported package capability. These checks
    keep that surface and its authoring references together. The module loader,
-   exercised by browser tests, owns whether a package's imports actually exist. */
+   exercised by browser tests, owns whether a package's imports actually exist.
+
+   The library of shared web code (browser/runtime/lib/) is not part of that surface:
+   each module documents itself, and the references name only its directory. The one
+   check here holds the list that admits a package's import of a library module to
+   the directory. */
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -119,6 +124,21 @@ function runtimeNames() {
   }
   return { exports, members };
 }
+
+test("a page or package may import every module of the library", () => {
+  const kernel = JSON.parse(read(join(ROOT, "browser/runtime/kernel-registry.json")));
+  const library = "/runtime/lib/";
+  assert.deepEqual(
+    kernel["$public-modules"].paths
+      .filter((path) => path.startsWith(library))
+      .toSorted(),
+    readdirSync(join(ROOT, "browser/runtime/lib"))
+      .filter((name) => name.endsWith(".js"))
+      .map((name) => library + name)
+      .toSorted(),
+    "`$public-modules` in kernel-registry.json lists exactly the modules of browser/runtime/lib/",
+  );
+});
 
 test("every public export is documented in the module references", () => {
   const names = documented(referenceCode());

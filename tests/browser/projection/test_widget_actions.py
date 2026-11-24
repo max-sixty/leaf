@@ -43,7 +43,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import open_panel_thread
+from browser.threads import choose_threads_in_panel, open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
@@ -74,9 +74,7 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "phase": {"enum": ["closed", "open"]},
-                "restated": {"type": "boolean"},
             },
             "required": ["id", "phase"],
             "additionalProperties": False,
@@ -104,7 +102,8 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-conditional", class extends LeafElement {
   render() { keeps(this, "phase", this.state.phase.value); }
 });
@@ -201,7 +200,8 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-tally", class extends LeafElement {
   render() {
     const { state } = this;
@@ -272,7 +272,8 @@ customElements.define("lf-owner", class extends LeafElement {
 
 LEAF_PIECE = """\
 import { nothing } from "/vendor/lit.js";
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-piece", class extends LeafElement {
   render() {
     keeps(this, "pinned", this.state.move.value);
@@ -333,7 +334,8 @@ def test_lit_parent_moves_before_controller_members_render_selection(
         'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
     )
     (package / "widgets/lf-zone.js").write_text("""\
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-zone", class extends LeafElement {
   render() {
     for (const piece of this.querySelectorAll("lf-piece"))
@@ -401,7 +403,6 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece["owners"] = ["lf-zone"]
     piece["attributes"]["properties"] |= {
         "pinned": {"type": "string"},
-        "restated": {"type": "boolean"},
     }
     piece["attributes"].setdefault("required", []).append("pinned")
     piece["verbs"] = {
@@ -732,6 +733,8 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    # Beside its passage again, where the comment's box becomes its card on Send.
+    choose_threads_in_panel(page, on=False)
 
     page.evaluate("""() => {
         const range = document.createRange();

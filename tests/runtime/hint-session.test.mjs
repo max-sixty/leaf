@@ -14,9 +14,10 @@ import test from "node:test";
 
 import { createHintSession, codedHints } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
+import { commandScope, keys } from "/runtime/keyboard/scopes.js";
 import { liveEl } from "/runtime/notifications.js";
 import { mountRepaint } from "/runtime/repaint.js";
-import { nextRender } from "/runtime/rendering.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
 import { html } from "/runtime/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
@@ -100,17 +101,24 @@ function hintMap(t, names) {
     take: (candidate) => taken.push(candidate.name),
     words: {
       describe: (candidate) => `Link, ${candidate.name}`,
-      take: "go there",
       all: "All hints.",
     },
     chrome: { barriers: () => barriers },
   });
   session.mount();
   const [walk, choose] = session.walkRows({
-    id: `hint-session-${sessions}`,
+    id: "fixture.hint",
     choose: { title: "go there", description: "Go to the heard target" },
   });
+  // The rows answer where the user is, as a caller's scope puts them, so a heard target
+  // says the key that takes it.
+  const owner = document.createElement("div");
+  owner.tabIndex = -1;
+  document.body.append(owner);
+  keys(owner, commandScope("Hints", [walk, choose]));
+  owner.focus();
   t.after(() => {
+    owner.remove();
     session.disarm();
     layer.remove();
     for (const node of links.values()) node.remove();
@@ -203,15 +211,15 @@ test("Tab and Shift+Tab walk the map aloud, round from either end, and Enter tak
   assert.equal(map.canChoose(), false, "Enter is offered before anything is heard");
 
   map.tab();
-  assert.equal(map.heard(), "Hint a: Link, one. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint a: Link, one. Enter go there");
   map.session.paint();
   assert.equal(map.current(), "a");
   map.tab();
-  assert.equal(map.heard(), "Hint s: Link, two. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint s: Link, two. Enter go there");
   map.tab();
-  assert.equal(map.heard(), "Hint a: Link, one. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint a: Link, one. Enter go there");
   map.shiftTab();
-  assert.equal(map.heard(), "Hint s: Link, two. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint s: Link, two. Enter go there");
   map.session.paint();
   assert.equal(map.current(), "s");
 
@@ -224,9 +232,9 @@ test("a walk begun with Shift+Tab starts at the last target and walks back", (t)
   const map = hintMap(t, ["one", "two", "three"]);
   map.session.arm();
   map.shiftTab();
-  assert.equal(map.heard(), "Hint d: Link, three. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint d: Link, three. Enter go there");
   map.shiftTab();
-  assert.equal(map.heard(), "Hint s: Link, two. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint s: Link, two. Enter go there");
 });
 
 test("a typed letter puts the walk back at the head of what it leaves", (t) => {
@@ -236,7 +244,7 @@ test("a typed letter puts the walk back at the head of what it leaves", (t) => {
   map.session.type("d");
   assert.equal(map.canChoose(), false);
   map.tab();
-  assert.equal(map.heard(), "Hint da: Link, three. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint da: Link, three. Enter go there");
 });
 
 test("a target that left the scene is not taken by its stale code", (t) => {
@@ -361,7 +369,7 @@ test("without character routes the chips go, and the walk and Enter remain", (t)
   assert.deepEqual(map.shown(), []);
 
   map.tab();
-  assert.equal(map.heard(), "Link, one. Press Enter to go there.");
+  assert.equal(map.heard(), "Link, one. Enter go there");
   map.session.paint();
   // The heard target's chip names the key that takes it rather than a code.
   const native = document.querySelector("[data-lf-hint-native]");
@@ -452,7 +460,7 @@ test("a page that moves under the map keeps every letter and the walk", (t) => {
   assert.deepEqual(map.shown(), ["a", "s", "d"]);
   assert.equal(map.current(), "s");
   map.tab();
-  assert.equal(map.heard(), "Hint d: Link, three. Press Enter to go there.");
+  assert.equal(map.heard(), "Hint d: Link, three. Enter go there");
 });
 
 test("a walk redraws the chips it moves between and reads no target's box", (t) => {

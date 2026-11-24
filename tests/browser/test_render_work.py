@@ -101,10 +101,8 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
         "attributes": {
             "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
                 "phase": {"enum": ["blocked", "done"]},
-                "overruled": {"type": "boolean"},
             },
             "required": ["id", "phase"],
             "additionalProperties": False,
@@ -132,7 +130,8 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             }
         },
     }
-    module = """import {LeafElement, keeps} from "/runtime/widget-api.js";
+    module = """import { LeafElement } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-project-milestone", class extends LeafElement {
   render() { keeps(this, "phase", this.state.phase.value); }
 });"""

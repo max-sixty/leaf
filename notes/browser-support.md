@@ -148,21 +148,6 @@ load, until a resize; `lf-options.js` reads computed style only when a surface
 shows an option's consequence for that reason. The test's `firefox_browser` case
 catches a render that splits the row's first layout again.
 
-### A restyle skipped under a nested container in Chromium
-
-Playwright Chromium 153.0.8010.12 left the visual review's case buttons in the
-wide layout's padding (`14px 4px`, not `10px 8px`) when the window crossed the
-review's 58rem container query, while the case list between them was an
-inline-size container, as the theme makes a pane's body. On 2026-10-25,
-narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
-crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/defaults.css` declares `container-type: normal`,
-since nothing in the list queries it. Recheck by deleting that declaration,
-narrowing the page with `leaf-dev probe` and reading a case button's computed
-padding; `test_page_fixture_renders[visual-review-gallery]` in
-`tests/journeys/test_render_gate.py` reads the same difference in its resize
-journey.
-
 ### A recomputed length less a percentage counts as a change in Chromium
 
 Playwright Chromium 158.0.8127.18 (build 1254) counted an inheriting registered
@@ -589,8 +574,8 @@ own; `user-select: all` selected the whole label at once. Chromium 156.0.8078.4
 and Firefox 157.0, build 1555, selected part of the label, a word and the
 paragraph. A drag beginning outside still extends into the button in all three.
 So a control whose label is the page's own words is a span with a role
-(`selectableOffer`, `browser/runtime/widget-elements.js`), and one with a
-button's role takes Enter and Space from `browser/runtime/role-button-press.js`,
+(`selectableOffer`, `browser/runtime/lib/controls.js`), and one with a
+button's role takes Enter and Space from `browser/runtime/lib/role-button-press.js`,
 on a page with Leaf or without it. Recheck with that button and a double click
 on one of its words, reading `getSelection().toString()`.
 
@@ -621,10 +606,16 @@ on screen ran 300 animation frames, one 300 px below the window 1, one in a clos
 `<details>` 1, and a same-origin frame off screen 300; a ResizeObserver attached after
 the first second delivered nothing in either hidden opaque frame. No Chromium switch
 tried lifted it, `--disable-blink-features=RenderingPipelineThrottling` among them.
-Leaf counts what a sample's page does after loading only while its frame shows
-(`browser/runtime/sample.js`), and `page check --render` scrolls each frame still
-waiting into view (`src/leaf/render_checks.py`, `start_near_work`). Recheck with
-`tests/browser/startup/test_hosting.py`,
+Firefox renders such a frame anyway: on 2026-11-22, in Playwright's Firefox 159.0, an
+opaque frame 300 px below the window ran 600 animation frames in 5 s, where Chromium
+159.0.8154.6 ran none. Leaf counts what a sample's page does after loading only while
+its frame shows, except that a block's page counts until it arrives or a deadline
+passes, since its arrival sets the frame's height (`browser/runtime/sample.js`), and
+`page check --render` scrolls each frame still waiting into view
+(`src/leaf/render_checks.py`, `start_near_work`). A sample the reader saw as it started
+holds the page's presentation, or the jump that showed it, only while they still see
+its frame (`packages/default/widgets/lf-sample.js`). Recheck with
+`tests/journeys/startup/test_hosting.py`,
 `test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_it`,
 whose first assertion fails once Chromium draws the chart out of view.
 
@@ -879,8 +870,8 @@ milestone, blocked on bugs 2055371, 2057633 and 2060883.
 
 `anchorBox` in `browser/runtime/css-anchors.js` measures that laid-out box from
 offsets wherever `anchorDropsTransforms()` finds the engine drops transforms, so
-pins, rows, key chips, the design label and floating cards stand on a widened
-table (translated) and on a reveal.js slide (translated and scaled), and the
+pins, rows, key chips, the design label, floating cards and previews stand on a
+widened table (translated) and on a reveal.js slide (translated and scaled), and the
 block controls (`readInsets` in `browser/runtime/block-controls.js`) add the
 size difference to their far edges. An engine that keeps transforms, the
 Nightly pref included, fails that check, and none of this runs. Offsets are
@@ -1003,6 +994,29 @@ scene, as a hint map's, waits until the rendering update after a script's scroll
 (arrivals.js, `scrollDrawn`). Recheck the three calls in
 Chromium; a 90px scroll means the gap has closed, and the matrix's known case
 then passes.
+
+### A fixed box's new default anchor before the next frame in Chromium
+
+A `position: fixed` box whose `position-anchor` changes from one anchor to
+another, under a scrolled page, reads off by that scroll until the next
+rendering update, though Chromium paints it where the new anchor puts it.
+Give a 4000px body two absolutely positioned anchors at `top: 1000px` and
+`top: 1100px`, a fixed box at `top: anchor(top)` naming the first, scroll the
+page 231px, and name the second in an animation frame callback: the box reads
+at 638 in that callback and at 869 in the next frame's, and Chromium's
+layout-shift entry records it moving from 769 straight to 869. That was
+Playwright Chromium 159.0.8154.6 (build 1255) on 2026-11-21. Playwright Firefox
+159.0 (build 1572) reads 869 at once, and both read right at once where the box
+takes an anchor from none, drops one, or changes only its insets.
+
+In Leaf it reaches a floating surface whose placement moves it from one
+anchor's plane to another's (floating.js), such as a thread card that an answer
+grows against a pane's foot. floating.js reads where an answer stands the box
+from the answer (`clientBox`), not off the box. `tests/shift_watch.js` reads the
+box in an animation frame callback, where the offset shows. A CDP screencast of
+such a card showed no frame at the offset spot, so with no user-visible effect
+Leaf leaves the gap. Recheck with the reproduction above; 869 in the switching
+callback means the gap has closed.
 
 ### `calc()` in `overflow-clip-margin` in Chromium
 
@@ -1200,7 +1214,7 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+taken out. The first is Firefox's to change. The eyebrow rules (`reading.css`) now end at an
 `hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
@@ -1229,6 +1243,36 @@ placement stood it; Firefox's blur still leaves focus on `body` after Back.
 and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
+
+### Forward to a same-document entry names no destination in Playwright's Firefox
+
+In Playwright's Firefox 159.0 (build 1572, macOS), after Back from a same-document
+entry a followed fragment link added, `navigation.entries()` no longer lists that
+entry, and Forward to it fires a `traverse` navigate event whose `destination.key` is
+empty and `destination.index` is -1; once applied, `navigation.currentEntry` is null.
+Stock Firefox 160.0 (macOS) and Chromium 156 name the entry. So in the test engine
+`browser/runtime/history.js` finds no working-place checkpoint for Forward: it
+restores only the browser's saved offset and leaves focus on `body`. The entry's URL
+still names the thread view it shows (`?thread=`, `thread/address.js`), so the view
+opens or goes as in Chromium. Observed 2026-11-21 on the installed test engine, and
+2026-11-22 in stock Firefox 160 through Marionette; disposition: recorded, not
+corrected, since no stable release shows it. To recheck, follow a fragment link, go
+Back, and read `destination.key` in Forward's `navigate` event:
+`tests/browser/navigation/test_threads.py::test_back_and_forward_show_the_thread_each_entry_names`
+asserts focus after Forward in Chromium only.
+
+### Firefox drops focus as it applies a same-document traversal
+
+Stock Firefox 160.0 (macOS) blurs the focused element, leaving focus on `body`, as it
+applies a same-document traversal, in the task that fires `popstate`, though Leaf
+intercepts the traversal with `focusReset: "manual"`. Leaf returns the user's place
+before the browser applies the traversal (`history.js`), so after Forward to a
+followed link's target, focus was on `body` rather than on the target, and the next
+command started from the top of the page. Observed 2026-11-22 through Marionette;
+disposition: corrected, since Back and Forward are a path users take often:
+`history.js` puts focus back on the node the return placed it on once the traversal
+has applied. To recheck, log `focusout` during Forward in stock Firefox: a
+`focusout` with no script on its stack just before `popstate` is the drop.
 
 ### Highlight hit testing
 

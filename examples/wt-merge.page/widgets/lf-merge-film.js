@@ -13,28 +13,25 @@
 // runs, so a first look (or a capture) reads the setup at once. Play continues from
 // the displayed moment; Replay restarts a finished film.
 //
-// Every paint dispatches `film-frame` with the chapter, its caption and the run's status,
-// so the page can tell the current step beside the film.
+// Every paint holds the moment it shows in `frame`, the film's declared output (the
+// chapter, its caption and the run's status per step), and says `change`, so the page
+// can tell the current step beside the film; Leaf passes it on only where it differs.
+// A `--seek` command, such as a step button's `commandfor` press, holds the result of
+// the step its button's value names.
 
 import {
   compoundReadingRegionId,
-  generatedElement,
   holdFocus,
-  keeps,
-  keepsHidden,
-  keepsText,
-  layoutChanged,
-  layoutPx,
-  offer,
-  once,
   preserveReadingRegions,
   registerReadingRegion,
-  registerVisualParts,
   scrollIntoView,
   shownWindow,
-  sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
@@ -114,10 +111,20 @@ customElements.define(
         if (e.pointerType !== "touch") this.#inspect(null);
       });
       this.addEventListener("keydown", (e) => this.#key(e));
+      this.addEventListener("command", (e) => {
+        const key = e.source?.value;
+        if (e.command !== "--seek" || this.#film.starts[key] === undefined) return;
+        this.#hold(key);
+        this.#paint();
+        this.#reveal();
+      });
 
-      this.parts = registerVisualParts(this, () =>
-        this.painter.parts().map(({ id, element, label }) => ({ id, element, label })),
-      );
+      this.lfParts = {
+        read: () =>
+          this.painter
+            .parts()
+            .map(({ id, element, label }) => ({ id, element, label })),
+      };
 
       const bar = offer("div", "film-bar");
       this.playBtn = offer("button", "film-play", "Play");
@@ -202,28 +209,18 @@ customElements.define(
       this.settings.append(settingsTitle, flags);
       // The caption and the drawing are the film's words, which a reader can point
       // at; the settings label the run's controls.
-      generatedElement(this.caption, { says: true });
-      generatedElement(stage, { says: true });
-      generatedElement(this.settings, { says: false });
+      for (const words of [this.caption, stage]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
+      keeps(this.settings, "data-lf-gen", "1");
       this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;
     }
 
-    // Dispatch film-frame for the current moment, for a listener that arrived late.
-    announce() {
-      this.#paint();
-    }
-
     seek(t) {
       this.#pauseAt(Math.max(0, Math.min(this.#film.total, t)));
-      this.#paint();
-      this.#reveal();
-    }
-
-    seekChapter(key) {
-      if (this.#film.starts[key] === undefined) return;
-      this.#hold(key);
       this.#paint();
       this.#reveal();
     }
@@ -239,11 +236,11 @@ customElements.define(
       this.#inspect(null);
     }
 
+    // Narrow, the film stands above its steps, so holding a moment brings it into view.
     #reveal() {
-      if (this.hasAttribute("data-phone")) {
-        if (this.settings.open) this.settings.open = false;
-        scrollIntoView(this, { block: "start", behavior: "smooth" });
-      }
+      if (!this.hasAttribute("data-phone")) return;
+      if (this.settings.open) this.settings.open = false;
+      scrollIntoView(this, { block: "start", behavior: "smooth" });
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.
@@ -310,13 +307,13 @@ customElements.define(
       for (const p of parts)
         p.element.classList.toggle("film-picked", p.id === this.#inspected);
       if (!part) {
-        keepsHidden(this.inspector, true);
+        this.inspector.toggleAttribute("hidden", true);
         if (this.#inspected) this.#inspect(null);
         return;
       }
       keepsText(this.inspectorTitle, part.label);
       keepsText(this.inspectorBody, part.info);
-      keepsHidden(this.inspector, false);
+      this.inspector.toggleAttribute("hidden", false);
       const { x, y } = await computePosition(part.element, this.inspector, {
         placement: "right-start",
         middleware: [
@@ -421,7 +418,9 @@ customElements.define(
       if (painter !== this.painter)
         void preserveReadingRegions(this, () => {
           this.#draw(narrow, painter);
-          layoutChanged(this);
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         });
       else this.#draw(narrow, painter);
     }
@@ -464,18 +463,16 @@ customElements.define(
       this.scrub.value = this.#t;
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
-      this.parts.update();
       this.dispatchEvent(
-        new CustomEvent("film-frame", {
-          bubbles: true,
-          detail: {
-            chapter: fr.chapter,
-            caption: fr.caption,
-            captionTone: fr.captionTone,
-            status: this.#film.status,
-          },
-        }),
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
+      this.frame = {
+        chapter: fr.chapter,
+        caption: fr.caption,
+        captionTone: fr.captionTone,
+        status: this.#film.status,
+      };
+      this.dispatchEvent(new Event("change"));
       // The composition replaces controls, so hand the user's place across under
       // the same line identity; the focus owner handles an already-moved user.
       if (

@@ -32,46 +32,30 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
-  DISCLOSE,
-  announce,
   beginWalk,
   failSoft,
-  describeFailure,
-  ensureSyntaxLanguage,
   focusDestination,
-  generated,
-  generatedElement,
   holdFocus,
   inChrome,
-  nameAction,
-  keeps,
-  keepsText,
   langForPath,
-  layoutChanged,
   listWalkPosition,
   move,
-  nextRender,
-  offer,
-  offerAction,
   LeafElement,
   PendingTaskEvent,
-  publishOutput,
   threadSurface,
   releaseOutlets,
-  reportFailure,
   retainUserIntent,
-  scrollBehavior,
   searchField,
   setChildren,
   shadowStage,
-  sizeObserver,
   whileConnected,
   scrollIntoView,
-  layoutPx,
-  focused,
-  currentLocationIn,
-  commandsChanged,
 } from "/runtime/portable-api.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
+import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
+import { describeFailure } from "/runtime/lib/exception.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -247,7 +231,7 @@ function lineNumber(line, canComment) {
   // Two cells, the old file's number and the new file's, as a unified diff reads: one
   // column holding whichever number a row has would mix the two files' counts, which
   // drift apart once a hunk adds or removes lines.
-  generatedElement(number, { says: "echo" });
+  number.toggleAttribute("data-lf-echo", true);
   number.replaceChildren(
     ...[
       line.side === "new" ? "" : line.oldLine,
@@ -320,8 +304,8 @@ function pathTemplate(path) {
 }
 
 // While a file's row cuts its path short, the row's preview is the whole path, which a
-// resting pointer, the keyboard and a held press read (`lfPreview`, module-input.md,
-// "Previews"). A path the row shows whole previews nothing, since it would repeat it.
+// resting pointer, the keyboard and a held press read (`lfPreview`,
+// module-previews.md). A path the row shows whole previews nothing, since it would repeat it.
 // Whether the row cuts the path changes only with the width
 // of a part of it, the folders or the name (at a new window width, face or press beside
 // it), so each part's size is watched rather than polled. A part is cut where its words
@@ -424,7 +408,7 @@ function paintSummary(view, record, verified = true) {
       filePathTemplate(verified ? record : { path }),
     )}${
       verified
-        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
             ><span class="lf-diff-additions">+${additions}</span>${" "}<span
               class="lf-diff-deletions"
               >−${deletions}</span
@@ -458,17 +442,6 @@ function summaryNode(record, open, verified = true) {
   /** @type {TextPresentation} */
   const view = { kind: "text", row: details, details, header: summary };
   paintSummary(view, record, verified);
-  summary.lfCommands = {
-    title: "On a diff",
-    rows: [
-      {
-        id: "diff.toggle",
-        keys: () => DISCLOSE(summary),
-        title: () => `${details.open ? "hide" : "show"} this file`,
-      },
-    ],
-  };
-  commandsChanged(summary);
   paintFileDetails(view, verified ? record : {});
   return view;
 }
@@ -657,7 +630,7 @@ function diffTools(host) {
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
-  generatedElement(progress, { says: false });
+  keeps(progress, "data-lf-gen", "1");
   progress.slot = "end";
   const count = document.createElement("span");
   progress.append(count);
@@ -720,7 +693,7 @@ function paintFileDetails(view, record) {
   if (!evidence) {
     evidence = document.createElement("div");
     evidence.className = "lf-diff-evidence";
-    generatedElement(evidence, { says: false });
+    keeps(evidence, "data-lf-gen", "1");
     header.after(evidence);
   }
   keepsText(evidence, words);
@@ -730,7 +703,7 @@ function paintFileDetails(view, record) {
 function metadataNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-metadata";
-  generatedElement(row, { says: false });
+  keeps(row, "data-lf-gen", "1");
   render(
     html`${filePathTemplate(record)}<span class="lf-diff-stat"
         >${metadataWords(record)}</span
@@ -978,7 +951,7 @@ function fileError(view, error) {
   const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
-  generatedElement(box, { says: false });
+  keeps(box, "data-lf-gen", "1");
   box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
   restore?.(header);
@@ -1116,9 +1089,14 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
+              const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
+              // The box holds its expand-all control, which counts as in the box.
               return (
-                currentLocationIn(this) &&
-                Boolean(search.value || currentLocationIn(search))
+                this.contains(root.activeElement) &&
+                Boolean(
+                  search.value ||
+                  search.contains(this.shadowRoot?.activeElement ?? null),
+                )
               );
             },
             title: () =>
@@ -1138,10 +1116,12 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, (signal) => {
+      whileConnected(this, () => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -1302,7 +1282,7 @@ customElements.define(
               refused: false,
               loading: null,
             });
-            generatedElement(entry.node, { says: false });
+            keeps(entry.node, "data-lf-gen", "1");
             if (entry.kind === "metadata") {
               entry.rendered = null;
               entry.renderKey = null;
@@ -1378,22 +1358,18 @@ customElements.define(
               : operation === "rename"
                 ? "renamed"
                 : null;
-      publishOutput(
-        this,
-        "files",
-        this.fileEntries
-          ? {
-              ...(this.singleFile ? { current: this.activePath } : {}),
-              files: this.fileEntries.map(({ record }) => ({
-                path: record.path,
-                key: diffDatumKey({ path: record.path, file: true }),
-                ...(status(record.operation)
-                  ? { status: status(record.operation) }
-                  : {}),
-              })),
-            }
-          : null,
-      );
+      // The `files` output: held here, and `change` says it moved.
+      this.files = this.fileEntries
+        ? {
+            ...(this.singleFile ? { current: this.activePath } : {}),
+            files: this.fileEntries.map(({ record }) => ({
+              path: record.path,
+              key: diffDatumKey({ path: record.path, file: true }),
+              ...(status(record.operation) ? { status: status(record.operation) } : {}),
+            })),
+          }
+        : null;
+      this.dispatchEvent(new Event("change"));
     }
 
     /** @param {SourceRecord} source @param {string | null | undefined} renderKey @returns {Promise<EntryPreparation>} */
@@ -1535,7 +1511,7 @@ customElements.define(
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
         }`;
-        generatedElement(outlet, { says: false });
+        keeps(outlet, "data-lf-gen", "1");
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
@@ -1635,7 +1611,13 @@ customElements.define(
         paintFileDetails(entry, {});
         if (!entry.details.open) entry.details.open = true;
         if (entry.disclosure) entry.disclosure.open = true;
-        reportFailure(this, prepared.error);
+        this.dispatchEvent(
+          new ErrorEvent("error", {
+            error: prepared.error,
+            bubbles: true,
+            composed: true,
+          }),
+        );
         entry.rendered = null;
         entry.renderKey = null;
         fileError(entry, prepared.error);
@@ -1699,8 +1681,10 @@ customElements.define(
       const coordinate = readDiffCoordinate(key);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      if (this.singleFile) this.selectFile(entry);
-      else if (entry.filtered) this.clearFilter();
+      // Leaf can ask again for a part it has shown, so each step does nothing once done.
+      if (this.singleFile && this.activePath !== entry.record.path)
+        this.selectFile(entry);
+      else if (!this.singleFile && entry.filtered) this.clearFilter();
       if (!entry.details) return null;
       if (!entry.details.open) entry.details.open = true;
       if (entry.loaded || entry.refused) return null;
@@ -1818,7 +1802,9 @@ customElements.define(
       }
       this.markRuns();
       this.refreshDiffTools();
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       threadSurface(this).update();
     }
 
@@ -1864,7 +1850,9 @@ customElements.define(
       keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     // The files the filter shows: all opened while any is closed, and all closed once
@@ -1874,7 +1862,11 @@ customElements.define(
       const open = folds.some((details) => !details.open);
       for (const details of folds) if (details.open !== open) details.open = open;
       this.paintFoldAll();
-      announce(`${open ? "Expanded" : "Collapsed"} all files`);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${open ? "Expanded" : "Collapsed"} all files`,
+        }),
+      );
     }
 
     paintFoldAll() {
@@ -1911,10 +1903,7 @@ customElements.define(
     // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
-      const currentLocation = this.shadowRoot && focused(this.shadowRoot);
-      return currentLocation && this.shadowRoot.contains(currentLocation)
-        ? currentLocation
-        : null;
+      return this.shadowRoot?.activeElement ?? null;
     }
 
     // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -1993,7 +1982,9 @@ customElements.define(
         if (!head) continue;
         this.land(head.node);
         const said = this.markHunkWalk() ?? `Hunk ${head.hunk + 1} of ${heads.length}`;
-        announce(`${said}: ${entry.record.path}`);
+        window.dispatchEvent(
+          new CustomEvent("lf-announce", { detail: `${said}: ${entry.record.path}` }),
+        );
         return;
       }
       this.markHunkWalk();
@@ -2025,7 +2016,11 @@ customElements.define(
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
       const said = this.markFileWalk();
-      announce(said ? `${said}: ${entry.record.path}` : entry.record.path);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: said ? `${said}: ${entry.record.path}` : entry.record.path,
+        }),
+      );
     }
 
     // Arrival: scrolled to the band the document declares landable, which the pinned
@@ -2040,11 +2035,7 @@ customElements.define(
     // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoView(box, {
-        block: "start",
-        behavior: scrollBehavior(),
-        sideways: false,
-      });
+      scrollIntoView(box, { block: "start", behavior: "smooth", sideways: false });
       focusDestination(node, "move");
     }
 

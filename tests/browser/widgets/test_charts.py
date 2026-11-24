@@ -191,7 +191,7 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
     )
     assert (
         page.evaluate(
-            "() => document.querySelectorAll('#c-bars g[data-lf-part=bar]').length"
+            "() => document.querySelectorAll('#c-bars g[data-lf-plot=bar]').length"
         )
         > 0
     )
@@ -282,11 +282,11 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     hangs on the chart, a child of the element, survives it."""
     page = open_page(browser, serve(CHART_PAGE))
     ticks = page.locator(
-        '#c-stack [data-lf-part="y-axis tick label"] text'
+        '#c-stack [data-lf-plot="y-axis tick label"] text'
     ).all_text_contents()
     assert ticks and all(tick.endswith("h") for tick in ticks), ticks
     assert page.evaluate(CHART_MARKS, "c-rows")["room"] > 500
-    expect(page.locator('#c-rows [data-lf-part="x-axis label"]')).to_contain_text(
+    expect(page.locator('#c-rows [data-lf-plot="x-axis label"]')).to_contain_text(
         "open issues"
     )
     before = page.evaluate(CHART_MARKS, "c-bars")
@@ -688,7 +688,7 @@ def waited_out(page):
 
 def column(page, chart, week, height=0.15):
     """A point over `week`'s column of `chart`, `height` of the way down its drawing."""
-    ticks = page.locator(f"#{chart} [data-lf-part='x-axis tick label'] text")
+    ticks = page.locator(f"#{chart} [data-lf-plot='x-axis tick label'] text")
     box = ticks.get_by_text(week, exact=True).bounding_box()
     drawing = page.locator(f"#{chart} svg[role=img]").bounding_box()
     return box["x"] + box["width"] / 2, drawing["y"] + drawing["height"] * height
@@ -946,7 +946,7 @@ def test_a_longer_reading_at_the_next_point_grows_away_from_it(engine, request, 
     chart = page.locator("#titled")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -983,7 +983,7 @@ def test_a_reading_stays_as_the_pointer_crosses_empty_drawing_toward_it(
     chart = page.locator("#titled")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -1051,7 +1051,7 @@ def test_a_finger_that_slides_onto_a_point_after_the_long_press_presses_nothing(
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(leaf_page("titled", TITLED)), context=context)
     preview = page.locator(PREVIEW)
-    dots = page.locator("#titled [data-lf-part=dot] > *")
+    dots = page.locator("#titled [data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     page.evaluate(
         "() => { window.lfClicks = 0;"
@@ -1117,7 +1117,7 @@ def test_a_reading_the_kept_side_cannot_hold_whole_stands_afresh(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => { el.scrollIntoView({block: 'start'}); scrollBy(0, -6); }")
 
@@ -1168,7 +1168,7 @@ def test_the_pointer_reads_the_point_its_preview_stands_over(engine, request, se
     )
     chart = page.locator("#close")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(4)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -1220,7 +1220,7 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1286,7 +1286,7 @@ def test_a_reading_stays_over_words_its_chart_shares_a_box_with(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box_ = dots.nth(1).bounding_box()
@@ -1330,7 +1330,7 @@ def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1376,7 +1376,7 @@ def test_a_card_s_words_beneath_a_reading_reach_the_card(engine, request, serve)
     )
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1428,7 +1428,7 @@ def test_a_reading_keeps_clear_of_the_card_its_chart_stands_in(engine, request, 
     )
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1465,7 +1465,7 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
     )
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     page.locator("#box").evaluate("el => el.scrollIntoView({block: 'center'})")
     box = dots.nth(1).bounding_box()
@@ -1476,7 +1476,7 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
     shown = page.evaluate(
         """() => {
           const box = document.getElementById('box');
-          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          const dot = document.querySelectorAll('#tall [data-lf-plot=dot] > *')[1];
           box.scrollTop += dot.getBoundingClientRect().bottom
             - box.getBoundingClientRect().top + 20;
           const chart = document.getElementById('tall').getBoundingClientRect();
@@ -1510,7 +1510,7 @@ def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    expect(chart.locator("[data-lf-part=dot] > *")).to_have_count(2)
+    expect(chart.locator("[data-lf-plot=dot] > *")).to_have_count(2)
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(chart).to_be_focused()
@@ -1520,7 +1520,7 @@ def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
     page.evaluate(
         """() => {
           const box = document.getElementById('box');
-          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          const dot = document.querySelectorAll('#tall [data-lf-plot=dot] > *')[1];
           box.scrollTop += dot.getBoundingClientRect().bottom
             - box.getBoundingClientRect().top + 20;
         }"""
@@ -1553,7 +1553,7 @@ def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     chart = page.locator("#tall")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
-    dots = chart.locator("[data-lf-part=dot] > *")
+    dots = chart.locator("[data-lf-plot=dot] > *")
     expect(dots).to_have_count(2)
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
 
@@ -1750,7 +1750,7 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
     expect(page.locator("#picked svg[role=img]")).to_be_visible()
     expect(page.locator("#picked title")).to_have_count(0)
     # `tip: true` is Plot's nearest point in both axes, so the pointer comes to the dot.
-    dot = page.locator("#picked [data-lf-part=dot] circle").bounding_box()
+    dot = page.locator("#picked [data-lf-plot=dot] circle").bounding_box()
     page.mouse.move(dot["x"] + 12, dot["y"] + 12)
     page.mouse.move(dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)
     expect(preview).to_be_visible()
@@ -2014,8 +2014,8 @@ POINT_IDS = {
     "p-bins": "point:0;x1=10;y1=0;x2=20;y2=3",
 }
 POINT_SHAPES = {
-    "p-dots": "[data-lf-part=dot] circle",
-    "p-bins": "[data-lf-part=rect] rect",
+    "p-dots": "[data-lf-plot=dot] circle",
+    "p-bins": "[data-lf-plot=rect] rect",
 }
 # Where a chart's point stands in its drawing, from what Plot drew for it: the dot's or
 # bin's middle and box, or the frontend line's second vertex; and the box of the mark
@@ -2029,7 +2029,7 @@ DATUM_AT = """([chart, shapes, index]) => {
     const box = [...svg.querySelectorAll(shapes)][index].getBBox();
     [at, size] = [middle(box), [box.width, box.height]];
   } else {
-    const [, frontend] = svg.querySelectorAll('[data-lf-part=line] path');
+    const [, frontend] = svg.querySelectorAll('[data-lf-plot=line] path');
     at = frontend.getAttribute('d').match(/-?[\\d.]+,-?[\\d.]+/g)[1].split(',').map(Number);
   }
   const marks = [...el.querySelectorAll('.lf-chart-marks > :not(.lf-chart-aim)')];

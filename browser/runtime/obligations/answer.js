@@ -5,16 +5,16 @@
    message an agent sent it in, which keeps it while no drawing of the message shows it
    (thread/messages.js, `messageHolding`), so a choice made in a thread reads the same
    once the thread is put away. */
-import { capitalized, labelWords } from "../words.js";
-import { widgetWord } from "../addressable-names.js";
-import { closestAcross } from "../passages.js";
+import { capitalized, labelWords } from "../lib/words.js";
+import { widgetWord } from "../lib/element-word.js";
 import { addressableAt } from "../thread/messages.js";
 import { perVocabulary, tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
-/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
+/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
 
 const awaitingWidgets = perVocabulary(() =>
   tagsDeclaring((entry) => entry.awaits).join(","),
@@ -51,7 +51,7 @@ export function answerWords(item) {
    itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {
-  if (item.status === "withdrawn") return leafSays("Withdrawn");
+  if (item.outcome === "dropped") return leafSays("Withdrawn");
   const words = answerWords(item);
   return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }

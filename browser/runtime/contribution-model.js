@@ -2,8 +2,8 @@
    ordering and labels without browser dependencies. The browser registry keeps
    command-scope capabilities outside the normalized records. */
 
-import { actionIcon } from "./icon-paths.js";
-import { excerptWords } from "./words.js";
+import { actionIcon } from "./lib/icon-paths.js";
+import { excerptWords } from "./lib/words.js";
 
 const TONES = Object.freeze({ neutral: true, positive: true, negative: true });
 const BEHAVIORS = Object.freeze({ action: true, disclosure: true, status: true });
@@ -102,13 +102,6 @@ const kinds = {
   sent: {
     label: "Queued",
     icon: "sent",
-    priority: 3,
-    indication: true,
-    voice: "leaf",
-  },
-  queued: {
-    label: "Up next",
-    icon: "pickup",
     priority: 3,
     indication: true,
     voice: "leaf",

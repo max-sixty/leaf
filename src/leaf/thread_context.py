@@ -492,9 +492,9 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
     each time a run grows long enough. A fold of progress alone counts too. Its ends
     are messages the thread still says, which a summary's own `from` may no longer
     be once the user took that message back. It is widened over any message it would
-    leave in full above a summary (`_gapless`), so a short stretch a retired summary
-    left above a later one doesn't stop every later hint. The agent chooses the range,
-    and may keep such a message in full where the user still needs its words."""
+    leave in full above a summary (`_gapless`), so a short stretch the agent kept in
+    full above a later summary doesn't stop every later hint. The agent chooses the
+    range, and may keep such a message in full where the user still needs its words."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
     ids = [message["id"] for message in thread["msgs"]]

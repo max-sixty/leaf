@@ -93,14 +93,14 @@
  * minutes on each ⋯.
  *
  * The sheets are the dial's preview, drawn by the dial while Leaf keeps its own preview
- * face unseen (`unseen`, module-input.md, "Previews"). Leaf's preview stands clear of the
+ * face unseen (`unseen`, module-previews.md). Leaf's preview stands clear of the
  * controls on the page, so where a link sat under the dial a chart in it stood beside
  * the dial, away from the buttons it compares; hanging each sheet under its own button
  * is an exception to one preview face the maintainer chose. Leaf still opens and ends
  * the preview on every route, makes it Escape's first step and gives a screen reader
  * each depth's description on focus. A plain click on the dial or an arrow key in its
  * depths, while the sheets hang, aims at the depth it reached, as a chart's key reaching
- * another point does (`previewChanged` with `aim`), so the sheets stay up and the frame
+ * another point does (`lf-preview` with `aim`), so the sheets stay up and the frame
  * can be seen gliding to the depth turned to, the maintainer's choice. Otherwise they go
  * as Leaf's preview goes, a tap on touch included, since a finger that lifted reads no
  * preview. A sheet holds no control, since a preview reads and never
@@ -108,31 +108,24 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  actionClass,
   addressableLabel,
   focusDestination,
-  foldDuration,
   holdPlace,
-  keeps,
-  keepsText,
   LeafElement,
   motion,
   move,
-  nextRender,
-  offer,
-  offerAction,
-  PAGE_INTERFACE,
   phrasing,
   onPress,
-  plainPress,
-  previewChanged,
-  PREVIEW_ENDED,
   readingAt,
-  registerRootHeader,
   shownWindow,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -144,7 +137,7 @@ const DEPTHS = [
 const RANKED = "h1, h2, h3, h4, h5, h6";
 const HEADING = `${RANKED}, hgroup`;
 // What Skim keeps for its own sake; a heading stands for the ones it heads.
-const SUMMARY = ".lede, .gist";
+const SUMMARY = ".lf-lede, .gist";
 // Blocks the dial keeps whole whatever they hold: a table, whose cells stand in its
 // grid, a figure, whose caption labels all it holds, and a disclosure, whose summary is
 // its control.
@@ -158,6 +151,12 @@ const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
+// Whether a press is the primary button with no modifier held, which the dial takes; a
+// modified one keeps its usual meaning.
+/** @param {MouseEvent} event */
+const plainPress = (event) =>
+  event.button === 0 &&
+  !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
 /** @param {Element} heading */
@@ -414,7 +413,7 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
-        depth.addEventListener(PREVIEW_ENDED, this.#ended);
+        depth.addEventListener("lf-preview-ended", this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -434,12 +433,15 @@ customElements.define(
       // as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
-      this.addEventListener(PREVIEW_ENDED, this.#ended);
+      this.addEventListener("lf-preview-ended", this.#ended);
+      // The dial sticks at the window's top while the reader scrolls the page under it,
+      // so landings arrive below it.
+      this.toggleAttribute("data-lf-root-header", true);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
         this.ownerDocument.addEventListener(
-          PAGE_INTERFACE,
+          "lf-page-interface",
           () => {
             this.#sizes = null;
             this.#apply(this.#depth, { moving: false });
@@ -477,13 +479,7 @@ customElements.define(
         );
         const stored = tabStore.get(this.#key);
         if (stored) this.#apply(stored, { moving: false });
-        // The dial sticks at the window's top while the reader scrolls the page under
-        // it, so landings arrive below it.
-        const stopHeader = registerRootHeader(this);
-        return () => {
-          stopHeader();
-          this.#restore();
-        };
+        return () => this.#restore();
       });
     }
 
@@ -524,7 +520,14 @@ customElements.define(
     // glides there with the sheets up (the maintainer's choice).
     /** @param {Element} at */
     #aim(at) {
-      if (this.#pointed) previewChanged(at, { aim: true });
+      if (this.#pointed)
+        at.dispatchEvent(
+          new CustomEvent("lf-preview", {
+            bubbles: true,
+            composed: true,
+            detail: { aim: true },
+          }),
+        );
     }
 
     // Read what pointing at a depth shows, as Leaf's preview of it does.
@@ -985,7 +988,7 @@ customElements.define(
     // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
-      const duration = foldDuration();
+      const duration = motionTime("--lf-motion-fold");
       const window = shownWindow();
       const after = this.#positions(scope);
       for (const [node, top] of after) {

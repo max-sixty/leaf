@@ -69,7 +69,7 @@
       "rules": [
         {
           "id": "place-clear",
-          "says": "Clear of its text by the room a mark on the text takes (`--lf-focus-region-room`) and then a gap (`COMMENT_GAP`), the same one it keeps from the room's edges, so its edge never meets the mark's line."
+          "says": "Clear of its text by the room the marks at the text's edge take on that side, each mark's gap and band and, beside a list item, the list marker (geometry.js, `markedBox`): the text's own marks, and those of a box around it that a comment can name, where that box's edge stands within the gap that follows (mark-room.js, `markRoom`). Then a gap (`COMMENT_GAP`), the same one it keeps from the room's edges, so its edge never meets the mark's line."
         },
         {
           "id": "place-beside",
@@ -91,7 +91,7 @@
       "rules": [
         {
           "id": "size-width",
-          "says": "Beside its text: at its least width (`--lf-thread-card-min`) until a message it shows stands taller than it is wide there, then at the measure (`--lf-thread-card`) until another selection, widening once, from its start; the room's width caps either. The comment box keeps the least width however many lines are typed in it, so Send opens the card of a comment that tall at the measure. A long answer widens a slim card as it arrives, carrying its controls, or, held while the user writes a reply, as they send it. Left of its text, and under or over where the measure starts it elsewhere, the box and card take the measure at once, since their start there is the far end of that width from the text. A box with no text to stand by keeps the least width. A carried card keeps the width it was carried at."
+          "says": "Beside its text, the comment box is as wide as its words' longest line, from its least width (`--lf-thread-card-min`) to the measure (`--lf-thread-card`), so it widens as a first line grows, then wraps; a draft that scrolls in it holds it at the measure. A card stands at its least width, or at the width of the box Send opened it from, until a message it shows stands taller than it is wide there, then at the measure until another selection, widening once, from its start; the room's width caps either. So Send opens the card of a comment that tall at the measure, and a long answer widens a slim card as it arrives, carrying its controls, or, held while the user writes a reply, as they send it. Each widens away from the edge its words start at, which stands by its text or where the user carried it. Where widening would move that edge instead, the box and card take the measure at once: left of the text in a left-to-right page, under or over where the measure starts them away from the quoted words, and right of the text, under or over it, or carried in a right-to-left one. With no text to stand by, a box in a left-to-right page widens from the room's left edge. A carried card keeps the width it was carried at."
         },
         {
           "id": "size-grows-away",

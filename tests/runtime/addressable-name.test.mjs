@@ -78,7 +78,7 @@ test("the chrome names an element by its name before its words", () => {
   // A question is its heading, not its heading run into its options and their chips.
   assert.equal(
     labelled(
-      '<section id="it"><h4>How should it page?</h4><lf-options><lf-option label="Require three"><small class="tag">last week: 0</small>probes.</lf-option></lf-options></section>',
+      '<section id="it"><h4>How should it page?</h4><lf-options><lf-option label="Require three"><small class="lf-tag">last week: 0</small>probes.</lf-option></lf-options></section>',
     ),
     "How should it page?",
   );

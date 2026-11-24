@@ -99,17 +99,10 @@
       }
     </style>
     <script type="module">
-      import {
-        generatedElement,
-        keeps,
-        keepsText,
-        layoutChanged,
-        offer,
-        offerAction,
-        once,
-        setChildren,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
+      import { setChildren, whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { offer, offerAction } from "/runtime/lib/controls.js";
+      import { once } from "/runtime/lib/once.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
@@ -208,16 +201,18 @@
             const table = document.createElement("table");
             table.className = "query-results";
             table.innerHTML =
-              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
+              "<thead><tr><th>Service</th><th>Region</th><th class='lf-numeric'>Risk</th><th>Owner</th></tr></thead>";
             table.append(this.#results);
             const tableFrame = document.createElement("div");
             tableFrame.className = "query-table-frame";
             tableFrame.append(table);
             // The module writes every word here: the filter rows label controls, and the
             // rest is the explorer speaking.
-            for (const box of [toolbar, this.#count, tableFrame])
-              generatedElement(box, { says: true });
-            generatedElement(this.#rows, { says: false });
+            for (const box of [toolbar, this.#count, tableFrame]) {
+              keeps(box, "data-lf-gen", "1");
+              box.toggleAttribute("data-lf-said", true);
+            }
+            keeps(this.#rows, "data-lf-gen", "1");
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
@@ -378,7 +373,7 @@
                   for (const value of Object.values(release)) {
                     const cell = document.createElement("td");
                     cell.textContent = value;
-                    if (typeof value === "number") cell.className = "num";
+                    if (typeof value === "number") cell.className = "lf-numeric";
                     row.append(cell);
                   }
                   return row;
@@ -389,7 +384,9 @@
               this.#count,
               `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           }
         },
       );

@@ -1,8 +1,11 @@
 /* Package-owned semantic parts of a rendered visual.
  *
- * A package declares one ordered inventory. Leaf validates that inventory and derives
+ * A visual states one ordered inventory: the parts its nodes mark, or what the
+ * element's `lfParts` says, read off the element at each reading so that a plain
+ * element or another library's component states it without importing Leaf. Leaf
+ * validates that inventory and derives
  * both directions it needs: a durable token resolves to the current rendered element,
- * and a rendered hit resolves to the nearest registered part. `surface` is the native
+ * and a rendered hit resolves to the nearest part it names. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part.
  * Invalid inventories throw at the read that consumes them; live readers do not
@@ -20,7 +23,7 @@
  * returns the part a token names, drawing an element for it if it must, where Leaf
  * would otherwise search the inventory, and `read()` lists only the parts a reader may
  * pick from a list, which may be none. `at(node)` names the part a node of the visual
- * stands for where no registered element holds it: a hit on a drawing that draws no
+ * stands for where no element the inventory names holds it: a hit on a drawing that draws no
  * element per part, such as a line through its data, which Leaf's aim and a pointed
  * comment ask, or the visual itself, which focus on it asks (`focusedVisualPart`),
  * where the visual holds focus on one of its parts. A chart answers with the point its
@@ -28,7 +31,7 @@
  * rather than on whichever shape lies under the pointer.
  *
  * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
- * hold every declared part at every moment. Its registration names `reveal(id)`, which
+ * hold every declared part at every moment. Its `lfParts` names `reveal(id)`, which
  * synchronously settles the visual on a state whose inventory holds that part,
  * including cancelling a pending replacement of an already visible destination. A
  * visual that finds its parts draws only those its state holds, as a chart draws no
@@ -38,77 +41,83 @@
  * visual draws it, rather than detaching. A label reader can name an absent part in
  * Threads without changing the visual's state.
  *
- * A reading of a visual's inventory reads its version (kept.js, `version`), so a
- * reading kept from it is made again after the visual's `update()`, which a reveal that
- * draws calls too, or a registration for a source it found none for. */
+ * A visual whose `lfParts` gives no `read` marks its parts instead: each node in its
+ * light tree carrying `data-lf-part="<id>"` is the part of that id, named by its
+ * `aria-label` or else its words, in document order. A mark under a visual standing
+ * inside the source is that visual's, by the page's declarations (`declaredVisuals`).
+ * Marks and `lfParts` are read as they stand, and a reading kept from either is made
+ * again once a layout change is said on the visual or inside it (widget-upgrade.js,
+ * `LAYOUT`), which a visual says after it draws, a reveal that draws included, and Leaf
+ * says for an element each time it sets the element's properties
+ * (element-integration.js). A change said elsewhere leaves the reading kept, so a
+ * film playing on the page doesn't make every other visual read its parts again. */
 
-import { labelWords } from "./words.js";
-import { under, upFrom } from "./shadow-tree.js";
-import { layoutChanged } from "./widget-upgrade.js";
+import { labelWords } from "./lib/words.js";
+import { under, upFrom } from "./lib/shadow-tree.js";
+import { LAYOUT } from "./widget-upgrade.js";
 import { version } from "./kept.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
  * @typedef
  * {import("../types/contract.js").WidgetDeclaration["visual"]}
  * VisualDeclaration
- * @typedef {{read: () => Iterable<VisualPart>, reveal: ((id: string) => void) | null,
- * label: ((id: string) => string | null | undefined) | null,
- * find: ((id: string) => VisualPart | null | undefined) | null,
- * at: ((node: Element) => VisualPart | null | undefined) | null,
- * focus: ((id: string) => void) | null, drawn: import("./kept.js").Version}} Registration
- * @typedef {{reveal?: Registration["reveal"], label?: Registration["label"],
- * find?: Registration["find"], at?: Registration["at"],
- * focus?: Registration["focus"]}} RegistrationOptions */
-/** @type {WeakMap<Element, Registration>} */
-const registrations = new WeakMap();
-// How many sources have registered, which a reading of a source with none reads.
-const registered = version();
+ * @typedef {{read?: () => Iterable<VisualPart>, reveal?: (id: string) => void,
+ * label?: (id: string) => string | null | undefined,
+ * find?: (id: string) => VisualPart | null | undefined,
+ * at?: (node: Element) => VisualPart | null | undefined,
+ * focus?: (id: string) => void}} Parts */
 
-/** Register the current visual-part inventory for one rendered source.
- *
- * `read` returns ordered `{id, element, label, surface?}` records. Call `update()`
- * after any rendering or geometry change, including in-place attribute or style
- * changes; it emits the same layout signal used by every other package-owned geometry
- * change. `reveal(id)`, when given, settles the state that holds declared part `id`
- * before it returns, so the next `read` includes it and pending work cannot retire it.
- * It is called for visible destinations too. `label(id)` names a part absent from the
- * current state without revealing it. `find(id)`, when given, returns the record for
- * part `id` in the current state, or null, in place of a search of `read()`.
- * `at(node)`, when given, returns the record for the part a node of the visual stands
- * for where no element `read()` registers holds it, or null. `focus(id)`, when given,
- * settles the visual on part `id` as Leaf places focus on the visual for it.
- */
-/** @param {Element} source @param {() => Iterable<VisualPart>} read
- * @param {RegistrationOptions} [options] */
-export function registerVisualParts(
-  source,
-  read,
-  { reveal = null, label = null, find = null, at = null, focus = null } = {},
-) {
-  if (registrations.has(source))
-    throw new TypeError("A visual source may register its parts only once");
-  // How many times the source has said its inventory may have changed.
-  const drawn = version();
-  registrations.set(source, {
-    read,
-    reveal,
-    label,
-    find,
-    at,
-    focus,
-    drawn,
+// Whether an element is a visual of its own, as the page declares them
+// (anchor-resolution.js). A document that says nothing has none.
+/** @type {(element: Element) => boolean} */
+let isVisual = () => false;
+/** @param {(element: Element) => boolean} declared */
+export const declaredVisuals = (declared) => {
+  isVisual = declared;
+};
+
+// How many times a layout change has been said on each visual a reading has asked
+// about, or inside it: the elements an `lf-layout` event passes on its way out.
+/** @type {WeakMap<Element, import("./kept.js").Version>} */
+const drawings = new WeakMap();
+document.addEventListener(LAYOUT, (event) => {
+  for (const node of event.composedPath())
+    if (node instanceof Element) drawings.get(node)?.move();
+});
+
+// The parts a source's nodes mark, less those under a visual standing inside it.
+/** @param {Element} source @returns {VisualPart[]} */
+const markedParts = (source) =>
+  [...source.querySelectorAll("[data-lf-part]")].flatMap((element) => {
+    for (let at = element.parentElement; at && at !== source; at = at.parentElement)
+      if (isVisual(at)) return [];
+    const id = element.getAttribute("data-lf-part") ?? "";
+    const label = element.getAttribute("aria-label") ?? element.textContent ?? "";
+    return [{ id, element, label }];
   });
-  registered.move();
-  return {
-    update: () => {
-      drawn.move();
-      layoutChanged(source);
-    },
-  };
-}
+
+/** What a source's `lfParts` says, read as each reading asks, so a reading kept from it
+ * is made again once the visual says its layout changed.
+ *
+ * `read()` returns ordered `{id, element, label, surface?}` records, where the
+ * source's marks don't say them. `reveal(id)` settles the state that holds declared
+ * part `id` before it returns, so the next `read` includes it and pending work cannot
+ * retire it. It is called for visible destinations too. `label(id)` names a part
+ * absent from the current state without revealing it. `find(id)` returns the record
+ * for part `id` in the current state, or null, in place of a search of `read()`.
+ * `at(node)` returns the record for the part a node of the visual stands for where no
+ * element `read()` gives holds it, or null. `focus(id)` settles the visual on part
+ * `id` as Leaf places focus on the visual for it. */
+/** @param {Element} source @returns {Parts | undefined} */
+const partsOf = (source) => {
+  let drawn = drawings.get(source);
+  if (!drawn) drawings.set(source, (drawn = version()));
+  drawn.read();
+  return source.lfParts;
+};
 
 /** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
- * Registered inventory order is also the order of the visual's targets. */
+ * The inventory's order is also the order of the visual's targets. */
 /** @param {Element} visual @param {VisualDeclaration | null} declaration */
 export function visualPartAdmission(visual, declaration) {
   if (!declaration || typeof declaration !== "object") return null;
@@ -122,23 +131,23 @@ export function visualPartAdmission(visual, declaration) {
  * once the visual can. */
 /** @param {Element} source */
 export const drawsAbsentParts = (source) => {
-  const registration = registrations.get(source);
-  return Boolean(registration?.reveal || registration?.find);
+  const parts = partsOf(source);
+  return Boolean(parts?.reveal || parts?.find);
 };
 
 /** Settle the requested part, even while old pixels await a replacement. */
 /** @param {Element} source @param {string} id */
 export function revealRegisteredVisualPart(source, id) {
-  const reveal = registrations.get(source)?.reveal;
-  if (reveal) reveal(id);
+  partsOf(source)?.reveal?.(id);
   return registeredVisualPart(source, id);
 }
 
-/** Invalid registrations or ids outside a provider's declared prefixes. */
+/** Invalid records, or ids outside a provider's declared prefixes. A visual that
+ * offers no part has none: with marks, an empty inventory is a state its drawing can
+ * be in, and the picture is then one target. */
 /** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!registrations.has(source)) return [{ kind: "unregistered" }];
   const parts = registeredVisualParts(source);
   const admission = visualPartAdmission(source, declaration);
   const outside =
@@ -166,24 +175,22 @@ function checkedPart(source, part, number) {
   return { id, element, label, surface };
 }
 
+/** The source's inventory, each record checked: what its `lfParts` reads, or the parts
+ * it marks. */
 /** @param {Element} source */
 export function registeredVisualParts(source) {
-  const registration = registrations.get(source);
-  (registration?.drawn ?? registered).read();
-  if (!registration) return [];
-  const { read } = registration;
+  const read = partsOf(source)?.read ?? (() => markedParts(source));
   const seenIds = new Set();
   const seenElements = new Set();
   const seenSurfaces = new Set();
   return [...read()].map((given, index) => {
     const part = checkedPart(source, given, index + 1);
     const { id, element, surface } = part;
-    if (seenIds.has(id))
-      throw new TypeError(`A visual source registered part ${id} twice`);
+    if (seenIds.has(id)) throw new TypeError(`A visual source names part ${id} twice`);
     if (seenElements.has(element))
-      throw new TypeError("A visual source registered one element as two parts");
+      throw new TypeError("A visual source names one element as two parts");
     if (seenSurfaces.has(surface))
-      throw new TypeError("A visual source registered one surface for two parts");
+      throw new TypeError("A visual source names one surface for two parts");
     seenIds.add(id);
     seenElements.add(element);
     seenSurfaces.add(surface);
@@ -193,11 +200,9 @@ export function registeredVisualParts(source) {
 
 /** @param {Element} source @param {string} id */
 export function registeredVisualPart(source, id) {
-  const registration = registrations.get(source);
-  const find = registration?.find;
+  const find = partsOf(source)?.find;
   if (!find)
     return registeredVisualParts(source).find((part) => part.id === id) ?? null;
-  registration.drawn.read();
   const found = find(id);
   if (!found) return null;
   const part = checkedPart(source, found, id);
@@ -209,7 +214,7 @@ export function registeredVisualPart(source, id) {
 export const registeredVisualPartLabel = (source, id) => {
   const current = registeredVisualPart(source, id)?.label;
   if (current) return current;
-  const label = registrations.get(source)?.label?.(id);
+  const label = partsOf(source)?.label?.(id);
   return labelWords(label) || null;
 };
 
@@ -233,7 +238,7 @@ export function registeredVisualPartAt(source, target, admits = () => true) {
  * @returns {import("./focus.js").FocusDestination | null} */
 export function visualPartFocus(source, id) {
   const part = registeredVisualPart(source, id);
-  const focus = registrations.get(source)?.focus;
+  const focus = partsOf(source)?.focus;
   if (!part || !focus) return part?.element ?? null;
   return { element: source, settle: () => focus(id) };
 }
@@ -247,7 +252,7 @@ export const focusedVisualPart = (source, admits = () => true) =>
 /** @param {Element} source @param {Element} node
  * @param {(part: VisualPart) => boolean} admits */
 function namedAt(source, node, admits) {
-  const named = registrations.get(source)?.at?.(node);
+  const named = partsOf(source)?.at?.(node);
   if (!named) return null;
   const part = checkedPart(source, named, "at the hit");
   return admits(part) ? part : null;

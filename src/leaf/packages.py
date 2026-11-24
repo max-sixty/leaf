@@ -49,7 +49,6 @@ from .schema import (
 )
 from .state import fsync_parents, json_bytes
 from .styles import set_properties, unguarded_reads
-from .themes import DEFAULT_THEME
 
 
 def package_write_lock(*packages: Path):
@@ -120,7 +119,7 @@ def starter_element_declaration(tag: str) -> dict:
         "id.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -256,12 +255,9 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The layer a new page selecting this package composes: the mandatory layer and
-    Leaf's default theme before this package when it is not already in it."""
+    """The layer a page selecting this package alone composes: the mandatory layer,
+    then this package, once."""
     inputs = layer_inputs()
-    theme = named_package(DEFAULT_THEME)
-    if theme is not None and not any(paths_same(theme, root) for root in inputs):
-        inputs.append(theme)
     if not any(paths_same(package, root) for root in inputs):
         inputs.append(package)
     return inputs
@@ -336,9 +332,8 @@ def copy_package_contract(package: Path, staged: Path) -> None:
 
     The rest of the source directory — a README, the author's own tests, `.git` —
     belongs to the author rather than to the package, so it reaches neither a
-    staged candidate nor the store. Absent package directories are created empty,
-    as `package init` creates them; `scripts/` is copied only when it exists,
-    since most packages ship none.
+    staged candidate nor the store. Absent package directories are created empty;
+    `scripts/` is copied only when it exists, since most packages ship none.
     """
     for path, data in package_files(package).items():
         target = staged / path
@@ -403,9 +398,7 @@ def init_starter_widget(
         protected,
     )
 
-    package.mkdir(parents=True, exist_ok=True)
-    for name in PACKAGE_DIRS:
-        (package / name).mkdir(exist_ok=True)
+    module_path.parent.mkdir(parents=True, exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
     if not (
         (package / "defaults.css").exists() or (package / "defaults.css").is_symlink()
@@ -431,13 +424,14 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
             protected,
         )
 
+        # A theme's rules and a CSS-only widget's both go in defaults.css, beside the
+        # registry that declares the widget; anything else a package holds, the
+        # author adds when there is something to put in it.
         files = {
             "registry.json": b"{}\n",
-            "overrides.css": b"",
+            "defaults.css": b"",
         }
         package.mkdir(parents=True, exist_ok=True)
-        for name in PACKAGE_DIRS:
-            (package / name).mkdir(exist_ok=True)
         creates = [
             (package / name, contents)
             for name, contents in files.items()
@@ -534,8 +528,7 @@ def cmd_package_install(source: Path) -> dict:
 
 def cmd_package_list() -> dict:
     """List the packages `page init --package NAME` can select by name
-    (`selectable_packages`), leaving out `default`, which every page composes, and
-    Leaf's theme, which `leaf theme list` offers.
+    (`selectable_packages`), leaving out `default`, which every page composes.
 
     A package is described in its own words, so one installed under a name of its own
     reaches an author as a bundled one does: its `description` is the first paragraph
@@ -547,7 +540,7 @@ def cmd_package_list() -> dict:
 
     packages = []
     for name, root in selectable_packages().items():
-        if name in {DEFAULT_PACKAGE.name, DEFAULT_THEME}:
+        if name == DEFAULT_PACKAGE.name:
             continue
         author = root / INSTRUCTIONS_DIR / "author.md"
         text = author.read_text(encoding="utf-8") if author.is_file() else ""

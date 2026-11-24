@@ -101,7 +101,7 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
     resized(page, 1440, 900)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.evaluate("async () => (await window.__lfWidgetApi()).raiseError('Not saved')")
+    page.evaluate("async () => (await window.__lfCheckApi()).raiseError('Not saved')")
     panel_settled(page, open=False)
     leaf = page.locator(".lf-fp-leaf > .lf-badges")
     marks = [leaf.locator(name) for name in (".lf-fp-badge", ".lf-fp-news-dot")]
@@ -250,7 +250,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     <div id="practice-popover" popover><input></div>
     <iframe title="Authored embedded page" srcdoc="<p>Embedded content is allowed</p>"></iframe>
     <script type="module">
-      import {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }} from '/runtime/widget-api.js';
+      import {{ focusDestination, scrollIntoView }} from '/runtime/widget-api.js';
+      const {{ closeNativeLayer, showNativeLayer }} = await window.__lfCheckApi();
       window.leafNavigation = {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }};
       for (const input of document.querySelectorAll('dialog input, [popover] input'))
         input.autofocus = true;
@@ -291,6 +292,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     sample = page.locator("#isolated-practice")
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
+    # The practice script takes the runtime's layer calls after an await.
+    child.wait_for_function("() => window.leafNavigation")
     assert child.evaluate(
         """() => {
           try { parent.document; return false; }

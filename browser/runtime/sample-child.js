@@ -8,10 +8,10 @@ import {
   onCurrentLocation,
   onUserInput,
 } from "./focus.js";
-import { exceptionRecord } from "./exception.js";
+import { exceptionRecord } from "./lib/exception.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { startNearWork, whenArrived } from "./presentation.js";
-import { sizeObserver } from "./rendering.js";
+import { sizeObserver } from "./lib/frame-pass.js";
 const child = document.documentElement.lfSample;
 /** @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
  * @typedef {import("./sample-protocol.js").SampleMethod} SampleMethod
@@ -100,6 +100,18 @@ if (child) {
     const { pageImage } = await import("./composing/page-image.js");
     return pageImage({ x: scrollX + x, y: scrollY + y, width, height });
   });
+  // The body's height, which a block's frame takes: sent as the document upgrades, as
+  // the body resizes, and read again as it arrives, since a frame off screen may get no
+  // rendering to deliver a resize (sample.js).
+  let height = 0;
+  const measure = () => {
+    if (!document.body) return;
+    const next = Math.ceil(document.body.getBoundingClientRect().height);
+    if (next !== height) {
+      height = next;
+      sampleNotice({ type: "height", detail: { height } });
+    }
+  };
   const inspect = () => {
     const error = document.documentElement.dataset.lfStartupError;
     if (error)
@@ -112,21 +124,16 @@ if (child) {
     // arriving until it has.
     if (upgraded && !arriving && pagePresented()) {
       arriving = true;
-      void whenArrived().then(() => sampleNotice({ type: "arrived" }));
+      void whenArrived().then(() => {
+        measure();
+        sampleNotice({ type: "arrived" });
+      });
     }
     if (upgraded || !(document.body && pageUpgraded())) return;
     upgraded = true;
     child.present();
-    let height = Math.ceil(document.body.getBoundingClientRect().height);
+    height = Math.ceil(document.body.getBoundingClientRect().height);
     sampleNotice({ type: "height", detail: { height } });
-    const measure = () => {
-      if (!document.body) return;
-      const next = Math.ceil(document.body.getBoundingClientRect().height);
-      if (next !== height) {
-        height = next;
-        sampleNotice({ type: "height", detail: { height } });
-      }
-    };
     registerSampleCommand("window", ({ window: asWindow }) => {
       child.settings.window = asWindow;
       window.lfRootState.setRuntimeRootAttribute(

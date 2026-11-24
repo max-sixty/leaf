@@ -63,7 +63,6 @@ from interact_support import (
     retire_test_services,
     revision_root,
     running_http_server,
-    said,
     served_state_error,
     spawn_probe,
     wait_for,
@@ -82,6 +81,7 @@ from leaf import files as files_model
 from leaf import gesture_words as gesture_words_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import inference as inference_model
 from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
 from leaf import media as media_model
@@ -92,6 +92,7 @@ from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import rows as rows_model
 from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -231,7 +232,9 @@ def test_diagnostic_write_failure_does_not_change_the_http_answer(
 
 def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -677,141 +680,6 @@ def test_sample_template_lookup_stays_within_the_requesting_page(server, page_di
     assert fetch(server + "/api/samples", data=b'{"template":"nested-only"}')[0] == 400
     assert fetch(outer + "/api/release", data=b"{}")[0] == 200
     assert fetch(nested + "/")[0] == 404
-
-
-@pytest.mark.parametrize("routed", [False, True])
-def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed):
-    template = """<template id="practice" data-sample><h1>Practice</h1>
-      <template id="inner" data-sample><h1>Nested practice</h1></template>
-    </template>"""
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    publish(page_dir)
-    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
-        origin = preview.origin
-
-        allocation_pages = {}
-
-        def create(parent, name, token):
-            generation = json.loads(fetch(parent + "/api/state", token=token)[1])[
-                "layer"
-            ]["generation"]
-            status, raw = fetch(
-                parent + "/api/samples",
-                data=json.dumps({"template": name}).encode(),
-                token=token,
-                layer=generation,
-                headers={"Leaf-Layer": generation},
-            )
-            assert status == 200, raw
-            url = origin + json.loads(raw)["url"].rstrip("/")
-            if routed and parent == origin:
-                url += "~" + "1" * 64
-            allocation_pages[url] = json.loads(raw)["page"]
-            return url
-
-        first = create(origin, "practice", TOKEN)
-        second = create(origin, "practice", TOKEN)
-        preflight = urllib.request.Request(
-            first + "/api/event",
-            method="OPTIONS",
-            headers={
-                "Origin": "null",
-                "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type,leaf-layer",
-            },
-        )
-        with urllib.request.urlopen(preflight) as answer:
-            assert answer.status == 204
-            assert answer.headers["Access-Control-Allow-Origin"] == "*"
-            assert (
-                answer.headers["Access-Control-Allow-Headers"]
-                == "content-type,leaf-layer"
-            )
-            assert answer.headers["Referrer-Policy"] == "no-referrer"
-            assert answer.headers.get("Access-Control-Allow-Credentials") is None
-        with urllib.request.urlopen(first + "/") as answer:
-            assert answer.headers.get("Content-Security-Policy") is None
-        assert fetch(first + "/api/state", token=None)[0] == 200
-        assert (
-            fetch(
-                first + "/api/interaction",
-                token=None,
-                data=json.dumps(
-                    {
-                        "session": "a" * 32,
-                        "entries": [browser_observation("checkpoint")],
-                    }
-                ).encode(),
-            )[0]
-            == 204
-        )
-        routed_trace = next(
-            row
-            for row in map(
-                json.loads,
-                (page_dir / interaction_model.INTERACTIONS_FILE)
-                .read_text()
-                .splitlines(),
-            )
-            if row.get("session") == "a" * 32
-        )
-        assert routed_trace["page"] == first.removeprefix(origin)
-        assert fetch(origin + "/api/state", token=None)[0] == 401
-        assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
-        nested = create(first, "inner", None)
-        assert fetch(nested + "/", token=None)[0] == 200
-        assert (
-            fetch(
-                nested + "/api/interaction",
-                token=None,
-                data=json.dumps(
-                    {
-                        "session": "b" * 32,
-                        "entries": [browser_observation("checkpoint")],
-                    }
-                ).encode(),
-            )[0]
-            == 204
-        )
-        assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
-        assert fetch(first + "/", token=None)[0] == 404
-        # A read already sent by the opaque child can arrive after Reset revokes
-        # its capability. It still receives the HTTP refusal, not a CORS failure.
-        for method in ("GET", "OPTIONS"):
-            request = urllib.request.Request(
-                first + "/api/state", method=method, headers={"Origin": "null"}
-            )
-            if method == "OPTIONS":
-                # Browsers reject non-2xx preflights regardless of their headers.
-                with urllib.request.urlopen(request) as answer:
-                    assert answer.status == 204
-                    headers = answer.headers
-            else:
-                with pytest.raises(urllib.error.HTTPError) as refused:
-                    urllib.request.urlopen(request)
-                assert refused.value.code == 404
-                headers = refused.value.headers
-            assert headers["Access-Control-Allow-Origin"] == "*"
-            assert headers.get("Access-Control-Allow-Credentials") is None
-        assert fetch(nested + "/", token=None)[0] == 404
-        nested_trace = next(
-            row
-            for row in map(
-                json.loads,
-                (page_dir / interaction_model.INTERACTIONS_FILE)
-                .read_text()
-                .splitlines(),
-            )
-            if row.get("session") == "b" * 32
-        )
-        assert (
-            nested_trace["page"]
-            == nested.removeprefix(origin)
-            == allocation_pages[nested]
-        )
-        assert fetch(second + "/api/state", token=None)[0] == 200
-        assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
-        assert all(not samples.pages for samples in preview.httpd.samples.values())
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
@@ -2995,7 +2863,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     publisher.refresh()
     activity = activity_reading(neighbor)
     assert activity["detail_source"] is not None
-    expected = server_rows_model.compact_activity(activity)
+    expected = rows_model.compact_activity(activity)
     reads = []
     read = server_model.SERVICE.read
 
@@ -3015,7 +2883,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"] == expected
     assert "detail_source" not in row["activity"]
     assert "obligations" not in row["activity"]
-    assert row["activity"]["counts"]["pending"] == 1
+    assert row["activity"]["counts"]["unseen"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
     declare(neighbor, "idle")
@@ -3065,7 +2933,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         )
         presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
-    changed = server_rows_model.row_path(neighbor)
+    changed = rows_model.row_path(neighbor)
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
@@ -3122,7 +2990,7 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     try:
         publisher.refresh()
         first = json.loads(publisher.path.read_text())["row"]
-        assert first["activity"]["kind"] == "working"
+        assert first["activity"]["state"] == "running"
         assert (
             first["activity"]["next_transition_at"]
             == (now + timedelta(seconds=1)).isoformat()
@@ -3140,7 +3008,11 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
         now += timedelta(seconds=2)
         publisher.refresh()
         aged = json.loads(publisher.path.read_text())["row"]
-        assert aged["activity"]["kind"] == "stalled"
+        assert (
+            aged["activity"]["presence"],
+            aged["activity"]["state"],
+            aged["activity"]["reason"],
+        ) == ("here", "blocked", "quiet")
         assert aged["activity"]["next_transition_at"] is None
         publisher.path.unlink()
         publisher.refresh()
@@ -3608,7 +3480,9 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             value = [value]
         return value
 
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -3859,7 +3733,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     )
     publish(page_dir)
     events = event_model.read_events(page_dir)
-    active = files_model.active_descriptor(page_dir, events)
+    active = served_context.active_descriptor(page_dir, events)
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -3956,7 +3830,9 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         .replace("</main>", '<lf-activity id="recent"></lf-activity></main>')
     )
     publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
@@ -4010,16 +3886,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original(directory, revision)
 
-    original_data = read_context.read_data
-
-    def held_data(*args):
-        # Record obligations in the view read their bound data under the same
-        # transaction as its document and log.
-        assert leases_model.lock_is_held(page_dir / "events.jsonl")
-        return original_data(*args)
-
     monkeypatch.setattr(read_context, "read_revision", held_revision)
-    monkeypatch.setattr(read_context, "read_data", held_data)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}&shown=2")
     assert status == 200, body
     # The base is read, and the revision shown for its containment
@@ -4124,7 +3991,9 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
 
     select_resources("images[].url", "optional")
     publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    active = served_context.active_descriptor(
+        page_dir, event_model.read_events(page_dir)
+    )
     assert active is not None
     artifact = artifact_model.read_artifact(page_dir, active["revision"])
     before = artifact.manifest
@@ -4294,27 +4163,6 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
-
-
-def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
-    page_dir, monkeypatch
-):
-    """A session remote from its user need not have arrived over SSH — a
-    scheduler, a daemon, a detached job all derive loopback — so the note says
-    what the address is rather than leaving the user to report a dead link."""
-    monkeypatch.delenv("SSH_CONNECTION", raising=False)
-    runner = CliRunner()
-    started = runner.invoke(
-        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
-    )
-    try:
-        assert started.exit_code == 0, started.output
-        noted = said(started.stdout)["findings"]
-        assert [note["code"] for note in noted] == ["loopback-only"]
-        assert "--host NAME" in noted[0]["text"]
-    finally:
-        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-        assert stopped.exit_code == 0, stopped.output
 
 
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
@@ -5250,3 +5098,48 @@ def test_test_teardown_joins_titles_before_reusing_the_page(
             retirement.result(timeout=STATED_TIMEOUT)
             native_join(timeout=STATED_TIMEOUT)
     assert not worker.is_alive(), "the title outlived its page fixture"
+
+
+def test_test_teardown_answers_a_title_completion_asked_while_it_retires(
+    claimed, tmp_path, isolated_session, monkeypatch
+):
+    """A title worker that asks its Claude Code session for a completion only once
+    teardown has begun is still answered, rather than waiting out
+    `inference.TIMEOUT` for a hooks module no test runs.
+
+    Hold the real Claude Code generator just before it writes its request, and let
+    it go once teardown joins the worker."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Why here?"}
+    )
+    started = threading.Event()
+    released = threading.Event()
+    ask = thread_titles_model.title_generator(
+        inference_model.claude_code_generator("s1")
+    )
+
+    def generate(request, page_dir):
+        started.set()
+        assert released.wait(timeout=STATED_TIMEOUT), "the title was never released"
+        return ask(request, page_dir)
+
+    thread_titles_model.name_admitted_thread(generate, claimed, comment["id"], "s1")
+    assert started.wait(timeout=STATED_TIMEOUT), "the title generator did not start"
+    [worker] = [
+        thread for thread in threading.enumerate() if thread.name == "leaf-thread-title"
+    ]
+    native_join = worker.join
+
+    def observed_join(*args, **kwargs):
+        released.set()
+        return native_join(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "join", observed_join)
+    retire_test_services(tmp_path, isolated_session)
+    assert not worker.is_alive(), "the title outlived its page fixture"
+    [failed] = [
+        row
+        for row in interaction_model.read_interactions(claimed)
+        if row["source"] == "server" and row["type"] == "thread_title_failed"
+    ]
+    assert "test ended" in failed["detail"], failed

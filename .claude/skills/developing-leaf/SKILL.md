@@ -104,8 +104,9 @@ To ask a page where an element sits, what style it computes, or what holds focus
 a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
 test. It builds the page from this working tree, runs your input steps and prints what
 a JavaScript expression returns. `leaf-dev probe --help` covers `--log` for threads and
-messages, `--base` for the merge base's page beside this one, and `--browser` for other
-engines. To reach a surface that one of the `leaf-dev stills` states reaches, open that
+messages, `--base` for the merge base's page beside this one, `--browser` for other
+engines, and `--frames` for a reading after every frame a scroll or animation draws. To
+reach a surface that one of the `leaf-dev stills` states reaches, open that
 state with `--state NAME` rather than repeating its input as steps.
 
 `uv run leaf-dev stills` crops each changed catalogue state into a before/after pair
@@ -155,8 +156,9 @@ failure there means. `wt merge` checks the rebased tree and lands it; `✗ Can't
 local main branch` means a fast-forward failed.
 
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude
-Code picks up a push on its marketplace sweep, and Codex refreshes at startup. To
-refresh Codex in a running session, run `codex plugin marketplace upgrade leaf`.
+Code installs a push on its marketplace sweep, which a running session loads at
+`/reload-plugins`, and Codex refreshes at startup. To refresh Codex in a running
+session, run `codex plugin marketplace upgrade leaf`.
 
 ## Tasks with their own reference
 

@@ -53,9 +53,9 @@ ACROSS_OBLIGATION = """
   <lf-group id="{id}" label="How long should logs be kept?">
     <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
-      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
-      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
-        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+      <thead><tr><th>Store</th><th class="lf-numeric">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="lf-numeric">40</td></tr>
+        <tr><td>Warm</td><td class="lf-numeric">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7" label="7 days"><strong>7 days</strong> The cheapest.
@@ -114,7 +114,7 @@ PLATE_PACKAGE = {
         "description": "A project package's picture, under a name the theme never sees.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -278,7 +278,7 @@ def chipped_obligation(id, cards):
     (chips, title, attributes), its chips written before its title."""
     options = "".join(
         f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
-        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + "".join(f'<small class="lf-tag">{chip}</small>' for chip in chips)
         + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )
@@ -660,12 +660,11 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     # the walk could stand them on instead is the measurement that says the two cannot
     # both be.
     position = page.evaluate(
-        """() => {
+        """async () => {
           const box = document.activeElement.getBoundingClientRect();
           const pick = document.querySelector('#storage-options .lf-pick')
             .getBoundingClientRect();
-          const foot = parseFloat(
-            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
+          const foot = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
           return {top: box.top, pick: pick.top, height: innerHeight - foot};
         }"""
     )
@@ -769,7 +768,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -789,7 +787,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               run: () => { inspect.dataset.activated = '1'; },
             },
           ] };
-          commandsChanged(source);
+          source.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -841,7 +839,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
           inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -849,7 +846,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
           }] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     rendered(page)
@@ -881,7 +878,6 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -898,7 +894,7 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               run: () => { inspect.dataset.localThree = '1'; },
             },
           ] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -932,7 +928,6 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -948,13 +943,13 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
           }] };
-          commandsChanged(control);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
           }] };
-          commandsChanged(inside);
+          inside.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -974,7 +969,8 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     """The draft route borrows an empty Add seat and moves beside a live Add press.
 
     The cards share one trailing column. An empty draft has only the route into its
-    field, so that badge sits over the hidden Add press. Once content reveals Add and
+    field, so that badge stands over the hidden Add press, in the digit column every
+    card's badge shares. Once content reveals Add and
     focus leaves the field, both actions are available and the route takes the inner
     seat. The field reserves both seats before either face appears.
     """
@@ -998,9 +994,13 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     submit = addition.locator(".lf-compose-submit")
     empty_submit = submit.evaluate(
         """el => { const box = el.getBoundingClientRect();
-                    return {x: box.left + box.width / 2}; }"""
+                    return {x: box.left + box.width / 2, left: box.left,
+                            right: box.right}; }"""
     )
-    assert obligation_centers[-1]["x"] == pytest.approx(empty_submit["x"], abs=0.5)
+    assert obligation_centers[-1]["x"] == pytest.approx(
+        obligation_centers[0]["x"], abs=0.5
+    )
+    assert empty_submit["left"] < obligation_centers[-1]["x"] < empty_submit["right"]
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
@@ -1060,7 +1060,6 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -1081,7 +1080,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
             }] };
-            commandsChanged(control);
+            control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));
@@ -1338,7 +1337,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # for under the row. The window is sized so the sentence fits in the window but not
         # above the panel's band: the arrival lands on the change alone, and the change
         # stays where the user can read it.
-        measure = """() => {
+        measure = """async () => {
           const at = (id) => document.getElementById(id).getBoundingClientRect();
           const style = getComputedStyle(document.scrollingElement);
           return {
@@ -1346,7 +1345,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
             foot: at('sc-sug').bottom,
             view: document.scrollingElement.clientHeight,
             top: parseFloat(style.scrollPaddingTop),
-            bottom: parseFloat(style.scrollPaddingBottom),
+            bottom: (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom,
           };
         }"""
         before = page.evaluate(measure)

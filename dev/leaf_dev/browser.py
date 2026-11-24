@@ -17,7 +17,14 @@ import click
 from playwright.sync_api import Browser, FrameLocator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf.render_checks import rendered, wait_for_probe, wait_until_ready
+from leaf.render_checks import (
+    one_frame,
+    open_render_context,
+    open_render_page,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
 from leaf_dev import ROOT
 
 
@@ -186,10 +193,18 @@ def launch(engine: str, scheme: str = "light"):
             yield browser
 
 
-@cache
 def shell_executable() -> str:
-    """Ask the installed Playwright registry for its pinned headless shell.
+    """The installed Playwright registry's pinned headless shell."""
+    return playwright_executable("chromium-headless-shell")
 
+
+@cache
+def playwright_executable(name: str) -> str:
+    """Ask the installed Playwright registry for its pinned build of browser `name`.
+
+    `leaf-dev setup` installs only Python Playwright's builds, and Node's Playwright
+    pins its own, which can be a different build. A Node tool that must see what
+    Python sees launches this path (`evals/ui-review-detection/provider.mjs`).
     A subprocess works even while the caller already holds sync_playwright open.
     """
     from playwright._impl._driver import compute_driver_executable
@@ -201,9 +216,10 @@ def shell_executable() -> str:
             "-e",
             (
                 "console.log(require(process.argv[1]).registry.registry"
-                ".findExecutable('chromium-headless-shell').executablePathOrDie('python'))"
+                ".findExecutable(process.argv[2]).executablePathOrDie('python'))"
             ),
             str(Path(cli).parent / "lib/coreBundle.js"),
+            name,
         ],
         check=True,
         stdout=subprocess.PIPE,
@@ -225,7 +241,8 @@ def tab(
     drawing `scale` device pixels to a CSS pixel. It keeps where a mouse last moved over
     it (`POINTER`), for `settle`. A caller listens on it before it `load`s."""
     width, height = window.size
-    context = browser.new_context(
+    context = open_render_context(
+        browser,
         viewport={"width": width, "height": height},
         device_scale_factor=scale,
         color_scheme=scheme,
@@ -235,9 +252,7 @@ def tab(
     )
     context.add_init_script(POINTER)
     try:
-        page = context.new_page()
-        page.set_default_timeout(15_000)
-        yield page
+        yield open_render_page(context)
     finally:
         context.close()
 
@@ -367,10 +382,18 @@ def load(page: Page, address: str) -> None:
 
 def settle(page: Page) -> None:
     """Wait until the page is ready, its fonts have loaded, the runtime reports it
-    settled, and its hover is on the element under the pointer (`catch_up_hover`)."""
+    settled, and its hover is on the element under the pointer (`catch_up_hover`).
+
+    Readiness is read once the page has heard what could start more work: the input
+    before this, and then the motion `pageSettled` waits out. A scroll that brings a
+    live sample near starts it in the next rendering update, as the sample's observer
+    reports, so each read waits for that update first (runtime/rendering.js)."""
+    one_frame(page)
     wait_until_ready(page)
     page.evaluate("() => document.fonts.ready")
     wait_for_probe(page, "pageSettled")
+    one_frame(page)
+    wait_until_ready(page)
     if catch_up_hover(page):
         settle(page)
 
@@ -549,16 +572,28 @@ def panel_tab(page: Page | FrameLocator, name: str):
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
+def unfold(page: Page | FrameLocator, press=None):
+    """Unfold a panel folded to the leaf, by `.` or where focus landed on a place its
+    row alone would hide (floating-panel.js, `giveWay`), with a press on the leaf, which
+    then opens no view. `press` presses a control, a click by default."""
+    host = page.locator(PANEL)
+    if host.get_attribute("data-lf-rest") == "mark":
+        (press or (lambda control: control.click()))(page.locator(LEAF))
+        expect(host).to_have_attribute("data-lf-rest", "row")
+
+
 def on_tab(page: Page | FrameLocator, name: str):
-    """Stand the On view open and return its tab `name` (`panel_tab`). From the row the
-    leaf opens the view on the tab its marks point at; another view, stance or search is
-    closed first by its exit. `page` may be a live sample's frame."""
+    """Stand the On view open and return its tab `name` (`panel_tab`). A folded panel is
+    unfolded first (`unfold`). From the row the leaf opens the view on the tab its marks
+    point at; another view, stance or search is closed first by its exit. `page` may be
+    a live sample's frame."""
     # A stance's exit goes in the repaint frame. Read the controls only after the
     # previous input has rendered, before choosing a pointer route.
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
     host = page.locator(PANEL)
+    unfold(page)
     if host.get_attribute("data-lf-open") not in ("menu", "queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
@@ -579,9 +614,7 @@ def open_menu(page: Page | FrameLocator, press=None):
     host = page.locator(PANEL)
     leaf = page.locator(LEAF)
     on_view = re.compile("^(menu|queue|threads)$")
-    if host.get_attribute("data-lf-rest") == "mark":
-        press(leaf)
-        expect(host).to_have_attribute("data-lf-rest", "row")
+    unfold(page, press)
     if host.get_attribute("data-lf-open") != "menu":
         back = page.locator(".lf-fp-head").get_by_role(
             "button", name="Back to Menu", exact=True

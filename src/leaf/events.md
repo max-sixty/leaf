@@ -20,7 +20,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                                      | `thread`, `revision`, `anchor: {section} or null`                                                                                                                              | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                                  | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                          | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                                 | `parent`                                                                                                                                                                       | closes a thread                                                                                                                                                                               |
-| <a id="kind-unresolve"></a>`unresolve`       | user            | `POST /api/event`                                                                        | `parent`                                                                                                                                                                       | reopens a resolved thread                                                                                                                                                                     |
+| <a id="kind-unresolve"></a>`unresolve`       | user or agent   | `POST /api/event`, `leaf thread reopen`                                                  | `parent`                                                                                                                                                                       | reopens a resolved thread                                                                                                                                                                     |
 | <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                          | `widget`, `action`, `detail`; server-stamped `meaning`                                                                                                                         | changes the document through the widget ("Admission")                                                                                                                                         |
 | <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                                       | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a verb (`verbs`) declaring `writer: "agent"`)                                                   | provisional widget state, in force until a stamped version settles it                                                                                                                         |
 | <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport, or a harness's failure receipt                                   | `events`, `phase` (`queued`, `opened` or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` its delivery gave each input owed an answer         | the named inputs reached the Codex queue, entered an exact agent turn, or were given up with no answer coming; idempotent per event, phase, session and turn; never a `start` (`delivery.py`) |
@@ -238,9 +238,7 @@ to it: the unit stays in the move's container, after the nearest unit both revis
 list before it, unless the revision marks it `restated`. An absorbed move still stands,
 as a written-back pick does, but the markup now decides the order an undo would have
 restored, so it can no longer be undone. The door refuses a move made on an older
-revision whose container the newest one authors differently, and any move of a unit
-that shows another widget's answer (`shows`): that widget's own action places it,
-and is the one record of the answer whichever view sent it (`shown_answers.py`).
+revision whose container the newest one authors differently.
 
 ## Following the log
 
@@ -296,9 +294,21 @@ exact id rather than log order, so answering older work cannot erase newer user
 input. A `--done` answer to an update the agent's earlier answer already settled
 with a to-do still open carries no `responds`, and the command names that to-do
 for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
-thread and restores its unanswered widget and message obligations, as an `unresolve`
-does;
-reactions and failure receipts leave it closed.
+thread, and brings back none of the questions the resolve ended; reactions and
+failure receipts leave it closed, and so does an `unannounced` message of the
+agent's in a thread the user resolved (below).
+
+The user's `resolve` takes a thread off their list. It retires the questions the agent
+asked them there and settles nothing the agent owes: a turn of theirs, or an answer of
+theirs on a widget in a thread message, that the agent has not answered stays owed, and
+the reply that answers it goes into the thread (`events.owed_turns`). A thread the
+user resolved reopens when they or the agent reopen it (`unresolve`, the agent's by
+`leaf thread reopen`) or when the agent asks them something there, in words or with a
+widget. Whatever else the agent says in it, the result of promised work included, is a
+`reply` with `unannounced: true`, which reopens nothing; `thread.post_reply` sets it,
+and a reply by command says so beside its record. The agent's
+`resolve` answers for its thread, as does the user's answer on a widget whose `resolves`
+names it: from either until the thread reopens, the thread owes nothing.
 
 A harness that gives up on an update writes the failure its answer takes
 (`thread.fail_answer`): a reply for a message, or a failed `pickup` for an answer owed
@@ -317,8 +327,8 @@ While a thread is open, the user's message after a state-answered obligation in 
 that obligation to the agent, still open, until the agent answers that turn or ends the
 to-do a reply promised (`obligations.thread_obligation_readings`). A thread anchored on
 a page obligation does the same, so an obligation the user has commented on leaves their
-On Me list while the reply owed to the comment stands on the agent's, and a promised
-to-do keeps that obligation the agent's even after the thread is resolved
+On Me list while the reply owed to the comment stands on the agent's, or the to-do a
+reply promised, and stays off it when the user resolves the thread
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and

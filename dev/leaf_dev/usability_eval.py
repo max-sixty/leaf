@@ -154,7 +154,7 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
             html,
             flags=re.DOTALL,
         )
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(html)
     if 'source="copier-config"' in html:
         run.leaf(
@@ -177,7 +177,7 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
 
 
 def build_diagnostics_report(run: Run, page: Path) -> None:
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "diagnostics-report.html").read_text())
     run.leaf(
         "page", "stamp", str(page), "--text",
@@ -190,7 +190,16 @@ def build_remaining_review(run: Run, page: Path) -> None:
     seed = yaml.safe_load(
         (ROOT / "evals/assessment-surfaces-pending-decisions/case.yaml").read_text()
     )["variants"]["remaining-review"]["vars"]
-    run.leaf("page", "init", str(page), "--package", "diagram", check=True)
+    run.leaf(
+        "page",
+        "init",
+        "--package",
+        "reading",
+        str(page),
+        "--package",
+        "diagram",
+        check=True,
+    )
     shutil.copytree(
         pinned_assets() / "evals/assessment-surfaces-pending-decisions/media",
         page / "media",
@@ -215,7 +224,7 @@ def build_remaining_review(run: Run, page: Path) -> None:
 
 
 def build_layout_shifts(run: Run, page: Path) -> None:
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "layout-shifts.html").read_text())
     run.leaf(
         "page", "stamp", str(page), "--text",
@@ -233,7 +242,7 @@ def build_resume(run: Run, page: Path) -> None:
     inputs = FIXTURE_INPUTS["resume"]
     v1 = (FIXTURES / "resume-v1.html").read_text()
     v2 = (FIXTURES / "resume-v2.html").read_text()
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(v1)
     run.leaf("page", "stamp", str(page), "--text", inputs["initial_stamp"], check=True)
     admit(run, page, {
@@ -279,7 +288,7 @@ def build_constructs(run: Run, page: Path) -> None:
     """The draft the user rewrote, the p95 stated at one measurement with a later one
     in its source, and the chart."""
     template = (FIXTURES / "constructs.html").read_text()
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(template)
     measured = run.leaf(
         "data", "set", str(page), "checkout-p95", input_text="184", check=True
@@ -305,7 +314,7 @@ def build_constructs(run: Run, page: Path) -> None:
 
 def build_board(run: Run, page: Path) -> None:
     """A board whose cards the user moved, one move undone."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "board.html").read_text())
     run.leaf(
         "page",
@@ -327,7 +336,16 @@ def build_package(run: Run, page: Path) -> None:
     """A stamped page that selects the `slo` package, installed in the run's own
     state home as a team's package would be on its machine."""
     run.leaf("package", "install", str(FIXTURES / "slo"), check=True)
-    run.leaf("page", "init", "--package", "slo", str(page), check=True)
+    run.leaf(
+        "page",
+        "init",
+        "--package",
+        "reading",
+        "--package",
+        "slo",
+        str(page),
+        check=True,
+    )
     (page / "index.html").write_text((FIXTURES / "slo.html").read_text())
     run.leaf(
         "page",
@@ -345,6 +363,8 @@ def build_shared_source(run: Run, page: Path) -> None:
     run.leaf(
         "page",
         "init",
+        "--package",
+        "reading",
         "--package",
         "./" + os.path.relpath(ROOT / "examples/command-hub.page", Path.cwd()),
         str(page),
@@ -367,7 +387,7 @@ def build_shared_source(run: Run, page: Path) -> None:
 
 def build_handoff(run: Run, page: Path) -> None:
     """A drafted page nobody has checked, served or stamped."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "backfill.html").read_text())
 
 
@@ -375,14 +395,14 @@ def build_cutover(run: Run, page: Path) -> None:
     """A drafted status page nobody has checked, served or stamped, whose card grid
     runs out of narrow windows and whose chart's labels shrink below reading size:
     readings only `page check --render` takes."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "cutover.html").read_text())
 
 
 def build_cutover_advice(run: Run, page: Path) -> None:
     """The same page with its card grid fixed, so a render check holds only advice:
     the chart's labels shrink below reading size at narrow widths."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(
         (FIXTURES / "cutover.html")
         .read_text()
@@ -393,7 +413,7 @@ def build_cutover_advice(run: Run, page: Path) -> None:
 def build_cutover_hidden(run: Run, page: Path) -> None:
     """The same page with its card grid fixed and one card's label kept on one line, so a
     render check fails it at narrow widths where the source reads as fine."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     html = (
         (FIXTURES / "cutover.html")
         .read_text()
@@ -467,7 +487,7 @@ def render_findings(run: Run, page: Path, n: int) -> str | None:
 def build_mixed(run: Run, page: Path) -> None:
     """A stamped page another session handed over; its copy button's script
     throws on a click."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "mixed.html").read_text())
     run.leaf(
         "page",
@@ -485,7 +505,7 @@ def build_elided(run: Run, page: Path) -> None:
     The answered history is admitted after initial handover, before the question.
     """
     html = (FIXTURES / "elided.html").read_text()
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(html)
     run.leaf(
         "page",
@@ -500,7 +520,7 @@ def build_elided(run: Run, page: Path) -> None:
 def build_plan(run: Run, page: Path) -> None:
     """A stamped rollout page whose work the user is about to lay out: a table to
     refresh, a choice of first region, and a schedule still to write."""
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text((FIXTURES / "rollout.html").read_text())
     run.leaf(
         "page", "stamp", str(page), "--text", FIXTURE_INPUTS["plan"]["stamp"],
@@ -516,7 +536,7 @@ def build_plan_resume(run: Run, page: Path) -> None:
     html = (FIXTURES / "rollout.html").read_text()
     for old, new in inputs["latency"].items():
         html = html.replace(old, new)
-    run.leaf("page", "init", str(page), check=True)
+    run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(html)
     run.leaf("page", "stamp", str(page), "--text", inputs["stamp"], check=True)
     planned = run.leaf(
@@ -621,6 +641,30 @@ GRACE = 20
 RENDER_PASS_WAIT_S = 240
 
 
+def live_session(run: Run, work: Path, page: Path, prompt: str) -> LiveSession:
+    """The run's session in `work`, opened with `prompt`, on the payload's plugin and
+    the run's own state home, recording its stream in the run's directory."""
+    return LiveSession(
+        LiveChild(
+            work,
+            prompt,
+            "--plugin-dir",
+            str(run.payload),
+            stderr=run.dir / "err-1.txt",
+            limit=TURN_LIMIT,
+            timed_out=run.dir / "timed-out",
+            dirs=[run.payload],
+            env={
+                "PATH": environment(payload=run.payload)["PATH"],
+                "XDG_STATE_HOME": str(run.state),
+            },
+            harness=run.harness,
+        ),
+        run.dir / "stream-1.jsonl",
+        watch=(run.payload, run.state, page),
+    )
+
+
 def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     """Serve the case's page from a live session and play its user.
 
@@ -637,25 +681,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     pending_events: set[str] = set()
     try:
         with (
-            LiveSession(
-                LiveChild(
-                    work,
-                    prompt,
-                    "--plugin-dir",
-                    str(run.payload),
-                    stderr=run.dir / "err-1.txt",
-                    limit=TURN_LIMIT,
-                    timed_out=run.dir / "timed-out",
-                    dirs=[run.payload],
-                    env={
-                        "PATH": environment(payload=run.payload)["PATH"],
-                        "XDG_STATE_HOME": str(run.state),
-                    },
-                    harness=run.harness,
-                ),
-                run.dir / "stream-1.jsonl",
-                watch=(run.payload, run.state, page),
-            ) as live,
+            live_session(run, work, page, prompt) as live,
             ExitStack() as deadlines,
         ):
 
@@ -819,25 +845,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
     ]
     for phase, prompt in enumerate(prompts, 1):
         (run.dir / f"prompt-{phase}.txt").write_text(prompt)
-    with LiveSession(
-        LiveChild(
-            work,
-            prompts[0],
-            "--plugin-dir",
-            str(run.payload),
-            stderr=run.dir / "err-1.txt",
-            limit=TURN_LIMIT,
-            timed_out=run.dir / "timed-out",
-            dirs=[run.payload],
-            env={
-                "PATH": environment(payload=run.payload)["PATH"],
-                "XDG_STATE_HOME": str(run.state),
-            },
-            harness=run.harness,
-        ),
-        run.dir / "stream-1.jsonl",
-        watch=(run.payload, run.state, page),
-    ) as live:
+    with live_session(run, work, page, prompts[0]) as live:
         for phase, prompt in enumerate(prompts, 1):
             live.note({"type": "eval_phase", "phase": phase, "received_at": now()})
             since = live.answered

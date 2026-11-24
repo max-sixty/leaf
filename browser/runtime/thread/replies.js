@@ -39,7 +39,7 @@
    thread is still in the margin, and a hidden panel, keep their rows, since the user
    goes on there when they open again. Every view draws whichever row it holds, a
    primary reader's reply part (primary-reader.js) as a card does. */
-import { REPLY_HINT } from "../words.js";
+import { REPLY_HINT } from "../voice.js";
 import {
   captureDraftEditing,
   loadDraft,
@@ -62,15 +62,16 @@ import {
   onPressAway,
 } from "../focus.js";
 import { threadKey } from "./model.js";
-import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
-import { el, offer } from "../widget-elements.js";
+import { el } from "../widget-elements.js";
+import { offer } from "../lib/controls.js";
 import { signal } from "/runtime/framework.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { tick } from "../version-signal.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
@@ -78,13 +79,14 @@ import { tick } from "../version-signal.js";
  * landSent: typeof import("./landing.js").landSent,
  * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
- * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">> & {
+ * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">> & {
  * onChange?: () => void,
  * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
  * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
+/** @typedef {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">>} BoxOptions */
 /** @typedef {ReplyCommands & {onChange: () => void,
  * editLast: ReplyOptions["editLast"], sending: ReplyOptions["sending"], sent: ReplyOptions["sent"],
- * give: () => () => void, take: (owner: Composition) => void}} Binding */
+ * give: () => () => void, take: (owner: Composition) => void, box: BoxOptions}} Binding */
 /** @typedef {{context: string, key: string, row: HTMLDivElement,
  * controls: {input: ReturnType<typeof import("../composing/text-field.js").textField>, send: HTMLButtonElement | null},
  * send: import("../composing/input.js").Sender | null,
@@ -274,8 +276,8 @@ export const dismissReplyAt = (node) => {
 
 // The giver lets go before the taker attaches, and draws its fresh row only once the
 // taker has moved this one out, so the row never leaves the document between them.
-/** @param {Composition} target @param {Composition} owner @param {Binding} binding */
-function handOver(target, owner, binding) {
+/** @param {Composition} owner @param {Binding} binding */
+function handOver(owner, binding) {
   const redrawGiver = owner.binding?.give();
   binding.take(owner);
   redrawGiver?.();
@@ -298,7 +300,7 @@ function carry(target, owner) {
     return target;
   const session = compositions.get(owner.context);
   if (session && session.owner !== owner && session.owner !== target) return target;
-  return handOver(target, owner, target.binding);
+  return handOver(owner, target.binding);
 }
 
 // Where a released row waits for the next view of its thread: in the chrome, so a user
@@ -379,26 +381,29 @@ function sendReply(draftCtx, key, text, owns, actions, back) {
 /** @param {string} key @param {HTMLDivElement} row
  * @param {ReturnType<typeof import("../composing/text-field.js").textField>} input
  * @param {ReplyCommands} commands
- * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed">>} options */
-function wireReply(
-  key,
-  row,
-  input,
-  commands,
-  { hint, hintParts, hintLead, enters, accessibleName, busy, closed },
-) {
+ * @param {BoxOptions} options */
+function wireReply(key, row, input, commands, options) {
   row.classList.add("lf-comment-box");
   input.setAttribute("data-lf-voice", "leaf");
   const draftCtx = replyContext(key);
   input.value = loadDraft(draftCtx)?.text ?? "";
+  // What the box says and offers is the view's that holds the row now, so a row another
+  // view takes (`take`) reads that view's words, keys, corner and stance, not those of
+  // the view it was made for.
+  /** @type {Composition | undefined} */
+  let composition;
+  const box = () => composition?.binding?.box ?? options;
+  /** @param {import("../keyboard/bindings.js").Cell<string> | null} cell */
+  const read = (cell) => (typeof cell === "function" ? cell() : cell);
   const sync = commands.wireInput(input, {
-    hint,
-    hintParts,
-    hintLead,
-    enters,
-    accessibleName,
-    busy,
-    closed,
+    hint: () => read(box().hint) ?? "",
+    hintParts: () => box().hintParts?.() ?? null,
+    hintLead: () => box().hintLead(),
+    enters: () => box().enters(),
+    accessibleName: () => read(box().accessibleName) ?? "",
+    busy: () => box().busy(),
+    closed: () => box().closed(),
+    cornerAtRest: () => box().cornerAtRest(),
     sends: "send",
     sendClass: "lf-thread-send",
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -409,6 +414,7 @@ function wireReply(
     save: (v) => {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
+      if (!composition) return;
       if (composition.binding && !compositions.has(draftCtx)) {
         adopt(draftCtx, composition);
         composition.changed();
@@ -418,7 +424,7 @@ function wireReply(
     // The new turn is drawn above the box, and the send leaves the user on the thread;
     // the landing shows the turn with the box, read before the send draws. A view that
     // lands its turns itself, as the floating panel's does, says so (`sent`).
-    send: (...args) => composition.send?.(...args),
+    send: (...args) => composition?.send?.(...args),
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
     // key for its caret.
@@ -428,25 +434,26 @@ function wireReply(
         keys: ["ArrowUp"],
         title: "edit last message",
         when: () =>
-          !sync.value() && Boolean(composition.binding?.editLast?.available()),
-        run: () => composition.binding?.editLast?.open(),
+          !sync.value() && Boolean(composition?.binding?.editLast?.available()),
+        run: () => composition?.binding?.editLast?.open(),
       },
     ],
   });
   /** @type {Composition} */
-  const composition = {
+  const made = {
     context: draftCtx,
     key,
     row,
     controls: { input, send: sync.button },
     send: null,
     binding: null,
-    changed: () => composition.binding?.onChange(),
+    changed: () => made.binding?.onChange(),
     sync,
   };
-  rowCompositions.set(row, composition);
+  composition = made;
+  rowCompositions.set(row, made);
   sync();
-  return composition;
+  return made;
 }
 
 // Make this row the owner of its thread's session, opening the session where none
@@ -589,6 +596,7 @@ export function createReplyView(
     accessibleName = "Reply",
     busy = () => false,
     closed = () => false,
+    cornerAtRest = () => true,
     sending = null,
     sent = null,
   } = {},
@@ -598,20 +606,24 @@ export function createReplyView(
     const input = offer(TEXT_FIELD);
     input.name = "reply";
     row.append(input);
-    return wireReply(key, row, input, commands, {
-      hint,
-      hintParts,
-      hintLead,
-      enters,
-      accessibleName,
-      busy,
-      closed,
-    });
+    return wireReply(key, row, input, commands, box);
+  };
+  /** @type {BoxOptions} */
+  const box = {
+    hint,
+    hintParts,
+    hintLead,
+    enters,
+    accessibleName,
+    busy,
+    closed,
+    cornerAtRest,
   };
   let composition = fresh();
   /** @type {Binding} */
   const binding = {
     ...commands,
+    box,
     onChange,
     editLast,
     sending,

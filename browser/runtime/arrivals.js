@@ -35,8 +35,8 @@
    evicts a replaced widget before its replacement connects, and a registration only
    one element may hold passes from one to the other. A connection also ends the
    batch, so an element removed before it and put back after it leaves and returns.
-   The runtime's own subscriptions (data, projections, widget controllers) and
-   LeafElement rendering hold it directly.
+   The runtime's own subscriptions (data, projections, widget controllers) and the
+   host of declared elements (element-integration.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
@@ -44,12 +44,37 @@
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
    scroll or scroll end crosses one either, so this module hears the document's and
-   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`).
+   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). Its
+   writes include the reading of the page with boxes scrolled elsewhere and put back in
+   one task (`readScrolled`).
+
+   A script's write of a box's scroll offset is heard as it is made, whichever script
+   makes it: this module wraps the browser's own entry points for one, `scrollTo`,
+   `scroll` and `scrollBy` on an element and on the window, the `scrollTop` and
+   `scrollLeft` setters, and `scrollIntoView`, which writes the offsets of the boxes
+   that scroll its target (`heardWrite`). The platform tells a page of a write only by a
+   `scroll` event at the next rendering update, which for a write made in a frame
+   callback or a resize delivery comes after that frame has painted, and the event says
+   a box moved, never that a script moved it. Heard only there, a write is nobody's
+   until that event and the browser's own motion from it to its `scrollend`
+   (`browserScrolls`): a strip a script scrolled in a frame callback painted that frame
+   without the mark on the edge its content had passed (reach.js), no scroll was under
+   way and none was waiting to be drawn (`scrolling`, `scrollDrawn`), in Chromium 159
+   and Firefox 159. A function of Leaf's own for the write (`setScroll`) closes that
+   only for the code that imports it, which a page's script and another vendor's
+   component never do. The wrap changes nothing a call does; it records the move the
+   call made (`wrote`). Every other scroll is still heard by its events alone: a smooth
+   write, which moves the box later, and a reveal made any other way, as a focus or a
+   fragment makes one. So in a shadow tree nobody enrolled, whose events this
+   module doesn't hear, a write's scroll ends after the quiet spell and a smooth one
+   goes unheard.
+
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, shadowHost, under } from "./shadow-tree.js";
-import { cancelRender, nextFrame, nextRender } from "./rendering.js";
+import { isElement, renderedParent, shadowHost, under } from "./lib/shadow-tree.js";
+import { cancelRender, nextFrame, nextRender } from "./lib/frame-pass.js";
+import { scrollMoves } from "./lib/scroll-range.js";
 
 /** The elements a watch holds: whether `is` one, and every one `within` a tree.
  * @typedef {{is: (el: Element) => boolean, within: (root: Element | ShadowRoot) => Iterable<Element>}} Kind
@@ -339,29 +364,153 @@ function announceScroll(box) {
   }
   for (const listener of scrollListeners) listener(box);
 }
-// Complete a scroll write and publish the position that will paint. Native scroll
-// events arrive too late for writes in an animation frame or resize delivery.
+// Put a box at an offset at once, the runtime's own write, and publish the position that
+// will paint. Native scroll events arrive too late for writes in an animation frame or
+// resize delivery.
 //
-// An instant write that would leave the box where it stands writes nothing, so a writer
-// may restate a position as often as it likes, as `keeps` lets one restate a DOM value.
-// The write's only effect would be one nobody asked for: it stops the scroll the browser
-// drives, and in Firefox it cancels the rubber band of a flick into an edge, which runs
-// after the box's scroll has ended (a margin card putting its transcript back at its
-// end at every scroll's end would flatten each flick's band). Stopping a scroll is a write
-// of its own (`stopWhereItStands`). Where the box stands is read to the pixel: its
-// scroll size is a whole number of pixels, so an end read from it stands up to a pixel
-// short of the browser's own.
-/** @param {Element} box @param {ScrollToOptions} options */
-export function setScroll(box, options) {
+// A write that would leave the box where it stands writes nothing
+// (lib/scroll-range.js, `scrollMoves`, says what such a write would do), so a writer may
+// restate a position as often as it likes, as `keeps` lets one restate a DOM value.
+// Stopping a scroll is a write of its own (`stopWhereItStands`).
+/** @param {Element} box @param {{top?: number, left?: number, behavior?: "instant"}} to */
+export function setScroll(box, to) {
   const { scrollTop, scrollLeft } = box;
-  const { behavior = "instant" } = options;
-  if (behavior === "instant" && !moves(box, options)) return;
-  box.scrollTo({ ...options, behavior });
-  if (behavior !== "instant") return;
+  if (!scrollMoves(box, to)) return;
+  unheardWrite(box, { ...to, behavior: "instant" });
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
-  if (box.scrollTop === scrollTop && box.scrollLeft === scrollLeft) return;
+  wrote(box, scrollTop, scrollLeft);
+}
+// Record a write that took `box` from `top` and `left` at once: the box is where a
+// script put it (`placed`), unless the write `places` nothing, the position is announced
+// before it paints, and readers of the whole scene wait for it to be drawn
+// (`scrollDrawn`). A write that left the box where it stood records nothing: the
+// browser moves the box later, as for a smooth write, or not at all.
+/** @param {Element} box @param {number} top @param {number} left @param {boolean} [places] */
+function wrote(box, top, left, places = true) {
+  if (box.scrollTop === top && box.scrollLeft === left) return;
+  if (places) placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
   drawLater();
   announceScroll(box);
+}
+// The browser's own scroll writes, heard (the header says why): each call is made as
+// written, and a move it made at once is recorded as `setScroll` records its own. So a
+// package or a page's script writes `box.scrollTo(…)`, and a component Leaf never saw
+// is heard too.
+//
+// - The hearing changes nothing a call does. It makes a write that leaves the box where
+//   it stands, which `setScroll` drops: dropping one takes predicting where each call's
+//   arguments put the box, and a wrong prediction would lose a script's write. A writer
+//   that may name the position its box holds asks first (lib/scroll-range.js,
+//   `scrollMoves`). The caller gets what the browser's call returns, as Chromium
+//   returns a promise of the scroll's end. Nor does a failure in what hears the write
+//   reach the caller, whose call the browser would not have failed: it is reported once
+//   the call has returned.
+// - A write into a scroll the browser drives leaves the box the browser's
+//   (`browserScrolls`), as it was while such a write went unheard. CodeMirror's measure
+//   corrects its scroller's offset as the reader scrolls it; read as the script's, that
+//   box would be one a hold on the reader's place could move back under their wheel
+//   (user-place.js, `holdUserPlace`).
+// - The runtime's own writers record their own writes, each its own way, so theirs go
+//   unheard (`unheardWrite`), and a write made inside another, as a DOM written in
+//   script makes (`scrollTo` there sets `scrollTop`), is part of that one.
+// - A call on something that is no element is the browser's to refuse.
+// - Each document has entry points of its own: a live sample's page loads this module
+//   and hears its own, and an element made in another document keeps that document's.
+let writing = false;
+/** @typedef {(this: any, ...args: any[]) => unknown} ScrollCall */
+/** @param {ScrollCall} native
+ * @param {boolean} [page] Whether the call scrolls the page, as the window's do. */
+function hearsWrite(native, page = false) {
+  /** @this {unknown} @param {unknown[]} args */
+  return function heardWrite(...args) {
+    const box = page ? document.scrollingElement : this;
+    if (writing || !isElement(box)) return native.apply(this, args);
+    const { scrollTop, scrollLeft } = box;
+    const browser = browserScrolls(box);
+    let result;
+    writing = true;
+    try {
+      result = native.apply(this, args);
+    } finally {
+      writing = false;
+    }
+    heard(box, scrollTop, scrollLeft, !browser);
+    return result;
+  };
+}
+// Record a write the hearing made for a caller (`wrote`). What fails here is reported
+// once that call has returned.
+/** @param {Element} box @param {number} top @param {number} left @param {boolean} places */
+function heard(box, top, left, places) {
+  try {
+    wrote(box, top, left, places);
+  } catch (error) {
+    queueMicrotask(() => {
+      throw error;
+    });
+  }
+}
+for (const method of /** @type {const} */ (["scrollTo", "scroll", "scrollBy"])) {
+  Element.prototype[method] = hearsWrite(Element.prototype[method]);
+  window[method] = hearsWrite(window[method], true);
+}
+for (const offset of ["scrollTop", "scrollLeft"]) {
+  const native = Object.getOwnPropertyDescriptor(Element.prototype, offset);
+  if (native?.set)
+    Object.defineProperty(Element.prototype, offset, {
+      ...native,
+      set: hearsWrite(native.set),
+    });
+}
+// A reveal writes the offsets of the boxes that scroll its target, the page's among
+// them. So the hearing notes where the target and each box it is drawn in stand, makes
+// the call, and records each one the call moved. A target slotted into a closed shadow
+// tree names no slot (`assignedSlot`), so the boxes of that tree go unread, and their
+// moves are heard by their events. The call reveals in the documents around this one
+// too, as in a live sample's host page, whose own runtime hears that scroll by its
+// events.
+/** @param {ScrollCall} native */
+function hearsReveal(native) {
+  /** @this {unknown} @param {unknown[]} args */
+  return function heardWrite(...args) {
+    if (writing || !isElement(this)) return native.apply(this, args);
+    const stood = [];
+    for (let box = /** @type {Element | null} */ (this); box; box = renderedParent(box))
+      stood.push({
+        box,
+        top: box.scrollTop,
+        left: box.scrollLeft,
+        browser: browserScrolls(box),
+      });
+    let result;
+    writing = true;
+    try {
+      result = native.apply(this, args);
+    } finally {
+      writing = false;
+    }
+    for (const { box, top, left, browser } of stood) heard(box, top, left, !browser);
+    return result;
+  };
+}
+{
+  const reveals = /** @type {Record<string, ScrollCall | undefined>} */ (
+    /** @type {unknown} */ (Element.prototype)
+  );
+  for (const method of ["scrollIntoView", "scrollIntoViewIfNeeded"]) {
+    const native = reveals[method];
+    // Firefox lacks scrollIntoViewIfNeeded.
+    if (native) reveals[method] = hearsReveal(native);
+  }
+}
+/** @param {Element} box @param {ScrollToOptions} options */
+function unheardWrite(box, options) {
+  writing = true;
+  try {
+    box.scrollTo(options);
+  } finally {
+    writing = false;
+  }
 }
 // A script's scroll write is drawn by the rendering update after it, and a reading of the
 // whole scene waits for that update (`scrollDrawn`): what flows in the box moves with the
@@ -402,89 +551,47 @@ export const scrollDrawn = () => undrawn?.promise ?? null;
 /** @param {Element} box */
 export function stopWhereItStands(box) {
   const at = { top: box.scrollTop, left: box.scrollLeft };
-  box.scrollTo({ ...at, behavior: "smooth" });
-  box.scrollTo({ ...at, behavior: "instant" });
+  unheardWrite(box, { ...at, behavior: "smooth" });
+  unheardWrite(box, { ...at, behavior: "instant" });
   placed.set(box, at);
   heardAt.set(box, standing(box));
   drawLater();
 }
-// Whether a write to `top` and `left` takes the box a pixel or more from where it
-// stands, once the browser clamps it to the box's range.
-/** @param {Element} box @param {ScrollToOptions} options */
-const moves = (box, { top, left }) => {
-  const range = scrollRange(box);
-  /** @param {number | undefined} to @param {number} at @param {[number, number]} reach */
-  const along = (to, at, [low, high]) =>
-    to !== undefined && Math.abs(Math.min(Math.max(to, low), high) - at) >= 1;
-  return (
-    along(top, box.scrollTop, range.top) || along(left, box.scrollLeft, range.left)
-  );
-};
-// The positions a box's scroll takes on each axis, as the browser clamps a write: from
-// zero to the side where the box's content flows from, the negative one where that is
-// the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;
-// at zero on an axis whose side the style leaves open, both sides, so no move is lost.
-/** @param {Element} box @returns {{top: [number, number], left: [number, number]}} */
-export function scrollRange(box) {
-  const { scrollTop: top, scrollLeft: left } = box;
-  const down = Math.max(box.scrollHeight - box.clientHeight, 0);
-  const across = Math.max(box.scrollWidth - box.clientWidth, 0);
-  const back =
-    (top === 0 && down) || (left === 0 && across)
-      ? scrollsBack(box)
-      : { top: false, left: false };
-  /** @param {number} at @param {number} span @param {boolean | null} side @returns {[number, number]} */
-  const reach = (at, span, side) =>
-    at > 0 || (at === 0 && side === false)
-      ? [0, span]
-      : at < 0 || side
-        ? [-span, 0]
-        : [-span, span];
-  return { top: reach(top, down, back.top), left: reach(left, across, back.left) };
-}
-// Whether each axis of a box scrolls on the negative side of zero, or null where its
-// style leaves that open. A box scrolls from where its content's flow starts, so one
-// whose flow starts at the bottom or right edge scrolls back from zero. Writing mode and
-// direction place the inline and block starts, and a flex container's main and cross
-// starts follow its direction and wrap. No API reports a box's scroll range (Firefox's
-// own `scrollTopMin` aside), and a box standing at zero shows nothing of its side, so the
-// side is read from the style that decides it; Chromium and Firefox agree on every
-// combination of those (tests/browser/test_scroll_writes.py).
+// Read the page with each box in `at` scrolled to the offset it names: every box is
+// written, `read` runs, and every box goes back where it stood before the task ends, so
+// no frame draws it there. The browser lays a box's content out as a scroll write
+// lands, sticky boxes, their holders' ends, transforms and nested scrollers included,
+// so a read just after is exact (Chromium 159, Firefox 159), where a model of that
+// layout needs a stuck box's own place, which Firefox can't read (geometry.js,
+// `stuckShift`). A box Leaf anchors (css-anchors.js) takes a write only at the next
+// frame (notes/browser-support.md, "A reveal of an anchored fixed box before the next
+// frame in Chromium"), so past one its anchor's holder is what to read
+// (scroll-containers.js, `carrying`). `read` only reads: a write of its own would be
+// undone.
 //
-// The page scrolls from its principal flow, which no flex flow of the root's reverses:
-// the root's writing mode and direction, or the body's where the page takes them from
-// it. Which one applies turns on containment, content visibility, a hidden body or a
-// frameset, and the engines differ on some of those, so where the root and the body
-// agree that is the side, and where they don't it is open.
-/** @param {Element} box @returns {{top: boolean | null, left: boolean | null}} */
-function scrollsBack(box) {
-  const page = box.ownerDocument;
-  if (box !== page.scrollingElement) return flowsBack(getComputedStyle(box), true);
-  const root = flowsBack(getComputedStyle(box), false);
-  if (!page.body) return root;
-  const body = flowsBack(getComputedStyle(page.body), false);
-  return {
-    top: root.top === body.top ? root.top : null,
-    left: root.left === body.left ? root.left : null,
-  };
-}
-// Whether each axis of a box with `style` starts its flow at the bottom or right edge,
-// counting its flex flow where `flex` asks.
-/** @param {CSSStyleDeclaration} style @param {boolean} flex */
-function flowsBack(style, flex) {
-  const { writingMode, direction, display, flexDirection, flexWrap } = style;
-  const vertical = writingMode !== "horizontal-tb";
-  // Whether the inline axis starts at its bottom or right end, and the block axis.
-  let inline = (writingMode === "sideways-lr") !== (direction === "rtl");
-  let block = writingMode === "vertical-rl" || writingMode === "sideways-rl";
-  if (flex && display.endsWith("flex")) {
-    const reversed = flexDirection.endsWith("-reverse");
-    const wrapped = flexWrap === "wrap-reverse";
-    if (flexDirection.startsWith("column"))
-      [block, inline] = [block !== reversed, inline !== wrapped];
-    else [inline, block] = [inline !== reversed, block !== wrapped];
+// Each box costs a write and a write back, a few hundredths of a millisecond with the
+// read, and one `scroll` and one `scrollend` at the next rendering update. A write also
+// stops a smooth scroll a script set going in the box (Chromium and Firefox) and
+// Firefox's rubber band of a flick into its edge, though not a key's, as PageDown's. So
+// the only boxes written are those a glide of Leaf's is moving (scrolling.js,
+// `whereGlidesLand`), which nothing else moves: their events fold into those of the
+// glide's own writes, or read as a frame of the glide that moved nothing, and the
+// glide holds the box's scroll sequence open (`holdScroll`), so they end nothing.
+/** @template T @param {Iterable<readonly [Element, number]>} at @param {() => T} read @returns {T} */
+export function readScrolled(at, read) {
+  /** @type {[Element, number][]} */
+  const stood = [];
+  try {
+    for (const [box, top] of at) {
+      if (!scrollMoves(box, { top })) continue;
+      stood.push([box, box.scrollTop]);
+      unheardWrite(box, { top, behavior: "instant" });
+    }
+    return read();
+  } finally {
+    for (const [box, top] of stood)
+      if (box.scrollTop !== top) unheardWrite(box, { top, behavior: "instant" });
   }
-  return vertical ? { top: inline, left: block } : { top: block, left: inline };
 }
 /** @type {WeakSet<Document | ShadowRoot>} */
 const hearing = new WeakSet();

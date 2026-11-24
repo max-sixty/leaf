@@ -57,7 +57,7 @@
    back from them.
 
    Whether a node is one of these layers, or stands in one as rendered, is asked of
-   `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
+   `lib/shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
    modules it imports, so focus and inertness ask it too. Every reader that treats the top
    layer differently asks there: an anchor cannot reach out of it, it paints over every
    page level, and a cluster keeps its options open while the user visits one.
@@ -87,15 +87,15 @@ import {
   canPlaceFocus,
 } from "../focus.js";
 import { move } from "../dom-move.js";
-import { renderedUnder } from "../shadow-tree.js";
+import { renderedUnder } from "../lib/shadow-tree.js";
 import {
   isHTML,
   isNativeLayer,
   nativeLayerHolding,
   nativeLayerKind,
-} from "../shadow-tree.js";
+} from "../lib/shadow-tree.js";
 import { watchOwner } from "../arrivals.js";
-import { keeps } from "../keeps.js";
+import { keeps } from "../lib/keeps.js";
 
 // A host styles its own chrome when a modal carries it into another shadow tree.
 // Layer ordering and native opening need no stylesheet from the page.
@@ -229,12 +229,13 @@ HTMLElement.prototype.showPopover = function (options) {
   if (entry && options?.source) entry.source = options.source;
 };
 
-// Leaf opens native layers through this operation. A sample suppresses the
+// The runtime opens its native layers through this operation. A sample suppresses the
 // platform's automatic focusing steps before opening: they can reveal the containing
-// frame even when the child already holds focus. Its owner places focus explicitly
-// through focusDestination, which prevents native scrolling. Restoring the layer
-// afterward moves no focus. Authored
-// scripts keep the native methods; this is the runtime's navigation contract.
+// frame even when the child already holds focus, and take focus from the page around
+// it when the child doesn't. Its owner places focus explicitly through
+// focusDestination, which prevents native scrolling. Restoring the layer afterward
+// moves no focus. Authored scripts and packages keep the native methods, whose
+// openings this module hears all the same; this is the runtime's navigation contract.
 /** @overload @param {HTMLDialogElement} layer @param {{source?: Element, modal?: boolean}} [options] @returns {void} */
 /** @overload @param {HTMLElement} layer @param {{source?: HTMLElement, modal?: boolean}} [options] @returns {void} */
 /** @param {HTMLElement} layer @param {{source?: Element, modal?: boolean}} [options] */

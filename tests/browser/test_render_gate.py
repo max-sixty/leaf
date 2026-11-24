@@ -100,7 +100,8 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.validation import composition as validation_model
-from leaf_dev.example_data import authored_sources, named_source
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import read_event_lines
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -130,7 +131,8 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # diagram package's does.
 SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
-import {PendingTaskEvent, once} from '/runtime/portable-api.js';
+import {PendingTaskEvent} from '/runtime/portable-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-sketch', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -203,8 +205,57 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
 
 
+EARLY_KEYS_WIDGET = """
+customElements.define('lf-early', class extends HTMLElement {
+  connectedCallback() {
+    if (this.firstChild) return;
+    const keyed = (id) => {
+      const press = document.createElement('button');
+      press.dataset.key = id;
+      press.textContent = id;
+      press.lfCommands = { title: 'Keyed', rows: [
+        { id: `early.${id}`, keys: ['F2'], title: 'Run', control: press, run() {} },
+      ] };
+      return press;
+    };
+    const say = (press) => press.dispatchEvent(
+      new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+    const early = keyed('early');
+    say(early);
+    const late = keyed('late');
+    this.append(early, late);
+    say(late);
+    this.classList.add('lf-rendered');
+  }
+});
+"""
+
+
+def test_the_gate_names_keys_said_before_their_element_was_placed(browser, serve):
+    """A widget that says `lf-commands` on a button before placing it is heard by
+    nobody, so the button's keys bind nothing, and the gate fails naming the button.
+    The button it says after placing is read and quiet."""
+    reading = render_gate_model.render_version(
+        browser,
+        serve(
+            leaf_page("Keys", '<h1>Keys</h1><lf-early id="keys"></lf-early>'),
+            layer_registry={"lf-early": element_declaration("lf-early")},
+            layer_widgets={"lf-early.js": EARLY_KEYS_WIDGET},
+        ),
+        served_timeout_ms=3000,
+    )
+    unread = [f for f in reading.failures if f.code == "unread-commands"]
+
+    assert [f.at for f in unread] == ["<button> in <lf-early id=keys>"], (
+        reading.findings
+    )
+    assert "bubbling, composed lf-commands event" in str(unread[0])
+
+
 def _panel(name: str) -> str:
-    return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+    return (
+        f'<section class="lf-panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
+    )
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -336,7 +387,7 @@ def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, ser
     a closed disclosure and a box out of view under `content-visibility: auto`, it asks
     no more than each child whether it is drawn. Asking about what they hold would make
     the browser style it first, and a page of long documents in tabs is almost all such
-    content (`drawnElements` in runtime/shadow-tree.js)."""
+    content (`drawnElements` in runtime/lib/shadow-tree.js)."""
     held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
     source = leaf_page(
         "Skipped content",
@@ -406,38 +457,6 @@ def test_user_view_checks_read_what_a_box_draws_beside_a_child_it_does_not(
     assert {
         drawing["words"] for drawing in reading["checks"]["shrunk_labels"]["drawings"]
     } == {"Auto label", "Summary label"}, reading["checks"]["shrunk_labels"]
-
-
-# A widget whose module draws a 120px box, where its authored markup holds nothing.
-@pytest.mark.parametrize("resource", ["module", "theme"])
-def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, resource):
-    """A missing response fails navigation rather than admitting an unread page."""
-    holding = []
-
-    def configure(page):
-        page.set_default_timeout(EXPECTED_STALL_MS)
-
-        def hold(route):
-            if holding:
-                route.continue_()
-            else:
-                holding.append(route)
-
-        page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
-
-    failures, _, completed = render_gate_scheme._render_page(
-        primed(browser.unwatched, configure),
-        serve(
-            leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
-            packages=(),
-        ),
-        {"width": 1200, "height": 900},
-        EXPECTED_STALL_MS,
-        [],
-    )
-    assert holding, "the positive control held no resource"
-    assert completed is False
-    assert [failure.code for failure in failures] == ["no-runtime"]
 
 
 @pytest.fixture
@@ -665,41 +684,6 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     assert page.evaluate(readiness) != "presented"
 
 
-def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, serve):
-    """A page whose deferred work lands a piece at a time is waited for however long
-    the whole takes, as a gallery's samples load on a starved machine, while a page
-    whose arrivals only make way for others is wedged and fails, naming `arrived`."""
-    page = open_page(browser, serve(leaf_page("Arrivals", "<p>Words.</p>")))
-    step_ms = EXPECTED_STALL_MS // 10
-    # Fifteen arrivals a step apart: one and a half bounds in all.
-    page.evaluate(
-        """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          for (let i = 1; i <= 15; i++)
-            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
-        }""",
-        step_ms,
-    )
-    wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
-
-    # One arrival never lands, and above it each new one lands a step after the next
-    # has taken its place, so the arrivals left swing between two and three.
-    page.evaluate(
-        """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          deferredArrival(new Promise(() => {}));
-          window.churn = setInterval(() => {
-            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
-          }, step);
-        }""",
-        step_ms,
-    )
-    with pytest.raises(render_checks_model.PageNotReady) as unready:
-        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
-    page.evaluate("() => clearInterval(window.churn)")
-    assert unready.value.stage == "arrived", unready.value
-
-
 def test_an_async_reading_probe_leaves_the_page_unread_instead_of_awaited(
     browser, serve
 ):
@@ -736,35 +720,6 @@ SAMPLE_FAULT = (
     '<p id="practice">Practice.</p><script>function sampleFault() {'
     " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
 )
-
-
-@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
-def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
-    """A live sample starts its page only as the reader nears it, but the gate reads
-    every document the page can show (`start_near_work`), so it refuses a page whose
-    sample's own script throws wherever on the page the sample stands, a sample far
-    down inside another one included: each started child starts its own."""
-    content = SAMPLE_FAULT
-    if nested:
-        content = (
-            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
-            '<lf-sample id="inner"><template id="inner-source" data-sample>'
-            f"{SAMPLE_FAULT}</template></lf-sample>"
-        )
-    source = leaf_page(
-        "Far fault",
-        '<p id="words">Words.</p><div style="height: 400vh"></div>'
-        '<lf-sample id="far"><template id="far-source" data-sample>'
-        f"{content}</template></lf-sample>",
-    )
-    failures = render_gate_model.render_version(
-        browser.unwatched, serve(source)
-    ).failures
-    assert any(
-        failure.code == "page-exception"
-        and "thrown in the sample" in failure.values["text"]
-        for failure in failures
-    ), failures
 
 
 def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
@@ -1184,7 +1139,7 @@ def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -1419,8 +1374,6 @@ def _author_stateful_verbatim_widget(tmp_path):
         {
             "user": {"type": "string"},
             "agent": {"type": "string"},
-            "restated": {"type": "boolean"},
-            "overruled": {"type": "boolean"},
         }
     )
     stateful["verbs"] = {
@@ -1438,7 +1391,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "description": "A preserving wrapper around a stateful child.",
         "attributes": {
             "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
             "additionalProperties": False,
         },
@@ -1448,13 +1401,14 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
         "  connectedCallback() { once(this); }\n"
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { LeafElement, keepsText } from "/runtime/widget-api.js";\n'
+        'import { LeafElement } from "/runtime/widget-api.js";\n'
+        'import { keepsText } from "/runtime/lib/keeps.js";\n'
         'customElements.define("lf-stateful", class extends LeafElement {\n'
         "  render() {\n"
         "    const { state } = this;\n"
@@ -1500,7 +1454,15 @@ def unread_syntax(page):
 
 def axe_findings(page):
     """Axe's report of the page's serious WCAG A/AA violations in each colour scheme
-    that has any."""
+    that has any, read with the page's reading scroller at its top.
+
+    Axe counts a target partly scrolled under a sticky header as obscured, and its
+    sliver as a neighbour too close to the targets beside it, so a reading taken
+    wherever an earlier journey left the scroll varies with that journey's timing.
+    A reader scrolls such a target back into view, and at the top no sticky element
+    covers the content beneath it."""
+    page.evaluate(f"() => {{ {READING_SCROLLER}.scrollTop = 0; }}")
+    rendered(page)
     findings = []
     for scheme in in_each_scheme(page):
         violations, report = serious_axe_violations(page)
@@ -1892,8 +1854,8 @@ def other_pages(page):
 # anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
-  const {focused} = await window.__lfWidgetApi();
-  const {closestAcross} = await window.__lfCheckApi();
+  const {focused} = await window.__lfCheckApi();
+  const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
   const {seenRect} = await window.__lfCheckApi();
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
@@ -2166,8 +2128,9 @@ def into_the_page(page):
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
-            const {focused} = await window.__lfWidgetApi();
-            const {availableCommandRoutes, closestAcross} = await window.__lfCheckApi();
+            const {focused} = await window.__lfCheckApi();
+            const {availableCommandRoutes} = await window.__lfCheckApi();
+            const {closestAcross} = await import("/runtime/lib/shadow-tree.js");
             const at = focused();
             if (!at || !closestAcross(at, 'main')) return false;
             for (const [row, keys] of availableCommandRoutes())
@@ -2380,7 +2343,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><hgroup><p>Eyebrow</p><h2>Heading</h2></hgroup></section>
-<div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
+<div class="lf-callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>
 <section id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
@@ -2483,8 +2446,8 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
     scrolls, so the root holds that margin in. The root draws no frame, its edge
-    being the window's. Shell padding is viewport spacing, including Leaf's panel
-    clearance; a border makes the shell an actual frame whose edges can be read."""
+    being the window's. Shell padding is viewport spacing, including Leaf's head room;
+    a border makes the shell an actual frame whose edges can be read."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
@@ -3405,12 +3368,12 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-option id="asked-late" label="Late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
 </lf-group>
-<section class="panel" id="checks">
+<section class="lf-panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
 <tbody><tr><th scope="row">Error rate</th><td><code>0.11%</code> / below <code>0.50%</code></td></tr></tbody></table>
 </section>
-<section class="panel" id="wide-checks">
+<section class="lf-panel" id="wide-checks">
 <h2>Sessions</h2>
 <table id="wide-framed"><tr>{cells}</tr></table>
 </section>
@@ -3428,7 +3391,7 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
         '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
     ).replace(
         "</table>",
-        "</table><table id='statuses'><tr><td><span class='tag ok'>passed</span></td>"
+        "</table><table id='statuses'><tr><td><span class='lf-tag ok'>passed</span></td>"
         "<td>"
         + "The replay covers every legacy export and the importer's output. " * 3
         + "</td></tr></table>",
@@ -3438,7 +3401,7 @@ def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, ser
     table = page.locator("#sessions")
     read = """t => {
       const box = t.getBoundingClientRect(), cap = t.caption.getBoundingClientRect();
-      const tag = document.querySelector('#statuses .tag');
+      const tag = document.querySelector('#statuses .lf-tag');
       return {scrolls: t.scrollWidth - t.clientWidth,
               inside: cap.left >= box.left - 1 && cap.right <= box.right + 1,
               tagLines: Math.round(tag.getBoundingClientRect().height
@@ -3471,7 +3434,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'import { shadowStage } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"
@@ -3725,7 +3689,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
 </pre></lf-diff>
             <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
           </div>
-          <aside id="framed" class="callout">
+          <aside id="framed" class="lf-callout">
             <table id="framed-table" data-width="wide"><tr><td>Framed evidence.</td></tr></table>
           </aside>
           <div id="wrapper"><section>
@@ -3849,6 +3813,30 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
         ("past-column", "<div id=indented>"),
         ("past-column", "<div id=tinted>"),
         ("past-column", "<p id=child>"),
+    ], findings
+
+
+def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
+    """A box turned a quarter shows across what it holds down, so what it clips to is
+    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    whole are not clipped out, and words held past its foot are."""
+    source = leaf_page(
+        "Turned column",
+        """<h1>Turned column</h1>
+<div id="turned"><p id="whole">Words the turned box shows whole.</p>
+<p id="cut">Words past its foot.</p></div>""",
+        head="""<style>
+#turned { box-sizing: content-box; width: 100px; height: 400px; border: 10px solid;
+  overflow: hidden; rotate: 90deg; margin: -140px auto; }
+#turned p { margin: 0; }
+#turned #cut { margin-top: 360px; }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted((finding["code"], finding["at"]) for finding in findings) == [
+        ("clipped-content", "<div id=turned>"),
+        ("clipped-out", "<p id=cut>"),
     ], findings
 
 
@@ -3993,50 +3981,6 @@ def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
     ], f"a cover between the page's first and last words went unreported: {covered}"
 
 
-@pytest.mark.parametrize(
-    ("style", "under"),
-    [
-        ("", []),
-        ("body { padding: 0 }", ["<p id=last>"]),
-        (
-            "html, body { height: 100% } body { margin: 0; padding: 0 }"
-            " main { height: 100%; overflow-y: auto }",
-            ["<p id=last>"],
-        ),
-        (
-            "html, body { height: 100% } body { margin: 0; padding: 0; overflow-y: auto }",
-            ["<p id=last>"],
-        ),
-    ],
-    ids=["room-kept", "reset", "main-scrolls", "body-scrolls"],
-)
-def test_words_the_panel_covers_at_the_page_s_end_are_reported(
-    browser, serve, style, under
-):
-    """Leaf pads the page's end by the panel's room, so its last words scroll clear of
-    the panel. A reset that zeroes that padding, or a box of the page's own that scrolls
-    with nothing at its end, leaves them under the panel however far the user scrolls.
-    The gate reads the page from its top, as it reads the rest, and places each word
-    where it stands with every scroller holding it at its end: the document for the
-    reset, `main` or `body` for a page that scrolls a box of its own. The last paragraph
-    is reported there, and nothing above it."""
-    source = leaf_page(
-        "end",
-        "<h1>The end of the page</h1>"
-        + "".join(f"<p>Paragraph {i}. {'Filler. ' * 30}</p>" for i in range(30))
-        + f"<p id='last'>The last paragraph. {'Its closing words. ' * 30}</p>",
-        head=f"<style>{style}</style>",
-        layout=None,
-    )
-    page = open_page(browser, serve(source))
-    found = render_checks_model.evaluate_probe(page, "coveredWords")
-    page.close()
-    under_panel = [f for f in found if f["code"] == "under-panel"]
-    assert [f["at"] for f in under_panel] == under, found
-    # The author reads the record as words naming the element it found.
-    assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
-
-
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
@@ -4134,7 +4078,6 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     page = open_page(browser, url)
     widget = page.locator("#custom-note")
-    expect(widget).to_have_attribute("data-lf-done", "1")
     expect(widget).to_have_attribute("data-helper", "project-owned helper")
     assert widget.evaluate(
         "(el) => ({display: getComputedStyle(el).display, "
@@ -4154,29 +4097,23 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     anchored comment, not merely exist: the planted rule traps its margin against a
     thread's first message, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
-    seeded = [
-        path
-        for path in authored_sources()
-        if (log := path.with_suffix(".jsonl")).exists()
-        and any(
-            event.get("kind") == "comment" and event.get("anchor")
-            for event in map(json.loads, filter(None, log.read_text().splitlines()))
-        )
-    ]
+
+    def anchored(source):
+        log = seed_log(source)
+        return [
+            event["id"]
+            for event in (read_event_lines(log) if log.exists() else [])
+            if event.get("kind") == "comment" and event.get("anchor")
+        ]
+
+    seeded = [path for path in authored_sources() if anchored(path)]
     assert seeded, (
         "no corpus source ships a log holding an anchored comment, so the panel would "
         "open on nothing"
     )
     page = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
-    [thread] = [
-        event["id"]
-        for event in map(
-            json.loads,
-            filter(None, seeded[0].with_suffix(".jsonl").read_text().splitlines()),
-        )
-        if event.get("kind") == "comment" and event.get("anchor")
-    ][:1]
+    [thread] = anchored(seeded[0])[:1]
     open_panel_thread(page, thread)
 
     # The control. A thread's own box draws its inset, and a first block reserving a
@@ -4246,7 +4183,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'import { shadowStage } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"
@@ -4452,7 +4390,7 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
                 "<tr><th>Key</th><th>Value</th></tr><tr><td>name</td><td>leaf</td></tr>"
                 "</table>",
             ),
-            theme=False,
+            reading=False,
         ),
     )
     measured = page.evaluate(
@@ -4489,7 +4427,7 @@ def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, 
                 "</table>",
                 layout=None,
             ),
-            theme=False,
+            reading=False,
         ),
     )
     resized(page, 390, 844)

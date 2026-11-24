@@ -12,7 +12,7 @@
  * predicate may read the whole log, which a paint that follows what it reads must not
  * (leaf-element.js). A change in what stands is said with `pageControlsChanged`.
  */
-import { capitalized } from "../words.js";
+import { capitalized } from "../lib/words.js";
 import {
   PAGE_CONTROL_RANK,
   pageControlsChanged,
@@ -59,9 +59,11 @@ function place(press) {
     offered: () => Boolean(face()),
     disabled: () => face()?.disabled ?? true,
     // A command that acts on where the reader stood gets that place back before it runs.
-    press: /** @param {Parameters<typeof returnPlace>[0] | null} held */ (held) => {
+    press: /** @param {Parameters<typeof returnPlace>[0] | null} held */ async (
+      held,
+    ) => {
       const current = record.press;
-      if (current.row.retainCurrentLocation && held) returnPlace(held);
+      if (current.row.retainCurrentLocation && held) await returnPlace(held);
       if (live(current.row)) invokePress(current);
     },
   });

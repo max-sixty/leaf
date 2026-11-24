@@ -23,16 +23,19 @@
  * application root, so geometry code never imports the presenter. A navigation step keeps the
  * user's original intent while data loads, the target opens and the page paints;
  * newer input or another navigation step cancels its landing, but not the loading. Each navigation step
- * records where the user is before it moves anything, then checks whether the user is
- * already there. Every arrival that succeeds and moves the page adds that departure to
- * history, so Back returns the user to the item they were on, one step at a time, as
- * Back does after a followed link. Leaf once let a run of steps share one entry while
+ * records where the user is before it moves anything. Every arrival that succeeds and
+ * moves the page or lands the user on a stop they weren't on adds that departure to
+ * history (`prepareNavigationStep`), so Back returns the user to the item they were on,
+ * one step at a time, as Back does after a followed link, which the browser adds as an
+ * entry though its target already shows. Leaf once let a run of steps share one entry while
  * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
  * the item a step left: after `t` then `m`, Back passed over the thread, and once the
  * user answered an obligation, which takes it out of On Me, neither Back nor Shift+m
  * returned to it. Limiting the sharing to one walk still missed the second case, so no
- * steps share an entry. A fragment link's
- * navigation step (`followFragment`) uses the history entry the browser added for the link as
+ * steps share an entry. Rejected: a step only where the arrival moves the page, under
+ * which the first `t` to a thread on screen added none, so Back from its card left the
+ * page, and a walk among stops the window shows left no way back along it. A fragment
+ * link's navigation step (`followFragment`) uses the history entry the browser added for the link as
  * its departure, and Back or Forward to a place the page has since hidden
  * (`returnToFragment`) is a navigation step that adds no entry.
  */
@@ -42,7 +45,7 @@
  * present?: () => unknown, hasContent?: boolean}} EditorDestination */
 
 import { selectEnds } from "./native-selection.js";
-import { focusElement } from "./focus.js";
+import { focusElement, focused } from "./focus.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import {
@@ -54,11 +57,12 @@ import {
   revealAddressed,
   revealAnchor,
   sectionOf,
+  awaitsDrawing,
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { renderedParent, under } from "./shadow-tree.js";
-import { nextFrame } from "./rendering.js";
+import { renderedParent, under } from "./lib/shadow-tree.js";
+import { nextFrame } from "./lib/frame-pass.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
 import { pageScroller, stopBrowserScroll } from "./scrolling.js";
@@ -248,13 +252,17 @@ export function createAnchorTravel({
   // the editor drops them (composing/surface.js, `commentOnTarget`), so the box is
   // where the user is and where `c` writes.
   /** @param {() => EditorDestination | null | undefined} resolve
-   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null, onFrame?: boolean}} options */
-  async function arriveEditor(resolve, { intent, caret, onFrame = false }) {
+   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("./focus.js").Caret | null, onFrame?: boolean, travel?: boolean}} options */
+  async function arriveEditor(
+    resolve,
+    { intent, caret, onFrame = false, travel = true },
+  ) {
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    const departure = prepareNavigationStep();
-    departure.plan(destination.where);
+    // An editor opened where the user stands (`travel: false`) is no departure.
+    const departure = travel ? prepareNavigationStep() : null;
+    departure?.plan(destination.where);
     let release = () => {};
     await arrive(
       () => {
@@ -306,13 +314,24 @@ export function createAnchorTravel({
     return (onFrame ? arrived?.frame?.() : arrived?.input()) ?? null;
   }
 
-  // Travel's departure transaction. Capture where the user is before any reveal; plan
-  // answers whether the caller moves the page, since a destination the user can already
-  // read where they are is no departure, and arrive commits only its successful handoff.
-  // Failure or newer intent leaves history untouched. A destination not yet placed (a
-  // datum a widget has yet to hydrate) is somewhere else. `there` is the caller's reading
-  // of already being there where it asks more than the destination's own (an obligation's
-  // arrival region), built on the reading it is handed.
+  // Travel's departure transaction, the one rule for whether a route that travels is a
+  // Back step: it is where it moves the page, or lands the user on a stop they weren't
+  // on, which is where its arrival puts focus on something the user's focus wasn't in
+  // (current-target.js, "on a stop"). So every stop of a walk is a step, as each
+  // followed link is, though the stop already shows: the first `t` to a thread on
+  // screen, which once left Back leaving the page from the card it opened, and `m` or
+  // `t` between stops the window already shows. An arrival that puts focus nowhere new,
+  // as on the stop the user is on, is a step only where it moves the page. A route that
+  // opens or puts away a view where the user stands doesn't travel (`travel: false`,
+  // thread/destination.js) and takes no departure. Capture where the user is before any
+  // reveal; plan answers whether the arrival moves the page, which a caller may use to
+  // decide its scroll, and arrive commits only its successful handoff, after it has
+  // placed focus. A step commits once, by the last plan made before it, so a route that
+  // lands in two places in turn, as a thread's view and then its passage, commits after
+  // the last landing it reached. Failure or newer intent leaves history untouched. A destination not
+  // yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
+  // caller's reading of already being there where it asks more than the destination's
+  // own (an obligation's arrival region), built on the reading it is handed.
   /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
     // Travel lands a destination at its start or centre, alike for one taller than its
@@ -320,6 +339,7 @@ export function createAnchorTravel({
     /** @param {Destination} where */
     const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
+    const left = focused();
     /** @type {boolean | undefined} */
     let moving;
     return {
@@ -328,9 +348,13 @@ export function createAnchorTravel({
         return moving;
       },
       commit() {
-        if (moving) write(url ?? window.location.href);
+        if (moving === undefined) return;
+        const on = focused();
+        const stayed = on === left || (left !== document.body && under(left, on));
+        if (moving || !stayed) write(url ?? window.location.href);
         // No departure, but the entry the user stays on now names where they are.
-        else if (moving === false && url) replaceEntry(url);
+        else if (url) replaceEntry(url);
+        moving = undefined;
       },
     };
   }
@@ -578,13 +602,16 @@ export function createAnchorTravel({
   };
 
   // Where an arrival at a thread lands: on `target`, a node of the thread's or in its
-  // card, at the nearest edge, then at the thread's place unless that already shows.
+  // card, at the nearest edge, then at the thread's place unless that already shows,
+  // centred, or by `block`, as `nearest` for a reader beside the page that moves the
+  // page only as far as the place needs (thread/destination.js).
   // A part inside a place taller than its room, as a seat's thread can be inside its
   // element, skips the second landing, since landing the place would scroll the part
   // back out of view. A card stands fixed over the page by its thread's place, so an
   // arrival in it, as `m` reaching a question in an agent's answer, lands here too.
-  /** @param {string} id @param {import("./focus.js").FocusDestination | null} target */
-  const threadLanding = (id, target) => {
+  /** @param {string} id @param {import("./focus.js").FocusDestination | null} target
+   * @param {"center" | "nearest"} [block] */
+  const threadLanding = (id, target, block = "center") => {
     const where = threadDestination(id);
     if (!where) return null;
     const at = target && focusElement(target);
@@ -595,39 +622,110 @@ export function createAnchorTravel({
       at !== null && at !== where && where instanceof Element && under(at, where);
     scroll.push({
       at: where,
-      when: () =>
-        !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+      block,
+      when: () => !alreadyShown(where, { block }) && !(inside && !fitsWhole(where)),
     });
     return { where, focus: target, scroll };
   };
 
-  /** @param {string} id
-   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, history?: boolean}} [options] */
-  async function scrollToThread(
-    id,
-    { part = null, focus = true, presented = null, intent, history = true } = {},
-  ) {
-    const mayArrive = retainTravel(intent);
-    const thread = threadNamed(id);
-    const anchor = thread?.anchor;
-    const status = anchors.placedAt(id)?.status;
-    const hydrationTarget =
-      anchor?.visual || (anchor?.datum && status !== "outdated") ? anchor : null;
-    const destination = threadDestination(id);
-    // Decided before the navigation step awaits anything: a destination that is not readable now,
-    // or one a widget has yet to hydrate, is somewhere else.
-    const departure = history ? prepareNavigationStep() : null;
-    if (destination || hydrationTarget) departure?.plan(destination);
-    if (hydrationTarget) {
-      const source = sectionOf(hydrationTarget);
-      // A visual settles on its part, including cancelling a pending replacement of
-      // an already visible destination; a lazy datum may load.
-      const hydration = source && revealAnchor(source, hydrationTarget);
-      if (hydration?.then) await hydration;
-      if (!mayArrive() || sectionOf(hydrationTarget) !== source) return false;
-      await refreshThread();
-      if (!mayArrive()) return false;
+  // The threads a travel is taking the user to, each with the intents that may still
+  // land it. Drawing a thread's part can take it off the margin entry or card the user
+  // stands on, and the thread pass then carries them to where it stands (thread/focus.js,
+  // `holdThreadPlace`); a travel that may still land takes them there instead, as its
+  // departure says.
+  /** @type {Map<string, Set<UserIntent>>} */
+  const travelling = new Map();
+  /** @param {string} id */
+  const travellingTo = (id) =>
+    [...(travelling.get(threadNamed(id)?.id ?? id) ?? [])].some((intent) => intent());
+  /** @template T @param {string} id @param {UserIntent} intent @param {() => Promise<T>} work */
+  async function travelTo(id, intent, work) {
+    const key = threadNamed(id)?.id ?? id;
+    const intents = travelling.get(key) ?? new Set();
+    travelling.set(key, intents.add(intent));
+    try {
+      return await work();
+    } finally {
+      intents.delete(intent);
+      if (!intents.size && travelling.get(key) === intents) travelling.delete(key);
     }
+  }
+
+  // Has the widget holding a thread's target draw the part its anchor names, and
+  // resolves whether the travel may still land once the thread pass has placed the
+  // thread again. A visual settles on its part, including cancelling a pending
+  // replacement of an already visible destination; a lazy datum may load. A thread on
+  // earlier data asks its widget too. The thread stays on the place the widget now
+  // gives that datum (`lfDataDatum`'s `outdated`), and the widget opens what holds it,
+  // as a diff opens the file an earlier line was in.
+  /** @param {string} id @param {UserIntent} mayArrive */
+  async function drawThread(id, mayArrive) {
+    const anchor = threadNamed(id)?.anchor;
+    if (!anchor?.visual && !anchor?.datum) return mayArrive();
+    const source = sectionOf(anchor);
+    const hydration = source && revealAnchor(source, anchor);
+    if (hydration?.then) await hydration;
+    if (!mayArrive() || sectionOf(anchor) !== source) return false;
+    await refreshThread();
+    return mayArrive();
+  }
+
+  // The same, for a route that has yet to choose where the thread shows, since drawing
+  // its part can give it a seat on the page (thread/destination.js).
+  /** @param {string} id @param {UserIntent | undefined} intent */
+  const revealThread = (id, intent) => {
+    const mayArrive = retainTravel(intent);
+    return travelTo(id, mayArrive, () => drawThread(id, mayArrive));
+  };
+
+  // `departure` is the route's, read where the user stood before the route changed
+  // anything (thread/destination.js), or null for an arrival that adds no entry.
+  /** @param {string} id
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
+  const scrollToThread = (id, options) => {
+    const mayArrive = retainTravel(options.intent);
+    return travelTo(id, mayArrive, () => travelToThread(id, mayArrive, options));
+  };
+
+  /** @param {string} id @param {UserIntent} mayArrive
+   * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
+  async function travelToThread(
+    id,
+    mayArrive,
+    {
+      part = null,
+      focus = true,
+      presented = null,
+      departure,
+      block = "center",
+      drawn = false,
+    },
+  ) {
+    const anchor = threadNamed(id)?.anchor;
+    const placement = anchors.placedAt(id);
+    const destination = threadDestination(id);
+    // `drawn` lands the place only where the page shows it now, for an arrival that
+    // doesn't travel: it asks no widget to draw a part, opens nothing that hides one,
+    // and moves only the scrollers the landing needs.
+    if (drawn) {
+      if ((anchor?.visual || anchor?.datum) && !targetElement(placement)) return false;
+      if (!(destination && placeHolder(destination)?.checkVisibility())) return false;
+      const landing = threadLanding(id, null, block);
+      if (!landing || !mayArrive()) return false;
+      for (const place of landing.scroll) placeScroll(place, false);
+      return true;
+    }
+    // Decided before the navigation step awaits anything: a destination that is not
+    // readable now is somewhere else, and so is one a widget has yet to draw, though
+    // what stands in for it shows, as a closed file's row shows while the line it
+    // stands in for opens thousands of pixels below it. One readable now is already
+    // there where the landing below, at its `block`, would move nothing, so history
+    // judges the placement the scroll makes (`threadLanding`).
+    if (destination || anchor?.visual || anchor?.datum)
+      departure?.plan(awaitsDrawing(anchor, placement) ? null : destination, {
+        there: () => destination !== null && alreadyShown(destination, { block }),
+      });
+    if (!(await drawThread(id, mayArrive))) return false;
 
     // The marks, the placement and the widget outlet this arrival lands in are all
     // written by the thread pass. Wait for it: a claim is synchronous but its
@@ -641,14 +739,14 @@ export function createAnchorTravel({
     return arrive(
       () => {
         const placement = anchors.placedAt(id);
-        const source = hydrationTarget && sectionOf(hydrationTarget);
+        const source = anchor?.visual ? sectionOf(anchor) : null;
         const target = !focus
           ? null
           : part
             ? threadFocusTarget(id, { part, page: true })
             : (anchor?.visual && source && addressedFocus(source, anchor.visual)) ||
               (targetElement(placement) ?? targetPlace(placement));
-        return threadLanding(id, target);
+        return threadLanding(id, target, block);
       },
       {
         intent: mayArrive,
@@ -672,7 +770,9 @@ export function createAnchorTravel({
     scrollToElement,
     scrollToPassage,
     scrollToRange,
+    revealThread,
     scrollToThread,
+    travellingTo,
     threadDestination,
     threadLanding,
   };

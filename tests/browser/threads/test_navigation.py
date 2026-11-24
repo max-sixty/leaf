@@ -1,17 +1,23 @@
 """Moving to and between threads by keyboard and pointer: the walks that reach a
 thread and the history they leave, and leaving or re-entering a reply."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import THREAD_DIFF_PAGE, live_url
+from render_cases_interaction import THREAD_DIFF_PAGE, live_url, panel_comment
 from render_harness import (
+    LONG_PAGE,
     leaf_page,
     open_page,
     put_preview_away,
     resized,
     scroll_settled,
 )
+
+from browser.threads import append_agent_reply, open_panel_thread
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -88,6 +94,161 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
         )
 
 
+@pytest.mark.parametrize(
+    "left",
+    [
+        "page thread's link",
+        "passage thread's link",
+        "card's link",
+        "walk",
+        "Show on page",
+    ],
+)
+def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
+    """Leaving a thread for a place its view would stand over puts the view away, and
+    Back reopens the thread in the reader the user had it in, where they had read it
+    to, with the user on it and no other thread open: the panel for a thread they read
+    there, about the whole page or a passage, and the margin card for one they read in
+    the card. A `t` walk from the panel's thread to a card, and Show on page, read
+    where the user was before the panel puts its view away. Forward lands on the place
+    again and puts the view away again."""
+    url = serve(LONG_PAGE)
+    page_root = panel_comment(serve.page_dir, "Where does this end?")
+    passage_root = panel_comment(
+        serve.page_dir, "Why here?", {"section": "p1", "quote": "Paragraph 1."}
+    )
+    for root in (page_root, passage_root):
+        # The link stands in the thread's first reply, above the replies the panel's
+        # view opens at.
+        for text in [
+            "See [the last paragraph](#p59).",
+            *(f"Reply {n}. " + "More of the explanation. " * 30 for n in range(6)),
+        ]:
+            append_carried_log_record(
+                serve.page_dir,
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "agent": "Claude",
+                    "parent": root,
+                    "revision": 1,
+                    "text": text,
+                },
+            )
+    page = open_page(browser, url)
+    card = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{passage_root}"]'
+    )
+    if left == "card's link":
+        page.keyboard.press("t")
+        thread = card
+    else:
+        root = (
+            passage_root
+            if left in ("passage thread's link", "Show on page")
+            else page_root
+        )
+        open_panel_thread(page, root)
+        if left in ("walk", "Show on page"):
+            # From the page's foot, so going to the passage at its top moves the page.
+            # Opening the passage's thread in the panel brought its passage into view.
+            page.evaluate("scrollTo({top: 1e6, behavior: 'instant'})")
+            scroll_settled(page)
+        thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    if left == "walk":
+        page.keyboard.press("Escape")
+        expect(thread).to_be_focused()
+        page.keyboard.press("t")
+        destination = card
+    elif left == "Show on page":
+        page.locator(".lf-fp-head .lf-fp-on-page").click()
+        # A press lands on the card's thread, its reply holding no words
+        # (floating-panel.js, `movedPart`).
+        destination = page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+        )
+    else:
+        link = thread.get_by_role("link", name="the last paragraph")
+        link.scroll_into_view_if_needed()
+        read_to = thread.evaluate("view => view.scrollTop")
+        link.click()
+        destination = page.locator("#p59")
+    expect(destination).to_be_focused()
+    expect(thread).to_be_hidden()
+
+    page.go_back()
+    expect(thread).to_be_focused()
+    if left in ("page thread's link", "passage thread's link"):
+        assert abs(thread.evaluate("view => view.scrollTop") - read_to) <= 2
+    expect(
+        page.locator(PANEL_THREAD if left == "card's link" else ".lf-margin-preview")
+    ).to_be_hidden()
+    # Forward to a card's reply box returns to the thread's passage instead, with the
+    # panel's view still open: a reply's editing continuity carries it across a
+    # revision (version.js), and a return carries no reply.
+    if left != "Show on page":
+        page.go_forward()
+        expect(destination).to_be_focused()
+        expect(thread).to_be_hidden()
+
+
+def test_back_reopens_a_card_on_the_side_it_opened_on(browser, serve):
+    """Back to an entry whose card a `t` walk put away opens the card again where it
+    stood, above its words, once the page stands where the entry left it, rather than
+    on a side chosen against the page being left, from which it covered its words."""
+    url = serve(
+        LONG_PAGE, anchored=[("p10", "Paragraph 10."), ("p40", "Paragraph 40.")]
+    )
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    page.locator("#p10").evaluate(
+        "p => scrollTo({top: p.getBoundingClientRect().top + scrollY - 500,"
+        " behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator("leaf-margin-cluster").first.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    side = card.get_attribute("data-lf-thread-placement")
+    first = card.locator(".lf-page-thread").get_attribute("data-lf-thread")
+    # Out of the reply box the press left the user in, onto the thread.
+    page.keyboard.press("Escape")
+    page.keyboard.press("t")
+    expect(card.locator(".lf-page-thread")).not_to_have_attribute(
+        "data-lf-thread", first
+    )
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{first}"]')).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    expect(card).to_have_attribute("data-lf-thread-placement", side)
+
+
+def test_a_marker_opens_a_thread_holding_a_reply_where_the_user_stands(browser, serve):
+    """A press on a passage's margin marker opens its thread where the user stands, a
+    view opened in place that adds no Back step, though the thread holds a reply the
+    user wrote and left unsent, which the press opens it on."""
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    marker = page.locator("leaf-margin-cluster").first
+    card = page.locator(".lf-margin-preview")
+    reply = card.locator(".lf-thread-reply leaf-text")
+    marker.click()
+    expect(reply).to_be_focused()
+    page.keyboard.type("Half a thought")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    marker.click()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Half a thought")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries
+
+
 def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):
     """Escape leaves a reply's whole composition row, its Send control included, onto
     the thread the reply belongs to. On a thread seated in the page's flow the page's
@@ -139,3 +300,34 @@ def test_a_click_survives_an_element_whose_id_shadows_a_dom_method(browser, serv
     )
     page.locator("#matches").click()
     page.locator("#body").click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_reopened_on_its_thread_draws_the_decision_it_closed_on(
+    request, serve, engine
+):
+    """A card closed while `m` had the user on the choice an agent's reply asks, then
+    opened on that thread again by `m`, draws the choice and puts the user on it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Every node, or the hot shards?",
+        {"section": "p40", "quote": "Paragraph 40."},
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Every node. Choose which budget to take it from.",
+        '<lf-group id="budget" label="Which budget pays?"><h3 id="budget-h">Which budget'
+        ' pays?</h3><lf-options id="budget-pick"><lf-option id="infra">Infrastructure'
+        ' reserve</lf-option><lf-option id="team">The team\'s quarter</lf-option>'
+        "</lf-options></lf-group>",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    decision = page.locator(".lf-margin-preview lf-options#budget-pick")
+    page.keyboard.press("m")
+    expect(decision).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(decision).not_to_be_visible()
+    page.keyboard.press("m")
+    expect(decision).to_be_focused()

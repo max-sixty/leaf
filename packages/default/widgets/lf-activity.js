@@ -39,23 +39,21 @@ import {
   HeldReading,
   tabStore,
   addressableLabel,
-  addressableWord,
   ago,
   anchorLabel,
   elementById,
   fragmentTarget,
   layerFact,
-  loadMarkdown,
-  markdownReady,
-  markdownWords,
   LeafElement,
   threadActions,
   readThreads,
   readHistory,
   threadSummary,
   whileConnected,
-  excerptWords,
 } from "/runtime/widget-api.js";
+import { addressableWord } from "/runtime/lib/element-word.js";
+import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdown.js";
+import { excerptWords } from "/runtime/lib/words.js";
 
 const NAME = 60;
 

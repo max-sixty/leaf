@@ -886,7 +886,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     )
     page.keyboard.press("Enter")
     expect(page.locator(".lf-live")).to_contain_text(
-        "Press n for next, Shift+n for previous, or c to comment"
+        "Selected. n or Shift+n next / previous match, c comment on the selection"
     )
 
     selected_in = """() => {

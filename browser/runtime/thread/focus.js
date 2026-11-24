@@ -10,13 +10,13 @@ import {
 import { coarsePointer } from "../pointer.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { closestAcross } from "../passages.js";
-import { nextRender } from "../rendering.js";
+import { nextRender } from "../lib/frame-pass.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { threadNamed } from "./state.js";
 import { threadKey } from "./model.js";
 import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
+import { closestAcross } from "../lib/shadow-tree.js";
 
 /** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
 /** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
@@ -37,13 +37,23 @@ export function focusThread(thread, cause) {
 // That choice is about clicks. A key that opens a thread in a walk, `t` or Enter on a
 // marker or Next, keeps the user on the thread to walk on. Enter on a row of Threads or
 // On Me keeps the caret in the reply instead, as a press on one does, and the floating
-// panel owns that (`focusView`). It does so because what the user
+// panel owns that (`openRow`). It does so because what the user
 // types after picking a row is an answer. Stood on the thread, after `g T` and Enter,
 // "really?" resolves the thread with `r`, moves on and opens the Command reference with
 // `?`, and Escape closes the panel in one press rather than two.
-/** @returns {"reply" | "thread"} */
-export const openingPart = () =>
-  pressLed() && !coarsePointer.matches ? "reply" : "thread";
+//
+// A thread moved between its card and the floating panel (`moved`, its key), by Open in
+// panel or Show on page, a press or `p`, opens where the user was in it: in its reply
+// while they are writing there (`replyIsEditing`), which the move carries with its
+// caret, so the words and the editing position go on; else on the thread, where the
+// panel's field shows the move's notice and its press back
+// (thread/threads-in-panel.js), which a caret in the reply would cover, and where a
+// second `p` moves it back. Words the user left in the reply stay there for `c`.
+/** @param {{moved?: string}} [options] @returns {"reply" | "thread"} */
+export const openingPart = ({ moved } = {}) => {
+  if (moved !== undefined) return replyIsEditing(moved) ? "reply" : "thread";
+  return pressLed() && !coarsePointer.matches ? "reply" : "thread";
+};
 
 /** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {
@@ -80,7 +90,7 @@ export const threadIn = (node) => closestAcross(node ?? null, THREAD);
 export const heldThread = () => threadIn(focused());
 
 // Its logged id.
-export const heldThreadId = () => drawnThreadId(heldThread());
+const heldThreadId = () => drawnThreadId(heldThread());
 
 // The thread every painter of current location draws — the page's contour and wash, the margin
 // entry's selection — which is the held thread except across a pointer press. A press
@@ -185,11 +195,14 @@ export async function replyDestination(
 
 // The thread itself, for a user whose node has no like where it now stands. Another
 // owner that put them on a drawn node meanwhile, as a list keeping its rows does, has
-// placed them already.
-/** @param {string} id @param {OpenThread} open @param {UserIntent} may */
-async function threadDestination(id, open, may) {
+// placed them already, and a travel taking them to the thread lands them itself
+// (anchor-travel.js, `travellingTo`), as when a press on a closed file's marker opens
+// the file and the thread leaves the marker for a seat beside its line.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} may
+ * @param {(id: string) => boolean} travellingTo */
+async function threadDestination(id, open, may, travellingTo) {
   const at = focused();
-  if (at && at !== document.body && drawn(at)) return null;
+  if (travellingTo(id) || (at && at !== document.body && drawn(at))) return null;
   const shown = await open(id, { part: "thread", intent: may });
   return shown instanceof Element && focused() === shown && may() ? shown : null;
 }
@@ -212,8 +225,8 @@ export const carryingThreadPlace = (node) => {
   );
 };
 /** @param {OpenThread} open
- * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean}} placement */
-export function holdThreadPlace(open, { threadAt, seated }) {
+ * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean, travellingTo: (id: string) => boolean}} placement */
+export function holdThreadPlace(open, { threadAt, seated, travellingTo }) {
   carrying = null;
   const held = holdCurrentLocation();
   const node = held?.node;
@@ -245,7 +258,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
         carried.add(node);
         const control = destination
           ? await replyDestination(id, open, intent, { destination })
-          : await threadDestination(id, open, may);
+          : await threadDestination(id, open, may, travellingTo);
         // The row itself came along (replies.js), so it is the user's box still.
         if (control === node) carried.delete(node);
         return control;

@@ -20,9 +20,10 @@
    A press on the grip takes no focus, so the comment being written keeps its caret. The
    move is presentation, not a decision, so nothing reaches the log. */
 import { el } from "../widget-elements.js";
+import { translateAxes } from "../element-axes.js";
 import { clamp } from "../rect.js";
 import { cancelAnimation, nextAnimation } from "../rendering.js";
-import { layoutPx } from "../keeps.js";
+import { layoutPx } from "../lib/keeps.js";
 
 // Below this travel a press is not a move, and the surface goes back to where its
 // placement stands it.
@@ -64,19 +65,15 @@ export function surfaceGrip({ surface, bounds, dropped }) {
       x,
       y: within(room, box.top + travel.y, "top", "bottom", now.height),
     };
-    const scale = {
-      x: now.width / surface.offsetWidth || 1,
-      y: now.height / surface.offsetHeight || 1,
-    };
-    // Where the placement stands it, without the carry's own translate.
-    const placed = {
-      x: now.left - offset.x * scale.x,
-      y: now.top - offset.y * scale.y,
-    };
-    offset = {
-      x: (spot.x - placed.x) / scale.x,
-      y: (spot.y - placed.y) / scale.y,
-    };
+    // The translate moves the whole surface along the axes of the box it stands in,
+    // which a transform there or further out turns or scales (element-axes.js,
+    // `translateAxes`), so the step from where it stands to the spot, carried back along
+    // those axes, is what the translate adds.
+    const { x: across, y: down } = translateAxes(surface);
+    const step = new window.DOMMatrix([across.x, across.y, down.x, down.y, 0, 0])
+      .inverse()
+      .transformPoint({ x: spot.x - now.left, y: spot.y - now.top });
+    offset = { x: offset.x + step.x, y: offset.y + step.y };
     const xShift = layoutPx(offset.x);
     const yShift = layoutPx(offset.y);
     const translate = xShift === "0px" && yShift === "0px" ? "" : `${xShift} ${yShift}`;

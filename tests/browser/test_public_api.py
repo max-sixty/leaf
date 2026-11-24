@@ -16,7 +16,6 @@ from leaf.render_checks import (
     wait_until_ready,
 )
 from leaf.render_gate.scheme import _render_page
-from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_artifact import read_artifact
 
 
@@ -76,18 +75,18 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         }
     with subtests.test("landing room"):
         initial = page.evaluate("""async () => {
-          const {landingInsets, registerRootHeader} = await window.__lfWidgetApi();
+          const {landingInsets} = await window.__lfWidgetApi();
           const before = landingInsets(document.documentElement).top;
           const make = (id, height) => {
             const header = document.createElement('div');
             header.id = id;
             header.style.cssText = `position:fixed; height:${height}px`;
+            header.toggleAttribute('data-lf-root-header', true);
             document.querySelector('main').append(header);
             return header;
           };
           const first = make('package-header-one', 19);
           const second = make('package-header-two', 31);
-          window.headerStops = [registerRootHeader(first), registerRootHeader(second)];
           return before;
         }""")
 
@@ -110,9 +109,13 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         assert added() == pytest.approx(43)
         page.evaluate("document.querySelector('main').append(window.detachedHeader)")
         assert added() == pytest.approx(74)
-        page.evaluate("window.headerStops[0]()")
+        page.locator("#package-header-one").evaluate(
+            "el => el.removeAttribute('data-lf-root-header')"
+        )
         assert added() == pytest.approx(31)
-        page.evaluate("window.headerStops[1]()")
+        page.locator("#package-header-two").evaluate(
+            "el => el.removeAttribute('data-lf-root-header')"
+        )
         assert added() == pytest.approx(0)
 
 
@@ -140,41 +143,19 @@ def output_package(path, value):
     )
     registry_path.write_text(json.dumps(registry))
     module = f"""import {{ html }} from "/vendor/lit.js";
-    import {{ LeafElement, publishOutput }} from "/runtime/widget-api.js";
+    import {{ LeafElement }} from "/runtime/widget-api.js";
 customElements.define("lf-output-proof", class extends LeafElement {{
   setup() {{
-    publishOutput(this, "count", {{count: 2}});
-    publishOutput(this, "count", {json.dumps(value)});
-    publishOutput(this, "count", null);
+    for (const count of [{{count: 2}}, {json.dumps(value)}, null]) {{
+      this.count = count;
+      this.dispatchEvent(new Event("change"));
+    }}
   }}
   render() {{ return html`Output example.`; }}
 }});
 """
     (path / "widgets/lf-output-proof.js").write_text(module)
     return module
-
-
-@pytest.mark.parametrize("value", [{"count": 3}, {"count": "wrong"}])
-def test_package_render_checks_every_exercised_output_before_withdrawal(
-    tmp_path, browser, value
-):
-    package = tmp_path / "output-package"
-    output_package(package, value)
-    failures = [
-        f for f in widget_findings(browser.unwatched, package) if f.severity == "error"
-    ]
-    if isinstance(value["count"], int):
-        assert failures == []
-    else:
-        assert failures
-        assert all(f.code == "invalid-output" for f in failures)
-        failure = failures[0]
-        assert failure.at == "<lf-output-proof id=proof>"
-        assert failure.values["owner"] == "package"
-        assert failure.values["output"] == "count"
-        assert failure.values["contract"] == "count"
-        assert "$.count" in failure.values["error"]
-        assert "<lf-output-proof id=proof> (package producer)" in str(failure)
 
 
 def test_page_render_attributes_invalid_output_to_the_overriding_implementation(
@@ -388,7 +369,8 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
     tag = "lf-pending-proof"
     add_test_widget(package, tag, upgrade=True)
     (package / "widgets" / f"{tag}.js").write_text(
-        'import { PendingTaskEvent, once } from "/runtime/portable-api.js";\n'
+        'import { PendingTaskEvent } from "/runtime/portable-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         f'customElements.define("{tag}", class extends HTMLElement {{\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"

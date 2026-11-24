@@ -23,13 +23,13 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Delivered**, stage `picked_up`), all in Leaf's italic voice. Delivered doesn't mean work has begun |
-| **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
-| **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (stage `sending`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
-| **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
+| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has handed it into the agent's turn (**Delivered**, a `waiting` update a turn has `seen`), both in Leaf's italic voice. Delivered doesn't mean work has begun |
+| **Queued for Claude** | An update no turn has taken in (`waiting` and not `seen`), whether or not the log has accepted it or a harness queue holds it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
+| **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (a `local` send that is `launching`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
+| **On it** | The agent has explicitly started this update or to-do, or a progress message of its own stands after the update in its thread, such as a line fork's working line (state `running`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The On view's tab in Leaf's panel, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
-| **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
+| **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source. Versions names the one the user last saw **v3 (last seen)** while the page has changed since |
 
 The user is talking with the agent, and the page is where that conversation happens,
 so every word a surface shows about the work is said by the agent or by Leaf, and
@@ -39,12 +39,12 @@ as a script sets a stage direction apart from the lines. A surface sets only the
 which ranks them among its other words. The agent says what it wrote: its status line
 (“running the browser suite”), its messages and a to-do's title. Leaf also speaks in
 the agent's voice where what the agent would say is reliable, because the agent's own
-command or its reply's stream shows it: **On it** once it or a fork of it took an update on,
+command or its reply's stream shows it: **On it** once it started an update or wrote a progress line after it,
 **Replying** while its reply streams in, **Your turn** once it asked, **Still to do**
 for a to-do it opened, **Answered**, **Replied** or **Edited** once it did, and how it
 ended a to-do of its own (**Done**, **Dropped**). Everything else is Leaf's: what it
 infers from the harness or the clock, such as an update on its way (“Queued for
-Claude”, “Up next”, “Delivered”), what became of it
+Claude”, “Delivered”), what became of it
 (“Stopped”, “Gone quiet”, “Not answered”), a turn that stopped (“Stopped 3m ago”), a
 step the harness reports (“Using a tool”), a dialog waiting in the agent's window
 (“Approval needed in the terminal”) or an instruction about the agent (“Not answering —
@@ -166,15 +166,19 @@ behavior. A compound widget may own reading regions without being a pane.
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container after `body` |
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the comment field and, at its end, the leaf. While a search or stance is active, the ✕ that ends it stands between them. A **folded** panel shows only the leaf in the window's corner |
-| **Leaf** | The mark at the row's end, coloured by the agent's state, with the count of what waits on the user and a dot when a thread has an unread reply; a press opens the On view on the tab those marks point at: the leaf's menu while an error waits unseen there, else On Me while anything waits on the user, else Threads while a thread has news, else the menu. A press on a folded leaf unfolds the panel |
+| **Leaf** | The mark at the row's end, coloured by the agent's state, with the count of what waits on the user and a dot when a thread has an unread reply; a press opens the On view on the tab those marks point at: the leaf's menu while an error waits unseen there, else On Me while anything waits on the user, else Threads while a thread has news, else the menu. A press on a folded leaf unfolds the panel. `o` presses it |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
 | **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position, and Reply with its key at its end while that key enters the field. While a stance such as Draw mode stands, the field takes no words and the row's mode chip names the stance in a word (**Draw**) beside its ✕. Its words read dim, and a passing notice a step brighter |
-| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, headed by the plan while one stands, and Threads) or All pages. Escape or a press on the page closes it |
+| **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs Menu, On Me, On *agent*, headed by the plan while one stands, and Threads, which ← and → move through) or All pages. Escape or a press on the page closes it |
 | **Beacon** | A mark at the window's edge, with an arrowhead toward the comment box the user's keys type into, a thread card's reply or the anchored comment box, standing while a scroll has carried the box out of the window; a press brings the box back with the caret in it (`writing-beacon.js`) |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
 as a **thread card** beside its words, and in the panel where nothing on the page
-draws it or the user moves it there with the card's **Open in panel**. A comment on selected words is written in the **anchored comment box**, which
+draws it or once the user has moved one there with a card's **Open in panel**, which
+chooses the panel for the threads after it until the panel's **Show on page** chooses
+cards again. Their words say what each choice does, "Threads open in the panel" and
+"Threads open beside their passages"; the choice is no mode, since it changes where a
+thread opens and not what input means. A comment on selected words is written in the **anchored comment box**, which
 opens beside them and becomes their thread card on Send. It also opens beside the
 target focus stands on, where it **rests** beforehand, empty, wearing the key that
 opens it.
@@ -217,13 +221,14 @@ its link's preview counts them.
 | **Scope** | A registered boundary where commands apply and can hide outer ones |
 | **Design mode** | The `l` interaction that turns input into interface comments until the user exits |
 | **Draw mode** | The `w` interaction that turns pointer input into a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `o` toggles whether it shows |
+| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `g H` toggles whether it shows |
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads and the drafts Threads lists (`t`), the user's On Me list (`m`), the changes a version comparison marks, each a run of changed blocks (`h`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
-| **Obligation** | What a widget or an agent's message waits on the user for, or what an update the user handed over is owed (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`). On the page, only its source answers it, through the widget's own actions or a reply in the thread; the agent ends a thread question the user answered elsewhere by resolving its thread. A thread is never one |
-| **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. Its By kind grouping names an obligation by the widget's word (`word`, or its module's `lfWord()`) |
+| **Obligation** | What a widget or an agent's message waits on the user for, what an update the user handed over is owed, or a to-do the agent opened (`obligations.py`, `readObligations()`): its prompt, its answer once given, its next actor and where it stands, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`, or a to-do's own). On the page, only its source answers it, through the widget's own actions or a reply in the thread; the agent ends a thread question the user answered elsewhere by resolving its thread. A thread is never one |
+| **Standing** | Where a piece of work stands, in the one vocabulary every record and surface reads (`standing.py`): whose move it is (`next_actor`), its `state` (`waiting`, `running`, `blocked` or `done`), the `reason` a state leaves out, and how a done one ended (`outcome`). An obligation, an update's delivery, a plan step, a thread and the page each say it the same way, so *waiting* always names whose move is awaited: say **waiting on me** or **waiting on Claude**, never a bare *waiting* |
+| **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. Its By kind grouping names an obligation by the widget's word (its `aria-roledescription`, or its module's `lfWord()`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Work the agent owes until it ends (`todo` in the protocol) |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): headings by depth, the goals, over steps that each name a to-do or obligation, which it arranges without owning; every state in it is read from those records |
@@ -243,9 +248,13 @@ its link's preview counts them.
 | **Binding badge** | A key badge showing a command's current binding |
 | **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |
 
-Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `o`
+Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `g H`
 toggles what the page shows without changing what input means. Commands have stable
 dotted ids.
+
+An *invoker command* is HTML's request from a button to another element
+(`commandfor`, `command="--seek"`), which one widget sends another; a bare *command* is
+always a keyboard command.
 
 A *binding* is one key a scope's row declares for a command; code, the register and
 package authors use this word. A *shortcut* is the whole key sequence a user

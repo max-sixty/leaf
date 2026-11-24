@@ -1,11 +1,6 @@
-import {
-  agePreview,
-  offerActionElement,
-  fragmentTarget,
-  generatedElement,
-  keeps,
-  tabStore,
-} from "/runtime/widget-api.js";
+import { agePreview, fragmentTarget, tabStore } from "/runtime/widget-api.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
+import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
@@ -62,13 +57,10 @@ export function createActivity(host) {
     if (thread)
       return html`<button
         ${ref(
-          (node) =>
-            node &&
-            generatedElement(offerActionElement(node, "inline", "lf-activity-target"), {
-              says: "echo",
-            }),
+          (node) => node && offerActionElement(node, "inline", "lf-activity-target"),
         )}
         type="button"
+        data-lf-echo
         data-lf-carry=${`row-${row.id}`}
         @click=${openThread ? () => openThread(thread) : null}
       >
@@ -118,18 +110,20 @@ export function createActivity(host) {
       <ol
         class="lf-activity-list"
         data-lf-scroll
+        data-lf-gen="1"
         ?hidden=${hidden}
         ${ref((node) => {
-          if (node) drawing.list = generatedElement(node, { says: false });
+          if (node) drawing.list = node;
         })}
       >
         ${repeat(rows, (row) => row.id, rowTemplate)}
       </ol>
       <p
         class="lf-activity-empty"
+        data-lf-gen="1"
         ?hidden=${hidden || rows.length > 0}
         ${ref((node) => {
-          if (node) drawing.empty = generatedElement(node, { says: false });
+          if (node) drawing.empty = node;
         })}
       >
         Nothing shown yet.

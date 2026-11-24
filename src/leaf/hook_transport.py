@@ -117,9 +117,10 @@ says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, and what a summary fork wrote (`summary_fork`), one line each
-(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn
-has ended.
+the last turn's end, what a summary fork wrote (`summary_fork`), and the notice that
+the session's hooks now run a Leaf with another skill (`hooks.skill_changed`), one line
+each (`clerk.queued`), and take them off the queue once printed (`clerk.heard`).
+Stop carries none: the clerk forks only after the turn has ended.
 
 A subagent's tool boundary carries nothing: Claude Code names the subagent in its
 PostToolBatch's payload, which the hook skips (`state.worker_tool_batch`), so the
@@ -158,7 +159,6 @@ from .schema import (
 from .service import (
     PageTransaction,
     owned_pages,
-    page_claim,
 )
 from .state import (
     STATUS_CHECKED_SUFFIX,
@@ -187,7 +187,8 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
     lines = []
     for plan in plans:
         activity = plan.state["activity"]
-        if activity["kind"] != "working" or not activity["ts"]:
+        at_work = activity["state"] == "running" or activity["reason"] == "terminal"
+        if not at_work or not activity["ts"]:
             continue
         stood = now - datetime.fromisoformat(activity["ts"])
         if stood < STATUS_RENEWAL:
@@ -227,9 +228,9 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} lapsed when its turn ended with no agent "
-        "of yours reported working in the background, or predates the pickup of a "
-        "newer update in its thread. Answer once that work is done, or, while it runs, "
+        f"; your start on {', '.join(items)} lapsed: no agent of yours carried it into "
+        "this turn from the one that wrote it, or it predates the pickup of a newer "
+        "update in its thread. Answer once that work is done, or, while it runs, "
         'start it again with `leaf task start <page> <id> --text "<what is still '
         'running>"`'
     )
@@ -285,18 +286,11 @@ def read_plans(session_id: str) -> list[PagePlan]:
     from .activity import acknowledged_obligations, turn_obligations
     from .event_contracts import write_refusal
     from .served_state.context import read_page
-    from .vendoring import renew_layer
+    from .vendoring import renew_held
 
     plans = []
     for page_dir in owned_pages(session_id):
-        # The claim's harness, since a hook's environment does not name its
-        # session, and only while the claim is still this session's.
-        held = page_claim(page_dir)
-        unready = (
-            renew_layer(page_dir, claim_harness(held), command=False)
-            if held and held["id"] == session_id
-            else None
-        )
+        unready = renew_held(page_dir, session_id)
         try:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
@@ -633,8 +627,8 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found, and what summary forks wrote, since the agent
-    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    # What Leaf queued since the agent last heard (`clerk.queued`), which the next
+    # prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):

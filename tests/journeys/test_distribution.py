@@ -48,7 +48,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
 
     leaf("package", "init", "custom", "--widget", "lf-risk-note")
     custom = tmp_path / "custom"
-    (custom / "runtime/helpers").mkdir()
+    (custom / "runtime/helpers").mkdir(parents=True)
     (custom / "runtime/helpers/État+v1.mjs").write_text(
         'export * from "/runtime/widget-api.js";\n'
     )
@@ -63,6 +63,8 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     leaf(
         "page",
         "init",
+        "--package",
+        "reading",
         "--package",
         "./custom",
         "--package",

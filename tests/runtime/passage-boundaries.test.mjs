@@ -25,7 +25,6 @@ import { registry } from "/runtime/registry.js";
 import { kept } from "/runtime/kept.js";
 import {
   blockAt,
-  closestAcross,
   contextAround,
   documentOutline,
   elementById,
@@ -33,7 +32,6 @@ import {
   fencePassageParts,
   findEach,
   findQuote,
-  inChrome,
   neighbourhood,
   pageReadingVersion,
   pageText,
@@ -49,7 +47,8 @@ import {
   trackQuotes,
 } from "/runtime/passages.js";
 import { declaredRoot } from "/runtime/shadow.js";
-import { upFrom } from "/runtime/shadow-tree.js";
+import { closestAcross, upFrom } from "/runtime/lib/shadow-tree.js";
+import { inChrome } from "/runtime/ui-marks.js";
 import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
 
 // The elements the page reading treats as blocks, each once, in reading order.
@@ -90,9 +89,9 @@ test("an edge outside prose shows a space, but none before closing or after open
   document.body.innerHTML =
     '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps ' +
     "<code>Foo</code>'s place (<code>beta</code>).</lf-option>" +
-    '<lf-option id="chipped"><small class="tag">recommended</small><strong>Apply</strong>' +
+    '<lf-option id="chipped"><small class="lf-tag">recommended</small><strong>Apply</strong>' +
     "Ship it.</lf-option>" +
-    '<lf-option id="quoted"><small class="tag">recommended</small>' +
+    '<lf-option id="quoted"><small class="lf-tag">recommended</small>' +
     '<strong>"Update" for mixed input</strong></lf-option></main>';
   assert.equal(
     says(document.querySelector("main")),

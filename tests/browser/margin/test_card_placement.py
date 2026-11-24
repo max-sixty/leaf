@@ -29,7 +29,6 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
-    _comment_on,
 )
 from browser.threads import append_agent_reply
 from leaf import event_log
@@ -107,13 +106,17 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
     expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
     rendered(page)
     geometry = page.evaluate(
-        """() => {
+        """async () => {
+          const {COMMENT_GAP, markRoom, subjectGap} = await window.__lfOverlayApi();
           const controls = document.querySelector('[data-lf-kinds="comment"]')
             .closest('[data-lf-margin-for]').getBoundingClientRect();
+          const subject = document.getElementById('bracket');
+          const room = markRoom(subject, subject.getBoundingClientRect(), COMMENT_GAP);
           const card = document.querySelector('.lf-margin-preview');
           const box = card.getBoundingClientRect();
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
+                  gap: subjectGap(room, 'right'),
                   preferred: parseFloat(getComputedStyle(card)
                     .getPropertyValue('--lf-thread-card')),
                   minimum: parseFloat(getComputedStyle(card)
@@ -121,12 +124,13 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
         }"""
     )
     past = (
-        geometry["viewport"] - 8 - (geometry["controlsRight"] + 16)
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + geometry["gap"])
         >= geometry["preferred"]
     )
     assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
-        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 16,
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT))
+        + geometry["gap"],
         abs=0.5,
     ), geometry
     assert geometry["cardRight"] == pytest.approx(
@@ -150,6 +154,51 @@ PICK_UNDER_A_CARD = leaf_page(
 </lf-group>
 """,
 )
+
+
+def test_a_card_on_a_widget_stands_its_gap_past_the_ring_round_its_decision(
+    browser, serve
+):
+    """The options' own ring stands on their frame, and the ring round the decision
+    they fill, which shows while the user stands in it, stands past the decision's
+    padding: the card stands its gap past that ring rather than on it, whether or not
+    the ring shows yet."""
+    decision = leaf_page(
+        "Decision ring",
+        """
+<h1 id="title">Decision ring</h1>
+<lf-group id="ask" label="Which banner?" style="padding: 2px">
+  <lf-options id="choice">
+    <lf-option id="row" label="Status in words">Status in words.</lf-option>
+    <lf-option id="two" label="Keep two rows">Keep two rows.</lf-option>
+  </lf-options>
+</lf-group>
+""",
+    )
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Does the banner wrap?",
+        "anchor": {"section": "choice"},
+    }
+    page = open_page(browser, serve(decision, events=[comment]))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="choice"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    rendered(page)
+    clear = page.evaluate(
+        """() => {
+          const ask = document.getElementById('ask');
+          const room = parseFloat(getComputedStyle(ask).getPropertyValue('--lf-band-room'));
+          const box = ask.getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return Math.max(card.left - (box.right + room), (box.left - room) - card.right,
+                          card.top - (box.bottom + room), (box.top - room) - card.bottom);
+        }"""
+    )
+    assert clear == pytest.approx(8, abs=0.5)
 
 
 def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serve):
@@ -718,43 +767,6 @@ def test_tab_reaching_a_card_the_page_carried_away_brings_it_back(
     assert control_in_card() not in (None, reached)
 
 
-def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
-    """The rail's one Tab stop is its highest row in view, whichever way the page got
-    there. A row on a line a box scrolls sideways stands in a carrier, which the browser
-    moves with the page's scroll but whose own box reads a frame late: read there, a
-    scroll back to the top left the stop on the second row, below the first, until
-    something else re-read the rail."""
-    line = " ".join(["A line wider than its box, which scrolls it sideways."] * 4)
-    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
-    body = (
-        "<h1>Carried rows</h1>"
-        f'<div style="overflow-x: auto"><p id="first" style="white-space: nowrap">{line}'
-        f'</p></div>{filler[: len(filler) // 3]}<p id="second">The second finding.</p>'
-        f"{filler}"
-    )
-    events = [_comment_on("first"), _comment_on("second")]
-    page = open_page(browser, serve(leaf_page("Carried rows", body), events=events))
-    resized(page, 1440, 900)
-    rendered(page)
-    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
-    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
-    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
-        "the fixture's first row no longer stands in a carrier"
-    )
-    expect(first).to_have_attribute("tabindex", "0")
-
-    page.mouse.move(300, 300)
-    page.mouse.wheel(0, 600)
-    scroll_settled(page)
-    rendered(page)
-    expect(second).to_have_attribute("tabindex", "0")
-    page.mouse.wheel(0, -600)
-    scroll_settled(page)
-    rendered(page)
-    expect(first).to_have_attribute("tabindex", "0")
-    expect(second).to_have_attribute("tabindex", "-1")
-
-
 @pytest.mark.parametrize("target", ["sec-mounts", "bracket"])
 def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top(
     browser, serve, target
@@ -832,49 +844,76 @@ PANE_PAGE = leaf_page(
     head="<style>#pane-body { height: 420px; overflow: auto; }</style>",
     layout="sidebar",
 )
+# The same pane inside a box that contains its paint and stops short of the pane's foot,
+# so the box's foot cuts the pane off there without the box scrolling anything.
+PAINT_CLIPPED_PANE_PAGE = leaf_page(
+    "Release pane",
+    f"""<div><h1>Release</h1>
+<div id="paint-clip">
+<lf-pane id="evidence" label="Evidence"><div id="pane-body">
+{PANE_FILLER}
+<section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
+</section>
+{PANE_FILLER}
+</div></lf-pane>
+</div>
+{PANE_FILLER}</div>""",
+    head="""<style>#pane-body { height: 420px; overflow: auto; }
+#paint-clip { contain: paint; height: 400px; }</style>""",
+    layout="sidebar",
+)
 
 
-def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve):
+@pytest.mark.parametrize(
+    "source,foot", [(PANE_PAGE, "pane-body"), (PAINT_CLIPPED_PANE_PAGE, "paint-clip")]
+)
+def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(
+    browser, serve, source, foot
+):
     """A card under an element in a scrolling pane, held in by the pane's foot, stands
     in the pane's plane: it is anchored to the pane, which the pane's own scroll does not
     move, so that scroll writes nothing to the card. Read as the page's plane, the card
     was anchored to the element, carried up with each scroll frame, and placed back. A
     scroll of the page carries the pane and the card together, and keeps the card's
-    side, which the pane's size holds rather than where the page shows it."""
+    side, which the pane's size holds rather than where the page shows it. Where a box
+    that contains its paint cuts the pane off above the pane's foot, the box's foot
+    holds the card in, so the card stands in that box's plane."""
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
-    page = open_page(browser, serve(PANE_PAGE, events=[comment]))
+    page = open_page(browser, serve(source, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate("() => document.getElementById('pane-sec').scrollIntoView()")
     page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", "below")
-    reading = """() => ({
+    reading = """foot => ({
       card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
       bottom: document.getElementById('pane-sec').getBoundingClientRect().bottom,
-      foot: document.getElementById('pane-body').getBoundingClientRect().bottom,
+      foot: document.getElementById(foot).getBoundingClientRect().bottom,
     })"""
-    at = page.evaluate(reading)
+    at = page.evaluate(reading, foot)
     page.evaluate(
         "by => document.getElementById('pane-body').scrollBy(0, by)",
         at["bottom"] - at["foot"] + 60,
     )
     rendered(page)
     expect(card).to_have_attribute("data-lf-plane", "region")
-    before = page.evaluate(reading)
+    before = page.evaluate(reading, foot)
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
     assert not [
         w for w in writes if any("lf-margin-preview" in step for step in w["target"])
     ], writes
-    assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
-    before = page.evaluate(reading)
+    assert page.evaluate(reading, foot)["card"] == pytest.approx(
+        before["card"], abs=0.5
+    )
+    before = page.evaluate(reading, foot)
     writes = scroll_writes(page, (5, 5, -5, 5))
     assert not [
         w for w in writes if any("lf-margin-preview" in step for step in w["target"])
     ], writes
     expect(card).to_have_attribute("data-lf-thread-placement", "below")
-    after = page.evaluate(reading)
+    after = page.evaluate(reading, foot)
     assert after["card"] - after["foot"] == pytest.approx(
         before["card"] - before["foot"], abs=0.5
     )

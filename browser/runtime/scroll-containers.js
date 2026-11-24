@@ -5,11 +5,21 @@
    and a landing alike. Native input chains its scroll along it (`scrollChainOf`), so
    the box an input scrolls is read here too (`inputScroller`). A box Leaf anchors also
    moves with every scroll that moves its anchor, which a reading of the motions under
-   way counts (`carriersOf`), and the distance the glides under way have still to
-   scroll across both is read here too (`glideTravel`, `glideGap`), with what the user
-   sees of a node where they leave it (`seenGlided`, `seenAhead`). */
+   way counts (`carriersOf`), and how far the glides under way still carry a node
+   across both is read here too (`glideTravel`, `glideGap`), with what the user sees of
+   it where they leave it (`seenGlided`, `seenAhead`).
+
+   Where the glides under way leave a node is read, not modelled: each box a glide
+   moves is scrolled to its goal, the node read there, and the box put back, in one
+   task (scrolling.js, `whereGlidesLand`). A sticky box rides a glide until it reaches
+   its line, comes back off it with its own place, and is pushed on by its holder's
+   end, through transforms and nested scrollers, and the browser's layout says where
+   each leaves it in Chromium and Firefox alike, where a model needs a stuck box's own
+   place, which Firefox can't read. That rests on both engines laying a box's content
+   out as a scroll write lands, and costs a write and a write back for each box a glide
+   moves, whose events fold into those the glide sends every frame. */
 import { inputs } from "./inputs.js";
-import { isElement, renderedParent, renderedUnder } from "./shadow-tree.js";
+import { isElement, renderedParent } from "./lib/shadow-tree.js";
 import { anchorHolder, anchorNamed } from "./css-anchors.js";
 import { scrollAxes } from "./element-axes.js";
 import {
@@ -22,6 +32,7 @@ import {
   scrollGoal,
   scrollLimit,
   scrollsFor,
+  whereGlidesLand,
 } from "./scrolling.js";
 import {
   clippedPlace,
@@ -30,8 +41,8 @@ import {
   placeBox,
   placeHolder,
   seenRect,
+  shownBox,
   shownWindow,
-  stuckBox,
   userScrollport,
 } from "./geometry.js";
 import { shifted } from "./rect.js";
@@ -95,19 +106,25 @@ export function* scrollersOf(node) {
 // moves only `scrollersOf`'s.
 /** @param {Element | null} node @returns {Generator<Element>} */
 export function* carriersOf(node) {
-  /** @type {Node | null} */
-  let fixed = node;
-  for (const box of scrollersOf(node)) {
-    yield box;
-    fixed = box;
-  }
-  if (fixed === pageScroller) return;
-  while (fixed instanceof Element && !fixedInWindow(fixed))
-    fixed = renderedParent(fixed);
-  const anchor =
-    fixed instanceof Element && anchorNamed(getComputedStyle(fixed).positionAnchor);
+  for (const { boxes } of carrying(node)) yield* boxes;
+}
+// The same walk in its parts: the boxes `scrollersOf` gives from `base`, and the fixed
+// box Leaf anchors that ends them (`fixed`), then the same from the element holding
+// that box's anchor, which none of those boxes holds, the anchor itself left out.
+/** @typedef {{base: Element, fixed: Element | null, boxes: Element[]}} Carrying */
+/** @param {Element | null} node @returns {Generator<Carrying>} */
+function* carrying(node) {
+  if (!node) return;
+  const boxes = [...scrollersOf(node)];
+  /** @type {Element | null} */
+  let fixed = boxes.at(-1) ?? node;
+  if (fixed === pageScroller) fixed = null;
+  while (fixed && !fixedInWindow(fixed)) fixed = renderedParent(fixed);
+  const anchor = fixed && anchorNamed(getComputedStyle(fixed).positionAnchor);
+  yield { base: node, fixed: anchor ? fixed : null, boxes };
   if (!anchor) return;
-  for (const box of carriersOf(anchorHolder(anchor))) if (box !== anchor) yield box;
+  for (const part of carrying(anchorHolder(anchor)))
+    yield { ...part, boxes: part.boxes.filter((box) => box !== anchor) };
 }
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
@@ -165,18 +182,23 @@ inputs.observe((event) => {
 export const holderOf = (node) =>
   node instanceof Range ? node.startContainer.parentElement : node;
 
-// The distance the glides under way have still to scroll the boxes that carry `node`
-// (`carriersOf`), each from where it stands to its glide's goal (scrolling.js,
-// `scrollGoal`), summed as a vector in client pixels through each box's transforms
-// (element-axes.js, `scrollAxes`), with the outermost box that glides; null where no
-// glide carries it. An element's own scroll moves what it holds and not its box
-// (`heldTravel` asks for what it holds), and a box's scroll leaves what sticks in it
-// where it stands, as a page's sticky header holding the focused tab (geometry.js,
-// `stuckBox`), asked of the boxes between that box and the one inside it; a sticky box
-// rides a scroll only until it sticks, and this counts it ridden by none. A scroll the
-// browser runs, as a wheel's, has no goal Leaf knows, so it adds nothing. Where a box
-// Leaf anchors will stand also depends on its placement, which solves again after a
-// scroll (floating.js), and this reads only the scrolls.
+// The distance the glides under way have still to carry `node`, through the boxes that
+// carry it (`carriersOf`), read where they leave it, all landed at once
+// (scrolling.js, `whereGlidesLand`): a page's sticky header holding the focused tab
+// rides a glide of the page only until it sticks, and comes back down with a glide
+// that takes its own place back past its line. Each part of the walk (`carrying`) is
+// read by how far its glides move the element its boxes carry, less how far they move
+// the fixed box ending it, which takes a scroll only at the next frame in Chromium and
+// may take it at once elsewhere. A vector in client pixels, with the outermost box
+// that glides, whatever the vector, since glides that carry a node nowhere can still
+// move what clips it; null where no glide carries it. Where glides past a fixed box
+// Leaf anchors carry it, `held` names that box and how far the glides inside it carry
+// the node within it. An element's own scroll moves what it holds and not its box:
+// `heldTravel` asks for what it holds, which rides its own glide whole, through its
+// transforms (element-axes.js, `scrollAxes`). A scroll the browser runs, as a wheel's,
+// has no goal Leaf knows, so it adds nothing. Where a box Leaf anchors will stand also
+// depends on its placement, which solves again after a scroll (floating.js), and this
+// reads only the scrolls.
 /** @param {Element | Range | Anchor} node */
 export const glideTravel = (node) =>
   travelFrom(
@@ -189,23 +211,41 @@ export const glideTravel = (node) =>
 export const heldTravel = (box) => travelFrom(box, null);
 /** @param {Element | null} holder @param {unknown} own */
 function travelFrom(holder, own) {
-  let x = 0;
-  let y = 0;
-  /** @type {Element | null} */
-  let outer = null;
-  let inner = holder;
-  for (const box of carriersOf(holder)) {
-    const from = inner;
-    inner = box;
-    if (box === own) continue;
-    const left = scrollGoal(box) - box.scrollTop;
-    if (!left || (from && stuckBox(from, box))) continue;
-    const axis = scrollAxes(box).y;
-    x -= left * axis.x;
-    y -= left * axis.y;
-    outer = box;
+  const parts = [...carrying(holder)];
+  const gliding = parts
+    .flatMap(({ boxes }) => boxes)
+    .filter((box) => box !== own && scrollGoal(box) !== box.scrollTop);
+  const outer = gliding.at(-1);
+  if (!holder || !outer) return null;
+  // Where each part's element stands in the fixed box ending the part, if any.
+  const stand = () =>
+    parts.map(({ base, fixed }) => {
+      const at = shownBox(base);
+      const frame = fixed ? shownBox(fixed) : { left: 0, top: 0 };
+      return { x: at.left - frame.left, y: at.top - frame.top };
+    });
+  const from = stand();
+  const moves = whereGlidesLand(gliding, stand).map((to, at) => ({
+    x: to.x - (from[at]?.x ?? 0),
+    y: to.y - (from[at]?.y ?? 0),
+  }));
+  const [inside = { x: 0, y: 0 }] = moves;
+  if (holder === parts[0]?.boxes[0] && holder !== own) {
+    const axis = scrollAxes(holder).y;
+    const by = scrollGoal(holder) - holder.scrollTop;
+    inside.x -= by * axis.x;
+    inside.y -= by * axis.y;
   }
-  return outer && { x, y, outer };
+  const fixed = parts[0]?.fixed;
+  const anchored = parts
+    .slice(1)
+    .some(({ boxes }) => boxes.some((box) => gliding.includes(box)));
+  return {
+    x: moves.reduce((sum, move) => sum + move.x, 0),
+    y: moves.reduce((sum, move) => sum + move.y, 0),
+    outer,
+    held: fixed && anchored ? { fixed, ...inside } : null,
+  };
 }
 
 // How far `node`'s box stands outside the part of the window the page shows
@@ -227,23 +267,34 @@ export function glideGap(node) {
   return { now: gap(0, 0), after: gap(travel.x, travel.y) };
 }
 
-// What the user will see of `box`, a box of `node` already cut by what clips it inside
-// the outermost box that glides (`travel.outer`), where the glides under way leave it:
-// `box` moved by their travel (`glideTravel`) and cut where they leave that box and the
-// boxes around it (geometry.js, `seenRect`), or null where none of it is seen there.
-// The cuts of the boxes inside that one are read as they stand now, which holds unless
-// one of them glides too. A box Leaf anchors stands in no box the anchor's glide moves,
-// so the window alone cuts it there (`inFront`). `rest` reads the covers where they come
+// What the user will see of `box`, a box of `node`, where the glides under way leave
+// it: `box` moved by their travel (`glideTravel`) and cut by every box clipping it, the
+// chrome's covers included, as they stand once the glides land (geometry.js,
+// `seenRect`; scrolling.js, `whereGlidesLand`), or null where none of it is seen
+// there. So an inner glide that brings a node into its box's view while an outer glide
+// brings that box into the window shows the node, which the box's clip as it stood
+// would hide. A box Leaf anchors takes its anchor's glides only at the next frame
+// (`held`): the node is cut by the clips inside that box where the glides inside it
+// leave it, and the box then rides its anchor's glides, which the window and the
+// chrome's covers alone cut there (`inFront`). `rest` reads the covers where they come
 // to rest too (geometry.js, `seenRect`).
-/** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, outer: Element}} travel @param {boolean} [rest] */
+/** @param {Element | Range} node @param {Box} box @param {{x: number, y: number, held?: {fixed: Element, x: number, y: number} | null}} travel @param {boolean} [rest] */
 export function seenGlided(node, box, travel, rest = false) {
   const holder = placeHolder(node);
   if (!holder) return null;
-  const moved = shifted(box, travel.x, travel.y);
-  if (!renderedUnder(holder, travel.outer)) return inFront(moved, holder, rest);
-  const inside = document.createRange();
-  inside.selectNodeContents(travel.outer);
-  return seenRect(inside, new Map(), moved, rest);
+  const { held } = travel;
+  if (!held)
+    return whereGlidesLand(scrollersOf(holder), () =>
+      seenRect(node, new Map(), shifted(box, travel.x, travel.y), rest),
+    );
+  const stop = renderedParent(held.fixed) ?? undefined;
+  const inside = whereGlidesLand(scrollersOf(holder), () =>
+    clippedPlace(node, new Map(), shifted(box, held.x, held.y), stop),
+  );
+  return (
+    inside &&
+    inFront(shifted(inside, travel.x - held.x, travel.y - held.y), holder, rest)
+  );
 }
 
 // Whether any of `node`, or of `box` measured through it, is in front of the user
@@ -258,18 +309,20 @@ export const seenLanded = (node, box = placeBox(node), rest = false) =>
   landed(node, glideTravel(node), box, rest);
 /** @param {Element} node @param {ReturnType<typeof glideTravel>} travel @param {Box} [box] @param {boolean} [rest] */
 function landed(node, travel, box = placeBox(node), rest = false) {
-  if (!travel) return Boolean(seenRect(node, new Map(), box, rest));
-  const inner = clippedPlace(node, new Map(), box, travel.outer);
-  return Boolean(inner && seenGlided(node, inner, travel, rest));
+  return Boolean(
+    travel ? seenGlided(node, box, travel, rest) : seenRect(node, new Map(), box, rest),
+  );
 }
-// Whether `node` is seen where the glides under way leave it (`seenLanded`), or they
-// carry it toward the window (`glideGap`). Toward as well: the box of a card the walk is
-// gliding in trails its placement, and read where the glide would carry it, it could
-// stand a pixel past the window the walk is bringing it into.
+// Whether `node` is seen where the motion under way leaves it, or the glides carry it
+// toward the window (`glideGap`). Seen means seen where the glides land
+// (`seenLanded`), with the chrome's covers where their own motion ends, since a key
+// pressed during either acts as though it had ended. Toward as well: the box of a card
+// the walk is gliding in trails its placement, and read where the glide would carry
+// it, it could stand a pixel past the window the walk is bringing it into.
 /** @param {Element} node */
 export const seenAhead = (node) => {
   const travel = glideTravel(node);
-  if (landed(node, travel)) return true;
+  if (landed(node, travel, placeBox(node), true)) return true;
   if (!travel) return false;
   const gap = glideGap(node);
   return Boolean(gap && gap.after < gap.now);

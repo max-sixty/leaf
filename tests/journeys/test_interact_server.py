@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -44,6 +45,7 @@ from leaf import presence as presence_model
 from leaf import render_checks as render_checks_model
 from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
+from leaf import rows as rows_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
@@ -694,7 +696,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
             failure="the invisible page's canonical row did not refresh",
         )[0]
 
-    row = await_row(lambda row: row["activity"]["kind"] == "working")
+    row = await_row(lambda row: row["activity"]["state"] == "running")
     assert row["session_cwd"] == "/work/invisible"
     source = neighbor / "index.html"
     source.write_text(
@@ -708,7 +710,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(
         lambda row: (
             row["title"] == "Revised unseen"
-            and row["activity"]["counts"]["pending"] == 1
+            and row["activity"]["counts"]["unseen"] == 1
         )
     )
     end_work(neighbor)
@@ -716,7 +718,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     session = cleanup_model.session_record("invisible")
     assert session is not None
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
-    await_row(lambda row: row["activity"]["kind"] == "away")
+    await_row(lambda row: row["activity"]["presence"] == "away")
     # The harness's dialog changes outside the page, with no lifecycle rewrite.
     harness_record = harness_model.claude_code_sessions() / f"{agent.pid}.json"
     harness_record.parent.mkdir(parents=True, exist_ok=True)
@@ -731,23 +733,23 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     )
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
     harness_record.unlink()
-    await_row(lambda row: row["activity"]["kind"] == "away")
+    await_row(lambda row: row["activity"]["presence"] == "away")
     lease_path = leases_model.waiter_lease_path(neighbor, "invisible")
     assert lease_path is not None
     waiter = leases_model.take_wait_lease(lease_path)
     try:
-        await_row(lambda row: row["activity"]["kind"] == "listening")
+        await_row(lambda row: row["activity"]["presence"] == "here")
     finally:
         leases_model.release_lease(waiter)
-    await_row(lambda row: row["activity"]["kind"] == "away")
+    await_row(lambda row: row["activity"]["presence"] == "away")
     agent.stdin.write(b"done\n")
     agent.stdin.flush()
     agent.wait(timeout=STATED_TIMEOUT)
-    await_row(lambda row: row["activity"]["kind"] == "unheld")
+    await_row(lambda row: row["activity"]["presence"] == "gone")
     assert server_model.running_server(neighbor)
     hosting_model.cmd_stop(neighbor)
     assert rows() == []
-    assert not server_rows_model.row_path(neighbor).exists()
+    assert not rows_model.row_path(neighbor).exists()
 
 
 def test_pages_lists_the_machines_other_live_leaves(page_dir, server, tmp_path):
@@ -806,8 +808,8 @@ def test_pages_lists_the_machines_other_live_leaves(page_dir, server, tmp_path):
     assert rows["scratch"]["url"] == claimed_url
     assert rows["The other page"]["url"] == live_url
     assert rows["The other page"]["session_cwd"] == "/work/api"
-    assert rows["The other page"]["activity"]["kind"] == "away"
-    assert rows["Malformed stream"]["activity"]["kind"] == "away"
+    assert rows["The other page"]["activity"]["presence"] == "away"
+    assert rows["Malformed stream"]["activity"]["presence"] == "away"
     assert all("obligations" not in row["activity"] for row in rows.values())
 
 
@@ -878,10 +880,15 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     release_codex_command,
     retire_test_services,
+    said,
     vendored_at_another_protocol,
+)
+from process.test_interact_server import (
+    browser_observation,
 )
 
 from leaf import codex_adapter as codex_adapter_model
+from leaf import interaction_log as interaction_model
 from leaf import schema as schema_model
 
 
@@ -897,7 +904,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     wait_for(
         lambda: (
             (current := server_model.running_server(neighbor))
-            and server_rows_model.read_row(neighbor, current)
+            and rows_model.read_row(neighbor, current)
         ),
         bool,
         failure="the server did not publish a row",
@@ -923,7 +930,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
         failure="the revived service did not regenerate its row",
     )
-    assert row["activity"]["kind"] == "working"
+    assert row["activity"]["state"] == "running"
 
 
 def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
@@ -1095,7 +1102,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     previous = server_model.running_server(neighbor)
     assert previous is not None
     wait_for(
-        lambda: server_rows_model.read_row(neighbor, previous),
+        lambda: rows_model.read_row(neighbor, previous),
         bool,
         failure="the original server did not publish its row",
     )
@@ -1105,7 +1112,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     assert presence_model.other_leaves(page_dir) == []
     # The stopped incarnation's row is retired by that reading, so a row present
     # later is one the reservation published.
-    assert not server_rows_model.row_path(neighbor).exists()
+    assert not rows_model.row_path(neighbor).exists()
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -1132,7 +1139,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
             assert read_record(neighbor / "service.json") == desired
-            assert not server_rows_model.row_path(neighbor).exists()
+            assert not rows_model.row_path(neighbor).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
             if accepted:
@@ -1148,16 +1155,14 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
                 assert current is not None
                 assert current["server_id"] != previous["server_id"]
                 assert (
-                    files_model.read_json(server_rows_model.row_path(neighbor))[
-                        "server_id"
-                    ]
+                    files_model.read_json(rows_model.row_path(neighbor))["server_id"]
                     == current["server_id"]
                 )
         if not accepted:
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
             assert read_record(neighbor / "service.json") == desired
-            assert not server_rows_model.row_path(neighbor).exists()
+            assert not rows_model.row_path(neighbor).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
         caller.close()
@@ -1200,7 +1205,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
     try:
         assert "url" in json.loads(caller.makefile("rb").readline())
         assert read_record(page_dir / "service.json") is None
-        assert not server_rows_model.row_path(page_dir).exists()
+        assert not rows_model.row_path(page_dir).exists()
         starting.start()
         assert attempting.wait(STATED_TIMEOUT), (
             "the successor never attempted the held server lease"
@@ -1215,7 +1220,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         wait_for(
             lambda: (
                 (current := server_model.running_server(page_dir))
-                and server_rows_model.read_row(page_dir, current)
+                and rows_model.read_row(page_dir, current)
             ),
             bool,
             failure="the accepted successor did not publish its own serving row",
@@ -1234,14 +1239,14 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     previous = server_model.running_server(page_dir)
     assert previous is not None
     wait_for(
-        lambda: server_rows_model.read_row(page_dir, previous),
+        lambda: rows_model.read_row(page_dir, previous),
         bool,
         failure="the original server did not publish its row",
     )
     hosting_model.cmd_stop(page_dir)
     desired = {**read_record(page_dir / "service.json"), "enabled": True}
     write_record(page_dir / "service.json", desired)
-    row_before = server_rows_model.row_path(page_dir).read_bytes()
+    row_before = rows_model.row_path(page_dir).read_bytes()
 
     def failed_constructor(*_args):
         assert server_model.running_server(page_dir) is None
@@ -1251,7 +1256,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
         hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
     assert read_record(page_dir / "service.json") == desired
-    assert server_rows_model.row_path(page_dir).read_bytes() == row_before
+    assert rows_model.row_path(page_dir).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert server_model.running_server(page_dir) is None
 
@@ -1403,10 +1408,10 @@ def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
     neighbour_page(deleted, title="Deleted", dead=True)
     shutil.rmtree(deleted)
     assert [row["title"] for row in presence_model.other_leaves(page_dir)] == ["Live"]
-    assert server_rows_model.row_path(live).is_file()
-    assert server_rows_model.row_path(reserved).is_file()
-    assert not server_rows_model.row_path(stopped).exists()
-    assert not server_rows_model.row_path(deleted).exists()
+    assert rows_model.row_path(live).is_file()
+    assert rows_model.row_path(reserved).is_file()
+    assert not rows_model.row_path(stopped).exists()
+    assert not rows_model.row_path(deleted).exists()
 
 
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
@@ -1446,7 +1451,7 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
         stdin=subprocess.PIPE,
         ENTERED=entered,
     )
-    path = server_rows_model.row_path(page_dir)
+    path = rows_model.row_path(page_dir)
     wait_for(path.is_file, bool, failure="the server did not publish its initial row")
     entered.unlink()
     ended = threading.Event()
@@ -1554,3 +1559,159 @@ def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_pat
             200,
             frozen_sheet,
         )
+
+
+def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
+    page_dir, monkeypatch
+):
+    """A session remote from its user need not have arrived over SSH — a
+    scheduler, a daemon, a detached job all derive loopback — so the note says
+    what the address is rather than leaving the user to report a dead link."""
+    monkeypatch.delenv("SSH_CONNECTION", raising=False)
+    runner = CliRunner()
+    started = runner.invoke(
+        cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
+    )
+    try:
+        assert started.exit_code == 0, started.output
+        noted = said(started.stdout)["findings"]
+        assert [note["code"] for note in noted] == ["loopback-only"]
+        assert "--host NAME" in noted[0]["text"]
+    finally:
+        stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
+        assert stopped.exit_code == 0, stopped.output
+
+
+@pytest.mark.parametrize("routed", [False, True])
+def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed):
+    template = """<template id="practice" data-sample><h1>Practice</h1>
+      <template id="inner" data-sample><h1>Nested practice</h1></template>
+    </template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        origin = preview.origin
+
+        allocation_pages = {}
+
+        def create(parent, name, token):
+            generation = json.loads(fetch(parent + "/api/state", token=token)[1])[
+                "layer"
+            ]["generation"]
+            status, raw = fetch(
+                parent + "/api/samples",
+                data=json.dumps({"template": name}).encode(),
+                token=token,
+                layer=generation,
+                headers={"Leaf-Layer": generation},
+            )
+            assert status == 200, raw
+            url = origin + json.loads(raw)["url"].rstrip("/")
+            if routed and parent == origin:
+                url += "~" + "1" * 64
+            allocation_pages[url] = json.loads(raw)["page"]
+            return url
+
+        first = create(origin, "practice", TOKEN)
+        second = create(origin, "practice", TOKEN)
+        preflight = urllib.request.Request(
+            first + "/api/event",
+            method="OPTIONS",
+            headers={
+                "Origin": "null",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,leaf-layer",
+            },
+        )
+        with urllib.request.urlopen(preflight) as answer:
+            assert answer.status == 204
+            assert answer.headers["Access-Control-Allow-Origin"] == "*"
+            assert (
+                answer.headers["Access-Control-Allow-Headers"]
+                == "content-type,leaf-layer"
+            )
+            assert answer.headers["Referrer-Policy"] == "no-referrer"
+            assert answer.headers.get("Access-Control-Allow-Credentials") is None
+        with urllib.request.urlopen(first + "/") as answer:
+            assert answer.headers.get("Content-Security-Policy") is None
+        assert fetch(first + "/api/state", token=None)[0] == 200
+        assert (
+            fetch(
+                first + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {
+                        "session": "a" * 32,
+                        "entries": [browser_observation("checkpoint")],
+                    }
+                ).encode(),
+            )[0]
+            == 204
+        )
+        routed_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "a" * 32
+        )
+        assert routed_trace["page"] == first.removeprefix(origin)
+        assert fetch(origin + "/api/state", token=None)[0] == 401
+        assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
+        nested = create(first, "inner", None)
+        assert fetch(nested + "/", token=None)[0] == 200
+        assert (
+            fetch(
+                nested + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {
+                        "session": "b" * 32,
+                        "entries": [browser_observation("checkpoint")],
+                    }
+                ).encode(),
+            )[0]
+            == 204
+        )
+        assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
+        assert fetch(first + "/", token=None)[0] == 404
+        # A read already sent by the opaque child can arrive after Reset revokes
+        # its capability. It still receives the HTTP refusal, not a CORS failure.
+        for method in ("GET", "OPTIONS"):
+            request = urllib.request.Request(
+                first + "/api/state", method=method, headers={"Origin": "null"}
+            )
+            if method == "OPTIONS":
+                # Browsers reject non-2xx preflights regardless of their headers.
+                with urllib.request.urlopen(request) as answer:
+                    assert answer.status == 204
+                    headers = answer.headers
+            else:
+                with pytest.raises(urllib.error.HTTPError) as refused:
+                    urllib.request.urlopen(request)
+                assert refused.value.code == 404
+                headers = refused.value.headers
+            assert headers["Access-Control-Allow-Origin"] == "*"
+            assert headers.get("Access-Control-Allow-Credentials") is None
+        assert fetch(nested + "/", token=None)[0] == 404
+        nested_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "b" * 32
+        )
+        assert (
+            nested_trace["page"]
+            == nested.removeprefix(origin)
+            == allocation_pages[nested]
+        )
+        assert fetch(second + "/api/state", token=None)[0] == 200
+        assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
+        assert all(not samples.pages for samples in preview.httpd.samples.values())

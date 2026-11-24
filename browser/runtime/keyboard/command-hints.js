@@ -24,11 +24,11 @@ import {
 import { reachingNow } from "./control-keys.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedUnder, under } from "../shadow-tree.js";
+import { renderedUnder, under } from "../lib/shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
-import { inlineStyle, keepsText } from "../keeps.js";
+import { inlineStyle, keepsText } from "../lib/keeps.js";
 import { repaint } from "../repaint.js";
-import { scrolling, watchScrollEnds } from "../arrivals.js";
+import { scrolling, watchScrollEnds, watchScrolls } from "../arrivals.js";
 
 export const commandHintLayer = Object.assign(document.createElement("div"), {
   className: "lf-ui lf-key-chips lf-command-binding-badges",
@@ -124,6 +124,8 @@ export const drawnKeys = (control) =>
 export function createCommandHints({ presentedControl }) {
   let mounted = false;
   let hasRoutes = false;
+  // Whether the last paint ran while a scroll moved, and so wore every face.
+  let paintedMoving = false;
   /** @type {Map<BindingBadge, LentFace>} */
   const wornBindingBadges = new Map();
   // TODO(#5194): this hit test is 28 of a Tab's 30, about 1.8 ms at 256 sections.
@@ -219,7 +221,7 @@ export function createCommandHints({ presentedControl }) {
       if (!kept.has(bindingBadge)) restoreBindingBadge(bindingBadge, face);
   }
   // The page scrolls under these projections on every frame, so a pass writes only what
-  // changed (keeps.js): a badge already worn keeps its face, and a chip
+  // changed (lib/keeps.js): a badge already worn keeps its face, and a chip
   // stands in the document plane, where the scroll carries it.
   function paint() {
     // Read afresh, since the painters before this one may have moved what is live, and
@@ -263,18 +265,29 @@ export function createCommandHints({ presentedControl }) {
     // each of their faces lent, then each face read as it stands, then each worn or
     // withheld. A paint so forces one style and layout pass for its faces however many
     // it lends, where reading each face right after writing it forced two per face
-    // (root AGENTS.md, "Responsiveness"). The chips below go the same way. A control the
-    // window does not show cannot show its face either, and wearing the face only to
-    // measure it away would write it twice on every scroll.
-    /** @type {{binding: string, control: Element, bindingBadge: BindingBadge}[]} */
+    // (root AGENTS.md, "Responsiveness"). The chips below go the same way.
+    //
+    // Those rules are for a page at rest. A face whose control the window doesn't show,
+    // and every face while any box on the page scrolls, is worn unmeasured: the browser
+    // carries it with its control and clips and stacks it as it does the control, so a
+    // scroll brings the digit in with the choice it labels, a trackpad's momentum
+    // included, and the rules apply again once the scroll ends. So a box that scrolls
+    // apart from the control also swaps a chip standing in for a cut face back to the
+    // face while it moves. Rejected: painting again whenever a reading of the window
+    // changes during the scroll, which copied part of these rules into the reading,
+    // missed page content standing over a face and cost a repaint at each crossing.
+    const moving = scrolling();
+    paintedMoving = moving;
+    /** @type {{binding: string, control: Element, bindingBadge: BindingBadge, measured: boolean}[]} */
     const shown = [];
     for (const { binding, control, bindingBadge } of visualRoutes)
-      if (
-        bindingBadge?.isConnected &&
-        bindingBadgeClaims.get(bindingBadge) === 1 &&
-        placement.visibleBounds(control)
-      )
-        shown.push({ binding, control, bindingBadge });
+      if (bindingBadge?.isConnected && bindingBadgeClaims.get(bindingBadge) === 1)
+        shown.push({
+          binding,
+          control,
+          bindingBadge,
+          measured: !moving && Boolean(placement.visibleBounds(control)),
+        });
     /** @type {Set<BindingBadge>} */
     const lent = new Set();
     const lending = shown.map((route) => {
@@ -299,7 +312,8 @@ export function createCommandHints({ presentedControl }) {
       return { ...route, said };
     });
     const faces = lending.map((route) => {
-      const { control, bindingBadge } = route;
+      const { control, bindingBadge, measured } = route;
+      if (!measured) return { ...route, exposed: true, face: null };
       const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
       const exposed = Boolean(
         box &&
@@ -344,7 +358,6 @@ export function createCommandHints({ presentedControl }) {
       if (corner) placed.push({ binding, presented, corner });
     }
     const chips = [];
-    const moving = scrolling();
     for (const { binding, presented, corner } of placed) {
       // During a scroll only existing seats update; new chips wait for placement
       // so they cannot flash at an unmeasured position.
@@ -364,16 +377,26 @@ export function createCommandHints({ presentedControl }) {
     else placement.paint(seats, chips);
   }
 
-  // A scroll's end seats the chips again.
-  const scrollEnded = () => hasRoutes && repaint();
+  // A scroll's first event repaints with every face worn; its end measures the faces
+  // and seats the chips again.
+  const paintAgain = () => hasRoutes && repaint();
+  const scrolled = () => {
+    if (!paintedMoving) paintAgain();
+  };
+  let stopScrolls = () => {};
   let stopScrollEnds = () => {};
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopScrollEnds = watchScrollEnds(scrollEnded);
+    stopScrolls = watchScrolls(scrolled);
+    stopScrollEnds = watchScrollEnds(paintAgain);
   }
   function destroy() {
-    if (mounted) stopScrollEnds();
+    if (mounted) {
+      stopScrolls();
+      stopScrollEnds();
+    }
+    paintedMoving = false;
     mounted = false;
     hasRoutes = false;
     restoreBindingBadges();

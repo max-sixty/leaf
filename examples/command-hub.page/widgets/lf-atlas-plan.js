@@ -3,13 +3,11 @@
 import { html, noChange, render, repeat } from "/vendor/lit.js";
 import {
   authoredScope,
-  generatedElement,
-  keeps,
   HeldReading,
-  keepsText,
   LeafElement,
   readWork,
 } from "/runtime/widget-api.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-plan",
   class extends LeafElement {
@@ -22,11 +20,13 @@ customElements.define(
       if (!this.overview) return;
       // The counts are this plan's words; the stopped list repeats task titles the
       // page says in the tree.
-      for (const count of this.overview.querySelectorAll("[data-atlas-count]"))
-        generatedElement(count, { says: true });
-      generatedElement(this.overview.querySelector(".atlas-stopped > ul"), {
-        says: "echo",
-      });
+      for (const count of this.overview.querySelectorAll("[data-atlas-count]")) {
+        keeps(count, "data-lf-gen", "1");
+        count.toggleAttribute("data-lf-said", true);
+      }
+      const stopped = this.overview.querySelector(".atlas-stopped > ul");
+      keeps(stopped, "data-lf-gen", "1");
+      stopped.toggleAttribute("data-lf-echo", true);
       this.hold = new HeldReading(
         this,
         () => [this.overview.querySelector(".atlas-stopped")],

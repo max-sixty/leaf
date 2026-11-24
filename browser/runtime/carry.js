@@ -4,8 +4,10 @@
  * matches those identities in the arriving document and skips nodes the patch retained.
  * Generated controls may name a stable `data-lf-carry` key inside their nearest
  * named owner, which must itself match authored markup by id and tag. Another named
- * wrapper establishes a different scope, never skipped. Only focus and caret cross: their widget
- * owns their values and drawing. Other unnamed elements and changed tags carry nothing.
+ * wrapper establishes a different scope, never skipped. A control in the shadow root
+ * its widget draws into has the widget as its owner (`partOwner`), as one in the
+ * widget's own tree does. Only focus and caret cross: their widget owns their values
+ * and drawing. Other unnamed elements and changed tags carry nothing.
  *
  * Values, checked state, and disclosure state cross only when they differ from the
  * outgoing authored node. Read both nodes through the same platform properties: reflected
@@ -16,7 +18,7 @@
  * has moved. Continuity keeps no sideways place, so a region's sideways offset crosses
  * here like any other box's. A box in skipped content (a tab not chosen, a closed
  * disclosure) carries no offset at all: reading one would make the browser style and
- * lay out all of that content first (`skipped`, shadow-tree.js), a pass per hidden panel
+ * lay out all of that content first (`skipped`, lib/shadow-tree.js), a pass per hidden panel
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
@@ -29,9 +31,23 @@
 import { setScroll } from "./arrivals.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { isHTML, skipped } from "./shadow-tree.js";
+import { closestAcross, hostIn, isHTML, skipped, upFrom } from "./lib/shadow-tree.js";
 import { readingRegions } from "./reading-regions.js";
 import { elementById, inPage, pageDocument } from "./passages.js";
+
+// The named element a generated control's key is unique within: the nearest above it,
+// out through the shadow root a widget draws into, where the page's own tree holds only
+// the host.
+/** @param {Element} part */
+const partOwner = (part) => closestAcross(upFrom(part), "[id]");
+// The owner's control of one key, in its own tree or in its shadow root.
+/** @param {Element} owner @param {string} key @param {string | undefined} name */
+function ownedPart(owner, key, name) {
+  const keyed = `[data-lf-carry="${CSS.escape(key)}"]`;
+  return [owner, owner.shadowRoot]
+    .flatMap((tree) => [...(tree?.querySelectorAll(keyed) ?? [])])
+    .find((part) => part.localName === name && partOwner(part) === owner);
+}
 
 /** @param {Element} node @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
 const holdsValue = (node) =>
@@ -46,10 +62,12 @@ const holdsTick = (node) =>
 /** @typedef {{id: string, name: string, focus?: boolean, part?: string, partName?: string, open?: boolean, scrollTop?: number, scrollLeft?: number, value?: string, checked?: boolean, caret?: import("./focus.js").Caret}} CarryRecord */
 /** @param {ParentNode} root @param {ParentNode} authored */
 export function captureCarry(root, authored) {
-  const active = focused(document);
-  const partOwner = active?.hasAttribute("data-lf-carry")
-    ? active.parentElement?.closest("[id]")
-    : null;
+  // The focused control in whichever tree holds it, and what stands for it in the
+  // page's own tree: itself, or the host of the shadow root it is in.
+  const control = focused();
+  const active = hostIn(control, document);
+  const part = control?.hasAttribute("data-lf-carry") ? control : null;
+  const owner = part && partOwner(part);
   const records = [];
   const held = new Map();
   const regionBodies = new Set(readingRegions().map(({ body }) => body));
@@ -59,12 +77,12 @@ export function captureCarry(root, authored) {
     if (wrote?.localName !== node.localName) continue;
     /** @type {CarryRecord} */
     const record = { id: node.id, name: node.localName };
-    const focusPart = active && node === partOwner ? active : null;
+    const focusPart = node === owner ? part : null;
     if (node === active || focusPart) {
       record.focus = true;
       if (focusPart) {
-        const part = focusPart.getAttribute("data-lf-carry");
-        if (part !== null) record.part = part;
+        const key = focusPart.getAttribute("data-lf-carry");
+        if (key !== null) record.part = key;
         record.partName = focusPart.localName;
       }
     }
@@ -79,7 +97,7 @@ export function captureCarry(root, authored) {
     if (holdsTick(node) && holdsTick(wrote) && node.checked !== wrote.checked)
       record.checked = node.checked;
     if (node === active || focusPart) {
-      const caret = readCaret(active);
+      const caret = readCaret(focusPart ?? active);
       if (caret) record.caret = caret;
     }
     // Omit identity-only records with no mechanical state to restore.
@@ -128,15 +146,7 @@ export function restoreCarry(
         const target =
           record.part === undefined
             ? arrived
-            : [
-                ...arrived.querySelectorAll(
-                  `[data-lf-carry="${CSS.escape(record.part)}"]`,
-                ),
-              ].find(
-                (node) =>
-                  node.parentElement?.closest("[id]") === arrived &&
-                  node.localName === record.partName,
-              );
+            : ownedPart(arrived, record.part, record.partName);
         if (target)
           focusDestination(
             target,

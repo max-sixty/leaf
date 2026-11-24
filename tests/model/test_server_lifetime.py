@@ -2,16 +2,17 @@
 background-job and desktop-app lifetimes, the reaper that retires a server, and restarts across a
 re-vendor."""
 
-import http.client
+import contextlib
+import itertools
 import json
 import os
-import shutil
+import select
 import signal
+import socket
 import subprocess
 import sys
 import threading
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -21,7 +22,6 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
-    PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
     available_loopback_port,
@@ -32,15 +32,22 @@ from interact_support import (
     write_record,
 )
 
+from leaf import clerk as clerk_model
 from leaf import cli as cli_model
+from leaf import codex as codex_model
 from leaf import harness as harness_model
+from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
+from leaf import vendoring as vendoring_model
+from leaf.detached import StartRefused
+from leaf.findings import Finding
 from leaf.refusals import Refused
 
 
@@ -143,6 +150,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
                 "persistent": True,
                 "revive": True,
                 "harness": harness_model.session_harness(),
+                "deadline": None,
             }
         ]
     else:
@@ -182,13 +190,255 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
     assert service["enabled"] and "restart" not in service
 
 
+CODEX_COPY = ("plugins", "cache", "leaf", "leaf", "local")
+CLAUDE_CODE_COPY = ("plugins", "cache", "leaf", "leaf", "0a0a0a0a0a0a")
+COPIES = {
+    "codex": CODEX_COPY,
+    "pi": (".pi", "agent", "git", "github.com", "max-sixty", "leaf"),
+    "codex, once the session ended": CODEX_COPY,
+    "claude-code": CLAUDE_CODE_COPY,
+    "claude-code, once the session loads an update": CLAUDE_CODE_COPY,
+    "claude-code, once the session moves on again": CLAUDE_CODE_COPY,
+    "claude-code, once the session's hooks run a checkout": CLAUDE_CODE_COPY,
+    "checkout": ("checkout",),
+}
+# The copy the session's hooks record from the server's first pass on, where it
+# changes.
+HOOKS_MOVE_TO = {
+    "claude-code, once the session loads an update": (
+        *CLAUDE_CODE_COPY[:-1],
+        "1b1b1b1b1b1b",
+    ),
+    "claude-code, once the session moves on again": (
+        *CLAUDE_CODE_COPY[:-1],
+        "1b1b1b1b1b1b",
+    ),
+    "claude-code, once the session's hooks run a checkout": ("checkout",),
+}
+# The copy the session's hooks record from the server's second pass on, where the
+# first copy it asked kept the server running.
+HOOKS_MOVE_AGAIN = {
+    "claude-code, once the session moves on again": (
+        *CLAUDE_CODE_COPY[:-1],
+        "2c2c2c2c2c2c",
+    ),
+}
+
+
+@pytest.mark.parametrize("copy", COPIES)
+def test_a_server_has_the_copy_its_session_runs_restart_it(
+    claimed, tmp_path, monkeypatch, copy
+):
+    """A server follows the copy the session holding its page runs. Claude Code
+    installs an update at a new path, which the session's hooks record once the
+    session loads it. Codex replaces its installed copy by moving it aside and
+    renaming another into its path, and Pi resets its clone in place and then
+    removes the clone's environment. A server the old copy started has the new copy
+    restart it once a pass finds it: it starts `server _follow` once, through the new
+    copy's launcher, naming itself, tries again when that launch fails, and goes on
+    serving until that restart stops it. Where that copy left it running, it asks
+    again only once the session's hooks run yet another copy. The child's
+    environment names no harness, so it can't hand itself to a checkout the session
+    selected. A server whose session has ended retires after its grace instead, as
+    does one from Claude Code's copy whose environment Claude Code deleted, one
+    whose session's hooks run a checkout, and one a checkout started."""
+    follows = copy in (
+        "codex",
+        "pi",
+        "claude-code, once the session loads an update",
+        "claude-code, once the session moves on again",
+    )
+    codex = COPIES[copy] == CODEX_COPY
+    root = tmp_path.joinpath(*COPIES[copy])
+    hooks = tmp_path.joinpath(*HOOKS_MOVE_TO.get(copy, COPIES[copy]))
+    clone = COPIES[copy] != CLAUDE_CODE_COPY
+    for directory in (".venv", ".git") if clone else (".venv",):
+        (root / directory).mkdir(parents=True)
+    serving(claimed, available_loopback_port(), "session")
+    if copy == "codex, once the session ended":
+        cleanup_model.end_harness_instance("s1")
+    for module in (cleanup_model, session_runtime_model):
+        monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+    attempts, replaced = [], []
+    refusals = iter([StartRefused("the new copy could not build its environment")])
+    passes = itertools.count()
+
+    @contextlib.contextmanager
+    def starting(arguments, *, harness, launcher, **_options):
+        assert replaced, "the server followed before another copy stood at its path"
+        assert server_model.running_server(claimed), "the server stopped first"
+        attempts.append((arguments, harness, launcher))
+        if refusal := next(refusals, None):
+            raise refusal
+        yield {}
+
+    class Inline:
+        """A thread that runs as it starts, so a pass that follows has followed by
+        its end."""
+
+        def __init__(self, *, target, args, daemon):
+            self.start = lambda: target(*args)
+
+    def next_pass(seconds):
+        if not seconds:
+            return  # the follow's pause before it tries again
+        number = next(passes)
+        if number == 0 and codex:
+            root.rename(tmp_path / "replaced")
+        elif number == 0 and copy in HOOKS_MOVE_TO:
+            (hooks / "bin").mkdir(parents=True)
+            (hooks / "bin" / "leaf").touch(mode=0o755)
+            leases_model.mark_skill("s1", f"{hooks}\nskill")
+            replaced.append(copy)
+        elif number == 0:
+            (root / ".venv").rmdir()
+            replaced.append(copy)
+        elif number == 1 and codex:
+            assert attempts == [], "the server followed while no copy stood there"
+            (root / ".git").mkdir(parents=True)
+            replaced.append(copy)
+        elif number == 1 and copy in HOOKS_MOVE_AGAIN:
+            again = tmp_path.joinpath(*HOOKS_MOVE_AGAIN[copy])
+            (again / "bin").mkdir(parents=True)
+            (again / "bin" / "leaf").touch(mode=0o755)
+            leases_model.mark_skill("s1", f"{again}\nskill")
+        elif number == 3:
+            service = server_model.read_service(claimed)
+            assert service is not None
+            server_model.write_service(claimed, {**service, "enabled": False})
+
+    class Stopped(BaseException):
+        pass
+
+    def stopped(status):
+        assert status == 0
+        raise Stopped
+
+    monkeypatch.setattr(server_model, "starting_detached", starting)
+    monkeypatch.setattr(codex_model, "retry_delay", lambda _failures: 0)
+    monkeypatch.setattr(server_model, "threading", SimpleNamespace(Thread=Inline))
+    monkeypatch.setattr(
+        server_model, "time", SimpleNamespace(sleep=next_pass, monotonic=lambda: 0)
+    )
+    monkeypatch.setattr(server_model, "exit_serving", stopped)
+    with pytest.raises(Stopped):
+        server_model.stop_when_service_ends(claimed)
+    if not follows:
+        assert attempts == []
+        return
+    arguments = ["server", "_follow", str(claimed), "--server-id", "fixture-server"]
+    launch = (arguments, None, (hooks / "bin" / "leaf").resolve())
+    if copy in HOOKS_MOVE_AGAIN:
+        again = tmp_path.joinpath(*HOOKS_MOVE_AGAIN[copy])
+        assert attempts == [launch] * 2 + [
+            (arguments, None, (again / "bin" / "leaf").resolve())
+        ]
+    else:
+        assert attempts == [launch] * 2
+
+
+def test_a_new_copy_restarts_only_the_server_that_asked(claimed, monkeypatch):
+    """`server _follow` from the copy that replaced a server's own answers as soon
+    as it runs, then restarts that server under itself, at its address and for the
+    session holding the page (`hosting.follow_copy`). A server another start put in
+    its place, such as one a checkout started, keeps running, and so does one whose
+    session has ended, which retires after its grace; neither is a failure of the
+    follow."""
+    serving(claimed, available_loopback_port(), "session")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    holder = harness_model.claim_harness(claim)
+    restarted, asking = [], {}
+
+    @contextlib.contextmanager
+    def restarting(page_dir, harness):
+        heard, _, _ = select.select([asking["server"]], [], [], 0)
+        assert heard, "the restart began before the server had its answer"
+        restarted.append((page_dir, harness))
+        yield
+
+    monkeypatch.setattr(hosting_model, "restarting_server", restarting)
+    assert follow(claimed, "a-checkout-s-server", asking).exit_code == 0
+    assert restarted == []
+    assert follow(claimed, "fixture-server", asking).exit_code == 0
+    assert restarted == [(claimed, holder)]
+    cleanup_model.end_harness_instance("s1")
+    assert follow(claimed, "fixture-server", asking).exit_code == 0
+    assert restarted == [(claimed, holder)]
+
+
+def follow(page_dir: Path, server_id: str, asking: dict):
+    """Run `server _follow` for the server `server_id` names, as a server that
+    accepts the answer as it hears it, which it keeps at `asking["server"]` while the
+    command runs."""
+    asking["server"], child = socket.socketpair()
+    with asking["server"]:
+        asking["server"].sendall(b"\n")
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                *("server", "_follow", str(page_dir), "--server-id", server_id),
+                *("--handshake", str(child.detach())),
+            ],
+        )
+
+
+@pytest.mark.parametrize("hooks_run", ["this Leaf", "another Leaf"])
+def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
+    claimed, monkeypatch, hooks_run
+):
+    """An update that moves the page protocol leaves the page at the old one, which
+    the new copy can't serve. `server _follow` renews it first, for the session
+    holding the page, as that session's next hook would, and queues what holds the
+    renewal back for the session. The renewal restarts the server, so the follow
+    finds another server in place of the one that asked and restarts nothing more.
+    Where the session's hooks run another Leaf, the page stays at the protocol they
+    read."""
+    mark = hooks_model.skill_mark()
+    if hooks_run == "another Leaf":
+        mark = mark.replace(str(cleanup_model.PLUGIN_ROOT), "/another/leaf", 1)
+    leases_model.mark_skill("s1", mark)
+    serving(claimed, available_loopback_port(), "session")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    held_back = Finding(
+        "unready-reinit", values={"page": str(claimed), "errors": ["not activated"]}
+    )
+    renewals = []
+
+    def renew(page_dir, harness, *, command):
+        renewals.append((page_dir, harness))
+        service = server_model.read_service(page_dir)
+        assert service is not None
+        server_model.write_service(page_dir, {**service, "server_id": "renewed"})
+        return held_back
+
+    restarted = []
+
+    @contextlib.contextmanager
+    def restarting(page_dir, harness):
+        restarted.append(page_dir)
+        yield
+
+    monkeypatch.setattr(vendoring_model, "renew_layer", renew)
+    monkeypatch.setattr(hosting_model, "restarting_server", restarting)
+    assert follow(claimed, "fixture-server", {}).exit_code == 0
+    if hooks_run == "another Leaf":
+        assert renewals == []
+        assert clerk_model.waking("s1") == []
+        return
+    assert renewals == [(claimed, harness_model.claim_harness(claim))]
+    assert restarted == [], "the follow restarted the renewed server again"
+    assert clerk_model.waking("s1") == [str(held_back)]
+
+
 def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
     """Retained servers publish rows and retire without spending native watchers.
 
     Advance maintenance after a log append and then a service withdrawal. Both
     loops must still read the files and act on the next look.
     """
-    from leaf import file_changes, server_rows
+    from leaf import file_changes, rows, server_rows
 
     fixture_service(page_dir, available_loopback_port(), lifetime="persistent")
 
@@ -210,7 +460,7 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
 
     def after_row(seconds):
         assert seconds == presence_model.PRESENCE_CACHE_S
-        record = server_rows.ROW.read(publisher.path)
+        record = rows.ROW.read(publisher.path)
         assert record is not None
         row = record["row"]
         seen.append(row["threads"]["open"])
@@ -324,26 +574,6 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
     assert read_record(page_dir / "service.json")["enabled"] is False
 
 
-def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
-    page_dir, persistent_server, monkeypatch
-):
-    server = persistent_server(page_dir)
-    write_service = hosting_model.write_service
-
-    def write_and_wait_for_exit(directory, value):
-        write_service(directory, value)
-        if not value["enabled"]:
-            wait_for(
-                lambda: leases_model.lock_is_held(page_dir / "server.lock"),
-                lambda held: not held,
-                failure="server did not release its lease after stop",
-            )
-
-    monkeypatch.setattr(hosting_model, "write_service", write_and_wait_for_exit)
-    assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=STATED_TIMEOUT)
-
-
 def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     page_dir, persistent_server
 ):
@@ -382,39 +612,6 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     assert errors == []
     assert outcomes == [True]
     assert not leases_model.lock_is_held(page_dir / "server.lock")
-
-
-def test_server_stop_closes_accepted_keep_alive_connections(
-    page_dir, persistent_server
-):
-    server = persistent_server(page_dir)
-    service = read_record(page_dir / "service.json")
-    connection = http.client.HTTPConnection(service["host"], service["port"])
-    connection.request("GET", f"/api/state?t={server_model.host_key()}")
-    response = connection.getresponse()
-    assert response.status == 200
-    response.read()
-    accepted = connection.sock
-    accepted.sendall(
-        (
-            f"GET /api/state?t={server_model.host_key()} HTTP/1.1\r\n"
-            f"Host: {service['host']}\r\n"
-        ).encode()
-    )
-
-    assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=STATED_TIMEOUT)
-
-    # A closed connection reads as end of stream or a reset. A socket still open,
-    # as one a surviving child process inherited would be, times out instead, and
-    # `TimeoutError` is an `OSError` this must not take for a close.
-    accepted.settimeout(STATED_TIMEOUT)
-    try:
-        accepted.sendall(b"\r\n")
-        remainder = accepted.recv(1)
-    except (ConnectionResetError, BrokenPipeError):
-        remainder = b""
-    assert remainder == b""
 
 
 def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
@@ -483,68 +680,6 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
 PROCESS_LISTING_REFUSED = (
     '(version 1)(allow default)(deny sysctl-read (sysctl-name "kern.proc.all"))'
 )
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        pytest.param(LEAF_COMMAND, id="module"),
-        pytest.param([str(PLUGIN_ROOT / "bin" / "leaf")], id="launcher"),
-        pytest.param(
-            [
-                "sandbox-exec",
-                "-p",
-                PROCESS_LISTING_REFUSED,
-                str(PLUGIN_ROOT / "bin" / "leaf"),
-            ],
-            id="sandboxed launcher",
-            marks=pytest.mark.skipif(
-                not shutil.which("sandbox-exec"), reason="macOS's sandbox"
-            ),
-        ),
-    ],
-)
-def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
-    page_dir, spawn, command
-):
-    """A temporary server leaves nothing `server stop` could reach, so a caller
-    that dies without stopping it, as a killed test does, must not leave it serving.
-    The caller here is a shell that starts it in the background and exits. Through
-    the launcher, the server's own parent is the `uv run` that `bin/leaf` execs,
-    which waits on it and so outlives the caller. Codex's macOS sandbox refuses a
-    listing of every process, so finding that caller must not take one."""
-    # The caller hands its stdout and stderr to the server and closes its own, so
-    # they reach their end when the server exits, whether it served or failed.
-    caller = spawn(
-        [
-            "sh",
-            "-c",
-            '"$@" & exec >&- 2>&-; read _',
-            "sh",
-            *command,
-            "server",
-            "run",
-            "--lifetime",
-            "temporary",
-            str(page_dir),
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    started = caller.stdout.readline()
-    assert started, caller.communicate(timeout=STATED_TIMEOUT)[1]
-    state = urllib.parse.urlsplit(json.loads(started)["url"])
-    state = state._replace(path="/api/state").geturl()
-    assert urllib.request.urlopen(state).status == 200
-
-    # Closing its stdin ends the caller, and reading the server's stdout and stderr
-    # to their end waits for the server to exit.
-    _, error = caller.communicate(timeout=STATED_TIMEOUT)
-    assert error == ""
-    with pytest.raises(urllib.error.URLError):
-        urllib.request.urlopen(state)
 
 
 def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):

@@ -1953,7 +1953,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await window.__lfWidgetApi();
+          const { syntax } = await window.__lfLibImport('syntax-tokens.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -2008,7 +2008,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
 
     heredoc = page.evaluate("""async () => {
-      const { syntax } = await window.__lfWidgetApi();
+      const { syntax } = await window.__lfLibImport('syntax-tokens.js');
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(

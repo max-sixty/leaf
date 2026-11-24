@@ -480,8 +480,9 @@ function standBlocks(state, blocks, out, line, blanks) {
   const holdsCaret = (each) =>
     caret.empty && each.from <= caret.head && caret.head <= each.to;
   // A run of blank lines stands as one gap, shared among them.
-  /** @param {number} from @param {number} to @param {string} gap */
-  const gapLines = (from, to, gap) => {
+  /** @param {number} from @param {number} to @param {string} prior @param {string} next */
+  const gapLines = (from, to, prior, next) => {
+    const gap = `lf-ends-${prior} lf-starts-${next}`;
     /** @type {import("@codemirror/state").Line[]} */
     const lines = [];
     eachLine(state.doc, from, to, (each) => lines.push(each));
@@ -490,11 +491,14 @@ function standBlocks(state, blocks, out, line, blanks) {
       (blanks.lines === "always" ||
         (blanks.lines === "caret" && lines.some(holdsCaret)));
     if (lined) {
-      // The first line is the gap the prose leaves; in a run of three or more the last
-      // is too, so a paragraph typed on a line between them stands where it will stand.
+      // A line stands as a paragraph's line only where words typed on it would make a
+      // paragraph of their own, with a blank line on each side. The first line is the gap
+      // the prose leaves above such a paragraph and the last the gap below it, so a
+      // paragraph typed between them stands where it will stand.
+      const last = lines.length - 1;
       lines.forEach((each, at) => {
-        if (at === 0 || (lines.length > 2 && at === lines.length - 1))
-          named(each.from, `lf-face-gap ${gap}`);
+        if (at === 0) named(each.from, `lf-face-gap lf-ends-${prior} lf-starts-p`);
+        else if (at === last) named(each.from, `lf-face-gap lf-ends-p lf-starts-${next}`);
         else {
           named(each.from, "lf-face-p");
           if (blanks.mark && !holdsCaret(each)) out.push(blanks.mark.range(each.from));
@@ -548,9 +552,8 @@ function standBlocks(state, blocks, out, line, blanks) {
     if (list && to >= state.doc.length)
       named(state.doc.lineAt(state.doc.length).from, "lf-face-list-tail");
     const prior = before[level];
-    const gap = `lf-ends-${prior?.tag} lf-starts-${tag}`;
-    if (prior && prior.to < from) gapLines(prior.to, from, gap);
-    else if (prior) named(from, `lf-face-gap-above ${gap}`);
+    if (prior && prior.to < from) gapLines(prior.to, from, prior.tag, tag);
+    else if (prior) named(from, `lf-face-gap-above lf-ends-${prior.tag} lf-starts-${tag}`);
     // A block's reading can take in the blank lines after it, which part it from the next.
     let end = to;
     while (end > from && blank(end - 1)) end = state.doc.lineAt(end - 1).from;

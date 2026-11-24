@@ -8,14 +8,14 @@
 
 import {
   frameFor,
-  inlineMarkdownFragment,
   layoutChanged,
-  loadMarkdown,
   offer,
   once,
   sizeObserver,
   whileConnected,
+  pageLinks,
 } from "/runtime/widget-api.js";
+import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
   INPUTS,
@@ -308,7 +308,9 @@ customElements.define(
     // its words, or how Markdown renders them, changed.
     #renderNote() {
       const note = document.createElement("span");
-      note.append(inlineMarkdownFragment(this.#film.steps[this.#step].note, false));
+      note.append(
+        inlineMarkdownFragment(this.#film.steps[this.#step].note, pageLinks, false),
+      );
       if (note.innerHTML !== this.noteEl.innerHTML)
         this.noteEl.replaceChildren(...note.childNodes);
     }

@@ -229,7 +229,9 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     ]
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignInlineText, alignText, sentenceUnits} = await window.__lfCheckApi();
+          const {alignInlineText, alignText, sentenceUnits} = await import(
+            "/runtime/lib/text-alignment.js"
+          );
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -260,7 +262,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     local = page.evaluate(
         """async () => {
-          const {alignInlineText} = await window.__lfCheckApi();
+          const {alignInlineText} = await import("/runtime/lib/text-alignment.js");
           return alignInlineText(
             'Each section names a feature and provides a live example.',
             'Each section names a feature and provides a live example, including focused replays of its motion.'

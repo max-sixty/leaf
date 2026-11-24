@@ -88,7 +88,6 @@ import {
   clearDraft,
   watchDraft,
   whileConnected,
-  pressIsKeyboardActivation,
   reachedForWords,
   paintMarkdown,
   dressCode,
@@ -203,7 +202,7 @@ customElements.define(
           this.#cancelSize = null;
           if (
             event.button !== 0 ||
-            pressIsKeyboardActivation(event) ||
+            event.detail === 0 ||
             !(
               event.target instanceof Element &&
               event.target.closest('[data-lf-draft-action="cancel"]')
@@ -224,7 +223,7 @@ customElements.define(
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
-          pressIsKeyboardActivation(ev) ||
+          ev.detail === 0 ||
           ev.button !== 0 ||
           (ev.target instanceof Element && worksInside(ev.target, this))
         )

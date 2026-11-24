@@ -99,7 +99,6 @@ import {
   inBaseLayer,
   offered,
   offeredAction,
-  pressIsKeyboardActivation,
   keeps,
   keepsText,
   LeafElement,
@@ -2312,7 +2311,7 @@ export class Trace extends LeafElement {
                       const pressed = this.#pressedPlay;
                       this.#playIntent =
                         pressed &&
-                        !pressIsKeyboardActivation(event) &&
+                        event.detail !== 0 &&
                         event.pointerId === pressed.pointerId
                           ? pressed.pause
                           : null;

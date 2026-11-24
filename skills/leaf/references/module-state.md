@@ -253,10 +253,14 @@ beside it; keep no clock of your own. Return the answer rather than the time, as
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `label` is the file's path below the deepest folder holding every
 file the page binds, or `null` until the page's state names it. `read()` returns
-`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws a `RequestError` whose `current` holds the newer file.
-`RequestError` also carries the HTTP `status` and response `body`; distinguish it
-with `instanceof` when handling a server refusal. `watch(callback)` calls
+`{label, text, revision}`, with `text` in LF line endings. `save({revision, text})`
+writes only if the file is still at `revision`, and resolves the saved
+`{label, text, revision}`. Where the server refuses the save, which then wrote nothing,
+it resolves `{refused, current}` instead: `refused` is the server's reason, and
+`current` the newer file where the file was no longer at `revision`, else `null`. It
+rejects where the page isn't `writable`, and where no reason from the server came, as
+when the request went unanswered or a proxy answered in the server's place; then the
+save may have reached the file. `watch(callback)` calls
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`

@@ -33,35 +33,37 @@ this.lfCommands = {
 this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 ```
 
-For controls Leaf draws, such as margin entries, build the scope as a value with
-`commandScope(title, rows, options)` and put it on the entry's `scope`
-(`module-annotations.md`, "Margin contributions"). Where the same commands also apply to
-the widget's own elements, that value is their `lfCommands`:
+One object is one scope wherever it is given. Where the same commands apply in several
+elements, such as a widget and the editor it opens, set the one object as the
+`lfCommands` of each and dispatch the event on each, and Leaf lists and runs the
+commands once. For a control Leaf draws, such as a margin entry, put the same object on
+the entry's `scope` (`module-annotations.md`, "Margin contributions"):
 
 ```javascript
-const actions = commandScope("In a classifier", [
-  {
-    id: "classify.pass",
-    title: "Pass",
-    keys: ["ArrowLeft"],
-    contextKeys: ["1"],
-    decision: true,
-    control: passButton,
-    bindingBadge: passHint,
-    when: canClassify,
-    run: () => classify("pass"),
-  },
-]);
+const actions = {
+  title: "In a classifier",
+  rows: [
+    {
+      id: "classify.pass",
+      title: "Pass",
+      keys: ["ArrowLeft"],
+      contextKeys: ["1"],
+      decision: true,
+      control: passButton,
+      bindingBadge: passHint,
+      when: canClassify,
+      run: () => classify("pass"),
+    },
+  ],
+};
 classifier.lfCommands = actions;
 classifier.dispatchEvent(
   new CustomEvent("lf-commands", { bubbles: true, composed: true }),
 );
 ```
 
-In a template, `commandsOn(title, rows, options)` attaches a scope to the element it is
-bound on, takes the current rows on each render, and detaches when the element goes.
-Where the rows need the element, pass a function of it, such as
-`commandsOn(title, (row) => [{ …, run: () => select(row) }])`.
+An element a template draws takes its scope the same way, once the render that places
+it has run.
 
 ### Command rows
 
@@ -110,9 +112,9 @@ keeps them where reopening finds them and shows that the widget holds them.
 
 Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
 such as the threads, and, for the scopes a `LeafElement` drew or declared on itself,
-after each of its draws, so their rows may read `this.state`. For any other state a row
-reads, hold the value in a `signal` or dispatch `lf-commands` on the element after
-changing it.
+after each of its draws, so their rows may read what a draw follows: `this.state`, a
+reactive property, or a field the widget calls `requestUpdate()` after changing. For
+any other state a row reads, dispatch `lf-commands` on the element after changing it.
 
 ### How scopes compose
 

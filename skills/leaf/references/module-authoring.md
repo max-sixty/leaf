@@ -41,9 +41,7 @@ argument.
 
 `/vendor/lit.js` is Lit's own module, the one path its names come from, such as
 `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`,
-`classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. From Preact Signals
-`widget-api.js` exports `signal`, for private state a command's `when` reads
-(`module-input.md`, "Command rows").
+`classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`.
 
 ### Shared web code
 

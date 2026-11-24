@@ -19,7 +19,6 @@
 import "./element-integration.js";
 import { deferredArrival } from "./presentation.js";
 export * from "./portable-api.js";
-export { signal } from "/runtime/framework.js";
 export { widgetController } from "./widget-controller.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -89,7 +88,6 @@ export { threadSummary } from "./thread/messages.js";
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { labelOf } from "./keyboard/bindings.js";
-export { commandScope, commandsOn } from "./keyboard/scopes.js";
 export { saying } from "./keyboard/control-keys.js";
 export { rowWalk } from "./walk-position.js";
 export { presentContributionEntry } from "./contribution-controls.js";

@@ -1711,10 +1711,14 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
     () => contributionEntry({ ...entry, role: "escape" }),
     /^TypeError: Unknown contribution entry option: role$/,
   );
-  // Only the keyboard owner mints a scope projected onto shared controls.
+  // The scope an entry names is checked as an element's `lfCommands` is.
   assert.throws(
-    () => contributionEntry({ ...entry, scope: { scope: { title: "Counterfeit" } } }),
-    /^TypeError: A margin entry scope needs a commandScope capability$/,
+    () =>
+      contributionEntry({
+        ...entry,
+        scope: { title: "Malformed", rows: [{ id: "Not an id", title: "run" }] },
+      }),
+    /not a stable command id/,
   );
   const scope = commandScope("Status command", [
     {
@@ -2542,6 +2546,52 @@ test("a widget's commands stand from when it says them until it withdraws them",
     assert.match(failures[0][1], /not a stable command id/);
     assert.deepEqual(declared(owner), []);
   } finally {
+    owner.remove();
+  }
+});
+
+test("one stated object is one scope on each element and margin entry that holds it", async () => {
+  const { registerContribution } = await import("/runtime/contributions.js");
+  const owner = document.createElement("section");
+  const editor = owner.appendChild(document.createElement("div"));
+  document.body.append(owner);
+  let runs = 0;
+  const stated = {
+    title: "Stated",
+    rows: [{ id: "stated.run", title: "Run", keys: ["Alt+2"], run: () => runs++ }],
+  };
+  for (const at of [owner, editor]) {
+    at.lfCommands = stated;
+    at.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+  }
+  const registration = registerContribution({
+    key: "stated-probe",
+    target: owner,
+    read: () => ({
+      entries: [
+        {
+          key: "run",
+          icon: "check",
+          label: "Run",
+          activation: "stated.run",
+          scope: stated,
+        },
+      ],
+    }),
+  });
+  try {
+    reflectFirstScopes();
+    // Two elements hold the scope, and the widget's commands count it once.
+    assert.deepEqual(
+      commandsWithin(owner).map(({ row }) => row.id),
+      ["stated.run"],
+    );
+    // The entry is the command the elements declared: its availability and its run.
+    assert.equal(registration.entry("run").disabled, false);
+    assert.equal(registration.activate("run"), true);
+    assert.equal(runs, 1);
+  } finally {
+    registration.unregister();
     owner.remove();
   }
 });

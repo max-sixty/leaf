@@ -16,8 +16,10 @@ Core owns commands on the page, the chrome, navigation, comments and shared thre
 state. A widget owns commands that read or change its content, and its scopes join the
 register only while the widget exists. A package widget declares an element scope as
 data, the element's `lfCommands`, which `scopes.js` reads when the element dispatches
-`lf-commands`; core declares one with `keys(element, …)`, and both take a
-`commandScope(…)` value, as a template's `commandsOn(…)` does. Core scopes over the
+`lf-commands`; the object it gives is one scope on every element that holds it and on
+every margin entry that names it as `scope`. Core declares one with `keys(element, …)`,
+or with `commandsOn(…)` in a template, and both take a `commandScope(…)` value for a
+scope that stands in several places. Core scopes over the
 page use `pageScope`, `pageCommand` and `pageRung` in
 `register.js`. A new scope, page command or Escape step also needs its place in
 `register.js`'s `STACK`, `PAGE_COMMANDS` or `RUNG_LADDER`.

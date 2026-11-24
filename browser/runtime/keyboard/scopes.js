@@ -502,11 +502,8 @@ const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 /** @param {Scope} scope */
 export const scopeIdentity = (scope) => scope.identity ?? scope;
-/** @param {unknown} capability @returns {capability is CommandCapability} */
-export const isCommandScope = (capability) =>
-  capability != null &&
-  (typeof capability === "object" || typeof capability === "function") &&
-  commandScopeCapabilities.has(capability);
+/** @param {object} capability @returns {capability is CommandCapability} */
+const isCommandScope = (capability) => commandScopeCapabilities.has(capability);
 // Context aliases are their own scope so native text entry always precedes them,
 // even when the original declaration is attached to the exact editor. They remain
 // references to that attachment, not copied handlers or a second command inventory.
@@ -858,7 +855,8 @@ export const commandsOn = directive(
 );
 
 // A package widget's keys are data on the element they apply in, `lfCommands`: the
-// scope's title, rows and options as `keys` takes them, or a `commandScope()` value. The
+// scope's title, rows and options as `keys` takes them, in one object, which is one
+// scope on every element that holds it (`statedScope`). The
 // element says when it sets or changes them, or anything its rows read, with an
 // `lf-commands` event it dispatches on itself (`COMMANDS`, widget-upgrade.js), so a page
 // without Leaf, which hears nothing, binds no key. The element is the one the event
@@ -909,17 +907,23 @@ addEventListener(COMMANDS, (event) => {
     return;
   }
   try {
-    const scope = attachScope(
-      element,
-      isCommandScope(declaration)
-        ? declaration.scope
-        : declaredScope(declaration.title, declaration.rows, declaration),
-    );
+    const scope = attachScope(element, statedScope(declaration).scope);
     declared.set(element, { declaration, scope });
   } catch (error) {
     reportFailure(element, error);
   }
 });
+
+// One scope wherever it stands: every attachment and projection of a capability
+// shares its identity, so the scopes around a place count its commands once.
+/** @param {Scope} declaration @returns {CommandCapability} */
+function capabilityOf(declaration) {
+  const capability = Object.freeze({
+    scope: { ...declaration, identity: Object.freeze({}) },
+  });
+  commandScopeCapabilities.add(capability);
+  return capability;
+}
 
 /** Declare a command scope that presentation owners attach to generated controls.
  *
@@ -929,13 +933,31 @@ addEventListener(COMMANDS, (event) => {
  */
 /** @param {string | null} title @param {readonly Command[]} rows @param {ScopeOptions | (() => boolean)} [options] */
 export function commandScope(title, rows, options) {
-  const scope = {
-    ...declaredScope(title, rows, options),
-    identity: Object.freeze({}),
-  };
-  validateRows(scope.rows, title ?? "a scope");
-  const capability = Object.freeze({ scope });
-  commandScopeCapabilities.add(capability);
+  const capability = capabilityOf(declaredScope(title, rows, options));
+  validateRows(capability.scope.rows, title ?? "a scope");
+  return capability;
+}
+
+// A package states a scope as data, an object holding its title, rows and options, and
+// gives that object wherever the scope applies: as the `lfCommands` of each element it
+// stands on, and as the `scope` of a margin entry Leaf draws for it. The object is the
+// scope, so the capability built from it is kept by the object: a draft and its editor
+// holding one object share one set of commands, and an entry that names the object
+// projects the commands its widget declared. The rows are checked as written when the
+// object is first given, and what they mean now is read where each attachment or
+// projection is first painted, as for `keys`.
+/** @type {WeakMap<object, CommandCapability>} */
+const stated = new WeakMap();
+/** @param {NonNullable<Element["lfCommands"]> | CommandCapability} declaration @returns {CommandCapability} */
+export function statedScope(declaration) {
+  if (isCommandScope(declaration)) return declaration;
+  let capability = stated.get(declaration);
+  if (!capability) {
+    capability = capabilityOf(
+      declaredScope(declaration.title, declaration.rows, declaration),
+    );
+    stated.set(declaration, capability);
+  }
   return capability;
 }
 

@@ -31,7 +31,6 @@ KEYBOARD_HINT_REGISTRY = {
 
 
 KEYBOARD_HINT_MODULE = """\
-import { commandScope } from '/runtime/widget-api.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keeps, keepsText } from '/runtime/lib/keeps.js';
 
@@ -67,7 +66,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     };
     const quiet = offer('button', '', 'Quiet action');
     this.append(disable, ariaDisable, guard, replace, quiet);
-    const scope = commandScope('In the command probe', [
+    const scope = { title: 'In the command probe', rows: [
       {
         id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
@@ -80,7 +79,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         title: 'Activate without an inline hint', line: 'quiet action',
         run: () => keepsText(quiet, 'Quiet action applied'),
       },
-    ]);
+    ] };
     this.lfCommands = scope;
     this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     editor.lfCommands = scope;

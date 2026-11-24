@@ -31,6 +31,7 @@ from render_harness import (
     open_page,
     panel_field,
     panel_menu,
+    press_draft_control,
     refuse,
     sending,
     stamp_page,
@@ -756,7 +757,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42",
     )
     with sending(page, "the saved edit"):
-        draft_control(page, "save", "ledger-cargo").click()
+        press_draft_control(page, "save", "ledger-cargo")
 
     edit = next(
         event

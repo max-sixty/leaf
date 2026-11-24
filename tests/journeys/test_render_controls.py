@@ -629,8 +629,7 @@ def seen_stop(page, seen=...):
 def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order and name every stop that shows nothing
     of where the keyboard is, and every ring a stop leaves cut or covered
-    (`ring_faults`). A ring that stays lit across stops, such as a decision's for the
-    control the user reached inside it, is named once."""
+    (`ring_faults`). A ring that stays lit across stops is named once."""
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
     page.evaluate(RELEASE_FOCUS)
     unindicated, faults, faulted = [], [], set()

@@ -38,6 +38,7 @@ from render_harness import (
     margins_laid_out,
     navigate,
     open_page,
+    press_draft_control,
     resized,
     sending,
     ticked,
@@ -806,7 +807,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(draft_control(page, "save", "d-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
-        draft_control(page, "save", "d-draft").click()
+        press_draft_control(page, "save", "d-draft")
     expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
         body, use_inner_text=True
     )

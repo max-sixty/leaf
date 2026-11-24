@@ -31,6 +31,7 @@ from render_harness import (
     panel_control,
     panel_field,
     panel_settled,
+    press_draft_control,
     primed,
     refuse,
     resized,
@@ -228,7 +229,7 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
             write(editor, "Keep WORD tail")
             paste(editor, text, picture)
             expect(editor).to_have_js_property("value", expected)
-        draft_control(page, "cancel", "text-only").click()
+        press_draft_control(page, "cancel", "text-only")
 
         compose(page, "#passage")
         composer = page.locator(".lf-fab-input")

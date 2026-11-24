@@ -89,7 +89,7 @@ def pytest_configure(config):
     for name, value in linux_font_environment().items():
         run.setenv(name, value)
     signal.signal(signal.SIGINT, signal.default_int_handler)
-    config.stash[_STDERR] = os.fdopen(os.dup(sys.__stderr__.fileno()), "w")
+    config.stash[_STDERR] = os.fdopen(os.dup(2), "w")
     config.add_cleanup(config.stash[_STDERR].close)
 
 

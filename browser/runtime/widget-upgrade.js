@@ -239,6 +239,10 @@ const widgetOf = (el) => {
 const placers = new WeakMap();
 /** @param {Element} el @param {(box: HTMLDivElement) => boolean} place */
 export const placesFailure = (el, place) => placers.set(el, place);
+// Whether an owner places `el`'s box already, which a host that would place it for an
+// element it drives asks first, so the element's own placer stands (element-integration.js).
+/** @param {Element} el */
+export const failurePlaced = (el) => placers.has(el);
 /** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
 const stages = new WeakMap();
 /** @param {Element} host @param {(box: HTMLDivElement) => boolean} place */

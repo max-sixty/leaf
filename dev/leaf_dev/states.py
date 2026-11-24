@@ -2317,10 +2317,10 @@ def chart_preview(page: Page) -> None:
     gallery_metrics(page)
     chart = page.locator("#bg-chart")
     chart.evaluate("el => el.scrollIntoView({block: 'center'})")
-    run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
+    run = chart.locator('[data-lf-plot="x-axis tick label"] text').get_by_text(
         "2", exact=True
     )
-    value = chart.locator('[data-lf-part="y-axis tick label"] text').get_by_text(
+    value = chart.locator('[data-lf-plot="y-axis tick label"] text').get_by_text(
         "6", exact=True
     )
     x, y = run.bounding_box(), value.bounding_box()

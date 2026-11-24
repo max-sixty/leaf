@@ -19,9 +19,8 @@ protocol (`module-plain-elements.md`, "`LeafElement`").
 
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a
-function it imports from `/runtime/widget-api.js`; "Functions" lists them all. A page
-script imports the same functions, and only a registry-declared widget has a state.
-Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its names
+function it imports from `/runtime/widget-api.js`, as a page script does; "Functions"
+lists them all. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its names
 come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`,
 `ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. Of
 the runtime's other modules, import only the library's ("Shared web code"). Don't query
@@ -364,7 +363,8 @@ the whitespace between authored elements included, or `move(parent, node, before
 one node. Where nodes move between parents, place every list at once with
 `setChildLists([[parent, nodes], …])`, outer parents first. For a subtree the renderer
 owns entirely, `setRenderedChildren(parent, nodes)` edits only changed text and keeps a
-text selection the user made in it.
+text selection the user made in it. A `LeafElement` places retained nodes in its
+`render()`, which then returns `nothing`.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page

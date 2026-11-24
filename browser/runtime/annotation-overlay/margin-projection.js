@@ -161,7 +161,7 @@ import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { drawnThreadId } from "../thread/selectors.js";
 import { standsIn, visualAt } from "../anchor-resolution.js";
-import { paintTrace } from "../target-paint.js";
+import { locationStandsDown, paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
@@ -1584,7 +1584,10 @@ export function createMarginProjection({
     const face = faceOf(entry);
     // An obligation's location ring already identifies this target, including when
     // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
-    const obligationShown = target && target === currentLocationObligation();
+    // A focus ring inside the obligation stands the ring down (target-paint.js), and
+    // the brackets then mark it.
+    const obligationShown =
+      target && target === currentLocationObligation() && !locationStandsDown(target);
     // A Change entry under the pointer or focus outlines its whole change, every block
     // and its gap, in place of the brackets round its first block (margin-bars.js), until
     // its card stands open over the change. A reading names its own change, as each of

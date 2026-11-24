@@ -87,9 +87,6 @@
  * moves nothing where its ring already shows (`alreadyShown`, out to its margins), so a
  * control in a stuck header, whose margin counts it as shown, stays put, and reads the
  * margins and padding the browser's reveal reads.
- * A marked decision also wears a ring around its own box while Tab is inside
- * it. Once the focused control is visible, reveal that ring if the decision
- * fits the room. Its own scroll margin already reserves the outline's gap.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
 import { deepFocus, onCurrentLocation, onUserInput, ringBox } from "./focus.js";
@@ -107,7 +104,6 @@ import {
 } from "./geometry.js";
 import { atLayoutPrecision } from "./lib/keeps.js";
 import { glideTravel, scrollersOf, seenGlided } from "./scroll-containers.js";
-import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
 import {
   glideTo,
   glides,
@@ -692,16 +688,6 @@ function landArrival(node) {
   arrival = null;
   if (deepFocus() !== node) return;
   scrollIntoView(node, { block: "nearest" });
-  // A decision's attention ring is worn by its box, even while Tab stands on
-  // a control inside it. Native focus reveal knows only the control's box.
-  /** @type {Element | null} */
-  let box = node;
-  for (; box; box = renderedParent(box)) {
-    if (!box.matches(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) continue;
-    if (locationStandsDown(box)) continue;
-    scrollIntoView(box, { block: "nearest" });
-    break;
-  }
 }
 onCurrentLocation(
   /** @param {Element | null} node @param {string | null} cause */ (node, cause) => {

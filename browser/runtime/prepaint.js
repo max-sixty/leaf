@@ -392,7 +392,9 @@
         Array.isArray(records) ? records.map((record) => [record?.id, record]) : [],
       );
     }
-    if (!carried.size) return;
+    // A choice landed stays owed after the last record lands: the radio its author
+    // checked may come later, and need no id of its own.
+    if (!carried.size && !chosen.length) return;
     for (const node of [tree, ...tree.querySelectorAll("[id]")]) {
       if (!(node instanceof Element)) continue;
       const record = carried.get(node.id);

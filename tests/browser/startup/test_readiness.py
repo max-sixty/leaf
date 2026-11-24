@@ -675,13 +675,18 @@ def reload_in_a_row(page, serve, waits, slow=()):
     page.remove_listener("request", navigated)
 
 
-def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
+@pytest.mark.parametrize("authored", ["named", "unnamed"])
+def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(
+    browser, serve, authored
+):
     """A value the user typed into the page's own form, and an option they chose before
     the one its author chose, come back after two reloads Leaf asks for in a row, the
     second before the first's arrival has put them back, while something slow to
     upgrade still holds back that document's anchoring. The form asks the browser to
     keep no value of its own, so only Leaf's carry can. A script between the options
-    has the parser hand over the first before it adds the one the author chose."""
+    has the parser hand over the first before it adds the one the author chose, which
+    may have an id, and so a record of its own, or none."""
+    steady = ' id="steady"' if authored == "named" else ""
     url = serve(
         leaf_page(
             "Restarted",
@@ -689,7 +694,7 @@ def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
             "</label></p>"
             '<label><input type="radio" name="pace" id="slow"> slow</label>'
             "<script>0</script>"
-            '<label><input type="radio" name="pace" id="steady" checked> steady</label>'
+            f'<label><input type="radio" name="pace"{steady} checked> steady</label>'
             '<label><input type="radio" name="pace" id="fast"> fast</label>'
             "</form>",
         )

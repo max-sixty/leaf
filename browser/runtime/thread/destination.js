@@ -46,18 +46,23 @@
    (`reader: "primary"`) returns the user to a thread they had there, as a live revision
    carrying the panel's view across does (floating-panel.js, `restoreCurrentLocation`):
    the primary is asked as the last resort is, and keeps the thread once the page could
-   draw it. A route to a card (`reader: "card"`) returns the user to a thread they had
-   read beside its passage, as Back to such an entry does (thread/address.js): it opens
+   draw it, unless it holds it already as a placement Leaf forced (below). A route to a
+   card (`reader: "card"`) returns the user to a thread they had read beside its
+   passage, as Back to such an entry does (thread/address.js): it opens
    as a route under the cards choice does, whatever the choice now, the card standing
    where it can and the placements Leaf forces taking the thread where it can't. A
-   route to where a thread stands (`reader: "standing"`) lands in the view that shows
-   it, its card, the primary's or a widget's seat, and asks no reader to open it, so the
-   thread keeps where it stands and the reason Leaf placed it there, as a forced
-   placement's return to the page needs; a thread shown nowhere opens as a route that
-   names no reader does. A draft's return fills the box of the view the entry's return
-   opened (history.js), and a reload's hand-back of the reply being written the box of
-   the view the user writes in (version.js), so neither moves the thread to where the
-   choice says once the entry's record has said where the user stands.
+   route to where a thread stands (`reader: "standing"`) takes the reader of the view
+   that shows the thread: the primary where its view does, the page's (`"card"`) where
+   a card or a widget's seat does, and none where nothing shows it, which then follows
+   the choice. It reads that from the drawing of the thread itself, not of the part
+   asked for, which may stand folded inside it; the route then goes as one to that
+   reader does, revealing the part and recording the trip as every route does. A draft's
+   return fills the box of the view the entry's return opened (history.js), and a
+   reload's hand-back of the reply being written the box of the view the user writes in
+   (version.js), so neither moves the thread to where the choice says once the entry's
+   record has said where the user stands. A route that asks the primary for a thread it
+   already holds leaves the reason it holds it, which belongs to the placement rather
+   than the route: one Leaf placed there still goes back to the page once it can.
 
    A route that travels into the primary brings the thread's passage into view as well
    as the primary's view of it (`taken`): nearest, in the room the floating panel's view
@@ -279,29 +284,13 @@ export function createThreadDestinations({
     if (!intent()) return null;
     part ??= openingPart();
     if (reader === "standing") {
-      // The part of the view that shows the thread, where one does (the header).
-      const standing = () => {
-        const shown = threadFocusTarget(id, { part });
-        return shown && presented(shown) ? shown : null;
-      };
-      if (standing()) {
-        if (focus === false) return standing();
-        const reached = await arrive(
-          () => {
-            const current = standing();
-            return (
-              current && {
-                where: current,
-                focus: current,
-                scroll: scroll ? [{ at: current, block: "nearest" }] : [],
-              }
-            );
-          },
-          { intent },
-        );
-        return reached ? standing() : null;
-      }
-      reader = null;
+      const shown = threadFocusTarget(id, { part: "thread" });
+      reader =
+        !shown || !presented(shown)
+          ? null
+          : presentation?.owner.isConnected && renderedUnder(shown, presentation.owner)
+            ? "primary"
+            : "card";
     }
     const page = reader === "page";
     const card = reader === "card";
@@ -347,8 +336,12 @@ export function createThreadDestinations({
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
       const arriving = restrictUserIntent(intent, mayPresent);
+      // A thread the primary already holds keeps the reason it holds it (the header).
+      const holds = selected.reader
+        .destination(thread.key, { part: "thread" })
+        ?.checkVisibility();
       if (resort) lastResort.add(thread.key);
-      else lastResort.delete(thread.key);
+      else if (!holds) lastResort.delete(thread.key);
       const result = selected.open(thread.key, request);
       if (result === false) lastResort.delete(thread.key);
       // A reader that declines at once is answered at once, so the page's own drawing

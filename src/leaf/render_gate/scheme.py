@@ -292,7 +292,10 @@ def _render_page(
         if code is not None and page_code is not None:
             page_code.extend(code.findings(page, error))
             return ended([], complete=True)
-        return explained(finding)
+        # A page that declared it cannot start never started, whichever wait read the
+        # declaration: a widget module that fails to link declares it just after the
+        # runtime's chrome stands, so either wait may be the one to see it.
+        return explained("no-runtime" if error.stage == "refused" else finding)
 
     page.on("console", console_message)
     collect_page_exceptions(page, errors)

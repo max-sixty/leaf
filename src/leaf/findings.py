@@ -745,7 +745,7 @@ _TEXT = {
     "no-runtime": _fails(
         _SERVES,
         lambda at, v: (
-            "the runtime never injected its chrome — "
+            "the runtime never started — "
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),

@@ -74,8 +74,8 @@ listens for them on the widget's element: dispatch them on it; they need no opti
 `pending-task` and `error`, tells the page something about that element. Leaf listens
 for it at the document, and an ancestor element may listen too, so dispatch it on the
 element with `bubbles: true` and `composed: true`, in addition to any option its entry
-names. `lf-announce` and `lf-error` are about no element, and are dispatched on the
-window, where they need neither option.
+names. `lf-announce` is about no element, and is dispatched on the window, where it
+needs neither option.
 
 Leaf notices one of these `lf-` events that its listeners will not hear: one that does
 not bubble, or, inside a shadow root, one that is not composed. It reports that as a
@@ -224,11 +224,6 @@ this.dispatchEvent(hold);
 - **`error`.** An element reports a failure by dispatching an `ErrorEvent` named
   `error` on itself, whose `error` property is the failure. Leaf
   reports it to the agent as a page error naming the widget, which fails `page check`.
-- **`lf-error`.** To tell the user that something they did has not taken, such as a
-  value the server refused, dispatch an `lf-error` event on the window whose `detail`
-  is the words, as `lf-announce` is dispatched (`module-scroll-and-motion.md`,
-  "Notices and spoken words"). The Leaf panel shows them until the user has dealt with
-  them. A failure in the widget itself is an `error`, never an `lf-error`.
 - **`redraw()`.** `page check --render` calls this method on an element that has one,
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** The element builds once, behind a first-connection guard

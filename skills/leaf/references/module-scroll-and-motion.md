@@ -283,10 +283,6 @@ listener which keys act next, as after a card is grabbed, give `detail` as
 "Command rows"). After the words Leaf names each row's keys and title, such as
 `Escape cancel`, leaving out a row no key would run as the words are said.
 
-An `lf-error` event, dispatched the same way, tells the user that something they did
-has not taken, such as a value the server refused (`module-plain-elements.md`,
-"`lf-error`").
-
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and
 takes them away with it. The words stand in a first child of class `lf-quiet`, which

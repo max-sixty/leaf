@@ -17,7 +17,7 @@ from leaf.schema import (
     WIDGET_NAME,
 )
 
-from ..findings import Finding, Rejected, element_at
+from ..findings import Finding, Rejected, admitted_parts, element_at
 from .kernel import kernel_marks, verb_writers
 
 
@@ -296,11 +296,7 @@ class VisualParts:
         return bool(self.prefixes or self.all)
 
     def __str__(self) -> str:
-        if self.all:
-            return "the parts the visual draws"
-        if self.prefixes:
-            return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
-        return "no visual parts"
+        return admitted_parts(self.prefixes, self.all)
 
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:

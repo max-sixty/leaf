@@ -552,7 +552,7 @@ weigh the advice.
 
 ## The render pass, 2026-11-05
 
-The pass is built in `src/leaf/render_gate/handover_pass.py`, whose header holds its
+The pass is built in `src/leaf/handover_pass.py`, whose header holds its
 contract and its cost. These runs scored it against the merge base, where the driver's
 `render` move posts the same findings as the page's `error`:
 

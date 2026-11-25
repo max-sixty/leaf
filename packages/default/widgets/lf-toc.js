@@ -63,6 +63,7 @@ import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
 import { keepFocus } from "/runtime/lib/focus-on.js";
+import { presented } from "/runtime/lib/presented.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -241,7 +242,7 @@ customElements.define(
           signal,
         });
       this.#main.addEventListener("lf-layout", this.#scheduleMeasure, { signal });
-      document.addEventListener("lf-presentation", this.#onPresentation, { signal });
+      void presented().then(() => signal.aborted || this.#onPresentation());
       document.addEventListener("lf-page-interface", this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
       matchMedia("print").addEventListener("change", this.#onPresentation, {

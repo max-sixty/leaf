@@ -7,8 +7,9 @@ gates `asked` for and those that `ran` (failing page code ends the check before 
 render gate reads anything), in which browser or why none could, with the render
 gate's margin widths and saved screens even when it reports findings, unless the page
 was not ready for them. `browser` is null where no gate needed one. The agent's render
-check leaves its reading for the page's server (`render_gate.handover_pass`), which
-runs the same check without its screens (`check_page`) and keeps its own reading.
+check leaves its reading (`render_reading`) for `page state` and for the page's server
+(`render_gate.handover_pass`), which runs the same check without its screens
+(`check_page`) and keeps its own reading.
 """
 
 from pathlib import Path
@@ -18,6 +19,7 @@ from leaf.files import list_revisions
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_record, selected
+from leaf.served_state.reading import source_readings
 
 from .source import check_source, moved_threads, source_advice
 
@@ -35,7 +37,8 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
 
 def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
     """`page check`'s report, and where a render check ran, the digest of the version it
-    read with what the browser read (`render_gate.command.BrowserCheck`), else None.
+    read with what the browser read (`render_gate.command.BrowserCheck`) and the source
+    reading taken before the check read the source (`source_readings`), else None.
     Freezes the checked source before running slow, read-only browser work."""
 
     def reported(status, findings, browser=None):
@@ -56,6 +59,7 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         except RegistryError as error:
             return reported(1, list(error.findings)), None
         events = read_events(page_dir)
+        source, _ = source_readings(page_dir)
         result = check_source(page_dir, events)
         active = max(list_revisions(page_dir), default=0)
         found = [
@@ -91,4 +95,4 @@ def check_page(page_dir: Path, render: bool = False, *, screens: bool = True):
         screens=screens,
     )
     report = reported(browser.status, [*found, *browser.findings()], browser)
-    return report, (result.artifact.digest, browser) if render else None
+    return report, (result.artifact.digest, browser, source) if render else None

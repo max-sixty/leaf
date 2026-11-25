@@ -10,6 +10,7 @@ import {
   TEXT_BOX,
   userScrollport,
   visualPartProblems,
+  visualParts,
 } from "/runtime/check-api.js";
 import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at as locate } from "./locate.js";
@@ -115,6 +116,21 @@ export const invalidVisualProviders = (declarations) =>
       })),
     )
     .filter((instance) => instance.problems.length);
+
+// The parts each visual in the page offers a thread now, by the visual's id, which
+// `leaf page state` shows an agent naming a part (`render_reading.py`). They are the
+// parts the page's picker offers and `thread create --part` takes (`visualParts`), so a
+// visual that admits none lists none. A visual with no id can't be named, so it is
+// left out.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
+export const drawnParts = (declarations) =>
+  Object.fromEntries(
+    Object.entries(declarations)
+      .filter(([, entry]) => entry.visual)
+      .flatMap(([tag]) => [...document.querySelectorAll(`${tag}[id]`)])
+      .filter(inPage)
+      .map((el) => [el.id, visualParts(el).map(({ id, label }) => ({ id, label }))]),
+  );
 
 // Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace, and the static lint holds an authored document to

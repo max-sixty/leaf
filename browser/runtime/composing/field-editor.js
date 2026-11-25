@@ -2576,14 +2576,15 @@ function fieldEditor(
       .trim();
     // Words on a line a hard break opens continue its paragraph, the first mark of the
     // line's words escaped where it would open a block there, as a space after `1.`
-    // would; a line of words starting with no mark opens none.
+    // would. A table's head row aside, a line opens a block by the marks, digits and
+    // spaces it starts with, so only text put among them, or just after them, can make
+    // it open one, and a line of words starting with no mark opens none.
     if (hardBreakBefore(state, line)) {
       const { words } = lineParts(state, line);
       const start = Math.min(words, at);
-      if (
-        !put.includes("\n") &&
-        firstMark(doc.sliceString(start, doc.lineAt(start).to)) === null
-      )
+      const shown = doc.sliceString(start, doc.lineAt(start).to);
+      const lead = shown.length - shown.replace(/^[ \t\d!-/:-@[-`{-~]+/, "").length;
+      if (!put.includes("\n") && (at > start + lead || firstMark(shown) === null))
         return { before: "", after: "", escape: null };
       const made = escapedWhere(
         state,

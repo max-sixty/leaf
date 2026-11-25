@@ -167,7 +167,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
             return False
-        return not held_elsewhere(page_dir, harness)
+        return held_elsewhere(page_dir, harness) is None
 
     if not renewable():
         return None

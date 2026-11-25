@@ -305,9 +305,10 @@ it treats as another session's.
 
 Only the session holding a page, through its own Leaf, serves the page or changes
 its layer record, its server up or down (`service.refuse_held`); another session
-takes the page over first by claiming it. A claim naming a harness this Leaf
-doesn't know counts as held (`service.held_elsewhere`). So no other Leaf moves a held
-page to a protocol its session's hooks can't read, whatever the two protocols are.
+takes the page over first by claiming it. Whether a claim holds its page comes from
+its session's record alone, whatever harness the claim names
+(`service.held_elsewhere`). So no other Leaf moves a held page to a protocol its
+session's hooks can't read, whatever the two protocols are.
 
 Every Leaf reads a session's lifecycle record and its claims whichever Leaf wrote
 them, through the keys every shape of each keeps (`state.Record.read_any`). So a

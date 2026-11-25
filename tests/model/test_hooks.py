@@ -2365,7 +2365,7 @@ def test_a_page_whose_session_another_leaf_recorded_is_held_while_it_lives(
     lifecycle.write_text(json.dumps(stored))
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
 
-    assert service_model.held_elsewhere(claimed, None) is not ended
+    assert (service_model.held_elsewhere(claimed, None) is None) is ended
     if ended:
         assert vendoring_model.cmd_init(claimed, ())["packages"] == []
         return
@@ -2402,6 +2402,56 @@ def test_a_claim_another_leaf_wrote_in_another_shape_reads_as_the_same_claim(
     assert service_model.owned_pages("s1") == [claimed]
     assert service_model.held_elsewhere(claimed, None)
     assert not service_model.held_elsewhere(claimed, harness_model.session_harness())
+
+
+@pytest.mark.parametrize("claim", ["format-less", "unknown harness, session ended"])
+def test_a_claim_holds_its_page_only_while_its_session_lives(
+    claimed, monkeypatch, claim
+):
+    """Whether a claim holds its page comes from its session's record alone: a claim
+    file no Leaf's claim shape describes, as earlier Leaves wrote without a format,
+    reads as no claim, and one naming a harness this Leaf doesn't know holds its page
+    only while its session lives. So a terminal initializes either page."""
+    path = service_model.claim_path(claimed)
+    stored = json.loads(path.read_text())
+    if claim == "format-less":
+        del stored["format"]
+    else:
+        stored["harness"] = "a-harness-a-later-leaf-named"
+        cleanup_model.end_session("s1")
+    path.write_text(json.dumps(stored))
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+
+    assert service_model.held_elsewhere(claimed, None) is None
+    assert vendoring_model.cmd_init(claimed, ())["packages"] == []
+
+
+@pytest.mark.parametrize("missing", ["ended", "lifetime"])
+def test_a_session_record_lacking_a_kept_key_reads_as_absent(claimed, missing):
+    """Every shape of the session record keeps its kept keys, so a record of another
+    shape lacking one is from before any shape kept them, and reads as no record: its
+    claim holds nothing, rather than a missing `ended` reading as a session alive."""
+    lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    stored = json.loads(lifecycle.read_text())
+    stored["format"] = "leaf-session/13"
+    del stored[missing]
+    lifecycle.write_text(json.dumps(stored))
+
+    assert cleanup_model.session_record("s1") is None
+    assert not service_model.claim_is_active(service_model.page_claim(claimed))
+
+
+def test_a_claim_lacking_a_kept_key_reads_as_absent(claimed):
+    """A claim of another shape lacking a key every shape keeps reads as no claim,
+    rather than as a claim missing what its readers index."""
+    path = service_model.claim_path(claimed)
+    stored = json.loads(path.read_text())
+    stored["format"] = "leaf-claim/999"
+    del stored["harness"]
+    path.write_text(json.dumps(stored))
+
+    assert service_model.page_claim(claimed) is None
+    assert service_model.held_elsewhere(claimed, None) is None
 
 
 def test_a_session_goes_on_in_its_generation_when_its_record_changes_shape(

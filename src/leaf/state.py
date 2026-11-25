@@ -515,7 +515,8 @@ class Record(Generic[_RecordValue]):
     def read_any(self, path: Path) -> dict | None:
         """The record at `path` whichever Leaf wrote it: whole, less its `format`,
         where it is of this Leaf's shape, and otherwise the keys every shape of the
-        kind keeps (`kept`); None where there is no record of this kind."""
+        kind keeps (`kept`); None where there is no record of this kind, or one that
+        lacks a kept key its kind requires."""
         stored = stored_record(path)
         if stored is None or (since := self.since_of(stored)) is None:
             return None
@@ -524,7 +525,8 @@ class Record(Generic[_RecordValue]):
             return stored
         kept: dict = {}
         for named in self.kept:
-            _keep(stored, named.split("/"), kept)
+            if not _keep(stored, named.split("/"), kept, self.schema):
+                return None
         return kept
 
     def since_of(self, stored: dict) -> int | None:
@@ -555,19 +557,25 @@ class Record(Generic[_RecordValue]):
         return value
 
 
-def _keep(stored: dict, path: list[str], kept: dict) -> None:
-    """Copy into `kept` what `path` names in `stored`, where it is there."""
+def _keep(stored: dict, path: list[str], kept: dict, schema: dict) -> bool:
+    """Copy into `kept` what `path` names in `stored`, and say whether `stored` holds
+    every key on the way that `schema`, its kind's, requires. The build holds every
+    shape to the kept keys (`Record.kept`), so a record that lacks one is from before
+    any shape kept it."""
     name, *rest = path
     if name not in stored:
-        return
+        return name not in schema.get("required", ())
+    field = schema.get("properties", {}).get(name, {})
     if not rest:
         kept[name] = stored[name]
-    elif rest[0] == "*":
+        return True
+    if rest[0] == "*":
         items = kept.setdefault(name, [{} for _ in stored[name]])
-        for item, into in zip(stored[name], items):
-            _keep(item, rest[1:], into)
-    else:
-        _keep(stored[name], rest, kept.setdefault(name, {}))
+        return all(
+            _keep(item, rest[1:], into, field.get("items", {}))
+            for item, into in zip(stored[name], items)
+        )
+    return _keep(stored[name], rest, kept.setdefault(name, {}), field)
 
 
 def stored_record(path: Path) -> dict | None:
@@ -689,8 +697,26 @@ SESSION = Record(
                     {"type": "boolean"},
                 ),
                 "lifetime": described(
-                    "What keeps the session alive (`Harness.lifetime`).",
-                    {"type": "object"},
+                    "What keeps the session alive (`Harness.lifetime`), as "
+                    "`service.lifetime_is_live` reads it: nothing yet, the process, a "
+                    "background job's record, the Claude desktop app's record of the "
+                    "session, or a desktop Codex chat's native source "
+                    "(`transcript_path`).",
+                    {
+                        "anyOf": [
+                            {"type": "object", "additionalProperties": False},
+                            *(
+                                object_schema({key: value})
+                                | {"additionalProperties": False}
+                                for key, value in (
+                                    ("pid", {"type": "integer"}),
+                                    ("job", STRING),
+                                    ("app", STRING),
+                                    ("chat", {"const": True}),
+                                )
+                            ),
+                        ]
+                    },
                 ),
             },
             {

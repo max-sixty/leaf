@@ -13,10 +13,10 @@
 // browser resolves and Node does not, are excluded by name; every other unresolvable
 // specifier is a missing module and an error. So is the framework's facade by its
 // served path, `/runtime/records/framework.js`: like Lit beneath it, the framework is a
-// dependency every owner may hold, not one of the owners whose routes these rules
-// read. Its own modules, under `records/framework/`, are checked as any owner is. JSON, such as
-// the kernel registry `state/kernel-facts.js` imports, is excluded too: data holds no route
-// between owners.
+// dependency every owner may hold, in any layer, not one of the owners whose routes
+// these rules read. Its own modules, under `records/framework/`, are checked as any
+// owner is. JSON, such as the kernel registry `state/kernel-facts.js` imports, is
+// excluded too: data holds no route between owners.
 
 import fs from "node:fs";
 
@@ -149,208 +149,52 @@ const forbiddenClosures = Object.fromEntries([
   ].map((root) => [root, [...applicationOwners, "records/thread/presentation.js"]]),
 ]);
 
-// The runtime's children, its files and directories, in one order: each imports only
-// the children after it. The order is the one a greedy heuristic for a minimum
-// feedback arc set found over the children's imports (Eades, Lin and Smyth), not a
-// design: it holds the direction the code already mostly takes, so an import that
-// turns against it is noticed when it is written. A child the order doesn't name fails
-// `layering-unplaced`; place it after every child that imports it and before every
-// child it imports. When a `layering` rule fails, make the import point the other
-// way, by passing the value or callback in or by moving what it needs to a child
-// after both; where the order itself is wrong for a child, move the child instead.
-// `dependency-cruiser-known.json` holds the backward imports that remain, which the
-// hook passes over. It only shrinks: delete an entry once its import goes, and fix a
-// new backward import rather than adding one.
+// The runtime's import layers, top first. A module imports only modules of its own
+// layer and of the layers listed after it. The entry points form the top layer and stay
+// at the runtime's top level, since pages, packages, the server and the render checks
+// load them by served path. Each other layer is a directory of the runtime. The library
+// of shared web code (`lib/`) keeps its served path and belongs to the bottom layer.
+// A module anywhere else at the top level fails `layering-unplaced`: move it into a
+// layer no higher than any module that imports it and no lower than any module it
+// imports.
+//
+// When a `layering` rule fails, make the import point down, by passing the value or
+// callback in or by moving what it needs to a layer below both. Where the module itself
+// stands in the wrong layer, move the module instead. `dependency-cruiser-known.json`
+// holds the imports that still point up, which the hook passes over. It only shrinks:
+// delete an entry once its import goes, and fix a new upward import rather than adding
+// one.
 const layers = [
-  "age",
-  "anchor-controls",
-  "anchor-note-view",
-  "anchor-paint",
-  "anchor-placement",
-  "annotation-overlay",
-  "change-walk",
-  "check-api",
-  "floating-panel",
-  "navigation",
-  "page-about",
-  "page-geometry",
-  "page-inspection",
-  "page-keys",
-  "page-layout",
-  "page-map-dialog",
-  "page-status",
-  "preview",
-  "queue-walk",
-  "sample-child",
-  "stage-integration",
-  "user-view",
-  "validation",
-  "visual-mark-paint",
-  "widget-api",
-  "work",
-  "annotation-layer",
-  "copyable-text",
-  "field-readings",
-  "file-api",
-  "http-api",
-  "llm-api",
-  "margin-map-model",
-  "names",
-  "page-identity",
-  "place-preview",
-  "portable-api",
-  "queue-title",
-  "reports",
-  "element-integration",
-  "widget-controller",
-  "application",
-  "delivery",
-  "element-data",
-  "inline-contributions",
-  "margin-bars",
-  "mark-room",
-  "since-seen",
-  "state-application",
-  "state-feed",
-  "undo",
-  "details-shelf",
-  "semantic-news",
-  "annotation-inventory",
-  "change-provenance",
-  "margin-model",
-  "version",
-  "anchor-travel",
-  "composing",
-  "reactions",
-  "sample",
-  "contributions",
-  "contribution-controls",
-  "framework",
-  "pending",
-  "thread",
-  "widget-loader",
-  "page-markdown",
-  "widget-descriptors",
-  "projection",
-  "declared-words",
-  "views",
-  "history",
-  "current-target",
-  "obligations",
-  "drafts",
-  "carry",
-  "reading-place",
-  "editor-view",
-  "content-layout",
-  "bounds",
-  "walk-position",
-  "target-paint",
-  "reading-regions",
-  "off-flow",
-  "landing-scroll",
-  "key-badges",
-  "heading-links",
-  "design",
-  "code-dressing",
-  "code-copy",
-  "block-controls",
-  "user-place",
-  "target-paint-geometry",
-  "scroll-containers",
-  "pointed-place",
-  "media",
-  "formulas",
-  "element-frame",
-  "data",
-  "css-anchors",
-  "copy-control",
-  "code-lines",
-  "box-motion",
-  "anchor-resolution",
-  "addressable-names",
-  "widget-elements",
-  "visible-target-parts",
-  "syntax",
-  "resolved-target",
-  "references",
-  "reach",
-  "presentation",
-  "passages",
-  "native-selection",
-  "layer-client",
-  "geometry",
-  "errors",
-  "shadow-stage",
-  "shadow",
-  "registry",
-  "queue-api",
-  "notifications",
-  "live-leaves",
-  "keyboard",
-  "interaction-log",
-  "dom-children",
-  "document-identity",
-  "context",
-  "activity-words",
-  "user-intent",
-  "semantic-state",
-  "scrolling",
-  "root-headers",
-  "restore-state",
-  "repaint",
-  "queues",
-  "presence",
-  "page-controls",
-  "move-focus",
-  "motion",
-  "language-paths",
-  "focus",
-  "element-markers",
-  "element-axes",
-  "dom-move",
-  "design-readings",
-  "control-selectors",
-  "control-labels",
-  "contribution-model",
-  "arrivals",
-  "widget-imports",
-  "voice",
-  "visual-parts",
-  "version-signal",
-  "version-picker",
-  "ui-marks",
-  "traffic",
-  "tab-title",
-  "tab-store",
-  "stylesheets",
-  "storage",
-  "sample-protocol",
-  "root-state",
-  "rendering",
-  "registry-contract",
-  "rect",
-  "reading-continuity",
-  "prepaint",
-  "pointer",
-  "page-paint",
-  "offline-delivery",
-  "lib",
-  "kernel-facts",
-  "kept",
-  "inputs",
-  "ids",
-  "frame-visibility",
-  "field-keys",
-  "dress",
-  "document-inputs",
-  "color-scheme",
-  "chrome",
-  "bootstrap",
-  "base-layer",
-  "anchor-coordinate",
-  "abort",
+  {
+    name: "Entry points and diagnostics",
+    paths: [
+      "bootstrap.js",
+      "prepaint.js",
+      "check-api.js",
+      "validation.js",
+      "widget-api.js",
+      "portable-api.js",
+      "stage-integration.js",
+      "age.js",
+    ],
+  },
+  { name: "Floating panel, page dialogs and page keys", paths: ["panel/"] },
+  { name: "Annotation presentation, composing and undo", paths: ["annotations/"] },
+  { name: "Application and widget host", paths: ["host/"] },
+  {
+    name: "Page features: annotation inventory, contributions, version travel",
+    paths: ["features/"],
+  },
+  { name: "Records and history", paths: ["records/"] },
+  { name: "Page readings, places and paint", paths: ["readings/"] },
+  { name: "Transport, errors and notices", paths: ["transport/"] },
+  { name: "DOM, geometry, focus and the key register", paths: ["dom/"] },
+  { name: "State and registry", paths: ["state/"] },
+  { name: "Primitives and the library", paths: ["base/", "lib/"] },
 ];
-const isLayer = (names) => `^${runtime}(?:${names.map(escaped).join("|")})(?:\\.js$|/)`;
+// A path names a file exactly and a directory by everything under it.
+const inLayers = (paths) =>
+  `^${runtime}(?:${paths.map((path) => escaped(path) + (path.endsWith("/") ? "" : "$")).join("|")})`;
 
 // A rule naming a module that no longer exists matches nothing and passes, so the
 // declarations above are checked against the directory before they become rules.
@@ -363,15 +207,12 @@ for (const name of new Set(
     throw new Error(
       `.config/dependency-cruiser.mjs names a missing runtime module: ${name}`,
     );
-for (const name of layers)
-  if (
-    ![`${name}.js`, name].some((path) =>
-      fs.existsSync(new URL(`../${runtime}${path}`, import.meta.url)),
-    )
-  )
-    throw new Error(
-      `.config/dependency-cruiser.mjs names a missing runtime module: ${name}`,
-    );
+for (const { paths } of layers)
+  for (const path of paths)
+    if (!fs.existsSync(new URL(`../${runtime}${path}`, import.meta.url)))
+      throw new Error(
+        `.config/dependency-cruiser.mjs names a missing runtime module: ${path}`,
+      );
 
 export default {
   forbidden: [
@@ -426,18 +267,19 @@ export default {
       from: { path: isModule(root) },
       to: { reachable: true, path: isOneOf(forbidden) },
     })),
-    ...layers.slice(1).map((name, at) => ({
+    ...layers.slice(1).map(({ name, paths }, at) => ({
       name: "layering",
-      comment: `${name} imports only the children after it in \`layers\`.`,
+      comment: `${name} imports only its own layer and the layers after it in \`layers\`.`,
       severity: "error",
-      from: { path: isLayer([name]) },
-      to: { path: isLayer(layers.slice(0, at + 1)) },
+      from: { path: inLayers(paths) },
+      to: { path: inLayers(layers.slice(0, at + 1).flatMap((layer) => layer.paths)) },
     })),
     {
       name: "layering-unplaced",
-      comment: "Each child of the runtime has a place in `layers`.",
+      comment:
+        "Each runtime module is an entry point or stands in a layer's directory.",
       severity: "error",
-      from: { path: owners, pathNot: isLayer(layers) },
+      from: { path: owners, pathNot: inLayers(layers.flatMap((layer) => layer.paths)) },
       to: {},
     },
   ],

@@ -419,15 +419,16 @@ document loads, `runtime/portable-api.js`.
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
-`../.config/dependency-cruiser.mjs` enforces these boundaries and holds the runtime's
-children to one import order, each importing only those after it, and knip
-(`../.config/knip.js`) rejects import cycles. Both read the import graph, so imports
-use literal paths; only the widget and interaction loaders compute theirs.
+`../.config/dependency-cruiser.mjs` enforces these boundaries and the runtime's import
+layers ("Import layers"), and knip (`../.config/knip.js`) rejects import cycles. Both read
+the import graph, so imports use literal paths; only the widget and interaction
+loaders compute theirs.
 
 Each module owns one concern and states it in its header, so read the headers to find
 an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
-question", below, indexes the owners a caller asks, and `dom/keyboard/AGENTS.md` covers the
-keyboard's, in `dom/keyboard/`, `readings/key-badges/` and `panel/page-keys/`.
+question", below, indexes the owners a caller asks, and `dom/keyboard/AGENTS.md`
+covers the keyboard's, in `dom/keyboard/`, `readings/key-badges/` and
+`panel/page-keys/`.
 
 `runtime/lib/frame-pass.js` runs every rendering callback in one pass per frame, the
 runtime's and each package's alike, and `runtime/base/rendering.js` counts that work in the
@@ -475,6 +476,16 @@ name the widgets they style, so a rule several packages need belongs in the kern
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
+
+### Import layers
+
+The runtime's modules stand in import layers, and a module imports only modules of its
+own layer and of the layers below it. Each layer is a directory of `runtime/`, apart
+from two. The entry points form the top layer at the runtime's top level, since pages,
+packages and the server load them by served path. The library (`lib/`) keeps its
+served path and belongs to the bottom layer. `layers` in
+`../.config/dependency-cruiser.mjs` lists the layers and says what to do when an
+import points up.
 
 ### The library of shared web code
 

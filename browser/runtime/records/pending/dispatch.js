@@ -103,5 +103,10 @@ export function createCommandDispatch() {
     },
     post,
     dispatchWidget,
+    /** Whether this page sent `event`: its `attempt`, which the page that posts an
+     *  event mints, is one this page posted. A reading's reference to an event carries
+     *  the attempt, as an obligation's `answer.event` does.
+     *  @param {{attempt?: string} | null | undefined} event */
+    sentHere: (event) => Boolean(event?.attempt && submitted.has(event.attempt)),
   });
 }

@@ -38,6 +38,8 @@ DECK_PAGE = leaf_page(
 )
 
 OPEN = "() => document.querySelector('lf-deck > [data-lf-deck-open]')?.id ?? null"
+# Whether no card is in flight, so the deck stands where its last change left it.
+LANDED = "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
 
 
 def open_card(page, name):
@@ -209,22 +211,26 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
     open_card(watching, "store-ask")
 
 
-def test_an_answer_read_back_after_the_user_left_the_window_moves_on(browser, serve):
+def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve):
     """An answer moves its card on when the server's reading of it comes back,
-    wherever the user is by then: one whose reading arrives after they turned to
-    another window, as a slow first answer on a hosted page can, still brings up the
-    next card."""
-    page = open_page(browser, serve(DECK_PAGE))
+    wherever the user is by then, as a slow first answer on a hosted page can come
+    after they scrolled away and turned to another window. The page stays where they
+    went, since the answer is no longer their latest gesture."""
+    page = open_page(browser, serve(TALL_DECK_PAGE))
     open_card(page, "store-ask")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#store-yes").click()
     holding(page, held, 1, "the answer whose reading is held")
+    page.mouse.wheel(0, -2000)
+    page.wait_for_function("() => scrollY === 0")
     page.evaluate("() => { Document.prototype.hasFocus = () => false; }")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    open_card(page, "beta-ask")
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    assert page.evaluate("() => scrollY") == 0
 
 
 DRAFT_DECK_PAGE = leaf_page(
@@ -305,27 +311,6 @@ def test_a_card_brought_back_below_the_opening_stands_whole_above_the_panel(
     open_card(page, "tall-ask")
     panel_top = page.locator(".lf-fp-row").bounding_box()["y"]
     page.wait_for_function(WHOLE_ABOVE, arg=panel_top)
-
-
-LANDED = "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
-
-
-def test_a_shorter_card_at_the_page_end_leaves_the_bar_where_it_stood(browser, serve):
-    """The deck keeps the height of the tallest card it has shown, so a shorter card
-    coming up at the page's end leaves the bar, and the control the pointer pressed in
-    it, where they stood, rather than the page sliding down as the deck shrinks."""
-    page = open_page(browser, serve(TALL_DECK_PAGE))
-    open_card(page, "store-ask")
-    answer(page, "store-yes")
-    open_card(page, "tall-ask")
-    page.wait_for_function(LANDED)
-    page.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
-    back = page.locator("lf-deck .lf-deck-back")
-    before = back.bounding_box()["y"]
-    back.click()
-    open_card(page, "store-ask")
-    page.wait_for_function(LANDED)
-    assert back.bounding_box()["y"] == pytest.approx(before, abs=1)
 
 
 def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
@@ -472,24 +457,30 @@ RECORD_RESIZES = """() => {
 
 def test_the_deck_grows_to_the_end_frame_it_lands_on(browser, serve):
     """The last answer brings up the end frame with its record of the pass, and the
-    deck's height glides to the frame's whole height rather than to an empty frame's
-    and then jumps."""
+    deck's height glides to the frame's whole height, where the frame is taller than the
+    height the deck holds, rather than to an empty frame's and then jumps."""
     page = open_page(browser, serve(DECK_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate(RECORD_RESIZES)
+    height = (
+        "() => parseFloat(getComputedStyle(document.querySelector('lf-deck')).height)"
+    )
+    held = None
     for name, option in [
         ("store", "store-yes"),
         ("beta", "beta-no"),
         ("notes", "notes-no"),
     ]:
         open_card(page, f"{name}-ask")
+        page.wait_for_function(LANDED)
+        held = page.evaluate(height)
+        page.evaluate("() => { window.lfDeckResizes.length = 0; }")
         answer(page, option)
     expect(page.locator("lf-deck .lf-deck-recap > li")).to_have_count(3)
-    page.wait_for_function(
-        "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
-    )
-    landed = page.evaluate(
-        "() => parseFloat(getComputedStyle(document.querySelector('lf-deck')).height)"
-    )
+    page.wait_for_function(LANDED)
+    landed = page.evaluate(height)
     resizes = page.evaluate("() => window.lfDeckResizes")
-    assert resizes and abs(resizes[-1] - landed) <= 1, (resizes, landed)
+    assert abs((resizes[-1] if resizes else held) - landed) <= 1, (resizes, landed)
+    frame = page.locator("lf-deck .lf-deck-end").bounding_box()
+    deck = page.locator("lf-deck").bounding_box()
+    assert frame["y"] + frame["height"] <= deck["y"] + deck["height"] + 1

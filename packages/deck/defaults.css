@@ -66,6 +66,9 @@ lf-deck[data-lf-deck-flying] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /* Standing taller than its lines, as where it fills the height the deck holds, it
+     keeps them at its top. */
+  align-content: start;
   justify-content: space-between;
   gap: var(--lf-sp-2) var(--lf-sp-3);
   padding: var(--lf-sp-3) var(--lf-sp-4);
@@ -138,6 +141,18 @@ lf-deck[data-lf-deck-flying] {
       touch-action: pan-y;
       /* A card scrolled into view keeps the bar above it and the waiting edges below. */
       scroll-margin-block: var(--lf-deck-bar-h) calc(2 * var(--lf-deck-edge));
+    }
+
+    /* The deck holds the tallest height it has stood at (lf-deck.js, `#hold`), and the
+       open card or the end frame fills it, so a shorter card's frame takes in the room
+       rather than leaving it empty below. */
+    :scope:is(lf-deck).lf-rendered {
+      display: flex;
+      flex-direction: column;
+    }
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open],
+    :scope:is(lf-deck).lf-rendered > .lf-deck-end {
+      flex-grow: 1;
     }
 
     :scope:is(lf-deck) > [data-lf-view] > :first-child {

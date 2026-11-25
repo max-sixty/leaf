@@ -94,7 +94,7 @@ In [module-reading.md](module-reading.md):
 - "Code": `langForPath`, `dressCode` and `copyControl`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
-  `answerWords` and `obligationActions`.
+  `answerWords`, `sentHere` and `obligationActions`.
 - "Work hierarchies": `readWork`.
 - "Page history and reports": `readHistory` and `readReports`.
 - "Reading version changes": `comparisonChanges`.

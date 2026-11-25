@@ -326,7 +326,8 @@
         "kind": { "type": "string" },
         "seq": { "type": "integer" },
         "ts": { "type": "string" },
-        "author": { "type": "string" }
+        "author": { "type": "string" },
+        "attempt": { "type": "string" }
       },
       "required": ["id", "kind", "seq", "ts", "author"],
       "additionalProperties": false

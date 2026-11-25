@@ -600,12 +600,14 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     claimed, server, tmp_path
 ):
     """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next write naming the page
-    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
-    its address, and the reply then goes."""
+    Leaf vendored, naming the re-vendor. Reads leave the layer as it was, `page
+    state` refusing the page as at another page protocol. The session's next write
+    naming the page makes that re-vendor itself (`vendoring.renew_layer`), restarting
+    the server at its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in json.loads(replied.stdout)["error"]
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     read = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(claimed)],
         capture_output=True,
@@ -613,11 +615,8 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert read.returncode == 0, read.stderr
-    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    layer_10 = layer_record(claimed)
-    assert layer_10 is not None
-    before = layer_10["generation"]
+    assert read.returncode != 0, read.stdout
+    assert "page protocol" in read.stdout + read.stderr
     subprocess.run(
         [
             *LEAF_COMMAND,
@@ -633,9 +632,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    layer_11 = layer_record(claimed)
-    assert layer_11 is not None
-    assert layer_11["generation"] == before
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
     for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],

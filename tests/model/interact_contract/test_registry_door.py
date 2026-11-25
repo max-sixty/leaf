@@ -546,8 +546,8 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     [
         (
             "lf-activity",
-            lambda entry: entry.update(bound="top"),
-            "at `bound`: 'top' is not one of ['start', 'end']",
+            lambda entry: entry.update(content="top"),
+            "at `content`: 'top' is not one of ['markup', 'members', 'data', 'markdown', 'empty']",
         ),
         (
             "lf-options",
@@ -587,7 +587,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     ("tag", "key", "fallback"),
     [
         ("lf-options", "verbs", None),
-        ("lf-note", "shadow", True),
+        ("lf-note", "verbatim", True),
     ],
 )
 def test_runtime_features_require_a_module(page_dir, tag, key, fallback):

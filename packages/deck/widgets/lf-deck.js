@@ -74,6 +74,7 @@ import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 import { focusOn } from "/runtime/lib/focus-on.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
 // to leave, and the next to come up; and how long a card that came up takes no press.
@@ -396,7 +397,7 @@ customElements.define(
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
         if (above || !next || this.#open !== next) return;
-        next.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        next.scrollIntoView({ block: "nearest", behavior: glide() });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
@@ -422,7 +423,7 @@ customElements.define(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
       carry(next, answered ? SETTLE_MS : 0);
-      if (above) this.scrollIntoView({ block: "start", behavior: "smooth" });
+      if (above) this.scrollIntoView({ block: "start", behavior: glide() });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or

@@ -371,7 +371,6 @@ FACTS: dict[str, dict] = {
     "refers": REFERENCE_SCHEMA,
     "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
-    "shadow": {"const": True},
     "inline": {"const": True},
     "visual": {
         "oneOf": [
@@ -398,7 +397,6 @@ FACTS: dict[str, dict] = {
         ]
     },
     "parts": {"const": True},
-    "bound": {"enum": ["start", "end"]},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,

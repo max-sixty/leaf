@@ -244,7 +244,9 @@ this.dispatchEvent(hold);
   parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
   with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
-  regions").
+  regions"). `data-lf-bound` on a box has Leaf bound it and keep the reader's place
+  in it, following its end where it says `end` (`module-scroll-and-motion.md`,
+  "Scrolling").
 - **Previews, spoken words and a Copy control.** `lfPreview()`, `lf-preview` and
   `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
   (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,

@@ -105,6 +105,8 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPressAway,
+  onUserInput,
   releaseFocus,
   ringBox,
   takesLetters,

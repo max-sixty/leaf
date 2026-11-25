@@ -96,6 +96,7 @@ import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { seconds } from "/runtime/lib/time-axis.js";
 import { noInputSince } from "/runtime/lib/input-since.js";
 import { keepFocus } from "/runtime/lib/focus-on.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 
 import { advancePlayback, mergeIntervals } from "./playback.js";
 import { RecordingTimeline } from "./timeline.js";
@@ -1450,13 +1451,13 @@ export class Trace extends LeafElement {
     // and moves nothing that already shows it.
     if (this.#targets.get(id)?.node) {
       const row = this.#inventory.find((part) => part.id === id)?.element;
-      if (row) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      if (row) row.scrollIntoView({ block: "nearest", behavior: glide() });
       return;
     }
     // The moment's picture comes in at the nearest edge where the user does not
     // already see it whole, and nothing moves where they do.
     if (this.#pictureId)
-      this.#nodes.stage.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      this.#nodes.stage.scrollIntoView({ block: "nearest", behavior: glide() });
   }
 
   #stream() {

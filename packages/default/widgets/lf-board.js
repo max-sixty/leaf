@@ -88,6 +88,7 @@ import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { byRank, rankAt } from "/runtime/lib/rank.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -798,7 +799,7 @@ customElements.define(
       move(col, card, rest[index] ?? null);
       if (grip) {
         grip.focus({ preventScroll: true });
-        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        card.scrollIntoView({ behavior: glide(), block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;

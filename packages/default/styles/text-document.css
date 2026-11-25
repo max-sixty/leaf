@@ -180,27 +180,18 @@ lf-text-document .lf-text-document-run:only-child {
    Without the runtime, as in a page read with scripts off, the `<pre>` shows its
    text. */
 @media screen {
-  lf-text-document[data-lf-bound] {
-    max-block-size: none;
-    overflow: visible;
-    --lf-top: inherit;
-  }
-  /* The listing restarts the sticky-header slot from the first paint with every value
-     the runtime's mark on a box that scrolls sets (state.css, `[data-lf-scrolls]`), so
-     the mark changes nothing its rows inherit. Firefox styles the rows of runs it
-     skips too (notes/browser-support.md, "Styling content Firefox skips"), so a mark
-     that changed the values would restyle every row of a long listing. */
-  lf-text-document:not([preview])[data-lf-bound] pre {
+  /* The module bounds the listing it builds (`data-lf-bound`). The listing restarts
+     the sticky-header slot from the first paint with every value the runtime's mark on
+     a box that scrolls sets (state.css, `[data-lf-scrolls]`), so the mark changes
+     nothing its rows inherit. Firefox styles the rows of runs it skips too
+     (notes/browser-support.md, "Styling content Firefox skips"), so a mark that
+     changed the values would restyle every row of a long listing. */
+  lf-text-document:not([preview]) .lf-text-document-listing > pre[data-lf-bound] {
     block-size: var(--lf-bound, 28rem);
-    overflow: auto;
-    --lf-holds-height: 1;
     --lf-top: var(--lf-top-start);
     --lf-top-covered: var(--lf-top-start);
     --lf-landing-room: var(--lf-landing-room-start);
     --lf-track-scroll-behavior: flow;
-  }
-  lf-text-document:not([preview])[data-lf-bound] {
-    --lf-bound-box: .lf-text-document-listing > pre;
   }
   html[data-lf-interactive] lf-text-document:not(:has(> :not(pre))) {
     border: 1px solid var(--lf-code-border);

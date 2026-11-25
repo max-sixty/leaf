@@ -5,11 +5,11 @@ Read with [module-authoring.md](module-authoring.md).
 ## Scrolling
 
 A widget whose box keeps a height of its own and scrolls what it holds, as a log or a
-feed does, declares `bound` in its tag's declaration rather than scrolling a box
-itself. Leaf then keeps the reader's place in the box, and an `end` bound follows the
-newest entry while the reader is at the end (`page-layout.md`, "Bounds and widths").
-To bound a box inside the widget instead, as under a caption, see `package-themes.md`,
-"A theme change".
+feed does, writes `data-lf-bound="start"` or `"end"` on the box it scrolls, which may
+be the element or a box it builds under a caption, rather than scrolling the box
+itself. Leaf then bounds the box, keeps the reader's place in it, and an `end` bound
+follows the newest entry while the reader is at the end (`page-layout.md`, "Bounds
+and widths").
 
 ### Reading regions
 
@@ -108,11 +108,16 @@ To take the user somewhere, call the browser's own
 band at the root's top as its `scroll-padding-top`, so a landing clears Leaf's head
 and the headers stuck over the page; the floating panel's row at the window's foot is
 no part of that band, and a landing at the foot can stop under it. A `nearest`
-landing moves nothing where the target is already shown. To bring an item into its own
-strip or list and leave the page where it is, scroll that box alone with `scrollTo` or
-`scrollBy`, below, measured from the item's box and the strip's `scroll-padding`. Use a
-landing only for a deliberate move; focusing a visible control or redrawing keeps the
-scroll.
+landing moves nothing where the target is already shown. For a landing at the top that
+moves nothing sideways, as a step through a wide listing wants, the library's
+[`scroller.js`](../../../browser/runtime/lib/scroller.js) `landAtTop(element,
+behavior)` scrolls only the box that scrolls the element. Pass `behavior: glide()`
+([`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js)) for a smooth
+move, which lands at once for a user who asked for less motion. To bring an item into
+its own strip or list and leave the page where it is, scroll that box alone with
+`scrollTo` or `scrollBy`, below, measured from the item's box and the strip's
+`scroll-padding`. Use a landing only for a deliberate move; focusing a visible control
+or redrawing keeps the scroll.
 
 A widget that keeps something in view as another widget moves, as `lf-code` keeps the
 line a film runs, sets the scroll of the box that scrolls it (`scrollTo`, below)

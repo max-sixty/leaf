@@ -359,14 +359,12 @@ back from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 
-Declare `shadow` where the user should quote and comment on the words a widget's
-shadow root shows; a root attached any other way is opaque to comments.
-
 An element that attaches an open shadow root and says `lf-connect` gets the page's
 shared stylesheet and comment support there (`module-plain-elements.md`,
-"`lf-connect`"), as a `LeafElement` whose class says `static shadow = true` does.
-Attaching the root says where the widget draws, and the tag's `shadow` says the user
-may quote what it draws, so a widget that wants both does both. Use native slots for
+"`lf-connect`"), as a `LeafElement` whose class says `static shadow = true` does: the
+user can quote and comment on the words the root shows. A root attached any other way
+is opaque to comments. The shared stylesheet arrives a moment after the first such
+root connects, so the root's first frame may draw unstyled. Use native slots for
 authored children, and read presentation inputs from the host and those children.
 
 Attach the root before the element first says `lf-connect`, as a field of its class

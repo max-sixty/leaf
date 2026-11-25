@@ -841,7 +841,6 @@ def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilit
     child = registry["lf-option"]
     child.update(
         {
-            "shadow": True,
             "visual": "whole",
         }
     )

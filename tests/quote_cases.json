@@ -169,9 +169,7 @@
       "id": "a line break a widget's slot holds is a gap",
       "markup": "<div id=\"s\"><lf-gap-slot>alpha<br>beta</lf-gap-slot></div>",
       "registry": {
-        "lf-gap-slot": {
-          "shadow": true
-        }
+        "lf-gap-slot": {}
       },
       "stage": {
         "lf-gap-slot": "<p><slot></slot></p>"
@@ -209,9 +207,7 @@
       },
       "before": 0,
       "registry": {
-        "lf-gap-slot": {
-          "shadow": true
-        }
+        "lf-gap-slot": {}
       },
       "stage": {
         "lf-gap-slot": "<p><slot></slot></p>"
@@ -230,9 +226,7 @@
       "id": "two staged widgets side by side read apart",
       "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
       "registry": {
-        "lf-word": {
-          "shadow": true
-        }
+        "lf-word": {}
       },
       "stage": {
         "lf-word": true
@@ -247,9 +241,7 @@
       "id": "two staged widgets side by side are not one word",
       "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
       "registry": {
-        "lf-word": {
-          "shadow": true
-        }
+        "lf-word": {}
       },
       "stage": {
         "lf-word": true

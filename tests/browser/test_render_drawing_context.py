@@ -155,7 +155,7 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
         # The page places the composer for the narrow window in the rendering updates
         # after the resize. Until then the button stands where the wide window put
         # it, outside this one, and a key pressed there lets go of it
-        # (keyboard/controller.js).
+        # (page-keys/controller.js).
         rendered(page)
     inspect = page.get_by_role("button", name="Inspect drawing, 1 stroke")
     if touch:

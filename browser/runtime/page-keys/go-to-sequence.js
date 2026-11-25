@@ -3,13 +3,13 @@
    Visible, visually discovered targets share one generated-letter namespace. Links,
    tabs, folds, the presses a widget built, visible margin entries and the ages an
    author wrote in the page (`pageAges`) are read together in screen order and receive
-   short prefix-free labels. `hints.js` owns that map — the
+   short prefix-free labels. `key-badges/hints.js` owns that map — the
    codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
    that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin entries, `g t`
    threads. A filter narrows the complete map, as a typed letter does
-   (hints.js, `kept`), so each member keeps its code and its chip's seat; codes are
+   (key-badges/hints.js, `kept`), so each member keeps its code and its chip's seat; codes are
    assigned here, over the complete map, rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `f`, `h`, `m`,
@@ -62,21 +62,31 @@
 
    The Go-to sequence has no timeout. The user is not charged a time limit for reading
    the hints just painted. */
-import { bindings, commandRun, labelOf, live, nativePress } from "./bindings.js";
-import { keyBadgePlacement } from "./key-badge-placement.js";
-import { createHintSession, HINT_KEYS, codedHints } from "./hints.js";
+import {
+  bindings,
+  commandRun,
+  labelOf,
+  live,
+  nativePress,
+} from "../keyboard/bindings.js";
+import { keyBadgePlacement } from "../key-badges/key-badge-placement.js";
+import { createHintSession, HINT_KEYS, codedHints } from "../key-badges/hints.js";
 import { objectIds } from "../ids.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
   progressSteps,
-} from "./key-sequence.js";
+} from "../keyboard/key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { drawnByWidget, PRESSABLE } from "../widget-elements.js";
 import { el } from "../lib/elements.js";
 import { actionClass } from "../lib/control-faces.js";
-import { allButCommandReference, pageCommand, pageScope } from "./register.js";
+import {
+  allButCommandReference,
+  pageCommand,
+  pageScope,
+} from "../keyboard/register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
@@ -84,8 +94,8 @@ import { addressableSays } from "../addressable-names.js";
 import { announce } from "../notifications.js";
 import { GENERATED, inPage, pageQueryAll } from "../passages.js";
 
-import { claimsEsc } from "./scopes.js";
-import { saying } from "./control-keys.js";
+import { claimsEsc } from "../keyboard/scopes.js";
+import { saying } from "../keyboard/control-keys.js";
 import { repaint } from "../repaint.js";
 import { landGlides } from "../scrolling.js";
 import { counted } from "../lib/words.js";
@@ -98,7 +108,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
-/** @typedef {import("./bindings.js").Command} Command
+/** @typedef {import("../keyboard/bindings.js").Command} Command
  * @typedef {{kind: string, member: Element, go: () => unknown, exposure: "self" | "across"}} TargetMember
  * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
  * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
@@ -447,7 +457,7 @@ export function createGoToSequence({
 
   // A generated label over an inline link must not become a span the passage walk then
   // has to understand, so the chips are chrome and the scene is read rather than marked.
-  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], GoToHintModel>} */
+  /** @type {import("../key-badges/hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], GoToHintModel>} */
   const hintOptions = {
     layer: goToHintLayer,
     read: visibleCandidates,
@@ -542,7 +552,7 @@ export function createGoToSequence({
   // activation, and backing remain.
   /** @type {Command[] | null} */
   let goRows = null;
-  /** @type {import("./bindings.js").Scope} */
+  /** @type {import("../keyboard/bindings.js").Scope} */
   const GO_TO_SCOPE = {
     title: "Go to",
     says: "Go to",

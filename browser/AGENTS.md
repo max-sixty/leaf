@@ -426,7 +426,7 @@ widget and interaction loaders compute theirs.
 Each module owns one concern and states it in its header, so read the headers to find
 an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
 question", below, indexes the owners a caller asks, and `keyboard/AGENTS.md` covers the
-keyboard's.
+keyboard's, in `keyboard/`, `key-badges/` and `page-keys/`.
 
 `runtime/lib/frame-pass.js` runs every rendering callback in one pass per frame, the
 runtime's and each package's alike, and `runtime/rendering.js` counts that work in the
@@ -767,7 +767,7 @@ block names what a package answers with the browser's own call instead.
 | Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `keyboard/text-entry.js` `nativeClaimAt`                                               |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                      |
 | The keys that would make a command's press now, as a chip shows them                                  | `keyboard/control-keys.js` `commandKeysNow`                                            |
-| A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                                |
+| A hint map's walk and choose rows                                                                     | `key-badges/hints.js` `createHintSession`                                              |
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                           |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                                  |
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
@@ -849,7 +849,7 @@ block names what a package answers with the browser's own call instead.
 | When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                                 |
 | A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                              |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |
-| The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                                |
+| The keys the command hints label a control with from where the user is                                | `key-badges/command-hints.js` `drawnKeys`                                              |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                                  |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName`                                                      |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                       |

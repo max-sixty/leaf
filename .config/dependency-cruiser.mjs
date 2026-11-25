@@ -104,8 +104,8 @@ const exactClosures = {
 const applicationOwners = [
   "application.js",
   "delivery.js",
-  "keyboard/go-to-sequence.js",
-  "keyboard/controller.js",
+  "page-keys/go-to-sequence.js",
+  "page-keys/controller.js",
   "pending/state.js",
   "undo.js",
   "state-application.js",
@@ -174,11 +174,11 @@ export default {
     {
       name: "page-keyboard-from-boot-only",
       comment:
-        "keyboard/page.js declares the page's own keys as it evaluates and exports " +
+        "page-keys/page.js declares the page's own keys as it evaluates and exports " +
         "nothing; only leaf.js imports it, for that effect.",
       severity: "error",
-      from: { path: owners, pathNot: isModule("keyboard/page.js") },
-      to: { path: isModule("keyboard/page.js") },
+      from: { path: owners, pathNot: isModule("page-keys/page.js") },
+      to: { path: isModule("page-keys/page.js") },
     },
     {
       name: "core-independent-of-overlay",

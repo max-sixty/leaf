@@ -70,7 +70,7 @@
    The module also owns the one rule for where the user is: focus while they can see it
    where the glides under way leave it (`focusPlace`), else what is on screen
    (reading-place.js, `pageReadingBlock`). A key pressed while focus is not where they
-   are lets go of it first (keyboard/controller.js), so every key acts from what they
+   are lets go of it first (page-keys/controller.js), so every key acts from what they
    see, and a revision reading where they are asks the same (reading-place.js,
    `capturePlace`; version.js). */
 import {

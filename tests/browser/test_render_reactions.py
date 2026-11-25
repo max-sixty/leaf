@@ -774,9 +774,9 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 
 
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
-    """The response choice shares the comment field's solid accent focus ring. Read in
-    the dark scheme, where a ring stated as a literal value rather than the token would
-    show: `--lf-accent` states both schemes in one `light-dark()`."""
+    """The response choice shares the comment field's solid focus ring. Read in the dark
+    scheme, where a ring stated as a literal value rather than the token would show: the
+    ring's ink (`--lf-here`) states both schemes in one `light-dark()`."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -790,19 +790,19 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     expect(suggest).to_be_focused()
     ring = suggest.evaluate("""node => {
       const ink = document.createElement('span');
-      ink.style.color = 'var(--lf-accent)';
+      ink.style.color = 'var(--lf-here)';
       node.append(ink);
-      const accent = getComputedStyle(ink).color;
+      const here = getComputedStyle(ink).color;
       ink.remove();
       const band = getComputedStyle(document.documentElement)
         .getPropertyValue('--lf-focus-ring-w').trim();
       const style = getComputedStyle(node);
       return {outline: style.outlineStyle, color: style.outlineColor,
-              width: style.outlineWidth, accent, band};
+              width: style.outlineWidth, here, band};
     }""")
     assert (ring["outline"], ring["color"], ring["width"]) == (
         "solid",
-        ring["accent"],
+        ring["here"],
         ring["band"],
     ), ring
 
@@ -1522,7 +1522,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     expect(part).to_have_attribute("data-lf-proxied", "")
-    assert_drawn_in(part, token_colour(page, "--lf-accent"), 2)
+    assert_drawn_in(part, token_colour(page, "--lf-here"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(

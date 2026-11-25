@@ -262,7 +262,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page = open_page(browser, serve(column))
     resized(page, 1200, 900)
     # Scrolled past the header with the list still in sight, since a key at a tab
-    # scrolled out of sight lets go of it (keyboard/controller.js). Short of the
+    # scrolled out of sight lets go of it (page-keys/controller.js). Short of the
     # panel's top, so a switch that scrolled to the panel or the page's top would show.
     page.get_by_role("tab", name="Ticket b", exact=True).focus()
     page.evaluate("""() => {

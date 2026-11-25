@@ -99,18 +99,20 @@
   border-color: var(--lf-border);
   background: var(--lf-chip);
 }
-/* A reaction the user added wears the accent, so it reads as theirs even alone in the
-   closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
+/* A reaction the user added is an answer they gave, so it wears the settled colour, as
+   a chosen answer does (tokens.css, `--lf-settled`), and its border reads as given even
+   alone in the closed strip. Its ground deepens under the pointer as a neighbour's chip
+   rises. */
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"] {
-  color: var(--lf-accent);
-  border-color: var(--lf-accent);
-  background: var(--lf-accent-tint);
+  color: var(--lf-settled-ink);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled-tint);
 }
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"]:is(
     :hover,
     [data-lf-focus]
   ) {
-  background: color-mix(in srgb, var(--lf-accent) 24%, var(--lf-card));
+  background: color-mix(in srgb, var(--lf-settled) 20%, var(--lf-card));
 }
 /* A reaction says its word through its preview (runtime/preview.js), which a finger
    reads by holding the choice, so the press owns the gesture: it neither scrolls nor
@@ -1384,11 +1386,12 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-accent);
   color: var(--lf-entry-ink, var(--lf-ink));
 }
-/* A selected page reading and its compact Page Map projection share one accent. Reuse
-   the entry's existing contour: category still owns its weight, and focus can
+/* The entry of the reading the user stands in and its compact Page Map projection
+   share the user's ink (`--lf-here`), as the location ring round that reading does.
+   Reuse the entry's existing contour: category still owns its weight, and focus can
    add the one outer ring that says where input will land. */
 .lf-margin-face[data-lf-target-selected] {
-  border-color: var(--lf-accent);
+  border-color: var(--lf-here);
 }
 .lf-margin-face[aria-disabled="true"] {
   cursor: default;

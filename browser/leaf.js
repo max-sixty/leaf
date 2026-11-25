@@ -105,7 +105,7 @@ import { createChangeWalk } from "./runtime/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
-} from "./runtime/keyboard/command-hints.js";
+} from "./runtime/key-badges/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
@@ -133,20 +133,20 @@ import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
 import {
   createGoToSequence,
   goToHintLayer,
-} from "./runtime/keyboard/go-to-sequence.js";
+} from "./runtime/page-keys/go-to-sequence.js";
 import { coverBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
-import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
+import { declareCurrentLocation } from "./runtime/page-keys/page.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/page-keys/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
-import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
+import { paintTouchControls } from "./runtime/page-keys/touch-controls.js";
 import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
 import {
   commandReferenceDialog,
   mountCommandReference,
-} from "./runtime/keyboard/command-reference.js";
-import { paintStatusContext } from "./runtime/keyboard/status-context.js";
+} from "./runtime/page-keys/command-reference.js";
+import { paintStatusContext } from "./runtime/page-keys/status-context.js";
 import {
   paintKeys,
   reflectFirstScopes,

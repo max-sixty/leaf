@@ -719,7 +719,7 @@
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
     // The keyboard owner takes the held keys as the document upgrades and runs them through
-    // its own handler (runtime/keyboard/controller.js).
+    // its own handler (runtime/page-keys/controller.js).
     document.addEventListener("lf-held-keys", take);
     document.addEventListener("lf-held-keys-seat", seated);
     if (held.length) beat = setTimeout(show, 150);

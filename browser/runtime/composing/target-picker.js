@@ -37,9 +37,9 @@ import {
   openLayer,
   openerOf,
 } from "../focus.js";
-import { createHintSession, HINT_KEYS, codedHints } from "../keyboard/hints.js";
+import { createHintSession, HINT_KEYS, codedHints } from "../key-badges/hints.js";
 import { objectIds } from "../ids.js";
-import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
+import { keyBadgePlacement } from "../key-badges/key-badge-placement.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -108,7 +108,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // authored controls. The key and the modifier are two ways into one gesture, so a press
 // means the same under either.
 //
-// `keyboard/hints.js` owns the map itself: arming, codes, the typed prefix, the audible
+// `key-badges/hints.js` owns the map itself: arming, codes, the typed prefix, the audible
 // walk, the scroll freeze, and the paint. What this module declares is which members the
 // map holds and where each chip sits among them. An ancestor and descendant painting the
 // same visible box name one target, and the innermost remains, matching direct aim. A
@@ -744,7 +744,7 @@ export function createTargetPicker({
 
   // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
-  /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
+  /** @type {import("../key-badges/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
   const hintOptions = {
     layer: hintRoot,
     read: visibleTargets,
@@ -768,7 +768,7 @@ export function createTargetPicker({
           placement: target.controlElement ? "above" : "before",
           // A control's key tries just above its upper-left corner, then before it;
           // an owner's tries before it, then above; failing both, it stands on the
-          // corner `left` and `top` name (keyboard/hints.js, `seatHints`).
+          // corner `left` and `top` name (key-badges/hints.js, `seatHints`).
           left: rect.left,
           top: Math.max(0, rect.top),
         };

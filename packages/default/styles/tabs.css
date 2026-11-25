@@ -321,7 +321,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * ground that spans the set's height (below). A walk down a long queue then leaves
      * the item where the user is reading it, and the focused tab stays on screen while
      * they read. A column that scrolled with the page moved the item at each step and
-     * left the tab off screen, so the next arrow let go of it (keyboard/controller.js). */
+     * left the tab off screen, so the next arrow let go of it (page-keys/controller.js). */
     lf-tabs[list="side"],
     lf-parts {
       --lf-tab-context-h: 0px;

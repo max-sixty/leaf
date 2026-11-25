@@ -101,7 +101,7 @@
      Escape lets go of a control in the page; a function where the row's step varies.
      Every other row is read ahead of the page's listeners on the document and the
      window. This one is read after them, and not at all where one of them prevented
-     the key (controller.js).
+     the key (page-keys/controller.js).
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the command reference
@@ -455,7 +455,7 @@ const scopeReadiness = new WeakMap();
 export const savedReadingSettled = () => runtime.statePhase !== "waiting";
 // Whether the page has finished restoring the place a reload Leaf asked for handed it
 // (version.js, `installArrival`). Until then no key is ready, so a printed key waits
-// in the early hold (controller.js, `takeHeldKeys`): a user typing through the reload
+// in the early hold (page-keys/controller.js, `takeHeldKeys`): a user typing through the reload
 // meant it for the box they were writing in, which the restore brings back, not as one
 // of the page's commands.
 let handingBack = false;

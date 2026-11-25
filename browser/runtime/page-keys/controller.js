@@ -20,10 +20,10 @@
    (off-flow.js), and a modifier alone is half a press. Tab types nothing, so it goes on
    from what they read. A select's letters let go, since
    they choose an option the user can't see. */
-import { dispatchKey, keyReady } from "./dispatch.js";
+import { dispatchKey, keyReady } from "../keyboard/dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
-import { placeHandedBack, quickShortcuts } from "./bindings.js";
-import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
+import { placeHandedBack, quickShortcuts } from "../keyboard/bindings.js";
+import { claimsEsc, paintKeys, watchCommandAvailability } from "../keyboard/scopes.js";
 import {
   controlNavigationKeys,
   letGo,
@@ -155,7 +155,7 @@ export function mountKeyboard({
     if (!authored) press(ev);
   });
   // A row that `waits` is what Leaf does with a key only once nothing else has taken
-  // it, as Escape lets go of a control in the page (keyboard/page.js), so it is read
+  // it, as Escape lets go of a control in the page (page-keys/page.js), so it is read
   // last, after the page's listeners on the document and the window. A popup that hears
   // Escape there from the moment it opens, as UI SDK's tooltip, Web Awesome's select and
   // Headless UI's dialog do, puts itself away first and prevents the key, and focus
@@ -210,9 +210,8 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      // With single-key commands off, a held key only ever types into a box, as the
-      // words a user typed through a reload do into the box it hands back; the release
-      // lets go of the rest.
+      // With single-key commands off, a held key only ever types into a box; the
+      // release lets go of the rest.
       const [key] = keys;
       if (!key || (!quickShortcuts() && !typesText(focused()))) {
         release();

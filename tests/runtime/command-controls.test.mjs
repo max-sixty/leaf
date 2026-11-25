@@ -1961,7 +1961,7 @@ test("a disappearing projected command refuses instead of becoming a generic act
 // every lent face, a button's child included, keeps an out-of-flow seat.
 test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", async () => {
   const { createCommandHints } =
-    await import("../../browser/runtime/keyboard/command-hints.js");
+    await import("../../browser/runtime/key-badges/command-hints.js");
   const owner = document.createElement("section");
   const control = document.createElement("button");
   const badge = document.createElement("kbd");
@@ -1999,7 +1999,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
 // widget's box, which may cover it, so it is withheld.
 test("a face shows over its control or the box that holds it, and is withheld over anything else", async () => {
   const { createCommandHints } =
-    await import("../../browser/runtime/keyboard/command-hints.js");
+    await import("../../browser/runtime/key-badges/command-hints.js");
   const owner = document.createElement("section");
   /** @returns {[Element, Element, Element]} */
   const faced = () => {

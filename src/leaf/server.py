@@ -156,7 +156,7 @@ def other_serving_leaf(page_dir: Path) -> dict | None:
     update (`stop_when_service_ends`). Uncommitted edits don't count, since the record
     can't say whether they changed after the server started. `leaf server start`
     restarts such a server under this Leaf (`hosting.start_page`), and `page check`
-    notes it (`validation.source.source_advice`)."""
+    notes it (`authored_checks.source.source_advice`)."""
     from .layer import running_leaf
 
     server = running_server(page_dir)

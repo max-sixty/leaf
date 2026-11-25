@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 // Importing the page's own parts declares "On a link".
-import "../../browser/runtime/keyboard/page.js";
+import "../../browser/runtime/page-keys/page.js";
 import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
 import { keys, reflectFirstScopes } from "../../browser/runtime/keyboard/scopes.js";
 import { selectableOffer } from "../../browser/runtime/lib/controls.js";

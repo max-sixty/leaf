@@ -14,13 +14,12 @@ check leaves its reading (`render_reading`) for `page state` and for the page's 
 
 from pathlib import Path
 
+from leaf.authored_checks.source import check_source, moved_threads, source_advice
 from leaf.event_log import read_events
 from leaf.files import list_revisions
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_record, selected
-
-from .source import check_source, moved_threads, source_advice
 
 
 def cmd_check(page_dir: Path, render: bool = False) -> dict:

@@ -50,6 +50,12 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import NamedTuple
 
+from leaf.authored_checks.source import SourceCheck, check_source
+from leaf.authored_checks.source_history import (
+    EMPTY_READING,
+    PredecessorReading,
+    revision_reanchors,
+)
 from leaf.event_contracts import append_admitted
 from leaf.files import list_revisions
 from leaf.page_memory import memo
@@ -62,12 +68,6 @@ from leaf.revision_artifact import (
 )
 from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
-from leaf.validation.source import SourceCheck, check_source
-from leaf.validation.source_history import (
-    EMPTY_READING,
-    PredecessorReading,
-    revision_reanchors,
-)
 
 
 class Activation(NamedTuple):

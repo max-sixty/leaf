@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
+import { createGoToSequence } from "/runtime/page-keys/go-to-sequence.js";
 import { dispatchKey } from "/runtime/keyboard/dispatch.js";
 import { pageCommand } from "/runtime/keyboard/register.js";
 import { liveEl } from "/runtime/notifications.js";

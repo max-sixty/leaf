@@ -49,12 +49,12 @@ from leaf_dev.regrade import ASPECTS, saved_comparison
 EXPORT_PHASE = """
 from pathlib import Path
 import sys
+from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.exporting import cmd_export
 from leaf.files import stamped_version
 from leaf.publishing import cmd_stamp
 from leaf.revisioning import planned_activation
-from leaf.validation.source import check_source
 page, target = map(Path, sys.argv[1:])
 events = read_events(page)
 checked = check_source(page, events)

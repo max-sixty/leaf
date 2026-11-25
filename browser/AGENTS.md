@@ -289,9 +289,12 @@ concrete and playable").
   Caret browsing in Chromium and Firefox walks the caret through words that take no
   focus, so there an element such as an age previews to the keyboard without a Tab
   stop of its own (check: `test_k_reads_the_caret_where_no_tab_reaches`). Safari has
-  no such caret (`../notes/browser-support.md`, "A keyboard caret in Safari"). A
-  preview the user put away stays away until they aim again, whatever the element
-  declares meanwhile. A `title` is its writer's: the
+  no such caret, so an age reaches the keyboard there without one: a row that shows
+  an age names its clock time in the row's own preview, and an age an author wrote in
+  the page takes a Go-to hint (check:
+  `test_an_age_reads_its_time_to_the_keyboard_with_no_caret`;
+  `../notes/browser-support.md`, "A keyboard caret in Safari"). A preview the user
+  put away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
   browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
   so two tooltips never stand together. Leaf's own controls declare their words to the
   preview and write no title on Leaf.
@@ -423,7 +426,7 @@ widget and interaction loaders compute theirs.
 Each module owns one concern and states it in its header, so read the headers to find
 an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
 question", below, indexes the owners a caller asks, and `keyboard/AGENTS.md` covers the
-keyboard's.
+keyboard's, in `keyboard/`, `key-badges/` and `page-keys/`.
 
 `runtime/lib/frame-pass.js` runs every rendering callback in one pass per frame, the
 runtime's and each package's alike, and `runtime/rendering.js` counts that work in the
@@ -747,7 +750,8 @@ block names what a package answers with the browser's own call instead.
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                                |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `thread/address.js` `createThreadAddress`                                              |
 | Which member a widget shows of several, its name in the address, and the user's place in each         | `views.js` `keepView`, `entryView`                                                     |
-| The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
+| Where the user's caret stands, and its element, through open shadow trees                             | `native-selection.js` `userCaret`                                                      |
+| The page place focus or the caret identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                            |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                           |
 | The obligation the user is in, answered or not, and the question a thread's view asks them            | `current-target.js` `obligationIn`, `questionAsked`                                    |
 | Which of two nodes the reader reaches first, across shadow trees, alone or in a sort                  | `lib/shadow-tree.js` `renderedOrder`, `renderedOrdering`, `byRenderedOrder`            |
@@ -763,7 +767,7 @@ block names what a package answers with the browser's own call instead.
 | Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `keyboard/text-entry.js` `nativeClaimAt`                                               |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                      |
 | The keys that would make a command's press now, as a chip shows them                                  | `keyboard/control-keys.js` `commandKeysNow`                                            |
-| A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                                |
+| A hint map's walk and choose rows                                                                     | `key-badges/hints.js` `createHintSession`                                              |
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                           |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                                  |
 | What stands at the reading line, and holding a node across a change anchoring can't keep still        | `user-place.js` `readingAt`, `holdPlaceOf`                                             |
@@ -845,7 +849,7 @@ block names what a package answers with the browser's own call instead.
 | When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                                 |
 | A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                              |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                               |
-| The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                                |
+| The keys the command hints label a control with from where the user is                                | `key-badges/command-hints.js` `drawnKeys`                                              |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                                  |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName`                                                      |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                       |

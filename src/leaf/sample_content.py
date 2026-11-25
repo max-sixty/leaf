@@ -15,6 +15,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from .anchor_capture import capture_anchor
+from .authored_checks.admission import message_markup_findings, text_media_errors
 from .data_contracts import data_document_errors, initial_data_document_readings
 from .event_contracts import admitted_event, command_error
 from .event_log import EventRefused
@@ -32,8 +33,6 @@ from .thread_context import (
     thread_names,
     thread_structure,
 )
-from .validation.admission import message_markup_findings
-from .validation.markup import text_media_errors
 
 
 def _non_json_number(value: str):

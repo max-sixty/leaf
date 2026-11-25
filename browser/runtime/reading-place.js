@@ -68,6 +68,7 @@ import { setScroll } from "./arrivals.js";
 import {
   clippedContents,
   landingBand,
+  placeHolder,
   seenRect,
   shownBox,
   shownWindow,
@@ -136,13 +137,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusPlace, readingAt } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import {
-  heldTravel,
-  holderOf,
-  seenAhead,
-  seenGlided,
-  seenLanded,
-} from "./scroll-containers.js";
+import { heldTravel, seenAhead, seenGlided, seenLanded } from "./scroll-containers.js";
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 import { keptEach } from "./kept.js";
@@ -817,7 +812,7 @@ function pageReading({ bodies }) {
 // the top of the page.
 const shownAtLine = () => {
   const at = readingAt(pageDocument());
-  const node = at && holderOf(at);
+  const node = at && placeHolder(at);
   return node && node !== document.body ? node : null;
 };
 export const pageReadingBlock = () => pageReading({ bodies: false });

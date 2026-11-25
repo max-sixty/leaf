@@ -302,10 +302,10 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     it reads the log (`page_snapshot.capture_page_snapshot`)."""
     from leaf.files import latest_revision
     from leaf.findings import Rejected, note
+    from leaf.markup_checks.markup import repair_errors
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import ArtifactError, capture_artifact
     from leaf.structure import SourceDocument
-    from leaf.validation.markup import repair_errors
 
     from .page_code import message_page, places_judged_widget
 

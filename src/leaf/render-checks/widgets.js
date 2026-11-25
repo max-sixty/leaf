@@ -158,7 +158,7 @@ export function undeclaredAttrs(declarations) {
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
   // look, not a state a version could carry — and `title`, `lang` and `dir`, which
-  // the page may write on any element (`validation/instances.py`), describe one.
+  // the page may write on any element (`markup_checks/instances.py`), describe one.
   // `part` is a look too: the runtime gives a box in a widget's shadow tree a part
   // to anchor or focus it from the document (css-anchors.js, focus.js).
   const painted = /^(?:data-|aria-)/;

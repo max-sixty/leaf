@@ -245,7 +245,7 @@ export class TabSet extends LeafElement {
       // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
       // paint for the end of this script, so a microtask queued after the move runs
       // behind it. Left out of sight, the tab would lose focus to the next key
-      // (keyboard/controller.js).
+      // (page-keys/controller.js).
       focusDestination(next, "move");
       next.click();
       queueMicrotask(() => this.#showTab(next, null));

@@ -23,6 +23,7 @@ a log this Leaf may misread.
 
 from pathlib import Path
 
+from .authored_checks.admission import logged_id
 from .construction import constructed_content
 from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
@@ -53,7 +54,6 @@ from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .user_views import read_user_views, viewed_at
-from .validation.admission import logged_id
 from .work import page_subject
 
 # How many of a thread's messages one `page state PAGE MESSAGE` prints by default.

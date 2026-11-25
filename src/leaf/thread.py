@@ -8,6 +8,14 @@ from pathlib import Path
 from typing import NamedTuple, Never
 
 from leaf.activity import answer_command, reply_command
+from leaf.authored_checks.admission import (
+    check_markup,
+    checked_text,
+    logged_id,
+    revision_publication,
+    thread_obligation,
+)
+from leaf.authored_checks.source import SourceCheck, moved_threads, source_advice
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -40,14 +48,6 @@ from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_message, thread_names, thread_structure
 from leaf.todos import TodoReading
-from leaf.validation.admission import (
-    check_markup,
-    checked_text,
-    logged_id,
-    revision_publication,
-    thread_obligation,
-)
-from leaf.validation.source import SourceCheck, moved_threads, source_advice
 
 
 def drawn_markup(text: str) -> str:
@@ -689,7 +689,7 @@ def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
 
     A successful reply publishes the source it checked, so a revision that answers a
     message needs no check before its reply. It names the threads those revisions
-    moved (`validation.source.moved_threads`) other than one it moves itself."""
+    moved (`authored_checks.source.moved_threads`) other than one it moves itself."""
     events, checked = published.events, published.checked
     last = max(
         (
@@ -950,8 +950,8 @@ def _compose_and_append(
                     "anchor": None,
                 },
             ]
+        from leaf.authored_checks.source import check_source
         from leaf.revisioning import planned_activation
-        from leaf.validation.source import check_source
 
         checked = check_source(page_dir, source_events)
         if checked.errors:

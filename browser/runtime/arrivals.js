@@ -45,7 +45,10 @@
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
    scroll or scroll end crosses one either, so this module hears the document's and
-   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). Its
+   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). A
+   protocol event dispatched without the options that carry it to Leaf's listeners is
+   lost the same way, in silence, so the document and each stage report one
+   (`reportUnheardIn`). Its
    writes include the reading of the page with boxes scrolled elsewhere and put back in
    one task (`readScrolled`).
 
@@ -76,6 +79,16 @@
 import { isElement, renderedParent, shadowHost, under } from "./lib/shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "./lib/frame-pass.js";
 import { scrollMoves } from "./lib/scroll-range.js";
+import {
+  COMMANDS,
+  CONNECT,
+  DEFER,
+  HOLD,
+  LAYOUT,
+  PREVIEW,
+  WALK,
+} from "./lib/widget-events.js";
+import { reportFailure } from "./lib/failure.js";
 
 /** The elements a watch holds: whether `is` one, and every one `within` a tree.
  * @typedef {{is: (el: Element) => boolean, within: (root: Element | ShadowRoot) => Iterable<Element>}} Kind
@@ -344,7 +357,40 @@ export function watchArrivalsIn(stage) {
   stageRefs.add(new WeakRef(stage));
   for (const watch of watches) enroll(watch, stage);
   hearScrollsIn(stage);
+  reportUnheardIn(stage);
 }
+
+// The events of the widget protocol that Leaf hears at the document or the window
+// (lib/widget-events.js) reach it only as they bubble, and out of a shadow tree only
+// where they are composed. One dispatched without those options tells Leaf nothing,
+// and nothing else says so: a hold never begins, and a revision replaces the nodes
+// under the user's hand. Each tree reports such an event as the failure of the element
+// that dispatched it, which the page's errors then name: the document one that does
+// not bubble, and a stage one that would not leave it. `lf-preview` Leaf hears as it
+// starts down from the document, bubbling or not, so only a stage reports it.
+//
+// Only these trees are heard. An event that stays inside any other shadow root, one a
+// page's script attached or an element opened without saying `lf-connect`, reaches
+// neither Leaf nor this report.
+const BUBBLED = [COMMANDS, CONNECT, DEFER, HOLD, LAYOUT, WALK];
+/** @param {Document | ShadowRoot} root */
+function reportUnheardIn(root) {
+  const staged = root !== document;
+  /** @param {Event} event */
+  const report = (event) => {
+    const [origin] = event.composedPath();
+    if (!isElement(origin) || (staged ? event.composed : event.bubbles)) return;
+    reportFailure(
+      origin,
+      new Error(
+        `\`${event.type}\` did not reach Leaf, which hears it as it bubbles to the document: dispatch it with { bubbles: true, composed: true }`,
+      ),
+    );
+  };
+  for (const type of staged ? [...BUBBLED, PREVIEW] : BUBBLED)
+    root.addEventListener(type, report, { capture: true });
+}
+reportUnheardIn(document);
 
 // Every scroll in the page, a stage's included: `scroll` and `scrollend` are not
 // composed, so a scroller inside a shadow stage reaches no listener outside it. Each
@@ -524,7 +570,7 @@ function unheardWrite(box, options) {
 // the card a walk is bringing over its margin entry still stands where the walk left
 // it, so the Go-to map `g` armed as the walk lands would name the entry the card covers,
 // and read again at the scroll's end, which comes before that update, would name it
-// again (keyboard/hints.js). Two frame callbacks enclose the update. A reader waits for the
+// again (key-badges/hints.js). Two frame callbacks enclose the update. A reader waits for the
 // writes made before it asks, not for later ones, so a log a stream keeps at its end
 // holds no reading back for as long as it streams.
 /** @type {PromiseWithResolvers<void> | null} */

@@ -597,8 +597,9 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
 
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
     """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
-    opened on a message is a rung below it, so Escape hands the caret back to the
-    field, and Save leaves the user on the thread's view, as a send does; ↑ from the
+    ↑ opens from it is a rung below it, so Escape hands the caret back to the field,
+    and Save leaves the user on the thread's view, as a send does; one opened on the
+    message itself returns to its Edit control instead. ↑ from the
     empty field opens the rewrite of the user's last message, and ↑ from the start of
     an unchanged rewrite the message before. Resolve leaves the reply as a card's does,
     and the field says how to reopen the thread."""
@@ -626,13 +627,15 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     expect(thread).to_be_visible()
     rewrite = thread.locator(".lf-msg-editor leaf-text")
 
-    # A rewrite opened on the message itself is a rung below the reply box too.
-    thread.locator(".lf-msg-body", has_text="What about the second cohort?").dblclick()
+    # A rewrite opened on the message itself returns to the message's Edit control.
+    second = thread.locator(".lf-msg", has_text="What about the second cohort?")
+    second.locator(".lf-msg-body").dblclick()
     expect(rewrite).to_be_focused()
     page.keyboard.press("Escape")
     expect(rewrite).to_have_count(0)
-    expect(field(page)).to_be_focused()
+    expect(second.locator(".lf-msg-edit")).to_be_focused()
 
+    field(page).focus()
     page.keyboard.press("ArrowUp")
     expect(rewrite).to_be_focused()
     expect(rewrite).to_have_js_property("value", "What about the second cohort?")
@@ -2651,7 +2654,7 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     stop at the page's foot while Threads is still opening over it puts the view away,
     as it does once the view stands open, and the stop ends in sight."""
     # The Tab leaves a stop the view never covers, above where it comes to rest: a key
-    # pressed on a stop the user can't see lets go of it first (keyboard/controller.js).
+    # pressed on a stop the user can't see lets go of it first (page-keys/controller.js).
     foot = (
         '<p><button id="before">Before the foot</button></p>'
         '<div style="height:450px"></div>'

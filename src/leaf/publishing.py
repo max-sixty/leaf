@@ -21,6 +21,8 @@ import json
 from contextlib import contextmanager
 from pathlib import Path
 
+from leaf.authored_checks.admission import checked_text
+from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.files import stamped_version
 from leaf.leases import contract_writer
@@ -34,8 +36,6 @@ from leaf.revisioning import (
 from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
 from leaf.todos import TodoReading
-from leaf.validation.admission import checked_text
-from leaf.validation.source import check_source
 
 # How many checks a stamp in place runs outside the page transaction before it
 # checks under it, so a page written faster than it checks still gets a stamp.

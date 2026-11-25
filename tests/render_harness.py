@@ -3223,7 +3223,7 @@ def tab_onto(target):
 
     Shift+Tab steps off the target only where the user can see it: a key pressed while
     focus stands where the user can't see it lets go of that focus first
-    (keyboard/controller.js). A script's focus doesn't scroll a target the window
+    (page-keys/controller.js). A script's focus doesn't scroll a target the window
     already holds, which may stand under the floating panel's row at the window's foot,
     so the helper then brings the target clear of the panel with Leaf's own landing
     (landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves
@@ -3543,6 +3543,22 @@ window.SpeechRecognition = class {
   abort() { this.aborted = true; }
 };
 """
+
+
+def word_point(locator, word):
+    """The middle of `word` where the browser drew it, first inside `locator`, so a
+    gesture lands on letters rather than on blank space in a block's box."""
+    return locator.evaluate(
+        """(node, sought) => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
+      const range = document.createRange(), start = word.data.indexOf(sought);
+      range.setStart(word, start); range.setEnd(word, start + sought.length);
+      const box = range.getBoundingClientRect();
+      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+    }""",
+        word,
+    )
 
 
 def write(box, text):

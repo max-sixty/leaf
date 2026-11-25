@@ -1,8 +1,23 @@
 # Keyboard runtime
 
-This file holds the keyboard policy the modules here share; each module's header owns
-its own contract, `bindings.js` the fields of a command row and `dispatch.js` which
-scope answers a press.
+The keyboard's modules are in three directories of the runtime. Each directory imports
+only the ones listed before it:
+
+- `keyboard/`, this one: the register, its dispatch, the layer stack and the keys a
+  control names. DOM, geometry and notice owners read it, such as `geometry.js`,
+  `widget-elements.js` and `notifications.js`, so it imports none of them and nothing
+  that imports them.
+- `key-badges/`: the hint codes and binding badges painted on the page, and where they
+  stand. The composer's target picker reads them, so they import nothing of the
+  composer's.
+- `page-keys/`: the keys the page itself answers, such as a link's or a disclosure's,
+  and the modules that join the register to the page's other features, the composer
+  among them: the key listener, Go-to, the command reference, the status context and
+  the touch rows.
+
+This file holds the keyboard policy all three share; each module's header owns its own
+contract, `bindings.js` the fields of a command row and `dispatch.js` which scope
+answers a press.
 
 ## Ownership
 
@@ -44,7 +59,7 @@ activation press, ahead of any widget or page scope around it (`dispatch.js`). A
 other than typing or Escape, pressed while the user has scrolled the focused control out
 of sight, lets go of it first, without closing what stands beside it, and then acts from
 what they see, so no Leaf command, listener on the control or browser default acts on
-what they can't see (`controller.js`). A key typed into one of Leaf's fields, a
+what they can't see (`page-keys/controller.js`). A key typed into one of Leaf's fields, a
 `leaf-text` or a search box, stops at the field once the field and the dispatcher have
 read it there (`field-keys.js`), so the page never hears it bubble, and any other Leaf
 listener that needs keys typed into a field listens in capture. While Go-to or reactions
@@ -62,7 +77,7 @@ types ahead, such as a menu, a tree or a select-only combobox, keeps the letters
 digits typed while focus is in it, whether or not it prevents them, as a text field and
 a select keep theirs (`text-entry.js`). A row that `waits`, as Escape letting go of a control in the
 page, is read last, on the window, after every listener the page has, and only if none
-prevented the key (`controller.js`).
+prevented the key (`page-keys/controller.js`).
 
 ## Escape
 
@@ -135,7 +150,7 @@ before the one the thread is about (`current-target.js`, `questionAsked`).
 
 Every page capability available through a key but not a direct gesture has a row among
 the page's controls (`page-controls.js`). It supports both touch and mouse input and
-comes from the same command row as the key (`touch-controls.js`). Actions within a
+comes from the same command row as the key (`page-keys/touch-controls.js`). Actions within a
 scope have controls beside the content they act on: a search box has arrows to move
 between matches, a drawing's composer can undo a stroke, and the page's field can
 comment on selected words. Page scope rows therefore have no touch labels: each row

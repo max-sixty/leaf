@@ -32,6 +32,7 @@ from leaf import hooks as hooks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
+from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.files import latest_revision
 from leaf.findings import Finding
@@ -40,7 +41,6 @@ from leaf.render_reading import read_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
 from leaf.served_state.context import read_page
-from leaf.validation.source import check_source
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",

@@ -2880,7 +2880,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
     sheet = (assets / "base.css").read_text() + (
-        assets / "runtime/chrome.css"
+        assets / "styles/components/element-marks.css"
     ).read_text()
 
     spelling = (

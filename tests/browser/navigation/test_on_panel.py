@@ -35,7 +35,7 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-# What waits on the user, as On Me counts it (floating-panel.js, `onUserCount`): the
+# What waits on the user, as On Me counts it (panel/floating-panel.js, `onUserCount`): the
 # queue's own reading, since a gesture's next step can stand in the marks' place.
 ON_ME = """async () => {
   const {queues} = await window.__lfWidgetApi();
@@ -228,7 +228,7 @@ UNDER_PANEL_PAGE = leaf_page(
     '<p id="tail">The notes go out with the build.</p>',
 )
 
-# How much of an element the user sees, as the runtime reads it (geometry.js,
+# How much of an element the user sees, as the runtime reads it (dom/geometry.js,
 # `seenRect`), the open view taken away from what it stands over.
 SEEN_SHARE = """async (selector) => {
   const {seenRect} = await window.__lfCheckApi();
@@ -307,7 +307,7 @@ def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, s
 
 
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
-    """Travel shows the place it takes the user to (floating-panel.js, `clearFor`). `m`
+    """Travel shows the place it takes the user to (panel/floating-panel.js, `clearFor`). `m`
     from a thread the panel opened to a place the landing brings clear above the view
     leaves the thread open, and the field names the stop rather than the thread's turn;
     to one at the page's foot, which the view would stand over, it puts the view away."""
@@ -418,7 +418,7 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     """On Me stays open over a place `m` reaches, whose card it rings, and gives way to
     one it doesn't list: `t` to a thread at the page's foot, which On Me would stand
-    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On Me stands on
+    over, puts it away (panel/floating-panel.js, `clearFor`). Opened by a key, On Me stands on
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
@@ -946,7 +946,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 
 
 # The motion the panel's leaf plays, named by the turn it reaches first
-# (floating-panel.js, `MOTIONS`).
+# (panel/floating-panel.js, `MOTIONS`).
 LEAF_MOTIONS = {
     "rotate(-12deg) scale(1.15)": "nod",
     "translateX(-3px) rotate(-5deg)": "shake",
@@ -1017,7 +1017,7 @@ def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
+    (panel/floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
     key, On Me stands on its first row, the suggestion, so `m` steps on to the first

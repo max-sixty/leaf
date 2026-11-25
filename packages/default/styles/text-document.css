@@ -7,7 +7,7 @@ lf-text-document {
   min-height: 2px;
 }
 /* The frame, caption and listing are code, in the code's scheme (tokens.css, at
-   --lf-pre-bg). A document that previews its text stands on the page's paper instead,
+   --lf-card). A document that previews its text stands on the page's paper instead,
    since the preview is prose, so only its Source tab is code (below). */
 lf-text-document:not([preview]) {
   color-scheme: var(--lf-code-scheme, inherit);
@@ -19,10 +19,10 @@ lf-text-document:not([preview]) {
    below the caption and over the preview's first lines. */
 lf-text-document > .lf-text-document-view {
   margin: 0;
-  border: 1px solid var(--lf-code-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   overflow: clip;
-  background: var(--lf-pre-bg);
+  background: var(--lf-card);
   --lf-block-frame: 1;
 }
 /* The caption is the frame's header bar, not a line of reading, so it spans the frame:
@@ -65,8 +65,8 @@ lf-text-document .lf-text-document-listing > pre {
   font-family: var(--lf-mono);
   font-size: var(--lf-code-size);
   line-height: var(--lf-code-line);
-  color: var(--lf-code-ink);
-  background: var(--lf-pre-bg);
+  color: var(--lf-ink);
+  background: var(--lf-card);
   tab-size: 2;
   word-break: break-word;
 }
@@ -97,7 +97,7 @@ lf-text-document .lf-text-document-run > *::before {
   position: absolute;
   inset-inline-start: 2ch;
   inline-size: calc(var(--lf-number-digits) * 1ch);
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   text-align: end;
 }
 /* Syntax colour on a listing's text (lf-text-document.js, `tokenHighlight`): one
@@ -201,9 +201,9 @@ lf-text-document .lf-text-document-run:only-child {
     --lf-track-scroll-behavior: flow;
   }
   html[data-lf-interactive] lf-text-document:not(:has(> :not(pre))) {
-    border: 1px solid var(--lf-code-border);
+    border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r);
-    background: var(--lf-pre-bg);
+    background: var(--lf-card);
     &::before {
       content: attr(label);
       display: block;
@@ -280,7 +280,7 @@ lf-text-document[preview]
   > lf-tabs
   > lf-tab:has(> .lf-text-document-listing) {
   color-scheme: var(--lf-code-scheme, inherit);
-  background: var(--lf-pre-bg);
+  background: var(--lf-card);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
    (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does. */
@@ -313,7 +313,7 @@ lf-text-document iframe.lf-text-document-preview {
       block-size: auto;
       max-block-size: var(--lf-bound, 28rem);
     }
-    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
+    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all], [hidden]) {
       block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
       overflow: hidden;
     }
@@ -326,7 +326,7 @@ lf-text-document iframe.lf-text-document-preview {
     position: absolute;
     inset: auto 0 0;
     padding: calc(2 * var(--lf-sp-5)) var(--lf-sp-4) var(--lf-sp-2);
-    background: linear-gradient(transparent, var(--lf-pre-bg) 70%);
+    background: linear-gradient(transparent, var(--lf-card) 70%);
     text-align: center;
   }
   lf-text-document iframe.lf-text-document-preview {

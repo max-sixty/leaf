@@ -37,7 +37,12 @@ import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from conftest import (
+    CLAUDE_IDENTITY,
+    LEAF_COMMAND,
+    collect_app_server_error,
+    hooks_run_this_tree,
+)
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
@@ -1486,12 +1491,13 @@ PILOT_PURGE = """<lf-pilot id="pilot-purge">
 </lf-pilot>"""
 
 
-def deciding_verb(outcomes):
-    """The one verb whose `outcome` settles which of a holder's slots retire."""
+def deciding_verb(decides):
+    """The one verb whose `outcome` settles which of a holder's slots retire: each
+    outcome with the slot tags it takes off the page."""
     return {
-        "decides": True,
+        "decides": decides,
         "detail": {
-            "properties": {"outcome": {"enum": outcomes}},
+            "properties": {"outcome": {"enum": list(decides)}},
             "required": ["outcome"],
         },
         "unit": "widget",
@@ -1520,25 +1526,26 @@ def trial_family(root: Path) -> None:
         add_test_widget(package, tag, upgrade=upgrade)
     source = package / "registry.json"
     declarations = json.loads(source.read_text())
-    for tag, outcomes, example in (
-        ("lf-trial", ["adopt", "shelve", "pause"], TRIAL_CACHE),
-        ("lf-pilot", ["run", "shelve"], PILOT_PURGE),
+    for tag, decides, example in (
+        (
+            "lf-trial",
+            {"adopt": ["lf-current"], "shelve": ["lf-proposed"], "pause": []},
+            TRIAL_CACHE,
+        ),
+        ("lf-pilot", {"run": [], "shelve": ["lf-proposed"]}, PILOT_PURGE),
     ):
         declarations[tag] |= {
             "content": "members",
-            "verbs": {"decide": deciding_verb(outcomes)},
+            "verbs": {"decide": deciding_verb(decides)},
             "example": example,
         }
     # Only the trial says what taking it back would mean.
     declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
-    for tag, owners, outcome in (
-        ("lf-current", ["lf-trial"], "adopt"),
-        ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
+    for tag, owners in (
+        ("lf-current", ["lf-trial"]),
+        ("lf-proposed", ["lf-trial", "lf-pilot"]),
     ):
-        declarations[tag] |= {
-            "owners": owners,
-            "retired-when": outcome,
-        }
+        declarations[tag] |= {"owners": owners}
         del declarations[tag]["example"]  # a slot does not stand alone
         del declarations[tag]["attributes"]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))
@@ -2271,6 +2278,10 @@ def under_codex(spawn, codex_program):
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
+        # The task's hooks run this tree, as a Codex task's first hook records.
+        for variable in harness_model.CodexHarness.session_variables:
+            if env.get(variable):
+                hooks_run_this_tree(env[variable])
         shell_command = f"{command}; exit"
         if finished is not None:
             # Create `finished` once the command has, and keep the fake harness
@@ -2363,6 +2374,7 @@ def managed_server(spawn):
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
+        hooks_run_this_tree(session_id)
         record_claim(page_dir, id=session_id, pid=session_pid)
         process = spawn(
             [
@@ -2389,7 +2401,9 @@ def managed_server(spawn):
 
 
 def start_server_command(page_dir, *flags, session_id="starter"):
-    """Run `server start` from a harness session and wait for the command to return."""
+    """Run `server start` from a harness session whose hooks run this tree, and wait
+    for the command to return."""
+    hooks_run_this_tree(session_id)
     return subprocess.run(
         [
             *LEAF_COMMAND,

@@ -1224,22 +1224,22 @@ _TEXT = {
         ' child carries its own (page-layout.md, "A page of parts")'
     ),
     "pane-ends": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds more than one direct"
+        f"{_line(at, v)}: a {v['role']} holds more than one direct"
         " <header> or <footer>; its grid sets each one after the first beside it, in a"
         " column of its own, so put what they hold in one <header> or <footer>"
     ),
     "pane-header-first": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <header> after"
+        f"{_line(at, v)}: a {v['role']} holds its direct <header> after"
         " other children; its grid still draws the header on top, but keyboard and"
         " screen-reader order follow the markup"
     ),
     "pane-footer-last": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <footer> before"
+        f"{_line(at, v)}: a {v['role']} holds its direct <footer> before"
         " other children; its grid still draws the footer at the bottom, but keyboard"
         " and screen-reader order follow the markup"
     ),
     "pane-body": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} "
+        f"{_line(at, v)}: a {v['role']} "
         + (
             "holds loose text as its body, which stands without the body's padding"
             " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
@@ -1536,9 +1536,6 @@ _TEXT = {
     "undeclared-attributes": _declared(
         lambda v: f"`{v['key']}` names undeclared attributes {_json(v['names'])}"
     ),
-    "reading-role-attr": _declared(
-        lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
-    ),
     "data-contract": _declared(
         lambda v: (
             f"input `{v['input']}` (`inputs`) names unknown contract {v['contract']!r}"
@@ -1769,10 +1766,16 @@ _TEXT = {
             " which is not a value of its `outcome` field"
         )
     ),
-    "retired-when": _declared(
+    "decides-outcome": _declared(
         lambda v: (
-            f"`retired-when` `{v['outcome']}` is invalid: <{v['owner']}>"
-            " declares no deciding verb (`verbs`) with that outcome"
+            f"verb `{v['verb']}` (`verbs`) decides `{v['outcome']}`, which is not a"
+            " value of its `outcome` field"
+        )
+    ),
+    "decides-member": _declared(
+        lambda v: (
+            f"verb `{v['verb']}` (`verbs`) takes <{v['member']}> off the page, which"
+            " doesn't name this widget in its `owners`"
         )
     ),
     "answering-part": _declared(
@@ -2278,6 +2281,13 @@ _TEXT = {
         f"{v['page']} is at an older page protocol, and this Leaf could not take it"
         f" to its own: {v['error']}"
     ),
+    # A start from a Leaf that doesn't act for the session the environment names
+    # (`hosting.claim_and_start`, `harness.unserved_session`).
+    "serves-for-no-session": lambda at, v: (
+        f"this Leaf ({v['leaf']}) isn't the one session {v['session']}'s hooks run,"
+        f" so it serves {v['page']} for no session: the session's hooks won't hear"
+        f" it. Hear it with `{v['leaf']}/bin/leaf wait {v['page']}`."
+    ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
         " it again."
@@ -2326,6 +2336,10 @@ _TEXT = {
     "not-owned": lambda at, v: (
         f"stopped watching {', '.join(v['pages'])}: this session no longer owns"
         + (" it" if len(v["pages"]) == 1 else " them")
+    ),
+    "held-for-a-session": lambda at, v: (
+        f"stopped watching {v['page']}: session {v['session']} holds it, and this "
+        "Leaf acts for no session"
     ),
     "nothing-to-watch": lambda at, v: (
         "nothing to watch: "

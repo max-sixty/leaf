@@ -11,7 +11,7 @@
  * keeps code typography while its own shadow tree scrolls the evidence. */
 lf-diff,
 lf-call-diff {
-  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
+  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-card */
 }
 /* The diff is its own stacking context, so the z-indexes that order its pinned file
  * name, presses and line numbers order only its own boxes and never lift one over a
@@ -37,10 +37,10 @@ lf-call-diff {
   contain: inline-size;
   margin: var(--lf-sp-3) 0;
   overflow: hidden;
-  border: 1px solid var(--lf-code-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
-  background: var(--lf-pre-bg);
-  color: var(--lf-code-ink);
+  background: var(--lf-card);
+  color: var(--lf-ink);
   font-family: var(--lf-mono);
   font-size: var(--lf-code-size);
   font-variant-ligatures: none;
@@ -54,9 +54,9 @@ lf-call-diff {
   justify-content: space-between;
   gap: var(--lf-sp-3);
   padding: var(--lf-sp-2) var(--lf-sp-3);
-  border-bottom: 1px solid var(--lf-code-border);
-  background: var(--lf-code-chrome);
-  color: var(--lf-code-muted);
+  border-bottom: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
+  color: var(--lf-muted);
   font: var(--lf-font-ui);
 }
 
@@ -71,7 +71,7 @@ lf-call-diff {
 
 .lf-call-group,
 .lf-call-root-location {
-  background: var(--lf-pre-bg);
+  background: var(--lf-card);
 }
 
 .lf-call-group {
@@ -89,7 +89,7 @@ lf-call-diff {
   grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
   padding-block-start: var(--lf-sp-1);
   padding-inline-end: var(--lf-sp-3);
-  border-top: 1px solid var(--lf-code-border);
+  border-top: 1px solid var(--lf-rule);
 }
 
 .lf-call-root-location > .lf-call-location {
@@ -97,7 +97,8 @@ lf-call-diff {
   min-width: 0;
   margin-inline-start: 0;
   overflow: hidden;
-  font: var(--lf-font-code);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
   text-overflow: ellipsis;
 }
 
@@ -111,12 +112,12 @@ lf-call-diff {
   margin: 0;
   grid-column: 1;
   grid-row: 1;
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
 }
 
 .lf-call-group-body {
   overflow-x: auto;
-  border-top: 1px solid color-mix(in srgb, var(--lf-code-border) 60%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--lf-rule) 60%, transparent);
 }
 
 .lf-call-line {
@@ -153,7 +154,7 @@ lf-call-diff {
   grid-column: 4;
   grid-row: 1;
   margin-inline-start: var(--lf-sp-4);
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   text-align: end;
@@ -161,7 +162,7 @@ lf-call-diff {
 }
 
 .lf-call-line + .lf-call-line {
-  border-top: 1px solid color-mix(in srgb, var(--lf-code-border) 45%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--lf-rule) 45%, transparent);
 }
 
 .lf-call-group-body .lf-call-line:first-child {
@@ -184,8 +185,8 @@ lf-call-diff {
   grid-template-columns: 2rem minmax(0, 1fr);
   min-width: 0;
   padding-block: var(--lf-sp-1);
-  background: var(--lf-code-chrome);
-  color: var(--lf-code-muted);
+  background: var(--lf-paper);
+  color: var(--lf-muted);
   white-space: normal;
 }
 
@@ -196,7 +197,7 @@ lf-call-diff {
 
 .lf-call-marker {
   padding-inline: var(--lf-sp-2);
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   text-align: center;
   user-select: none;
 }
@@ -212,7 +213,7 @@ lf-call-diff {
 .lf-call-location {
   white-space: pre;
   margin-inline-start: var(--lf-sp-4);
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   text-decoration-color: var(--lf-rule);
   text-underline-offset: 2px;
 }
@@ -228,7 +229,7 @@ lf-call-diff {
   display: block;
   min-width: 0;
   padding: var(--lf-sp-3);
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   font: var(--lf-font-ui);
   white-space: normal;
 }

@@ -91,7 +91,7 @@ const theme = EditorView.theme({
     backgroundColor: "color-mix(in srgb, var(--lf-accent) 6%, transparent)",
   },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--lf-accent)" },
-  ".cm-placeholder": { color: "var(--lf-quiet)" },
+  ".cm-placeholder": { color: "var(--lf-muted)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     { backgroundColor: "color-mix(in srgb, var(--lf-accent) 24%, transparent)" },
   ".cm-matchingBracket": {
@@ -101,7 +101,7 @@ const theme = EditorView.theme({
   ".cm-tooltip": {
     backgroundColor: "var(--lf-card)",
     color: "var(--lf-ink)",
-    border: "1px solid var(--lf-border)",
+    border: "1px solid var(--lf-rule)",
   },
   ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
     backgroundColor: "var(--lf-accent)",

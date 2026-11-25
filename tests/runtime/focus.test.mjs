@@ -1,6 +1,6 @@
 /* Who moved the user, and whether they have moved on since.
 
-   focus.js answers both for every owner. Each placement names its cause, and every
+   dom/focus.js answers both for every owner. Each placement names its cause, and every
    reader of where the user stands hears it. One module keeps the two readings of
    "since": a hold asks whether focus was placed anywhere since it began, since typing in
    the box it holds is the user working there; delayed work asks whether the user did
@@ -40,8 +40,8 @@ const {
   pressRecords,
   takesLetters,
   typesText,
-} = await import("/runtime/focus.js");
-const { retainUserIntent } = await import("/runtime/user-intent.js");
+} = await import("/runtime/dom/focus.js");
+const { retainUserIntent } = await import("/runtime/dom/user-intent.js");
 
 const heard = [];
 onCurrentLocation((node, cause) => heard.push([node, cause]));
@@ -278,7 +278,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
     };
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        new URL("../../browser/runtime/base/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );
@@ -317,7 +317,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
     // must retain both the clock and its subscriptions, without counting twice.
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        new URL("../../browser/runtime/base/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );

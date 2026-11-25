@@ -100,13 +100,13 @@ STYLE = """
 @media (max-width: 640px) {
   .sample-table, .sample-table tbody { display: block; }
   .sample-table thead { display: none; }
-  .sample-table tr { display: grid; grid-template-columns: 1fr 1fr; padding-block: .75rem; border-bottom: 1px solid var(--lf-border); }
+  .sample-table tr { display: grid; grid-template-columns: 1fr 1fr; padding-block: .75rem; border-bottom: 1px solid var(--lf-rule); }
   .sample-table td { display: block; border: 0; min-width: 0; }
   .sample-table td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--lf-muted); }
 }
 main > lf-tabs, #report-views { border-radius: 0; }
 .result-list { margin-block: .5rem; }
-.result-list > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: .35rem; border-bottom: 1px solid var(--lf-border); }
+.result-list > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: .35rem; border-bottom: 1px solid var(--lf-rule); }
 .result-list dt { font-weight: 500; }
 .result-list dd { margin: 0; text-align: right; }
 .report-metadata { overflow-wrap: anywhere; }

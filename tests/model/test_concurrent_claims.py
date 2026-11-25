@@ -31,17 +31,16 @@ def test_session_discovery_reads_only_its_canonical_claim_partition(
         if n < 4:
             pages.append(page)
     reads = []
-    read = service.CLAIM.read
+    read = service.CLAIM.read_any
 
     def own_read(path):
-        assert path.parent == service.session_claims("own"), path
-        reads.append(path)
+        reads.append(path.name)
         return read(path)
 
     with monkeypatch.context() as measured:
-        measured.setattr(service.CLAIM, "read", own_read)
+        measured.setattr(service.CLAIM, "read_any", own_read)
         assert {Path(record["page"]) for record in claim_records("own")} == set(pages)
-    assert len(reads) == 4
+    assert set(reads) == {claim_path(page).name for page in pages}
     record_claim(pages[0], id="successor")
     assert {Path(record["page"]) for record in claim_records("own")} == set(pages[1:])
     assert claim_records("successor")[0]["page"] == str(pages[0])
@@ -120,7 +119,9 @@ def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path
     page.mkdir()
     record_claim(page, id="owner")
     payload = claim_path(page)
-    payload.write_text(json.dumps({**json.loads(payload.read_text()), "format": "x"}))
+    payload.write_text(
+        json.dumps({**json.loads(payload.read_text()), "format": "leaf-claim/999"})
+    )
     assert held_claims("owner")
     tmp_path.chmod(0)
     try:

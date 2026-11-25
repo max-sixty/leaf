@@ -29,6 +29,7 @@ from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import harness as harness_model
+from leaf import hooks as hooks_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
@@ -609,6 +610,31 @@ CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+# The sessions whose hooks this tree runs, as a real first hook records it
+# (`leases.mark_skill`), so this tree, a checkout, acts for them
+# (`state.runs_session`): the hooked sessions, and the Codex task the Codex tests
+# run as, whose hooks those tests leave unrun.
+ROOTED_SESSIONS = (*HOOKED_SESSIONS, "codex-thread")
+# What a hook of this tree records of the Leaf it runs (`hooks.skill_mark`), taken
+# once, since it reads every file of the skill.
+SKILL_MARK = hooks_model.skill_mark()
+
+
+def hooks_run_this_tree(session_id: str) -> None:
+    """Record that `session_id`'s hooks run this tree, as its first hook would
+    (`leases.mark_skill`), so this tree, a checkout, acts for the session
+    (`state.runs_session`). A test that runs as a session of its own calls it before
+    that session's first command."""
+    leases_model.mark_skill(session_id, SKILL_MARK)
+
+
+def hooks_run_leaf(session_id: str, root: Path) -> None:
+    """Record that `session_id`'s hooks run the Leaf at `root`, a copy other than
+    this tree, such as a preview's runtime, so that copy acts for the session and
+    this tree acts for none (`state.runs_session`)."""
+    leases_model.mark_skill(session_id, f"{root.resolve()}\nits skill")
+
+
 # The tests this worker has isolated so far (`isolated_session`).
 _SESSIONS = itertools.count()
 
@@ -667,10 +693,13 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv(handover_pass_model.VARIABLE, "off")
     # A Claude Code session whose harness runs Leaf's hooks and its module in this
     # worker's process, as the plugin installs them, supplying capability evidence
-    # to hook transport and turn activity.
+    # to hook transport and turn activity, and recording this tree as the Leaf its
+    # hooks run, so this tree's commands act for it (`state.runs_session`).
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
         leases_model.mark_module(session, os.getpid())
+    for session in ROOTED_SESSIONS:
+        hooks_run_this_tree(session)
     return cleanup_model.state_home()
 
 

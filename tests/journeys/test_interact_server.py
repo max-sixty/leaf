@@ -1270,7 +1270,9 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
     owner = service_model.page_claim(page_dir) if owned else None
-    assert hosting_model.start_server(page_dir, persistent=True, harness=None)
+    assert hosting_model.start_server(
+        page_dir, persistent=True, harness=harness_model.session_harness()
+    )
     transitioned = threading.Event()
     resume = threading.Event()
     original_page_locked = hosting_model.page_locked
@@ -1309,7 +1311,11 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
                     if same_session
                     else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
-        assert hosting_model.start_server(page_dir, persistent=True, harness=None)
+        holder = service_model.page_claim(page_dir)
+        assert holder is not None
+        assert hosting_model.start_server(
+            page_dir, persistent=True, harness=harness_model.claim_harness(holder)
+        )
         resume.set()
         stopping.join(timeout=STATED_TIMEOUT)
         assert not stopping.is_alive(), "the stop never returned once resumed"

@@ -1,5 +1,5 @@
 /* What `architecture/current-location-reads` refuses: a raw reading of focus outside
-   focus.js (eslint.config.mjs). */
+   dom/focus.js (eslint.config.mjs). */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -14,13 +14,16 @@ const runtime = (name) =>
 const reports = (code, file = runtime("probe.js")) =>
   ruleReports(currentLocationReadsRule, code, {
     filename: file,
-    options: [["browser/runtime/focus.js"]],
+    options: [["browser/runtime/dom/focus.js"]],
   }).length;
 
 test("a raw reading of the document's focus is refused outside the owner", () => {
   assert.equal(reports("const at = document.activeElement;"), 1);
   assert.equal(reports("if (box.contains(document.activeElement)) go();"), 1);
-  assert.equal(reports("const at = document.activeElement;", runtime("focus.js")), 0);
+  assert.equal(
+    reports("const at = document.activeElement;", runtime("dom/focus.js")),
+    0,
+  );
 });
 
 test("a shadow root's or another document's reading is refused too", () => {

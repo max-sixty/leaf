@@ -8,7 +8,7 @@ Each source owns completion: conversational requests take a reply, widgets take 
 declared answer, and only the agent ends a to-do.
 A browser view serves these lists and `page state` prints them, so their counts and
 membership agree. The browser places its own unresolved sends against the served
-lists (`browser/runtime/framework/application.js`, `localQueues`); it never selects
+lists (`browser/runtime/state/semantic-application.js`, `localQueues`); it never selects
 them again.
 
 On Me holds records whose next actor is the user. On <agent> holds the open update

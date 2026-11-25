@@ -6,6 +6,7 @@ import json
 import os
 
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import append_carried_log_record, check, inlined
 
 from leaf import cli as cli_model
@@ -22,6 +23,7 @@ def test_only_serving_or_claiming_a_page_puts_the_session_under_the_guard(
     Claiming one is what puts a user on the other end, and from there the
     guard holds the session to it."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
+    hooks_run_this_tree("s7")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert check(page_dir).exit_code == 0
     assert service_model.owned_pages("s7") == []

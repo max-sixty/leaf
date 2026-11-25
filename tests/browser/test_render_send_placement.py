@@ -2060,7 +2060,7 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > 0
-    # The words stand where the box's growth with them ends (box-motion.js).
+    # The words stand where the box's growth with them ends (dom/box-motion.js).
     page.evaluate(
         """() => Promise.all(document.querySelector('.lf-fab-ground')
           .getAnimations().map(motion => motion.finished.catch(() => {})))"""

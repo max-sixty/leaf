@@ -20,7 +20,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -43,7 +43,6 @@ from leaf import presence as presence_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
@@ -115,7 +114,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
 
     def recorded_start(page, **kwargs):
         starts.append(kwargs)
-        return hosting_model.PageStart("http://127.0.0.1:1/", None, page)
+        return hosting_model.PageStart("http://127.0.0.1:1/", None, page, True)
 
     monkeypatch.setattr(hosting_model, "start_server", recorded_start)
     if stopped == "during the lease wait":
@@ -170,22 +169,40 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
     service_model.claim_page(page_dir)
     fixture_service(page_dir, available_loopback_port(), lifetime="session")
     restarting_for = harness_model.session_harness()
-    decided = hosting_model._restarts_for_session
+    decided = hosting_model.claim_is_active
 
-    def taken_after_the_decision(page, harness):
-        comes_back = decided(page, harness)
+    def taken_after_the_decision(claim):
+        comes_back = decided(claim)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
-        service_model.claim_page(page)
+        hooks_run_this_tree("s2")
+        service_model.claim_page(page_dir)
         return comes_back
 
-    monkeypatch.setattr(
-        hosting_model, "_restarts_for_session", taken_after_the_decision
-    )
+    monkeypatch.setattr(hosting_model, "claim_is_active", taken_after_the_decision)
     with (
         pytest.raises(Refused, match="another session took"),
         hosting_model.restarting_server(page_dir, restarting_for),
     ):
         pytest.fail("the re-vendor ran over another session's page")
+    service = read_record(page_dir / "service.json")
+    assert service["enabled"] and "restart" not in service
+
+
+@pytest.mark.parametrize("lifetime", ["persistent", "session"])
+def test_a_restart_for_another_session_refuses_a_held_page_before_it_stops(
+    page_dir, lifetime
+):
+    """A restart for anyone but the session holding the page, such as a terminal's
+    `server start` or the restart of a server that follows its copy while no
+    session's Leaf acts for it, is refused while the page's server still runs,
+    whatever the service's lifetime: only the holding session's Leaf serves it."""
+    service_model.claim_page(page_dir)
+    fixture_service(page_dir, available_loopback_port(), lifetime=lifetime)
+    with (
+        pytest.raises(Refused, match="is held by session"),
+        hosting_model.restarting_server(page_dir, None),
+    ):
+        pytest.fail("the restart ran over a held page")
     service = read_record(page_dir / "service.json")
     assert service["enabled"] and "restart" not in service
 
@@ -238,8 +255,8 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
     copy's launcher, naming itself, tries again when that launch fails, and goes on
     serving until that restart stops it. Where that copy left it running, it asks
     again only once the session's hooks run yet another copy. The child's
-    environment names no harness, so it can't hand itself to a checkout the session
-    selected. A server whose session has ended retires after its grace instead, as
+    environment names no harness; it reads the session from the page's claim. A
+    server whose session has ended retires after its grace instead, as
     does one from Claude Code's copy whose environment Claude Code deleted, one
     whose session's hooks run a checkout, and one a checkout started."""
     follows = copy in (
@@ -257,8 +274,7 @@ def test_a_server_has_the_copy_its_session_runs_restart_it(
     serving(claimed, available_loopback_port(), "session")
     if copy == "codex, once the session ended":
         cleanup_model.end_harness_instance("s1")
-    for module in (cleanup_model, session_runtime_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+    monkeypatch.setattr(cleanup_model, "PLUGIN_ROOT", root)
     attempts, replaced = [], []
     refusals = iter([StartRefused("the new copy could not build its environment")])
     passes = itertools.count()
@@ -406,7 +422,7 @@ def test_a_new_copy_renews_a_page_left_at_an_older_protocol_first(
     )
     renewals = []
 
-    def renew(page_dir, harness, *, command):
+    def renew(page_dir, harness):
         renewals.append((page_dir, harness))
         service = server_model.read_service(page_dir)
         assert service is not None
@@ -513,6 +529,7 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     cleanup_model.write_json(job / "state.json", {"sessionId": "the-job"})
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    hooks_run_this_tree("nested")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     claim_record = service_model.page_claim(page_dir)
@@ -542,6 +559,7 @@ def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(
     record.parent.mkdir(parents=True)
     cleanup_model.write_json(record, {"cliSessionId": "the-app", "isArchived": False})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    hooks_run_this_tree("nested")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     for host in ("local_one", "local_unrecorded"):
         monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", host)

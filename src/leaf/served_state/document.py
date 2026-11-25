@@ -55,7 +55,7 @@ def browser_undo_candidates(
     (`GestureWords.gesture`), so `z` names what it takes in every tab and after a
     reload. Only the head pays for that reading: an exact control names the
     gesture it shows, and the browser words the other kinds from what it already
-    holds (undo.js)."""
+    holds (records/undo.js)."""
     candidates = []
     withdrawn = undo_reading.withdrawn
     bookkeeping = kinds_declaring("bookkeeping")

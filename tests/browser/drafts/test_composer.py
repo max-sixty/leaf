@@ -82,7 +82,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
         expect(send).to_have_attribute("aria-disabled", "false")
         if box != "composer":
             # The panel's field shows Send only once its words hold more than space
-            # (floating-panel.js, `typing`), so its keys send the space.
+            # (panel/floating-panel.js, `typing`), so its keys send the space.
             with sending(page, f"the {box} message"):
                 field.press("ControlOrMeta+Enter")
         else:
@@ -627,7 +627,7 @@ def test_resume_writing_returns_to_an_option_being_added(browser, serve):
     """The field adding an option the author did not list is a writing place like any
     other: Resume writing comes back to it with its words, which stay its own."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
-    field = page.locator("#jobs > .lf-another textarea")
+    field = page.locator("#jobs > .lf-another input")
     write(field, "An option of mine.")
     page.locator("body").focus()
     page.keyboard.press("g")

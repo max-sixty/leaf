@@ -1,7 +1,7 @@
 // Records where a floating box's painted parts stand at every frame, for a test that
 // judges how they move (journeys/test_floating_box_motion.py). A test installs it as an init
 // script after leaf_dev's frames.js, which reads the page once each frame has drawn, so
-// the parts' translations and the surface's cuts that box-motion.js animates stand as
+// the parts' translations and the surface's cuts that dom/box-motion.js animates stand as
 // their animations sample them. The test brackets its inputs with
 // `lfMotionFrames.begin({box, ring})`, the selectors of the box and of the ring its
 // surface draws, and `lfMotionFrames.end()`, which returns the frames, waiting on
@@ -9,7 +9,7 @@
 //
 // Each part is read as the reader sees it, not as its box is laid out:
 //
-// - the box's outline, as its surface's ring is cut (box-motion.js, `ground`), on
+// - the box's outline, as its surface's ring is cut (dom/box-motion.js, `ground`), on
 //   each of its four edges;
 // - each control's box;
 // - each run of words by its first letter, in the page and in every shadow tree under

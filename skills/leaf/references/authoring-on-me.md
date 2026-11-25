@@ -96,8 +96,7 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 Make each question answerable where On Me takes the user: pressing `m` selects the
 whole question and brings its start to the top of the window, leaving earlier content
-out of view. Write each question as a named group (an entry declaring `reading-role:
-group`, such as `lf-group`) holding the question and its case, with an id and a
+out of view. Write each question as a named group (`lf-group`) holding the question and its case, with an id and a
 `label` that asks the question on its own, without leaning on the
 prose around it. The group draws none of its label, so give it the heading the page
 needs, as for any part of the page. The label's words are the question's words on On Me and in the

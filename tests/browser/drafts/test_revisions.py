@@ -195,7 +195,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     write(reply, "A thought I changed my mind about.")
     write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the user's own comment opened it with (thread/model.js).
+    # the attempt the user's own comment opened it with (state/thread/model.js).
     assert stored_draft_text(page, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
@@ -237,7 +237,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
     elif kind == "option":
-        editor = page.locator("#options-root > .lf-another textarea")
+        editor = page.locator("#options-root > .lf-another input")
     else:
         page.locator("#passage").click(click_count=3)
         page.keyboard.press("c")
@@ -487,7 +487,7 @@ def test_executable_revision_whose_reply_another_tab_cleared_returns_to_the_entr
     written = stored_draft(page, reply)
     assert written and written["text"] == "Words another tab clears."
     # The reload's document waits until the words are cleared, so it is served the
-    # drafts as they stand then (runtime/drafts.js, `lf-drafts`).
+    # drafts as they stand then (runtime/records/drafts.js, `lf-drafts`).
     held = []
 
     def hold_reload(route):
@@ -619,7 +619,7 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         _seat, editor = open_seat_box(page, "#seat-root")
         revised = original.replace("What should we do?", "What should we do next?")
     else:
-        editor = page.locator("#options-root > .lf-another textarea")
+        editor = page.locator("#options-root > .lf-another input")
         revised = original.replace("Initial choice", "A revised initial choice")
     write(editor, "An unsent edit keeps its exact selection.")
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")

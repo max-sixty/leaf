@@ -87,7 +87,7 @@ lf-sample {
   box-sizing: border-box;
   margin: 18px 0;
   padding-left: var(--lf-sp-4);
-  border-left: 3px solid var(--lf-border);
+  border-left: 3px solid var(--lf-rule);
   --lf-block-frame: 1;
 }
 /* Containment does not apply to a table, so the sample cannot be the size container
@@ -107,7 +107,8 @@ lf-sample:not([interactive], :has(> template[data-sample]))::before {
   content: "quoted";
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
-  font: var(--lf-font-label);
+  font: var(--lf-font-small);
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -141,7 +142,7 @@ lf-sample:has(> template[data-sample]) {
   display: flex;
   flex-direction: column;
   padding-left: var(--lf-sp-4);
-  border-left: 3px solid var(--lf-border);
+  border-left: 3px solid var(--lf-rule);
 }
 .lf-sample-controls {
   margin-bottom: 10px;
@@ -190,14 +191,14 @@ lf-sample:has(> template[data-sample]) {
   z-index: 1;
   white-space: normal;
   background: var(--lf-paper);
-  border-bottom: 1px solid var(--lf-border);
+  border-bottom: 1px solid var(--lf-rule);
 }
 .lf-sample-frame {
   display: block;
   box-sizing: content-box;
   width: auto;
   height: 32rem;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   background: var(--lf-paper);
 }
@@ -206,7 +207,7 @@ lf-sample:has(> template[data-sample]) {
  * put them there. The frame wears the ring itself only where a ring belongs, after a
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
- * both read the runtime's marks (focus.js, `inputInFrame`). */
+ * both read the runtime's marks (dom/focus.js, `inputInFrame`). */
 .lf-sample-exhibit > .lf-sample-frame {
   --lf-focus-box: .lf-sample-exhibit;
 }

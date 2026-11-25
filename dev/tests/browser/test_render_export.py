@@ -134,7 +134,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
         replaced.append(True)
-        edit_sheet(runtime / "packages" / "reading" / "defaults.css")
+        edit_sheet(runtime / "packages" / "reading" / "theme.css")
         expect(open_tab.locator("html")).to_have_css(
             "--runtime-edit", "1", timeout=HANDOVER_DEADLINE_MS
         )

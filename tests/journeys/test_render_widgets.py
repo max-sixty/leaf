@@ -262,7 +262,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page = open_page(browser, serve(column))
     resized(page, 1200, 900)
     # Scrolled past the header with the list still in sight, since a key at a tab
-    # scrolled out of sight lets go of it (page-keys/controller.js). Short of the
+    # scrolled out of sight lets go of it (panel/page-keys/controller.js). Short of the
     # panel's top, so a switch that scrolled to the panel or the page's top would show.
     page.get_by_role("tab", name="Ticket b", exact=True).focus()
     page.evaluate("""() => {
@@ -778,7 +778,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     )
 
     # Map travel keeps the user oriented rather than teleporting. The glide runs for a
-    # fixed time (scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
+    # fixed time (dom/scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
     # after it ends shows a jump; holding the frame clock steps it a frame's length per
     # frame, so the frames sampled show the same glide on any host.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")

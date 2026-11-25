@@ -567,7 +567,7 @@ def test_render_reads_widget_chrome_where_it_stands(
     comment on it, and got nothing back — twice, months apart, on the same page. The
     heading was the page's word in a row its author had marked as the runtime's, and
     `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (control-labels.js), and an undeclared word under chrome is
+    the declaration goes on the label (dom/control-labels.js), and an undeclared word under chrome is
     reported. It is about a word the user was shown, so the check asks that first: a
     word the browser reads out and the page never paints is hidden with [hidden], the
     silence available in every root, and the same word shown is still reported. A

@@ -50,7 +50,7 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         raise registry_error(
             "attributes-schema", path, tag, **schema_reading(error)
         ) from error
-    # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
+    # An unbound data widget's <pre> is the text of its `value` input (host/element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
     # the element's words or its recorded state. Its other inputs leave the <pre> alone.
     inputs = [
@@ -221,23 +221,6 @@ def _validate_widget_structure(
     attributes = entry["attributes"]
     properties = attributes.get("properties", {})
     required = set(attributes.get("required", []))
-    layout = entry.get("reading-role")
-    if layout:
-        if entry.get("content") != "markup":
-            raise registry_error(
-                "requires",
-                path,
-                tag,
-                key="reading-role",
-                needs="content",
-                value="markup",
-            )
-        if "id" not in required:
-            raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
-        if "label" not in required or not _typed(properties, "label", "string"):
-            raise registry_error(
-                "reading-role-attr", path, tag, role=layout, attr="label"
-            )
     # `leaf data set` validates a source's value against its contract, so an input
     # that can bind a source names a contract this vocabulary declares. An input that
     # only reads another widget's output matches that output by the contract's name,

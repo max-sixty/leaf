@@ -218,8 +218,8 @@ and the page's packages into the page's layer.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
 - `browser/`: the browser runtime, registry and theme, with the type check's
   configuration and declarations under `browser/types/`
-  (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
-  for commands, bindings and scopes, and for `key-badges/` and `page-keys/`).
+  (`browser/AGENTS.md`; `browser/runtime/dom/keyboard/AGENTS.md`
+  for commands, bindings and scopes, and for `readings/key-badges/` and `panel/page-keys/`).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
@@ -383,7 +383,7 @@ which actions were withdrawn, the state of each thread and of each obligation on
 user's On Me list, and the updates the user has sent the agent. It serves the
 result, the server's reading of the page, to the browser.
 
-In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
+In the browser, only `applicationState` (`runtime/state/semantic-state.js`) combines the
 authored initial values, the server's latest reading and the tab's unresolved
 gestures into current state. It publishes each state as one immutable value, which
 holds no renderer nodes, promises or DOM attributes. Components read that value
@@ -469,7 +469,7 @@ A content widget is one a package ships, unlike Leaf's own elements in
 `browser/registry.json`, such as `lf-suggestion`, which core code may name. Leaf's
 runtime, server and stylesheets never branch on a content widget's tag name or keep
 a list of content widgets' tag names. They read each tag's facts, such as `verbs` or
-`reading-role`, from its element declaration in the registry. A package's modules
+`visual`, from its element declaration in the registry. A package's modules
 may name the widgets they compose, and a test or a `leaf-dev` command may name the
 widgets it exercises; a test that covers every widget with some property finds them
 in the registry. So a new content widget needs only files in its own package: its
@@ -482,7 +482,7 @@ Leaf's own instructions are `skills/leaf/SKILL.md`, its references, and the entr
 (`browser/runtime/kernel-registry.json`). They don't depend on a widget's name either.
 Where one of them tells an author what to use, it names the form the author needs, such
 as a before-and-after pair, a chart or a choice. Where a behavior depends on a declared
-fact, such as `awaits` or `reading-role`, it names that fact. It names a package's
+fact, such as `awaits` or `visual`, it names that fact. It names a package's
 widget only as an example of a form or of a declared fact, or inside a markup example.
 The page's vocabulary (`leaf page vocabulary <page>`) tells the author which widget
 provides each form, and `packages.md`, "A widget", says where a widget's own guidance
@@ -628,7 +628,7 @@ over or reviews it does both (`/developing-leaf`, "Review a UI change"), with a
 Before finishing a feature:
 
 - Every result a user can reach with a pointer must also be reachable by keyboard
-  and by touch (`browser/runtime/keyboard/AGENTS.md`, "Touch routes"), without a
+  and by touch (`browser/runtime/dom/keyboard/AGENTS.md`, "Touch routes"), without a
   page-level binding for each result. The routes are owed to each result, not to
   each pointer gesture: a gesture needs another route only where, without it, a user
   could no longer see, reach or decide something. Dragging a thread card aside needs

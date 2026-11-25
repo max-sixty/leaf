@@ -364,7 +364,7 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     assert child.locator("#inner-scroll").evaluate("node => node.scrollTop") > 0
 
     # A script's own reveal still does what the browser's does. Leaf hears the call
-    # (runtime/arrivals.js) and doesn't contain it, so it shows its target in the sample
+    # (runtime/dom/arrivals.js) and doesn't contain it, so it shows its target in the sample
     # and, through the sample's frame, in the page around it.
     revealed = child.evaluate("""() => {
       document.querySelector('#child-control').scrollIntoView({behavior: 'instant'});

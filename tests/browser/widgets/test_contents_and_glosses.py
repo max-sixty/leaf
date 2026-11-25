@@ -1347,7 +1347,7 @@ ROW_MARKS = """(toc) => {
     probe.remove();
     return value;
   };
-  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
+  const marks = { thread: colour('--lf-accent'), 'on-me': colour('--lf-here') };
   const markers = [...toc.querySelectorAll('.lf-toc-marker')];
   return Object.fromEntries([...toc.querySelectorAll('.lf-toc-start, li')]
     .filter((row, index) => row.dataset.lfTocMark && (
@@ -1569,7 +1569,7 @@ def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase previews it to
     a resting pointer and to Tab, which reaches its Explain control, in the face every
-    preview wears (preview.js), and a click pins it as the page's card for mouse or
+    preview wears (annotations/preview.js), and a click pins it as the page's card for mouse or
     touch. The preview and the card each stay inside the viewport, Escape puts either
     away, and both the phrase and explanation remain the page's authored words."""
     source = leaf_page(

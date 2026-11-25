@@ -1300,7 +1300,7 @@ def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
     the current document cannot take on, so it is followed into a fresh document and
     there is a startup to write data during. Nothing can paint the update before then:
     the test holds the revision's registry, and widgets import their modules only after
-    it arrives (widget-loader.js).
+    it arrives (records/widget-loader.js).
     """
     activation_probe = """
       window.__lfRevisionRegistryBlocked = false;

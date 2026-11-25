@@ -57,7 +57,8 @@ def generate(page_dir: Path, request: dict) -> dict:
 
     with PageTransaction(page_dir) as page:
         claim = page.active_claim
-    inference = claim_harness(claim).inference_generator() if claim else None
+    harness = claim_harness(claim)
+    inference = harness.inference_generator() if harness else None
     if inference is None:
         raise LLMError(
             "LLM access needs a page claimed by Codex, Claude Code or Pi.", 503

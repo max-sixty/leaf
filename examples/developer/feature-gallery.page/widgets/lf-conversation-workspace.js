@@ -50,6 +50,7 @@ customElements.define(
     build() {
       this.mode = "Conversation";
       this.rows = new Map();
+      this.order = new Map();
       this.outlets = new Map();
       this.queueRows = new Map();
       const style = document.createElement("style");
@@ -231,17 +232,27 @@ customElements.define(
         else parts.thread(key, outlet);
       this.paintObligations();
     }
+    // Each list in the order its rows arrived: a row the log adds joins the list's end,
+    // so it pushes none of the rows the reader already sees, and a row that leaves
+    // takes its own place with it.
     indexLayout() {
       const lists = queues.read();
-      return {
-        threads: threads.read().threads.map((thread) => thread.key),
-        ...Object.fromEntries(
-          Object.keys(this.queues).map((name) => [
+      return Object.fromEntries(
+        [
+          ["threads", threads.read().threads.map((thread) => thread.key)],
+          ...Object.keys(this.queues).map((name) => [
             name,
             lists[name].map((item) => item.id),
           ]),
-        ),
-      };
+        ].map(([name, keys]) => {
+          const present = new Set(keys);
+          const kept = (this.order.get(name) ?? []).filter((key) => present.has(key));
+          const known = new Set(kept);
+          const order = [...kept, ...keys.filter((key) => !known.has(key))];
+          this.order.set(name, order);
+          return [name, order];
+        }),
+      );
     }
     paintObligations() {
       const items = obligations.read();

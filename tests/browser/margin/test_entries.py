@@ -53,7 +53,7 @@ def _refreshes_restate_no_margin_name(page, population):
     the reading a same-value predicate cannot take, because each leg differs from
     the value before it. Both are records a reader rebuilds from.
 
-    Every row lives in the margin layer, whatever it holds, and `inline-contributions.js`
+    Every row lives in the margin layer, whatever it holds, and `features/inline-contributions.js`
     builds another host in place wherever an offer's target stands in chrome. So
     the watch is rooted at the layer, the Map door, the inline hosts, and the page's
     boxes. The reach is asserted the way the
@@ -901,13 +901,13 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         assert faces == [faces[0]] * len(faces), faces
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
         assert faces[0]["background"] == token_colour(page, "--lf-paper"), faces[0]
-        assert faces[0]["border"] == ["1px", token_colour(page, "--lf-border")]
+        assert faces[0]["border"] == ["1px", token_colour(page, "--lf-rule")]
         # The glyphs keep what they say on the rail: Accept's tone, a thread's blue.
         assert inks == [
-            token_colour(page, "--lf-ink-2"),
+            token_colour(page, "--lf-ink"),
             token_colour(page, "--lf-ok-ink"),
             token_colour(page, "--lf-accent"),
-            token_colour(page, "--lf-ink-2"),
+            token_colour(page, "--lf-ink"),
         ], inks
         status.hover()
         assert status.evaluate(read_face) == {**faces[0], "ink": inks[0]}

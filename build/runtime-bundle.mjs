@@ -40,8 +40,8 @@ export const signalsPath = "vendor/signals-core.js";
 
 export const runtimeEntries = [
   "leaf.js",
-  "runtime/layer-client.js",
-  "runtime/media.js",
+  "runtime/transport/layer-client.js",
+  "runtime/records/media.js",
   ...kernel["$public-modules"].paths
     .filter((path) => path.startsWith("/runtime/"))
     .map((path) => path.slice(1)),
@@ -50,7 +50,7 @@ export const runtimeEntries = [
 
 // The diagnostic entries the kernel compiles beside the runtime's; a site's layer is
 // bundled from `runtimeEntries` alone (worker/bundle-runtime.mjs, `bundleLayer`).
-const diagnosticEntries = ["runtime/annotation-overlay/check-api.js"];
+const diagnosticEntries = ["runtime/annotations/annotation-overlay/check-api.js"];
 
 function browserPath(path) {
   return path.replaceAll("\\", "/");
@@ -70,7 +70,7 @@ function layerPath(path, assetRoot) {
  */
 function native(local, assetRoot) {
   // Delivery also inlines this classic source before the module graph runs.
-  if (local === "runtime/document-inputs.js") return true;
+  if (local === "runtime/base/document-inputs.js") return true;
   if (local.startsWith("page/")) return true;
   if (local.startsWith("vendor/")) return local !== signalsPath;
   return !assetRoot && local.startsWith("widgets/");
@@ -193,7 +193,7 @@ function moduleBoundaries(layerRoot, assetRoot) {
   };
 }
 
-/** A JavaScript literal of a value `runtime/kernel-facts.js` exports. A `__proto__`
+/** A JavaScript literal of a value `runtime/state/kernel-facts.js` exports. A `__proto__`
  * key is computed, so it stays an own key rather than setting the prototype. */
 function literal(value) {
   if (value instanceof RegExp) return String(value);
@@ -222,12 +222,12 @@ function literal(value) {
         ? "an object with no prototype"
         : kind;
   throw new Error(
-    `runtime/kernel-facts.js exports ${shown}, which has no literal here`,
+    `runtime/state/kernel-facts.js exports ${shown}, which has no literal here`,
   );
 }
 
 /**
- * Compile `runtime/kernel-facts.js` to the values it exports, so the kernel carries
+ * Compile `runtime/state/kernel-facts.js` to the values it exports, so the kernel carries
  * the few facts the browser reads rather than the whole kernel registry. The module is
  * evaluated from a `data:` URL with its JSON imports inlined, so the values come from
  * the bytes on disk now, never from a module Node cached earlier in a long build.
@@ -236,7 +236,7 @@ function literal(value) {
  * until the kernel is rebuilt.
  */
 function kernelFacts(layerRoot, read) {
-  const facts = join(layerRoot, "runtime/kernel-facts.js");
+  const facts = join(layerRoot, "runtime/state/kernel-facts.js");
   const dataUrl = (type, text) =>
     `data:${type};base64,${Buffer.from(text).toString("base64")}`;
   return {

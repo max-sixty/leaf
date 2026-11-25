@@ -6,14 +6,21 @@
 lf-draft {
   display: block;
   --lf-draft-inset: 14px;
-  border: 1px solid var(--lf-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   padding: 10px var(--lf-draft-inset);
   margin: 12px 0;
   background: var(--lf-card);
-  font-size: max(var(--lf-entry-floor), 1em);
   /* The frame wears its editor's ring, inside its edge (base.css, "Where it stands"). */
   --lf-ring-at: var(--lf-focus-ring-inset);
+}
+/* Under a finger the draft's words are no smaller than 16px, the size its editor
+   takes there so that iOS Safari doesn't zoom the page onto it, so the words keep
+   their size as the editor opens on them. */
+@media (pointer: coarse) {
+  lf-draft {
+    font-size: max(16px, 1em);
+  }
 }
 @media screen {
   lf-draft {

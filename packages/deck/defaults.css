@@ -58,7 +58,7 @@ lf-deck[data-lf-deck-flying] {
   background: var(--lf-muted);
 }
 .lf-deck-pip[data-lf-state="open"] {
-  background: var(--lf-ink-2);
+  background: var(--lf-ink);
 }
 /* Where the cards stood once the pass is over: a quiet frame saying what is left, with
    the way back in as words, since no symbol says "go through what's left". */
@@ -96,7 +96,7 @@ lf-deck[data-lf-deck-flying] {
   justify-self: start;
 }
 .lf-deck-recap > li > span:not([data-lf-voice]) {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
 }
 @media print {
   .lf-deck-end {

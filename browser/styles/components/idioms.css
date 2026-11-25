@@ -11,13 +11,15 @@
  * Every rule reads the theme's tokens, so an idiom follows the page's palette, faces
  * and density. A theme restyles one through those tokens, or with rules of its own.
  * The user chose that an idiom be a default a theme can replace, so these rules, and
- * drawing.css's, stand in a cascade layer of their own, `lf-idioms`. It comes second
- * in the tier this sheet composes into (`lf-base` in the document, `lf-shadow` in a
- * declared tree), after markup's reading face, because shadow.css imports this sheet
- * after reading.css. Every other rule of the tier, whether a component's, a package's
- * or a theme's, outranks an idiom's whatever its weight, so a rule that dresses an
- * idiom's element weighs only what its purpose needs. An idiom outranks the face, so
- * a numeric cell stands right where the face sets every cell at its start.
+ * drawing.css's, stand in a cascade layer of their own, `lf-idioms`, the first of
+ * the tier this sheet composes into (`lf-base` in the document, above the page's
+ * `base` layer and the theme's tier, `lf-shadow` in a declared tree, after
+ * markup's reading face, because shadow.css imports this sheet after reading.css).
+ * Every other rule of the tier, whether a component's or a package's `defaults.css`,
+ * outranks an idiom's whatever its weight, so a rule that dresses an idiom's element
+ * weighs only what its purpose needs; a theme's `theme.css` doesn't. An idiom outranks
+ * the face, so a numeric cell stands right where the face sets every cell at its
+ * start.
  * At the tier's own rank, an idiom would give way only to a rule in a later sheet at
  * least as heavy as Leaf's selector, such as `dl.lf-facts dt`.
  *
@@ -46,13 +48,13 @@
     font-size: var(--lf-t-6);
     line-height: var(--lf-chip-lh);
     font-variant-numeric: tabular-nums;
-    padding: var(--lf-chip-pad);
+    padding: 0 var(--lf-sp-2);
     box-sizing: border-box;
     max-width: 100%;
     overflow-wrap: break-word;
-    border-radius: var(--lf-chip-r);
+    border-radius: calc(var(--lf-r) / 2);
     background: var(--lf-chip);
-    color: var(--lf-ink-2);
+    color: var(--lf-ink);
     vertical-align: middle;
     align-self: center;
   }
@@ -66,7 +68,7 @@
     margin-block-start: 12px;
   }
   .lf-lede {
-    color: var(--lf-ink-2);
+    color: var(--lf-ink);
     font-size: var(--lf-t-3);
     line-height: 1.5;
     margin: 0 0 10px;
@@ -106,10 +108,10 @@
      also keep a comment from pointing at it. */
   pre.lf-terminal i {
     font-style: normal;
-    color: var(--lf-code-muted);
+    color: var(--lf-muted);
   }
   pre.lf-terminal mark {
-    background: var(--lf-hi-tint);
+    background: var(--lf-warn-tint);
     color: inherit;
   }
 
@@ -122,7 +124,8 @@
   }
   section.lf-panel > :is(h2, h3):first-child {
     margin: 0 0 10px;
-    font: var(--lf-font-label);
+    font: var(--lf-font-small);
+    font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--lf-muted);

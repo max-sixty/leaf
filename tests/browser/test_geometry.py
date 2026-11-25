@@ -66,8 +66,8 @@ def test_hidden_boxes_keep_native_bounds_until_tabs_reveal(browser, serve):
 IMPORTS = """
   const entry = new URL(
     document.querySelector('script[data-lf-entry]').dataset.lfEntry, location.href);
-  const S = await import(new URL('runtime/scroll-containers.js', entry).href);
-  const G = await import(new URL('runtime/scrolling.js', entry).href);
+  const S = await import(new URL('runtime/readings/scroll-containers.js', entry).href);
+  const G = await import(new URL('runtime/dom/scrolling.js', entry).href);
 """
 
 
@@ -142,7 +142,7 @@ def test_a_card_anchored_to_the_page_rides_its_glide_with_the_clip_it_holds(
         "async () => {"
         + IMPORTS
         + """
-          const C = await import(new URL('runtime/css-anchors.js', entry).href);
+          const C = await import(new URL('runtime/dom/css-anchors.js', entry).href);
           // Beside the body, as the chrome stands, so the window holds it.
           const card = document.createElement('div');
           card.style.cssText = 'position: fixed; top: anchor(top); left: 400px;'

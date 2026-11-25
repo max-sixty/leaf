@@ -75,7 +75,7 @@ _RECORD_BODY = {
 }
 # A value record may also name the element's `property` that holds the value in the
 # browser, and the `event` the element says a change of it with, `change` unless
-# named (`RECORD_BINDING`, element-integration.js "Recorded properties").
+# named (`RECORD_BINDING`, host/element-integration.js "Recorded properties").
 _RECORD_VALUE = {
     "type": "object",
     "properties": {
@@ -207,7 +207,18 @@ VERB_SCHEMA = {
         "attention": {"const": True},
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
-        "decides": {"const": True},
+        # The deciding verb (`$verbs`): each value of its `outcome` that takes
+        # members off the page, with their tags.
+        "decides": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "array",
+                "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+                "uniqueItems": True,
+            },
+        },
         # The deciding verb's outcome that declines the proposal (`$verbs`).
         "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
@@ -294,7 +305,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 # input's contract the input reads. An input declares at least one of them, and
 # composition writes each attribute it names into the element's attribute schema
 # (`registry.contract.complete_declarations`). The browser's copy is `bindingAttributes`
-# (runtime/registry.js), and the input type the build generates from this schema checks
+# (runtime/state/registry.js), and the input type the build generates from this schema checks
 # the key names it reads.
 INPUT_BINDINGS = ("source", "reference")
 DATA_INPUTS_SCHEMA = {
@@ -310,7 +321,7 @@ DATA_INPUTS_SCHEMA = {
             },
             **dict.fromkeys(INPUT_BINDINGS, _ATTRIBUTE_NAME),
             # The element property the runtime sets to the delivered value
-            # (element-data.js, "Bound values").
+            # (host/element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
             # The widget attribute holding the receipt of the source's run that
             # produced the value written in the element's content.
@@ -364,11 +375,9 @@ _AUTHORING = {
 FACTS: dict[str, dict] = {
     "verbs": VERBS_SCHEMA,
     "awaits": AWAITS_SCHEMA,
-    "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "exhibit": _conditional({"const": True}),
     "owners": _TAGS,
     "refers": REFERENCE_SCHEMA,
-    "reading-role": {"enum": ["pane", "group"]},
     "verbatim": {"const": True},
     "inline": {"const": True},
     "visual": {
@@ -399,7 +408,7 @@ FACTS: dict[str, dict] = {
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,
-    # Each output's name is the element property holding it (data.js).
+    # Each output's name is the element property holding it (host/data.js).
     "outputs": {
         "type": "object",
         "minProperties": 1,
@@ -443,9 +452,6 @@ DECLARATION_SCHEMA = {
         **FACTS,
     },
     "required": ["description", "attributes"],
-    # A fact read through others needs them declared too: a member that leaves under
-    # its owner's decision reads its owners.
-    "dependentRequired": {"retired-when": ["owners"]},
     "additionalProperties": False,
 }
 # Every key `$keys` documents: each a declaration may hold but its `description`.
@@ -591,15 +597,20 @@ LAYER_TOP_FILES = (
 KERNEL_STYLES = (
     "shadow.css",
     "base.css",
+    "elements.css",
     "layouts.css",
     "state.css",
     "styles/control-face.css",
+    "styles/page-control-face.css",
+    "styles/markup.css",
+    "styles/parts.css",
     "styles/shadow-leading.css",
 )
 KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
+    "theme.css",
     "widget-shadow.css",
     "defaults.css",
     "overrides.css",

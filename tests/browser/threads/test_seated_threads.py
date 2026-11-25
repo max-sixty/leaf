@@ -561,7 +561,7 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
-    # The edit reveals its caret in the editor's next frame (editor-view.js), so the
+    # The edit reveals its caret in the editor's next frame (annotations/editor-view.js), so the
     # scroll away waits for it: made before it, the reveal brings the box back.
     rendered(page)
     read = thread.locator(".lf-msg p", has_text="The second paragraph")
@@ -988,7 +988,7 @@ def test_a_rewrite_of_a_folded_message_in_a_diff_seat_comes_back_there(browser, 
 def test_resume_writing_a_reply_its_seat_still_draws_leaves_a_way_back(browser, serve):
     """Resume writing takes the user from where they read to the reply they left in a
     diff line's seat, though the seat stayed drawn all the while, and Back takes them
-    back to where they read, as every trip Resume writing makes does (drafts.js,
+    back to where they read, as every trip Resume writing makes does (records/drafts.js,
     `createWritingResume`)."""
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)

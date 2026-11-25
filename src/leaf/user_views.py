@@ -15,7 +15,7 @@ writes after one day.
 
 The record also keeps `viewed`, when a report last said a document was visible, in
 POSIX seconds, which outlives the pruning. A visible document reports at least
-every ten seconds (`runtime/user-view.js`), so it is that fresh while a tab shows
+every ten seconds (`runtime/panel/user-view.js`), so it is that fresh while a tab shows
 the page; a hidden tab sends no heartbeat, so the stamp records attention rather
 than tab lifetime. The agent reads it in `page state` (`viewed`).
 """
@@ -61,7 +61,7 @@ _VISUAL_VIEWPORT = _object(
 _SHOWN_WINDOW = _object(
     {"x": _NUMBER, "y": _NUMBER, "width": _NONNEGATIVE, "height": _NONNEGATIVE}
 )
-# The rendering identity is the document's own snapshot (`runtime/page-identity.js`);
+# The rendering identity is the document's own snapshot (`runtime/state/page-identity.js`);
 # of it the server reads only its browser: whether a script drives it, as an agent's
 # does, and its user agent, which picks the engine `page check --render` draws with
 # (`render_gate.command.user_engine`).

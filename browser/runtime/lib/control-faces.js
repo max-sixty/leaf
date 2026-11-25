@@ -40,14 +40,15 @@
      a warning with `data-lf-tone="warn"` takes the warning's ink. One standing among
      quieter words (`data-lf-hint`) wears their face: a passing notice's Undo among a
      box's empty words at the floating panel field's end, as the word and key that
-     enter the box do (composing/input.js, `pressAtRest`), a summary's count at its
-     head, set as a message's time is (thread/transcript.js), and a quote's label
-     where it opens the whole quote (thread/thread-card.js). One that opens the
+     enter the box do (annotations/composing/input.js, `pressAtRest`), a summary's count at its
+     head, set as a message's time is (records/thread/transcript.js), and a quote's label
+     where it opens the whole quote (records/thread/thread-card.js). One that opens the
      item its words name elsewhere (`data-lf-link`), as a promise's word opens its row
-     in On Claude (thread/messages.js), is underlined at rest as a link is.
+     in On Claude (records/thread/messages.js), is underlined at rest as a link is.
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
-     the list stands on (`aria-current`) wears the accent's stripe and tint. A step
+     the list stands on (`aria-current`) wears the accent's stripe and tint, or the
+     user's where it is the user's location (`aria-current="location"`). A step
      still ahead of it (`data-lf-ahead`) stands in the muted ink, and the row of the
      thread whose passage the pointer is on (`.lf-mark-hover`) in that passage's
      wash. A row that is its group's band (`data-lf-band`), as Done and Resolved are,
@@ -58,7 +59,7 @@
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
    - `entry`: a margin entry, which Leaf builds, a glyph out in the page's margin
      whose label a pointer or a key reveals, framed by what it promises: an action raised, a disclosure
-     ringed, a status ghosted (contribution-controls.js), with its tone
+     ringed, a status ghosted (features/contribution-controls.js), with its tone
      (`data-lf-tone`) on its glyph. A change's entry, a disclosure, is raised as an
      action is (`data-lf-kinds="change"`). One in force (`aria-pressed`), as a reaction the
      user left in the margin is, stands on the chip, and a row standing as a pin over
@@ -69,13 +70,13 @@
      (`aria-pressed="true"`).
    - `response`: a choice of the response bar, which Leaf builds: Comment, Suggest or
      a reaction, which floats over the page and so wears the field's frame, height and lift
-     (widget-elements.js, `responseAction`); a reaction among them is a toggle
+     (dom/widget-elements.js, `responseAction`); a reaction among them is a toggle
      (`aria-pressed`) and wears a reaction's states. The comment box's face while the
      box rests (`data-lf-rest` on its bar) wears the corner of the card it becomes.
    - `gutter`: a line's number in a code view's gutter, which takes a comment on its
      line, as a diff's do: the number in the code's muted ink, a + before it under
      the keys. The keys reach its line through the target picker, so Go-to gives it
-     no chip of its own (page-keys/go-to-sequence.js).
+     no chip of its own (panel/page-keys/go-to-sequence.js).
    - `picture`: a picture that opens larger in the media viewer, a message's or a
      draft's, whose face is the picture itself, unframed, under a magnifier. One that
      crops or draws its picture, as a draft's attachment and drawing do, wears a
@@ -96,7 +97,7 @@
      the ring on visible focus, since a press on the phrase focuses it too (gloss.css);
      a note or a picture's proxy stands on the details shelf, apart from the page,
      which nothing but the keys or assistive technology reaches, so any focus on it
-     rings its target and brings the target into view (details-shelf.js).
+     rings its target and brings the target into view (features/details-shelf.js).
 
    A holder whose presses join into one control says so with `data-lf-joined`, as a
    block's toolbar of marks and a question's Done cell do: each press in it is square

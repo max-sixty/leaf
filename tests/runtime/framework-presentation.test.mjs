@@ -4,7 +4,7 @@ import { effect } from "/vendor/signals-core.js";
 import {
   createPresentationCoordinator,
   createPresentationSchedule,
-} from "../../browser/runtime/framework/presentation.js";
+} from "../../browser/runtime/base/presentation.js";
 
 import { describeFailure } from "../../browser/runtime/lib/exception.js";
 

@@ -7,6 +7,7 @@ from copy import deepcopy
 
 import model_folds as model
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -130,7 +131,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     assert action["meaning"]["state"]["decides"] is False
 
     # Reusing the verb as a whole-widget decision does not reinterpret that answer.
-    entry["verbs"]["review"] |= {"unit": "widget", "decides": True}
+    entry["verbs"]["review"] |= {"unit": "widget", "decides": {"pass": [], "fail": []}}
     validate_registry(registry, "revised review package")
     assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
 
@@ -773,6 +774,7 @@ def test_an_empty_agent_name_uses_the_harness_default(
 ):
     published(page_dir)
     monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "")
 
     result = comment(page_dir, "--text", "Which worker said this?")

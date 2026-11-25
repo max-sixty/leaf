@@ -26,7 +26,7 @@
         flex-wrap: wrap;
         /* Wrapped rows keep each button's reach, which stands past its face
            under a finger, clear of the row above it. */
-        gap: max(var(--lf-sp-2), 2 * var(--lf-reach-room)) var(--lf-sp-2);
+        gap: max(var(--lf-sp-2), var(--lf-aim-floor) - var(--lf-line)) var(--lf-sp-2);
         align-items: center;
       }
 
@@ -94,7 +94,8 @@
       .treatment > label {
         justify-self: stretch;
         padding: var(--lf-sp-3) var(--lf-sp-3) 0;
-        font: var(--lf-font-title);
+        font: var(--lf-font-ui);
+        font-weight: 600;
       }
 
       .treatment > .code-candidate {
@@ -146,7 +147,7 @@
 
       .code-measurement {
         margin: 0 0 var(--lf-sp-2);
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 

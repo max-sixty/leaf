@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
 // Leaf keeps the user in a row a reorder moves, as it does on a page.
-import "/runtime/move-focus.js";
+import "/runtime/dom/move-focus.js";
 import { tabMemory } from "/runtime/lib/tab-memory.js";
 import {
   ACTIVITY_VIEW,

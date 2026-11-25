@@ -359,8 +359,8 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("Should we keep it?")
     drop()
 
-    # A decision with no seat: focus on its action names the rewrite, and the composer
-    # anchors there rather than on the page.
+    # A decision with no seat: focus on its action names the suggestion, and the
+    # composer anchors there rather than on the page.
     rendered(page)
     rewrite_action = suggestion_control(page, "sug-window", "accept")
     rewrite_action.focus()
@@ -368,7 +368,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("rewrite")
+    expect(page.locator(".lf-composer")).to_contain_text("suggestion")
     drop()
 
     # A link inside a question, open and settled: the same markup, and the same answer.
@@ -538,7 +538,7 @@ def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll
     its card, and an answer writes the box only where an edge takes it in or lets it
     go, so no write follows the scroll. Scrolled past the target's foot and back, the
     box returns beside the foot while that scroll still moves, a box at rest included,
-    since whether focus is in sight is read at each scroll (user-place.js). A scroll's
+    since whether focus is in sight is read at each scroll (readings/user-place.js). A scroll's
     event comes after the frame that drew it, so the frame in which an edge crosses
     draws the box as the frame before left it, as it does the card."""
     page = open_page(request.getfixturevalue(engine), serve(A_TALL_ASK))

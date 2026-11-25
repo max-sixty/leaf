@@ -1,5 +1,6 @@
 """Leaf's sheets set their words in the theme's type (tokens.css): every font size names
-one of its tokens, and the interface names one of its fonts (`--lf-font-*`)."""
+one of its tokens, and the interface names one of its fonts (`--lf-font-*`), with at most
+a weight and the mono family beside it."""
 
 import re
 
@@ -10,13 +11,23 @@ from leaf.schema import ASSETS
 from leaf.state import PLUGIN_ROOT
 from leaf.structure import AUTHORED_CLASSES
 
+# The floor a finger's platform asks under typed words: iOS Safari zooms the page onto a
+# field set smaller than 16px. Leaf's own fields read it as `--lf-entry-floor`
+# (surfaces.css), and a package's box that shows words before opening a field on them
+# writes the number under a coarse pointer, so the two sizes agree.
+FLOORS = {"max(var(--lf-entry-floor), 1em)", "max(16px, 1em)"}
+
 # Declarations that make a face, and what a rule of the interface may write for each
-# without naming a font: inheriting its holder's, a weight for a run that keeps its
-# holder's font, a box that holds no words, and the fonts' shared leading. A box the
-# user types in keeps its holder's size above the entry floor, under which a phone
-# zooms onto the field (surfaces.css). Any other
-# line height, a length included, is a leading of the rule's own: a box centres its
-# words by layout rather than with a line as tall as itself.
+# beside the font it names or inherits: a weight, the mono family, a box that holds no
+# words, and the fonts' shared leading. A title is a font at 600 and a path a font in
+# mono, so a face is one of the theme's fonts, a weight and a family, each from a
+# short list, and no rule sets a size or a leading a pixel from another's. A box the
+# user types in keeps its holder's size above the floor (`FLOORS`). A chip's leading is
+# the one a rule may state beside the fonts': it holds a band of chips from Leaf's
+# sheets and a package's at one height (tokens.css, `--lf-chip-lh`), which a package
+# writes as the number. Any other line height, a length included, is a leading of the
+# rule's own: a box centres its words by layout rather than with a line as tall as
+# itself.
 #
 # Source a widget shows, such as a diff's lines, takes the code inputs themselves
 # (`--lf-mono`, `--lf-code-size`, `--lf-code-line`), which are a source face's own values rather
@@ -27,14 +38,32 @@ OWN = {
     "font": lambda value: value == "inherit",
     "font-family": lambda value: value in {"inherit", "var(--lf-mono)"},
     "font-size": lambda value: (
-        value
-        in {"inherit", "0", "var(--lf-code-size)", "max(var(--lf-entry-floor), 1em)"}
+        value in {"inherit", "0", "var(--lf-code-size)", *FLOORS}
     ),
     "font-weight": lambda value: value in {"inherit", "bolder", "400", "500", "600"},
     "line-height": lambda value: (
-        value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--lf-code-line)"}
+        value
+        in {
+            "inherit",
+            "0",
+            "1",
+            "var(--lf-ui-lh)",
+            "var(--lf-code-line)",
+            "var(--lf-chip-lh)",
+            "1.6",
+        }
     ),
 }
+
+# A face a dependency lays out for, by the rule that states it: the one font in Leaf's
+# sheets that is neither a theme's font nor a size on its ladder. Plot places a chart's
+# axes, ticks and legends for 10px words, and at the small font's 11.5px an axis label
+# lands on the tick beside it.
+FITTED = {"lf-chart .lf-chart-drawing": "0.625rem / 1.25 var(--lf-sans)"}
+
+
+def fitted(context, item):
+    return item.lower_name == "font" and FITTED.get(context[-1]) == said(item)
 
 
 AUTHORED = re.compile(
@@ -87,13 +116,17 @@ def said(item):
 
 
 def test_every_rule_of_the_interface_names_a_declared_font():
-    """A face Leaf's interface draws is one of a closed set, named where it is used.
+    """A face Leaf's interface draws is one of the theme's fonts, named where it is
+    used, at a weight of 400, 500 or 600 and in the font's family or the mono one.
 
-    A face set where it stands, in the interface or a widget, drifts into
-    near-duplicates: sizes, line heights and weights a pixel or a step apart, each of
-    which looks deliberate where it was written. A rule of the interface, one that
-    names an `lf-` element or class, names a font, so a new face is a new font in the
-    theme's one list of them (styles/tokens.css), where it is seen beside the others.
+    A size or a leading set where it stands, in the interface or a widget, drifts into
+    near-duplicates a pixel or a step apart, each of which looks deliberate where it was
+    written. A rule of the interface, one that names an `lf-` element or class, names a
+    font, so a new size is a new font in the theme's one list of them
+    (styles/tokens.css), where it is seen beside the others. A package's sheet has two
+    to name, the interface's and the small one (`test_theme_tokens.py` holds it to the
+    names the references declare), and Leaf's own sheets also name the faces Leaf keeps
+    for its panel, its threads and its marks.
 
     Asked of the source rather than of a rendered page, because that is where the face
     is chosen, and every sheet is read whether or not a page draws its rules: the
@@ -119,22 +152,18 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     own = []
     for sheet in shipped_sheets():
         rules = tinycss2.parse_stylesheet(sheet.read_text())
-        for context, item, siblings in declarations(rules):
+        for context, item, _ in declarations(rules):
             if item.lower_name not in OWN or not interface(context):
                 continue
-            if names_a_font(item):
+            if names_a_font(item) or fitted(context, item):
                 continue
-            # A rule that names a font takes its weight with it; only a run keeping
-            # its holder's font sets one.
-            beside = item.lower_name == "font-weight" and any(
-                map(names_a_font, siblings)
-            )
-            if beside or not OWN[item.lower_name](said(item)):
+            if not OWN[item.lower_name](said(item)):
                 where = f"{sheet.relative_to(PLUGIN_ROOT)}:{item.source_line}"
                 own.append(f"{where} {' { '.join(context)} — {item.name}: {said(item)}")
     assert not own, (
-        f"{len(own)} rules of the interface set a face of their own rather than naming "
-        f"a font (styles/tokens.css, `--lf-font-*`):\n  " + "\n  ".join(own)
+        f"{len(own)} rules of the interface set a size, a leading or a family of their "
+        f"own rather than naming a font (styles/tokens.css, `--lf-font-*`):\n  "
+        + "\n  ".join(own)
     )
 
 
@@ -172,7 +201,9 @@ def own_sizes(sheets, theme):
     the dependency's own sheet reads. It is a size of its own where it holds a length in
     any unit but `em`, a keyword in `PICKED`, or a custom property neither `theme` nor
     `sheets` declares. A `var()` naming a property `theme` declares passes unread; one
-    naming a property only `sheets` declare is read through each declaration of it."""
+    naming a property only `sheets` declare is read through each declaration of it. A
+    floor under the inherited size (`FLOORS`) and a face a dependency lays out for
+    (`FITTED`) pass."""
     tokens = {
         item.name
         for _, item, _ in declarations(tinycss2.parse_stylesheet(theme))
@@ -220,6 +251,8 @@ def own_sizes(sheets, theme):
                 scan(held, value.arguments, False, through)
 
     for held in sizes:
+        if said(held[2]) in FLOORS or fitted(held[1], held[2]):
+            continue
         scan(held, held[2].value, held[2].lower_name == "font", {held[2].name})
     return list(own)
 
@@ -232,8 +265,8 @@ def test_every_font_size_names_a_theme_token():
 
     A size names the theme when it names a custom property tokens.css declares. The
     sizes there are the rungs (`--lf-t-*`), the code size, the drawing sizes,
-    `--lf-entry-floor` (the smallest size typed words take on a touch screen) and the fonts
-    built from them. The test doesn't tell those from the file's other properties, so a
+    `--lf-entry-floor` (the smallest size typed words take on a touch screen, which a
+    package's sheet writes as its number, `FLOORS`) and the fonts built from them. The test doesn't tell those from the file's other properties, so a
     box's size used as a font size would pass, and it doesn't read a property tokens.css
     declares wherever it is set: those declarations, and a density's or theme's
     restatement of them, are the theme itself. A package's own property, such as an
@@ -279,6 +312,8 @@ def test_a_size_of_its_own_is_found_however_it_is_written():
       .ratio code { font-size: 0.9em; }
       .percent { font-size: 82%; }
       .floored { font-size: max(var(--lf-entry-floor), 1em); }
+      @media (pointer: coarse) { .fingered { font-size: max(16px, 1em); } }
+      lf-chart .lf-chart-drawing { font: 0.625rem / 1.25 var(--lf-sans); }
       .factor { font-size: calc(var(--lf-t-5) * 1.2); }
       .empty { font-size: 0; }
       .widget { --widget-font: var(--lf-t-5)/1.5 var(--lf-sans); font: var(--widget-font); }
@@ -295,6 +330,8 @@ def test_a_size_of_its_own_is_found_however_it_is_written():
       .undeclared { font-size: var(--nowhere); }
       .fallback { font-size: var(--lf-t-5, 12px); }
       .system { font: menu; }
+      .low { font-size: max(13px, 1em); }
+      .chart { font: 0.625rem / 1.25 var(--lf-sans); }
     """
     assert own_sizes({"follows.css": follows}, theme) == []
     assert own_sizes({"own.css": own}, theme) == [
@@ -307,4 +344,6 @@ def test_a_size_of_its_own_is_found_however_it_is_written():
         "own.css:9 .undeclared — font-size: var(--nowhere)",
         "own.css:10 .fallback — font-size: var(--lf-t-5, 12px)",
         "own.css:11 .system — font: menu",
+        "own.css:12 .low — font-size: max(13px, 1em)",
+        "own.css:13 .chart — font: 0.625rem / 1.25 var(--lf-sans)",
     ]

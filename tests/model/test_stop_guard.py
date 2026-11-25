@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -117,6 +118,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
     try:
         assert page_state(page_dir)["listening"]
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "harness-owner")
+        hooks_run_this_tree("harness-owner")
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)

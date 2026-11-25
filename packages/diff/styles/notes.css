@@ -37,9 +37,9 @@ lf-diff-note::after {
   position: absolute;
   z-index: -1;
   inset: 5px 10px 9px var(--lf-diff-code-at);
-  border: 1px solid var(--lf-code-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
-  background: var(--lf-code-chrome);
+  background: var(--lf-paper);
 }
 lf-diff-note:not([data-lf-unmatched])::before {
   content: "";
@@ -48,14 +48,14 @@ lf-diff-note:not([data-lf-unmatched])::before {
   inset-inline-start: calc(var(--lf-diff-code-at) + 4px);
   inline-size: 8px;
   block-size: 8px;
-  border-inline-start: 1px solid var(--lf-code-border);
-  border-block-start: 1px solid var(--lf-code-border);
-  background: var(--lf-code-chrome);
+  border-inline-start: 1px solid var(--lf-rule);
+  border-block-start: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
   transform: rotate(45deg);
 }
 lf-diff-note code {
-  color: var(--lf-code-ink);
-  background: var(--lf-pre-bg);
+  color: var(--lf-ink);
+  background: var(--lf-card);
 }
 /* A note whose line is gone says which address it lost, at its card's head. */
 lf-diff-note[data-lf-unmatched]::before {

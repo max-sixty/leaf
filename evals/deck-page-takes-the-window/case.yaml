@@ -1,9 +1,9 @@
 # A page whose whole work is a pile of decisions taken one card at a time was written as a
 # column page ending in the deck. A column page can't scroll past its end, so a shorter
 # card coming up pulled the page down and moved the deck's bar. As a workspace's body the
-# deck fills the window and each card scrolls inside it. The `among` variant is the
-# control: a report that carries a deck among its findings stays a column page, since a
-# workspace has no room for the report around it.
+# deck fills the window, and its bar sticks while a tall card scrolls under it. The
+# `among` variant is the control: a report that carries a deck among its findings stays
+# a column page, since a workspace has no room for the report around it.
 description: deck-page-takes-the-window
 metadata:
   purpose: A page whose whole work is a deck makes the deck its workspace's body, and a deck among a report's material stays in the column.
@@ -33,12 +33,15 @@ assert:
     metric: judgment
     value: |
       Read the HTML. Pass only if the six pull requests are cards of one deck (each a
-      direct child of an `lf-deck`, holding its decision), and that deck is the body of
-      a workspace: the page's `main` carries `layout-workspace`, and the deck is its
-      body, a direct child of `main` beside at most a `header` and a `footer`. Fail if
-      the deck is wrapped in another element, such as a group, or if the page is a
-      column or sidebar page with the deck in its flow, or if the six pull requests are
-      not taken one at a time.
+      direct child of an `lf-deck`, holding its decision), and that deck is the working
+      region of a workspace Leaf applies: `layout-workspace` stands on the page's
+      `main`, on a direct child of `main`, or on the child of a part
+      (`page-layout.md`), with nothing before `main` such as a site header; and the
+      deck is that workspace's body, or stands in the question group that is its body.
+      Fail if the page is a column or sidebar page with the deck in its flow, if
+      `layout-workspace` stands deeper than those places, if a plain wrapper such as a
+      `div` or `section` stands between the workspace and the deck, or if the six pull
+      requests are not taken one at a time.
 variants:
   among:
     metadata:

@@ -64,9 +64,9 @@ machinery while preserving the freedom to compose capabilities beyond the
 bundled defaults.
 
 **Keep Leaf's code plain.** Leaf's ingenuity lies in what these principles
-promise the user, not in technically difficult code. Its code is the ordinary,
-idiomatic code of a web page and a local server, built on what the browser and
-maintained libraries already do, and a reader new to a mechanism can follow it.
+promise the user, not in technically difficult code. Its code is ordinary and
+idiomatic wherever it runs, built on what the platform and maintained libraries
+already do, and a reader new to a mechanism can follow it.
 Each mechanism must justify its continuing cost through the user benefit it
 provides. Complicated or unidiomatic code is usually a mistake, most often a
 requirement held more exactly than the user needs. Giving up a little of such a

@@ -903,12 +903,13 @@ def summary_card(page: Page) -> None:
 
 
 def summary_panel(page: Page) -> None:
-    """The same thread opened from Threads in the floating panel, its summary over the
-    agent's latest reply."""
+    """The same thread opened from Threads in the floating panel by a user who chose the
+    panel for threads, its summary over the agent's latest reply."""
     summarize_plan_stop()
     wait_until_ready(
         page, PageClient(served_page.get().address).state(), through="state"
     )
+    choose_threads_in_panel(page)
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="background children").click()
     expect(

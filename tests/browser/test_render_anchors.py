@@ -441,6 +441,63 @@ def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
     assert "doesn't say 'Words no script draws'" in refused.output
 
 
+# A diagram, which shows a thread on a box it didn't draw nowhere, beside a timeline,
+# which shows a thread on an event it didn't draw on the whole timeline.
+DRAWN_PARTS_PAGE = leaf_page(
+    "drawn parts",
+    """
+<h1 id="title">Deploy</h1>
+<lf-diagram id="flow" parts="all"><pre>flowchart LR
+  build[Build] --&gt; test[Test] --&gt; ship[Ship]</pre></lf-diagram>
+<lf-timeline id="deploy-order" aria-label="Deploy order">
+  <lf-lane label="Build">
+    <lf-event id="deploy-compile" at="0" end="4000" label="Compile"></lf-event>
+  </lf-lane>
+</lf-timeline>
+""",
+)
+
+
+def test_a_part_no_check_has_read_is_checked_on_the_page_as_drawn(serve):
+    """Where no render check has read the version the page shows, as right after a
+    save, `leaf thread create --part` draws the page and reads what each visual draws
+    there. A box the diagram didn't draw is refused, naming the boxes it drew; an event
+    the timeline didn't draw is taken with a note, since the page puts the thread on
+    the whole timeline."""
+    serve(DRAWN_PARTS_PAGE)
+
+    def create(section: str, part: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--section",
+                section,
+                "--part",
+                part,
+                "--text",
+                "Is this the slow step?",
+            ],
+        )
+
+    refused = create("flow", "node:nope")
+    assert refused.exit_code != 0
+    assert (
+        "§ flow drew no part 'node:nope' when Leaf drew the page just now; it drew"
+        " node:build, node:test, node:ship."
+    ) in refused.output
+
+    taken = create("deploy-order", "event:nope")
+    assert taken.exit_code == 0, taken.output
+    assert [found["text"] for found in json.loads(taken.output)["findings"]] == [
+        "§ deploy-order drew no part 'event:nope' when Leaf drew the page just now,"
+        " so the thread stands on the whole visual until the visual draws that part;"
+        " it drew event:deploy-compile"
+    ]
+
+
 # One sentence two quoted threads discuss, which the agent's next revision rewrites.
 REVISED_QUOTES_PAGE = leaf_page(
     "revised quotes",

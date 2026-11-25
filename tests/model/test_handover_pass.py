@@ -50,11 +50,16 @@ FAILURE: dict[str, Any] = {
     "values": {"by": 40},
     "text": "at 360–900px wide, <div id=wide> is set 40px past the column",
 }
-# A diagram whose boxes a thread may name (`parts`), and the parts a reading of it drew.
+# A diagram whose boxes a thread may name (`parts`), and what a reading of it drew.
 PARTS_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
 )
-DRAWN = {"flow": [{"id": "node:A", "label": "A"}, {"id": "node:B", "label": "B"}]}
+DRAWN = {
+    "flow": {
+        "parts": [{"id": "node:A", "label": "A"}, {"id": "node:B", "label": "B"}],
+        "whole": False,
+    }
+}
 ADVICE: dict[str, Any] = {
     "code": "shrunk-labels",
     "severity": "advice",
@@ -101,10 +106,10 @@ def read_digest(page_dir: Path) -> str:
 
 
 def browser_read(
-    findings: list[dict], parts: dict[str, list[dict]] | None = None
+    findings: list[dict], visuals: dict[str, dict] | None = None
 ) -> SimpleNamespace:
-    """A browser that finished reading the page, found `findings` and read the `parts`
-    each visual drew, as `command.BrowserCheck` answers."""
+    """A browser that finished reading the page, found `findings` and read what each
+    visual drew (`visuals`), as `command.BrowserCheck` answers."""
     return SimpleNamespace(
         findings=lambda: [
             SimpleNamespace(
@@ -112,7 +117,7 @@ def browser_read(
             )
             for finding in findings
         ],
-        render=SimpleNamespace(parts=parts or {}),
+        render=SimpleNamespace(visuals=visuals or {}),
     )
 
 
@@ -136,17 +141,17 @@ def leave_reading(
 def checking(
     findings: list[dict],
     digest: str | None = None,
-    parts: dict[str, list[dict]] | None = None,
+    visuals: dict[str, dict] | None = None,
 ):
     """`check_page` with the browser's part standing in: a reading of `findings`, and of
-    the `parts` each visual drew, in the live version, or in the version `digest`, with
-    the data the page holds."""
+    what each visual drew (`visuals`), in the live version, or in the version `digest`,
+    with the data the page holds."""
     return lambda page_dir, **_options: (
         {},
         (
             digest or read_digest(page_dir),
             data_version(page_dir),
-            browser_read(findings, parts),
+            browser_read(findings, visuals),
         ),
     )
 
@@ -506,9 +511,11 @@ def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed, monke
     in turn: its visuals may draw other parts."""
     (claimed / "index.html").write_text(PARTS_PAGE)
     assert activate_source(claimed).error is None
-    monkeypatch.setattr("leaf.validation.command.check_page", checking([], parts=DRAWN))
+    monkeypatch.setattr(
+        "leaf.validation.command.check_page", checking([], visuals=DRAWN)
+    )
     handover_pass_model.read_and_tell(claimed)
-    assert flow_element(claimed)["parts"] == DRAWN["flow"]
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
     save(claimed, "a later version")
     assert "parts" not in flow_element(claimed)
 
@@ -522,10 +529,10 @@ def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
     handover_pass_model.remember_reading(
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
     )
-    assert flow_element(claimed)["parts"] == DRAWN["flow"]
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
     data_model.cmd_data_set(claimed, "builds", ["green"])
     assert "parts" not in flow_element(claimed)
     handover_pass_model.remember_reading(
         claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
     )
-    assert flow_element(claimed)["parts"] == DRAWN["flow"]
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]

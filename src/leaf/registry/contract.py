@@ -276,9 +276,10 @@ class VisualParts:
 
     A widget admits its complete registered inventory when its opt-in attribute is
     present, or ids beginning its declared prefixes. Admission does not say a part
-    is on screen; the browser resolves that. An admitted id nothing renders detaches,
-    unless the widget's module draws parts on request or finds them by id, as a chart
-    finds its points; then it stands on the whole element.
+    is on screen; the browser resolves that, and `thread create --part` checks an
+    agent's id against what the page drew (`anchor_capture.drawn_part`). An admitted
+    id nothing renders detaches, unless the widget's module draws parts on request or
+    finds them by id, as a chart finds its points; then it stands on the whole element.
     """
 
     prefixes: tuple[str, ...] = ()

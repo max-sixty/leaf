@@ -108,16 +108,16 @@ def remember_reading(page_dir: Path, digest: str, data: str, checked) -> None:
             write_reading(page_dir, digest, data, *found)
 
 
-def _finished(checked) -> tuple[list[dict], dict[str, list[dict]]] | None:
+def _finished(checked) -> tuple[list[dict], dict[str, dict]] | None:
     """Every finding of a browser that finished reading the page, as
-    `findings.Finding.json` gives it, with the parts each visual drew
-    (`RenderReading.parts`, none where failing page code ended the check before the
+    `findings.Finding.json` gives it, with what each visual drew
+    (`RenderReading.visuals`, none where failing page code ended the check before the
     render gate), or None where it didn't."""
     findings = checked.findings()
     if any(f.unread for f in findings):
         return None
-    parts = checked.render.parts if checked.render is not None else {}
-    return [finding.json() for finding in findings], parts
+    visuals = checked.render.visuals if checked.render is not None else {}
+    return [finding.json() for finding in findings], visuals
 
 
 def _place(finding: dict) -> tuple[str, str]:
@@ -190,11 +190,11 @@ def _tell(
     digest: str,
     data: str | None,
     found: list[dict],
-    parts: dict[str, list[dict]],
+    visuals: dict[str, dict],
 ) -> list[dict]:
     """Tell the agent the findings `found` of the version `digest`, read with the data
     version `data`, that the page's latest reading didn't hold, and leave them, with
-    the `parts` it read, as its reading, where that version is still live and no
+    the `visuals` it read, as its reading, where that version is still live and no
     reading of it beside this one told first. The findings told."""
     from leaf.event_contracts import append_admitted
     from leaf.presence import nudge_unwatched
@@ -219,7 +219,7 @@ def _tell(
             )
             if requires_agent_attention(event):
                 nudge_unwatched(page)
-        write_reading(page_dir, digest, data, found, parts)
+        write_reading(page_dir, digest, data, found, visuals)
     return told
 
 

@@ -122,13 +122,12 @@ text colour of its own sets `--lf-paper` and `--lf-ink` to them, from which the
 widgets' neutral colours step (`package-themes.md`, "Theme tokens").
 
 Leaf ranks a rule by whose element it styles. A theme's rules for the page's own
-content go in `theme.css`, in `lf-theme`, below every cascade layer the page names.
+content go in `theme.css`, in `lf-theme`, below the page's `base` layer.
 Defaults for what Leaf draws, a widget's own and a theme's for an idiom, go in
 `defaults.css`, in `lf-base`; `overrides.css` ranks above them and the Layouts. The
-document orders `lf-reset`, `lf-theme`, the page's layers, `lf-base`, `lf-layouts`,
-`lf-overrides`, `lf-state`, then the page's unlayered rules, so a framework's reset
-leaves Leaf's faces whole and a page restyles them unlayered (`page-layout.md`, "Page
-CSS and Leaf's controls"). A shadow tree orders `lf-reset`, `lf-base`, `lf-layouts`,
+document orders the page's `reset`, `lf-reset`, `lf-theme`, the page's `base`,
+`lf-base`, `lf-layouts`, `lf-overrides`, `lf-state`, then the page's other layers and
+unlayered rules (`page-layout.md`, "Page CSS and Leaf's controls"). A shadow tree orders `lf-reset`, `lf-base`, `lf-layouts`,
 `lf-shadow`, `lf-overrides`, `lf-state`; Layouts don't reach inside it. A shared
 shadow sheet precedes its document-only sheet; later selected packages win ties. A
 package's `defaults.css` and `overrides.css` reach the controls in Leaf's panel and

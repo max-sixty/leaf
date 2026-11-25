@@ -441,11 +441,11 @@ body {
  * remains authoritative across component styling.
  *
  * Importance reverses layer order, so an important declaration in an earlier layer
- * wins. This anonymous layer sits early in lf-theme, which only lf-reset precedes, so
- * these declarations outrank every later layer, the page's and Leaf's tiers above
- * them, and every unlayered stylesheet declaration without reserving a named layer
- * custom CSS could append to. What ranks higher is what comes earlier: lf-reset,
- * markup's reading face (lf-theme.lf-reading-face, reading.css) and Web Awesome's
+ * wins. This anonymous layer sits early in lf-theme, which only the page's `reset` and
+ * lf-reset precede, so these declarations outrank every later layer, the page's and
+ * Leaf's tiers above them, and every unlayered stylesheet declaration without reserving
+ * a named layer custom CSS could append to. What ranks higher is what comes earlier: the
+ * page's `reset`, lf-reset, markup's reading face (lf-theme.lf-reading-face, reading.css) and Web Awesome's
  * tokens (lf-theme.lf-vendor), which state nothing important; and inline importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the

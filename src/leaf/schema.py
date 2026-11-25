@@ -660,7 +660,6 @@ LAYER_FILE = "layer.json"
 # The top-level files a composed layer serves beside the page (`layer.compose_layer`).
 LAYER_TOP_FILES = (
     "theme.css",
-    "parts.css",
     "shadow.css",
     "chrome.css",
     "portable.css",

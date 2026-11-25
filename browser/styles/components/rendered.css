@@ -3,7 +3,7 @@
  * spacing, a data body shows its source until its module renders it, and a frame trims
  * the outer margins of the first and last of its children. Each reads one of Leaf's
  * classes, or a frame a box declares, so in the document they stand with the faces of
- * Leaf's controls (parts.css), above every cascade layer the page names. Markup's
+ * Leaf's controls (parts.css), above the page's `base` layer. Markup's
  * reading face, which these build on, stays in reading.css, below them. */
 /* An overlay scrollbar paints over the scroller's own block end, and macOS widens it to
  * a 15px track under the pointer: a thread's code block, 8px of padding under its last

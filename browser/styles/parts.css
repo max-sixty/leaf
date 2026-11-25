@@ -1,7 +1,7 @@
 /* The faces of what Leaf draws: its controls, surfaces, idioms, drawings and the
  * composer, shared by the document and every declared tree. In the document they stand
- * in `lf-base`, above every cascade layer the page names and below its unlayered rules
- * (layer.py, `composed_sheets`), so a framework's reset or base layer leaves them whole. */
+ * in `lf-base`, above the page's `base` layer and below its other layers (layer.py,
+ * `composed_sheets`), so a framework's reset leaves them whole. */
 @import "./components/surfaces.css";
 @import "./components/rendered.css";
 @import "./components/drawing.css";

@@ -4,8 +4,8 @@ Read with [packages.md](packages.md), which holds the package contract and how s
 compose. A theme is a page's look: a package whose rules style the page as a whole,
 whether or not it also declares widgets. Its rules for the page's own content, such
 as element rules and the tokens it sets on `:root`, belong in `theme.css`, below
-Layouts, Leaf's rules for what it draws and every cascade layer the page names, so a
-page's CSS framework outranks them as it would any site's theme. Its rules for what
+Layouts, Leaf's rules for what it draws and the page's `base` layer, so a page's CSS
+framework outranks them as it would any site's theme. Its rules for what
 Leaf draws, such as an idiom's or a widget's look, belong in `defaults.css`, and rules
 meant to win over widget defaults and Layouts in `overrides.css`. Idioms are declared
 in the package's registry.

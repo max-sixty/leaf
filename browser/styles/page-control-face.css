@@ -5,7 +5,7 @@
  * (controls.css, "The faces of Leaf's control roles").
  *
  * The control is the author's, so the face is a theme's default for it and stands at the
- * head of `lf-theme`, below every cascade layer the page names: a framework's own rule
+ * head of `lf-theme`, below the page's `base` layer: a framework's own rule
  * for its controls, such as Tailwind's `font: inherit`, outranks it. It weighs nothing,
  * and markup's reading face stands in a layer of that tier below it (reading.css), so a
  * control standing in prose takes this face rather than the prose's. A declared tree

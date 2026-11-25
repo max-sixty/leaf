@@ -225,32 +225,37 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
     return winners
 
 
-# The document's cascade tiers rank each of Leaf's rules by whose element it styles.
-# Rules for the author's own elements (`lf-theme`: the kernel's tokens and page shell,
-# markup's reading face, the faces of the page's own controls, the marks and focus band
-# Leaf draws on any element, and each package's theme.css) stand below every cascade
-# layer the page names, so a page's framework outranks a theme's look as it would any
-# site's. The chrome's form-control clearing (`lf-reset`, runtime/chrome.css) stays
-# below everything that chooses a face. Leaf's rules for its own elements stand above
-# the page's layers and below its unlayered rules, the order layers are meant for:
-# framework, then components, then the author's own CSS. There the kernel's faces for
-# Leaf's controls and surfaces, every widget package's defaults, and each widget
-# module's adopted sheet (runtime/base-layer.js) share `lf-base`, so specificity, then
-# order, rank their rules. The kernel's Layouts sit above it. Package overrides sit
-# above those defaults and the Layouts (`lf-overrides`), so a package styles every page
-# the way the page's own sheet styles one. Semantic state follows: retirement must
-# outrank a package's default box and a Layout's arrangement. Inline widget motion
-# outranks them too. Chrome and apparatus marks stay unlayered to beat page and widget
-# alike; runtime/stylesheets.js owns their precedence and defaults.
+# The document's cascade tiers rank each of Leaf's rules by whose element it styles, and
+# seat a page's base layer between the two kinds. Rules for the author's own elements
+# (`lf-theme`: the kernel's tokens and page shell, markup's reading face, the faces of
+# the page's own controls, the marks and focus band Leaf draws on any element, and each
+# package's theme.css) stand below the page's `base`. Leaf's rules for its own elements
+# stand above it: the kernel's faces for Leaf's controls and surfaces, every widget
+# package's defaults, and each widget module's adopted sheet (runtime/base-layer.js)
+# share `lf-base`, so specificity, then order, rank their rules. The kernel's Layouts
+# sit above it. Package overrides sit above those defaults and the Layouts
+# (`lf-overrides`), so a package styles every page the way the page's own sheet styles
+# one. Semantic state follows: retirement must outrank a package's default box and a
+# Layout's arrangement. Inline widget motion outranks them too. Chrome and apparatus
+# marks stay unlayered to beat page and widget alike; runtime/stylesheets.js owns their
+# precedence and defaults. The chrome's form-control clearing (`lf-reset`,
+# runtime/chrome.css) stays below everything that chooses a face.
 #
-# A cascade layer ranks where its name is first declared, and the page's sheets follow
-# Leaf's theme in the head, so the theme's order statement ranks the page's layers after
-# its own. Leaf's tiers above them are first named in a sheet the document adopts
-# (`PARTS_LAYER_ORDER`, prepaint.js), and every adopted sheet follows every sheet the
-# document holds, one a page script adds later included. So no sheet of the document
-# may name a tier of `PART_LAYERS`. A shadow tree takes no page rule, so it names every
-# tier in one statement (`SHADOW_LAYERS`), where `lf-shadow` holds shared shadow rules
-# above adopted widget sheets and below package overrides.
+# Two names a page may give its layers rank among Leaf's tiers. A reset zeroes margins,
+# borders and control faces on every element, so `reset` stands under every tier and
+# applies wherever neither Leaf nor the page's theme says anything. A framework's base
+# layer holds its reset beside the author's own element rules, as Tailwind keeps
+# preflight in `base`, so `base` outranks the theme's look for the author's content, an
+# `h1` the author sized there included, and loses to Leaf's faces for what it draws. A
+# cascade layer ranks where its name is first declared, and Leaf's theme leads the
+# document's head, so this one statement places `reset` and `base` whichever page sheet
+# names them later. Every other layer the page names follows Leaf's tiers and outranks
+# them, as the page's unlayered rules do, so a framework's components and utilities
+# restyle what Leaf draws. A shadow tree takes no page rule, so it names only Leaf's
+# tiers (`SHADOW_LAYERS`), where `lf-shadow` holds shared shadow rules above adopted
+# widget sheets and below package overrides.
+PAGE_RESET_LAYER = "reset"
+PAGE_BASE_LAYER = "base"
 THEME_LAYERS = ("lf-reset", "lf-theme")
 PART_LAYERS = ("lf-base", "lf-layouts", "lf-overrides", "lf-state")
 SHADOW_LAYERS = (
@@ -261,8 +266,16 @@ SHADOW_LAYERS = (
     "lf-overrides",
     "lf-state",
 )
-DOCUMENT_LAYER_ORDER = f"@layer {', '.join(THEME_LAYERS)};\n"
-PARTS_LAYER_ORDER = f"@layer {', '.join(PART_LAYERS)};\n"
+DOCUMENT_LAYERS = (PAGE_RESET_LAYER, *THEME_LAYERS, PAGE_BASE_LAYER, *PART_LAYERS)
+DOCUMENT_LAYER_ORDER = f"@layer {', '.join(DOCUMENT_LAYERS)};\n"
+
+# Text Leaf draws from markup, a thread's transcript and Markdown Leaf renders, wears
+# markup's reading face whatever the page's theme (styles/components/reading.css). In the
+# document that face stands in `lf-theme`, under the page's `base`, so the document also
+# reads it scoped to this text at the head of `lf-base` (`composed_sheets`): a
+# framework's reset there leaves a message's lists and code blocks as Leaf drew them,
+# and the page's markup still takes the reset.
+DRAWN_TEXT = ":where(.lf-thread-transcript, .lf-markdown-body)"
 
 # tinycss2 currently decodes surrogate escapes to lone surrogates. CSS requires
 # U+FFFD instead; keep its serialization valid UTF-8 until its tokenizer is fixed.
@@ -467,15 +480,15 @@ def chrome_restyle(sheet: str, source: Path) -> str:
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's four stylesheets: each contribution in its role's cascade tier,
+    """The layer's three stylesheets: each contribution in its role's cascade tier,
     in input order. Leaf places sheets and rewrites none of their rules but
     chrome.css's, which it nests in the chrome (`chrome_restyle`).
 
     A sheet's filename sets its role, by whose elements its rules style (`THEME_LAYERS`,
     `PART_LAYERS`). theme.css holds a theme's rules for the author's own content, such
-    as the bundled `reading` look's, in lf-theme, below the page's cascade layers.
+    as the bundled `reading` look's, in lf-theme, below the page's `base` layer.
     defaults.css holds a package's defaults for what Leaf draws, its widgets' and its
-    rules for Leaf's idioms and controls, in lf-base, above the page's layers and below
+    rules for Leaf's idioms and controls, in lf-base, above the page's `base` and below
     Layouts. A thread's transcript holds layer markup wherever it is drawn, and a widget
     can seat one in its shadow tree, such as a diff's line threads, so every shadow tree
     also takes theme.css and defaults.css within `@scope (.lf-thread-transcript)`, in
@@ -493,13 +506,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
     is read with its relative imports (`stylesheet`).
 
-    The document reads the theme's tiers from theme.css, which its head links, and
-    Leaf's tiers above the page's layers from parts.css, which it adopts
-    (`revision_delivery.delivery_sheets`). The kernel supplies both halves: the faces
-    of the author's own elements (styles/page-control-face.css, styles/markup.css) and
+    The document reads every tier from theme.css, whose first rule orders them
+    (`DOCUMENT_LAYER_ORDER`). The kernel supplies both halves: the faces of the
+    author's own elements (styles/page-control-face.css, styles/markup.css) and
     base.css in lf-theme, and the faces of what Leaf draws (styles/control-face.css,
-    styles/parts.css) and elements.css in lf-base. A shadow tree reads the shared
-    halves together (shadow.css), and its native controls' default face
+    styles/parts.css) and elements.css in lf-base, which opens with markup's reading
+    face scoped to the text Leaf draws (`DRAWN_TEXT`). There the face's own layer
+    makes it the lowest of lf-base, as it is the lowest of lf-theme. A shadow tree reads
+    the shared halves together (shadow.css), and its native controls' default face
     (styles/control-face.css) stands in lf-reset there, below the rules a widget adopts,
     as that sheet's header explains. The kernel's Layouts and semantic state retain
     their own tiers. Page CSS remains unlayered.
@@ -508,7 +522,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     if not (kernel / "base.css").is_file():
         raise Refused("the incoming layer has no base.css")
     theme = [DOCUMENT_LAYER_ORDER]
-    parts = [PARTS_LAYER_ORDER]
+    parts = []
     shadow = [f"@layer {', '.join(SHADOW_LAYERS)};\n"]
     chrome = []
 
@@ -522,6 +536,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     place(theme, "lf-theme", kernel, "styles/page-control-face.css")
     place(theme, "lf-theme", kernel, "styles/markup.css")
     place(theme, "lf-theme", kernel, "base.css")
+    if (face := kernel / "styles/components/reading.css").is_file():
+        parts.append(
+            f"@layer lf-base {{\n@scope ({DRAWN_TEXT}) {{\n"
+            f"{stylesheet(face, kernel)}}}\n}}\n"
+        )
     place(parts, "lf-base", kernel, "styles/control-face.css")
     place(parts, "lf-base", kernel, "styles/parts.css")
     place(parts, "lf-base", kernel, "elements.css")
@@ -548,8 +567,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if name == "state.css":
                 shadow.append(sheet)
     return {
-        "theme.css": "".join(theme).encode(),
-        "parts.css": "".join(parts).encode(),
+        "theme.css": "".join((*theme, *parts)).encode(),
         "shadow.css": "".join(shadow).encode(),
         "chrome.css": "".join(chrome).encode(),
     }

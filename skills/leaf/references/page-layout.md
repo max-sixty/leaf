@@ -348,12 +348,15 @@ and thread cards keep their own look against a page rule as light as one class
 (`button`, `.card`); a heavier selector such as `button:hover` or an `!important`
 declaration reaches them too, so name your own content in it.
 
-A rule in a cascade layer the page names, such as a CSS framework's reset or base
-styles, outranks the page's theme and ranks below Leaf's rules for what Leaf draws: its
-widgets, idioms, controls, panel and thread cards. So a framework such as Tailwind
-needs no change to leave them their faces, and a utility class on a widget, such as
-Tailwind's `mt-0`, changes nothing the widget states itself. To restyle what Leaf draws,
-write the rule unlayered.
+Two layer names rank among Leaf's own. A rule in `@layer reset` ranks below every rule
+of Leaf's and of the page's theme, so it applies wherever neither says anything. A rule
+in `@layer base`, where Tailwind keeps its reset and the element rules its author
+writes, outranks the page's theme and ranks below Leaf's rules for what Leaf draws: its
+widgets, idioms, controls, panel, thread cards and messages. So a framework such as
+Tailwind needs no change to leave them their faces. Every other layer the page names
+outranks Leaf's rules, as unlayered CSS does, so a utility class on a widget, such as
+Tailwind's `mt-0`, restyles it. To restyle what Leaf draws, write the rule in such a
+layer or unlayered, not in `base`.
 
 A page whose framework has design tokens hands Leaf three of them, so
 what Leaf draws takes the framework's colours:

@@ -114,13 +114,13 @@ import { RecordingTimeline } from "./timeline.js";
 import "/vendor/webawesome-views.js";
 import { Viewer, css as imageCss } from "/vendor/images.esm.js";
 // Dependency styles apply only inside recording widgets. Keeping them in their
-// module makes the same presentation available in an offline export. The document
-// adopts them: a sheet it holds that names `lf-base` would rank that tier where the
-// sheet stands, below a cascade layer a later page sheet names (layer.py,
-// `PART_LAYERS`).
-const libraryStyles = new CSSStyleSheet();
-libraryStyles.replaceSync(`@layer lf-base {\n@scope (lf-trace) { ${imageCss} }\n}`);
-document.adoptedStyleSheets = [...document.adoptedStyleSheets, libraryStyles];
+// module makes the same presentation available in an offline export.
+if (!document.querySelector("#lf-trace-library-styles")) {
+  const styles = document.createElement("style");
+  styles.id = "lf-trace-library-styles";
+  styles.textContent = `@layer lf-base {\n@scope (lf-trace) { ${imageCss} }\n}`;
+  document.head.append(styles);
+}
 
 /** @typedef {import("../../../browser/types/contract.js").DataPlaywrightTrace} Recording */
 /** @typedef {Recording["actions"][number]} TraceAction */

@@ -2686,7 +2686,7 @@ COMPUTED_FACES = """([properties]) => {
 RELOCATE_ADOPTED = """async () => {
     const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
     // The page states its layer order in the first rule it loads (layer.py,
-    // CASCADE_LAYERS). A copy standing first has to state it again, or the first layer
+    // DOCUMENT_LAYER_ORDER). A copy standing first has to state it again, or the first layer
     // its own rules name becomes the lowest.
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);

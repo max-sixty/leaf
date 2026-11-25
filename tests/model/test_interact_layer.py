@@ -2789,8 +2789,8 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
 
 
 # The page-side order `composed_sheets` reads a composed example's layer in, one list
-# for each of the document's two halves: the theme's tiers below the page's layers and
-# Leaf's above them, each root's own sheets root by root in layer order.
+# for each of the document's two halves: the theme's tiers below the page's `base`
+# layer and Leaf's above it, each root's own sheets root by root in layer order.
 def _layer_sheet_order(kernel_names, package_names):
     return [
         sheet
@@ -2818,8 +2818,8 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
 
     Each weighs nothing and comes first in its half of the document, so every component
     rule outranks it, and markup's reading face, a layer below, loses to it. A control
-    Leaf builds takes its default above the page's layers, and one the page writes takes
-    its own below them, so a framework's rule for the page's controls outranks it. A
+    Leaf builds takes its default above the page's `base` layer, and one the page writes
+    takes its own below it, so a framework's rule for the page's controls outranks it. A
     shadow tree places Leaf's sheet below what a widget adopts, which
     `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
     holds. Only native controls and those carrying a face class receive it: a widget's
@@ -3532,7 +3532,7 @@ def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     (package / "parts/open.css").write_text(".open { color: red;")
     (package / "parts/layered.css").write_text(".layered { color: green; }")
 
-    composed = layer_model.composed_sheets([kernel, package])["parts.css"].decode()
+    composed = layer_model.composed_sheets([kernel, package])["theme.css"].decode()
     assert "@import" not in composed
     # A reader that follows the layer's inputs, such as a live preview, follows them.
     assert {
@@ -4182,8 +4182,8 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert registry["$layer"]["packages"] == ["./packages/first", "./packages/second"]
     assert registry["lf-shared"]["description"] == "second"
     assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
-    parts = layer_files(page)["/parts.css"].decode()
-    assert parts.index("--package-first") < parts.index("--package-second")
+    theme = layer_files(page)["/theme.css"].decode()
+    assert theme.index("--package-first") < theme.index("--package-second")
 
 
 def test_a_page_wears_the_themes_it_lists_in_that_order(tmp_path, monkeypatch):
@@ -5033,9 +5033,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert "/widgets/lf-solo.js" in layer_files(page)
     assert "/widgets/ready.js" in layer_files(page)
     assert "/vendor/solo.json" in layer_files(page)
-    parts = layer_files(page)["/parts.css"].decode()
+    theme = layer_files(page)["/theme.css"].decode()
     # Each contribution keeps its role regardless of the package's widget count.
-    assert parts.index("lf-solo { --lf-block-frame: 1; }") < parts.index(
+    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
         ":root { --solo-night: 1; }"
     )
     instructions = layer_instructions(page)["author.md"].decode()

@@ -2,10 +2,10 @@
  * the chrome's root, the facts of Leaf's own surfaces, a region's label, a suggestion's
  * slots, and the box of a pane or a group, whatever element declares that role. They
  * stand in `lf-base` with the faces of Leaf's controls and every widget package's rules,
- * above every cascade layer the page names and below its unlayered rules (layer.py,
- * `composed_sheets`), so a framework's reset or base layer leaves them whole. The tokens,
+ * above the page's `base` layer and below its other layers (layer.py,
+ * `composed_sheets`), so a framework's reset leaves them whole. The tokens,
  * the page shell and the rules that keep a guarantee for the author's own elements stay
- * in base.css, below the page's layers. A declared tree doesn't read this sheet. */
+ * in base.css, below the page's `base`. A declared tree doesn't read this sheet. */
 
 /* The chrome's root stands after `body` (leaf.js), a stacking context at the largest
    z-index there is. A box the page writes can at most tie with it, and a tie paints in

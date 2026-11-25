@@ -144,7 +144,6 @@ interface Window {
   lfKeyboard: { readonly quick: boolean; setQuick(on: boolean): void };
   /** The layer's constructed stylesheets, built once by whoever asks first (prepaint.js). */
   lfSheets(): {
-    parts: CSSStyleSheet;
     chrome: CSSStyleSheet;
     marks: CSSStyleSheet;
     annotations: CSSStyleSheet[];

@@ -105,12 +105,12 @@ test("the browser spells each `data-lf-` attribute Python spells", async () => {
 });
 
 test("a suggestion slot's phrasing content is the kernel's", async () => {
-  const sheet = await readFile(`${root}browser/base.css`, "utf8");
+  const sheet = await readFile(`${root}browser/elements.css`, "utf8");
   const [, spelled] =
     sheet.match(
       /> :is\(lf-old, lf-new\)\s*> :not\(([^)]*?):where\(\[data-lf-inline\]\)/,
     ) ?? [];
-  assert.ok(spelled, "base.css no longer asks whether a slot holds block content");
+  assert.ok(spelled, "elements.css no longer asks whether a slot holds block content");
   assert.deepEqual(
     spelled
       .split(",")

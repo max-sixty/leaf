@@ -3,10 +3,9 @@
    chrome; the document and every shadow stage adopt the marks.
 
    Every delivery carries their text in the document (`delivery_sheets` in
-   revision_delivery.py), and the prepaint builds them from it once, adopting Leaf's
-   faces for what it draws at once (prepaint.js, `lfSheets`): a served page's bootstrap
-   adopts the chrome's before the first paint, and this module takes the same instances
-   as it evaluates,
+   revision_delivery.py), and the prepaint builds them from it once, for whoever asks
+   first (prepaint.js, `lfSheets`): a served page's bootstrap adopts the chrome's
+   before the first paint, and this module takes the same instances as it evaluates,
    with no request and no await. A CSS module import read the same way and WebKit has
    none; a fetch awaited here would work everywhere and make every page module that
    imports the widget API evaluate after DOMContentLoaded instead. */

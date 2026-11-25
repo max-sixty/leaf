@@ -12,8 +12,8 @@
  * and density. A theme restyles one through those tokens, or with rules of its own.
  * The user chose that an idiom be a default a theme can replace, so these rules, and
  * drawing.css's, stand in a cascade layer of their own, `lf-idioms`, the first of
- * the tier this sheet composes into (`lf-base` in the document, above every cascade
- * layer the page names and the theme's tier, `lf-shadow` in a declared tree, after
+ * the tier this sheet composes into (`lf-base` in the document, above the page's
+ * `base` layer and the theme's tier, `lf-shadow` in a declared tree, after
  * markup's reading face, because shadow.css imports this sheet after reading.css).
  * Every other rule of the tier, whether a component's or a package's `defaults.css`,
  * outranks an idiom's whatever its weight, so a rule that dresses an idiom's element

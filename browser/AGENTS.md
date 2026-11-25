@@ -465,14 +465,13 @@ around the rows already there (`margin-layout.js`). `test_page_fixture_renders` 
 these rules on every corpus page.
 
 Stylesheets apply in cascade layers, ranked by whose element a rule styles
-(`THEME_LAYERS` and `PART_LAYERS` in `layer.py`;
-`../skills/leaf/references/packages.md`, "Styles and composition"): a theme's rules for
-the author's content below every layer the page names, and Leaf's rules for what it
-draws above them, in a sheet the document adopts, and below the page's unlayered
-rules. No sheet the document holds names a tier of `PART_LAYERS`. A widget package's
+(`DOCUMENT_LAYER_ORDER` in `layer.py`; `../skills/leaf/references/packages.md`,
+"Styles and composition"): a theme's rules for the author's content below the page's
+`base` layer, and Leaf's rules for what it draws above it and below the page's other
+layers and unlayered rules. A widget package's
 rules name the widgets they style, so a rule several packages need belongs in the
-kernel. The page's unlayered rules and a package's overrides reach widget controls as
-they reach the page's own; the chrome keeps unlayered page rules up to one class's
+kernel. The page's unlayered rules, its layers after Leaf's and a package's overrides
+reach widget controls as they reach the page's own; the chrome keeps unlayered page rules up to one class's
 weight off itself (`styles/chrome-guard.css`), and a package restyles it on purpose by
 part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 

@@ -21,9 +21,11 @@
  * the document, `lf-shadow` in a declared tree). Every other rule of the tier outranks
  * them whatever its weight, a theme's or the page's control defaults, so a rule that
  * dresses one of these elements for its own purpose weighs only what that purpose
- * needs. In the document every cascade layer the page names, Leaf's faces for what it
- * draws and the page's own sheet outrank the whole tier, so a page's framework resets
- * the face on Leaf's own surfaces as on the page's markup.
+ * needs. In the document the page's `base` layer and those after it, Leaf's faces for
+ * what it draws and the page's own sheet outrank the whole tier, so a page's framework
+ * resets the face on the page's markup. The text Leaf draws from markup, a thread's
+ * transcript and rendered Markdown, also reads the face at the head of `lf-base`
+ * (layer.py, `DRAWN_TEXT`), so a framework's reset leaves it as Leaf drew it.
  *
  * The face's rules for content wider than its box come first: a block of code wraps
  * its long lines, a table scrolls inside itself rather than widening the page, and an

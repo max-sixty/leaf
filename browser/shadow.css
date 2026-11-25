@@ -1,6 +1,6 @@
 /* Shared delivery entrypoint: component owners are independent of document or
  * declared-shadow delivery. Composition supplies the cascade tiers: the document reads
- * the two halves apart, markup's faces below the page's layers and Leaf's above them,
+ * the two halves apart, markup's faces below the page's `base` layer and Leaf's above it,
  * and a declared tree reads this whole sheet in one tier. */
 @import "./styles/markup.css";
 @import "./styles/parts.css";

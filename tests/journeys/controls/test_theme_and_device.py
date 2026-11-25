@@ -11,10 +11,10 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
-    """A page that brings its own framework takes no theme, and its reset, in whatever
-    layer the framework names, clears the page's own elements and leaves what Leaf
-    draws as it was: Leaf's faces for its controls and widgets rank above every layer
-    the page names (layer.py, `PART_LAYERS`). Ranked below them, as a theme's rules
+    """A page that brings its own framework takes no theme, and its reset, in the `base`
+    layer Tailwind keeps it in, clears the page's own elements and leaves what Leaf
+    draws as it was: Leaf's faces for its controls and widgets rank above the page's
+    `base` (layer.py, `DOCUMENT_LAYER_ORDER`). Ranked below it, as a theme's rules
     are, the reset would take the padding, border and ground from Leaf's buttons and
     fields and the frame from a choice group."""
     body = (

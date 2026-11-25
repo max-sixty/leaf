@@ -1230,9 +1230,9 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     carrier = page.locator("script[data-lf-sheets]").text_content()
     selected = json.loads(carrier)
     assert ("annotations" in selected) == (mode == "overlay")
-    # The annotations' page-side placement opens Leaf's faces for what it draws, which
-    # the document adopts, so no sheet the document holds names their tier.
-    assert (".lf-margin-lane {" in selected["parts"]) == (mode == "overlay")
+    assert page.locator("style[data-lf-annotation-theme]").count() == (
+        mode == "overlay"
+    )
     if mode == "page":
         assert ".lf-margin-cluster" not in carrier
         assert ".lf-mark-el {" not in carrier

@@ -4,21 +4,20 @@ import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { generatedElement } from "/runtime/widget-api.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import { render as worktree } from "../../packages/diff/widgets/worktree-view.js";
 import { render as worktrees } from "../../packages/diff/widgets/worktree-diffs-view.js";
-import { adoptShadowStage } from "/runtime/shadow-stage.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import { adoptShadowStage } from "/runtime/dom/shadow-stage.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
-} from "/runtime/projection/authored.js";
+} from "/runtime/records/projection/authored.js";
 import {
   stageWidgetDescriptors,
   bindWidgetDescriptors,
   widgetDescriptor,
-} from "/runtime/widget-descriptors.js";
+} from "/runtime/records/widget-descriptors.js";
 
 test("capture keeps authored values and parentage when rendering moves members", () => {
   document.body.innerHTML =
@@ -161,10 +160,7 @@ test("the contents drawing keeps its native state and keyed rows through revisio
     '<header><lf-toc id="contents"></lf-toc></header><main><h1>Field guide</h1>' +
     '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
   const host = document.querySelector("lf-toc");
-  const reading = {
-    label: (heading) => heading.textContent,
-    chrome: () => false,
-  };
+  const reading = { label: (heading) => heading.textContent };
   const live = drawToc(host, reading);
   render(live.render(reading), host, { host });
   const disclosure = host.querySelector("details");
@@ -207,18 +203,6 @@ test("the contents drawing keeps its native state and keyed rows through revisio
   assert.equal(live.scope(), document.querySelector("main"));
   render(live.render(reading), host, { host });
   assert.equal(live.sections()[1].link, links[2]);
-});
-
-test("generated words declare whether they are said, echoed or apparatus", () => {
-  const heading = generatedElement(document.createElement("h2"), { says: true });
-  const name = generatedElement(document.createElement("span"), { says: "echo" });
-  assert.throws(() => generatedElement(document.createElement("p"), {}), TypeError);
-  const markers = (node) =>
-    ["data-lf-gen", "data-lf-said", "data-lf-echo"].map((a) => node.getAttribute(a));
-  assert.deepEqual(markers(heading), ["1", "", null]);
-  assert.deepEqual(markers(name), ["1", null, ""]);
-  generatedElement(name, { says: false });
-  assert.deepEqual(markers(name), ["1", null, null]);
 });
 
 test("worktree presentation keeps native disclosure and authored evidence while totals change", () => {

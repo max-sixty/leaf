@@ -18,6 +18,7 @@
     "check:browser": "node build/browser/build.mjs --check",
     "test:browser": "node --test build/browser/*.test.mjs build/*.test.mjs .github/scripts/*.test.mjs",
     "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs",
+    "fuzz:editor": "LEAF_FUZZ_DRAFTS=${LEAF_FUZZ_DRAFTS:-100000} node --import ./tests/runtime/dom.mjs --test --test-name-pattern='keep their promises' tests/runtime/field-editor.test.mjs",
     "check:framework": "pnpm run check:browser && pnpm run test:browser",
     "check:worker": "tsc --noEmit --project worker/tsconfig.json && pnpm run test:worker",
     "check:hooks": "tsc --project hooks/tsconfig.json && claude plugin validate .",

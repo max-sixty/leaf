@@ -368,7 +368,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
-    # A click on › lands in the reply (thread/focus.js, `openingPart`); Escape stands
+    # A click on › lands in the reply (records/thread/focus.js, `openingPart`); Escape stands
     # the user on the thread, from which leaving takes the card down.
     expect(preview.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
     page.keyboard.press("Escape")
@@ -453,25 +453,19 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect_preview_words(workflow, f"On it · {detail}")
 
 
-@pytest.mark.parametrize("annotations", ["margin", "page"])
-def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
-    browser, serve, annotations
-):
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(browser, serve):
     """A package control's receipt reads the same wherever its target's controls sit.
 
     The target's agent work rides on its primary control, and every other control shows
     the receipt its contribution gave it. The contrast is a control that gives up the
     primary seat: it goes back to its own receipt, and the new primary takes the work,
-    in the margin or a page's own annotation view as in the Page Map.
+    in the margin as in the Page Map.
     """
-    source = OBLIGATION_PAGE
-    if annotations == "page":
-        source = source.replace("<body>", '<body data-annotations="page">')
     page = open_page(
         browser,
         live_url(
             serve(
-                source,
+                OBLIGATION_PAGE,
                 events=[
                     {**COMMENT_ON_OBLIGATION, "id": "1" * 32},
                     {
@@ -505,30 +499,10 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    if annotations == "margin":
-        seat = page.locator('[data-lf-margin-for="bracket"]')
-        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
-            "data-lf-agent-workflow", "working"
-        )
-    else:
-        seat = page.locator("#receipt-view")
-        page.evaluate("""async () => {
-          const {consumeAnnotations} =
-            await window.__lfWidgetApi();
-          const box = document.createElement('aside');
-          box.id = 'receipt-view';
-          document.querySelector('#bracket').after(box);
-          consumeAnnotations(box, (entries, view) => {
-            box.replaceChildren();
-            for (const entry of entries) {
-              const row = document.createElement('div');
-              row.dataset.lfGen = '1';
-              box.append(row);
-              row.append(...view.controls(entry));
-              view.place(entry, row);
-            }
-          });
-        }""")
+    seat = page.locator('[data-lf-margin-for="bracket"]')
+    expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
     page.evaluate("""async () => {
       const {registerContribution} =
         await window.__lfWidgetApi();
@@ -649,8 +623,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
-        "background": token_colour(page, "--lf-turn-wash"),
-        "icon": token_colour(page, "--lf-turn-ink"),
+        "background": token_colour(page, "--lf-ok-wash"),
+        "icon": token_colour(page, "--lf-ok-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
 
@@ -1063,8 +1037,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_ink = resolved_color("--lf-ink-2")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
-    expected_label_ink = resolved_color("--lf-tip-ink")
-    expected_label_background = resolved_color("--lf-tip-bg")
+    expected_label_ink = resolved_color("--lf-ink")
+    expected_label_background = resolved_color("--lf-card")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at
@@ -1119,7 +1093,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        # The face is what fades and is drawn (preview.js).
+        # The face is what fades and is drawn (annotations/preview.js).
         drawn = label.locator(".lf-preview-face")
         expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)

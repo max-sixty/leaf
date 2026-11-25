@@ -486,10 +486,8 @@ DRAWING_CONTROL_LAYER = {
     "lf-test-drawing-control": {
         "description": "A native offered control inside a drawing viewport.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
@@ -497,7 +495,8 @@ DRAWING_CONTROL_LAYER = {
 }
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
-import { once, offer } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -819,7 +818,7 @@ AIM_POINT = """(el) => {
   return null;
 }"""
 # The promise itself, read where the runtime states it: the aimed box wears `data-lf-aimed`
-# (target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
+# (readings/target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
 # then stands on that same item once the press is made, so the aim's answer before the
 # press and the draft's after it agreeing is the promise being kept.
 AIMED = (
@@ -880,7 +879,7 @@ DRAFT_MARK = """() =>
 # What the arm says about the next press, in the one property that is on screen before
 # the box is read: the cursor of the deepest element at the point, where the aim stands
 # its hand, and whether that element is in a control, which keeps a cursor of its own
-# (page-geometry.js).
+# (panel/page-geometry.js).
 AIM_CURSOR = """async ([x, y]) => {
   const {WORKS} = await window.__lfCheckApi();
   let el = document.elementFromPoint(x, y);

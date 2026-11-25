@@ -118,9 +118,7 @@
   "lf-diff": {
     "description": "A unified patch with per-file navigation, commentable source lines and authored inline notes.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "source": { "type": "string" },
         "collapsed": {
           "type": "boolean"
         },
@@ -131,8 +129,7 @@
           "enum": ["wrap", "scroll"]
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "data",
     "inputs": {
@@ -156,13 +153,10 @@
   "lf-call-diff": {
     "description": "A commentable call-tree diff, linked to the `lf-diff` that holds its patch.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "source": { "type": "string" },
         "diff": { "type": "string" }
       },
-      "required": ["id", "source", "diff"],
-      "additionalProperties": false
+      "required": ["id", "source", "diff"]
     },
     "content": "empty",
     "inputs": {
@@ -181,11 +175,7 @@
   },
   "lf-worktree-diffs": {
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "members",
     "shadow": true,
     "space": "wide",
@@ -195,7 +185,6 @@
   "lf-worktree": {
     "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
@@ -275,8 +264,7 @@
             }
           }
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "owners": ["lf-worktree-diffs"],
     "shadow": true
@@ -284,7 +272,6 @@
   "lf-diff-note": {
     "description": "An authored prose remark under an old or new source line of its lf-diff parent.",
     "attributes": {
-      "type": "object",
       "properties": {
         "file": {
           "type": "string",
@@ -298,8 +285,7 @@
           "pattern": "^[1-9][0-9]*$"
         }
       },
-      "required": ["file", "side", "at"],
-      "additionalProperties": false
+      "required": ["file", "side", "at"]
     },
     "owners": ["lf-diff"],
     "instructions": "Place directly inside lf-diff, beside pre. Set file to the source path, side to old or new, and at to that side's 1-based source line. For renames, old uses the previous path. Notes follow their file disclosure. A note whose file or line is absent remains at the foot with its unmatched address."

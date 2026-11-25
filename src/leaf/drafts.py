@@ -1,7 +1,7 @@
 """The user's unsent words on a page, kept by its server for every tab and device.
 
 A draft is what the user typed or drew into a message box and hasn't sent: a comment,
-a reply, a rewrite or a widget's edit (`browser/runtime/drafts.js` names each by its
+a reply, a rewrite or a widget's edit (`browser/runtime/records/drafts.js` names each by its
 context). The page's server keeps one record of each, so a draft written in one tab
 or on one device stands in every other, which they hear through the same freshness
 look that tells them of the log (`/api/news`'s `drafts`, then `/api/drafts`). Drafts
@@ -13,7 +13,7 @@ it minted, and a send carries its attempt into the log. Each write names the
 generations it may replace (`expect`), and the store takes it only over one of those or
 over none: a tab whose words another tab or device has since replaced hears the current
 record back rather than overwriting it, and writes over it a generation holding its
-words and the tab's (`browser/runtime/drafts.js`, `adopt`). A write names more than one
+words and the tab's (`browser/runtime/records/drafts.js`, `adopt`). A write names more than one
 where it can't know which the store holds, as a page going away does after leaving
 cancelled an earlier write of its own that the store may already have taken. A send or
 a Cancel settles a generation, which removes it (`{attempt, settled}` names the one to
@@ -162,7 +162,7 @@ def _change[T](
                 DRAFTS.write(path, stored)
                 return stored, result
             if held is None:
-                path.unlink(missing_ok=True)
+                DRAFTS.remove(path)
             else:
                 DRAFTS.write(path, held)
     raise RuntimeError("the page's host holds another drafts store")

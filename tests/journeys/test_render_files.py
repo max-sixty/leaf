@@ -261,7 +261,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(widget.get_by_role("menuitemcheckbox", name="Compare")).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
-    # The page's own keys wait while the reader stands in the menu.
+    # The page's letters wait while the reader stands in the menu, as in any ARIA menu.
     page.keyboard.press("c")
     expect(menu).to_be_visible()
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
@@ -414,7 +414,7 @@ def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_
     page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
     expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
     # The editor shows the file before the landing starts the page's scroll, which
-    # names the file in the address as it starts (anchor-travel.js, `arrive`).
+    # names the file in the address as it starts (features/anchor-travel.js, `arrive`).
     expect(page).to_have_url(re.compile("#config:alerts$"))
     scroll_settled(page)
     # The open panel's card starts where it covers the page.

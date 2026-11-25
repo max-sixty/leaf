@@ -100,6 +100,45 @@ def test_check_rejects_an_invalid_bound_and_advises_on_loose_pane_text(page_dir)
     assert pane.severity == "advice"
 
 
+@pytest.mark.parametrize(
+    "items,advised",
+    [
+        ("<section id=open-items>{}</section>", True),
+        ("<section id=open-items hidden=until-found>{}</section>", True),
+        ("<section id=open-items hidden>{}</section>", False),
+        ("<dialog id=open-items open>{}</dialog>", False),
+    ],
+)
+def test_check_advises_a_workspace_to_keep_one_body(page_dir, items, advised):
+    """A workspace's bodies share the window's height evenly, so a list written between
+    its header and its regions halves them and leaves blank space under its own lines,
+    with nothing out of reach for the render check to see. A body that takes no room
+    takes no share, as a script, a dialog or one the page hides does, while one hidden
+    until found keeps its box."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<main>",
+            '<main class="layout-workspace"><header><h1>Plan</h1></header>'
+            + items.format("<ul><li>Merge it</li></ul>")
+            + "<script>void 0</script>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    tag = items[1 : items.index(" ")]
+    assert [
+        (f.at, f.values["line"], f.values["bodies"], f.severity)
+        for f in found(findings, "workspace-bodies")
+    ] == [
+        (
+            "<main>",
+            7,
+            [f"<{tag} id=open-items>", "<lf-group id=plan-questions>"],
+            "advice",
+        )
+    ] * advised
+
+
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
 def test_a_reference_names_any_element_the_page_holds(page_dir, target):
     """A `refers` attribute takes the id of whatever element it names, a section

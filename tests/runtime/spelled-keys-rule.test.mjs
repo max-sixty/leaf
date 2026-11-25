@@ -1,6 +1,6 @@
 /* What `architecture/spelled-keys` refuses (eslint.config.mjs): the form a notice's
    or an error's words took to name a key for their step, which a press the panel's
-   field offers says now (field-readings.js, `press`). */
+   field offers says now (panel/field-readings.js, `press`). */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -20,7 +20,7 @@ test("words that spell a key for a step are refused", () => {
     // The notices and the refusal's sentence before they offered presses.
     'notice("Annotations hidden — o shows them");',
     "notice(`${counted(n, 'change')} since v${since.version} — v shows them`);",
-    'notice("Edit discarded; g D restores it");',
+    'notice("Draft kept; g i resumes it");',
     'const said = [hidden.length && "Draft kept — g i resumes writing"];',
     // An announcement says its keys through the register (`saying`), not in its words.
     "announce(`${title} — g t opens it`);",

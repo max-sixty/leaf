@@ -1,9 +1,9 @@
 /* Code as tokens: the one tokenizing engine, its grammars, the language a block names,
    and the nodes and lines a caller builds from what it returns. It reads nothing Leaf
    composes into a page, and a failure is the caller's to report, as a widget reports
-   one through `failSoft`. Leaf colours the page's own blocks itself (`dressCode` in the
-   package API), and `langForPath` there names the language a file path means, by the
-   page's composed `$languages` table. */
+   one through `failSoft` (failure.js). Leaf colours the page's own blocks itself
+   (`dressCode` in the package API), and `langForPath` there names the language a file
+   path means, by the page's composed `$languages` table. */
 import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
 
 // The language a block of code names, by HTML's own convention for it: a class prefixed
@@ -15,8 +15,8 @@ import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
 // grammar's name is returned. Any other name is null: it colours nothing, and the
 // block stays the colour of its ink, as it would on a page that colours nothing, where
 // a block naming no language (undefined) may take a default, such as a Markdown
-// preview's source; `page check` names such a class (`validation/markup.py`,
-// `language_advice`), unless it is `math`, a formula's LaTeX, which formulas.js
+// preview's source; `page check` names such a class (`markup_checks/markup.py`,
+// `language_advice`), unless it is `math`, a formula's LaTeX, which readings/formulas.js
 // typesets.
 const LANGUAGE_CLASS = /(?:^|\s)language-(\S+)/;
 /** @param {Element | null} element @returns {string | null | undefined} */

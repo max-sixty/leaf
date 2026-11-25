@@ -32,11 +32,7 @@
   },
   "lf-merge-film": {
     "description": "An animated, scrubbable film of worktrunk's wt merge, drawn as one SVG in the page's colours, with flags that re-plot the run. Its commits, refs, worktrees and hook chips are commentable visual parts while they are on screen. It holds the moment it shows as its `frame` output, and a `--seek` command holds the result of the step its button's value names.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "empty",
     "outputs": {
       "frame": {
@@ -51,12 +47,7 @@
   "lf-merge-steps": {
     "description": "The steps of a merge film, told beside it. Its content is one authored <ol>: an <li> per step, each with an <h3> holding a <button commandfor=\"FILM\" command=\"--seek\" value=\"STEP\"> that names the film's step, a <p> saying what the step does, and an empty <p class=\"this-run\">. The module draws the `frame` output of the film named by `for`: it marks the step playing and how this run treats each step, and fills this-run with why a step was skipped or stopped.",
     "attributes": {
-      "type": "object",
-      "properties": {
-        "for": { "type": "string" }
-      },
-      "required": ["id", "for"],
-      "additionalProperties": false
+      "required": ["id", "for"]
     },
     "inputs": {
       "frame": {
@@ -64,9 +55,6 @@
         "reference": "for",
         "property": "frame"
       }
-    },
-    "refers": {
-      "for": {}
     }
   }
 }

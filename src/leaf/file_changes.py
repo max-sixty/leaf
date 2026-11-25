@@ -6,7 +6,7 @@ installed before its constructor returns, and a generation taken before an
 observation retains writes arriving during it. Clock-only lifetime and activity
 transitions still have bounded timed reads. A page's subscription watches the
 directories that report the inputs its reading stamps, and accepts exactly those
-inputs (`served_state.reading`), so diagnostics never wake it and the history under
+inputs (`page_inputs`), so diagnostics never wake it and the history under
 `revisions/` costs it nothing.
 
 A process holds one watchdog observer. Each directory its subscriptions want is
@@ -67,8 +67,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .findings import Finding, note
+from .page_inputs import outside_inputs, page_input, page_roots
 from .page_memory import memo
-from .served_state.reading import outside_inputs, page_input, page_roots
 
 if TYPE_CHECKING:
     from watchdog.events import FileSystemEventHandler

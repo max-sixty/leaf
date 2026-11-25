@@ -63,7 +63,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     from leaf.harness import session_harness
     from leaf.vendoring import renew_layer
 
-    if unready := renew_layer(page_dir, session_harness(), command=True):
+    if unready := renew_layer(page_dir, session_harness()):
         note(unready)
     return page_dir
 
@@ -234,9 +234,6 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
-        from leaf.session_runtime import hand_off_command
-
-        hand_off_command(sys.argv[1:] if args is None else list(args))
         invocation = extra.setdefault("obj", {})
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)
@@ -447,19 +444,22 @@ def package() -> None:
 )
 @click.option(
     "--widget",
+    "widgets",
+    multiple=True,
     metavar="TAG",
-    help="add one upgraded content widget starter",
+    help="add a starter widget under this tag; repeat for more",
 )
-def package_init(package_path: Path, widget: str | None) -> dict:
+def package_init(package_path: Path, widgets: tuple[str, ...]) -> dict:
     """Create a package's registry.json and defaults.css without replacing
     existing files.
 
-    With --widget, add one checked upgraded content widget starter: its
-    declaration in registry.json and its module in widgets/.
+    With --widget, add a working starter widget under each TAG, a yes-or-no choice
+    to change into your own: its declaration in registry.json, its module in
+    widgets/ and its rule at the end of defaults.css.
     """
     from leaf.packages import cmd_package_init
 
-    return cmd_package_init(package_path, widget)
+    return cmd_package_init(package_path, widgets)
 
 
 @package.command("check", short_help="Check a package as one unit.")
@@ -561,10 +561,11 @@ def check(page_dir: Path, render: bool) -> Reported:
 @page.command("_read", hidden=True)
 @page_argument(renew=False)
 def _read(page_dir: Path) -> None:
-    """Private child process of a page's server (`render_gate.handover_pass`)."""
-    from leaf.render_gate.handover_pass import cmd_read
+    """Private child process of a page's server (`handover_pass`)."""
+    from leaf.handover_pass import cmd_read
+    from leaf.validation.command import check_page
 
-    cmd_read(page_dir)
+    cmd_read(page_dir, check_page)
 
 
 @page.command(
@@ -930,7 +931,7 @@ def claim(page_dir: Path, manual_delivery: bool) -> dict:
     Delivery is ready before ownership moves. A watch another session runs on PAGE
     stops watching it. --manual-delivery leaves delivery to your explicit leaf wait.
     """
-    from leaf.service import cmd_claim
+    from leaf.hosting import cmd_claim
 
     return cmd_claim(page_dir, manual_delivery=manual_delivery)
 
@@ -1395,7 +1396,11 @@ def _title_option(command):
 @page_argument(renew=True)
 @click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
-@click.option("--part", metavar="ID", help="declared visual part within --section")
+@click.option(
+    "--part",
+    metavar="ID",
+    help="a visual part within --section, such as one `page state` lists in its `parts`",
+)
 @body_options("the comment's text")
 @_title_option
 @click.option(
@@ -1421,19 +1426,43 @@ def thread_create(
     On Me until their reply or settling reaction. A question whose answers you
     can list takes a widget that asks in the text instead, such as an
     `lf-options` choice, which waits on the user until they pick. Refuses a
-    quote the active revision does not hold, or holds more than once. The
-    comment's id is the thread's.
+    quote the active revision does not show, or shows more than once; words a
+    page's script draws are found on the page as the browser draws it. Refuses
+    a --part the page would show nowhere. The comment's id is the thread's.
     """
-    from leaf.thread import cmd_comment
+    from leaf.thread import Drawn, UndrawnPart, UnsaidQuote, cmd_comment
 
+    body = read_body(text, body_file)
+    try:
+        return cmd_comment(
+            page_dir, quote, section, part, body, title=title, obligation=obligation
+        )
+    except UnsaidQuote as unsaid:
+        # Words a page's script draws are in no file, so the drawn page is asked for
+        # them, outside the page's lease, since a browser takes a second or more.
+        from leaf.render_gate.drawn_anchor import drawn_anchor
+
+        anchor = drawn_anchor(page_dir, unsaid.revision, quote, section)
+        if anchor is None:
+            raise
+        drawn = Drawn(unsaid.revision, anchor=anchor)
+    except UndrawnPart as undrawn:
+        # No render check has read what the visual draws in this version, so the
+        # page is drawn for it, as for a quote.
+        from leaf.render_gate.drawn_anchor import drawn_visuals
+
+        drawn = Drawn(
+            undrawn.revision, drawing=drawn_visuals(page_dir, undrawn.revision)
+        )
     return cmd_comment(
         page_dir,
         quote,
         section,
         part,
-        read_body(text, body_file),
+        body,
         title=title,
         obligation=obligation,
+        drawn=drawn,
     )
 
 
@@ -1469,7 +1498,11 @@ def thread_create(
 )
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
-@click.option("--part", metavar="ID", help="new declared visual part within --section")
+@click.option(
+    "--part",
+    metavar="ID",
+    help="a new visual part within --section, such as one `page state` lists in its `parts`",
+)
 @click.option("--detach", is_flag=True, help="remove the thread's page target")
 def thread_reply(
     destination: str,
@@ -1608,7 +1641,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""
-    from leaf.todos import cmd_create
+    from leaf.tasks import cmd_create
 
     return cmd_create(page_dir, subject, title)
 
@@ -1631,7 +1664,7 @@ def task_start(page_dir: Path, item: str, line: str) -> dict:
     your harness reports agents you started working in the background, as Claude Code
     does. Once nothing holds it, the update or to-do reads stalled until you answer it
     or start it again."""
-    from leaf.todos import cmd_start
+    from leaf.tasks import cmd_start
 
     return cmd_start(page_dir, item, line)
 
@@ -1651,7 +1684,7 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
     answer it elsewhere, or you see the step it asked for take effect, or it no longer
     applies, resolve its thread with `leaf thread resolve`.
     """
-    from leaf.todos import cmd_end
+    from leaf.tasks import cmd_end
 
     return cmd_end(page_dir, task_id, outcome, detail)
 
@@ -1660,23 +1693,27 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
 @page_argument(renew=True)
 @body_options("the JSON outline")
 def task_plan(page_dir: Path, text: str | None, body_file) -> dict:
-    """Replace the page's plan with the JSON list of steps given, in order.
+    """Replace the page's plan with the JSON list of steps given, in order, and
+    print it.
 
-    Each step has a `depth`, 0 for a goal and one more for each level under it.
-    A plain step has a `title` and a `state`: open, working, done or dropped.
-    A step can instead name an `item`, a to-do's id or an obligation's id, and shows
-    that item's title and state, so work that stays owed past your turn is a
-    to-do the plan names:
+    Each step has a `depth`, 0 for a goal and one more for each level under it. A
+    heading has a `title` and groups the steps under it. Every other step is work:
+    `todo` opens a to-do with that title, and `item` names an open to-do's or an
+    obligation's id. A step shows its item's title and state, and a heading is done
+    once its steps are:
 
     \b
-    [{"depth": 0, "title": "Review the pull request", "state": "working"},
-     {"depth": 1, "title": "Check the snapshot diffs", "state": "done"},
+    [{"depth": 0, "title": "Review the pull request"},
+     {"depth": 1, "todo": "Check the snapshot diffs"},
      {"depth": 1, "item": "<to-do id>"},
      {"depth": 1, "item": "widget:<widget-id>"}]
 
-    Write the whole plan each time it changes. Leaving out an open to-do ends
-    nothing; it stays on its list. `[]` clears the plan."""
-    from leaf.plans import cmd_plan
+    The printed plan names each new to-do by its id. Start and end a step's to-do
+    with `leaf task start` and `leaf task end`. Rewrite the plan only when the
+    breakdown changes, naming the steps it already holds by `item`; a `todo` opens a
+    new to-do each time. Leaving out an open to-do ends nothing; it stays on your
+    list. `[]` clears the plan."""
+    from leaf.tasks import cmd_plan
 
     steps = json_body(text, body_file)
     return cmd_plan(page_dir, steps)

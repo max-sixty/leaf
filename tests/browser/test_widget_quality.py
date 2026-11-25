@@ -5,6 +5,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from interact_support import add_test_widget
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors
@@ -12,21 +13,32 @@ from render_harness import ROOT, consume_browser_errors
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate import command as render_command_model
 from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
 from leaf.revision_delivery import json_script
+
+
+def test_the_starter_widgets_leave_the_render_check_nothing_to_advise(
+    tmp_path, browser
+):
+    """What `package init --widget` writes is right as written, for each tag named:
+    the render check draws every starter's example and finds nothing to advise."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-one", "--widget", "lf-two"],
+    )
+    assert made.exit_code == 0, made.output
+    assert widget_findings(browser.unwatched, package) == []
 
 
 def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     """A settled example whose asynchronous drawing rejected was not drawn."""
     package = tmp_path / "package"
-    made = CliRunner().invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-async-panel"],
-    )
-    assert made.exit_code == 0, made.output
+    add_test_widget(package, "lf-async-panel", upgrade=True)
     (package / "widgets/lf-async-panel.js").write_text("""\
 import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-async-panel", class extends LeafElement {
   render() { return html`Instrument`; }
   async getUpdateComplete() {
@@ -39,11 +51,42 @@ customElements.define("lf-async-panel", class extends LeafElement {
         widget_findings(browser.unwatched, package)
 
 
+def test_package_render_check_names_the_import_a_module_fails_to_link(
+    tmp_path, browser, monkeypatch
+):
+    """A widget module that imports a name the imported module doesn't export fails to
+    link, so the page of worked examples says it cannot start. The check ends when the
+    page says so and reports the page's reason, which quotes the browser's message
+    naming the module and the name. A wait that ran to its deadline would instead
+    name the stage the page never reached."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(package), "--widget", "lf-unlinked"]
+    )
+    assert made.exit_code == 0, made.output
+    (package / "widgets/lf-unlinked.js").write_text("""\
+import { notExported } from "/runtime/portable-api.js";
+customElements.define("lf-unlinked", class extends HTMLElement {
+  connectedCallback() { this.textContent = notExported; }
+});
+""")
+    monkeypatch.setattr(
+        render_command_model,
+        "run_in_browser",
+        lambda read: (read(browser.unwatched), "the suite's browser"),
+    )
+    [finding] = render_command_model.widget_quality(package).findings
+    assert finding.code == "unreadable-examples"
+    error = finding.values["error"]
+    assert error.startswith("the runtime could not start: "), error
+    assert "/runtime/portable-api.js" in error and "notExported" in error, error
+
+
 def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
     return f"""\
-import {{ once, commandsChanged }} from "/runtime/widget-api.js";
+import {{ once }} from "/runtime/lib/once.js";
 
 customElements.define(
   "{tag}",
@@ -54,7 +97,7 @@ customElements.define(
         {{ id: "{tag[3:]}.go", keys: [], contextKeys: ["1"], control: this,
           title: "Go", run: () => {{}}{badge} }},
       ] }};
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent("lf-commands", {{ bubbles: true, composed: true }}));
     }}
   }},
 );

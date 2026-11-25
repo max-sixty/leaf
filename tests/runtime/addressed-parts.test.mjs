@@ -18,11 +18,12 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { fragmentKey, fragmentUrl } from "/runtime/anchor-coordinate.js";
+import { fragmentKey, fragmentUrl } from "/runtime/base/anchor-coordinate.js";
 import {
   addressedElements,
   addressedFocus,
   aimTargetAt,
+  elementNamed,
   focusTargetAt,
   fragmentAddress,
   fragmentTarget,
@@ -30,13 +31,13 @@ import {
   revealAddressed,
   visualPartLabel,
   visualParts,
-} from "/runtime/anchor-resolution.js";
-import { targetElement } from "/runtime/resolved-target.js";
-import { registry } from "/runtime/registry.js";
-import { registerVisualParts, visualPartProblems } from "/runtime/visual-parts.js";
-import { layoutChanged } from "/runtime/widget-upgrade.js";
-import { kept } from "/runtime/kept.js";
-import { focusDestination, handBack } from "/runtime/focus.js";
+} from "/runtime/readings/anchor-resolution.js";
+import { targetElement } from "/runtime/readings/resolved-target.js";
+import { registry } from "/runtime/state/registry.js";
+import { visualPartProblems } from "/runtime/state/visual-parts.js";
+import { layoutChanged } from "/runtime/lib/widget-events.js";
+import { kept } from "/runtime/state/kept.js";
+import { focusDestination, handBack } from "/runtime/dom/focus.js";
 
 beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];
@@ -60,17 +61,16 @@ const film = () => {
     element.firstChild.dataset.frame = id.replace("frame:", "");
   };
   draw("one");
-  registerVisualParts(
-    element,
-    () => [
+  element.lfParts = {
+    read: () => [
       {
         id: `frame:${element.firstChild.dataset.frame}`,
         element: element.firstChild,
         label: "a frame",
       },
     ],
-    { reveal: draw },
-  );
+    reveal: draw,
+  };
   return element;
 };
 
@@ -133,16 +133,13 @@ test("travel settles a visible part before a pending replacement can retire it",
   const surface = document.createElement("span");
   source.append(surface);
   document.querySelector("main").append(source);
-  registerVisualParts(
-    source,
-    () => [{ id: `frame:${shown}`, element: surface, label: "a frame" }],
-    {
-      reveal: (id) => {
-        replacing = false;
-        shown = id.replace("frame:", "");
-      },
+  source.lfParts = {
+    read: () => [{ id: `frame:${shown}`, element: surface, label: "a frame" }],
+    reveal: (id) => {
+      replacing = false;
+      shown = id.replace("frame:", "");
     },
-  );
+  };
   const replacement = Promise.resolve().then(() => {
     if (replacing) shown = "two";
   });
@@ -159,7 +156,7 @@ test("a package inventory rejects bad ids instead of recovering or rewriting the
   const element = document.createElement("span");
   source.append(element);
   document.querySelector("main").append(source);
-  registerVisualParts(source, () => [{ id, element, label: "a frame" }]);
+  source.lfParts = { read: () => [{ id, element, label: "a frame" }] };
 
   assert.equal(visualParts(source)[0].id, id);
   for (id of [" frame:one", "frame:one ", "frame:two parts", "", 7, null])
@@ -204,6 +201,30 @@ test("a fragment names an element by its id first, else a widget's key", () => {
   assert.equal(fragmentTarget("#missing:frame:two"), null);
 });
 
+test("an address in an agent's message names its message's element before the page's", () => {
+  // A thread Leaf seats in the page's flow stands before the page's own element.
+  document.body.innerHTML =
+    '<div data-lf-runtime><div class="lf-msg-body"><section id="twice">Message</section>' +
+    '<b id="only-said">From</b></div></div>' +
+    '<main><section id="twice">Page</section><p id="100%">Full</p></main>';
+  const source = film();
+  document.querySelector("main").append(source);
+  const [message, page] = document.querySelectorAll("section");
+  const from = document.querySelector("b");
+
+  assert.equal(elementNamed("twice"), page);
+  assert.equal(elementNamed("twice", page), page);
+  assert.equal(elementNamed("#twice", from), message);
+  assert.equal(elementNamed("twice", from), message);
+  // An id the page lacks names what a reply Leaf draws holds.
+  assert.equal(elementNamed("only-said"), from);
+  // What the message doesn't hold, the page does, a widget's key included.
+  assert.equal(elementNamed("film:frame:two", from), source);
+  // A bare address keeps each `%` it spells; a fragment spells one encoded.
+  assert.equal(elementNamed("100%")?.localName, "p");
+  assert.equal(elementNamed("#100%25")?.localName, "p");
+});
+
 // A plot of three points, drawn as one line, that draws a mark for a point when asked
 // for it by id, whose own aim stands on one point or none, and which stands on a point
 // Leaf puts focus on it for.
@@ -220,7 +241,8 @@ const plot = () => {
   /** @type {Map<string, any>} */
   const marks = new Map();
   const state = { aimed: null, asked: [], settled: [] };
-  registerVisualParts(element, () => [...marks.values()], {
+  element.lfParts = {
+    read: () => [...marks.values()],
     find: (id) => {
       state.asked.push(id);
       const point = id.replace("point:", "");
@@ -241,7 +263,7 @@ const plot = () => {
       state.settled.push(id);
       state.aimed = id;
     },
-  });
+  };
   return { element, line, ring, marks, state };
 };
 
@@ -326,7 +348,7 @@ test("a visual settles on its part as focus is placed there, and at no other tim
   });
 });
 
-test("a visual that registers nothing is read by the parts it marks", () => {
+test("a visual whose lfParts reads nothing is read by the parts it marks", () => {
   document.body.innerHTML = "<main></main>";
   const source = document.createElement("lf-film");
   source.id = "marked";

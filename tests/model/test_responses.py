@@ -11,7 +11,7 @@ from typing import TypedDict
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -46,6 +46,7 @@ from leaf import harness as harness_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.refusals import Refused
@@ -161,6 +162,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     assert f"`leaf thread reply {ref}` answers it" in owed_note()
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
     assert service_model.claim_page(claimed)
     noted = owed_note()
     assert ref not in noted
@@ -319,7 +321,7 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
     assert reply("--done", "--text", "Rebuilt it.") == delivered
     assert events_model.read_events(page_dir) == events
     # With the to-do ended, another answer to the update is refused.
-    todos_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
+    tasks_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
     [refused] = command_findings(
         "thread", "reply", reference, "--done", "--text", "Rebuilt it again."
     )
@@ -540,6 +542,7 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
     reference = response_reference(page_dir, comment)
     cleanup_model.end_session("coordinator")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1008,14 +1011,25 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     prepared = _codex_delivery(page_dir)
     identity = prepared.payload["id"]
     path = codex_model.record_path("codex-thread", identity)
-    record = files_model.read_json(path)
-    if obsolete == "record":
-        record["format"] = "leaf-codex-delivery-v2"
-    else:
-        payload = dict(prepared.payload, format="leaf-delivery-v4")
-        cleanup_model.write_json(delivery_model.delivery_path(identity), payload)
+    record = files_model.read_json(codex_model.RECORD.file(path))
     record.update(state="queued", pending=[0])
-    cleanup_model.write_json(path, record)
+    if obsolete == "record":
+        # The record is one a Leaf of another shape wrote.
+        file = path.with_name(f"{path.stem}@999{path.suffix}")
+        codex_model.RECORD.remove(path)
+        record["format"] = "leaf-codex-delivery/999"
+    else:
+        # The envelope this Leaf's record addresses is one a Leaf of another shape
+        # froze.
+        envelope = delivery_model.delivery_path(identity)
+        delivery_model.DELIVERY.remove(envelope)
+        cleanup_model.write_json(
+            envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
+            dict(prepared.payload, format="leaf-delivery/999"),
+        )
+        file = codex_model.RECORD.file(path)
+    cleanup_model.write_json(file, record)
+    held = file.read_bytes()
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
     assert acknowledged_through(page_dir) == 0
@@ -1027,7 +1041,8 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     assert fresh.payload["batches"][0]["events"][0]["answer"]["ref"].startswith(
         fresh.payload["id"]
     )
-    assert path.exists()  # another checkout's record is not ours to retire
+    # Another checkout's record is not ours to retire.
+    assert file.read_bytes() == held
 
 
 def test_explicit_rich_reply_is_committed_before_later_invalid_source(page_dir):
@@ -1194,7 +1209,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert refused_on(refused.value).code == "not-a-reply"
         assert events_model.read_events(page_dir) == before
-    started = todos_model.cmd_start(
+    started = tasks_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]

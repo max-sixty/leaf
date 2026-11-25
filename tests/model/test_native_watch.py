@@ -25,6 +25,7 @@ from leaf import harness as harness_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.user_views import USER_VIEWS
 
 
 @pytest.fixture
@@ -117,7 +118,9 @@ def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
     try:
         list(watch.tick())
         mark = watch.mark()
-        cleanup_model.write_json(page_dir / "user-views.json", {"diagnostic": True})
+        cleanup_model.write_json(
+            USER_VIEWS.file(page_dir / "user-views.json"), {"diagnostic": True}
+        )
         assert not watch.await_news(mark, timeout=DIAGNOSTIC_QUIET_WINDOW_S)
         source = page_dir / "page" / "nested"
         source.mkdir(parents=True)
@@ -153,7 +156,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     from leaf.cli import resolve_dir
     from leaf.file_bindings import bind_file
     from leaf.file_changes import FileChanges, page_changes
-    from leaf.served_state.reading import page_reading
+    from leaf.page_inputs import page_reading
 
     def respelled(path):
         alias = path.with_name(path.name.swapcase())
@@ -264,7 +267,7 @@ def test_a_directory_arriving_deep_in_a_page_tree_joins_its_subscription(
     moved there from outside the page, move the page's reading, which is what sends
     its owner to subscribe again, and that subscription hears a file written in the
     innermost one."""
-    from leaf.served_state.reading import page_reading
+    from leaf.page_inputs import page_reading
 
     shallow = page_dir / "page" / "modules"
     shallow.mkdir(parents=True, exist_ok=True)
@@ -374,7 +377,9 @@ def test_an_explicit_native_watch_follows_foreign_claim_and_lifecycle_publicatio
             monkeypatch,
         )
         mark = watch.mark()
-        cleanup_model.write_json(page_dir / "user-views.json", {"diagnostic": True})
+        cleanup_model.write_json(
+            USER_VIEWS.file(page_dir / "user-views.json"), {"diagnostic": True}
+        )
         assert not watch.await_news(mark, timeout=DIAGNOSTIC_QUIET_WINDOW_S)
     finally:
         watch.release()
@@ -390,7 +395,7 @@ def test_failed_claim_discovery_publication_preserves_ownership(
     before = service_model.page_claim(page_dir)
     locator = (
         service_model.session_claims("successor")
-        / service_model.claim_path(page_dir).name
+        / service_model.CLAIM.file(service_model.claim_path(page_dir)).name
     )
     replace = service_model.os.replace
 
@@ -469,15 +474,18 @@ def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
                         # The mark planned again after subscribing, so the
                         # prepared claim is already among what it watches.
                         assert watch.change_pages is not None
-                        assert service_model.claim_path(page_dir).name in {
-                            target.name for target in watch.change_pages[1]
-                        }
+                        assert service_model.CLAIM.file(
+                            service_model.claim_path(page_dir)
+                        ).name in {target.name for target in watch.change_pages[1]}
                     else:
                         mark = watch.mark()
                         publishing = prepare()
                         assert watch.await_news(mark, timeout=STATED_TIMEOUT)
                     assert (
-                        partition / service_model.claim_path(page_dir).name
+                        partition
+                        / service_model.CLAIM.file(
+                            service_model.claim_path(page_dir)
+                        ).name
                     ).is_symlink()
                     assert service_model.owned_pages("successor") == []
                     assert list(watch.tick()) == []

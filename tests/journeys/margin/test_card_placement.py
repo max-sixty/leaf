@@ -22,7 +22,7 @@ from render_harness import (
 )
 
 from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -75,6 +75,10 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
         assert control.bounding_box() == pytest.approx(boxes[name], abs=0.5), name
 
     editor = preview.locator("leaf-text")
+    # The step's arrival carries the reply row down over 300ms. A click while the row
+    # travels scrolls the page before it lands, by Playwright's reveal of its target
+    # and no scroll of Leaf's, and the boxes read after it stand off the window.
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
@@ -131,7 +135,9 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
 # (placement-rules.json). Each finding names its case and the rule it breaks, so one run
 # reports every rule a placement breaks rather than the first.
 PLACEMENT_RULES = json.loads(
-    (ROOT / "browser/runtime/annotation-overlay/placement-rules.json").read_text()
+    (
+        ROOT / "browser/runtime/annotations/annotation-overlay/placement-rules.json"
+    ).read_text()
 )
 # Each finding the sweep can report, by the one rule that names it (`swept`).
 SWEEP_RULE = {
@@ -443,7 +449,7 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
         rendered(page)
 
     def closed():
-        # A click on the marker lands in the reply (thread/focus.js, `openingPart`);
+        # A click on the marker lands in the reply (records/thread/focus.js, `openingPart`);
         # Escape stands the user on the thread, from which the next takes the card down.
         expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
         page.keyboard.press("Escape")

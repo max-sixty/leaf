@@ -163,8 +163,10 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-scale-options > .lf-btn {
-  /* Selection changes the face, never the width of its words. */
+.lf-shotoptions .lf-shot-scale-options > :where(button) {
+  /* Selection changes the face, never the width of its words. At two classes' weight
+     the rule ties the font a thread gives the presses in it (controls.css), and wins
+     by standing after it. */
   font: var(--lf-font-choice);
   white-space: nowrap;
 }
@@ -403,11 +405,11 @@ lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   user-select: text;
 }
 .lf-shotcap[data-lf-state="before"] {
-  background: var(--lf-del-tint);
+  background: var(--lf-danger-tint);
   color: var(--lf-danger-ink);
 }
 .lf-shotcap[data-lf-state="after"] {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {

@@ -7,7 +7,8 @@ task's delivery record, offers one delivery at a time, and reconciles the receip
 page is owed however that delivery was taken.
 
 While a turn runs, its tool hook can offer the shared record between steps
-(`codex.offer_hook_delivery`), and on the queue route its Stop hook as it would end.
+(`codex.offer_hook_delivery`), and on the queue route its Stop hook as it would end
+(`later_turn_takes_input`).
 The adapter reserves its own transport only once that turn ends, or at once where
 nothing would show it the turn's end (`_offer_queued_delivery`), and an unread hook
 pointer then falls back to the same durable delivery.
@@ -54,15 +55,16 @@ one, environment included, so an adapter left running would load each module it
 imports later from the new copy, beside the old modules it already holds. So the
 adapter asks each pass which copy should run it now (`state.LoadedCopy.successor`),
 as a page server does (`server.stop_when_service_ends`), and once that names one,
-hands its task to an adapter from that copy (`_hand_over`). An adapter running
-Codex's copy moves to the copy Codex puts at its path, and one that another
-installed copy started, as a bare `leaf` from a Claude Code shell does, moves to
-the copy the task's hooks run. An update that moves the page protocol leaves the
-task's pages at the old one, which the restart of each page's server renews
-(`hosting.follow_copy`), and the successor delivers their input once it does. A
-checkout's adapter follows no copy: it keeps the modules it loaded and imports any
-later one from the checkout as it stands, since whoever runs a checkout decides
-when it changes.
+hands its task to an adapter from that copy (`_hand_over`). Only the Leaf the
+task's hooks run claims for the task (`harness.session_harness`), so an adapter
+starts from that copy. One running Codex's copy moves to the copy Codex puts at its
+path, and one whose task's hooks have since run another installed copy moves to
+that one. An update that moves the page protocol leaves the task's pages at the old
+one, which the restart of each page's server renews (`hosting.follow_copy`), and
+the successor delivers their input once it does. An adapter from a checkout, as
+where the task's hooks run one, follows no copy: it keeps the modules it loaded
+and imports any later one from the checkout as it stands, since whoever runs a
+checkout decides when it changes.
 
 Restarting the adapter from the task's prompt hook would leave it on its deleted
 copy until the task's next prompt, which can come hours later. Replacing the process
@@ -156,9 +158,8 @@ QUEUE_TIMEOUT = 20
 ADAPTER = Record(
     "codex-adapter",
     described(
-        "A Codex task's running delivery adapter, written into the lease it holds "
-        "at the state home's `sessions/<digest>.adapter`. A session can select a "
-        "replacement runtime while this lease remains held (`running_adapter`).",
+        "A Codex task's running delivery adapter, beside the lease it holds at "
+        "the state home's `sessions/<digest>.adapter` (`running_adapter`).",
         object_schema(
             {
                 "app_server": described(
@@ -167,14 +168,9 @@ ADAPTER = Record(
                     {"type": ["string", "null"]},
                 )
             },
-            {
-                "launcher": described(
-                    "The launcher running the adapter.", {"type": "string"}
-                )
-            },
         ),
     ),
-    since=13,
+    since=56,
 )
 
 
@@ -499,8 +495,8 @@ class TaskConnection:
         unresolved = set()
         directory = codex.delivery_dir(self.thread_id)
         for path in (
-            *directory.glob("*.json"),
-            *(directory / "history").glob("*.json"),
+            *codex.RECORD.glob(directory),
+            *codex.RECORD.glob(directory / "history"),
         ):
             record = codex.read_record(path)
             if not isinstance(record, codex.ReceiptOutcome):
@@ -961,10 +957,9 @@ def run_adapter(
     handshake: Handshake | None = None,
     app_server: str | None = None,
 ) -> int:
-    """Own the session watch until every claimed page ends or transfers, the session
-    selects another Leaf, or another copy should run the adapter
-    (`LoadedCopy.successor`), in which case the adapter first starts its successor
-    from that copy.
+    """Own the session watch until every claimed page ends or transfers, or another
+    copy should run the adapter (`LoadedCopy.successor`), in which case the adapter
+    first starts its successor from that copy.
 
     A detached adapter announces its readiness through `handshake` once it holds
     its leases and its transport answers, and exits if `leaf page claim` left
@@ -973,21 +968,15 @@ def run_adapter(
     if harness is None or harness.name != CodexHarness.name:
         raise Refused("the Codex adapter needs a Codex task identity")
     with ExitStack() as resources:
-        from .session_runtime import own_launcher, selected_launcher
-
         copy = LoadedCopy()
         resources.callback(copy.close)
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
-        # The lease record names this adapter's transport, so a later `leaf page claim`
-        # in the task verifies any requested endpoint against the one it joins.
+        # The lease's record names this adapter's transport, so a later `leaf page
+        # claim` in the task verifies any requested endpoint against the one it joins.
         resources.callback(release_lease, lease)
-        lease.truncate(0)
-        lease.write(
-            ADAPTER.encode({"app_server": app_server, "launcher": str(own_launcher())})
-        )
-        lease.flush()
+        ADAPTER.write(adapter_lease_path(harness.session), {"app_server": app_server})
         watch = Watch(harness)
         if not watch.acquire():
             raise Refused(
@@ -1018,12 +1007,6 @@ def run_adapter(
             return 1
         failures = 0
         while True:
-            selected = selected_launcher(harness.session)
-            if selected is not None and selected != own_launcher():
-                # Selection belongs to the session, so the former adapter leaves
-                # before reading another page. Preparation holds the start lock
-                # until these leases and the connection are released.
-                return 0
             if (root := copy.successor(harness.session)) is not None:
                 return _hand_over(harness, codex_path, app_server, resources, root)
             try:
@@ -1083,15 +1066,20 @@ def run_adapter(
 
 
 @contextmanager
-def preparing_adapter(harness: CodexHarness):
+def preparing_adapter(harness: Harness):
     """Retain a ready adapter for `harness`'s task until the caller commits page
-    ownership.
+    ownership (`hosting.preparing_delivery`), unless a model wait this task
+    already selected remains its watcher.
 
     The same task start lock serializes adapter startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
-    claim exists, without an adapter retiring in that gap. A new adapter captures
+    claim exists, without an adapter retiring in that gap, and a failed
+    preparation precedes any page ownership transition. A new adapter captures
     the launching harness's canonical session generation before subscribing to turns.
     """
+    if wait_is_live(None, harness.session) and not adapter_is_live(harness.session):
+        yield
+        return
     executable = shutil.which("codex")
     if executable is None:
         raise Refused("cannot find the `codex` executable on PATH")
@@ -1100,26 +1088,19 @@ def preparing_adapter(harness: CodexHarness):
     app_server = os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
         app_server_socket_path(app_server)
-    launch_lock = adapter_start_lock_path(session_id)
-    with ExitStack() as preparation:
-        from .session_runtime import selected_launcher
-
-        while True:
-            preparation.enter_context(flocked(launch_lock))
-            launcher = selected_launcher(session_id)
-            record = running_adapter(session_id)
-            if (
-                record is None
-                or launcher is None
-                or record.get("launcher") == str(launcher)
-            ):
-                break
-            # The former adapter leaves at the top of its next pass, which can
-            # follow a 30 s wait between retries, and its lease goes as it exits.
-            # Let it take the start lock on its way out too, then retry
-            # preparation under that lock rather than racing a third start.
-            preparation.pop_all().close()
-            time.sleep(0.05)
+    with flocked(adapter_start_lock_path(session_id)):
+        record = running_adapter(session_id)
+        if record is not None and "other" in record:
+            if app_server is not None:
+                raise Refused(
+                    f"a Codex delivery adapter another Leaf version started is "
+                    f"active for task {session_id}, through a transport this Leaf "
+                    "can't read; it hands the task to this Leaf's adapter once the "
+                    "task's hooks run this Leaf, so claim the page again after the "
+                    "task's next prompt"
+                )
+            yield
+            return
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
@@ -1131,14 +1112,12 @@ def preparing_adapter(harness: CodexHarness):
             yield
             return
         # Existing active ownership already proves the canonical lifetime and
-        # generation. A detached preview can replace its adapter, but its process
-        # ancestry cannot rediscover the interactive harness that took the page.
-        # A new acquisition still establishes that evidence in its own harness.
+        # generation. A new acquisition establishes that evidence in its own harness.
         # owned_pages checks generation and liveness, so retained claims cannot
         # lend an ended session their former authority.
         if not owned_pages(session_id):
             ensure_session(session_id, harness.lifetime())
-        _start_adapter(harness, executable, app_server, launcher)
+        _start_adapter(harness, executable, app_server, None)
         yield
 
 
@@ -1211,10 +1190,42 @@ def running_adapter(session_id: str) -> dict | None:
     """The live adapter's lease record, naming its transport, or None when no
     adapter holds the lease. An adapter can let go between the question and the
     read, since only its retirement takes the start lock, and its record goes with
-    it; that reads as no adapter."""
+    it; that reads as no adapter. One a Leaf of another `ADAPTER` shape started
+    keeps its record where this Leaf reads none, so it reads as running with its
+    transport unknown, `{"other": <its record>}`, and delivers the task's input
+    until it hands the task to this Leaf's adapter (`state.Record`)."""
     if not adapter_is_live(session_id):
         return None
-    return ADAPTER.read(adapter_lease_path(session_id))
+    path = adapter_lease_path(session_id)
+    if (record := ADAPTER.read(path)) is not None:
+        return record
+    if others := ADAPTER.others(path):
+        return {"other": others[0]}
+    return None
+
+
+def later_turn_takes_input(session_id: str) -> bool:
+    """Whether input that arrives as this task's turn ends goes to a turn of its own
+    rather than into the ending one, where the Stop hook would hand it
+    (`hooks.offer_at_step`): only where the task's adapter delivers over App Server.
+
+    That turn opens on a `leaf_delivery` tool output, which adds no message to the
+    user's conversation. Through `codex queue` the turn opens on a `leaf-delivery`
+    pointer that Codex shows as a message from the user, which is noisier than the
+    one more message the ending turn writes, so there Stop hands the input into the
+    ending turn.
+
+    An adapter takes its lease before it writes its transport there, and holds the
+    start lock across that, so the record is read under the start lock."""
+    if not adapter_is_live(session_id):
+        return False
+    with flocked(adapter_start_lock_path(session_id)):
+        adapter = running_adapter(session_id)
+    # One another Leaf version started reads its own delivery records, not this
+    # Leaf's, so input it will deliver is left to it, as to an App Server's.
+    return adapter is not None and (
+        "other" in adapter or adapter["app_server"] is not None
+    )
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

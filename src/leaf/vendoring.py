@@ -48,12 +48,15 @@ from .layer import (
 from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
-from .registry.kernel import kernel_protocol
-from .registry.storage import LAYER, layer_packages, layer_record
+from .registry.storage import (
+    IncompatibleLayer,
+    layer_packages,
+    layer_record,
+    write_layer,
+)
 from .schema import (
     HTML_NAME,
     INIT_LOCK,
-    LAYER_FILE,
     PACKAGES_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -61,21 +64,12 @@ from .schema import (
 )
 from .service import (
     PageTransaction,
-    claim_is_active,
     claim_path,
-    claimant_matches,
+    held_elsewhere,
     page_claim,
+    refuse_held,
 )
-from .session_runtime import select_checkout
-from .state import (
-    PLUGIN_ROOT,
-    SESSION_SUFFIX,
-    flocked,
-    hooks_root,
-    remove_claim,
-    session_file,
-    session_record,
-)
+from .state import flocked, hooks_run_here, remove_claim
 
 
 def cmd_init(
@@ -91,7 +85,8 @@ def cmd_init(
 
     Everything that can refuse the rewrite is decided first, in a dry run with the
     page still served, so a refused one leaves its server untouched: a restart
-    would bring this Leaf's server back over a record it may not serve.
+    would bring this Leaf's server back over a record it may not serve. A page a
+    live session holds is rewritten only for that session (`service.refuse_held`).
     An unchanged record and package copies need no transition, so neither
     files nor the server change. `dry_run` reports this decision without committing.
     Only a changed contract takes the service down (`hosting.restarting_server`)
@@ -114,6 +109,7 @@ def cmd_init(
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     harness = session_harness()
     if initialized(page_dir):
+        refuse_held(page_dir, harness)
         if dry_run:
             with page_locked(page_dir):
                 plan = _plan_page(page_dir, selected, fresh=False)
@@ -133,35 +129,10 @@ def cmd_init(
                 raise
     # What the selected packages advise their authors, who chose them here.
     note(*advice)
-    if harness is not None:
-        _deliver_from_here(page_dir, harness)
     return {"page": str(page_dir), "packages": layer_packages(page_dir)}
 
 
-def _deliver_from_here(page_dir: Path, harness: Harness) -> None:
-    """Where the session holds the page this command initialized, make this Leaf
-    its delivering Leaf (`session_runtime.select_checkout`), since the copy the
-    session loaded may not read the page at this protocol. Where that changed the
-    selection, start delivery again: a Codex task's adapter running from the former
-    Leaf leaves once another is selected.
-
-    The session's hooks read only the pages it holds, so a page it doesn't hold
-    leaves the selection alone: one a plain preview or a scratch `page init`
-    builds, or one another session holds. That includes a scratch page a Claude
-    Code subagent builds in its own worktree, whose commands act for the session
-    (`ClaudeCodeHarness`)."""
-    claim = page_claim(page_dir)
-    if (
-        claim_is_active(claim)
-        and claimant_matches(claim, harness)
-        and select_checkout(harness.session)
-    ):
-        harness.ensure_delivery()
-
-
-def renew_layer(
-    page_dir: Path, harness: Harness | None, *, command: bool
-) -> Finding | None:
+def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     """Take a page at an older page protocol, which this Leaf cannot serve
     (`event_contracts.write_refusal`), to this Leaf's, for the session `harness`
     names, and say what still holds the page back, for its agent to act on.
@@ -182,10 +153,6 @@ def renew_layer(
     first hook under this Leaf renews it. Nor does it renew a page a newer Leaf
     initialized, which `_plan_page` refuses.
 
-    A `command` from a checkout also selects that checkout to deliver for the
-    session, where the session holds the page (`_deliver_from_here`); a hook leaves
-    the selection alone.
-
     What it finds is why the renewal was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
     Leaf accepted may fail this one's checks. None where the page needed no
@@ -199,20 +166,7 @@ def renew_layer(
         refusal = write_refusal(page_dir)
         if refusal is None or refusal.code != "foreign-layer":
             return False
-        claim = page_claim(page_dir)
-        # Record.read leaves another Leaf's format alone. Its file still names
-        # an owner we cannot prove ended, so automatic renewal must leave it too.
-        if claim is None and claim_path(page_dir).is_file():
-            return False
-        if claimant_matches(claim, harness):
-            return True
-        if (
-            claim is not None
-            and session_record(claim["id"]) is None
-            and session_file(claim["id"], SESSION_SUFFIX).is_file()
-        ):
-            return False
-        return not claim_is_active(claim)
+        return held_elsewhere(page_dir, harness) is None
 
     if not renewable():
         return None
@@ -222,8 +176,6 @@ def renew_layer(
         return Finding(
             "renewal-refused", values={"page": str(page_dir), "error": str(error)}
         )
-    if command and harness is not None:
-        _deliver_from_here(page_dir, harness)
     return _unready(page_dir, errors)
 
 
@@ -238,17 +190,13 @@ def renew_held(page_dir: Path, session_id: str) -> Finding | None:
     page, deliver its input once the renewal lands.
 
     A page another session holds is left alone, and so is one whose session's hooks
-    last ran another Leaf (`state.hooks_root`), as a server another harness's copy
-    started can serve a page a session of another harness took since: renewed, the
-    page would be one its session's hooks can no longer read."""
+    last ran another Leaf (`state.hooks_run_here`), as a server another harness's
+    copy started can serve a page a session of another harness took since: renewed,
+    the page would be one its session's hooks can no longer read."""
     held = page_claim(page_dir)
-    if (
-        held is None
-        or held["id"] != session_id
-        or hooks_root(session_id) != PLUGIN_ROOT
-    ):
+    if held is None or held["id"] != session_id or not hooks_run_here(session_id):
         return None
-    return renew_layer(page_dir, claim_harness(held), command=False)
+    return renew_layer(page_dir, claim_harness(held))
 
 
 def _reinit(
@@ -333,8 +281,8 @@ def _init_page(
     return what keeps a re-selected index.html from activating, with what its
     packages advise (`_PagePlan`); a re-selection `still` no longer wants under the
     transaction commits nothing."""
+    from .authored_checks.source import check_source
     from .revisioning import activate_checked_source
-    from .validation.source import check_source
 
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
@@ -375,8 +323,9 @@ class _PagePlan(NamedTuple):
     """An admitted init, decided before anything is written: the record it writes,
     the package directories it copies into the page, by the name of each copy,
     whether either differs from the page's, and what the selected packages advise
-    their authors of their own declarations (`validation.composition.layer_advice`),
-    which `page init` says beside the page."""
+    their authors of their own declarations
+    (`authored_checks.declarations.layer_advice`), which `page init` says beside the
+    page."""
 
     record: dict
     copies: dict[str, Path]
@@ -397,24 +346,26 @@ def _plan_page(
     than taken back to this Leaf's: a process the session started before its plugin
     updated, or an agent following an older Leaf's advice, would otherwise take the
     page down, and the newer Leaf's next command or hook up again, reloading the
-    user's tabs each time."""
+    user's tabs each time. A page an older Leaf initialized keeps its selection
+    (`layer_packages`) under a new generation."""
+    previous = None
     if not fresh:
-        from .event_contracts import write_refusal
-
-        if (refusal := write_refusal(page_dir)) and refusal.code == "newer-layer":
-            raise Refused(str(refusal))
-    previous = None if fresh else layer_record(page_dir)
+        try:
+            previous = layer_record(page_dir)
+        except IncompatibleLayer as refused:
+            if refused.findings[0].code == "newer-layer":
+                raise
     # A selection the caller names resolves where they run; the page's own, against
     # the copies it holds.
     named = selected is not None
     if not named:
-        selected = tuple(previous["packages"]) if previous else ()
+        selected = () if fresh else tuple(layer_packages(page_dir) or ())
     inputs = layer_inputs(selected, Path.cwd() if named else page_dir)
     _refuse_package_target(page_dir, inputs)
     roots = checked_layer_inputs(inputs)
     _refuse_input_destination_overlap(roots, page_dir.resolve())
     composition = compose_layer(roots)
-    from .validation.composition import layer_advice
+    from .authored_checks.declarations import layer_advice
 
     # Named by the packages the selection names, before any copy into the page.
     advice = tuple(layer_advice(roots, composition.vocabulary.registry))
@@ -457,15 +408,12 @@ def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
 
 
 def _record(selected: tuple[str, ...], previous: dict | None) -> dict:
-    """The layer record selecting `selected` at this Leaf's protocol, keeping
-    `previous`'s generation where it selects the same: a generation names a change in
-    what an open document runs under, not an invocation."""
-    record = {"packages": list(selected), "protocol": kernel_protocol()}
-    if previous is not None and all(
-        previous.get(key) == value for key, value in record.items()
-    ):
+    """The layer record selecting `selected`, keeping `previous`'s generation where
+    it selects the same: a generation names a change in what an open document runs
+    under, not an invocation."""
+    if previous is not None and previous["packages"] == list(selected):
         return previous
-    return {**record, "generation": secrets.token_hex(16)}
+    return {"packages": list(selected), "generation": secrets.token_hex(16)}
 
 
 def _write_record(page_dir: Path, plan: _PagePlan) -> None:
@@ -484,7 +432,7 @@ def _write_record(page_dir: Path, plan: _PagePlan) -> None:
             (staged / path).write_bytes(data)
         shutil.rmtree(target, ignore_errors=True)
         staged.rename(target)
-    LAYER.write(page_dir / LAYER_FILE, plan.record)
+    write_layer(page_dir, plan.record)
 
 
 def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:

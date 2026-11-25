@@ -1,10 +1,12 @@
-"""Capture authored anchor requests against the file-side passage reading."""
+"""Capture authored anchor requests against the file-side passage reading, and check a
+visual part an agent names against what the page drew of its visual."""
 
 import bisect
 import functools
 import itertools
 from typing import NamedTuple
 
+from .findings import Finding
 from .passages import COLLAPSE_CHARS, collapse, page_passages
 from .registry.contract import visual_parts
 from .registry.kernel import kernel_passages
@@ -15,6 +17,11 @@ from .structure import SourceDocument
 # its semantic fences until the shared resolver identifies that exact span. Both
 # readers accept that complete context, and neither guesses by document order.
 CONTEXT = kernel_passages()["context"]
+
+
+class Unsaid(ValueError):
+    """The file's reading of the page doesn't hold the quote, which the page may still
+    draw, as a page's script draws words of its own (`render_gate.drawn_anchor`)."""
 
 
 def enclosing_section(owner: list, lo: int, hi: int):
@@ -62,7 +69,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
     spans, in order: its letters, a space or an edge between two of them where the quote
     has a space, and nothing or an edge where it has none. An edge is where two inline
     elements meet, and only the page's CSS says whether a word ends there, so either
-    reading of it matches: the file side of `passages.js.scan`. A copy past a fence is
+    reading of it matches: the file side of `readings/passages.js.scan`. A copy past a fence is
     no copy, since the page has words there this text doesn't, but it takes its place
     in order: the next copy starts past it. An empty quote names no passage, as in the
     browser's `findQuote`."""
@@ -92,7 +99,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
 
 def _context(passages, lo: int, hi: int) -> tuple[str, str]:
     """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
-    passage-cell fence: the file side of `passages.js.neighbourhood`, which capture
+    passage-cell fence: the file side of `readings/passages.js.neighbourhood`, which capture
     stores and resolution compares against. The text is collapsed, so the space is
     the only collapse character left to trim; Python's own whitespace is wider."""
     text, fences = passages.text, passages.fences
@@ -104,7 +111,7 @@ def _context(passages, lo: int, hi: int) -> tuple[str, str]:
 def resolve_quote(passages, anchor: dict) -> int | None:
     """Resolve a stored quote by exact context, or a sole surviving occurrence.
 
-    This is the file side of `passages.js.findQuote`: document order never
+    This is the file side of `readings/passages.js.findQuote`: document order never
     disambiguates repeated words, and a passage-cell fence cannot be crossed.
     An observation already detached at capture cannot become exact by losing siblings.
     """
@@ -148,6 +155,9 @@ def capture_anchor(
     A refusal about a quote or a section names what the reading found and a recourse in
     the reader's terms — quote more of the surrounding text, or name the section. Only a
     refusal about a CLI-only input, such as `--part`, names its flag.
+
+    A `part` passes here where its visual's declaration admits the id; whether the page
+    draws it is `drawn_part`'s to say, since only a drawing of the page knows.
 
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a
@@ -201,7 +211,7 @@ def capture_anchor(
     if section:
         span = passages.spans.get(section)
         if span is None:
-            raise ValueError(
+            raise Unsaid(
                 f"§ {section} holds no quotable text — a widget's data body is its source, "
                 "not its words. Anchor on the element itself, without a quote."
             )
@@ -209,7 +219,7 @@ def capture_anchor(
     where = "the page" if not section else f"§ {section}"
     hits = occurrences(passages, wanted, lo_bound, hi_bound)
     if not hits:
-        raise ValueError(
+        raise Unsaid(
             f"{where} doesn't say {wanted!r}; quote the words this version shows, "
             "or name the section"
         )
@@ -245,3 +255,54 @@ def capture_anchor(
         **({"prefix": prefix} if prefix else {}),
         **({"suffix": suffix} if suffix else {}),
     }
+
+
+class Drawing(NamedTuple):
+    """What one drawing of a version read of each visual, by the visual's id, as the
+    render reading keeps it (`render_reading.READING`, `visuals`); None where no
+    browser could draw the page. `when` names the drawing in a message's words, such
+    as "when the page was last checked"."""
+
+    visuals: dict[str, dict] | None
+    when: str
+
+
+def drawn_part(section: str, part: str, drawing: Drawing) -> Finding | None:
+    """What `drawing` says of a thread on `part` in the visual `section`, whose
+    declaration admits the id (`capture_anchor`), as the browser resolves its anchor
+    (`resolveAnchor`): the note to give beside the thread, or None.
+
+    - The visual drew the part: None.
+    - It didn't, and the page puts the thread on the whole visual until the visual
+      draws the part (`whole`): a note naming the parts it drew, or None where it
+      lists no parts, as a chart lists none of the points it finds by id when asked,
+      since there is no list to offer.
+    - It didn't, and the page would show the thread nowhere: a ValueError naming the
+      parts it drew and the way to put the thread on the whole visual, which every
+      visual takes, so the agent can always post.
+    - No drawing read the visual: a note saying the part went unchecked."""
+    visual = (drawing.visuals or {}).get(section)
+    if visual is None:
+        return Finding("unchecked-part", values={"section": section, "part": part})
+    drew = [drawn["id"] for drawn in visual["parts"]]
+    if part in drew or (visual["whole"] and not drew):
+        return None
+    if visual["whole"]:
+        return Finding(
+            "part-on-whole",
+            values={
+                "section": section,
+                "part": part,
+                "when": drawing.when,
+                "drew": drew,
+            },
+        )
+    named = (
+        f"it drew {', '.join(drew)}. Name one of those, or leave"
+        if drew
+        else "it drew no part at all. Leave"
+    )
+    raise ValueError(
+        f"§ {section} drew no part {part!r} {drawing.when}; {named} out --part to put "
+        "the thread on the whole visual"
+    )

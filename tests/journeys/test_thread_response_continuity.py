@@ -279,17 +279,17 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             # Two tabs writing one draft keep the first write, so the other tab
             # writes over the composing words only once it has heard them.
             other.evaluate(
-                "async () => { window.loadDraft = (await window.__lfWidgetApi()).loadDraft; }"
+                "async () => { window.draft = (await window.__lfWidgetApi()).draft; }"
             )
             other.wait_for_function(
-                "parent => window.loadDraft('reply:' + parent)?.text === 'Composing'",
+                "parent => window.draft('reply:' + parent).read()?.text === 'Composing'",
                 arg=parent,
             )
         # The other tab's words reach this one through the page's server.
         other.evaluate(
             """async parent => {
-              const {saveDraft} = await window.__lfWidgetApi();
-              saveDraft('reply:' + parent, 'First line');
+              const {draft} = await window.__lfWidgetApi();
+              draft('reply:' + parent).save('First line');
             }""",
             parent,
         )
@@ -339,18 +339,15 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             consume_moves_below_the_reply(other)
         return
 
-    # A margin card beside its passage holds its reply's foot while the user types in
-    # it, so the line being edited stays and the first line comes down to it; a seat
-    # holds the first line.
-    def held(box):
-        return box["y"] + box["height"] if place == "margin" else box["y"]
-
+    # A seat holds the reply's first line, and so does a margin card beside its
+    # passage while the user types in it: the lines taken away shorten the box from
+    # its foot.
     before = editor.bounding_box()
     for _ in range(4):
         page.keyboard.press("Backspace")
         rendered(page)
         now = editor.bounding_box()
-        assert held(now) == pytest.approx(held(before), abs=0.5), (before, now)
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
     assert now["height"] < before["height"] - 50, (before, now)
     expect(editor).to_have_js_property("value", "First line")
     expect(editor).to_be_focused()
@@ -501,11 +498,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     draft = panel_field(page) if place == "panel" else owner.locator("leaf-text")
     expect(draft).to_be_visible()
     if place == "nested-end":
-        page.evaluate("""async () => {
-          const body = document.querySelector('#continuity-scroll');
-          const {registerReadingRegion} = await window.__lfWidgetApi();
-          registerReadingRegion({id: 'continuity-scroll', host: body, body});
-        }""")
+        page.locator("#continuity-scroll").evaluate(
+            "body => body.setAttribute('data-lf-scroll', 'continuity')"
+        )
     held = []
 
     def hold(route):
@@ -600,7 +595,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     else:
         # A card gives the refused turn's room back too, and its field grows to show
         # the words whole: the reply box, and the page after it, move. A margin card
-        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # holds its top through a send (`keptLine`, thread-preview.js), so its reply
         # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(

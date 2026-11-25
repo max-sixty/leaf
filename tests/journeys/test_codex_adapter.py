@@ -341,7 +341,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             assert delivery.tag == "leaf-delivery"
             assert delivery.attrib["operation"] == "delivery read"
             assert set(delivery.attrib) == {"operation", "id"}
-            payload_path = delivery_model.delivery_path(delivery.attrib["id"])
+            payload_path = delivery_model.DELIVERY.file(
+                delivery_model.delivery_path(delivery.attrib["id"])
+            )
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY.format
@@ -350,10 +352,10 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 == {"page", "claim", "through_seq", "threads", "handling", "events"}
                 for batch in payload["batches"]
             )
-            queue_history = (
+            queue_history = codex_model.RECORD.file(
                 codex_state_model.delivery_dir("codex-thread")
                 / "history"
-                / payload_path.name
+                / f"{delivery.attrib['id']}.json"
             )
             # The page cursor is durable before the adapter records that receipt and
             # archives its queue. Wait for that second boundary instead of treating the
@@ -478,7 +480,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
 import contextlib, json, os, sys
 from pathlib import Path
 from leaf import codex_adapter
-from leaf.service import cmd_claim
+from leaf.hosting import cmd_claim
 native_flocked = codex_adapter.flocked
 @contextlib.contextmanager
 def observed_flocked(path):
@@ -548,81 +550,6 @@ print(json.dumps(cmd_claim(Path(sys.argv[1]))), flush=True)
 
     out, err = adapter.communicate(timeout=STATED_TIMEOUT)
     assert adapter.returncode == 0, f"{out}{err}"
-
-
-def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
-    codex_claimed_page, under_codex, codex_env, tmp_path
-):
-    """The previous adapter retires, and its successor queues the page's input.
-
-    Two real Python package locations model installed Leaf and a selected checkout;
-    the fake external Codex endpoint records the delivery instead of opening a turn.
-    """
-    foreign = tmp_path / "installed"
-    for name in ("src", "browser", "packages", "skills"):
-        shutil.copytree(PLUGIN_ROOT / name, foreign / name)
-    launcher = foreign / "bin/leaf"
-    launcher.parent.mkdir()
-    launcher.write_text(
-        "#!/bin/sh\n"
-        f"export PYTHONPATH={shlex.quote(str(foreign / 'src'))}\n"
-        f'exec {shlex.quote(sys.executable)} -m leaf "$@"\n'
-    )
-    launcher.chmod(0o755)
-    program, log = fake_codex_cli(tmp_path)
-    results = tmp_path / "starts.json"
-    first = claim_command(codex_claimed_page, program, launcher=[str(launcher)])
-    select_runtime = (
-        "from pathlib import Path; from leaf.session_runtime import select_launcher; "
-        f"select_launcher('codex-thread', Path({str(PLUGIN_ROOT / 'bin/leaf')!r}))"
-    )
-    calls = [
-        first,
-        [sys.executable, "-c", select_runtime],
-        claim_command(codex_claimed_page, program),
-    ]
-    runner = PLUGIN_ROOT / "tests/fixtures/programs/codex_starts.py"
-    task = under_codex(
-        shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
-        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
-        app_server=False,
-        finished=tmp_path / "finished",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        outcomes = wait_for(
-            lambda: files_model.read_json(results),
-            lambda value: value is not None,
-            failure="delivery runtime replacement did not finish",
-        )
-        assert all(status == 0 for status, _out, _err in outcomes), outcomes
-        adapter_2 = codex_adapter_model.running_adapter("codex-thread")
-        assert adapter_2 is not None
-        assert adapter_2["launcher"] == str(PLUGIN_ROOT / "bin/leaf")
-        append_carried_log_record(
-            codex_claimed_page,
-            {
-                "kind": "comment",
-                "author": "user",
-                "text": "Review with the selected checkout",
-            },
-        )
-        wait_for(
-            lambda: log.read_text(),
-            lambda text: '"--message"' in text,
-            failure="the replacement adapter did not queue the pending input",
-        )
-    finally:
-        release_held(task)
-        task.communicate(timeout=STATED_TIMEOUT)
-        cleanup_model.end_session("codex-thread")
-        wait_for(
-            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-            lambda live: not live,
-            failure="the replaced delivery runtime did not end",
-        )
 
 
 import socket
@@ -971,7 +898,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     )
 
     assert observer.turns == {}
-    history = path.parent / "history" / path.name
+    history = codex_model.RECORD.file(path.parent / "history" / path.name)
     recovered = files_model.read_json(history)
     assert recovered["state"] == "opened"
     assert recovered["pending"] == []
@@ -1246,6 +1173,7 @@ from leaf import codex_adapter as adapter
 from leaf.activity import declaration
 from leaf.event_log import read_events
 from leaf.files import read_json
+from leaf.server import SERVICE
 from leaf.state import write_json
 native_read = adapter.read_watch_pass
 passes = 0
@@ -1253,7 +1181,7 @@ def completed_read(*args, **kwargs):
     global passes
     page = Path(os.environ["PAGE"])
     state = declaration(read_events(page))["state"]
-    enabled = read_json(page / "service.json")["enabled"]
+    enabled = read_json(SERVICE.file(page / "service.json"))["enabled"]
     result = native_read(*args, **kwargs)
     passes += 1
     write_json(Path(os.environ["CHECKS"]), {
@@ -1496,7 +1424,9 @@ start_server(live, harness=session_harness())
         prompt = queued[queued.index("--message") + 1]
         delivery = ElementTree.fromstring(prompt.splitlines()[1])
         payload = files_model.read_json(
-            delivery_model.delivery_path(delivery.attrib["id"])
+            delivery_model.DELIVERY.file(
+                delivery_model.delivery_path(delivery.attrib["id"])
+            )
         )
         [delivered_comment] = payload["batches"][0]["events"]
         assert (delivered_comment["id"], delivered_comment["text"]) == (
@@ -1717,7 +1647,10 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     assert queue_started.wait(timeout=STATED_TIMEOUT), (
         "the offer never reached the Codex queue"
     )
-    assert files_model.read_json(first_path)["state"] == "offering"
+    assert (
+        files_model.read_json(codex_model.RECORD.file(first_path))["state"]
+        == "offering"
+    )
 
     # A parallel step hook leaves the in-flight queue offer to its owner and
     # cannot capture its still-unacknowledged events into a second record.
@@ -1737,10 +1670,12 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     offering.join(timeout=STATED_TIMEOUT)
     assert not offering.is_alive()
     first_delivery = files_model.read_json(
-        first_path.parent / "history" / first_path.name
+        codex_model.RECORD.file(first_path.parent / "history" / first_path.name)
     )
     assert first_delivery["state"] == "queued"
-    payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
+    payload = files_model.read_json(
+        delivery_model.DELIVERY.file(delivery_model.delivery_path(first_path.stem))
+    )
     assert [
         event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
@@ -1763,7 +1698,9 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     assert second_delivery["state"] == "collecting"
     assert [
         event["id"]
-        for batch in files_model.read_json(second_path)["batches"]
+        for batch in files_model.read_json(codex_model.RECORD.file(second_path))[
+            "batches"
+        ]
         for event in batch["events"]
     ] == ["second"]
 
@@ -1838,7 +1775,7 @@ def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
     first = codex_claimed_page
     second = tmp_path / "sibling"
     shutil.copytree(first, second)
-    (second / "service.json").unlink()
+    server_model.SERVICE.remove(second / "service.json")
     ready, done = tmp_path / "ready.json", tmp_path / "done"
     program = """
 import json, subprocess, sys, time
@@ -1945,7 +1882,7 @@ from pathlib import Path
 from leaf.service import page_claim
 from leaf.state import end_session, write_json
 from leaf.harness import session_harness
-from leaf.hosting import cmd_stop
+from leaf.hosting import cmd_stop, preparing_delivery
 from leaf_dev.commands.preview import PreviewService
 
 page, ready, done = map(Path, sys.argv[1:4])
@@ -1958,7 +1895,8 @@ try:
             pass
         started = (url, preview.note)
         # Joining the current adapter preserves the preview's acquisition.
-        session_harness().ensure_delivery()
+        with preparing_delivery(session_harness()):
+            pass
         assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
         assert not preview.ended
     elif handoff == "start":

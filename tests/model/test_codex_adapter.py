@@ -19,7 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND, hooks_run_leaf
 from interact_support import (
     EVERY_TURN_DEPENDENCIES,
     PAGE,
@@ -61,12 +61,12 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.json_block import json_block, read_json_block
 from leaf.refusals import Refused
+from leaf.service import PREVIEW
 
 
 def codex_start_announcement(process) -> str:
@@ -154,8 +154,10 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     prepared = codex_model.offer_delivery(path, record_2, transport="queue")
 
     assert prepared.payload["id"] == "bbbbbbbbbbbbbbbb"
-    assert codex_model.record_path("collision-test", "bbbbbbbbbbbbbbbb").is_file()
-    assert not path.exists()
+    assert codex_model.RECORD.file(
+        codex_model.record_path("collision-test", "bbbbbbbbbbbbbbbb")
+    ).is_file()
+    assert not codex_model.RECORD.file(path).exists()
 
 
 def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
@@ -201,13 +203,15 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert (activity["state"], activity["reason"]) == ("running", None)
     assert [item["handling"] for item in activity["obligations"]] == [True]
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
-    [history] = (codex_state_model.delivery_dir("hosted-thread") / "history").glob(
-        "*.json"
+    [history] = codex_model.RECORD.glob(
+        codex_state_model.delivery_dir("hosted-thread") / "history"
     )
-    queue = files_model.read_json(history)
+    queue = files_model.read_json(codex_model.RECORD.file(history))
     assert queue["state"] == "opened"
     assert queue["pending"] == []
-    assert delivery_model.delivery_path(history.stem).is_file()
+    assert delivery_model.DELIVERY.file(
+        delivery_model.delivery_path(history.stem)
+    ).is_file()
 
 
 def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
@@ -280,7 +284,9 @@ def test_embedded_codex_delivery_retries_the_same_immutable_pointer(
 
     assert second == first
     [(path, queue)] = codex_model.delivery_records("hosted-thread")
-    payload = files_model.read_json(delivery_model.delivery_path(path.stem))
+    payload = files_model.read_json(
+        delivery_model.DELIVERY.file(delivery_model.delivery_path(path.stem))
+    )
     assert queue.state == "offering"
     assert [event["text"] for event in payload["batches"][0]["events"]] == [
         "make this editable"
@@ -295,7 +301,9 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_delivery_record(page_
     harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first_prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     [(first_path, _)] = codex_model.delivery_records("hosted-thread")
-    first_payload = delivery_model.delivery_path(first_path.stem)
+    first_payload = delivery_model.DELIVERY.file(
+        delivery_model.delivery_path(first_path.stem)
+    )
 
     codex_model.abandon_codex_delivery("hosted-thread", first["id"])
     thread_model.post_reply(
@@ -359,7 +367,9 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
     )
 
     [(path, _queue)] = codex_model.delivery_records("hosted-thread")
-    payload = files_model.read_json(delivery_model.delivery_path(path.stem))
+    payload = files_model.read_json(
+        delivery_model.DELIVERY.file(delivery_model.delivery_path(path.stem))
+    )
     [batch] = payload["batches"]
     delivered_events = {event["id"]: event for event in batch["events"]}
     assert list(delivered_events) == [
@@ -391,8 +401,8 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     claimed, capsys, tmp_path
 ):
     """Readable delivery records disappear once their pages do. Other versions'
-    records survive every shared-directory scan, because their sessions may
-    still need them."""
+    records survive every shared-directory scan as they were, because their
+    sessions may still need them."""
     gone = tmp_path / "gone"
 
     def record(path, value):
@@ -400,7 +410,11 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         cleanup_model.write_json(path, value)
         return path
 
-    def envelope(delivery_id, page, format=delivery_model.DELIVERY.format):
+    def another_shape(path):
+        """Where a Leaf of another shape keeps the record `path` names."""
+        return path.with_name(f"{path.stem}@999{path.suffix}")
+
+    def envelope(delivery_id, page, file=delivery_model.DELIVERY.file):
         batch = {
             "page": str(page),
             "claim": None,
@@ -410,9 +424,11 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
             "events": [],
         }
         return record(
-            delivery_model.delivery_path(delivery_id),
+            file(delivery_model.delivery_path(delivery_id)),
             {
-                "format": format,
+                "format": delivery_model.DELIVERY.format
+                if file == delivery_model.DELIVERY.file
+                else "leaf-delivery/999",
                 "id": delivery_id,
                 "created_at": 0,
                 "acknowledge": None,
@@ -422,26 +438,37 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
 
     kept = envelope("000000000000000a", claimed)
     retired = envelope("000000000000000b", gone)
-    unreadable = [
-        envelope("000000000000000c", claimed, "v2"),
-        record(delivery_model.delivery_path("0000000000000012"), {"batches": []}),
+    others = [
+        envelope("000000000000000c", claimed, another_shape),
+        envelope("0000000000000015", gone, another_shape),
+    ]
+    pageless = [
         record(
-            delivery_model.delivery_path("0000000000000013"),
+            delivery_model.DELIVERY.file(
+                delivery_model.delivery_path("0000000000000012")
+            ),
+            {"format": delivery_model.DELIVERY.format, "batches": []},
+        ),
+        record(
+            delivery_model.DELIVERY.file(
+                delivery_model.delivery_path("0000000000000013")
+            ),
             {"format": delivery_model.DELIVERY.format},
         ),
     ]
+    held = {path: path.read_bytes() for path in others}
     serving(claimed, 1)
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
     )
     assert session_model.cmd_wait(claimed) == 0
     payload, _, _ = delivered(capsys)
-    frozen = delivery_model.delivery_path(payload["id"])
+    frozen = delivery_model.DELIVERY.file(delivery_model.delivery_path(payload["id"]))
     assert kept.exists() and frozen.exists() and retired.exists()
     delivery_model.retire_gone_deliveries()
     assert kept.exists() and frozen.exists()
     assert not retired.exists()
-    assert all(path.exists() for path in unreadable)
+    assert all(path.exists() for path in pageless)
 
     def task_record(delivery_id, page, **fields):
         return {
@@ -466,23 +493,29 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
         ("0000000000000011", claimed),
     ):
         envelope(identity, page)
+    task = codex_model.RECORD.file
     live = record(
-        codex_model.record_path("t", "000000000000000d"), task_record("d", claimed)
+        task(codex_model.record_path("t", "000000000000000d")),
+        task_record("d", claimed),
     )
     stale = record(
-        codex_model.record_path("t", "000000000000000e"), task_record("e", gone)
+        task(codex_model.record_path("t", "000000000000000e")), task_record("e", gone)
     )
     history = live.parent / "history"
-    archived_gone = record(history / "0000000f.json", task_record("f", gone))
-    archived_other = record(history / "00000010.json", {"batches": []})
+    archived_gone = record(task(history / "0000000f.json"), task_record("f", gone))
+    archived_other = record(
+        task(history / "00000010.json"),
+        {"format": codex_model.RECORD.format, "batches": []},
+    )
     archived_incomplete = record(
-        history / "00000012.json", {"format": codex_model.RECORD.format}
+        task(history / "00000012.json"), {"format": codex_model.RECORD.format}
     )
-    archived_kept = record(history / "00000011.json", task_record("g", claimed))
+    archived_kept = record(task(history / "00000011.json"), task_record("g", claimed))
     archived_foreign = record(
-        history / "00000014.json",
-        task_record("h", claimed, format="another-version"),
+        another_shape(history / "00000014.json"),
+        task_record("h", gone, format="leaf-codex-delivery/999"),
     )
+    held[archived_foreign] = archived_foreign.read_bytes()
     with cleanup_model.flocked(codex_state_model.delivery_lock_path("t")):
         assert codex_model.delivery_records("t") == []
         assert not stale.exists()
@@ -498,14 +531,9 @@ def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
     assert not archived_gone.exists()
     codex_model.retire_gone_task_records()
     assert all(
-        path.exists()
-        for path in (
-            archived_kept,
-            archived_foreign,
-            archived_other,
-            archived_incomplete,
-        )
+        path.exists() for path in (archived_kept, archived_other, archived_incomplete)
     )
+    assert {path: path.read_bytes() for path in held} == held
 
 
 def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
@@ -521,9 +549,14 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     record_3 = codex_model.read_record(path)
     assert isinstance(record_3, (codex_model.Collecting, codex_model.Offering))
     payload = codex_model.offer_delivery(path, record_3, transport="queue").payload
-    payload["format"] = "leaf-delivery-v1"
-    cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
-    with pytest.raises(Refused, match="written by another Leaf"):
+    # The envelope is one a Leaf of another shape froze.
+    envelope = delivery_model.delivery_path(payload["id"])
+    delivery_model.DELIVERY.remove(envelope)
+    cleanup_model.write_json(
+        envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
+        {**payload, "format": "leaf-delivery/999"},
+    )
+    with pytest.raises(Refused, match="another Leaf version as leaf-delivery/999"):
         delivery_model.read_delivery(payload["id"])
     assert codex_model.delivery_records("handling-test") == []
 
@@ -552,9 +585,9 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     record_4 = codex_model.read_record(epoch_path)
     assert isinstance(record_4, (codex_model.Collecting, codex_model.Offering))
     codex_model.offer_delivery(epoch_path, record_4, transport="queue")
-    epoch = files_model.read_json(epoch_path)
+    epoch = files_model.read_json(codex_model.RECORD.file(epoch_path))
     epoch.update(state="queued", pending=list(range(len(epoch["batches"]))))
-    cleanup_model.write_json(epoch_path, epoch)
+    cleanup_model.write_json(codex_model.RECORD.file(epoch_path), epoch)
     batch = epoch["batches"][0]
 
     codex_model.finish_codex_batch(
@@ -592,7 +625,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
     directory = codex_state_model.delivery_dir("codex-thread")
     directory.mkdir(parents=True)
     cleanup_model.write_json(
-        directory / "aaaaaaaaaaaaaaaa.json",
+        codex_model.RECORD.file(directory / "aaaaaaaaaaaaaaaa.json"),
         {
             "format": codex_model.RECORD.format,
             "state": "queued",
@@ -662,9 +695,9 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
     record_5 = codex_model.read_record(epoch_path)
     assert isinstance(record_5, (codex_model.Collecting, codex_model.Offering))
     codex_model.offer_delivery(epoch_path, record_5, transport="queue")
-    epoch = files_model.read_json(epoch_path)
+    epoch = files_model.read_json(codex_model.RECORD.file(epoch_path))
     epoch.update(state="queued", pending=list(range(len(epoch["batches"]))))
-    cleanup_model.write_json(epoch_path, epoch)
+    cleanup_model.write_json(codex_model.RECORD.file(epoch_path), epoch)
 
     shutil.rmtree(replaced)
     vendoring_model.cmd_init(replaced)
@@ -679,10 +712,10 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
     )
 
     assert codex_model.recover_codex_receipt("codex-thread")
-    assert files_model.read_json(epoch_path)["pending"] == [1]
+    assert files_model.read_json(codex_model.RECORD.file(epoch_path))["pending"] == [1]
     assert codex_model.recover_codex_receipt("codex-thread")
 
-    history = epoch_path.parent / "history" / epoch_path.name
+    history = codex_model.RECORD.file(epoch_path.parent / "history" / epoch_path.name)
     assert files_model.read_json(history)["pending"] == []
     assert acknowledged_through(kept) == 1
     pickups = [
@@ -733,7 +766,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
         path = codex_model.record_path(task, identity)
         path.parent.mkdir(parents=True)
         cleanup_model.write_json(
-            path,
+            codex_model.RECORD.file(path),
             {
                 "format": codex_model.RECORD.format,
                 "state": "queued",
@@ -761,7 +794,9 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     assert all(
         path.is_file() and not leases_model.lock_is_held(path) for path in coordination
     )
-    assert [path.name for path in kept.rglob("*.json")] == ["eeeeeeeeeeeeeeee.json"]
+    assert [path.name for path in kept.rglob("*.json")] == [
+        codex_model.RECORD.file(kept / "eeeeeeeeeeeeeeee.json").name
+    ]
 
 
 def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
@@ -804,8 +839,10 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     )
     for directory in (".git", ".venv"):
         (root / directory).mkdir(parents=True)
-    for module in (cleanup_model, session_runtime_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+    monkeypatch.setattr(cleanup_model, "PLUGIN_ROOT", root)
+    if not installed:
+        # A checkout acts for the task only where the task's hooks run it.
+        hooks_run_leaf("codex-thread", root)
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
         codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]
@@ -1575,7 +1612,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     assert claim_record_2 is not None
     assert claim_record_2["turn"] == "user-turn"
     # A preview owes no watcher, so Stop may end without a watcher lease.
-    (page_dir / "preview.json").write_text("{}")
+    PREVIEW.file(page_dir / "preview.json").write_text("{}")
     hooks_model.cmd_hook(
         "codex",
         {
@@ -1975,7 +2012,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         assert not codex_adapter_model._offer_queued_delivery(
             "codex", "codex-thread", None
         )
-        assert not path.exists()
+        assert not codex_model.RECORD.file(path).exists()
     finally:
         leases_model.release_lease(lease)
         leases_model.release_lease(waiter)
@@ -2008,7 +2045,9 @@ def test_desktop_wake_follows_queue_acceptance_without_resending(
     def open_app(arguments, **kwargs):
         # A failed wake must leave the accepted delivery intact, so the next
         # adapter pass cannot send its pointer a second time.
-        record = files_model.read_json(path.parent / "history" / path.name)
+        record = files_model.read_json(
+            codex_model.RECORD.file(path.parent / "history" / path.name)
+        )
         assert record["state"] == "queued"
         opened.append(arguments)
         if wake == "failed":
@@ -2366,8 +2405,9 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert desktop_pickups(page_dir) == []
 
-    reserved = path.stat().st_mtime - codex_desktop_model.SETTLE_WINDOW - 1
-    os.utime(path, (reserved, reserved))
+    file = codex_model.RECORD.file(path)
+    reserved = file.stat().st_mtime - codex_desktop_model.SETTLE_WINDOW - 1
+    os.utime(file, (reserved, reserved))
     if last_turn is not None:
         started = datetime.now().astimezone() - timedelta(seconds=last_turn)
         chat.transcript(
@@ -2576,7 +2616,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
                 codex_adapter_model._offer_queued_delivery(
                     "codex", "codex-thread", None
                 )
-    accepted = files_model.read_json(path)
+    accepted = files_model.read_json(codex_model.RECORD.file(path))
     assert accepted["state"] == ("queued" if transport == "queue" else "opened")
     assert accepted["pending"] == [0]
     assert acknowledged_through(page_dir) == 0
@@ -2586,11 +2626,11 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
         with pytest.raises(OSError, match="receipt storage unavailable"):
             codex_model.recover_codex_receipt("codex-thread")
     assert acknowledged_through(page_dir) == comment["seq"]
-    assert files_model.read_json(path)["pending"] == [0]
+    assert files_model.read_json(codex_model.RECORD.file(path))["pending"] == [0]
     rename = Path.replace
 
     def failed_archive(source, destination):
-        if source == path:
+        if source == codex_model.RECORD.file(path):
             raise OSError("archive storage unavailable")
         return rename(source, destination)
 
@@ -2598,9 +2638,9 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
         interrupted.setattr(Path, "replace", failed_archive)
         with pytest.raises(OSError, match="archive storage unavailable"):
             codex_model.recover_codex_receipt("codex-thread")
-    assert files_model.read_json(path)["pending"] == []
+    assert files_model.read_json(codex_model.RECORD.file(path))["pending"] == []
     assert not codex_model.recover_codex_receipt("codex-thread")
-    assert (path.parent / "history" / path.name).is_file()
+    assert codex_model.RECORD.file(path.parent / "history" / path.name).is_file()
     assert not codex_records("codex-thread")
     [pickup] = [
         event
@@ -2657,7 +2697,9 @@ def test_embedded_codex_acceptance_retries_its_unfinished_receipt(
     assert claim_record_9["turn_closed"]
     assert acknowledged_through(page_dir) == comment["seq"]
     assert not codex_records("hosted-thread")
-    history = files_model.read_json(path.parent / "history" / path.name)
+    history = files_model.read_json(
+        codex_model.RECORD.file(path.parent / "history" / path.name)
+    )
     assert (history["state"], history["turn"]) == ("opened", "provider-turn")
     [pickup] = [
         event

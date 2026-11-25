@@ -7,7 +7,7 @@
  * that rule forbids: a quotation's gutter marks provenance, an accent bar demands
  * attention. The content itself renders at full fidelity
  * (an exhibit must show the real thing), so the gutter alone says "mention, not
- * use". Input never leaves one: the interactive widgets check quoted() before
+ * use". Input never leaves one: the interactive widgets check the exhibit's mark before
  * wiring (lf-options.js, lf-board.js), so a quoted group shows its options and takes
  * no pick, and a quoted board stays the static board the theme already renders.
  *
@@ -107,7 +107,7 @@ lf-sample:not([interactive], :has(> template[data-sample]))::before {
   content: "quoted";
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
-  font: var(--lf-font-label);
+  font: var(--lf-font-heading);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -206,12 +206,12 @@ lf-sample:has(> template[data-sample]) {
  * put them there. The frame wears the ring itself only where a ring belongs, after a
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
- * both read the runtime's marks (focus.js, `inputInFrame`). */
+ * both read the runtime's marks (dom/focus.js, `inputInFrame`). */
 .lf-sample-exhibit > .lf-sample-frame {
   --lf-focus-box: .lf-sample-exhibit;
 }
 .lf-sample-exhibit[data-lf-control-focus] {
-  border-left-color: var(--lf-accent);
+  border-left-color: var(--lf-ok);
 }
 @media (forced-colors: active) {
   .lf-sample-exhibit[data-lf-control-focus] {

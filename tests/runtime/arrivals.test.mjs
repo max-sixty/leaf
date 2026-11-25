@@ -22,14 +22,16 @@ const {
   browserScrolls,
   holdScroll,
   readerScrolls,
+  scrollDrawn,
   scrolling,
   setScroll,
   startReaderScroll,
   stopWhereItStands,
   watchScrollEnds,
-} = await import("/runtime/arrivals.js");
-const { clockValue, tickClock } = await import("/runtime/presence.js");
-const { observeQueuedWork } = await import("/runtime/queued-work.js");
+  watchScrolls,
+} = await import("/runtime/dom/arrivals.js");
+const { clockValue, tickClock } = await import("/runtime/state/presence.js");
+const { observeQueuedWork } = await import("/runtime/lib/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals, in
 // the tree the change is made in.
@@ -292,7 +294,7 @@ test("departure cancels queued rendering and reconnection accepts fresh work", a
   const owner = document.createElement("section");
   document.body.append(owner);
   // Only this frame's own job: the runtime queues other work on any mutation, such as
-  // focus.js refreshing its paint.
+  // dom/focus.js refreshing its paint.
   const phases = [];
   const own = new Set();
   let scheduling = false;
@@ -344,10 +346,11 @@ test("a frame refuses to paint after removal even before departure delivery", as
 });
 
 test("a clock render reports its failure once and recovers on the next reading", async () => {
-  const { reportCarried } = await import("/runtime/layer-client.js");
-  const { LeafElement } = await import("/runtime/widget-api.js");
+  const { reportCarried } = await import("/runtime/transport/layer-client.js");
+  const { LeafElement } = await import("/runtime/lib/leaf-element.js");
   const { html } = await import("/vendor/lit.js");
-  const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
+  const { setPresentationFailureReporter } =
+    await import("/runtime/state/semantic-state.js");
   setPresentationFailureReporter(reportCarried);
   let clock = 0;
   customElements.define(
@@ -534,4 +537,92 @@ test("an instant write reaches a box only where it moves it, and a stop writes w
   moving.box.dispatchEvent(new window.Event("scrollend"));
   assert.equal(browserScrolls(moving.box), false);
   moving.box.remove();
+});
+
+test("a write made with the browser's own call is a script's placement as it is made", async () => {
+  // A plain box of this document, which stands wherever it is written here: the calls
+  // are the document's own, with nothing stated on the box in their place.
+  const box = document.createElement("div");
+  document.body.append(box);
+  /** @type {(Element | null)[]} */
+  const told = [];
+  /** @type {Element[]} */
+  const ended = [];
+  const stops = [
+    watchScrolls((at) => told.push(at)),
+    watchScrollEnds((at) => ended.push(at)),
+  ];
+  const scroll = () => box.dispatchEvent(new window.Event("scroll"));
+  const end = () => box.dispatchEvent(new window.Event("scrollend"));
+  try {
+    const drawn = scrollDrawn();
+    box.scrollTop = 40;
+    assert.deepEqual(told, [box], "the write went untold");
+    assert.notEqual(scrollDrawn(), drawn, "nothing waits for the write to be drawn");
+    // The browser's own events for the write follow it: at its `scroll` the box stands
+    // where a script put it, and its `scrollend` ends the scroll the write started.
+    scroll();
+    assert.equal(browserScrolls(box), false, "the write read as the browser's motion");
+    end();
+    assert.deepEqual(ended, [box]);
+    // A write that leaves the box where it stands is no placement, and starts no scroll.
+    told.length = 0;
+    box.scrollTo({ top: 40 });
+    end();
+    assert.deepEqual(told, []);
+    assert.deepEqual(ended, [box]);
+    // One call is one write, though the document makes it of others: `scrollBy` here
+    // sets `scrollTop`.
+    box.scrollBy({ top: 10 });
+    box.scrollLeft = 5;
+    assert.deepEqual(told, [box, box]);
+    assert.deepEqual([box.scrollTop, box.scrollLeft], [50, 5]);
+    end();
+    // A write into a scroll the browser drives is told, and leaves the box the browser's.
+    scroll();
+    assert.equal(browserScrolls(box), true);
+    told.length = 0;
+    box.scrollTop = 70;
+    assert.deepEqual(told, [box]);
+    assert.equal(browserScrolls(box), true, "the write took the box from the browser");
+    end();
+    // A failure in what hears a write never reaches the writer, whose call made the
+    // move; it reaches the window's error channel once the call has returned.
+    /** @type {string[]} */
+    const reported = [];
+    const report = (/** @type {ErrorEvent} */ event) => reported.push(event.message);
+    window.addEventListener("error", report);
+    const consoleError = console.error;
+    console.error = () => {};
+    const failing = watchScrolls(() => {
+      throw new Error("a listener failed");
+    });
+    try {
+      box.scrollTop = 80;
+      assert.equal(box.scrollTop, 80);
+      assert.deepEqual(reported, []);
+      await new Promise((resolve) => setTimeout(resolve));
+      assert.equal(reported.length, 1, JSON.stringify(reported));
+      assert.match(reported[0], /a listener failed/);
+    } finally {
+      failing();
+      window.removeEventListener("error", report);
+      console.error = consoleError;
+    }
+    end();
+    // The runtime's own writer records its write itself, once.
+    told.length = 0;
+    ended.length = 0;
+    Object.defineProperties(box, {
+      clientHeight: { value: 100 },
+      scrollHeight: { value: 400 },
+    });
+    setScroll(box, { top: 90 });
+    assert.deepEqual(told, [box]);
+    end();
+    assert.deepEqual(ended, [box]);
+  } finally {
+    for (const stop of stops) stop();
+    box.remove();
+  }
 });

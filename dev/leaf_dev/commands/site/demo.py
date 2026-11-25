@@ -31,8 +31,10 @@ from leaf import inference, thread_titles
 from leaf.delivery import freeze_delivery, receive_held
 from leaf.harness import detached_environment, session_harness
 from leaf.hook_transport import read_plans
+from leaf.hooks import skill_mark
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.interaction_log import read_interactions
+from leaf.leases import mark_skill
 from leaf.projection import AuthoredOrders, folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
@@ -42,8 +44,8 @@ from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
 from leaf.session import cmd_waiting
 from leaf.state import session_record
+from leaf.tasks import cmd_start
 from leaf.thread import post_reply
-from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import PageClient
@@ -408,18 +410,24 @@ def record(
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     wait_until_ready(page)
-    # The thread opened from Threads shows its answer in the floating panel's view.
+    # The thread opened from Threads shows its answer in its card beside the passage,
+    # where a tab opens threads about a passage until the user chooses the panel.
     thread.click()
-    page.locator(f"{panel_view('thread')} .lf-msg[data-lf-author=agent]").get_by_text(
+    page.locator(
+        ".lf-margin-preview .lf-page-thread .lf-msg[data-lf-author=agent]"
+    ).get_by_text(
         "Yes. The fixed rate limit keeps the backfill online.", exact=True
     ).wait_for(state="visible")
     shot(2300)
 
-    page.locator(".lf-fp-close").click()
+    page.locator(".lf-margin-preview-close").click()
     page.locator("#top").scroll_into_view_if_needed()
     shot(2100)
 
-    page.locator("#work").scroll_into_view_if_needed()
+    # The board's section starts the window, so its cards stand clear of the floating
+    # panel's row: "if needed" leaves a section already in view where it stands, and
+    # with the card's thread just read, the board's top row stood under the panel's.
+    page.locator("#work").evaluate("work => work.scrollIntoView({block: 'start'})")
     shot(1000)
     applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
@@ -476,8 +484,9 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             )
             open_threads(page)
             page.locator(".lf-fp-thread").first.click()
+            # Its row opens the thread in its card beside the passage.
             page.wait_for_selector(
-                f"{panel_view('thread')} .lf-msg[data-lf-author=agent]"
+                ".lf-margin-preview .lf-page-thread .lf-msg[data-lf-author=agent]"
             )
             page.locator("#top").scroll_into_view_if_needed()
             settle(page)
@@ -486,16 +495,21 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 
 @contextmanager
 def demo_session(scratch: Path):
-    """Own the recorder's state and delivery loop, independently of its invoking agent."""
+    """Own the recorder's state and delivery loop, independently of its invoking agent.
+
+    The recorder's session is one whose hooks run this checkout, as its first hook
+    would record (`leases.mark_skill`), so this Leaf acts for it."""
     previous = os.environ.copy()
+    session = f"leaf-demo-{uuid4()}"
     recording_environment = detached_environment(None) | {
         "XDG_STATE_HOME": str(scratch / "state"),
-        "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
+        "CLAUDE_CODE_SESSION_ID": session,
         "CLAUDE_PID": str(os.getpid()),
         "LEAF_AGENT": "Claude",
     }
     os.environ.clear()
     os.environ.update(recording_environment)
+    mark_skill(session, skill_mark())
     try:
         yield
     finally:

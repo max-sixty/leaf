@@ -1,5 +1,5 @@
 /* Words this document holds that the page's server never took, met by another tab's
-   or device's generation of their draft there (`adopt`, runtime/drafts.js). The server
+   or device's generation of their draft there (`adopt`, runtime/records/drafts.js). The server
    below answers each draft write as `drafts.py` does: it takes the write only over a
    generation the write names or over none, and answers with what it holds. */
 import assert from "node:assert/strict";
@@ -64,7 +64,7 @@ window.lfStorage.tabStore = {
   keys: () => [...tabMemory.keys()],
 };
 const { draftsWaiting, giveBackWords, loadDraft, saveDraft, sendDraft, watchDraft } =
-  await import("/runtime/drafts.js");
+  await import("/runtime/records/drafts.js");
 
 /** Another tab's or device's generation of the draft at `ctx`, written to the server
  * behind this document. @param {string} ctx @param {string} text @param {object} [payload] */

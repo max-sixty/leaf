@@ -28,6 +28,7 @@ from render_harness import (
     leaf_page,
     names,
     open_page,
+    press_draft_control,
     resized,
     root_overflow,
     round_trip,
@@ -418,7 +419,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     else:
         write(editor, provided)
     expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
-    draft_control(page, "save", "ledger-cargo").click()
+    press_draft_control(page, "save", "ledger-cargo")
     round_trip(page)
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
@@ -472,7 +473,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     write(seat.locator(".lf-fab-input"), "Finish the current hunk, then park here.")
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
-    expect(goal).to_have_attribute("data-lf-held")
     # Leaf says what the press did beyond a comment, in words that hold for any widget.
     expect(page.locator(".lf-live")).to_have_text("Held until resolved")
     page.locator("#atlas-record .lf-activity-news").click()
@@ -500,7 +500,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         },
     )
     told(page)
-    expect(goal).to_have_attribute("data-lf-held", root["id"])
     # The reply landed where the user was looking, so it waits for them to open it.
     seat.get_by_role("button", name="1 new", exact=True).click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
@@ -518,7 +517,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     open_panel_thread(page, root["id"])
     with sending(page, "the resolution"):
         page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
-    expect(goal).not_to_have_attribute("data-lf-held")
     page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
@@ -531,7 +529,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     page.locator("#atlas-record .lf-activity-news").click()
     expect(released).to_have_attribute("data-lf-undone", "")
     expect(released).to_contain_text("undone")
-    expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]
         for event in events_model.read_events(d)

@@ -1,14 +1,8 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
 import { nothing } from "/vendor/lit.js";
-import {
-  LeafElement,
-  generate,
-  dressCode,
-  quoted,
-  tabStore,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { generate, dressCode, tabStore, whileConnected } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keepsText } from "/runtime/lib/keeps.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
 import * as catalog from "../catalog.js";
@@ -64,7 +58,7 @@ customElements.define(
       const overall = host.querySelector("#widget-status");
       field.value = tabStore.get("dynamic-widgets:request") ?? field.value;
 
-      if (!quoted(host))
+      if (!host.matches("[data-lf-exhibit] *"))
         whileConnected(host, (signal) => {
           let busy = false;
           const lanes = Object.entries(approaches).map(([name, approach]) => {

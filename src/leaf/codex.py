@@ -37,8 +37,8 @@ complete envelope as a JSON block (`json_block`), or its pointer where Codex wou
 show it whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn
 accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
-runs (`Harness.later_turn_takes_input`): the turn ends on its own answer, and the
-adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
+runs (`codex_adapter.later_turn_takes_input`): the turn ends on its own answer, and
+the adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
 queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads
@@ -134,6 +134,7 @@ from .json_block import json_block
 from .refusals import Refused
 from .registry.schema import aware_instant
 from .service import (
+    ClaimTransition,
     PageTransaction,
     delivery_reply_attempt,
     owned_pages,
@@ -377,7 +378,7 @@ def app_server_request(
         message = json.loads(socket.recv())
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
-                from .registry.schema import json_value
+                from .json_block import json_value
 
                 raise AppServerRequestRejected(
                     error.get("message") or json_value(error)
@@ -1679,7 +1680,7 @@ def prepare_reply_correction(
                 delivery_dir(session_id),
                 delivery_dir(session_id) / "history",
             ):
-                for path in directory.glob("*.json"):
+                for path in RECORD.glob(directory):
                     if read_record(path) is not None:
                         candidate = read_delivery(path.stem)
                         if (
@@ -1965,9 +1966,9 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
         return False
     history = path.parent / "history"
     history.mkdir(parents=True, exist_ok=True)
-    for archived in history.glob("*.json"):
-        retire_if_gone(archived)
-    path.replace(history / path.name)
+    for archived in RECORD.glob(history):
+        retire_if_gone(RECORD, archived)
+    RECORD.file(path).replace(RECORD.file(history / path.name))
     return True
 
 
@@ -1991,8 +1992,8 @@ def retire_gone_task_records() -> None:
     for directory in sessions_home().glob("*.deliveries"):
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
-            for path in (*directory.glob("*.json"), *history.glob("*.json")):
-                retire_if_gone(path)
+            for path in (*RECORD.glob(directory), *RECORD.glob(history)):
+                retire_if_gone(RECORD, path)
             for emptied in (history, directory):
                 if emptied.is_dir() and not any(emptied.iterdir()):
                     emptied.rmdir()
@@ -2006,8 +2007,8 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
     if not directory.is_dir():
         return []
     records = []
-    for path in directory.glob("*.json"):
-        if retire_if_gone(path):
+    for path in RECORD.glob(directory):
+        if retire_if_gone(RECORD, path):
             continue
         record = read_record(path)
         if record is None:
@@ -2038,7 +2039,7 @@ class PreparedDelivery:
 
     prompt: str
     payload: dict
-    claim_transition: tuple[dict | None, dict] | None = field(
+    claim_transition: ClaimTransition | None = field(
         default=None, compare=False, repr=False
     )
 
@@ -2047,7 +2048,7 @@ def _readdress_record(path: Path) -> Path:
     """Give a collecting record a fresh identity where its id's envelope already
     holds other input."""
     replacement = path.with_name(f"{new_delivery_id()}.json")
-    path.replace(replacement)
+    RECORD.file(path).replace(RECORD.file(replacement))
     return replacement
 
 
@@ -2620,4 +2621,4 @@ def abandon_codex_delivery(session_id: str, event_id: str) -> None:
         if len(matching) > 1:
             raise RuntimeError("the Codex task has duplicate offered deliveries")
         if matching:
-            matching[0].unlink()
+            RECORD.remove(matching[0])

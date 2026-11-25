@@ -1,21 +1,33 @@
 /* Leaf runtime boot and application composition root. */
-import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "/runtime/framework.js";
+// Leaf's Lit loads in any document and inserts natively until the page installs its
+// mover (dom/dom-move.js); importing the mover's focus accounting first installs both
+// before any module the boot loads can render.
+import "./runtime/dom/move-focus.js";
+import { registerSampleCommand, onSampleNotice } from "./runtime/host/sample-child.js";
 import "./runtime/stage-integration.js";
-import { hostDeclaredElements } from "./runtime/element-integration.js";
-import "./runtime/interaction-log.js";
+import { hostDeclaredElements } from "./runtime/host/element-integration.js";
+import "./runtime/transport/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "/vendor/webawesome-chrome.js";
-import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
-import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
-import { landingPlace } from "./runtime/reading-place.js";
-import { mountHistory } from "./runtime/history.js";
-import { holdArrivingBounds } from "./runtime/bounds.js";
-import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
-import { prepareDocument, upgradeWidgets } from "./runtime/widget-loader.js";
+import {
+  offlineInteractive,
+  runtime,
+  annotationMode,
+} from "./runtime/state/context.js";
+import { initializeServedDocument } from "./runtime/state/document-identity.js";
+import { chromeRoot, chromeForeground } from "./runtime/base/chrome.js";
+import { landingPlace } from "./runtime/readings/reading-place.js";
+import { arrive, beginArrival, mountHistory } from "./runtime/records/history.js";
+import { entryView } from "./runtime/records/views.js";
+import { holdArrivingBounds } from "./runtime/readings/bounds.js";
+import {
+  chromeSheet,
+  marksSheet,
+  annotationSheets,
+} from "./runtime/base/stylesheets.js";
+import { reportPageError, uploadMedia } from "./runtime/transport/layer-client.js";
+import { prepareDocument, upgradeWidgets } from "./runtime/records/widget-loader.js";
 import {
   markPagePresented,
   markPageUpgraded,
@@ -24,55 +36,56 @@ import {
   pageReadiness,
   settlePageInterface,
   afterPresentation,
+  deferredArrival,
   PRESENTATION,
-} from "./runtime/presentation.js";
-import { pagePresented } from "./runtime/page-paint.js";
-import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
-import { observeQueuedWork } from "./runtime/queued-work.js";
-import { mountApplication } from "./runtime/application.js";
-import { beginRead } from "./runtime/state-feed.js";
+} from "./runtime/readings/presentation.js";
+import { pagePresented } from "./runtime/base/page-paint.js";
+import { renderingState, observePreparations } from "./runtime/base/rendering.js";
+import { nextFrame } from "./runtime/lib/frame-pass.js";
+import { observeQueuedWork } from "./runtime/lib/queued-work.js";
+import { mountApplication } from "./runtime/host/application.js";
+import { beginRead } from "./runtime/host/state-feed.js";
 import {
   applicationState,
   whenApplicationPresented,
-} from "./runtime/semantic-state.js";
-import { createEngagement } from "./runtime/composing/engagement.js";
-import { createCompositionInputs } from "./runtime/composing/input.js";
+} from "./runtime/state/semantic-state.js";
+import { createEngagement } from "./runtime/annotations/composing/engagement.js";
+import { createCompositionInputs } from "./runtime/annotations/composing/input.js";
 import {
   composerOpen,
   composerQuote,
   fabBar,
-  fabInput,
   pendingAbout,
   pendingAnchor,
   pendingDrawing,
-} from "./runtime/composing/selection.js";
-import { createResponseSurface } from "./runtime/composing/surface.js";
-import { createPassageSelection } from "./runtime/composing/capture.js";
-import { createDrawingController } from "./runtime/composing/drawing.js";
-import { createRegionCapture } from "./runtime/composing/region-capture.js";
-import { createDrawingInk } from "./runtime/composing/drawing-ink.js";
-import { createAim } from "./runtime/composing/aim.js";
+} from "./runtime/annotations/composing/selection.js";
+import { createResponseSurface } from "./runtime/annotations/composing/surface.js";
+import { createPassageSelection } from "./runtime/annotations/composing/capture.js";
+import { createDrawingController } from "./runtime/annotations/composing/drawing.js";
+import { createRegionCapture } from "./runtime/annotations/composing/region-capture.js";
+import { createDrawingInk } from "./runtime/annotations/composing/drawing-ink.js";
+import { createAim } from "./runtime/annotations/composing/aim.js";
 import {
   createTargetPicker,
   targetPickerHintLayer,
-} from "./runtime/composing/target-picker.js";
-import { createCurrentTarget } from "./runtime/composing/current-target.js";
+} from "./runtime/annotations/composing/target-picker.js";
+import { createCurrentTarget } from "./runtime/annotations/composing/current-target.js";
 import {
   createReactionController,
   reactionTokens,
   sendReaction,
-} from "./runtime/reactions.js";
-import { createAnchorPlacement } from "./runtime/anchor-placement.js";
-import { createAnchorControls } from "./runtime/anchor-controls.js";
-import { createAnchorTravel } from "./runtime/anchor-travel.js";
+} from "./runtime/annotations/reactions.js";
+import { createAnchorPlacement } from "./runtime/annotations/anchor-placement.js";
+import { createAnchorControls } from "./runtime/annotations/anchor-controls.js";
+import { createAnchorTravel } from "./runtime/features/anchor-travel.js";
 import {
   aimTargetAt,
   aimTargets,
   resolveAnchor,
   setAnchoringReady,
-} from "./runtime/anchor-resolution.js";
-import { refuseBareText } from "./runtime/passages.js";
-import { createPageGeometry } from "./runtime/page-geometry.js";
+} from "./runtime/readings/anchor-resolution.js";
+import { refuseBareText } from "./runtime/readings/passages.js";
+import { createPageGeometry } from "./runtime/panel/page-geometry.js";
 import {
   aimLayer,
   clearAim,
@@ -80,13 +93,12 @@ import {
   labelAim,
   paintAim,
   shifted,
-} from "./runtime/target-paint.js";
-import { pointerAt } from "./runtime/pointer.js";
-import { createWritingResume } from "./runtime/drafts.js";
-import { createRewriteRestore } from "./runtime/thread/message-edit.js";
-import { allThreads } from "./runtime/thread/state.js";
-import { anchorLabel } from "./runtime/thread/messages.js";
-import { createThreadAddress } from "./runtime/thread/address.js";
+} from "./runtime/readings/target-paint.js";
+import { pointerAt } from "./runtime/base/pointer.js";
+import { createWritingResume } from "./runtime/records/drafts.js";
+import { allThreads } from "./runtime/records/thread/state.js";
+import { anchorLabel } from "./runtime/records/thread/messages.js";
+import { createThreadAddress } from "./runtime/records/thread/address.js";
 import {
   declareThreadKeys,
   landIn,
@@ -94,81 +106,87 @@ import {
   landSent,
   scrollThreadIntoView,
   currentLocationThread,
-} from "./runtime/thread/landing.js";
-import { createFloatingPanel } from "./runtime/floating-panel.js";
-import { currentLocationThreadId } from "./runtime/thread/focus.js";
-import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createObligationView } from "./runtime/obligations/view.js";
-import { createQueueWalk } from "./runtime/queue-walk.js";
-import { createChangeWalk } from "./runtime/change-walk.js";
+} from "./runtime/records/thread/landing.js";
+import { createFloatingPanel } from "./runtime/panel/floating-panel.js";
+import { currentLocationThreadId } from "./runtime/records/thread/focus.js";
+import { createPageMapDialog } from "./runtime/panel/page-map-dialog.js";
+import { createObligationView } from "./runtime/records/obligations/view.js";
+import { createQueueWalk } from "./runtime/panel/queue-walk.js";
+import { createChangeWalk } from "./runtime/panel/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
-} from "./runtime/keyboard/command-hints.js";
-import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
-import { marginBarLayer } from "./runtime/margin-bars.js";
-import { createPageLayout } from "./runtime/page-layout.js";
-import { restoreUserView } from "./runtime/restore-state.js";
+} from "./runtime/readings/key-badges/command-hints.js";
+import {
+  createDesignMode,
+  inspectEl,
+  legendRoot,
+} from "./runtime/annotations/design.js";
+import { marginBarLayer } from "./runtime/features/margin-bars.js";
+import { createPageLayout } from "./runtime/panel/page-layout.js";
+import { restoreUserView } from "./runtime/state/restore-state.js";
 import {
   annotationsHidden,
   ANNOTATIONS_TOGGLE,
   restoreAnnotations,
-} from "./runtime/annotation-layer.js";
-import { restoreThreadsInPanel } from "./runtime/thread/threads-in-panel.js";
-import { createAnchorPaint } from "./runtime/anchor-paint.js";
-import { createVisualMarkPaint } from "./runtime/visual-mark-paint.js";
-import { createVersionController, takeInitialDocument } from "./runtime/version.js";
-import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
-import "./runtime/page-about.js";
+} from "./runtime/annotations/annotation-layer.js";
+import { restoreThreadsInPanel } from "./runtime/records/thread/threads-in-panel.js";
+import { createAnchorPaint } from "./runtime/annotations/anchor-paint.js";
+import { createVisualMarkPaint } from "./runtime/annotations/visual-mark-paint.js";
+import {
+  createVersionController,
+  takeInitialDocument,
+} from "./runtime/features/version.js";
+import { loadIcon, mountPageStatus } from "./runtime/panel/page-status.js";
+import "./runtime/panel/page-about.js";
+// Defined before any widget's module loads, so a template that draws an age needs no
+// import.
+import "./runtime/age.js";
 
-import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { mountPreviews } from "./runtime/preview.js";
+import { nativeLayers } from "./runtime/dom/keyboard/layer-stack.js";
+import { mountPreviews } from "./runtime/annotations/preview.js";
 
-import { leavesOffered } from "./runtime/live-leaves.js";
-import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
+import { leavesOffered } from "./runtime/host/live-leaves.js";
+import { acceptData, notifyDataSubscribers } from "./runtime/host/data.js";
 import {
   createGoToSequence,
   goToHintLayer,
-} from "./runtime/keyboard/go-to-sequence.js";
-import { coverBoxes } from "./runtime/geometry.js";
+} from "./runtime/panel/page-keys/go-to-sequence.js";
+import { coverBoxes } from "./runtime/dom/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
-import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
-import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
-import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
-import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
+import { declareCurrentLocation } from "./runtime/panel/page-keys/page.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/panel/page-keys/controller.js";
+import { paintCoreControls } from "./runtime/dom/keyboard/control-keys.js";
+import { paintTouchControls } from "./runtime/panel/page-keys/touch-controls.js";
+import { paintCloseRequests } from "./runtime/dom/keyboard/close-requests.js";
 import {
   commandReferenceDialog,
   mountCommandReference,
-} from "./runtime/keyboard/command-reference.js";
-import { paintStatusContext } from "./runtime/keyboard/status-context.js";
+} from "./runtime/panel/page-keys/command-reference.js";
+import { paintStatusContext } from "./runtime/panel/page-keys/status-context.js";
 import {
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
-} from "./runtime/keyboard/scopes.js";
-import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
-import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { openDocumentLayout } from "./runtime/content-layout.js";
-import { createNavigation, placeThreadEdge } from "./runtime/navigation.js";
+} from "./runtime/dom/keyboard/scopes.js";
+import { mountRepaint, repaint, repaintPage } from "./runtime/dom/repaint.js";
+import { openDocumentLayout } from "./runtime/readings/content-layout.js";
+import { createNavigation, placeThreadEdge } from "./runtime/panel/navigation.js";
 import {
   declareReading,
   focusDestination,
   releaseFocus,
   focused,
-} from "./runtime/focus.js";
-import { announce, liveEl, notice } from "./runtime/notifications.js";
-import { mediaViewer } from "./runtime/media.js";
-import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
-import { installMoveSelection } from "./runtime/dom-move.js";
-import { holdSelection } from "./runtime/native-selection.js";
+} from "./runtime/dom/focus.js";
+import { announce, liveEl, notice } from "./runtime/transport/notifications.js";
+import { mediaViewer } from "./runtime/records/media.js";
+import { retainUserIntent, restrictUserIntent } from "./runtime/dom/user-intent.js";
+import { installMoveSelection } from "./runtime/dom/dom-move.js";
+import { holdSelection } from "./runtime/dom/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves
-// (dom-move.js), installed before the boot draws anything. It stands here rather than
-// beside `installMoveFocus` (move-focus.js): native-selection.js reaches context.js
-// through shadow.js, and imported from move-focus.js, which framework.js imports
-// first, it ran a module before `readPart` (semantic-state.js) was initialized.
+// (dom/dom-move.js), installed before the boot draws anything.
 installMoveSelection(holdSelection);
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
@@ -207,17 +225,13 @@ async function boot() {
   // Automatic recovery belongs to this arrival. A press made while its presentation
   // waits owns the page; recovery must not capture a fresh focus intent after that wait.
   const recoverComposer = retainUserIntent({ since: 0 });
-  // Capture the requested address before widgets add their display fragment. Authored
-  // fragments take precedence, so a copied heading still reaches its passage.
-  const arrivalUrl = new URL(location.href);
-  const threadArrival = retainUserIntent({ since: 0 });
 
   // This declaration belongs to the executable document lifetime. The revision capture
   // includes it in executable identity, so selecting another presentation retires this
   // module graph through the ordinary document replacement and draft carry owners.
   const overlaySelected = annotationMode === "overlay";
   const annotationRenderer = overlaySelected
-    ? await import("./runtime/annotation-overlay/index.js")
+    ? await import("./runtime/annotations/annotation-overlay/index.js")
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
@@ -272,7 +286,7 @@ async function boot() {
   });
 
   // The fixed furniture every generated-hint map is spread around: the boxes the chrome
-  // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
+  // covers (dom/geometry.js, `coverBoxes`). Both maps read the same boxes.
   const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   // Every page marks its commented words, previews their threads under the pointer
@@ -281,7 +295,6 @@ async function boot() {
     targetPaint: createVisualMarkPaint(),
     pointer: pointerAt,
     currentLocationThreadId,
-    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -370,8 +383,8 @@ async function boot() {
     paintKeys,
   });
 
-  // Where the user is in the chrome's views, a margin card or entry and the panel's
-  // thread or list, which a revision carries.
+  // Where the user is in the chrome's thread views, a margin card or entry and the
+  // panel's thread, which a revision carries.
   const captureChrome = () => {
     const margin = app?.overlay?.captureCurrentLocation() ?? null;
     const panel = floatingPanel.captureCurrentLocation();
@@ -380,10 +393,12 @@ async function boot() {
 
   const version = createVersionController({
     initialDocument,
-    compositionInput: fabInput,
     openThread: (id, options) =>
-      app.threadDestinations.openPageThread(id, { ...options, travel: false }),
-    threadReader: (node) => app.threadDestinations.readerOf(node),
+      app.threadDestinations.openPageThread(id, {
+        reader: "standing",
+        ...options,
+        travel: false,
+      }),
     refreshThread: () => app.refreshThread(),
     midComposition: (...args) => app.midComposition(...args),
     hasPending: () => app.hasPending(),
@@ -453,7 +468,6 @@ async function boot() {
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
     annotationCommands: {
-      currentLocationObligation: () => items.currentLocationIn(),
       designModeActive: designMode.active,
       pointerModeActive: () =>
         designMode.active() || drawing.drawModeActive() || regionCapture.active(),
@@ -687,18 +701,12 @@ async function boot() {
       app.threadDestinations.openThreadDraft(context, intent, route),
     holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
   });
-  const rewriteRestore = createRewriteRestore({
-    revealInThread: (context, intent) =>
-      app.threadDestinations.openThreadDraft(context, intent),
-    holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
-  });
   const goToSequence = createGoToSequence({
     doors: floatingPanel.doors,
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
       writingResume.command,
-      rewriteRestore,
       passageSelection.command,
       navigation.alignTop,
       app.read.firstUnreadCommand,
@@ -789,7 +797,6 @@ async function boot() {
         reactions.setReact(false);
       },
     });
-    watchDisclosures(document);
     mountRepaint({
       ...currentLocationPainters,
       reflectFirstScopes,
@@ -825,7 +832,7 @@ async function boot() {
   });
   // A page declared failed (`lf-startup-failed`) is its readable fallback from then on
   // (prepaint.js) and never presents, though a later state answer asks it to. A page
-  // whose module staged words it cannot read (passages.js, `refusesBareText`) reads past
+  // whose module staged words it cannot read (readings/passages.js, `refusesBareText`) reads past
   // them afterwards, and presented, it would pass for a page whose widgets work.
   let startupFailed = false;
   window.addEventListener("lf-startup-failed", () => (startupFailed = true), {
@@ -843,41 +850,70 @@ async function boot() {
   mountHistory({
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
+    view: entryView,
     thread: {
-      claim: (url, place) => threadAddress.claim(url, place),
-      drawing: (id) => app.threadDestinations.threadFocusTarget(id, { part: "thread" }),
+      claim: (url, record, intent) => threadAddress.claim(url, record, intent),
+      open: () => openThreadView(),
+      focusTarget: (id, part) => app.threadDestinations.threadFocusTarget(id, { part }),
       name: (url) => threadAddress.name(url),
     },
+    list: () => floatingPanel.listShown(),
+    // A draft's box opens where the user stands, as the walk or Resume writing opened it,
+    // with the user on the box, in its words or on a control inside it.
+    draft: (key, intent) =>
+      key.box && !key.control
+        ? writingResume.showDraft(key.draft, { travel: false, intent })
+        : writingResume.resumeDraft(key.draft, {
+            travel: false,
+            intent,
+            ...(key.caret && { caret: key.caret }),
+            ...(key.control && { control: key.control }),
+          }),
   });
-  const landFragment = version.aimArrival();
-  const { landArrival, savedView, handedOff, restored } = offlineInteractive
-    ? { landArrival: () => {}, savedView: null, handedOff: false, restored: false }
-    : version.installArrival();
+  // The document's one arrival (records/history.js, `beginArrival`), whose intent every route
+  // it starts runs under, and which the handoff of a reload Leaf asked for joins
+  // (features/version.js, `installArrival`).
+  const restoration = offlineInteractive ? null : beginArrival();
+  // The address the document arrives at, read with its entry and before widgets add
+  // their display fragment. Authored fragments take precedence, so a copied heading
+  // still reaches its passage.
+  const arrivalUrl = new URL(location.href);
+  const arrivalIntent = restoration?.intent ?? retainUserIntent({ since: 0 });
+  const landFragment = version.aimArrival(arrivalIntent);
+  const { landArrival, savedView, restored } = restoration
+    ? version.installArrival(restoration)
+    : { landArrival: async () => {}, savedView: null, restored: false };
   const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
-  // The entry's `?thread=` (thread/address.js).
+  // The entry's `?thread=` (records/thread/address.js).
   // The thread view standing open: the panel's, else a margin card's.
-  /** @returns {import("./runtime/thread/address.js").OpenThread | null} */
+  /** @returns {import("./runtime/records/thread/address.js").OpenThread | null} */
   function openThreadView() {
     const panel = floatingPanel?.shownThread() ?? null;
     if (panel) return { id: panel, reader: "primary" };
     const card = app?.overlay?.threadPreview.shown() ?? null;
-    return card ? { id: card, reader: null } : null;
+    return card ? { id: card, reader: "card" } : null;
   }
   const threadAddress = createThreadAddress({
     shown: openThreadView,
-    putAway: () => {
-      floatingPanel.putThreadAway();
+    putAway: (list, from, intent) => {
       app?.overlay?.threadPreview.close();
+      floatingPanel.putThreadAway(list, from, intent);
     },
     openPageThread: (id, options) => app.threadDestinations.openPageThread(id, options),
   });
   threadAddress.followOpenThread();
-  // A revision's handoff carries the thread views open across the reload itself
-  // (version.js, `captureRetainedCurrentLocation`).
-  const threadArrive = handedOff
+  // A reload, Leaf's own among them, or Back or Forward from another document,
+  // arrives at the entry's record, which returns the user where they left it
+  // (records/history.js, `arrive`); the handoff of a reload Leaf asked for adds only what the
+  // record doesn't hold (features/version.js). Only a visit the entry kept no record of travels
+  // to the thread its address names.
+  const threadArrive = restoration?.record
     ? null
-    : threadAddress.arrive(arrivalUrl, threadArrival, { restored });
-  if (threadArrive) void afterPresentation(threadArrive);
+    : threadAddress.arrive(arrivalUrl, arrivalIntent, { restored });
+  // The arrival holds its work until it has run (records/history.js, `run`).
+  /** @param {() => PromiseLike<unknown>} work */
+  const arriving = (work) => (restoration ? restoration.run(work) : work());
+  if (threadArrive) void arriving(() => afterPresentation(threadArrive));
 
   async function presentPage() {
     // Saved state gates state-dependent interaction, not the commenting interface.
@@ -893,12 +929,12 @@ async function boot() {
     if (!offlineInteractive)
       nextFrame(() =>
         setTimeout(() => {
-          void import("./runtime/user-view.js")
+          void import("./runtime/panel/user-view.js")
             .then(({ observeUserView }) => observeUserView())
             .catch(() => {});
         }, 0),
       );
-    void whenArrived().then(landFragment);
+    void arriving(() => whenArrived().then(landFragment));
     if (offlineInteractive) {
       landFragment();
       document.dispatchEvent(new Event(PRESENTATION));
@@ -911,7 +947,9 @@ async function boot() {
     // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
     // interaction, after the landing's synchronous part, rather than after an editor
     // the landing waits for: awaited first, a margin map presented its authored spans.
-    const arrival = landArrival();
+    const arrival = deferredArrival(
+      restoration ? arrive(restoration, landArrival) : landArrival(async () => {}),
+    );
     document.dispatchEvent(new Event(PRESENTATION));
     await arrival;
     const currentRevision = runtime.currentRevision;
@@ -966,9 +1004,12 @@ async function boot() {
     // drawn content, so it cannot be a prerequisite for revealing the page itself.
     const draftOpened =
       !offlineInteractive &&
-      // A thread address takes the reader to its destination. The saved draft
-      // remains available through Resume writing, without taking that arrival's focus.
+      // A thread address takes the reader to its destination, and an entry's record
+      // back where they were, which opens the draft only where they were writing it.
+      // The saved draft remains available through Resume writing, without taking that
+      // arrival's focus.
       !threadArrive &&
+      !restoration?.record &&
       recoverComposer() &&
       responseSurface.openDraft(savedComposer);
     if (draftOpened) {

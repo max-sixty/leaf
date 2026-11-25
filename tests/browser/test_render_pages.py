@@ -7,6 +7,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
@@ -158,13 +159,17 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     browser, serve
 ):
     """The film's playhead output lights the slice.rs line a step runs in the one
-    excerpt quoting it, and the source pane brings that line to its middle without
-    moving the page. Once the reader scrolls the pane, a new line out of view leaves it
-    where they put it, until they act on the film again; the last step lights nothing."""
+    excerpt quoting it, and the source pane brings that line into view with room round
+    it, without moving the page. Once the reader scrolls the pane, before the film has
+    run a line there or after, a new line out of view leaves it where they put it,
+    until they act on the film again; the last step lights nothing, and a line lit in
+    an excerpt the page doesn't draw moves nothing. The first line a block is handed
+    only marks, as an arrival moves nothing."""
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
-    page = open_page(browser, serve(named_source("rust-sort")), context=context)
+    url = serve(named_source("rust-sort"))
+    page = open_page(browser, url, context=context)
     # The end of the first step that runs insert_head's first test, of the first that
     # chooses a merge's direction, and of the last step.
     times = page.evaluate(
@@ -192,6 +197,22 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
             time,
         )
 
+    # The reader's hand in the pane holds it before the film has run a line there too.
+    # A key on the film is their hand on it, and starts the following.
+    box = pane.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 200)
+    page.wait_for_function("document.getElementById('sort-source').scrollTop > 0")
+    scroll_settled(page, "#sort-source")
+    read = pane.evaluate("element => element.scrollTop")
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert pane.evaluate("element => element.scrollTop") == read
+    scrub.press("Shift")
+
     seek(times["insert"])
     expect(marked).to_have_count(1)
     expect(page.locator("#code-insert-head [data-lf-at]")).to_have_attribute(
@@ -199,7 +220,7 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     )
     expect(marked).to_be_in_viewport(ratio=1)
     scroll_settled(page, "#sort-source")
-    # Brought to the middle, with room for the lines before it and after.
+    # Brought in with room for the lines before it and after.
     room = page.evaluate(
         """() => {
           const pane = document.getElementById('sort-source').getBoundingClientRect();
@@ -231,6 +252,55 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
 
     seek(times["last"])
     expect(marked).to_have_count(0)
+
+    # The pane follows to the film's first line, well above the last excerpt. That
+    # excerpt then leaves the drawing, as a closed disclosure's contents do, and a line
+    # lit in it leaves the pane where it stood.
+    seek(0)
+    expect(page.locator("#code-merge-sort [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1550"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    scroll_settled(page, "#sort-source")
+    held = pane.evaluate(
+        "element => { document.getElementById('code-merge').style.display = 'none'; return element.scrollTop; }"
+    )
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert 0 < held == pane.evaluate("element => element.scrollTop")
+
+    # An arrival moves nothing. On the page as it opens, with no hand yet in the pane,
+    # a block drawn below the pane's view is handed its first line, as a plain host
+    # hands it: it marks the line and leaves the pane where it stood, and follows from
+    # the next.
+    page = open_page(browser, url, context=context)
+    pane = page.locator("#sort-source")
+    held = pane.evaluate(
+        """pane => {
+          const block = document.createElement('lf-code');
+          block.id = 'code-arrival';
+          block.append(Object.assign(document.createElement('pre'), {textContent: 'one\\ntwo\\nthree\\n'}));
+          pane.append(block);
+          return pane.scrollTop;
+        }"""
+    )
+    arrival = page.locator("#code-arrival")
+    expect(arrival).to_have_class(re.compile(r"\blf-rendered\b"))
+    arrival.evaluate("block => { block.playhead = '2'; }")
+    expect(arrival.locator("[data-lf-at]")).to_have_attribute("data-lf-line", "2")
+    rendered(page)
+    assert pane.evaluate(
+        """pane => ({
+          below: pane.querySelector('#code-arrival [data-lf-at]').getBoundingClientRect().top >= pane.getBoundingClientRect().bottom,
+          top: pane.scrollTop,
+        })"""
+    ) == {"below": True, "top": held}
+    arrival.evaluate("block => { block.playhead = '3'; }")
+    expect(arrival.locator("[data-lf-at]")).to_have_attribute("data-lf-line", "3")
+    expect(arrival.locator("[data-lf-at]")).to_be_in_viewport(ratio=1)
 
 
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
@@ -406,6 +476,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     url = serve(TWIN_V1)
     d = serve.page_dir
     monkeypatch.setenv("LEAF_SESSION_ID", "codex")
+    hooks_run_this_tree("codex")
     monkeypatch.setenv("LEAF_AGENT", "Codex")
     assert (
         CliRunner()
@@ -3320,18 +3391,16 @@ def test_document_reading_survives_width_reflow(browser, serve, local_region):
             )
     page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
     if local_region:
-        page.evaluate("""async () => {
-          const {registerReadingRegion} = await window.__lfWidgetApi();
-          const body = document.querySelector('#local-region');
-          registerReadingRegion({id: body.id, host: body, body});
-        }""")
+        page.locator("#local-region").evaluate(
+            "body => body.setAttribute('data-lf-scroll', 'local')"
+        )
     resized(page, 1440, 900)
     page.get_by_role("link", name="Read phase 3", exact=True).click()
     page.keyboard.press("Escape")
     page.mouse.wheel(0, 160)
     scroll_settled(page)
     reading = """async () => {
-      const {capturePlace} = await window.__lfWidgetApi();
+      const {capturePlace} = await window.__lfCheckApi();
       return capturePlace();
     }"""
     if local_region == "bounded":
@@ -3382,7 +3451,7 @@ def test_the_write_gate_rejects_unchanged_authored_style_writes(
 # The type of a word press Leaf builds by role, as a widget builds one
 # (`offerAction`), which the page's own controls are held to.
 LEAF_PRESS_TYPE = """async () => {
-  const {offerAction} = await window.__lfWidgetApi();
+  const {offerAction} = await import("/runtime/lib/controls.js");
   const press = document.querySelector('main').appendChild(
     offerAction('word', '', 'Leaf'));
   const s = getComputedStyle(press);
@@ -3440,7 +3509,8 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`@layer lf-base {
   @layer library { .library { font: 18px Georgia; } }

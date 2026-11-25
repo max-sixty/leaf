@@ -1,7 +1,7 @@
 /* How many of a set of obligations are still open and whose turn each is, in the words
    `lf-tally` shows and `lf-deck`'s bar repeats, so no two widgets count one queue
-   differently. `tally` takes the obligation records Leaf serves (`readObligations`,
-   `obligationsIn`) and reads each one's `state` and `next_actor`; `tallyWords` words
+   differently. `tally` takes the obligation records Leaf serves, the page's or a
+   region's (`readObligations`), and reads each one's `state` and `next_actor`; `tallyWords` words
    its count, naming the agent as the page does (`agentName()`).
 
    The open ones split by the server's next actor. Those waiting on the user, which Next
@@ -16,7 +16,7 @@
    beside a disabled Next On Me once the last one went to the agent. The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
-/** @param {readonly import("../framework/application.js").ObligationRecord[]} held */
+/** @param {readonly import("../state/semantic-application.js").ObligationRecord[]} held */
 export function tally(held) {
   const open = held.filter((item) => item.state !== "done");
   return {

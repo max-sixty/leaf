@@ -966,7 +966,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == token_colour(page, "--lf-accent")
+        and mark["color"] == token_colour(page, "--lf-ok")
     )
 
 
@@ -996,7 +996,7 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     assert _ring_round(page, "#p1")
     # From the keys, the block also wears the trace of the note's margin entry, whose
     # grey the ring's accent outranks. The Tab leaves the page, which the runtime reads a
-    # task later (focus.js, the `focusout` reading), and the ring coming off is that
+    # task later (dom/focus.js, the `focusout` reading), and the ring coming off is that
     # reading. Focus back on the note before it is no arrival, since the user never left.
     page.keyboard.press("Tab")
     expect(page.locator("#p1")).not_to_have_attribute("data-lf-proxied", "")
@@ -1106,7 +1106,7 @@ def test_a_note_follows_its_words_into_another_block_while_their_first_stays(
 def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
     browser, serve
 ):
-    """The ring a focused note draws round its block is the chrome's own (target-paint.js),
+    """The ring a focused note draws round its block is the chrome's own (readings/target-paint.js),
     not the annotation overlay's, so a page that presents its own annotations, which loads
     no overlay, still shows a sighted screen reader user where they are."""
     url = serve(NOTED_PAGE.replace("<body>", '<body data-annotations="page">', 1))

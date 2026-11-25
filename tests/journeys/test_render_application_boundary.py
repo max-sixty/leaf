@@ -171,7 +171,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     page = open_page(browser, url)
     # The short window moves the workspace's reading regions, and the page puts back
     # the place it recorded before them on the frame after; scrolling to the source
-    # before that has the page undo it (version.js, `restoreShifted`).
+    # before that has the page undo it (features/version.js, `restoreShifted`).
     resized(page, 1440, 320)
     rendered(page)
     heading = page.locator("h1")
@@ -348,9 +348,10 @@ def test_thread_presentation_waits_for_its_own_widgets_only(browser, serve):
           window.__heldLocalPresentations = new Map([
             ['thread-local', threadPreparation.promise],
           ]);
-          (await window.__lfWidgetApi())
-            .widgetController(document.querySelector('#page-local'))
-            .present(pagePreparation.promise);
+          // Said from inside the widget, the work is its preparation.
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          document.querySelector('#page-local').shadowRoot
+            .dispatchEvent(new PendingTaskEvent(pagePreparation.promise));
           window.whenLeafPresented = presentation.whenApplicationPresented;
           window.whenLeafRegionsPresented =
             presentation.whenApplicationRegionsPresented;

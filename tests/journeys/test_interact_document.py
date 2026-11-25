@@ -166,7 +166,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
 
-    # The generation is what a tab speaks to the server (`runtime/layer-client.js`),
+    # The generation is what a tab speaks to the server (`runtime/transport/layer-client.js`),
     # so a new selection's gives the document a new executable. The re-selection
     # activates the source itself.
     extra = page_dir.parent / "extra"
@@ -279,11 +279,7 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     """A package member can belong to different families without validator changes."""
     label = {
         "description": "A package's shared label.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "owners": ["lf-option", "lf-card"],
     }
@@ -644,7 +640,9 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     assert data_model.read_contracts(page_dir) == (
         {} if clear else {"project-feed": "rows"}
     )
-    stored = data_model.source_file(page_dir, "project-feed")
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "project-feed")
+    )
     assert (
         not stored.exists() if clear else json.loads(stored.read_text())["value"] == []
     )

@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .detached import starting_detached
-from .files import read_json
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
 from .schema import (
@@ -23,7 +22,7 @@ from .schema import (
     SERVER_LOCK,
     SERVICE_FILE,
 )
-from .service import PageTransaction, claim_is_active, page_claim
+from .service import PREVIEW, PageTransaction, page_claim, page_holder
 from .state import (
     PLUGIN_ROOT,
     STRING,
@@ -95,18 +94,6 @@ ACCESS: Record[AccessRecord] = Record(
     ),
     since=13,
 )
-# The page receives it whole, so its shape is the served state's `preview`.
-PREVIEW = Record(
-    "preview",
-    described(
-        "What a developer preview shows in browser chrome, as `leaf-dev preview` "
-        "writes it to the page directory's `preview.json`.",
-        read_json(Path(__file__).with_name("served_state") / "state.schema.json")[
-            "$defs"
-        ]["Reading"]["properties"]["preview"],
-    ),
-    since=13,
-)
 
 
 def read_service(page_dir: Path) -> ServiceRecord | None:
@@ -156,7 +143,7 @@ def other_serving_leaf(page_dir: Path) -> dict | None:
     update (`stop_when_service_ends`). Uncommitted edits don't count, since the record
     can't say whether they changed after the server started. `leaf server start`
     restarts such a server under this Leaf (`hosting.start_page`), and `page check`
-    notes it (`validation.source.source_advice`)."""
+    notes it (`authored_checks.source.source_advice`)."""
     from .layer import running_leaf
 
     server = running_server(page_dir)
@@ -281,7 +268,8 @@ def stop_when_service_ends(page_dir: Path) -> None:
             exit_serving(0)
         persistent = service["lifetime"] == "persistent"
         held = page_claim(page_dir)
-        claimed = claim_is_active(held)
+        holder = page_holder(page_dir, held, None)
+        claimed = isinstance(holder, dict)
         if persistent or claimed:
             root = copy.successor(held["id"] if held is not None and claimed else None)
             if root is not None and root != asked:
@@ -294,7 +282,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         if persistent:
             time.sleep(2.0)
             continue
-        if claimed:
+        if holder is not None:
             orphaned_at = None
         elif orphaned_at is None:
             orphaned_at = time.monotonic()
@@ -307,7 +295,10 @@ def stop_when_service_ends(page_dir: Path) -> None:
                     service = read_service(page_dir)
                     if not service or not service["enabled"]:
                         exit_serving(0)
-                    if service["lifetime"] == "persistent" or page.active_claim:
+                    if (
+                        service["lifetime"] == "persistent"
+                        or page.holder(None) is not None
+                    ):
                         orphaned_at = None
                         continue
                     exit_serving(0)
@@ -328,11 +319,8 @@ def _follow_copy(page_dir: Path, server_id: str, root: Path) -> None:
     one that can't build the environment does, is tried again on the retry ladder
     (`codex.retry_delay`) for as long as this server serves.
 
-    The child's environment names no session, as a server a hook starts runs: a
-    command whose environment names a session hands itself to the checkout that
-    session selected (`session_runtime.hand_off_command`), and only the copy this
-    server follows may restart it. The child reads the session from the page's
-    claim.
+    The child's environment names no session, as a server a hook starts runs; it
+    reads the session from the page's claim.
 
     It loads no module the server has not: the server loads `leaf.codex` before it
     serves, as `exit_serving` relies on too, and every hook loads this module, so
@@ -466,7 +454,7 @@ def host_key() -> str:
             if (access := ACCESS.read(path)) is None:
                 access = ACCESS.write(path, {"token": secrets.token_urlsafe(16)})
     # Whoever made the file, only the user reads the key.
-    hold_mode(path, 0o600)
+    hold_mode(ACCESS.file(path), 0o600)
     return access["token"]
 
 

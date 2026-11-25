@@ -64,7 +64,7 @@ def revisions_on_disk(page_dir: Path) -> RevisionReader:
 
 def _text(node, root: bool = True) -> str:
     """A node's words as a name reads them: a popover's below it, such as a gloss's
-    explanation, stand apart until shown and name nothing (passages.js, `named`)."""
+    explanation, stand apart until shown and name nothing (readings/passages.js, `named`)."""
     if isinstance(node, str):
         return node
     if not root and "popover" in node["attrs"]:
@@ -376,10 +376,15 @@ class GestureWords:
                 "chosen": [self.name(event, i) for i in detail["value"]],
             }
         if record.get("kind") == "position":
+            # A widget that orders its own members is named once, as the widget.
             return {
                 "form": "move",
                 "unit": self.name(event, detail[spec["unit"]]),
-                "to": self.name(event, detail["value"]),
+                **(
+                    {"to": self.name(event, detail["value"])}
+                    if detail["value"] != event["widget"]
+                    else {}
+                ),
             }
         if record.get("kind") == "body":
             return {"form": "edit"}

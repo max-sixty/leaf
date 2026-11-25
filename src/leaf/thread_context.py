@@ -14,6 +14,7 @@ from leaf.events import (
     retractions,
     spoken_turns,
     taken_back,
+    unlined,
 )
 from leaf.passages import enclosing_ids, holds_html, message_markup
 from leaf.registry.kernel import kinds_declaring
@@ -197,7 +198,7 @@ def logged_fragment(event: dict) -> SourceDocument | None:
     function of the text alone, so it is held by that text, which names it exactly
     whichever page and log it came from. Text a writer hands in has not been admitted
     yet and is another fact: its gate parses it afresh
-    (`validation.admission.check_markup`)."""
+    (`authored_checks.admission.check_markup`)."""
     if (
         event["kind"] in ("comment", "reply", "edit")
         and event.get("author") == "agent"
@@ -221,8 +222,8 @@ def thread_structure(events: list) -> ThreadStructure:
 
     `holders` keeps every id any of a message's wordings held, a withdrawn edit's
     included, so no other message or revision takes it (`check_markup`,
-    `validation.source`): a gesture the user made on that id would otherwise land on
-    another element. The message itself may take it back in a later edit, which is
+    `authored_checks.source`): a gesture the user made on that id would otherwise land
+    on another element. The message itself may take it back in a later edit, which is
     how an answered widget keeps its answer."""
     withdrawn = taken_back(events)
     wordings, holders, latest = {}, {}, {}
@@ -492,9 +493,9 @@ def summary_hint(thread: dict, summaries: list) -> dict | None:
     each time a run grows long enough. A fold of progress alone counts too. Its ends
     are messages the thread still says, which a summary's own `from` may no longer
     be once the user took that message back. It is widened over any message it would
-    leave in full above a summary (`_gapless`), so a short stretch a retired summary
-    left above a later one doesn't stop every later hint. The agent chooses the range,
-    and may keep such a message in full where the user still needs its words."""
+    leave in full above a summary (`_gapless`), so a short stretch the agent kept in
+    full above a later summary doesn't stop every later hint. The agent chooses the
+    range, and may keep such a message in full where the user still needs its words."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
     ids = [message["id"] for message in thread["msgs"]]
@@ -613,10 +614,8 @@ def batch_threads(
 
     `whole` carries every message and gesture, for a reader that can't page
     through the rest, as a fork can't (`forks.line_prompt`). `beside_line` says that
-    a follower lists line forks for the session the batch goes to (`forks.lane_up`),
+    a follower lists line forks for the session the batch goes to (`leases.lane_up`),
     each with a fork beside it that summarizes its thread (`summary_fork`)."""
-    from leaf.forks import unlined
-
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
@@ -668,7 +667,7 @@ def batch_threads(
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         # A thread whose newest message in the batch came to a round that awaited a
-        # line (`forks.unlined`) is one a fork beside that round's line fork
+        # line (`events.unlined`) is one a fork beside that round's line fork
         # summarizes, so the hint is the fork's, and the session isn't asked to
         # spend a step on it too.
         newest = [event for event in batch if t in memberships[event["id"]]][-1]

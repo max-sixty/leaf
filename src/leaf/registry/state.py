@@ -7,6 +7,7 @@ from .contract import (
     deciding_verbs,
     declares_string,
     detail_schema,
+    record_unit,
     registry_error,
     state_specs,
     verb_writer,
@@ -135,16 +136,14 @@ def validate_widget_record_contracts(
                 raise registry_error("unit-type", path, tag, verb=verb, unit=unit)
             continue
         kind = record["kind"]
-        expected_unit = "unit" if kind == "position" else "widget"
-        if unit != expected_unit:
+        if unit != record_unit(record):
             raise registry_error(
-                "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
+                "record-unit", path, tag, verb=verb, kind=kind, unit=record_unit(record)
             )
-        # A container is a declared element inside the widget, among whose
-        # descendants the browser finds it, so never the widget itself.
-        if kind == "position" and (
-            record["within"] == tag or record["within"] not in declarations
-        ):
+        # A container is a declared element, which may be the widget itself; whether
+        # the declarations place one at or inside the widget is advice
+        # (`widgets.widget_advice`).
+        if kind == "position" and record["within"] not in declarations:
             raise registry_error(
                 "record-within", path, tag, verb=verb, within=record["within"]
             )
@@ -230,13 +229,27 @@ def validate_answered_conditions(
     # Asked only after the declaration's record and retirement gates have reported
     # their more fundamental structural errors. Each answering verb's condition reads
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
-    # verb recording positions, the emptiness of one member container inside the
-    # widget.
+    # verb recording positions, the emptiness of one of its own containers (`within`,
+    # which the record gate has found declared) at or inside the widget; for any other
+    # verb keeping state per member, an action in force at each member it names
+    # (`every`), which must be an element this widget owns and identifies by id.
     for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
         spec = entry["verbs"][verb]
         empty = condition.get("empty")
         record = spec.get("record") or {}
-        if empty is None:
+        if every := condition.get("every"):
+            member = declarations.get(every["member"]) or {}
+            if (
+                empty is not None
+                or spec["unit"] == "widget"
+                or record.get("kind") == "position"
+                or tag not in member.get("owners", [])
+                or "id" not in member.get("attributes", {}).get("required", [])
+            ):
+                raise registry_error(
+                    "answering-every", path, tag, verb=verb, member=every["member"]
+                )
+        elif empty is None:
             if spec["unit"] != "widget":
                 raise registry_error("answering-part", path, tag, verb=verb)
             if "detail" not in condition:
@@ -254,12 +267,8 @@ def validate_answered_conditions(
             continue
         if record.get("kind") != "position":
             raise registry_error("answering-position", path, tag, verb=verb)
-        within = empty["within"]
-        container = declarations.get(within)
-        if container is None:
-            raise registry_error(
-                "answering-container", path, tag, verb=verb, within=within
-            )
+        within = record["within"]
+        container = declarations[within]
         if container.get("content") != "members":
             raise registry_error(
                 "answering-members", path, tag, verb=verb, within=within

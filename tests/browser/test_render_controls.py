@@ -101,7 +101,7 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
     resized(page, 1440, 900)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.evaluate("async () => (await window.__lfWidgetApi()).raiseError('Not saved')")
+    page.evaluate("async () => (await window.__lfCheckApi()).raiseError('Not saved')")
     panel_settled(page, open=False)
     leaf = page.locator(".lf-fp-leaf > .lf-badges")
     marks = [leaf.locator(name) for name in (".lf-fp-badge", ".lf-fp-news-dot")]
@@ -230,7 +230,8 @@ def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, wid
 def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     browser, serve
 ):
-    """Leaf navigation stays local without changing authored native browser APIs."""
+    """Leaf navigation stays local, and a script's own focus and reveal calls still do
+    what the browser's do."""
     filler = "".join(f"<p>Child passage {number}.</p>" for number in range(40))
     source = leaf_page(
         "Isolated sample",
@@ -321,11 +322,12 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     assert external_requests[0]["origin"] == "null"
     assert "cookie" not in external_requests[0]
     page.unroute(remote)
-    # Scripts and nested embeds are still admitted; native methods are untouched.
-    assert child.evaluate("""() =>
-      [HTMLElement.prototype.focus, Element.prototype.scrollIntoView]
-        .every(method => Function.prototype.toString.call(method).includes('[native code]'))
-    """)
+    # Scripts and nested embeds are still admitted, and a script's own focus call is the
+    # browser's.
+    assert child.evaluate(
+        "() => Function.prototype.toString.call(HTMLElement.prototype.focus)"
+        ".includes('[native code]')"
+    )
     expect(child.locator('iframe[title="Authored embedded page"]')).to_have_count(1)
     outer = page.locator("#outer-control")
     outer.click()
@@ -357,8 +359,20 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     assert page.evaluate("scrollY") == before
     assert page.evaluate("outerTransitions") == []
     assert child.evaluate("leafFocusEvents") == []
-    assert child.evaluate("scrollY") > 0
+    landed = child.evaluate("scrollY")
+    assert landed > 0
     assert child.locator("#inner-scroll").evaluate("node => node.scrollTop") > 0
+
+    # A script's own reveal still does what the browser's does. Leaf hears the call
+    # (runtime/dom/arrivals.js) and doesn't contain it, so it shows its target in the sample
+    # and, through the sample's frame, in the page around it.
+    revealed = child.evaluate("""() => {
+      document.querySelector('#child-control').scrollIntoView({behavior: 'instant'});
+      return scrollY;
+    }""")
+    assert revealed < landed
+    page.wait_for_function("before => scrollY > before", arg=before)
+    scroll_settled(page)
 
     # A deliberate pointer entry gets real child focus and ordinary local keys.
     sample.scroll_into_view_if_needed()

@@ -13,6 +13,7 @@ from typing import cast
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     ROOT,
     SHIPPED_PACKAGES,
@@ -46,7 +47,6 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
-from leaf.validation import composition as validation_composition
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -224,7 +224,7 @@ _WORKER = {
 def test_composition_holds_each_work_role_to_its_tags_declaration(
     page_dir, tag, entry, code, at, values
 ):
-    """`runtime/work.js` reads `$work.widgets` as given, so composition refuses an
+    """`runtime/host/work.js` reads `$work.widgets` as given, so composition refuses an
     entry it would misread, naming the tag and the key: one its role doesn't take or
     needs, a tag the layer doesn't declare, an attribute the tag lacks, an assignment
     that isn't a reference, a state no single widget value verb records, and a value
@@ -239,9 +239,22 @@ def test_composition_holds_each_work_role_to_its_tags_declaration(
     assert found([finding], code, at, **values), finding
 
 
+def test_a_work_role_s_state_verb_may_name_the_property_that_holds_it(page_dir):
+    """A role's state is the value record on its attribute, whichever property of the
+    element holds that value in the browser."""
+    registry = vocabulary(page_dir)
+    (spec,) = (
+        spec
+        for spec in registry["lf-test-task"]["verbs"].values()
+        if spec.get("record") == {"kind": "value", "attr": _GOAL["state"]}
+    )
+    spec["record"]["property"] = "status"
+    registry_validation.validate_registry(registry, "test registry")
+
+
 def test_the_command_hub_example_maps_its_tags_onto_work_roles():
     """The worked example of `$work.widgets` composes over the shipped layer."""
-    registry = validation_composition.incoming_registry(
+    registry = registry_validation.incoming_registry(
         [*SHIPPED_PACKAGES, ROOT / "examples" / "command-hub.page"]
     )
     assert registry["$work"]["widgets"]["lf-atlas-worker"]["role"] == "worker"
@@ -395,7 +408,7 @@ def test_init_advises_on_instructions_for_a_kind_no_batch_carries(
     assert advice.values["registry"] == str(overlay / "registry.json")
 
 
-@pytest.mark.parametrize("path", [("verbs", "decide", "unit")], ids="-".join)
+@pytest.mark.parametrize("path", [("verbs", "decide", "detail")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):
@@ -683,6 +696,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "deleted message": {"kind": "edit", "text": "", **titled, **owes("reply")},
+        "rewritten message in a summarized thread": {
+            "kind": "edit",
+            "text": "Tuesdays, after the report run",
+            "thread": {"title": "Tuesday backfill", "summaries": [{"covers": ["m1"]}]},
+            **owes("reply"),
+        },
         "rewritten suggestion": {
             "kind": "edit",
             "text": "moves to Wednesdays",
@@ -988,6 +1007,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     assert session_model.cmd_wait(page_dir) == 0
     waited = capsys.readouterr().out
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session)
+    hooks_run_this_tree(session)
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # The adapter's queue route: collect the batch, then offer its pointer.

@@ -182,7 +182,6 @@ def _layout_passes_batch_without_refolding_controls(page):
         before = metrics()
         page.evaluate(
             """async () => {
-              const {layoutChanged} = await window.__lfWidgetApi();
               const rows = [...document.querySelectorAll('.lf-margin-cluster')];
               const boxes = () => rows.map(row => {
                 const {x, y, width, height} = row.getBoundingClientRect();
@@ -205,7 +204,7 @@ def _layout_passes_batch_without_refolding_controls(page):
               };
               for (let i = 0; i < 5; i++) await new Promise(done => {
                 document.addEventListener('lf-margin-layout', done, {once: true});
-                layoutChanged(document.body);
+                document.body.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
               });
             }"""
         )
@@ -478,6 +477,10 @@ classDiagram
   }
   Runner --&gt; Job
 </pre></lf-diagram>
+<lf-diagram id="quoted-name" parts="all"><pre>
+erDiagram
+  "Line Item" ||--o{ ORDER : in
+</pre></lf-diagram>
 """
         + "\n".join(
             f'<lf-diagram id="namespace-{mode}" parts="all"><pre>\n'
@@ -501,33 +504,19 @@ classDiagram
         )
         .replace('<lf-diagram id="trend">', extra, 1)
     )
-    url = serve(page)
-    assert render_gate_model.render_version(browser, url).failures == []
-    drawn = open_page(browser, url)
-    assert (
-        drawn.locator("#namespaced").evaluate(
-            "e => e.visualParts.get('node:Jobs').label"
-        )
-        == "Jobs"
-    )
-    assert (
-        drawn.locator("#er-quoted-name").evaluate(
-            "e => e.visualParts.get('node:Line%20Item').label"
-        )
-        == "Line Item"
-    )
-    for mode, expected in (
-        ("true", {"node:Job", "node:Org", "node:Org.Unit"}),
-        ("false", {"node:Job", "node:Org.Unit"}),
-    ):
-        assert (
-            set(
-                drawn.locator(f"#namespace-{mode}").evaluate(
-                    "e => [...e.visualParts.keys()]"
-                )
-            )
-            == expected
-        )
+    reading = render_gate_model.render_version(browser, serve(page))
+    assert reading.failures == []
+    # The parts each diagram drew, as the reading keeps them for `page state`.
+    drawn = {
+        name: {part["id"]: part["label"] for part in visual["parts"]}
+        for name, visual in reading.visuals.items()
+    }
+    assert drawn["namespaced"]["node:Jobs"] == "Jobs"
+    assert drawn["quoted-name"]["node:Line%20Item"] == "Line Item"
+    # A diagram that admits no part lists none, as `thread create --part` takes none.
+    assert drawn["er-quoted-name"] == {}
+    assert set(drawn["namespace-true"]) == {"node:Job", "node:Org", "node:Org.Unit"}
+    assert set(drawn["namespace-false"]) == {"node:Job", "node:Org.Unit"}
 
 
 def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
@@ -1039,11 +1028,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "example": "<lf-piece>Example</lf-piece>",
     }
@@ -1088,7 +1073,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     }
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/widget-api.js";\n'
+            'import { once } from "/runtime/lib/once.js";\n'
             f'customElements.define("{tag}", class extends HTMLElement {{\n'
             + body
             + "});\n"
@@ -1865,7 +1850,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     was just decided, and a page that replays the decisions on arrival would be showing
     the user furniture instead of what they came back to read. The runtime puts the
     arrangement back before the page is presented (`restoreUserView`,
-    restore-state.js), so it appears without the motion its gesture plays.
+    state/restore-state.js), so it appears without the motion its gesture plays.
 
     What is read is every motion the browser reports, which it does through the
     inspector's animation agent as it reports a request or a response: nothing is
@@ -1981,9 +1966,9 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # Fifteen arrivals a step apart: one and a half bounds in all.
     page.evaluate(
         """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
+          const {afterPresentation} = await window.__lfWidgetApi();
           for (let i = 1; i <= 15; i++)
-            deferredArrival(new Promise(resolve => setTimeout(resolve, i * step)));
+            afterPresentation(() => new Promise(resolve => setTimeout(resolve, i * step)));
         }""",
         step_ms,
     )
@@ -1993,10 +1978,10 @@ def test_a_handover_waits_while_arrivals_land_and_ends_once_they_stop(browser, s
     # has taken its place, so the arrivals left swing between two and three.
     page.evaluate(
         """async step => {
-          const {deferredArrival} = await window.__lfWidgetApi();
-          deferredArrival(new Promise(() => {}));
+          const {afterPresentation} = await window.__lfWidgetApi();
+          afterPresentation(() => new Promise(() => {}));
           window.churn = setInterval(() => {
-            deferredArrival(new Promise(resolve => setTimeout(resolve, step * 1.5)));
+            afterPresentation(() => new Promise(resolve => setTimeout(resolve, step * 1.5)));
           }, step);
         }""",
         step_ms,

@@ -15,18 +15,12 @@
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
-import {
-  nameAction,
-  el,
-  generated,
-  generatedElement,
-  LeafElement,
-  navigateToDatum,
-  offerAction,
-  setChildLists,
-  setChildren,
-} from "/runtime/widget-api.js";
+import { navigateToDatum, setChildLists, setChildren } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { el } from "/runtime/lib/elements.js";
+import { nameAction, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { plainPress } from "/runtime/lib/keys.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
@@ -125,7 +119,7 @@ function buildToolbar(owner) {
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
-  generatedElement(summary, { says: false });
+  keeps(summary, "data-lf-gen", "1");
   // An offer, not a bare button: the disclosure control is chrome this widget injected,
   // and the offer gives it the press markers the theme and the keyboard read.
   const button = offerAction("symbol", "lf-call-toggle", undefined, {
@@ -204,10 +198,7 @@ function locationLink(record, owner) {
         href=${`#${owner.getAttribute("diff")}`}
         @click=${async (/** @type {MouseEvent} */ event) => {
           // A modified click keeps the link's own meaning, such as opening a new tab.
-          const plain =
-            event.button === 0 &&
-            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
-          if (event.defaultPrevented || !plain) return;
+          if (event.defaultPrevented || !plainPress(event)) return;
           event.preventDefault();
           event.stopPropagation();
           await travelToLine(owner, record);
@@ -233,9 +224,7 @@ function renderLine(record, line, owner, count = null) {
       }${
         count === null
           ? ""
-          : html`<span class="lf-call-group-count" ${generated({ says: false })}
-              >${count}</span
-            >`
+          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
       }`,
     line,
   );

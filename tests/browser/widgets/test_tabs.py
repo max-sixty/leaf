@@ -2,18 +2,21 @@
 history, the stuck strip and the headers stacked under it, and queue rows and groups."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
+    clocked,
     displayed,
     holding,
     leaf_page,
     open_page,
     open_threads,
     pane_scroll_behavior,
+    panel_says,
     post_event,
     resized,
     root_overflow,
@@ -25,6 +28,7 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
+from browser.widgets import hear_walks, walks_said
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -1200,10 +1204,13 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
         first.getBoundingClientRect().top - strip.getBoundingClientRect().top + 10;
     }""")
     page.get_by_role("tab", name="Ticket 11").focus()
+    hear_walks(page)
     page.keyboard.press("ArrowUp")
     expect(page.get_by_role("tab", name="Ticket 10")).to_have_attribute(
         "aria-selected", "true"
     )
+    # The step said its place in the queue to the page.
+    assert walks_said(page) == ["Tab 11 of 30"]
     page.wait_for_function("""() => {
       const strip = document.querySelector('#queue > .lf-tabstrip');
       const band = strip.getBoundingClientRect();
@@ -1213,6 +1220,45 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
       return strip.scrollTop > 0 && heading.top >= band.top - 0.5
         && heading.bottom <= tab.top + 0.5 && tab.bottom <= band.bottom + 0.5;
     }""")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_tab_strip_s_place_goes_as_a_press_takes_the_user_to_another_tab(
+    engine, request, serve
+):
+    """A key's step along a strip that runs past the window says its place in Leaf's
+    panel, "Tab 2 of 24", for the step's moment. A pointer press on another tab takes
+    the user off the tab that step landed on, so the panel stops saying the place at
+    once, where it would otherwise name a tab the user has left for the rest of the
+    moment. The strip says nothing of the press: Leaf sees focus leave the stop the
+    place was said on (records/walk-position.js). The page's clock stands still from the step
+    on, so the moment can't end the place here."""
+    views = "".join(
+        f'<lf-tab id="view-{n}" label="View {n}"><p id="view-{n}-p">Words of view {n}.'
+        "</p></lf-tab>"
+        for n in range(1, 25)
+    )
+    source = leaf_page(
+        "a long tab strip",
+        f'<h1 id="t">Views</h1><lf-tabs id="views">{views}</lf-tabs>',
+    )
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(source))
+    tabs = page.locator("#views [role=tab]")
+    tabs.nth(0).click()
+    expect(tabs.nth(0)).to_be_focused()
+    rendered(page)
+
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ArrowRight")
+    page.clock.run_for(100)
+    expect(tabs.nth(1)).to_be_focused()
+    assert "Tab 2 of 24" in panel_says(page)
+    tabs.nth(3).click()
+    page.clock.run_for(100)
+    expect(tabs.nth(3)).to_have_attribute("aria-selected", "true")
+    assert "Tab 2 of 24" not in panel_says(page), (
+        "the panel names the tab the keys left the user on, with another tab pressed"
+    )
 
 
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
@@ -1300,7 +1346,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.wait_for_function(shown, arg=["framed", 1])
     # Walking to the tab already open brings it back after a scroll took most of it
     # away. A sliver stays in the strip: with none, the tab is out of sight, so the key
-    # lets go of it and acts from what the user reads (keyboard/controller.js).
+    # lets go of it and acts from what the user reads (panel/page-keys/controller.js).
     page.evaluate("""() => {
       const strip = document.querySelector('#framed > .lf-tabstrip');
       const tab = strip.querySelector('[aria-selected="true"]');

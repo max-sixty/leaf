@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     PAGE,
@@ -600,12 +600,14 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     claimed, server, tmp_path
 ):
     """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next write naming the page
-    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
-    its address, and the reply then goes."""
+    Leaf vendored, naming the re-vendor. Reads leave the layer as it was, `page
+    state` refusing the page as at another page protocol. The session's next write
+    naming the page makes that re-vendor itself (`vendoring.renew_layer`), restarting
+    the server at its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in json.loads(replied.stdout)["error"]
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     read = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(claimed)],
         capture_output=True,
@@ -613,11 +615,8 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert read.returncode == 0, read.stderr
-    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    layer_10 = layer_record(claimed)
-    assert layer_10 is not None
-    before = layer_10["generation"]
+    assert read.returncode != 0, read.stdout
+    assert "page protocol" in read.stdout + read.stderr
     subprocess.run(
         [
             *LEAF_COMMAND,
@@ -633,9 +632,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    layer_11 = layer_record(claimed)
-    assert layer_11 is not None
-    assert layer_11["generation"] == before
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
     for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
@@ -655,30 +652,17 @@ import weakref
 
 from leaf import page_memory
 from leaf import schema as schema_model
-from leaf import state as cleanup_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 
 
-@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
-def test_read_commands_leave_an_older_page_and_its_server_alone(
-    claimed, server, unreadable
-):
+def test_read_commands_leave_an_older_page_and_its_server_alone(claimed, server):
     """A read by another session cannot take a held page across a protocol bump."""
-    from leaf.service import claim_path
-
     publish(claimed)
-    vendored = vendored_at_another_protocol(claimed)
-    record = (
-        claim_path(claimed)
-        if unreadable == "claim"
-        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    )
-    stored = interact_files.read_json(record)
-    stored["format"] = "leaf-" + unreadable + "/999"
-    cleanup_model.write_json(record, stored)
+    vendored_at_another_protocol(claimed)
     revisions = interact_files.list_revisions(claimed)
     recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
+    hooks_run_this_tree("s2")
     for command in (
         ["page", "state", str(claimed)],
         ["page", "events", str(claimed)],
@@ -697,10 +681,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    layer_3 = registry_storage.layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == vendored
-    assert vendoring_model.renew_layer(claimed, None, command=True) is None
+    assert vendoring_model.renew_layer(claimed, None) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 
@@ -795,7 +776,10 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     registry = json.loads((package / "registry.json").read_text())
     assert registry["lf-existing"] == existing
     assert "lf-added-note" in registry
-    assert (package / "defaults.css").read_bytes() == theme
+    # The package keeps the rules it had, and the starter's rule follows them.
+    styles = (package / "defaults.css").read_bytes()
+    assert styles.startswith(theme.rstrip())
+    assert styles.endswith(packages_model.starter_widget_styles("lf-added-note"))
     assert instructions.read_text() == "Keep this package instructions.\n"
     assert helper.read_text() == "export const existing = true;\n"
 
@@ -924,7 +908,7 @@ def test_package_list_describes_each_selectable_package_in_its_own_words(tmp_pat
     installed package in place of the bundled one whose name it takes. `default`, on
     every page already, is not listed."""
     team = tmp_path / "src" / "team-charts"
-    packages_model.cmd_package_init(team, "lf-trend")
+    packages_model.cmd_package_init(team, ("lf-trend",))
     (team / "instructions").mkdir(exist_ok=True)
     (team / "instructions" / "author.md").write_text(
         "## When to select it\n\n"

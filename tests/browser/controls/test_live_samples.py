@@ -22,9 +22,9 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 # The focus ring's colour, as the page computes it.
-ACCENT = """() => {
+RING_INK = """() => {
   const probe = document.body.appendChild(document.createElement("i"));
-  probe.style.color = "var(--lf-accent)";
+  probe.style.color = "var(--lf-ok)";
   const color = getComputedStyle(probe).color;
   probe.remove();
   return color;

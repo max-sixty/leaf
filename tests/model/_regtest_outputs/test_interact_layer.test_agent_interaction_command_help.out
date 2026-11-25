@@ -125,12 +125,15 @@ Usage: leaf thread create [OPTIONS] PAGE
   until their reply or settling reaction. A question whose answers you can list
   takes a widget that asks in the text instead, such as an `lf-options` choice,
   which waits on the user until they pick. Refuses a quote the active revision
-  does not hold, or holds more than once. The comment's id is the thread's.
+  does not show, or shows more than once; words a page's script draws are found
+  on the page as the browser draws it. Refuses a --part the page would show
+  nowhere. The comment's id is the thread's.
 
 Options:
   --quote TEXT  passage text from the active revision
   --section ID  element ID to anchor or scope --quote
-  --part ID     declared visual part within --section
+  --part ID     a visual part within --section, such as one `page state` lists
+                in its `parts`
   --text TEXT   the comment's text
   --file PATH   read the comment's text from PATH, - for stdin; with neither
                 option, from piped stdin
@@ -169,7 +172,8 @@ Options:
                      ask that question again, once per question
   --quote TEXT       new passage text to move this thread onto
   --section ID       new element ID, or scope for --quote
-  --part ID          new declared visual part within --section
+  --part ID          a new visual part within --section, such as one `page
+                     state` lists in its `parts`
   --detach           remove the thread's page target
   --help             Show this message and exit.
 

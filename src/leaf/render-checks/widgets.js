@@ -1,14 +1,17 @@
-import { inChrome, quoted } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
+  inChrome,
   textNodesUnder,
   commandDeclarationsWithin,
   commandRoutes,
+  commandsUnread,
+  drawsAbsentParts,
   pageDocument,
   inPage,
   TEXT_BOX,
   userScrollport,
   visualPartProblems,
+  visualParts,
 } from "/runtime/check-api.js";
 import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at as locate } from "./locate.js";
@@ -93,14 +96,14 @@ export function invalidPaints() {
 
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
-// and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
+// and no others (records/widget-loader.js) — asked of the whole declared vocabulary this reports
 // every tag the page simply does not contain. `document`, not the page, so a widget in
 // an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
 /** @param {readonly string[]} modules the tags a module upgrades */
 export const missingUpgrades = (modules) =>
   modules.filter((tag) => document.querySelector(tag) && !customElements.get(tag));
-// visual-parts.js reads each declaration, so a part the gate accepts is one the page
+// state/visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
@@ -115,9 +118,34 @@ export const invalidVisualProviders = (declarations) =>
     )
     .filter((instance) => instance.problems.length);
 
+// What each visual in the page draws now, by the visual's id (`render_reading.py`):
+// `parts`, the parts it offers a thread, which `leaf page state` lists, and `whole`,
+// whether the page puts a thread on a part the visual didn't draw on the whole visual
+// (`drawsAbsentParts`) rather than nowhere. `leaf thread create --part` reads both to
+// refuse a part the page would show nowhere. The parts are those the page's picker
+// offers (`visualParts`), so a visual that admits none lists none. A visual with no id
+// can't be named, so it is left out.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
+export const drawnVisuals = (declarations) =>
+  Object.fromEntries(
+    Object.entries(declarations)
+      .filter(([, entry]) => entry.visual)
+      .flatMap(([tag]) => [...document.querySelectorAll(`${tag}[id]`)])
+      .filter(inPage)
+      .map((el) => [
+        el.id,
+        {
+          parts: visualParts(el).map(({ id, label }) => ({ id, label })),
+          whole: drawsAbsentParts(el),
+        },
+      ]),
+  );
+
 // Attributes on a widget that its entry never declared. The schema is the
-// whole of the author's namespace — `additionalProperties: false` on every tag — and
-// the static lint holds an authored document to it. What no source reading can see is the
+// whole of the author's namespace, and the static lint holds an authored document to
+// it. Composition closes it with `additionalProperties: false` unless the entry gives
+// its own; an entry that opens its schema admits attributes it doesn't name, so this
+// check skips it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
 // attribute as a verb's record form (`selected`, `status`), which is what makes the write
@@ -139,9 +167,9 @@ export function undeclaredAttrs(declarations) {
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
   // look, not a state a version could carry — and `title`, `lang` and `dir`, which
-  // the page may write on any element (`validation/instances.py`), describe one.
+  // the page may write on any element (`markup_checks/instances.py`), describe one.
   // `part` is a look too: the runtime gives a box in a widget's shadow tree a part
-  // to anchor or focus it from the document (css-anchors.js, focus.js).
+  // to anchor or focus it from the document (dom/css-anchors.js, dom/focus.js).
   const painted = /^(?:data-|aria-)/;
   const platform = new Set([
     "role",
@@ -157,8 +185,8 @@ export function undeclaredAttrs(declarations) {
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
-    const properties = entry.attributes.properties;
-    if (!properties) continue;
+    const { properties, additionalProperties } = entry.attributes;
+    if (!properties || additionalProperties !== false) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))
         for (const a of el.attributes)
@@ -170,7 +198,7 @@ export function undeclaredAttrs(declarations) {
 
 // The two sides of the settlement contract, compared on the rendered page. The mark —
 // data-lf-state on a holder — is the layer's paint of a logged decision
-// (`projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
+// (`records/projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
 // retires slots by the application's reading of the same decision, never by the mark.
 // What can still go wrong is a family's, and both failures render perfectly: a module
 // that writes the mark where the log decided nothing styles words as settled that the
@@ -224,7 +252,7 @@ export function retiredSlots(holders) {
   };
   for (const h of holders) {
     const el = find(h.id);
-    if (!el || inChrome(el) || quoted(el)) continue;
+    if (!el || inChrome(el) || el.matches("[data-lf-exhibit] *")) continue;
     const mark = el.getAttribute("data-lf-state");
     const at = locate(el);
     if (mark !== (h.outcome ?? null)) {
@@ -457,6 +485,20 @@ export function heldScrollers(tags) {
         });
     }
   return found;
+}
+
+// Each element that holds an `lfCommands` Leaf never read, since no `lf-commands` event
+// reached Leaf from it, as where the element said so before it was placed. Its keys
+// bind nothing and the buttons its rows name do nothing, and nothing else reports it.
+// One walk of the document and every open root.
+export function unreadCommands() {
+  return openRoots(document.documentElement)
+    .flatMap((root) => [
+      ...(root instanceof Element ? [root] : []),
+      ...root.querySelectorAll("*"),
+    ])
+    .filter(commandsUnread)
+    .map((element) => ({ code: "unread-commands", at: locate(element) }));
 }
 
 // Each command in one of `tags`' widgets that declares context keys and no

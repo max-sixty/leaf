@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     FLOW_PAGE,
     OPTIONS,
@@ -84,22 +84,21 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf.authored_checks.admission import message_markup_findings
+from leaf.authored_checks.source import check_source
+from leaf.authored_checks.source_history import predecessor_reading
 from leaf.refusals import Refused
 from leaf.registry.contract import DECLARED_WORDS, RANK, detail_schema, stamp_words
 from leaf.registry.schema import schema_error
 from leaf.registry.storage import (
     load_registry,
     read_page_registry,
-    require_registry,
 )
+from leaf.registry.validation import incoming_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.runtime_selection import executing
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import composition as validation_model
-from leaf.validation.admission import message_markup_findings
-from leaf.validation.source import check_source
-from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
 
 # PAGE's group asking, and the same group once the author settles it.
@@ -964,22 +963,15 @@ def construction_nodes(content):
 
 
 def folded(page_dir, board="b1"):
-    """Each column of `board` in the order the page draws it: the position fold over
-    the revision `page state` activates."""
-    revision = state_json(page_dir)["active"]["revision"]
-    _, reading, _ = read_served_page(
-        read_page(page_dir, events_model.read_events(page_dir))
+    """Each column of `board` in the order the page draws it, as `leaf page state`
+    gives it on the board's element, so an agent rewriting a column copies the order
+    rather than rebuilding it from the moves in force."""
+    (element,) = (
+        element
+        for element in state_json(page_dir)["elements"]
+        if element["id"] == board and element["thread"] is None
     )
-    assert reading is not None
-    document = reading.documents[revision]
-    registry = require_registry(page_dir)
-    return projection_model.folded_positions(
-        board,
-        "move",
-        registry["lf-board"]["verbs"]["move"]["record"],
-        projection_model.AuthoredOrders(document.document.by_id, registry),
-        document.projection,
-    )
+    return element["order"]["move"]
 
 
 def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
@@ -1019,7 +1011,7 @@ RANK_CASES = json.loads((Path(__file__).parents[1] / "rank_cases.json").read_tex
 
 def test_rank_rules_match_the_browser_cases():
     """`tests/runtime/board-order.test.mjs` reads the same cases against
-    `projection/model.js`, so the two runtimes rank authored units alike and the
+    `lib/rank.js`, so the two runtimes rank authored units alike and the
     append door admits what a widget computes."""
     assert RANK == RANK_CASES["pattern"]
     for index, rank in RANK_CASES["authored"]:
@@ -1401,13 +1393,14 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored = data_model.source_file(page_dir, "builds")
     state = state_json(page_dir)
     assert stored == page_dir / state["data"]["dir"] / "builds.json"
-    assert json.loads(stored.read_text())["value"] == ["passing"]
+    file = data_model.PUBLICATION.file(stored)
+    assert json.loads(file.read_text())["value"] == ["passing"]
     [consumer] = state["data_bindings"]["builds"]["consumers"]
     assert consumer["widget"] == "test-data"
     assert state["data"]["errors"] == []
 
-    publication = json.loads(stored.read_text())
-    stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
+    publication = json.loads(file.read_text())
+    file.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
     _, findings = check_findings(page_dir)
@@ -1679,7 +1672,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     here, which is how it followed lf-diagram and lf-diff into their own packages.
     Widening it that way brought pr-review's two widgets under the floor for the
     first time and found one uncovered attribute, exempted below."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     used = {}
 
     def read(document):
@@ -1722,12 +1715,10 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     zone = {
         "description": "A project package's differently named pane.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "label": {"type": "string"},
             },
             "required": ["id", "label"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "reading-role": "pane",
@@ -2558,6 +2549,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0, sent.output
@@ -2889,7 +2881,9 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert written.exit_code == 0, written.output
     served = state_json(page_dir)
     first = read_page_data(page_dir)
-    stored = data_model.source_file(page_dir, "deployments")
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "deployments")
+    )
     assert first["sources"]["deployments"] == {
         "contract": "deployment-rows",
         "revision": hashlib.sha256(
@@ -3078,9 +3072,11 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
         **{key: source[key] for key in ("contract", "revision", "run", "updated")},
     }
     assert source["value"] == {"main": "passing"}
-    assert json.loads(data_model.source_file(page_dir, "builds").read_text())[
-        "value"
-    ] == {"main": "passing"}
+    assert json.loads(
+        data_model.PUBLICATION.file(
+            data_model.source_file(page_dir, "builds")
+        ).read_text()
+    )["value"] == {"main": "passing"}
 
 
 def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
@@ -3102,7 +3098,9 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
 
     data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
-    assert data_model.source_file(page_dir, "project-feed").exists()
+    assert data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "project-feed")
+    ).exists()
 
 
 def test_a_source_bound_only_by_reply_html_can_be_set(page_dir):
@@ -4004,7 +4002,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
-    look = (schema_model.BUNDLED_PACKAGES / "reading/defaults.css").read_text()
+    look = (schema_model.BUNDLED_PACKAGES / "reading/theme.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
@@ -4036,10 +4034,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     def declare(registry):
         registry["lf-label"] = {
             "description": "An inline label.",
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "markup",
             "owners": ["lf-column"],
         }
@@ -4691,7 +4686,7 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
-    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # A <br> parts the words around it, as Leaf reads them (lib/markdown.js,
     # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):

@@ -16,12 +16,13 @@ from .event_contracts import (
 from .event_log import AttemptConflict
 from .findings import Finding
 from .harness import claim_harness
+from .inference import harness_generator
 from .presence import nudge_unwatched
 from .refusals import Refused
 from .registry.contract import RegistryError
 from .registry.kernel import kernel_event_kinds, kernel_event_ownership, kinds_declaring
 from .service import PageTransaction, requires_agent_attention
-from .thread_titles import name_admitted_thread
+from .thread_titles import name_admitted_thread, title_generator
 
 EventAnswer = tuple[int, dict]
 
@@ -128,6 +129,12 @@ def _execute_event(
     # its words while the agent is still reading them; a reply names a thread its
     # comment left untitled, as a reaction does. The request reads the thread under
     # the page's lock, so it starts once the lock is given back.
-    if spoken and (generate := claim_harness(spoken[1]).title_generator()):
-        name_admitted_thread(generate, page_dir, spoken[0], spoken[1]["id"])
+    if (
+        spoken
+        and (harness := claim_harness(spoken[1]))
+        and (infer := harness_generator(harness))
+    ):
+        name_admitted_thread(
+            title_generator(infer), page_dir, spoken[0], spoken[1]["id"]
+        )
     return 200, {"ok": True, "event": admitted}

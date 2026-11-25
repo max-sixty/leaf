@@ -362,7 +362,7 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     })""")
     frame = page.locator("#capture-sample iframe").bounding_box()
     # The area takes in the unreadable image above the sample, so the element the
-    # capture draws holds it (`captureRoot`, composing/page-image.js).
+    # capture draws holds it (`captureRoot`, host/page-image.js).
     unreadable = page.locator("#unreadable").bounding_box()
     surface = open_capture_area(page)
     left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
@@ -404,7 +404,7 @@ def test_a_region_capture_draws_a_turned_sample_as_its_reader_sees_it(browser, s
     """A sample turned a quarter shows down what its window holds across, so an area
     over the top half of its frame takes in its window's start half: the foot corner on
     the left and the top corner on the right. The image draws that half, as the sample
-    draws it (composing/page-image.js)."""
+    draws it (host/page-image.js)."""
     page = open_page(browser, serve(TURNED_SAMPLE_PAGE))
     page.evaluate("document.querySelector('#turned-sample').ready")
     frame = page.locator("#turned-sample iframe").bounding_box()
@@ -564,6 +564,13 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
         firefox_browser, serve, "card"
     )
     page.emulate_media(reduced_motion="no-preference")
+    # The screencast delivers frames at whatever rate the host spares, so the fade is
+    # stretched to ten times its shipped length: a host ten times slower still captures
+    # frames inside it. The cue reads its length from the token as it starts, and the
+    # stretch changes only when each colour is drawn, not how Firefox paints it.
+    page.evaluate(
+        "() => document.documentElement.style.setProperty('--lf-motion-flash', '12s')"
+    )
     page.evaluate(
         """() => {
           window.__sendFlash = new Promise((resolve, reject) => {
@@ -598,9 +605,12 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
                 const edge = root.getBoundingClientRect().right - 1.5;
                 const field = root.querySelector('.lf-thread-reply .lf-compose-field')
                   .getBoundingClientRect();
+                // The message's own last row, which a frame of its growth leaves
+                // short of where it stands.
+                const foot = message.getBoundingClientRect().bottom - 2;
                 resolve({head: [x, rows.head], body: [x, rows.body],
                   headEdge: [edge, rows.head], bodyEdge: [edge, rows.body],
-                  ring: [x, field.top - 1.5]});
+                  ring: [x, field.top - 1.5], foot: [x, foot]});
               }, reject);
             });
             observer.observe(root, {subtree: true, childList: true});
@@ -634,16 +644,18 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
     # frame with the page drawn across the card in a band (main's own panel chrome
     # shows it too), which can cover the author's row and leave the card's edge, and
     # the arrival's first frames show the card still growing, its reply field over the
-    # words. Such a frame says nothing about the message's two grounds, so it is read
-    # only where the card's edge stands the same on both rows, the author's row shows
-    # a ground the message takes (its yellow, the card's paper, or a mix of the two),
-    # and the reply field's ring stands where most of those frames show it. On a
-    # loaded machine band frames can outnumber the rest, so the ring's settled place
-    # is taken only from frames that drew the card.
+    # words or the message's ground ending at their row. Such a frame says nothing
+    # about the message's two grounds, so it is read only where the card's edge stands
+    # the same on both rows, the author's row shows a ground the message takes (its
+    # yellow, the card's paper, or a mix of the two), the message's foot shows the
+    # words' ground, and the reply field's ring stands where most of those frames show
+    # it. On a loaded machine band frames can outnumber the rest, so the ring's settled
+    # place is taken only from frames that drew the card.
     drawn = [
         colours
         for colours in captured
         if near(colours["headEdge"], colours["bodyEdge"])
+        and near(colours["foot"], colours["body"])
         and colours["head"][0] > 245
         and colours["head"][1] <= 251
     ]
@@ -652,9 +664,8 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
     readings = [colours for colours in drawn if near(colours["ring"], settled)]
     # The light card fades from yellow (#fff8c5) to paper. Require an actual
     # sequence of intermediate colours: a discrete jump, or the constant .5
-    # pending opacity blending yellow with paper, must not pass as a fade. A loaded
-    # machine captures only a few frames of the fade, so two that differ by more
-    # than JPEG rounding of one colour are the sequence.
+    # pending opacity blending yellow with paper, must not pass as a fade. Two frames
+    # that differ by more than JPEG rounding of one colour are the sequence.
     fading = [
         reading
         for reading in readings

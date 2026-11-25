@@ -1,17 +1,64 @@
-/* Geometry for a horizontal time axis, shared by the widgets that draw one. Times are
- * milliseconds from the axis origin; positions are pixels along the drawn span, which
- * starts and ends AXIS_EDGE inside the drawing. Nothing here touches the DOM, so a
- * widget can call it while drawing, before its upgrade as well as after. The
- * stylesheet's `.lf-axis-…` rules (`browser/styles/components/controls.css`) say how a
- * drawing marks up its ruler, gridlines and marks, and give them their look.
+/* A horizontal time axis, shared by the widgets that draw one: its geometry, its ruler
+ * and its gridlines. Times are milliseconds from the axis origin; positions are pixels
+ * along the drawn span, which starts and ends AXIS_EDGE inside the drawing. Nothing
+ * here touches the DOM, so a widget can call it while drawing, before its upgrade as
+ * well as after.
  *
- * Ruler ticks fall on 1, 2 and 5 × 10^k milliseconds, the smallest step that keeps
- * major ticks AXIS_TICK_SPACING apart, with four or five minor ticks between them. A
- * major tick's label reads back from its tick (`flip`) where reading on from it would
- * run past the axis's end. Rows are greedy: an extent takes the first row whose last
- * extent ended at or before its start, so overlapping extents never share a row and
- * the row count is the smallest that greedy order allows.
+ * `timeAxis` returns the ruler's ticks and the gridlines as Lit templates. The widget
+ * renders the ticks into its ruler and the gridlines into a layer that spans its
+ * lanes, and draws its own marks in the lanes:
+ *
+ * ```js
+ * // `width` is the ruler's, and `span` the part of it the axis is drawn across.
+ * const span = width - 2 * AXIS_EDGE;
+ * const axis = timeAxis(0, duration, duration, span / duration);
+ * html`<div class="my-axis" style="--lf-axis-edge: ${AXIS_EDGE}px">
+ *   <div class="my-ruler">${axis.ruler}</div>
+ *   <div class="my-grid">${axis.grid}</div>
+ *   <div class="my-lane">
+ *     <span
+ *       class="my-bar lf-on-axis"
+ *       style="--lf-axis-at: ${start / duration}; --my-length: ${(end - start) / duration}"
+ *     ></span>
+ *   </div>
+ * </div>`;
+ * ```
+ *
+ * ```css
+ * .my-axis { position: relative; font: var(--lf-font-small); line-height: 1; }
+ * .my-ruler, .my-lane { position: relative; block-size: 22px; }
+ * .my-grid { position: absolute; inset: 22px 0 0; pointer-events: none; }
+ * .my-bar {
+ *   inset-block: 4px;
+ *   inline-size: calc(var(--my-length) * (100% - 2 * var(--lf-axis-edge)));
+ *   background: var(--lf-accent);
+ * }
+ * ```
+ *
+ * Leaf's stylesheet (`browser/styles/components/controls.css`, "A time axis") draws
+ * the ticks and gridlines, and stands each at its time in the nearest positioned box,
+ * as it stands a mark of the widget's own (`module-controls.md`, "A time axis"). So
+ * the ruler, the layer and each lane are positioned boxes as wide as the axis. A major
+ * tick is as tall as the ruler, and a gridline as tall as the layer. The layer comes
+ * before the lanes, so their marks paint over its lines, and it lets the pointer
+ * through to the drawing it covers. A tick's label takes the drawing's type, so the
+ * drawing sets a line that fits the ruler. The labels are words the module writes
+ * (`module-plain-elements.md`, "Words it writes").
+ *
+ * Ruler ticks fall on the smallest step in STEPS that keeps major ticks
+ * AXIS_TICK_SPACING apart, with two to five minor ticks between them. Below a second
+ * the steps are 1, 2 and 5 × 10^k milliseconds; from a second up they are the clock's
+ * round spans, such as 15 s, 30 min and 6 h, as a chart's time axis takes them. A
+ * step below a second labels its ticks in seconds with the decimals the step needs,
+ * and a longer one as `elapsed` writes a time, such as "1 h 30 min", so a sequence of
+ * hours doesn't read in thousands of seconds. A major tick's label reads back from its
+ * tick (`flip`) where reading on from it would run past the axis's end, and the major
+ * tick before it then goes unlabeled where the two labels would meet. Rows are
+ * greedy: an extent takes the first row whose last extent ended at or before its
+ * start, so overlapping extents never share a row and the row count is the smallest
+ * that greedy order allows.
  */
+import { html, nothing, repeat } from "/vendor/lit.js";
 
 /** How far inside the drawing the axis's span starts and ends, in pixels. */
 export const AXIS_EDGE = 12;
@@ -22,52 +69,169 @@ export const AXIS_LABEL_CHROME = 12;
 /** The least room between two labels in one row, in pixels. */
 export const AXIS_LABEL_GAP = 8;
 // The room a major tick's label needs between its tick and the axis's end to read on
-// from it: a three-decimal label, such as "0.125 s", is about that wide.
-const LABEL_ROOM = 44;
-const STEPS = [1, 2, 5];
+// from it, for each character it holds: "0.125 s" is about 44 pixels wide.
+const LABEL_ROOM_PER_CHAR = 44 / 7;
+/** @param {string} label */
+const labelRoom = (label) => label.length * LABEL_ROOM_PER_CHAR;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+/** Each major tick step, in milliseconds, with the step of the minor ticks between,
+ * shortest first. */
+/** @type {readonly (readonly [number, number])[]} */
+const STEPS = [
+  [1, 0.2],
+  [2, 0.5],
+  [5, 1],
+  [10, 2],
+  [20, 5],
+  [50, 10],
+  [100, 20],
+  [200, 50],
+  [500, 100],
+  [SECOND, SECOND / 5],
+  [2 * SECOND, SECOND / 2],
+  [5 * SECOND, SECOND],
+  [10 * SECOND, 2 * SECOND],
+  [15 * SECOND, 5 * SECOND],
+  [30 * SECOND, 10 * SECOND],
+  [MINUTE, 15 * SECOND],
+  [2 * MINUTE, 30 * SECOND],
+  [5 * MINUTE, MINUTE],
+  [10 * MINUTE, 2 * MINUTE],
+  [15 * MINUTE, 5 * MINUTE],
+  [30 * MINUTE, 10 * MINUTE],
+  [HOUR, 15 * MINUTE],
+  [2 * HOUR, 30 * MINUTE],
+  [3 * HOUR, HOUR],
+  [6 * HOUR, 2 * HOUR],
+  [12 * HOUR, 3 * HOUR],
+  [DAY, 6 * HOUR],
+  [2 * DAY, 12 * HOUR],
+  [5 * DAY, DAY],
+];
+/** The step of an axis too long for any of STEPS. */
+/** @type {readonly [number, number]} */
+const LONGEST_STEP = [10 * DAY, 2 * DAY];
 
-/** The major tick step, in milliseconds, for a scale of `pxPerMs`. */
+/** The major and minor tick steps, in milliseconds, for a scale of `pxPerMs`. */
 /** @param {number} pxPerMs */
 function tickStep(pxPerMs) {
-  for (let power = 1; power < 1e9; power *= 10)
-    for (const step of STEPS)
-      if (step * power * pxPerMs >= AXIS_TICK_SPACING) return step * power;
-  return 1e9;
+  return STEPS.find(([step]) => step * pxPerMs >= AXIS_TICK_SPACING) ?? LONGEST_STEP;
 }
 
-/** The decimals that show every multiple of a tick step in seconds. */
+/** The decimals that show every multiple of a step below a second in seconds. */
 /** @param {number} step */
-const decimals = (step) => (step >= 1000 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3);
+const decimals = (step) => (step >= 100 ? 1 : step >= 10 ? 2 : 3);
 
 /** A time in milliseconds as seconds, such as "1.2 s": with `digits` decimals, or
  * rounded to the millisecond and written with as few decimals as show it. */
 /** @param {number} ms @param {number} [digits] */
 export function seconds(ms, digits) {
-  const s = ms / 1000;
+  const s = ms / SECOND;
   return `${digits === undefined ? Number(s.toFixed(3)) : s.toFixed(digits)} s`;
 }
 
+/** A time in milliseconds from an origin, in the units its length reads in: under a
+ * minute as `seconds` writes it, such as "1.2 s", and from a minute up in hours,
+ * minutes and whole seconds, leaving out a unit that counts none, such as "2 min 5 s"
+ * or "1 h 30 min". */
+/** @param {number} ms */
+export function elapsed(ms) {
+  if (ms < MINUTE) return seconds(ms);
+  const total = Math.round(ms / SECOND);
+  return /** @type {const} */ ([
+    [Math.floor(total / 3600), "h"],
+    [Math.floor(total / 60) % 60, "min"],
+    [total % 60, "s"],
+  ])
+    .filter(([count]) => count)
+    .map(([count, unit]) => `${count} ${unit}`)
+    .join(" ");
+}
+
 /** The ticks between `from` and `to`, clipped to `[0, duration]`: `{time, major,
- * label, flip, step}`. Only a major tick has a label, with the decimals the step
- * needs, and only a major tick's label flips. */
+ * label, flip, step}`. Only a major tick has a label, in the units its step
+ * reads in, and only a major tick's label flips. */
 /** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
-export function axisTicks(from, to, duration, pxPerMs) {
-  const step = tickStep(pxPerMs);
-  const minor = step / (String(step)[0] === "2" ? 4 : 5);
+function axisTicks(from, to, duration, pxPerMs) {
+  const [step, minor] = tickStep(pxPerMs);
   const ticks = [];
   for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
     const rounded = Math.round(time * 1000) / 1000;
     if (rounded < 0 || rounded > duration) continue;
     const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+    const label = !major
+      ? null
+      : step < SECOND
+        ? seconds(rounded, rounded === 0 ? 0 : decimals(step))
+        : elapsed(rounded);
     ticks.push({
       time: rounded,
       major,
-      label: major ? seconds(rounded, rounded === 0 ? 0 : decimals(step)) : null,
-      flip: major && (duration - rounded) * pxPerMs < LABEL_ROOM,
+      label,
+      flip: label !== null && (duration - rounded) * pxPerMs < labelRoom(label),
       step,
     });
   }
+  // A label that reads back runs toward the major tick before it, whose label reads
+  // on toward it; where the two need more room than lies between their ticks, the
+  // earlier one goes, so the axis's last time stays labeled.
+  /** @type {(typeof ticks)[number] | undefined} */
+  let before;
+  for (const tick of ticks) {
+    if (tick.label === null) continue;
+    if (
+      tick.flip &&
+      before?.label &&
+      !before.flip &&
+      (tick.time - before.time) * pxPerMs <
+        labelRoom(before.label) + labelRoom(tick.label)
+    )
+      before.label = null;
+    before = tick;
+  }
   return ticks;
+}
+
+/** The axis from `from` to `to`, as templates: `ruler`, a tick at each time, and
+ * `grid`, a line at each major tick's time. `duration`, above zero, is the time the
+ * whole axis spans, and `pxPerMs` its scale. A widget that shows a window of a longer
+ * axis, as a zoomed one does, passes the window's times and draws again when the
+ * window moves; a tick or line that both windows hold stays the element it was. Each
+ * states its time as `--lf-axis-at`, the time over `duration`. */
+/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
+export function timeAxis(from, to, duration, pxPerMs) {
+  const ticks = axisTicks(from, to, duration, pxPerMs);
+  /** @param {(typeof ticks)[number]} tick */
+  const key = (tick) => `${tick.step}:${tick.time}`;
+  /** @param {(typeof ticks)[number]} tick */
+  const at = (tick) => `--lf-axis-at: ${tick.time / duration}`;
+  return {
+    ruler: repeat(
+      ticks,
+      key,
+      (tick) =>
+        html`<span
+          class="lf-axis-tick"
+          ?data-lf-major=${tick.major}
+          ?data-lf-flip=${tick.flip}
+          style=${at(tick)}
+          >${tick.label ?? nothing}</span
+        >`,
+    ),
+    grid: repeat(
+      ticks.filter((tick) => tick.major),
+      key,
+      (tick) =>
+        html`<span
+          class="lf-axis-gridline"
+          ?data-lf-flip=${tick.flip}
+          style=${at(tick)}
+        ></span>`,
+    ),
+  };
 }
 
 /** Greedy rows for extents: a Map from each item's `id` to its row, from 0. */

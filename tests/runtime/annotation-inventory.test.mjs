@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAnnotationInventory } from "/runtime/annotation-inventory.js";
-import { contributionEntry } from "/runtime/contribution-controls.js";
-import { registerContribution } from "/runtime/contributions.js";
-import { resolvedElement, resolvedPassage } from "/runtime/resolved-target.js";
-import { resolveAnchor } from "/runtime/anchor-resolution.js";
-import { clearDraft, commentContext, saveDraft } from "/runtime/drafts.js";
-import { registerVisualParts } from "/runtime/visual-parts.js";
-import { registry } from "/runtime/registry.js";
-import { applicationState } from "/runtime/semantic-state.js";
+import { createAnnotationInventory } from "/runtime/features/annotation-inventory.js";
+import { contributionEntry } from "/runtime/features/contribution-controls.js";
+import { registerContribution } from "/runtime/features/contributions.js";
+import { resolvedElement, resolvedPassage } from "/runtime/readings/resolved-target.js";
+import { resolveAnchor } from "/runtime/readings/anchor-resolution.js";
+import { clearDraft, commentContext, saveDraft } from "/runtime/records/drafts.js";
+import { registry } from "/runtime/state/registry.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
 import { servedState, servedThread } from "../served.mjs";
 
 const obligation = (id) => ({
@@ -51,7 +50,7 @@ test("an entry stays one object until what it is made from changes", () => {
     assert.equal(entryFor(second, "other"), entryFor(first, "other"));
 
     // A producer's publication is a change, whatever it says, since it can carry a
-    // command the record's values don't show (contribution-controls.js).
+    // command the record's values don't show (features/contribution-controls.js).
     registration.update();
     const published = inventory.collect();
     assert.notEqual(entryFor(published, "other"), entryFor(second, "other"));
@@ -200,19 +199,16 @@ test("a part's thread is at its picture where focus there stands on the part", (
   /** @type {string | null} */
   let standsOn = null;
   let reads = 0;
-  registerVisualParts(
-    plot,
-    () => {
+  plot.lfParts = {
+    read: () => {
       reads += 1;
       return [];
     },
-    {
-      at: (node) =>
-        node === plot && standsOn
-          ? { id: standsOn, element: part("p"), label: "a point" }
-          : null,
-    },
-  );
+    at: (node) =>
+      node === plot && standsOn
+        ? { id: standsOn, element: part("p"), label: "a point" }
+        : null,
+  };
   const inventory = createAnnotationInventory({
     readObligations: () => ({ user: [] }),
     placedAt: (/** @type {keyof typeof elements} */ id) => ({
@@ -258,10 +254,11 @@ function partsPage() {
     "point:p": { element: element("p") },
     "point:q": { element: element("q"), surface: element("q-shape") },
   };
-  registerVisualParts(element("plot"), () => [], {
+  element("plot").lfParts = {
+    read: () => [],
     find: (id) => (drawn[id] ? { id, ...drawn[id], label: names[id] } : null),
     label: (id) => names[id] ?? null,
-  });
+  };
   return { element };
 }
 

@@ -10,7 +10,6 @@ import subprocess
 import sys
 
 import pytest
-from conftest import LEAF_COMMAND
 from interact_support import (
     ADMITTING_DEPENDENCIES,
     COMPOSITE_TIMEOUT,
@@ -55,40 +54,6 @@ def _installed_since(plugins):
     return newer
 
 
-def test_a_bare_command_from_an_installed_copy_runs_only_a_selected_checkout(
-    tmp_path, monkeypatch
-):
-    """A bare `leaf` command from a copy Claude Code installed runs that copy, the
-    one the session loaded, even once Claude Code has installed a newer one, until
-    the session selects a checkout, which it then runs. A hook hands itself off by
-    its payload's session instead (`hooks.main`), and a checkout, which someone
-    chose to run, runs itself."""
-    from leaf import session_runtime
-
-    loaded = _installed_since(tmp_path / "plugins").with_name("0a0a0a0a0a0a")
-    checkout = tmp_path / "checkout" / "bin" / "leaf"
-    checkout.parent.mkdir(parents=True)
-    checkout.write_text("#!/bin/sh\n")
-    checkout.chmod(0o755)
-    ran = []
-    monkeypatch.setattr(
-        session_runtime.os, "execve", lambda path, argv, env: ran.append(argv)
-    )
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", loaded)
-    session = os.environ["CLAUDE_CODE_SESSION_ID"]
-    cleanup_model.ensure_session(session, {})
-    session_runtime.hand_off_command(["page", "state", "p"])
-    assert ran == []
-
-    session_runtime.select_launcher(session, checkout)
-    session_runtime.hand_off_command(["page", "state", "p"])
-    session_runtime.hand_off_command(["hook", "--harness", "claude-code"])
-    assert ran == [[str(checkout.resolve()), "page", "state", "p"]]
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "another checkout")
-    session_runtime.hand_off_command(["page", "state", "p"])
-    assert len(ran) == 1
-
-
 def test_a_copy_that_lost_its_project_refuses_naming_the_reload(tmp_path):
     """Claude Code may delete an orphaned copy's files while a session still runs
     its launcher. That launcher refuses, naming `/reload-plugins`, rather than run
@@ -107,72 +72,6 @@ def test_a_copy_that_lost_its_project_refuses_naming_the_reload(tmp_path):
     )
     assert (refused.returncode, refused.stdout) == (1, ""), refused.stderr
     assert "has lost its files; run /reload-plugins" in refused.stderr
-
-
-def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
-    """An installed hook preserves stdin and defers lifecycle to the checkout.
-
-    The other executable stands for an independently installed Leaf; it records
-    what crossed the executable boundary instead of importing this test's runtime.
-    A large payload also proves delegation is not bounded by an unwritten pipe.
-    """
-    from leaf.session_runtime import select_launcher
-
-    selected = tmp_path / "checkout with spaces" / "bin" / "leaf"
-    selected.parent.mkdir(parents=True)
-    selected.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys\n"
-        "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin), "
-        "'host': os.environ.get('LEAF_HOST_LAUNCHER')}))\n"
-        "sys.exit(23)\n"
-    )
-    selected.chmod(0o755)
-    cleanup_model.ensure_session("selected-runtime", {})
-    select_launcher("selected-runtime", selected)
-    before = cleanup_model.session_record("selected-runtime")
-    payload = {
-        "hook_event_name": "UserPromptSubmit",
-        "session_id": "selected-runtime",
-        "tool_input": "a" * 256_000,
-    }
-    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    result = subprocess.run(
-        [*LEAF_COMMAND, "hook", "--harness", "codex"],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert result.returncode == 23, result.stderr
-    assert json.loads(result.stdout) == {
-        "argv": ["hook", "--harness", "codex"],
-        "payload": payload,
-        "host": None,
-    }
-    assert cleanup_model.session_record("selected-runtime") == before
-
-    # A selection whose checkout is gone falls back to the Leaf running, which
-    # refuses whatever page it can't read itself.
-    selected.unlink()
-    fallen_back = subprocess.run(
-        [*LEAF_COMMAND, "hook", "--harness", "codex"],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert fallen_back.returncode == 0, fallen_back.stderr
-    assert "argv" not in fallen_back.stdout
-
-    # A new generation returns to the installed default.
-    cleanup_model.end_session("selected-runtime")
-    cleanup_model.ensure_session("selected-runtime", {})
-    value = cleanup_model.session_record("selected-runtime")
-    assert value is not None
-    assert "launcher" not in value
 
 
 def _registrations(harness):

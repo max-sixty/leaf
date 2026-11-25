@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     DRAFTED,
     FLOW_PAGE,
@@ -40,9 +41,14 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hook_transport as hook_transport_model
 from leaf import passages as passages_model
+from leaf import render_reading as render_reading_model
 from leaf import structure as structure_model
+from leaf.anchor_capture import Drawing, drawn_part
+from leaf.data import read_data
 from leaf.delivery import current_responses
 from leaf.events import build_threads
+from leaf.render_gate import browser as browser_model
+from leaf.revision_artifact import read_artifact, read_revision
 from leaf.revisioning import activate_source
 from leaf.thread_context import logged_fragment
 
@@ -673,32 +679,137 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
 
 
-def test_a_comment_may_name_a_visual_inventory_part(page_dir):
-    (page_dir / "index.html").write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
-        )
-    )
-    published(page_dir)
+# A diagram whose boxes a thread may name, and two of them as a reading lists them.
+PARTS_FLOW_PAGE = FLOW_PAGE.replace(
+    '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+)
+BOX_A = {"id": "node:A", "label": "A"}
+BOX_B = {"id": "node:B", "label": "B"}
 
-    result = comment(
-        page_dir,
-        "--section",
-        "flow",
-        "--part",
-        "node:A",
-        "--text",
-        "where does this retry?",
+
+def leave_drawing(page_dir: Path, visuals: dict[str, dict]) -> None:
+    """The render reading a check of the live version leaves, with the data the page
+    holds and what each visual drew (`visuals`)."""
+    revision = files_model.latest_revision(page_dir)
+    assert revision is not None
+    data = read_data(page_dir, read_revision(page_dir, revision).registry)
+    render_reading_model.write_reading(
+        page_dir, read_artifact(page_dir, revision).digest, data["version"], [], visuals
     )
+
+
+def noted(result) -> list[str]:
+    """What a command that succeeded said beside its record."""
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["anchor"] == {
-        "section": "flow",
-        "visual": "node:A",
-    }
+    return [found["text"] for found in json.loads(result.output).get("findings", [])]
+
+
+def test_a_part_is_one_its_visual_drew(page_dir):
+    """`--part` takes a box the page's last render check saw the diagram draw. A
+    diagram shows a thread on a box it didn't draw nowhere, so a box it lacks is
+    refused, naming the boxes it drew and the way to put the thread on the whole
+    diagram."""
+    (page_dir / "index.html").write_text(PARTS_FLOW_PAGE)
+    published(page_dir)
+    leave_drawing(page_dir, {"flow": {"parts": [BOX_A, BOX_B], "whole": False}})
+
+    named = comment(
+        page_dir, "--section", "flow", "--part", "node:A", "--text", "this retry?"
+    )
+    assert noted(named) == []
+    assert json.loads(named.output)["anchor"] == {"section": "flow", "visual": "node:A"}
+
+    undrawn = comment(page_dir, "--section", "flow", "--part", "node:C", "--text", "x")
+    assert undrawn.exit_code != 0
+    assert (
+        "§ flow drew no part 'node:C' when the page was last checked; it drew node:A,"
+        " node:B. Name one of those, or leave out --part to put the thread on the whole"
+        " visual"
+    ) in undrawn.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
     assert "--part needs --section" in unseated.output
+
+
+CHECKED = "when the page was last checked"
+
+
+@pytest.mark.parametrize(
+    ("parts", "whole", "part", "said"),
+    [
+        pytest.param([BOX_A, BOX_B], False, "node:A", None, id="drawn"),
+        pytest.param(
+            [BOX_A],
+            True,
+            "node:C",
+            "§ flow drew no part 'node:C' when the page was last checked, so the"
+            " thread stands on the whole visual until the visual draws that part; it"
+            " drew node:A",
+            id="on-the-whole",
+        ),
+        pytest.param([], True, "node:C", None, id="lists-none-and-finds-by-id"),
+        pytest.param(
+            [BOX_A, BOX_B],
+            False,
+            "node:C",
+            "refused: § flow drew no part 'node:C' when the page was last checked; it"
+            " drew node:A, node:B. Name one of those, or leave out --part to put the"
+            " thread on the whole visual",
+            id="nowhere",
+        ),
+        pytest.param(
+            [],
+            False,
+            "node:C",
+            "refused: § flow drew no part 'node:C' when the page was last checked; it"
+            " drew no part at all. Leave out --part to put the thread on the whole"
+            " visual",
+            id="nowhere-and-drew-none",
+        ),
+    ],
+)
+def test_a_part_is_judged_by_where_the_page_would_show_its_thread(
+    parts, whole, part, said
+):
+    """A part the visual drew takes the thread. One it didn't takes it where the page
+    would show it: on the whole visual, for a visual that draws a part on request or
+    once it can (`whole`), with a note naming the parts it drew, or without one where
+    it lists none, as a chart lists none of the points it finds by id; and nowhere,
+    for any other visual, so the part is refused with the way to put the thread on the
+    whole visual."""
+    drawing = Drawing({"flow": {"parts": parts, "whole": whole}}, CHECKED)
+    try:
+        found = drawn_part("flow", part, drawing)
+    except ValueError as refusal:
+        outcome = f"refused: {refusal}"
+    else:
+        outcome = None if found is None else str(found)
+    assert outcome == said
+
+
+def test_a_part_no_browser_could_check_is_taken_with_a_note(
+    page_dir, monkeypatch, tmp_path
+):
+    """Where no render check has read the version the page shows, `--part` draws the
+    page to see what its visual draws. Where no browser can, the command takes any part
+    the visual declares, which it may draw, and says it didn't check it."""
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv(browser_model.VARIABLE, str(tmp_path / "not-a-browser"))
+    (page_dir / "index.html").write_text(PARTS_FLOW_PAGE)
+    published(page_dir)
+
+    unchecked = comment(
+        page_dir, "--section", "flow", "--part", "node:C", "--text", "x"
+    )
+    assert noted(unchecked) == [
+        "Leaf couldn't read what § flow draws, so it didn't check part 'node:C'"
+    ]
+    assert json.loads(unchecked.output)["anchor"] == {
+        "section": "flow",
+        "visual": "node:C",
+    }
 
 
 def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
@@ -1764,6 +1875,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     session's voice — which is the whole of how a user learns a thread they did not
     close was closed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
+    hooks_run_this_tree("s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     published(page_dir)
     root = append_carried_log_record(

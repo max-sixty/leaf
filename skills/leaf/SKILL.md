@@ -173,8 +173,9 @@ summary from before a compaction, doesn't carry its rules.
 
 - `references/page-authoring.md`: all of it, before writing or revising any version.
 - `references/page-layout.md`: before giving a page a Layout other than the reading
-  column, widening or bounding a block, placing contents or notes in the margin,
-  styling Leaf's controls, or showing several contributors' activity.
+  column or adding a block to a page that has one, widening or bounding a block,
+  placing contents or notes in the margin, styling Leaf's controls, or showing several
+  contributors' activity.
 - `references/page-behavior.md`: before giving a page a script, a file under `page/`,
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
@@ -213,11 +214,13 @@ summary from before a compaction, doesn't carry its rules.
   session's page.
 - `references/module-authoring.md`: before writing or changing a page-owned or
   package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page
-  script. Then, as the behavior needs them: `references/module-reading.md` for reading the page, content helpers, obligations
+  script. It maps each kind of thing a package leans on Leaf for to the reference that
+  describes it, and lists every function Leaf exports, under the section that describes
+  it. For a widget, read `references/module-plain-elements.md` with it, the protocol
+  between Leaf and a widget's element. Then, as the behavior needs them:
+  `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state, data, authenticated
   HTTP connections and LLM generation;
-  `references/module-plain-elements.md` for a widget written as a plain custom
-  element, with no base class;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-previews.md` for the preview Leaf shows of an element the user
   points at, tabs to or holds; `references/module-controls.md` for the controls a

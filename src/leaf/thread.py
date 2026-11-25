@@ -8,6 +8,15 @@ from pathlib import Path
 from typing import NamedTuple, Never
 
 from leaf.activity import answer_command, reply_command
+from leaf.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
+from leaf.authored_checks.admission import (
+    check_markup,
+    checked_text,
+    logged_id,
+    revision_publication,
+    thread_obligation,
+)
+from leaf.authored_checks.source import SourceCheck, moved_threads, source_advice
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -40,14 +49,6 @@ from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_message, thread_names, thread_structure
 from leaf.todos import TodoReading
-from leaf.validation.admission import (
-    check_markup,
-    checked_text,
-    logged_id,
-    revision_publication,
-    thread_obligation,
-)
-from leaf.validation.source import SourceCheck, moved_threads, source_advice
 
 
 def drawn_markup(text: str) -> str:
@@ -252,6 +253,15 @@ def current_anchor(
     )
 
 
+class UnsaidQuote(Rejected):
+    """A quote the file's reading of `revision` lacks, which the drawn page may show
+    (`render_gate.drawn_anchor`)."""
+
+    def __init__(self, findings: list[Finding], revision: int):
+        super().__init__(findings)
+        self.revision = revision
+
+
 def _capture_anchor(
     page_dir: Path,
     events: list,
@@ -261,9 +271,8 @@ def _capture_anchor(
     part: str,
     revision: int,
 ) -> dict:
-    """Capture a target against one exact document reading."""
-    from leaf.anchor_capture import capture_anchor
-
+    """Capture a target against one exact document reading. A quote the reading
+    lacks is refused as `UnsaidQuote`, which a caller may answer from the drawn page."""
     page = page_reading(reading, events, revision)
     try:
         anchor = capture_anchor(
@@ -280,15 +289,73 @@ def _capture_anchor(
             if section
             else None
         )
+        found = [
+            Finding(
+                "unanchorable",
+                values={"revision": revision, "error": str(err), "held": held},
+            )
+        ]
+        if isinstance(err, Unsaid):
+            raise UnsaidQuote(found, revision) from err
+        raise Rejected(found) from err
+    return anchor
+
+
+# How a message names the page's render reading as the drawing that read its visuals
+# (`anchor_capture.Drawing`).
+LAST_CHECKED = "when the page was last checked"
+
+
+class UndrawnPart(Exception):
+    """A `--part` in a visual that no render reading of `revision`, with the page's
+    data as it stands, read (`render_reading`), which a caller may learn by drawing the
+    page (`render_gate.drawn_anchor.drawn_visuals`)."""
+
+    def __init__(self, revision: int):
+        super().__init__(f"no render reading of revision r{revision} read the visual")
+        self.revision = revision
+
+
+class Drawn(NamedTuple):
+    """What the page drew of `revision` in a browser, where the files couldn't settle a
+    thread's target (`render_gate.drawn_anchor`): the `anchor` a quote takes there, or
+    the `drawing` of the page's visuals that a `--part` is checked against."""
+
+    revision: int
+    anchor: dict | None = None
+    drawing: Drawing | None = None
+
+
+def _drawn_part(
+    page_dir: Path, revision: int, section: str, part: str, drawing: Drawing | None
+) -> Finding | None:
+    """What the page drew says of a thread on `part` in the visual `section` of
+    `revision` (`anchor_capture.drawn_part`), as `drawing` read the page, or else as
+    the page's render reading of `revision` with the data the page holds now read it.
+    Raises `UndrawnPart` where that reading didn't read the visual, and refuses a part
+    the page would show nowhere as a capture refuses its target."""
+    if drawing is None:
+        from leaf.data import read_data
+        from leaf.render_reading import drawn_visuals
+
+        data = read_data(page_dir, read_revision(page_dir, revision).registry)
+        visuals = drawn_visuals(
+            page_dir, read_revision(page_dir, revision).digest, data["version"]
+        )
+        if section not in visuals:
+            raise UndrawnPart(revision)
+        drawing = Drawing(visuals, LAST_CHECKED)
+    try:
+        return drawn_part(section, part, drawing)
+    except ValueError as err:
         raise Rejected(
             [
                 Finding(
                     "unanchorable",
-                    values={"revision": revision, "error": str(err), "held": held},
+                    values={"revision": revision, "error": str(err), "held": None},
                 )
             ]
         ) from err
-    return anchor
 
 
 @contract_writer
@@ -301,6 +368,7 @@ def cmd_comment(
     *,
     title: str | None = None,
     obligation: bool = False,
+    drawn: Drawn | None = None,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -308,13 +376,18 @@ def cmd_comment(
     the work rather than a passage belongs. An anchor is captured against the active
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
-    so a quote is met here the way it would land there."""
+    so a quote is met here the way it would land there, and a `--part` is checked
+    against what the page drew (`anchor_capture.drawn_part`).
+
+    Two targets need the drawn page, which the command draws and passes back as
+    `drawn` (`render_gate.drawn_anchor`), since the render gate stands above this
+    module. A quote the file's reading lacks is refused as `UnsaidQuote`, and a part in
+    a visual no render reading of the version read as `UndrawnPart`."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(body):
         from leaf.render_gate.command import message_check
 
-        # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         return open_thread(
@@ -326,6 +399,7 @@ def cmd_comment(
             part,
             title=title,
             obligation=obligation,
+            drawn=drawn,
         )
 
 
@@ -340,14 +414,33 @@ def open_thread(
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
+    drawn: Drawn | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
     describes, from a `body` already checked (`checked_text`); `identity` names the
     agent and session where the writer isn't the agent's own process, as Leaf's clerk
-    is (`clerk.apply_answer`)."""
+    is (`clerk.apply_answer`). `drawn` is what the page drew of the revision the
+    command's first attempt read, where the files couldn't settle the target
+    (`render_gate.drawn_anchor`)."""
     events = page.events
-    revision, anchor = current_anchor(
-        page_dir, events, quote, section, part, transaction=page
+    if drawn is not None and drawn.anchor is not None:
+        revision, anchor = drawn.revision, drawn.anchor
+    else:
+        revision, anchor = current_anchor(
+            page_dir,
+            events,
+            quote,
+            section,
+            part,
+            None if drawn is None else drawn.revision,
+            transaction=page,
+        )
+    placed = (
+        _drawn_part(
+            page_dir, revision, section, part, None if drawn is None else drawn.drawing
+        )
+        if part
+        else None
     )
     twice = []
     if markup := drawn_markup(body):
@@ -372,8 +465,14 @@ def open_thread(
         event["title"] = title
     record = append_admitted(page, event)[0]
     # Said once the message stands, which a later gate could still refuse.
-    note(*twice)
+    note(*twice, *([placed] if placed else []))
     return record
+
+
+class OwedAnswer(Exception):
+    """A question asked again in a thread that still owes the user a reply: the
+    question waits on that reply, after which it is the user's again
+    (`obligations`). Its words say how to give the reply."""
 
 
 def ask_again(
@@ -385,10 +484,10 @@ def ask_again(
     choice, the message asks with it. Otherwise it asks in words: a question first
     asked in words stands open on it under its own id, as `leaf thread reply <page>
     <message> --obligation <question>` posts it, and one a widget asked is asked
-    anew, as `--obligation` alone posts it. None where the thread can't take it: it
-    owes the user a reply, or `question` names no question asked there
-    (`thread_questions`). Refused, as an agent's reply is, where its HTML doesn't
-    validate (`check_markup`)."""
+    anew, as `--obligation` alone posts it. None where `question` names no question
+    asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
+    user a reply, which the question waits on. Refused, as an agent's reply is, where
+    its HTML doesn't validate (`check_markup`)."""
     from leaf.registry.storage import require_registry
 
     message = question.removeprefix("message:")
@@ -400,8 +499,9 @@ def ask_again(
     except Rejected:
         return None
     assert addressed is not None
-    if any(found.code == "owed-response" for found in addressed.advice):
-        return None
+    for found in addressed.advice:
+        if found.code == "owed-response":
+            raise OwedAnswer(str(found))
     registry = require_registry(page.page_dir)
     asked = thread_questions(page.events, addressed.thread, registry)
     if name not in asked:
@@ -593,7 +693,6 @@ def post_reply(
     if markup := drawn_markup(text):
         from leaf.render_gate.command import message_check
 
-        # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
@@ -691,7 +790,7 @@ def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
 
     A successful reply publishes the source it checked, so a revision that answers a
     message needs no check before its reply. It names the threads those revisions
-    moved (`validation.source.moved_threads`) other than one it moves itself."""
+    moved (`authored_checks.source.moved_threads`) other than one it moves itself."""
     events, checked = published.events, published.checked
     last = max(
         (
@@ -952,8 +1051,8 @@ def _compose_and_append(
                     "anchor": None,
                 },
             ]
+        from leaf.authored_checks.source import check_source
         from leaf.revisioning import planned_activation
-        from leaf.validation.source import check_source
 
         checked = check_source(page_dir, source_events)
         if checked.errors:
@@ -1311,11 +1410,11 @@ def cmd_edit(
     Leaf names it (`_folding_summaries`), since only the agent knows whether its
     edit changes what the summary reports. Admission refuses a message another voice
     wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
-    obligation. Under one lease, the rename is admitted before the edit is appended,
-    so a refused title leaves the text unedited.
+    obligation. The edit and the rename land together or not at all
+    (`event_contracts.append_all_admitted`), so a refused title leaves the text
+    unedited.
     """
-    from leaf.event_contracts import admitted_event, voiced
-    from leaf.page_view import PageView
+    from leaf.event_contracts import append_all_admitted
     from leaf.registry.storage import require_registry
 
     title = agent_title(title)
@@ -1328,7 +1427,6 @@ def cmd_edit(
     if markup:
         from leaf.render_gate.command import message_check
 
-        # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "edit", markup)
     answered = []
     with PageTransaction(page_dir) as page:
@@ -1338,8 +1436,7 @@ def cmd_edit(
         if title is not None:
             thread = thread_named(page_dir, events, message)
             named = title_event(thread, title)
-            admitted_event(PageView(page_dir), events, voiced(named))
-        records = []
+        edit = None
         if body is not None:
             edit = {
                 "kind": "edit",
@@ -1369,9 +1466,9 @@ def cmd_edit(
                     *_answered_widgets(events, message, fragment),
                     *_folding_summaries(page_dir, events, message),
                 ]
-            records.append(append_admitted(page, edit)[0])
-        if named is not None:
-            records.append(append_admitted(page, named)[0])
+        records = append_all_admitted(
+            page, [event for event in (edit, named) if event is not None]
+        )
     note(*answered)
     return records
 

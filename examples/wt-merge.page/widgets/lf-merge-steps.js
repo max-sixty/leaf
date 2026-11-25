@@ -5,7 +5,7 @@
 // button is an authored `--seek` command on the film whose value names the step, so a
 // press holds that step's result for reading; a press elsewhere on the step presses it.
 
-import { LeafElement, generatedElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 customElements.define(
@@ -20,7 +20,10 @@ customElements.define(
         run: li.querySelector(".this-run"),
       }));
       // Each step's run line is this module's, beside the authored sentence.
-      for (const { run } of this.steps) generatedElement(run, { says: true });
+      for (const { run } of this.steps) {
+        keeps(run, "data-lf-gen", "1");
+        run.toggleAttribute("data-lf-said", true);
+      }
       this.addEventListener("click", (e) => {
         const li = e.target.closest("li");
         if (li && !e.target.closest("button")) li.querySelector("button").click();

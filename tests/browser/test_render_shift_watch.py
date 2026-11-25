@@ -1270,7 +1270,7 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     ],
 )
 def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, protected):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, may draw the step news's append growth takes as travel: a ResizeObserver
     delivery no input owns begins a carry that draws the standing port's head where it
     was and slides it to where its rise puts it, or draws part of the step at once, as
@@ -1318,7 +1318,7 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
               });
               window.carries = carry();
               // Re-timed from where it is drawn before any frame draws it, as
-              // box-motion.js re-times a carry a second delivery reaches.
+              // dom/box-motion.js re-times a carry a second delivery reaches.
               if (fault === 'retimed') {
                 window.carries.forEach((carry) => carry.cancel());
                 window.carries = carry();
@@ -1362,7 +1362,7 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
 def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
     """News adds a line to a port standing on its foot, which rises to hold it. Carried
     in alone from 60 px below, the new line slides on its own, and fails. Carried with
-    the line already there by the distance the rise moved that one, as box-motion.js
+    the line already there by the distance the rise moved that one, as dom/box-motion.js
     carries a stream's new turn with the turns above it, it rides that line's carry."""
     page = browser.new_page()
     page.goto(
@@ -1949,7 +1949,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -2083,7 +2083,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     )
     page.evaluate(
         """async retiredAt => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           const widget = document.querySelector('#choice');
           const gate = Promise.withResolvers();
           window.release = gate.resolve;
@@ -2095,7 +2095,9 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
               if (phase === 'begin') identity ??= preparation;
               else if (preparation === identity) { terminal.resolve(); stop(); }
             });
-            widgetController(widget).present(gate.promise);
+            // Said from inside a widget, the work is that widget's preparation.
+            widget.querySelector(':scope > .lf-another')
+              .dispatchEvent(new PendingTaskEvent(gate.promise));
             if (retiredAt === "click") widget.remove();
           }, {once: true});
         }""",
@@ -2144,16 +2146,19 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfWidgetApi();
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       const widget = document.querySelector('#choice');
+      // Said from inside a widget, the work is that widget's preparation.
+      const prepare = promise =>
+        widget.querySelector(':scope > .lf-another').dispatchEvent(new PendingTaskEvent(promise));
       const first = Promise.withResolvers();
       const second = Promise.withResolvers();
       window.rejectFirst = first.reject;
       window.releaseFirst = first.resolve;
       window.releaseSecond = second.resolve;
       document.querySelector('#press').addEventListener('click', () => {
-        widgetController(widget).present(first.promise);
-        widgetController(widget).present(second.promise.then(() => {
+        prepare(first.promise);
+        prepare(second.promise.then(() => {
           widget.style.height = '120px';
         }));
       }, {once: true});
@@ -2186,7 +2191,7 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
 def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
     browser, serve
 ):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
     landing draws in, after that frame's tick. The motion is the input's though the
     server's reading lands after that delivery and before the next tick, as it can
@@ -2206,7 +2211,7 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfWidgetApi();
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       CSS.registerProperty({
         name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
       });
@@ -2223,9 +2228,11 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
         document.body.setAttribute('data-lf-reading', 'news');
       }).observe(after);
       document.querySelector('#press').addEventListener('click', () => {
-        widgetController(widget).present(gate.promise.then(() => {
-          after.style.height = '40px';
-        }));
+        // Said from inside a widget, the work is that widget's preparation.
+        widget.querySelector(':scope > .lf-another').dispatchEvent(
+          new PendingTaskEvent(gate.promise.then(() => {
+            after.style.height = '40px';
+          })));
       }, {once: true});
     }""")
     page.locator("#press").click()
@@ -2272,7 +2279,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {
@@ -2917,14 +2924,14 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
 # news that moves nothing (`press`). The translation arms slide the line itself
 # instead of flowing it: by its margin, or by a registered property its translate
-# reads, as box-motion.js carries a part. `data-retarget` has the news cancel the
-# slide and begin its replacement in the task that adopts the reading, as box-motion.js
+# reads, as dom/box-motion.js carries a part. `data-retarget` has the news cancel the
+# slide and begin its replacement in the task that adopts the reading, as dom/box-motion.js
 # carries a send's ride on through the server's answer: from where it is drawn to the
 # same end (`drawn`) or a farther one (`farther`), or from where it began
 # (`restart`). A translation paints no layout shift, which every passive
 # verdict starts from, so a box no reader reads slides in the window meanwhile, as a
 # panel's controls redrawn by the reading shift. The delivery arms begin the slide
-# where box-motion.js begins a carry, in a ResizeObserver delivery that follows a
+# where dom/box-motion.js begins a carry, in a ResizeObserver delivery that follows a
 # box's layout: the press's own growth, its news landing before the next frame's tick
 # (`delivery`), or the news's growth three frames on (`news-delivery`). The growing box
 # stands after the line, so only the slide moves it.
@@ -3446,7 +3453,7 @@ def test_sampled_native_translation_distinguishes_press_from_news(
 def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
     browser, motion
 ):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, begins its motion in the ResizeObserver delivery of the frame the press
     draws in, after that frame's tick. The motion is the press's though news lands
     before the next tick, as a send's answer can within a long frame, where the panel's
@@ -4939,7 +4946,7 @@ motion.pause();motion.currentTime=150;
 @pytest.mark.parametrize("fault", [False, True])
 def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
     """A ride carries a scroller's messages while their sticky heads' insets travel
-    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    against the carry (dom/box-motion.js), so a stuck head holds its line and one short of
     it rides with its message. The inset is credited by the head's move within its
     message, not read as an offset that cancels the carry; a head moving the other
     way within its message still fails."""

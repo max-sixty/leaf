@@ -5,11 +5,20 @@ A harness is the program an agent session runs in, such as Claude Code or Codex,
 Leaf meets it. `Harness` collects everything that
 differs between them — session lifetime, watcher and transports, the hook's remedies,
 the way out of its sandbox, the way to reach a session with nothing watching — so
-that every module below this one dispatches on what a harness declares rather than
-on which harness it is: behaviour one harness needs is a method here, which the
-others answer by default, and no module outside this one compares a harness's name
-or reads its environment variables. `session_harness` reads the one running this command out of the
-environment; `claim_harness` rebuilds the one a page's claim recorded.
+that every other module dispatches on what a harness declares rather than on which
+harness it is, and no module outside this one and a harness's own code compares a
+harness's name or reads its environment variables. `session_harness` reads the one
+running this command out of the environment; `claim_harness` rebuilds the one a
+page's claim recorded.
+
+This module stands low in the import order, since the event log, admission and
+claims read a harness, so a method here calls only modules below it. Behaviour one
+harness needs is such a method, which the others answer by default. Behaviour that
+needs a module above this one lives above that module instead, and reads a fact the
+harness declares: `inference` names the transport `inference.harness_generator`
+asks the harness's model through, and `adapter` says the session's input travels
+through Codex's adapter, which `hosting.preparing_delivery` starts and whose
+delivery record `hooks.offer_at_step` offers.
 
 The machine facts a harness rests on live elsewhere: `machine` reads the
 processes running above this one, and `leases` holds the leases a watcher
@@ -22,22 +31,17 @@ import json
 import mmap
 import os
 import time
-from collections.abc import Callable
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from leaf.files import read_json
-from leaf.leases import (
-    adapter_is_live,
-    hooks_ran,
-    wait_is_live,
-)
+from leaf.leases import adapter_is_live, hooks_ran
 from leaf.machine import ancestry, pid_alive, process_argv
 from leaf.page_memory import Slot
 from leaf.refusals import Refused
+from leaf.state import runs_session
 
 
 @dataclass(frozen=True)
@@ -67,7 +71,7 @@ class Harness:
     - the host, a program that drives App Server and starts every turn itself.
 
     The *transport* is how one delivery enters a turn's context: the hooks
-    (`hook_delivers`, or Codex's tool hook, `offer_at_step`),
+    (`hook_delivers`, or Codex's tool hook, `hooks.offer_at_step`),
     the wait's output, Codex's queue, or a turn Leaf starts over App Server. The
     envelope states what the transport decides (`../../skills/leaf/references/event-batches.md`).
     The methods below answer for each harness's watcher and transports:
@@ -92,7 +96,7 @@ class Harness:
       holding the adapter lease. It queues each delivery with `codex queue`, or
       starts its turn over the task's App Server when Leaf can reach one, and
       only that start takes the input that arrives as a turn ends
-      (`later_turn_takes_input`).
+      (`codex_adapter.later_turn_takes_input`).
     - An embedded harness drives Codex App Server itself and starts the turns;
       nothing outside it carries input in.
     """
@@ -114,6 +118,16 @@ class Harness:
     # The most UTF-8 bytes of hook context the harness shows the model whole, or
     # None where it shows any size.
     hook_context_bytes: ClassVar[int | None] = None
+    # Whether the session's watcher is a detached adapter that carries its input
+    # into later turns, through a delivery record its hooks offer from as well
+    # (`codex_adapter`): a claim starts or joins it before publishing its page
+    # (`hosting.preparing_delivery`), and the tool hook and Stop offer the record
+    # (`hooks.offer_at_step`).
+    adapter: ClassVar[bool] = False
+    # How Leaf asks the harness's model a tool-free structured question, which
+    # `inference.harness_generator` reads: a completion on the session's own model
+    # client, a private App Server, or a print run; None where Leaf can't.
+    inference: ClassVar[Literal["completion", "app-server", "print"] | None] = None
 
     @classmethod
     def fits_hook_context(cls, context: str) -> bool:
@@ -141,11 +155,10 @@ class Harness:
     def escape_sandbox(self) -> None:
         """Open the road out of this harness's sandbox that this session's `leaf`
         commands take, for as long as the session lives (`lifetime`). The hook
-        before a command naming `leaf` calls it, outside the sandbox, in the Leaf
-        the harness ran and in any it hands itself to (`hooks.main`). A harness
-        whose sandbox leaves no road out, as Codex's does, opens none; Codex's
-        agent runs a confined command through Leaf's MCP server instead
-        (`codex_tool.py`)."""
+        before a command naming `leaf` calls it, outside the sandbox
+        (`hooks.main`). A harness whose sandbox leaves no road out, as Codex's
+        does, opens none; Codex's agent runs a confined command through Leaf's MCP
+        server instead (`codex_tool.py`)."""
 
     def watcher_live(self, *, listening: bool) -> bool:
         """Whether this session's watcher can still take the page's input into a
@@ -163,23 +176,6 @@ class Harness:
         this."""
         return listening or self.hooks_carry()
 
-    def ensure_delivery(self) -> None:
-        """Prepare this harness's watcher before handing over a served page.
-
-        Harnesses whose hooks or host own delivery need no separate process.
-        The adapter starts or joins its task-wide watch here.
-        """
-
-    @contextmanager
-    def preparing_delivery(self):
-        """Prepare delivery and retain it until the caller publishes its page.
-
-        The adapter is kept from no-page retirement throughout this boundary.
-        A failed preparation therefore precedes any page ownership transition.
-        """
-        self.ensure_delivery()
-        yield
-
     def hooks_carry(self) -> bool:
         """Whether the harness supports hook delivery and a hook has run here.
 
@@ -195,15 +191,12 @@ class Harness:
         (`activity.takes_input`)."""
         return self.hooks_carry()
 
-    def receive_pointer(self, payload: dict) -> list[Path]:
+    def receive_pointer(self, payload: dict) -> list[Path] | None:
         """Confirm the reader's complete-reading attestation for a pointer whose
-        original `acknowledge` names nobody, the receipt its hooks left to the reader.
-
-        Explicit reader confirmation is strict: a transferred page or ended turn
-        reports refusal rather than silently accepting a partial receipt."""
-        from .delivery import receive
-
-        return receive(payload, self.session)
+        original `acknowledge` names nobody, the receipt its hooks left to the
+        reader, where this harness confirms it a way of its own; None where the
+        ordinary receipt does (`delivery.receive_delivery`)."""
+        return None
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -221,15 +214,6 @@ class Harness:
         a hook or extension, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
-
-    def later_turn_takes_input(self) -> bool:
-        """Whether input that arrives as this session's turn ends goes to a turn of
-        its own rather than into the ending one, where the Stop hook would hand it
-        (`hook_transport`). That turn must open without the agent asking, and must
-        show the user less than continuing the ending turn would: a watch between
-        turns wakes one (`watches_between_turns`), and Codex's adapter starts one
-        over App Server."""
-        return self.watches_between_turns()
 
     def process_runs(self) -> bool:
         """Whether the harness process whose hook started this watch still runs. A
@@ -282,30 +266,19 @@ class Harness:
         turn, every other hook before checking the turn its payload names."""
         return expected
 
-    def entered_context(self, payload: dict) -> set[str]:
-        """The ids of the inputs this session's hooks handed over inline that the
-        harness's own record, named in hook `payload`, shows in the model's context.
-        Only a harness whose hooks don't commit their context
-        (`commits_hook_context`) is asked (`delivery.confirm_entered`)."""
-        return set()
+    def entered_context(self, payload: dict, marker: str) -> list[str]:
+        """The contexts this session's hooks handed over, of those holding
+        `marker`, that the harness's own record, named in hook `payload`, shows
+        in the model's context. Only a harness whose hooks don't commit their
+        context (`commits_hook_context`) is asked, and the asker reads its inputs
+        out of each (`delivery.confirm_entered`)."""
+        return []
 
     def prompt_dropped(self, payload: dict, turn: str) -> bool:
         """Whether the harness's own record, named in hook `payload`, shows that the
         prompt of `turn` never reached the conversation: an interrupt dropped it
         while its prompt hooks ran. False where the record can't tell."""
         return False
-
-    def offer_at_step(
-        self, event: str, payload: dict, expected: dict | None
-    ) -> tuple[str | None, dict | None]:
-        """Offer the session's pending page input through hook `event` ahead of the
-        hook transport (`hook_transport.carry_turn`), where this harness's hooks do.
-
-        Returns what the hook puts in the turn's context, which ends the hook, and
-        the lifecycle the hook goes on with otherwise: `expected`, or the renewal
-        an offer made under it. Where the hook transport carries every input,
-        nothing is offered here."""
-        return None, expected
 
     def nudge(self, page_dir: Path) -> bool:
         """Put this page's new input in front of the session, and say whether
@@ -323,17 +296,6 @@ class Harness:
         holds the lease (`activity.canonical_activity`). Only a nudge whose
         recipient takes the message says so; one it may hold or drop doesn't."""
         return False
-
-    def inference_generator(self) -> Callable[..., dict] | None:
-        """Tool-free structured inference using this harness's login, if supported."""
-        return None
-
-    def title_generator(self) -> Callable[[str, Path], dict] | None:
-        """Name threads through this harness's structured inference, if supported."""
-        from leaf.thread_titles import title_generator
-
-        infer = self.inference_generator()
-        return title_generator(infer) if infer is not None else None
 
     def live_turn(self) -> dict | None:
         """What the harness itself says about this session right now, or None where it
@@ -420,6 +382,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     # arrived whole and 10,010 did not. Which unit it counts is unmeasured, so the
     # limit counts UTF-8 bytes, the strictest reading.
     hook_context_bytes = 9_990
+    inference = "completion"
 
     def lifetime(self) -> dict:
         """A session the user sits at is a process, and Claude Code states it
@@ -448,7 +411,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         from its `main.log`). The session the user sees is the app's record of
         it, which CLAUDE_CODE_HOST_SESSION_ID names (`desktop_session_record`),
         so its lifetime is `app`, that record's path, for as long as the record
-        names this session (`service.lifetime_is_live`). The variable is
+        names this session (`service.session_lives`). The variable is
         inherited too, so the record's `cliSessionId` has to be this session's.
         Where the app keeps no such record, the session lives as its process."""
         if job := os.environ.get("CLAUDE_JOB_DIR"):
@@ -466,7 +429,13 @@ class ClaudeCodeHarness(EnvironmentHarness):
             and read_json(path)["cliSessionId"] == self.session
         ):
             return {"app": str(path)}
-        return {"pid": int(os.environ["CLAUDE_PID"])}
+        if (pid := self.process_pid()) is None:
+            raise Refused(
+                "CLAUDE_CODE_SESSION_ID names a Claude Code session but CLAUDE_PID is "
+                "unset, and leaf takes the session's lifetime from it; run the command "
+                "from the session's shell, or unset CLAUDE_CODE_SESSION_ID"
+            )
+        return {"pid": pid}
 
     @classmethod
     def process_pid(cls) -> int | None:
@@ -482,9 +451,26 @@ class ClaudeCodeHarness(EnvironmentHarness):
         `prompt_id` (found in each npm release's hook input), so their turns are
         Leaf's, and a resubmitted prompt renews the dropped one's; receipt then stops
         short of its handover (`delivery.confirm_entered`), which is input again once
-        the turn ends."""
+        the turn ends.
+
+        Claude Code can also run a new turn under the previous turn's prompt. When
+        another session's message, such as a background agent's hand-back, opens a
+        turn as a Stop ends, that turn's tool boundaries name the previous turn's
+        `prompt_id`, and so does the prompt hook of each wake that joins it (read
+        from a 2.1.330 transcript's `promptId`s). Claude Code runs a session's hooks
+        in order, so a hook that names a prompt whose turn Leaf holds closed starts
+        such a turn. Leaf names it by the prompt and an ordinal
+        (`claude_code_turn`): a turn id Leaf holds closed never reopens
+        (`state.advance_turn`), and what an earlier turn under the prompt was
+        handed must not read as handed into this one
+        (`delivery.handed_into_turn`)."""
         prompt = payload.get("prompt_id")
-        return {**payload, "turn_id": prompt} if prompt else payload
+        if not prompt:
+            return payload
+        from .state import session_record
+
+        record = session_record(payload.get("session_id") or "")
+        return {**payload, "turn_id": claude_code_turn(prompt, record)}
 
     def reconcile_turn(self, payload: dict, expected: dict | None) -> dict | None:
         """Claude Code runs some turns under a prompt no prompt hook named: a prompt
@@ -516,17 +502,19 @@ class ClaudeCodeHarness(EnvironmentHarness):
                 return record
             return advance_turn(self.session, turn, running=True)
 
-    def entered_context(self, payload: dict) -> set[str]:
+    def entered_context(self, payload: dict, marker: str) -> list[str]:
         """What the session's transcript, which every hook's payload names, shows
         entered the model's context (`claude_code_entered`)."""
         path = payload.get("transcript_path")
-        return claude_code_entered(Path(path)) if path else set()
+        return claude_code_entered(Path(path), marker) if path else []
 
     def prompt_dropped(self, payload: dict, turn: str) -> bool:
         """Whether the transcript the payload names holds no record of the prompt
         `turn` names (`claude_code_prompt_dropped`)."""
         path = payload.get("transcript_path")
-        return bool(path) and claude_code_prompt_dropped(Path(path), turn)
+        return bool(path) and claude_code_prompt_dropped(
+            Path(path), claude_code_prompt(turn)
+        )
 
     def escape_sandbox(self) -> None:
         """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
@@ -604,11 +592,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
         ).get("name")
         return name if isinstance(name, str) and name else None
 
-    def inference_generator(self) -> Callable[..., dict]:
-        from leaf.inference import claude_code_generator
-
-        return claude_code_generator(self.session)
-
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
         itself, resumed with the message as its prompt."""
@@ -660,35 +643,17 @@ class CodexHarness(EnvironmentHarness):
     # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/hooks/src/output_spill.rs
     # https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/utils/string/src/truncate.rs
     hook_context_bytes = 10_000
+    adapter = True
+    inference = "app-server"
 
     @classmethod
     def process_pid(cls) -> int | None:
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
 
-    def inference_generator(self) -> Callable[..., dict]:
-        from leaf.inference import codex_generate
-
-        return codex_generate
-
     def session_name(self) -> str | None:
         """The thread's name in Codex's session index (`codex_thread_names`)."""
         return codex_thread_names().get(self.session)
-
-    def ensure_delivery(self) -> None:
-        with self.preparing_delivery():
-            pass
-
-    @contextmanager
-    def preparing_delivery(self):
-        from .codex_adapter import preparing_adapter
-
-        # A model wait already selected by this task remains its watcher.
-        if wait_is_live(None, self.session) and not adapter_is_live(self.session):
-            yield
-            return
-        with preparing_adapter(self):
-            yield
 
     def lifetime(self) -> dict:
         """CLI sessions live with their nearest Codex ancestor, not the shell
@@ -729,25 +694,6 @@ class CodexHarness(EnvironmentHarness):
         adapter leaves such a turn's input to it (`codex_adapter`)."""
         return hooks_ran(self.session)
 
-    def later_turn_takes_input(self) -> bool:
-        """An adapter that starts turns over App Server opens one on a
-        `leaf_delivery` tool output, which adds no message to the user's
-        conversation. Through `codex queue` the turn opens on a `leaf-delivery`
-        pointer that Codex shows as a message from the user, which is noisier than
-        the one more message the ending turn writes, so there Stop hands the input
-        into the ending turn.
-
-        An adapter takes its lease before it writes its transport there, and holds
-        the start lock across that, so the record is read under the start lock."""
-        if not adapter_is_live(self.session):
-            return False
-        from .codex_adapter import adapter_start_lock_path, running_adapter
-        from .state import flocked
-
-        with flocked(adapter_start_lock_path(self.session)):
-            adapter = running_adapter(self.session)
-        return adapter is not None and adapter["app_server"] is not None
-
     def receive_pointer(self, payload: dict) -> list[Path]:
         from .codex_state import confirm_codex_pointer
 
@@ -782,52 +728,6 @@ class CodexHarness(EnvironmentHarness):
         from .codex_state import sync_transcript_turn
 
         return sync_transcript_turn(self.session, payload.get("transcript_path"))
-
-    def offer_at_step(
-        self, event: str, payload: dict, expected: dict | None
-    ) -> tuple[str | None, dict | None]:
-        """Both the tool hook and Stop offer an envelope through Codex's one transport
-        reservation (`codex.offer_hook_delivery`), since empty-input resume can
-        reach Stop without running another tool. Stop offers only where no adapter
-        will start a turn of its own for the input over App Server
-        (`later_turn_takes_input`), and the turn would continue for it
-        (`hook_transport.stop_continues`). The tool hook offers input the cursor
-        has not passed, and input the cursor passed that no pickup names, which a
-        Codex session's receipts never leave, and Stop also an update the session
-        holds no usable reference for (`delivery.deliverable`). The tool hook also carries the
-        reminder of a status line left standing (`hook_transport.status_reminders`).
-        """
-        if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
-            return None, expected
-        from .service import owned_pages
-
-        if not owned_pages(self.session):
-            return None, expected
-        if event == "Stop":
-            if self.later_turn_takes_input():
-                return None, expected
-            from .hook_transport import read_plans, stop_continues
-
-            plans = read_plans(self.session)
-            if not stop_continues(
-                plans,
-                [plan.batch for plan in plans if plan.batch],
-                repeated=bool(payload.get("stop_hook_active")),
-                reminds=self.watches_between_turns(),
-            ):
-                return None, expected
-        from .codex import offer_hook_delivery
-        from .state import status_check_due
-
-        prompt, expected = offer_hook_delivery(
-            self.session, expected, received=event == "Stop"
-        )
-        if event == "PostToolUse" and status_check_due(self.session):
-            from .hook_transport import read_plans, status_reminders
-
-            renewals = status_reminders(self.session, read_plans(self.session))
-            prompt = "\n".join(filter(None, [prompt, *renewals])) or None
-        return prompt, expected
 
     @classmethod
     def run_ack(cls, command: str) -> str:
@@ -877,6 +777,7 @@ class PiHarness(EnvironmentHarness):
     hook_delivers = True
     # The extension adds a hook's whole context to the session as text, at any
     # size, so `hook_context_bytes` stays None.
+    inference = "print"
 
     @classmethod
     def process_pid(cls) -> int | None:
@@ -899,11 +800,6 @@ class PiHarness(EnvironmentHarness):
 
     def process_runs(self) -> bool:
         return pid_alive(int(os.environ["LEAF_PI_PID"]))
-
-    def inference_generator(self) -> Callable[..., dict]:
-        from leaf.inference import pi_generate
-
-        return pi_generate
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."
@@ -989,7 +885,34 @@ def session_harness() -> Harness | None:
     Code shell, or Claude Code from Pi's, states both sessions. The harness running
     the command is the nearest one, so where more than one is implied they are
     ranked by how far above this process each one's `process_pid` runs, and the
-    order below breaks a tie."""
+    order below breaks a tie.
+
+    A Leaf that doesn't act for that session (`state.runs_session`), such as a
+    checkout's `bin/leaf` run from the session's shell, finds no harness, and so acts
+    as a command from a bare shell does: it claims nothing, writes none of the
+    session's records, and serves a page unclaimed. The user chose that developing
+    Leaf works as developing any project does, so a checkout's version, page
+    protocol included, never reaches the session. A command whose result the agent
+    would read as the session's says so (`unserved_session`)."""
+    named = _named_session()
+    if named is None or not runs_session(named[1]):
+        return None
+    harness, session = named
+    return harness(
+        session=session,
+        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
+    )
+
+
+def unserved_session() -> str | None:
+    """The session the environment names where this Leaf doesn't act for it
+    (`session_harness`), or None."""
+    named = _named_session()
+    return named[1] if named is not None and not runs_session(named[1]) else None
+
+
+def _named_session() -> tuple[type[EnvironmentHarness], str] | None:
+    """The nearest harness the environment names, with its session id."""
     implied = [
         (harness, session)
         for harness in _ENVIRONMENT_HARNESSES
@@ -1002,13 +925,7 @@ def session_harness() -> Harness | None:
     if len(implied) > 1:
         depth = {pid: index for index, (pid, _) in enumerate(ancestry())}
         implied.sort(key=lambda pair: depth.get(pair[0].process_pid(), len(depth)))
-    if not implied:
-        return None
-    harness, session = implied[0]
-    return harness(
-        session=session,
-        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
-    )
+    return implied[0] if implied else None
 
 
 def hook_harness(name: str, session: str) -> EnvironmentHarness:
@@ -1060,13 +977,18 @@ def harness_from_argument(argument: str) -> Harness | None:
     return None if record is None else HARNESSES[record.pop("name")](**record)
 
 
-def claim_harness(claim: dict) -> Harness:
-    """The claimant's harness, rebuilt from the claim record.
+def claim_harness(claim: dict | None) -> Harness | None:
+    """The claimant's harness, rebuilt from the claim record, or None for no claim or
+    one naming a harness this Leaf doesn't know, as a later Leaf's may. Such a claim
+    still holds its page (`service.claim_reading`); this Leaf only can't act through
+    its harness.
 
     A page server, the append door and the Stop hook all run in processes that
     need not be the claimant's, so they read the harness the claim names instead
     of the one their own environment implies."""
-    return HARNESSES[claim["harness"]].from_claim(claim)
+    if claim is None or (harness := HARNESSES.get(claim["harness"])) is None:
+        return None
+    return harness.from_claim(claim)
 
 
 def message_identity() -> dict:
@@ -1082,9 +1004,36 @@ def message_identity() -> dict:
     return {"agent": harness.agent, "session": harness.session}
 
 
-def claude_code_entered(transcript: Path) -> set[str]:
-    """The ids of the inputs Leaf's hooks handed inline into a Claude Code session,
-    read from the session's transcript at `transcript`.
+# Between a Claude Code prompt id and the ordinal of a later turn run under it.
+PROMPT_TURN_MARK = "#"
+
+
+def claude_code_prompt(turn: str) -> str:
+    """The Claude Code prompt id that Leaf's turn `turn` runs under
+    (`claude_code_turn`)."""
+    return turn.partition(PROMPT_TURN_MARK)[0]
+
+
+def claude_code_turn(prompt: str, record: dict | None) -> str:
+    """Leaf's name for the turn a Claude Code hook naming `prompt` runs in, given the
+    session's record: the latest turn run under `prompt` while it is open, and once
+    it has closed, a later one under the same prompt, named by the next ordinal
+    (`ClaudeCodeHarness.hook_payload`)."""
+    from .state import turn_closed
+
+    turn = record["turn"] if record else None
+    if turn is None or claude_code_prompt(turn) != prompt:
+        return prompt
+    if not turn_closed(record):
+        return turn
+    _, _, ordinal = turn.partition(PROMPT_TURN_MARK)
+    return f"{prompt}{PROMPT_TURN_MARK}{int(ordinal or 1) + 1}"
+
+
+def claude_code_entered(transcript: Path, marker: str) -> list[str]:
+    """The hook contexts a Claude Code session's transcript at `transcript` shows
+    entered the model's context, of the records holding `marker`, text that JSON
+    writes unescaped, such as the opening of Leaf's inline handover.
 
     Claude Code writes a `hook_additional_context` record once a hook's output joins
     the conversation, and none for a prompt Escape dropped with its hooks' output;
@@ -1094,11 +1043,9 @@ def claude_code_entered(transcript: Path) -> set[str]:
 
     Every hook of a session holding a page reads it, and a long session's
     transcript runs to hundreds of MB, so this maps the file and parses only the
-    lines holding Leaf's opening: 34 ms on a 200 MB transcript, where reading and
+    lines holding `marker`: 34 ms on a 200 MB transcript, where reading and
     splitting it took 105 ms and 500 MB of memory."""
-    from .hook_transport import INLINE_OPENING, inline_delivery
-
-    marker = INLINE_OPENING.encode()
+    found = marker.encode()
     lines = []
     try:
         with (
@@ -1106,7 +1053,7 @@ def claude_code_entered(transcript: Path) -> set[str]:
             mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
         ):
             at = 0
-            while (hit := mapped.find(marker, at)) != -1:
+            while (hit := mapped.find(found, at)) != -1:
                 start = mapped.rfind(b"\n", 0, hit) + 1
                 end = mapped.find(b"\n", hit)
                 end = len(mapped) if end == -1 else end
@@ -1114,8 +1061,8 @@ def claude_code_entered(transcript: Path) -> set[str]:
                 at = end
     except (OSError, ValueError):
         # mmap refuses an empty file with ValueError.
-        return set()
-    entered = set()
+        return []
+    entered = []
     for line in lines:
         if b'"hook_additional_context"' not in line:
             continue
@@ -1123,13 +1070,7 @@ def claude_code_entered(transcript: Path) -> set[str]:
             attachment = json.loads(line).get("attachment") or {}
         except ValueError:
             continue
-        for content in attachment.get("content") or []:
-            if (inline := inline_delivery(content)) is not None:
-                entered.update(
-                    event["id"]
-                    for batch in inline[0]["batches"]
-                    for event in batch["events"]
-                )
+        entered.extend(attachment.get("content") or [])
     return entered
 
 

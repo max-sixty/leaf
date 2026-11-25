@@ -47,9 +47,16 @@
         }
       },
       "text-document": {
-        "description": "UTF-8 text from a file or a selected line range.",
+        "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, and a `key` that names the file however its name changes.",
         "schema": {
-          "type": "string"
+          "type": ["string", "object"],
+          "properties": {
+            "key": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "text": { "type": "string" }
+          },
+          "required": ["name", "text"],
+          "additionalProperties": false
         }
       },
       "source-lines": {
@@ -66,10 +73,6 @@
   },
   "lf-gloss": {
     "description": "A short explanation the reader can open beside a phrase without leaving its sentence.",
-    "attributes": {
-      "type": "object",
-      "additionalProperties": false
-    },
     "inline": true,
     "verbatim": true,
     "instructions": "Write the phrase, then its explanation in a <span popover> after it, the last thing in the gloss: the reader opens it as a card beside the phrase, and print sets it after the phrase as a parenthetical note. Write a self-contained explanation at the first useful occurrence rather than on every repetition, and keep the phrase out of authored parentheses.",
@@ -78,9 +81,7 @@
   "lf-num": {
     "description": "A measured number in prose, tied to the data run that produced it.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "source": { "type": "string" },
         "run": {
           "type": "string",
           "minLength": 1
@@ -90,8 +91,7 @@
           "minLength": 1
         }
       },
-      "required": ["source", "run"],
-      "additionalProperties": false
+      "required": ["source", "run"]
     },
     "inputs": {
       "measurement": {
@@ -107,9 +107,7 @@
   "lf-text-document": {
     "description": "Text written in the page, or from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "source": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -117,11 +115,9 @@
         "preview": {
           "type": "string",
           "enum": ["markdown", "html"]
-        },
-        "for": { "type": "string" }
+        }
       },
       "required": ["id"],
-      "additionalProperties": false,
       "if": {
         "not": {
           "anyOf": [{ "required": ["source"] }, { "required": ["for"] }]
@@ -140,17 +136,13 @@
         "property": "value"
       }
     },
-    "refers": {
-      "for": {}
-    },
     "bound": "start",
-    "instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with `label`. HTML drops a newline right after `<pre>`, but not after a `<code>` inside it; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget publishing a `document` output, leave out the `<pre>`, and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. A `language-…` class colors the source: on a `<code>` around the text in the `<pre>`, as on any code block, or on the element itself when it has no `<pre>`. The preview's language is the default. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. A Markdown preview of text written in the `<pre>` takes its rendered height up to `--lf-bound`, 28rem by default, and its Source tab shows as much of the source as that height holds, with a press for the rest. Other documents, such as bound ones, whose text arrives after the page first paints, scroll inside a box that tall however long the text. To start it collapsed, put it inside `details`.\n\n## Refreshing a source\n\nA Markdown file bound to a source:\n\n```html\n<lf-text-document\n  id=\"skill-source\"\n  source=\"leaf-skill\"\n  label=\"SKILL.md\"\n  preview=\"markdown\"\n></lf-text-document>\n```\n\nSet the source to one JSON string. For a whole file:\n\n```bash\njq -Rs . SKILL.md | leaf data set <page> leaf-skill\n```\n\nFor a selected line range instead:\n\n```bash\nsed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill\n```\n\nRun the pipeline again to refresh the open page. `references/authoring-evidence.md`,\n\"Source files and media\", owns when evidence follows a source and when it keeps a snapshot.",
+    "instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with `label`. HTML drops a newline right after `<pre>`, but not after a `<code>` inside it; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget holding a `text-document` output, such as an editor of the file, leave out the `<pre>`, and name the file with `label` unless the value names it, as an editor's does. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. A `language-…` class colors the source: on a `<code>` around the text in the `<pre>`, as on any code block, or on the element itself when it has no `<pre>`. The preview's language is the default. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. A Markdown preview of text written in the `<pre>` takes its rendered height up to `--lf-bound`, 28rem by default, and its Source tab shows as much of the source as that height holds, with a press for the rest. Other documents, such as bound ones, whose text arrives after the page first paints, scroll inside a box that tall however long the text, except as a workspace pane's body, where a document fills the pane. To start it collapsed, put it inside `details`.\n\n## Refreshing a source\n\nA Markdown file bound to a source:\n\n```html\n<lf-text-document\n  id=\"skill-source\"\n  source=\"leaf-skill\"\n  label=\"SKILL.md\"\n  preview=\"markdown\"\n></lf-text-document>\n```\n\nSet the source to one JSON string. For a whole file:\n\n```bash\njq -Rs . SKILL.md | leaf data set <page> leaf-skill\n```\n\nFor a selected line range instead:\n\n```bash\nsed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill\n```\n\nRun the pipeline again to refresh the open page. `references/authoring-evidence.md`,\n\"Source files and media\", owns when evidence follows a source and when it keeps a snapshot.",
     "example": "<lf-text-document id=\"changelog-fix\" label=\"CHANGELOG.md\" preview=\"markdown\"><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>"
   },
   "lf-toc": {
     "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",
     "attributes": {
-      "type": "object",
       "properties": {
         "max-level": {
           "type": "string",
@@ -160,8 +152,7 @@
           "type": "boolean"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "empty",
     "spine": true,
@@ -170,11 +161,7 @@
   },
   "lf-activity": {
     "description": "A newest-first feed of the page\u2019s comments, actions, reports, and published revisions.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "empty",
     "bound": "start",
     "history": true,
@@ -184,15 +171,13 @@
   "lf-group": {
     "description": "A named group of what it holds: one part of the page, named by its `label`. A widget that asks inside it takes the innermost group as its question.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
           "minLength": 1
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "reading-role": "group",
     "flow": true,
@@ -203,7 +188,6 @@
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "attributes": {
-      "type": "object",
       "properties": {
         "multiple": {
           "type": "boolean"
@@ -218,8 +202,7 @@
           "type": "boolean"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "members",
     "awaits": {
@@ -243,7 +226,6 @@
     },
     "verbs": {
       "choose": {
-        "unit": "widget",
         "record": {
           "kind": "attribute",
           "attr": "selected"
@@ -251,7 +233,6 @@
       },
       "add": {
         "detail": {
-          "type": "object",
           "properties": {
             "option": { "type": "string" },
             "text": {
@@ -259,8 +240,7 @@
               "minLength": 1
             }
           },
-          "required": ["option", "text"],
-          "additionalProperties": false
+          "required": ["option", "text"]
         },
         "unit": "option",
         "creates": {
@@ -269,11 +249,7 @@
         }
       },
       "answer": {
-        "detail": {
-          "type": "object",
-          "additionalProperties": false
-        },
-        "unit": "widget"
+        "detail": {}
       }
     },
     "instructions": "An `lf-options` asks with no attribute, and On Me holds it until the user picks. Put it in the `lf-group` whose label asks its question, with the shared premises and evidence (`references/authoring-on-me.md`, \"On the page\"), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). Option cards read down the list, each as wide as the `lf-options`. `across` on the `lf-options` sets them side by side, which suits options where what the user compares, each option's picture or the evidence above the list, still reads at a card's share of the row, and the question then fits the window. Cards set across share the `lf-options`' width, and a card of a title and a sentence reads at about 18rem, so give the `lf-options` the width its cards need: the column holds two, `data-width=\"wide\"` three, and `available` four or more, or cards that hold pictures. Keep them reading down where that share would shrink the pictures below the size at which their difference reads. The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` `lf-options` needs the user's Done even when `selected` is authored. When taking in an answer in a stamped version, write `selected` on exactly the picked `lf-option` elements you authored. Leave an option the user added out of the markup; the log keeps it. Once you have finished applying the decision, give the `lf-options` `settled`, which records it: it stops asking and collapses to the pick while keeping its options and anchors.",
@@ -282,7 +258,6 @@
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
@@ -303,8 +278,7 @@
           "type": "boolean"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "owners": ["lf-options"],
     "refers": {
@@ -315,7 +289,6 @@
   "lf-code": {
     "description": "A source-code excerpt with syntax coloring, highlighted lines, line-anchored remarks, and a mark on the lines another widget is at.",
     "attributes": {
-      "type": "object",
       "properties": {
         "hi": {
           "type": "string",
@@ -324,11 +297,9 @@
         "lines": {
           "type": "string",
           "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
-        },
-        "for": { "type": "string" }
+        }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "data",
     "inputs": {
@@ -338,35 +309,26 @@
         "property": "playhead"
       }
     },
-    "refers": {
-      "for": {}
-    },
     "instructions": "Write the exact code inside pre at column 0, HTML-escaping & before < and >. Name source code's language as on any code block, with `<code class=\"language-python\">` around the code inside pre, and leave plain transcripts or command output without one. For excerpts, set lines to the ascending source ranges quoted, such as 1505-1507,1520-1527; hi and lf-note at then use those source numbers. A note addressed to an omitted line captions the elided row. To mark the lines another widget is at, such as the code an animation's step runs, set for to the id of a widget holding a `source-lines` output: the block marks the lines it quotes, and where its pane scrolls, brings them into view there without moving the page. Several excerpts of one file can follow one widget.",
     "example": "<lf-code id=\"bracket-walk\" hi=\"2\"><pre><code class=\"language-python\">def bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</code></pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
   "lf-note": {
     "description": "A prose remark anchored to a line or omitted range of its lf-code parent.",
     "attributes": {
-      "type": "object",
       "properties": {
         "at": {
           "type": "string",
           "pattern": "^[0-9]+$"
         }
       },
-      "required": ["at"],
-      "additionalProperties": false
+      "required": ["at"]
     },
     "owners": ["lf-code"],
     "instructions": "Set at to the line number as the parent numbers it: 1-based by default, or the source number declared in lines. The note stands under that line, so a note about a key, field or definition names the line it starts on."
   },
   "lf-chart": {
     "description": "An Observable Plot chart authored with Plot\u2019s API and sized to its place in the page.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "data",
     "visual": { "prefixes": ["point:"] },
     "height": 400,
@@ -376,7 +338,6 @@
   "lf-shot": {
     "description": "A before-and-after pair of screenshots with paired, slider and pixel-difference views, change outlines and scale controls.",
     "attributes": {
-      "type": "object",
       "properties": {
         "before": {
           "type": "string",
@@ -413,8 +374,7 @@
         "focus-y": ["focus-x", "focus-width", "focus-height"],
         "focus-width": ["focus-x", "focus-y", "focus-height"],
         "focus-height": ["focus-x", "focus-y", "focus-width"]
-      },
-      "additionalProperties": false
+      }
     },
     "content": "empty",
     "visual": "whole",
@@ -423,16 +383,11 @@
   },
   "lf-board": {
     "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "members",
     "space": "available",
     "verbs": {
       "move": {
-        "unit": "unit",
         "record": {
           "kind": "position",
           "within": "lf-column"
@@ -445,7 +400,6 @@
   "lf-column": {
     "description": "One named board column, including empty columns the user can move a card into.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string"
@@ -458,8 +412,7 @@
           "pattern": "^[a-z0-9][a-z0-9-]*$"
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "content": "members",
     "owners": ["lf-board"],
@@ -468,7 +421,6 @@
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
@@ -479,8 +431,7 @@
           "type": "boolean"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "owners": ["lf-column"],
     "refers": {
@@ -491,7 +442,6 @@
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
     "attributes": {
-      "type": "object",
       "properties": {
         "list": {
           "type": "string",
@@ -502,8 +452,7 @@
           "enum": ["page"]
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "members",
     "views": { "members": "lf-tab" },
@@ -514,15 +463,13 @@
   "lf-tally": {
     "description": "A count of the open obligations in one region, such as the decisions left in a queue, split into those waiting on the user and those waiting on the agent, with an optional control that goes to the next one waiting on the user.",
     "attributes": {
-      "type": "object",
       "properties": {
         "for": { "type": "string" },
         "next": {
           "type": "boolean"
         }
       },
-      "required": ["id", "for"],
-      "additionalProperties": false
+      "required": ["id", "for"]
     },
     "content": "empty",
     "refers": {
@@ -536,7 +483,6 @@
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string"
@@ -548,8 +494,7 @@
           "type": "string"
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "owners": ["lf-tabs"],
     "flow": true,
@@ -557,11 +502,7 @@
   },
   "lf-parts": {
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
-    "attributes": {
-      "type": "object",
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "members",
     "views": { "members": "lf-part", "parts": true },
     "instructions": "Place it as `page-layout.md`, \"A page of parts\", says, giving each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads and versions belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part.",
@@ -570,7 +511,6 @@
   "lf-part": {
     "description": "One labeled part of a page, holding the box its own Layout arranges.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string"
@@ -579,8 +519,7 @@
           "type": "string"
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "owners": ["lf-parts"],
     "instructions": "Hold exactly one child, carrying the part's Layout. Its `summary` shows under its label in the list, so the user can tell the parts apart before opening one; start it with what the part holds unless the label already says so. Keep ids distinct across parts, which share the page's id space."
@@ -588,14 +527,12 @@
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
     "attributes": {
-      "type": "object",
       "properties": {
         "required": {
           "type": "boolean"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "markdown",
     "verbatim": true,
@@ -603,14 +540,10 @@
       "value": "edit",
       "when": {
         "required": [true]
-      },
-      "answered": {
-        "edit": {}
       }
     },
     "verbs": {
       "edit": {
-        "unit": "widget",
         "record": {
           "kind": "body"
         }
@@ -622,7 +555,6 @@
   "lf-sample": {
     "description": "A sample: quoted content, interactive content on this page, or an isolated child Leaf page.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string"
@@ -632,8 +564,7 @@
           "type": "boolean"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "exhibit": { "when": { "interactive": [false] } },
     "instructions": "Its `label` names it wherever Leaf names it, such as a thread on it; the page doesn’t show it. Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On Me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
@@ -642,15 +573,13 @@
   "lf-pane": {
     "description": "A reading region with an optional header and footer, independently scrollable inside a full-height workspace.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
           "minLength": 1
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "reading-role": "pane",
     "verbatim": true,

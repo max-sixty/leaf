@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     HELD_LEASES,
     STATED_TIMEOUT,
@@ -329,7 +330,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
         raise StartRefused("the port is taken")
 
     def start_that_dies(*_args, **_kwargs):
-        return hosting_model.PageStart("http://127.0.0.1:1/", None, page_dir)
+        return hosting_model.PageStart("http://127.0.0.1:1/", None, page_dir, True)
 
     monkeypatch.setattr(
         hosting_model,
@@ -438,7 +439,7 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     """A page with no service record has nothing that will serve it, so a wait
     on it ends on its first pass with the command that does, whether it was
     named or claimed earlier and found by the session's wait."""
-    assert not (page_dir / "service.json").exists()
+    assert not server_model.SERVICE.file(page_dir / "service.json").exists()
     session_model.cmd_waiting(page_dir)
     service_model.claim_page(page_dir)
 
@@ -644,6 +645,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     pages rather than the argument, so four leaves cost one command between
     them, and the line that wakes the session says which page spoke."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
+    hooks_run_this_tree("s9")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s9")  # its harness runs Leaf's hooks
     second = tmp_path / "second"
@@ -824,10 +826,10 @@ _RUNNING_FROM = """
 import sys
 from pathlib import Path
 
-from leaf import session_runtime, state
+from leaf import hooks, state
 from leaf.__main__ import main
 
-state.PLUGIN_ROOT = session_runtime.PLUGIN_ROOT = Path(sys.argv[1])
+state.PLUGIN_ROOT = hooks.PLUGIN_ROOT = Path(sys.argv[1])
 sys.argv = ["leaf", *sys.argv[2:]]
 main()
 """
@@ -851,6 +853,7 @@ def test_a_pi_watch_goes_on_as_the_copy_pi_puts_in_its_place(
     )
     (root / "bin" / "leaf").chmod(0o755)
     monkeypatch.setenv("PI_SESSION_ID", "pi-s1")
+    hooks_run_this_tree("pi-s1")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_PI_WATCH", "1")
     service_model.claim_page(page_dir)
@@ -1289,6 +1292,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     watcher holds needs no second command: the claim the serve makes is what
     puts the page in front of the running wait."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s10")
+    hooks_run_this_tree("s10")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s10")  # its harness runs Leaf's hooks
     serving(page_dir, 1)
@@ -1331,6 +1335,7 @@ def test_wait_with_nothing_to_watch_says_so(monkeypatch, snapshot):
     """A no-argument wait in a session that holds no pages has nothing to hold
     open — exit rather than sleep forever on an empty set."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-empty")
+    hooks_run_this_tree("s-empty")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     result = CliRunner().invoke(cli_model.cli, ["wait"])
     assert result.exit_code == 2, result.output
@@ -1402,6 +1407,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, 
     earlier but cannot run now. A permanent capability mark cannot establish
     that the next hook will deliver; no timeout can establish that either."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
+    hooks_run_this_tree("unhooked")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
@@ -1466,6 +1472,7 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     [stale] = [event["answer"]["ref"] for event in earlier["batches"][0]["events"]]
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
+    hooks_run_this_tree("unhooked")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     claim = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert claim.exit_code == 0, claim.output
@@ -1486,6 +1493,29 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     )
     assert reply.exit_code == 0, reply.output
     assert owed_answers(page_dir) == []
+
+
+def test_a_wait_for_no_session_leaves_an_unknown_harness_its_input(
+    claimed, monkeypatch, capsys
+):
+    """A claim naming a harness this Leaf doesn't know, as a later Leaf's may, holds
+    its page while its session lives, so a wait acting for no session takes none of
+    the user's input to it."""
+    path = service_model.CLAIM.file(service_model.claim_path(claimed))
+    stored = json.loads(path.read_text())
+    stored["harness"] = "a-harness-a-later-leaf-named"
+    path.write_text(json.dumps(stored))
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "for the session"}
+    )
+    cursor = acknowledged_through(claimed)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+
+    assert session_model.cmd_wait(claimed) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "session s1 holds it, and this Leaf acts for no session" in captured.err
+    assert acknowledged_through(claimed) == cursor
 
 
 def test_a_named_wait_observes_ownership_without_taking_it(claimed, capsys):

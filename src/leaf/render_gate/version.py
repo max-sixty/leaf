@@ -1,9 +1,15 @@
 """Whole-version render attempts and retry policy."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from leaf.findings import Finding
-from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_page
+from leaf.registry.contract import element_declarations
+from leaf.render_checks import (
+    RENDER_VIEWPORT,
+    SERVED_TIMEOUT_MS,
+    close_render_page,
+    evaluate_probe,
+)
 
 from .readings import (
     SWEEP_WIDTHS,
@@ -24,10 +30,17 @@ class RenderReading:
     """What the browser gate read of a version: its findings, of which an `error`
     refuses it and `advice` does not.
     `arrangement` is each swept width at which the page's own arrangement is at its
-    tightest before it changes, with what changes."""
+    tightest before it changes, with what changes. `complete` is False when the gate
+    stopped before it had read the page through, as it does at a page that cannot
+    start or under a browser that fails. One of the findings then says what stopped
+    it. `visuals` is what each visual in the page draws at the desktop window, by the
+    visual's id (`drawnVisuals` in `render-checks/widgets.js`), and empty where the
+    gate stopped before it read them."""
 
     findings: list[Finding]
     arrangement: list[tuple[int, str, str]]
+    complete: bool = True
+    visuals: dict[str, dict] = field(default_factory=dict)
 
     @property
     def failures(self) -> list[Finding]:
@@ -47,7 +60,7 @@ def _render_version_attempt(
     implementations=None,
     declaration_sources=None,
     page_code=None,
-) -> tuple[RenderReading, list, bool]:
+) -> tuple[RenderReading, list]:
     """Everything wrong with a served version that only a browser can see, read on one
     page loaded at the `desktop` viewport in the light scheme: a
     console error (a widget failing soft is one, since the page reports it),
@@ -84,9 +97,9 @@ def _render_version_attempt(
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
     (the tests/*/test_render_*.py modules) — so the gate and the suite hold one set of
-    invariants. Returns the reading, ResizeObserver notices, and whether every reading
-    completed. `browser` is a live Playwright browser; nothing here imports
-    playwright at module level, so the module stays importable without it."""
+    invariants. Returns the reading, which says whether every reading completed, and
+    its ResizeObserver notices. `browser` is a live Playwright browser; nothing here
+    imports playwright at module level, so the module stays importable without it."""
     from playwright.sync_api import Error as PlaywrightError
 
     served_timeout_ms = (
@@ -96,11 +109,15 @@ def _render_version_attempt(
     samples = []
     advice = []
     arrangement = []
+    visuals = []
     steps = sorted({*SWEEP_WIDTHS, desktop["width"]}, reverse=True)
 
     def desktop_sweep(page, registry):
         open_tags = open_widgets(registry)
         # Read the desktop viewport before the sweep changes it.
+        visuals.append(
+            evaluate_probe(page, "drawnVisuals", element_declarations(registry))
+        )
         advice.extend(drawn_height_advice(page))
         samples.extend(sweep(page, [desktop["width"]], open_tags))
         widths = sweep(page, steps, open_tags)
@@ -131,11 +148,14 @@ def _render_version_attempt(
                 close_render_page(page)
         raise
     if page_code:
-        return RenderReading([], []), [], True
+        return RenderReading([], []), []
     reading = RenderReading(
-        [*dict.fromkeys(found), *swept_faults(samples), *advice], arrangement
+        [*dict.fromkeys(found), *swept_faults(samples), *advice],
+        arrangement,
+        complete,
+        visuals[0] if visuals else {},
     )
-    return reading, list(dict.fromkeys(notices)), complete
+    return reading, list(dict.fromkeys(notices))
 
 
 def render_version(
@@ -188,9 +208,9 @@ def render_version(
             )
         except PlaywrightError as error:
             failure = Finding("gate-failed", values={"error": str(error).strip()})
-            return RenderReading([failure], []), [], False
+            return RenderReading([failure], [], complete=False), []
 
-    first, notices, complete = attempt(page_code)
+    first, notices = attempt(page_code)
     if page_code:
         return first
     retain(first.failures)
@@ -199,13 +219,13 @@ def render_version(
         # Advice and the other readings are the first attempt's; failures accumulate.
         return replace(first, findings=[*failures, *first.advice])
 
-    if not (complete and notices):
+    if not (first.complete and notices):
         return reading()
 
-    confirming, confirming_notices, complete = attempt()
+    confirming, confirming_notices = attempt()
     # What stopped the confirming attempt, as a crashed browser, stands in its place.
     retain(f for f in confirming.findings if f.refuses or f.unread)
-    if not complete:
+    if not confirming.complete:
         return reading()
     failures.extend(
         notice.but(values={"confirmation": "recurred"}) for notice in confirming_notices

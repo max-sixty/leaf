@@ -795,19 +795,20 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
-    unchanged = (claimed / "stream.json").read_bytes()
+    stream = service_model.STREAM.file(claimed / "stream.json")
+    unchanged = stream.read_bytes()
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
-    assert (claimed / "stream.json").read_bytes() == unchanged
+    assert stream.read_bytes() == unchanged
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "thinking", "detail": "Reviewing the result"}
         )
-    changed = (claimed / "stream.json").read_bytes()
+    changed = stream.read_bytes()
     assert changed != unchanged
     observed = read_record(claimed / "stream.json")["activity"]
     assert observed["detail"] == "Reviewing the result"
@@ -925,7 +926,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
     # Written past `write_record`, whose schema check would refuse the activity
     # without its `kind`.
     cleanup_model.write_json(
-        claimed / "stream.json",
+        service_model.STREAM.file(claimed / "stream.json"),
         service_model.STREAM.stored(
             {
                 **service_model.no_stream(),
@@ -1271,7 +1272,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
                 ).isoformat(timespec="seconds"),
             )
         else:
-            service_model.claim_path(d).unlink(missing_ok=True)
+            service_model.CLAIM.remove(service_model.claim_path(d))
         declare_status(
             d,
             "waiting" if state == "working" else state,

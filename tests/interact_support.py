@@ -37,7 +37,12 @@ import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from conftest import (
+    CLAUDE_IDENTITY,
+    LEAF_COMMAND,
+    collect_app_server_error,
+    hooks_run_this_tree,
+)
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
@@ -62,7 +67,6 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
-from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
@@ -78,15 +82,15 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.http import assets_path
+from leaf.markup_checks import instances as instances_model
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry, read_page_registry
+from leaf.registry.validation import incoming_registry
 from leaf.revision_artifact import active_enclosing, read_artifact
 from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
-from leaf.validation import composition as composition_model
-from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
@@ -204,9 +208,7 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return composition_model.incoming_registry(
-        layer_model.layer_inputs(packages, base=ROOT)
-    )
+    return incoming_registry(layer_model.layer_inputs(packages, base=ROOT))
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -218,9 +220,7 @@ def queue_board_registry(registry: dict) -> dict:
     registry = deepcopy(registry)
     registry["lf-board"]["awaits"] = {
         "value": "move",
-        "answered": {
-            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
-        },
+        "answered": {"move": {"empty": {"when": {"label": ["Queued"]}}}},
     }
     return registry
 
@@ -521,11 +521,12 @@ def install_payload(destination):
 
 
 def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
-    """Record another page protocol in the page's layer record, and return it.
+    """Write the page's layer record at another page protocol's format, and return
+    that protocol.
 
     The state a breaking Leaf update leaves a page in: an earlier `page init`
-    recorded an older number this Leaf no longer speaks, or with `newer`, a later
-    Leaf recorded a higher one. The file is replaced rather than written through,
+    wrote an older format this Leaf no longer speaks, or with `newer`, a later
+    Leaf wrote a higher one. The file is replaced rather than written through,
     as every file a lent page may share with its template has to be.
     """
     from leaf.registry.storage import LAYER, layer_record
@@ -533,9 +534,9 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     path = page_dir / schema_model.LAYER_FILE
     record = layer_record(page_dir)
     assert record is not None
-    foreign = record["protocol"] + (1 if newer else -1)
+    foreign = LAYER.since + (1 if newer else -1)
     path.unlink()
-    LAYER.write(path, {**record, "protocol": foreign})
+    cleanup_model.write_json(path, {"format": f"leaf-layer/{foreign}", **record})
     return foreign
 
 
@@ -757,12 +758,10 @@ def declare_data_input(
     entry = {
         "description": "A test widget with one external-data input.",
         "attributes": {
-            "type": "object",
             "properties": {
                 "source": {"type": "string"},
             },
             "required": ["id", "source"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {input_name: {"contract": contract, "source": "source"}},
@@ -994,8 +993,9 @@ def native_codex_chat(tmp_path):
     return create
 
 
-def _page_record(path):
-    """The `state.Record` a page file's name declares."""
+def _page_records() -> dict:
+    """The `state.Record` each page record's file name declares."""
+    from leaf.drafts import DRAFTS
     from leaf.user_views import USER_VIEWS
 
     return {
@@ -1003,7 +1003,20 @@ def _page_record(path):
         schema_model.SERVICE_FILE: server_model.SERVICE,
         schema_model.PREVIEW_FILE: server_model.PREVIEW,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
-    }[path.name]
+        schema_model.DRAFTS_FILE: DRAFTS,
+    }
+
+
+def _page_record(path):
+    """The `state.Record` a page file's name declares."""
+    return _page_records()[path.name]
+
+
+def stored_file(path):
+    """The file holding what the page file `path` names: a page record's own
+    (`state.Record.file`), or `path` itself for a file that is no record."""
+    record = _page_records().get(path.name)
+    return path if record is None else record.file(path)
 
 
 def acknowledged_through(page_dir):
@@ -1142,7 +1155,7 @@ def live_versions(d):
 
 def markup_findings(html, registry):
     parser = structure_model.SourceDocument(html)
-    return validation_model.markup_findings(parser, registry)
+    return instances_model.markup_findings(parser, registry)
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">
@@ -1497,10 +1510,8 @@ def deciding_verb(outcomes):
     return {
         "decides": True,
         "detail": {
-            "type": "object",
             "properties": {"outcome": {"enum": outcomes}},
             "required": ["outcome"],
-            "additionalProperties": False,
         },
         "unit": "widget",
     }
@@ -1514,8 +1525,8 @@ def trial_family(root: Path) -> None:
     """Declare the trial family in the project package at `root / ".leaf"`.
 
     Registry declarations relate its owners and slots, and each owner's module is the
-    product's starter, which renders nothing of its own: anything a test sees settle is
-    the layer's doing, and the holders' bodies are the authored words
+    wrapper's (`add_test_widget`), which renders nothing of its own: anything a test
+    sees settle is the layer's doing, and the holders' bodies are the authored words
     (`verbatim`).
     Only <lf-proposed> names two owners, for the selector case that needs one."""
     package = root / ".leaf"
@@ -1795,8 +1806,10 @@ def _each_test_composes_its_own_layers(monkeypatch):
 
 def retire_bridge(lock):
     """End the bridge holding `lock` once it has published its address."""
+    from leaf.bridge import ADDRESS
+
     record = wait_for(
-        lambda: files_model.read_json(lock.with_suffix(".json")),
+        lambda: files_model.read_json(ADDRESS.file(lock.with_suffix(".json"))),
         bool,
         failure="a started bridge never published its address",
     )
@@ -1820,11 +1833,10 @@ def retire_test_services(tmp_path, isolated_session):
         leases_model.release_lease(HELD_LEASES.pop())
     sessions = [
         record["id"]
-        for path in (isolated_session / "sessions").glob(
-            f"*.{cleanup_model.SESSION_SUFFIX}"
+        for path in cleanup_model.SESSION.glob(
+            isolated_session / "sessions", f"*.{cleanup_model.SESSION_SUFFIX}"
         )
-        if isinstance(record := files_model.read_json(path), dict)
-        and isinstance(record.get("id"), str)
+        if (record := cleanup_model.SESSION.read(path)) is not None
     ]
 
     def answer_completions():
@@ -2116,6 +2128,13 @@ def comment_once_served():
         thread.join(timeout=STATED_TIMEOUT)
 
 
+def entered_contexts(event_ids) -> list[str]:
+    """What a harness's record shows entered the model's context where the inputs
+    `event_ids` did (`Harness.entered_context`): one inline handover of them."""
+    events = [{"id": event_id} for event_id in sorted(event_ids)]
+    return [hook_transport_model.inline_context({"batches": [{"events": events}]})]
+
+
 class ContextRecord:
     """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
     `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
@@ -2145,7 +2164,7 @@ def context_record(monkeypatch):
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "entered_context",
-        lambda harness, payload: record.entered(harness),
+        lambda harness, payload, marker: entered_contexts(record.entered(harness)),
     )
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
@@ -2279,6 +2298,10 @@ def under_codex(spawn, codex_program):
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
+        # The task's hooks run this tree, as a Codex task's first hook records.
+        for variable in harness_model.CodexHarness.session_variables:
+            if env.get(variable):
+                hooks_run_this_tree(env[variable])
         shell_command = f"{command}; exit"
         if finished is not None:
             # Create `finished` once the command has, and keep the fake harness
@@ -2371,6 +2394,7 @@ def managed_server(spawn):
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
+        hooks_run_this_tree(session_id)
         record_claim(page_dir, id=session_id, pid=session_pid)
         process = spawn(
             [
@@ -2397,7 +2421,9 @@ def managed_server(spawn):
 
 
 def start_server_command(page_dir, *flags, session_id="starter"):
-    """Run `server start` from a harness session and wait for the command to return."""
+    """Run `server start` from a harness session whose hooks run this tree, and wait
+    for the command to return."""
+    hooks_run_this_tree(session_id)
     return subprocess.run(
         [
             *LEAF_COMMAND,
@@ -2501,10 +2527,11 @@ def suggested(page_dir):
 def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
     """Author one widget in a package, creating the package first if it is missing.
 
-    What a package author gets from `package init --widget`: the product's starter
-    declaration and, for an upgraded widget, its starter module, plus a framed block in
-    the theme. A test specializes the declaration in `registry.json` and rewrites the
-    module where its subject needs behavior of its own."""
+    The widget is a wrapper round authored content: its declaration
+    (`element_declaration`), a framed block in the theme and, for an upgraded widget,
+    a `LeafElement` module that draws nothing of its own. A test specializes the
+    declaration in `registry.json` and rewrites the module where its subject needs
+    behavior of its own."""
     created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
@@ -2526,8 +2553,12 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         )
     if upgrade:
         (package / "widgets").mkdir(exist_ok=True)
-        (package / "widgets" / f"{tag}.js").write_bytes(
-            packages_model.starter_widget_module(tag)
+        (package / "widgets" / f"{tag}.js").write_text(
+            'import { LeafElement } from "/runtime/lib/leaf-element.js";\n\n'
+            "customElements.define(\n"
+            f'  "{tag}",\n'
+            "  class extends LeafElement {},\n"
+            ");\n"
         )
     return declaration
 
@@ -2542,14 +2573,25 @@ def with_modules(registry: dict, *tags: str) -> dict:
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag` as a composed vocabulary holds it,
-    its defaults written in, or, without `upgrade`, the same markup block with no
-    module behind it."""
-    declaration = packages_model.starter_element_declaration(tag)
-    declaration["content"] = "markup"
-    if not upgrade:
-        del declaration["verbatim"]
-    return declaration
+    """A wrapper's declaration for `tag` as a composed vocabulary holds it, its defaults
+    written in: with `upgrade`, a block whose module keeps its authored words
+    (`verbatim`), and without, the same markup block with no module behind it."""
+    name = tag.removeprefix("lf-")
+    return {
+        "description": f"A dedicated block for {name.replace('-', ' ')} content. Use "
+        "it to keep one technical point with its supporting evidence or rationale. "
+        "Give the block a stable id.",
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        **({"verbatim": True} if upgrade else {}),
+        "example": f'<{tag} id="{name}"><p>The retry budget is three attempts '
+        f"before manual review.</p></{tag}>",
+        "content": "markup",
+    }
 
 
 class YamlDocument(str):
@@ -2950,9 +2992,12 @@ def app_server_fixture(app_server_messages):
 
 
 def codex_records(session_id: str) -> list[tuple[Path, dict]]:
+    """Each of the task's live delivery records, by the path its readers name it
+    (`codex.RECORD`), whose stem is its delivery id."""
     directory = codex_state_model.delivery_dir(session_id)
     return [
-        (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
+        (path, files_model.read_json(codex_model.RECORD.file(path)))
+        for path in sorted(codex_model.RECORD.glob(directory))
     ]
 
 
@@ -3086,10 +3131,10 @@ def adapter_lease(session_id, app_server):
     """Hold `session_id`'s adapter lease as a running adapter does, naming the App
     Server it starts turns over, or None for one that queues them
     (`codex_adapter.run_adapter`)."""
-    lease = leases_model.take_lease(leases_model.adapter_lease_path(session_id))
+    path = leases_model.adapter_lease_path(session_id)
+    lease = leases_model.take_lease(path)
     assert lease
-    lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
-    lease.flush()
+    codex_adapter_model.ADAPTER.write(path, {"app_server": app_server})
     return lease
 
 

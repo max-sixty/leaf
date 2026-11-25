@@ -48,14 +48,14 @@ from .files import (
 )
 from .findings import Rejected
 from .interaction_log import admit_batch, append_interactions, client_records
-from .layer import incompatible_layer, running_leaf
+from .layer import running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .page_memory import memo, once
 from .passages import SourceReading
 from .presence import live_servers, pages_reading
 from .refusals import Refused
-from .registry.storage import layer_metadata, layer_record
+from .registry.storage import layer_metadata
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -160,8 +160,8 @@ def scope_page_urls(value, page_root: str):
     A response carries version addresses in their canonical, root-relative form;
     beneath a prefix they answer at the page root, as the live page's media does. A
     message's media is the browser's to address as it renders the message
-    (`scopedMediaUrl` in markdown.js and thread/messages.js), since only its rendering
-    tells a reference from words that spell one.
+    (`scopedMediaUrl` in records/page-markdown.js and records/thread/messages.js), since only its
+    rendering tells a reference from words that spell one.
     """
     if not page_root:
         return value
@@ -231,7 +231,7 @@ def page_delivery(
     such address. `write_live_shell` delivers published documents the same way.
 
     `probe` is where a tab asks whether its source has moved on to another layer or
-    release (`bootstrap.js`'s startup recovery, and for a layer `layer-client.js`'s
+    release (`bootstrap.js`'s startup recovery, and for a layer `transport/layer-client.js`'s
     `sourceMovedOn`), so its answer must name the layer or release a fresh document
     would start under. It defaults to the page's `/registry.json`, whose answer names
     its release. `runtime_identity` is the runtime a host without a release serves the
@@ -370,8 +370,8 @@ class PageEndpoint:
         self.layer_revision: int | None = None
         # Set by `authorized` when the key arrived in the query.
         self.set_cookie = False
-        # A declared body this request never drained. Those bytes would be read as the
-        # next request line on a reused connection, so the answer has to end it.
+        # A declared body no route will read. The answer closes the connection, so the
+        # transport doesn't drain a body the peer may never finish sending.
         self.body_unread = False
         # Set by a route whose successful answer is housekeeping rather than
         # interaction history, which `respond` leaves out of the trace: an attention
@@ -568,7 +568,7 @@ class PageEndpoint:
 
         A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
         it still holds leaves out its sources for the tab to restore (`completeState`
-        in `layer-client.js`), as leaf.page's edge does for the answers it stores
+        in `transport/layer-client.js`), as leaf.page's edge does for the answers it stores
         (`prepareStateDelivery` in `worker/src/storage.ts`). Only a whole answer is
         cut, and only once its reading is remembered whole, since a patch carries just
         the sources that changed since the held reading.
@@ -769,7 +769,7 @@ class PageEndpoint:
         return None
 
     def _not_found(self) -> Response:
-        # An unread body makes the connection unsafe to reuse.
+        # No route reads this body, so the answer closes the connection (`body_unread`).
         if self.headers.get("Content-Length") or self.headers.get("Transfer-Encoding"):
             self.body_unread = True
         return self._json({"error": "not found"}, 404)
@@ -859,7 +859,7 @@ class PageEndpoint:
         holds only until the browser presents the key again: opening the printed
         link in any tab sets the cookie the next request carries. So it is never an
         event rejection, whose `final` would have the browser drop the gesture; the
-        runtime keeps the gesture pending and names the link (`layer-client.js`).
+        runtime keeps the gesture pending and names the link (`transport/layer-client.js`).
         """
         prepared = False
         try:
@@ -994,8 +994,8 @@ class PageEndpoint:
         layer, and can read an answer that carries nothing newer, such as a freshness
         token, in that layer. The newer layer reaches it as a revision whose executable
         changed, which the tab installs once the user is not in the middle of
-        something (`version.js`). Named in the page's newer layer, the same answer
-        would be refused and reload the tab at once (`layer-client.js`)."""
+        something (`features/version.js`). Named in the page's newer layer, the same answer
+        would be refused and reload the tab at once (`transport/layer-client.js`)."""
         if revision is None:
             return self.layer
         reading = self._reading(revision)
@@ -1103,7 +1103,7 @@ class PageEndpoint:
         # alone, Threads listed a draft typed on another page a month before.
         scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
         # The drafts the user is writing arrive with the document, so a box opens on
-        # its words before any look (`runtime/drafts.js`). A release's document may be
+        # its words before any look (`runtime/records/drafts.js`). A release's document may be
         # the edge's, which its visitors share, so there they arrive with the first look.
         drafts = runtime_element(
             "script",
@@ -1318,7 +1318,7 @@ class PageEndpoint:
         A tab naming another runtime than this process's, as one from before a restart
         under an updated Leaf does, gets the answer the layer gate gives a stale tab,
         which names this runtime (`_delivery_headers`), so it reloads rather than
-        writes. Every served document's runtime names its own (`layer-client.js`,
+        writes. Every served document's runtime names its own (`transport/layer-client.js`,
         `layerHeaders`); a client that runs none, such as a harness posting as the
         user, names none. A website release names its runtime, so its tabs name none.
         Every write route passes this first, whatever vocabulary it speaks, and so does
@@ -1606,7 +1606,7 @@ class SampleEndpoint(PageEndpoint):
         # Every child arrives inert, so its startup cannot take focus from the page;
         # the host releases it once it presents. The root carries it, since Leaf's
         # chrome stands after the body. Whether the child lays out as a block or a
-        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # window is its frame's to say (host/sample.js), which its bootstrap asks before it
         # paints.
         delivery = super()._delivery(artifact, revision)
         return replace(
@@ -1632,12 +1632,12 @@ def page_endpoint(
     The layer identity and the preview reading are read once here rather than per
     request: they are facts about the layer record this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and refuses, naming `page init`, when
-    the page's layer is one this Leaf cannot serve (`incompatible_layer`) or cannot
-    compose. Reading the page needs only its vocabulary (`layer.LayerVocabulary`),
-    so this is where `server start` refuses a package sheet or module the
-    document's first request would fail on. A snapshot serves
-    the revision it froze, which its capture already judged
+    or temporary, passes here before it binds, and refuses, naming the repair, when
+    the page has no layer record, or one this Leaf cannot serve
+    (`registry.storage.layer_record`) or compose. Reading the page needs only its
+    vocabulary (`layer.LayerVocabulary`), so this is where `server start` refuses a
+    package sheet or module the document's first request would fail on. A snapshot
+    serves the revision it froze, which its capture already judged
     (`page_snapshot.capture_page_snapshot`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
@@ -1645,15 +1645,10 @@ def page_endpoint(
     from .registry.storage import selected
 
     if page_snapshot is None:
-        record = layer_record(page_dir) or {}
-        if refusal := incompatible_layer(page_dir, record):
-            raise Rejected([refusal])
-        selected(record, page_dir)
-    identity = (
-        page_snapshot.context.layer
-        if page_snapshot is not None
-        else layer_metadata(page_dir)
-    )
+        identity = layer_metadata(page_dir)
+        selected(identity, page_dir)
+    else:
+        identity = page_snapshot.context.layer
     return partial(
         endpoint,
         page_dir=page_dir,

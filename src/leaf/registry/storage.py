@@ -13,22 +13,24 @@ from leaf.files import file_stamp, latest_revision
 from leaf.findings import Finding
 from leaf.page_memory import Slot, Stamped, memo, once
 from leaf.schema import LAYER_FILE
-from leaf.state import Record
+from leaf.state import PLUGIN_ROOT, Record, replace_bytes, stored_record
 
 from ..refusals import Refused
 from .contract import (
     RegistryError,
     read_registry_declarations,
 )
+from .kernel import kernel_protocol
 
 LAYER = Record(
     "layer",
     {
         "description": (
             "A page's layer selection, `layer.json` in its directory: the packages"
-            " every Leaf that reads the page composes, in order, the generation an"
-            " open document speaks, and the page protocol a Leaf last initialized it"
-            " at."
+            " every Leaf that reads the page composes, in order, and the generation"
+            " an open document speaks. Its `format` names the page protocol of the"
+            " Leaf that last initialized the page, so unlike every other record it"
+            " keeps one file whatever its shape (`write_layer`)."
         ),
         "type": "object",
         "properties": {
@@ -38,18 +40,17 @@ LAYER = Record(
                 "uniqueItems": True,
             },
             "generation": {"type": "string", "minLength": 1},
-            "protocol": {"type": "integer"},
         },
-        "required": ["packages", "generation", "protocol"],
+        "required": ["packages", "generation"],
     },
-    since=53,
+    since=kernel_protocol(),
 )
 
 
 class IncompatibleLayer(RegistryError):
-    """A page initialized at another page protocol than this Leaf's
-    (`layer.incompatible_layer`), refused before its layer is composed. Its repair
-    is the one that refusal names."""
+    """A page another Leaf initialized, at another page protocol than this Leaf's
+    (`layer_record`), refused before anything reads its layer. Its repair is the one
+    its finding names."""
 
 
 class _Candidate(Slot):
@@ -70,17 +71,56 @@ class _Revisions(Stamped):
 
 
 def layer_record(page_dir: Path) -> dict | None:
-    """The page's layer record, or None before `page init`. A newer Leaf's record,
-    at a later shape than this Leaf reads, refuses the page as `newer-layer`
-    (`IncompatibleLayer`) rather than reading as none, which would have `page init`
-    replace the page's selection under this Leaf."""
-    path = page_dir / LAYER_FILE
-    record = LAYER.read(path)
-    if record is None and LAYER.newer(path):
-        from leaf.layer import newer_layer
+    """The page's layer record, less its `format`, or None where the page holds none.
+    A page whose layer record is at another format is refused (`IncompatibleLayer`),
+    as `newer-layer` where the format's number is higher than this Leaf's and as
+    `foreign-layer` where it is lower (`layer-registry.md`, "Page protocol")."""
+    stored = stored_record(page_dir / LAYER_FILE)
+    if stored is None or (recorded := _protocol(stored)) is None:
+        return None
+    if recorded != LAYER.since:
+        values = {
+            "page": str(page_dir),
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": LAYER.since,
+        }
+        refusal = (
+            Finding("newer-layer", values=values)
+            if recorded > LAYER.since
+            else Finding("foreign-layer", values={**values, "recorded": recorded})
+        )
+        raise IncompatibleLayer([refusal])
+    del stored["format"]
+    return stored
 
-        raise IncompatibleLayer([newer_layer(page_dir)])
-    return record
+
+def layer_packages(page_dir: Path) -> list[str] | None:
+    """The packages the page's layer record selects, at whichever protocol a Leaf
+    wrote it, or None where the page holds no layer record. A renewal carries them
+    to this Leaf's protocol (`vendoring.renew_layer`), since it replaces the record
+    rather than leaving it beside a new one (`write_layer`)."""
+    stored = stored_record(page_dir / LAYER_FILE)
+    if stored is None or _protocol(stored) is None:
+        return None
+    return list(stored["packages"])
+
+
+def write_layer(page_dir: Path, record: dict) -> None:
+    """Write the page's layer record, replacing one at any protocol. A record of
+    every other kind keeps a file per shape (`state.Record.file`), but the layer's
+    `format` is the page's protocol, which every Leaf reads to refuse a page at
+    another (`layer_record`), so a page holds one: two would let two protocols
+    write one log. Only the session holding the page moves it to another protocol
+    (`service.refuse_held`)."""
+    path = page_dir / LAYER_FILE
+    replace_bytes([(path, LAYER.encode(record), not path.is_symlink())])
+
+
+def _protocol(stored: dict) -> int | None:
+    """The page protocol a stored layer record's `format` names, or None where it
+    is no layer record."""
+    kind, _, protocol = str(stored.get("format", "")).rpartition("/")
+    return int(protocol) if kind == "leaf-layer" and protocol.isdecimal() else None
 
 
 def selected(record: dict, page_dir: Path):
@@ -190,17 +230,9 @@ def _compose_revision(
 
 
 def load_registry(page_dir: Path):
-    """The vocabulary of the page's layer, or None before `page init`.
-
-    It refuses a page at another page protocol first (`IncompatibleLayer`)."""
-    from leaf.layer import incompatible_layer
-
+    """The vocabulary of the page's layer, or None before `page init`."""
     record = layer_record(page_dir)
-    if record is None:
-        return None
-    if refusal := incompatible_layer(page_dir, record):
-        raise IncompatibleLayer([refusal])
-    return layer_vocabulary(record, page_dir)
+    return None if record is None else layer_vocabulary(record, page_dir)
 
 
 def read_page_registry(page_dir: Path):
@@ -289,12 +321,6 @@ def compose_candidate(
     )
 
 
-def layer_packages(page_dir: Path) -> list[str]:
-    """The package selections this page's layer record names; none before init."""
-    record = layer_record(page_dir)
-    return list(record["packages"]) if record else []
-
-
 def layer_metadata_of(record: dict) -> dict:
     """What a page's layer is to its readers: its generation and selection."""
     return {
@@ -306,7 +332,7 @@ def layer_metadata_of(record: dict) -> dict:
 def served_layer(metadata: dict, page_dir: Path) -> dict:
     """`metadata` as the served state names the layer the page at `page_dir` is read
     under: with the fingerprint of the layer this Leaf composes for it, and this Leaf
-    as its producer, the one About this page shows (`runtime/page-about.js`)."""
+    as its producer, the one About this page shows (`runtime/panel/page-about.js`)."""
     from leaf.layer import running_leaf
 
     return {
@@ -317,7 +343,8 @@ def served_layer(metadata: dict, page_dir: Path) -> dict:
 
 
 def layer_metadata(page_dir: Path) -> dict:
-    """The page's layer identity (`layer_metadata_of`), refused before init."""
+    """The page's layer identity (`layer_metadata_of`), refused before init and at
+    another page protocol (`layer_record`)."""
     record = layer_record(page_dir)
     if record is None:
         raise RegistryError([Finding("no-layer", values={"page": str(page_dir)})])

@@ -3,12 +3,13 @@
 from jsonschema.exceptions import SchemaError
 
 from leaf.findings import Finding
-from leaf.schema import DECLARATION_SCHEMA
+from leaf.schema import DECLARATION_SCHEMA, INPUT_BINDINGS
 
 from .contract import (
     body_is_data,
     deciding_outcomes,
     deciding_verb,
+    element_declarations,
     fact_condition,
     gathering,
     registry_error,
@@ -49,7 +50,7 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
         raise registry_error(
             "attributes-schema", path, tag, **schema_reading(error)
         ) from error
-    # An unbound data widget's <pre> is the text of its `value` input (element-data.js,
+    # An unbound data widget's <pre> is the text of its `value` input (host/element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
     # the element's words or its recorded state. Its other inputs leave the <pre> alone.
     inputs = [
@@ -122,12 +123,33 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     """What the element declaration of `tag` in `registry`, read with its defaults
     written in, advises its author, each finding naming the file `path`: a data
     input's source attribute not declared a string, which `leaf data`'s own grammar
-    still checks; and a measured input whose source or run receipt an instance may
-    leave out, so that instance is never compared with its source's latest run."""
+    still checks; a measured input whose source or run receipt an instance may
+    leave out, so that instance is never compared with its source's latest run; and
+    a position record whose `within` names no container the declarations place
+    at or inside the widget (`_containers`), so a drop of the widget's own members is
+    refused at admission. The last is advice, not a refusal, because it can still
+    work: a container outside the declared membership may stand in a member's
+    markup, and another package may declare the membership that places it."""
     entry = registry[tag]
     properties = entry["attributes"].get("properties", {})
     required = set(entry["attributes"].get("required", []))
     found = []
+    members = _members(registry)
+    for verb, spec in state_specs(entry):
+        record = spec.get("record") or {}
+        if record.get("kind") != "position":
+            continue
+        if record["within"] not in (containers := _containers(tag, registry, members)):
+            found.append(
+                registry_finding(
+                    "position-container",
+                    path,
+                    tag,
+                    verb=verb,
+                    within=record["within"],
+                    containers=containers,
+                )
+            )
     for input_name, spec in entry.get("inputs", {}).items():
         source_attr = spec.get("source")
         if source_attr and not _typed(properties, source_attr, "string"):
@@ -159,6 +181,36 @@ def widget_advice(tag: str, registry: dict, path) -> list[Finding]:
     return found
 
 
+def _members(registry: dict) -> dict[str, set[str]]:
+    """Each tag some declaration names in `owners` → the tags that name it."""
+    members: dict[str, set[str]] = {}
+    for name, entry in element_declarations(registry).items():
+        for owner in entry.get("owners", []):
+            members.setdefault(owner, set()).add(name)
+    return members
+
+
+def _containers(tag: str, registry: dict, members: dict) -> list[str]:
+    """`tag` and the tags the declarations place inside it through `owners`, at any
+    depth, that hold members of their own: where a position record of `tag` can put
+    its units. A member that records positions itself is the nearer owner of every
+    place beneath it (`projection.recorded_owner`), so the search neither counts nor
+    passes it."""
+    inside, frontier = set(), [tag]
+    while frontier:
+        for member in members.get(frontier.pop(), ()):
+            if member == tag or member in inside:
+                continue
+            if any(
+                (spec.get("record") or {}).get("kind") == "position"
+                for _verb, spec in state_specs(registry[member])
+            ):
+                continue
+            inside.add(member)
+            frontier.append(member)
+    return sorted(name for name in inside | {tag} if name in members)
+
+
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> dict:
@@ -186,9 +238,13 @@ def _validate_widget_structure(
             raise registry_error(
                 "reading-role-attr", path, tag, role=layout, attr="label"
             )
+    # `leaf data set` validates a source's value against its contract, so an input
+    # that can bind a source names a contract this vocabulary declares. An input that
+    # only reads another widget's output matches that output by the contract's name,
+    # and the package holding the output declares the contract.
     for input_name, spec in entry.get("inputs", {}).items():
         contract = spec["contract"]
-        if contract not in data["contracts"]:
+        if "source" in spec and contract not in data["contracts"]:
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
             )
@@ -200,13 +256,6 @@ def _validate_widget_structure(
                 tag,
                 output=output_name,
                 contract=spec["contract"],
-            )
-    for input_name, spec in entry.get("inputs", {}).items():
-        if (reference := spec.get("reference")) and reference not in entry.get(
-            "refers", {}
-        ):
-            raise registry_error(
-                "data-reference", path, tag, input=input_name, attr=reference
             )
     # A `refers` attribute the widget hasn't got leaves the widget out of every pass
     # that reads it, with no error anywhere, so the door refuses it.
@@ -274,7 +323,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     data_bindings = {
         spec[key]
         for spec in entry.get("inputs", {}).values()
-        for key in ("source", "reference")
+        for key in INPUT_BINDINGS
         if key in spec
     }
     if dynamic := sorted(data_bindings & mutable_values):
@@ -290,11 +339,13 @@ def _validate_widget_interactions(
 ) -> None:
     answered = awaits.get("answered", {})
     # The user answers their own obligation, so only a verb the user writes can answer it.
+    # `value` is asked first: composition writes it into an `answered` the declaration
+    # left out, and a refusal should name what the author wrote.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
-    if unknown := sorted(set(answered) - user_verbs):
-        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
+    if unknown := sorted(set(answered) - user_verbs):
+        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")

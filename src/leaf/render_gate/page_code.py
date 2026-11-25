@@ -22,7 +22,7 @@ Codex thread messages holding a Mermaid sequence diagram didn't draw (a `;` in a
 loop label or note ends the statement), and their authors never ran `--render`. A
 message with no such widget waits on no browser.
 
-What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
+What fails it is what the runtime would report to the agent. `runtime/transport/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
 every fault the runtime reports about the page itself, as an `error` event; that is
 the event `leaf wait` delivers. It first writes the same words to the console after
@@ -62,7 +62,7 @@ from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument, element_attrs, script_kind
 
-from .scheme import answer_reports, served
+from .scheme import answer_reports, served, unready_finding
 
 
 def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
@@ -122,7 +122,7 @@ def message_page(markup: str) -> SourceDocument:
     return SourceDocument(source)
 
 
-# How `runtime/layer-client.js` `reportPageError` opens the console line it writes for
+# How `runtime/transport/layer-client.js` `reportPageError` opens the console line it writes for
 # each report, ahead of the words it posts.
 REPORTED = "leaf: "
 
@@ -163,12 +163,7 @@ class PageCode:
                 wait_for_probe(page, "sendsAcked")
         finally:
             if unready is not None:
-                self.reports.append(
-                    Finding(
-                        "not-ready",
-                        values={"stage": unready.stage, "error": str(unready)},
-                    )
-                )
+                self.reports.append(unready_finding(unready))
         if not self.reports:
             return []
         return [*self.reports, *self.network_errors]

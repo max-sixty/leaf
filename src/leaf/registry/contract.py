@@ -8,15 +8,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from leaf.files import read_json
-from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
+from leaf.schema import (
+    DATA_CONTRACT_NAME,
+    DATA_SOURCE_NAME,
+    ELEMENT_ID,
+    INPUT_BINDINGS,
+    RECORD_BINDING,
+    WIDGET_NAME,
+)
 
-from ..findings import Finding, Rejected, element_at
+from ..findings import Finding, Rejected, admitted_parts, element_at
 from .kernel import kernel_marks, verb_writers
 
 
 def same_state_definition(recorded, current) -> bool:
     """Whether two recorded state definitions, or values in them, are one JSON value,
-    as the browser compares them (`registry-contract.js`): `true` is not `1`, which
+    as the browser compares them (`state/registry-contract.js`): `true` is not `1`, which
     Python's `==` takes it for, while `1.0` is `1`, as in JavaScript."""
     if isinstance(recorded, dict) and isinstance(current, dict):
         return recorded.keys() == current.keys() and all(
@@ -114,11 +121,78 @@ MODULES = "$modules"
 def complete_declarations(registry: dict) -> dict:
     """Write into a merged vocabulary's element declarations the default each may
     leave unsaid, so every reader reads a complete entry: an element's content is its
-    author's markup (`content`) unless it declares another."""
+    author's markup (`content`) unless it declares another, and its attribute schema
+    (`attributes`) and each verb's `detail` schema admit only what they name unless
+    they say otherwise (`_closed_by_default`); validation refuses a `detail` that
+    does. An element that declares no `attributes` takes none of its own, so its
+    schema starts as the one that names nothing. An input (`inputs`) declares the
+    attributes it binds by (`schema.INPUT_BINDINGS`): each is a string attribute of
+    the element unless `attributes` gives it a schema, and the one its `reference`
+    names is one naming an element (`refers`), whether or not the entry lists it there.
+
+    A verb (`verbs`) keeps one state for the whole widget (`unit: "widget"`) unless it
+    names the detail field that tells its members apart, and a verb recording
+    positions always tells them apart by `unit`, so only a verb with a `detail` schema
+    that keeps a state for each member says its `unit`. A record that names no `kind`
+    is one value in the attribute it names (`kind: "value"`). An obligation (`awaits`)
+    is answered while the verb its `value` names has a state (`answered:
+    {<verb>: {}}`) unless `answered` says when. So the fold, admission and each
+    event's stored `meaning.state` read the same `unit`, `record` and `answered`
+    whether the declaration spelt them or left them to their defaults.
+
+    It runs before validation, so it completes only an entry of the shape it reads
+    and leaves any other for validation to refuse."""
     for entry in element_declarations(registry).values():
-        if isinstance(entry, dict):
-            entry.setdefault("content", "markup")
+        if not isinstance(entry, dict):
+            continue
+        if isinstance(attributes := entry.setdefault("attributes", {}), dict):
+            entry["attributes"] = _closed_by_default(attributes)
+        entry.setdefault("content", "markup")
+        verbs = entry.get("verbs")
+        for verb, spec in list(verbs.items()) if isinstance(verbs, dict) else ():
+            if not isinstance(spec, dict):
+                continue
+            if isinstance(detail := spec.get("detail"), dict):
+                spec["detail"] = _closed_by_default(detail)
+            if isinstance(record := spec.get("record"), dict):
+                spec["record"] = record = {"kind": "value", **record}
+            # Each default stands first, where a declaration that writes it puts it.
+            verbs[verb] = {"unit": record_unit(record), **spec}
+        awaits = entry.get("awaits")
+        if isinstance(awaits, dict) and isinstance(value := awaits.get("value"), str):
+            awaits.setdefault("answered", {value: {}})
+        inputs = entry.get("inputs")
+        for spec in inputs.values() if isinstance(inputs, dict) else ():
+            for key in INPUT_BINDINGS if isinstance(spec, dict) else ():
+                if not isinstance(attribute := spec.get(key), str):
+                    continue
+                if isinstance(entry["attributes"], dict) and isinstance(
+                    properties := entry["attributes"].setdefault("properties", {}), dict
+                ):
+                    properties.setdefault(attribute, {"type": "string"})
+                if key == "reference" and isinstance(
+                    entry.setdefault("refers", {}), dict
+                ):
+                    entry["refers"].setdefault(attribute, {})
     return registry
+
+
+def record_unit(record) -> str:
+    """The `unit` a verb's `record` decides: a position record's verb keeps a state for
+    each member its `detail.unit` names, and any other, like a verb with no record that
+    names no unit of its own, keeps one for the whole widget."""
+    position = isinstance(record, dict) and record.get("kind") == "position"
+    return "unit" if position else "widget"
+
+
+def _closed_by_default(schema: dict) -> dict:
+    """`schema` with `"type": "object"` and `"additionalProperties": false` written in,
+    each where it doesn't write that keyword. `type` stands first and
+    `additionalProperties` last, where a declaration that writes both puts them, so the
+    vocabulary reads the same either way."""
+    closed = {"type": "object", **schema}
+    closed.setdefault("additionalProperties", False)
+    return closed
 
 
 def body_is_data(entry: Mapping) -> bool:
@@ -202,9 +276,10 @@ class VisualParts:
 
     A widget admits its complete registered inventory when its opt-in attribute is
     present, or ids beginning its declared prefixes. Admission does not say a part
-    is on screen; the browser resolves that. An admitted id nothing renders detaches,
-    unless the widget's module draws parts on request or finds them by id, as a chart
-    finds its points; then it stands on the whole element.
+    is on screen; the browser resolves that, and `thread create --part` checks an
+    agent's id against what the page drew (`anchor_capture.drawn_part`). An admitted
+    id nothing renders detaches, unless the widget's module draws parts on request or
+    finds them by id, as a chart finds its points; then it stands on the whole element.
     """
 
     prefixes: tuple[str, ...] = ()
@@ -222,11 +297,7 @@ class VisualParts:
         return bool(self.prefixes or self.all)
 
     def __str__(self) -> str:
-        if self.all:
-            return "the registered visual inventory"
-        if self.prefixes:
-            return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
-        return "no visual parts"
+        return admitted_parts(self.prefixes, self.all)
 
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:
@@ -335,7 +406,7 @@ def declares_string(field_schema) -> bool:
 
 # A position record's rank: a base-36 fraction written as its digits after the point,
 # never ending in 0, so string order is numeric order. The runtime's
-# `projection/model.js` owns the reasoning and computes the keys between neighbours;
+# `lib/rank.js` owns the reasoning and computes the keys between neighbours;
 # this rule is the one both runtimes must read the same way, and
 # `tests/rank_cases.json` holds both runtimes to the same cases.
 RANK = "[0-9a-z]*[1-9a-z]"
@@ -466,6 +537,19 @@ def state_specs(entry: dict, *, writer: str | None = None):
             yield verb, spec
 
 
+def recorded(spec: dict) -> dict | None:
+    """Where a verb's state reads in markup: its `record` without the members that
+    bind it to the element in the browser (`schema.RECORD_BINDING`), or None for a
+    verb with no record. An admitted event stores this, so a declaration that names
+    another property or event keeps every decision recorded before it, and a state
+    in `leaf page state` shows it as its construction. The browser's `sameRecord`
+    (`runtime/state/registry.js`) compares two records the same way."""
+    record = spec.get("record")
+    return record and {
+        key: value for key, value in record.items() if key not in RECORD_BINDING
+    }
+
+
 def _semantic_schema(schema):
     """Strip JSON Schema annotations without changing literal values or names."""
     if not isinstance(schema, dict):
@@ -544,7 +628,7 @@ def state_definition(
         {
             "origin": origin,
             "unit": spec["unit"],
-            "record": spec.get("record"),
+            "record": recorded(spec),
             "creates": spec.get("creates"),
             "decides": decides(spec),
             "detail": _semantic_schema(
@@ -702,12 +786,13 @@ def stamp_grammars(registry: dict) -> dict:
     the first of its attributes, and the grammar of each attribute `_named_attributes`
     finds, as its schema's `pattern`, replacing any the declaration gave. Leaf owns
     `id` and these grammars, so a package declares only whether an element requires
-    its `id`, and that each other such attribute is a string; validation and an author
-    reading the entry read the rest here. A schema a declaration lists for `id` is
-    replaced, not kept: Leaf names a created child, an asking widget and a pane by id,
-    and one whose `id` took no string could never be named. Another such attribute's
-    schema may be `true`, which then becomes the grammar alone, or `false`, which
-    admits no value already and is left as it is.
+    its `id` and that a verb's `contract` attribute is a string; an input's source
+    attribute is one already, written by `complete_declarations` where the declaration
+    left it out. Validation and an author reading the entry read the rest here. A
+    schema a declaration lists for `id` is replaced, not kept: Leaf names a created
+    child, an asking widget and a pane by id, and one whose `id` took no string could
+    never be named. Another such attribute's schema may be `true`, which then becomes
+    the grammar alone, or `false`, which admits no value already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for entry in element_declarations(registry).values():

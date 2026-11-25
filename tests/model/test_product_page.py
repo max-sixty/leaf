@@ -13,6 +13,7 @@ from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
 from leaf.registry.layer import stamp_composition
@@ -21,7 +22,6 @@ from leaf.registry.storage import load_registry
 from leaf.schema import DEFAULT_PACKAGE
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
-from leaf.validation import composition as validation_model
 from leaf_dev import declared_records, docs
 from leaf_dev.docs import EXAMPLES, product_sources
 from leaf_dev.example_data import named_source, published_sources
@@ -134,9 +134,7 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     stamp_composition(
         registry_validation.validate_registry(registry, "package tutorial")
     )
-    assert (
-        validation_model.declaration_advice(entry, registry, "package tutorial") == []
-    )
+    assert declaration_advice(entry, registry, "package tutorial") == []
 
 
 # The event log is How it works' "Event log" tab.
@@ -145,11 +143,26 @@ EVENT_LOG = named_source("how-it-works")
 
 def code_block(page: SourceDocument, block_id: str) -> str:
     """The text of one authored `lf-code`'s `<pre>`, as the widget reads it
-    (widget-upgrade.js, `bodyText`): leading blank lines, such as the one after the
+    (lib/data-body.js, `bodyText`): leading blank lines, such as the one after the
     `<code>` naming its language, are the block's layout."""
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
     return select_one_result_2.text.lstrip("\n")
+
+
+def test_how_it_works_shows_the_example_widget_as_the_page_runs_it():
+    """How it works' "Package interface" tab reads a whole widget line by line and runs
+    that widget beside the reading, from the package `docs/verdict`. Each file the tab
+    shows is the file that runs, so its notes, which name lines, describe that file."""
+    page = SourceDocument(named_source("how-it-works").read_text())
+    package = ROOT / "docs" / "verdict"
+    for block_id, file in {
+        "verdict-declaration": "registry.json",
+        "verdict-module": "widgets/lf-verdict.js",
+        "verdict-stylesheet": "defaults.css",
+    }.items():
+        shown = code_block(page, block_id).rstrip("\n")
+        assert shown == (package / file).read_text().rstrip("\n"), file
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -349,10 +362,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
 
 
 def test_the_event_log_page_quotes_the_registry():
-    """The declaration the page annotates is `lf-options`' own."""
+    """The declaration the page annotates is `lf-options`' own, and each note stands
+    at the line it explains."""
     source = SourceDocument(EVENT_LOG.read_text())
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
-    shown = json.loads("{" + code_block(source, "options-verbs") + "}")
+    block = code_block(source, "options-verbs")
+    shown = json.loads("{" + block + "}")
     assert shown == {
         "verbs": entry["verbs"],
         "awaits": {
@@ -360,6 +375,24 @@ def test_the_event_log_page_quotes_the_registry():
             "answered": entry["awaits"]["answered"],
         },
     }
+    lines = block.splitlines()
+    noted = []
+    for note in source.tree.select("lf-code#options-verbs > lf-note"):
+        position = note.attrs["at"]
+        assert isinstance(position, str)
+        noted.append(lines[int(position) - 1].strip())
+    explained = [
+        '"choose": ',
+        '"record": ',
+        '"unit": "option"',
+        '"creates": ',
+        '"answer": ',
+        '"value": ',
+        '"answered": ',
+    ]
+    assert [line[: len(key)] for line, key in zip(noted, explained, strict=True)] == (
+        explained
+    ), noted
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

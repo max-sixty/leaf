@@ -82,6 +82,7 @@ from .state import (
     flocked,
     object_schema,
     open_session_turn,
+    record_since,
     retire_if_gone,
     session_lock_path,
     session_record,
@@ -490,14 +491,14 @@ def delivery_path(delivery_id: str) -> Path:
 
 
 def retire_gone_deliveries() -> None:
-    """Remove envelopes whose pages are all gone, whichever Leaf froze them.
+    """Remove envelopes of this shape whose pages are all gone.
 
     Envelopes are read one id at a time, so the only enumeration of them is here.
     Each page server runs it once as it starts (`hosting.cmd_serve`), away from
     any delivery an agent or a hook waits on: the read grows with every envelope
     the machine has kept."""
-    for path in (state_home() / "deliveries").glob("*.json"):
-        retire_if_gone(path)
+    for path in DELIVERY.glob(state_home() / "deliveries"):
+        retire_if_gone(DELIVERY, path)
 
 
 def _registry(page_dir: Path):
@@ -547,7 +548,7 @@ def batch_data(
     for its transport: the address of a thread reply, and the `handling` that follows
     from it. `whole` carries each thread whole (`thread_context.batch_threads`)."""
     from .event_facts import EventFacts
-    from .forks import lane_up
+    from .leases import lane_up
     from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
     from .thread_context import batch_threads, thread_names, thread_structure
@@ -822,7 +823,7 @@ def freeze_delivery(
         acknowledge=acknowledge(delivery_id) if acknowledge else None,
         correction=correction,
     )
-    if supplied and path.exists():
+    if supplied and DELIVERY.file(path).exists():
         if DELIVERY.read(path) != payload:
             raise DeliveryIdConflict(
                 f"delivery {delivery_id!r} already exists with other data"
@@ -847,11 +848,13 @@ def read_delivery(delivery_id: str) -> dict:
     except ValueError as error:
         raise Refused(str(error)) from error
     payload = stored_delivery(delivery_id)
-    if payload is None and path.exists():
+    if payload is None and (others := DELIVERY.others(path)):
         raise Refused(
-            f"delivery {delivery_id!r} was written by another Leaf, in a form this "
-            f"one does not read ({DELIVERY.format!r}). The updates it carried that "
-            "still owe an answer come again in the page's next delivery."
+            f"delivery {delivery_id!r} was written by another Leaf version as "
+            f"leaf-{DELIVERY.kind}/{record_since(others[0].name)}, which this Leaf "
+            "doesn't read. The "
+            "updates it carried that still owe an answer come again in the page's "
+            "next delivery: read and acknowledge that one instead."
         )
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
@@ -1169,8 +1172,7 @@ def deliverable(
     `received=False`, as Claude Code's does before it folds its pages
     (`hook_transport.new_input`), and hands over only what the cursor has not
     passed, read from the log alone, without the page's layer. The adapter, or the
-    Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`)."""
+    Stop hook where no adapter runs, hands over the rest (`hooks.offer_at_step`)."""
     cursor = page.cursor
     pending = unacknowledged(page.events, cursor)
     held = awaiting_receipt(page) if pending else ()
@@ -1189,7 +1191,7 @@ def deliverable(
 
     if write_refusal(page.page_dir):
         return []
-    # Advice wakes nobody, so it goes with what does (`render_gate.handover_pass`).
+    # Advice wakes nobody, so it goes with what does (`handover_pass`).
     advice = [
         event
         for event in page.events
@@ -1250,9 +1252,16 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
+    from .hook_transport import INLINE_OPENING, inline_delivery
     from .service import owned_pages
 
-    entered = harness.entered_context(payload)
+    entered = {
+        event["id"]
+        for context in harness.entered_context(payload, INLINE_OPENING)
+        if (inline := inline_delivery(context)) is not None
+        for batch in inline[0]["batches"]
+        for event in batch["events"]
+    }
     if not entered:
         return
     for page_dir in owned_pages(harness.session):
@@ -1344,8 +1353,12 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        if not may_receive(page.claim, session_id):
-            raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+        if not may_receive(page.page_dir, page.claim, session_id):
+            raise ReceiptRefused(
+                f"delivery no longer owns its page: {page.page_dir}; another "
+                "session or Leaf version holds it, and `leaf server start "
+                f"{page.page_dir}` in an agent session takes it over"
+            )
         if refusal := write_refusal(page.page_dir):
             raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
@@ -1381,16 +1394,22 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     The explicit acknowledgement command, `leaf delivery ack`, proves the
     consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
-    including the exact turn a Codex hook offered it to. Automatic hook and
-    provider receipts observe an already-open turn through `receive` instead.
+    including the exact turn a Codex hook offered it to
+    (`Harness.receive_pointer`). Explicit confirmation is strict: a transferred
+    page or ended turn reports refusal rather than silently accepting a partial
+    receipt. Automatic hook and provider receipts observe an already-open turn
+    through `receive` instead.
     """
     payload = read_delivery(delivery_id)
     acting_on_delivery(payload)
     harness = session_harness()
     if harness:
         open_session_turn(harness.session)
-        if payload["acknowledge"] is None:
-            return harness.receive_pointer(payload)
+        if (
+            payload["acknowledge"] is None
+            and (received := harness.receive_pointer(payload)) is not None
+        ):
+            return received
     return receive(payload, harness.session if harness else None)
 
 
@@ -1421,7 +1440,7 @@ def receive_held(
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
-    (`layer.incompatible_layer`), or locks still held at `deadline`, for a hook
+    (`event_contracts.write_refusal`), or locks still held at `deadline`, for a hook
     that must exit by then for its handover to stand. The other batches are still
     recorded, and the hook hands only those over (`hook_transport.carry_turn`)."""
     recorded = []

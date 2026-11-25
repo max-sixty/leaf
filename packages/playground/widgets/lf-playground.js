@@ -64,24 +64,18 @@ import { createPlayground, same } from "./playground-view.js";
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
 import {
-  compoundReadingRegionId,
+  aimedAt,
   copyControl,
   focusDestination,
   holdFocus,
-  layoutChanged,
   onCurrentLocation,
   onPress,
-  LeafElement,
-  registerReadingRegion,
-  reachedForWords,
   says,
-  sizeObserver,
   wear,
   whileConnected,
-  worksInside,
-  commandsChanged,
-  widgetController,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
 
@@ -185,20 +179,17 @@ customElements.define(
     #drawn = undefined;
     #ready = false;
     #interactive = false;
-    /** @type {(PlaygroundView["regions"][number] & {id: string})[]} */
-    #regions = [];
 
     // A build that throws leaves the playground showing its failure (LeafElement).
     setup() {
       this.#build();
       this.#ready = true;
       whileConnected(this, (signal) => {
-        const stops = this.#regions.map((region) => registerReadingRegion(region));
-        stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
+        const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar. A
         // quoted playground draws only its authored markup, with neither.
-        const controls = this.#regions.find((region) => region.name === "controls");
+        const controls = this.#view.controls;
         /** @type {HTMLElement | null} */
         const split = this.querySelector(":scope > .lf-playground-split");
         const observer = sizeObserver((entries) => {
@@ -212,7 +203,7 @@ customElements.define(
             return;
           }
         });
-        if (controls) observer.observe(controls.host);
+        if (controls) observer.observe(controls);
         // The instruction is a glance at the window's middle; a window changing width
         // puts it away rather than reflowing it under the user, which also kept Web
         // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
@@ -238,7 +229,7 @@ customElements.define(
         if (this.#unsent.size) this.#recordLater();
         return () => {
           observer.disconnect();
-          for (const stop of stops) stop();
+          stopPress();
           clearTimeout(this.#pause);
         };
       });
@@ -307,10 +298,6 @@ customElements.define(
       this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
-      this.#regions = initial.regions.map((region) => ({
-        ...region,
-        id: compoundReadingRegionId(this, region.name),
-      }));
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {
@@ -320,7 +307,7 @@ customElements.define(
           if (!(target instanceof Element)) return;
           const pick = initial.candidate(target);
           if (!pick) return;
-          if (reachedForWords(pick.box) || worksInside(target, pick.box)) return;
+          if (aimedAt(event, pick.box) !== pick.box) return;
           event.preventDefault();
           focusDestination(pick.radio, "press");
           pick.radio.click();
@@ -366,7 +353,11 @@ customElements.define(
             { capture: true },
           );
           initial.copy = copy;
-          instruction.addEventListener("toggle", () => commandsChanged(this));
+          instruction.addEventListener("toggle", () =>
+            this.dispatchEvent(
+              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+            ),
+          );
         }
         this.addEventListener("mousedown", (event) => {
           const target = event.target;
@@ -529,7 +520,9 @@ customElements.define(
           },
         ],
       };
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {string} name @param {JSONSnapshot} value */
@@ -595,8 +588,12 @@ customElements.define(
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       for (const paint of this.#views) paint(this.#values);
-      layoutChanged(this);
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #providedInstruction() {
@@ -686,12 +683,9 @@ customElements.define(
         values: this.#values,
         instruction: this.#renderedInstruction.value,
         chosen: () => this.#chosen(),
-        // The submission's action says why it can't be sent (module-state.md, "The
-        // widget controller"), so the bar keeps no rule of its own about delivery.
-        // `state` says only whether it can, so the reason comes from the controller.
-        unavailable:
-          (this.state && widgetController(this).read().actions.choose?.unavailable) ??
-          null,
+        // The submission's state says why it can't be sent, so the bar keeps no rule
+        // of its own about delivery.
+        unavailable: this.state?.choose?.unavailable ?? null,
       });
       this.#paint();
       return template;

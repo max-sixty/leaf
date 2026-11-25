@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_leaf, hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -30,6 +31,7 @@ from interact_support import (
     declared,
     delivered,
     delivered_ref,
+    entered_contexts,
     freeze_events,
     inlined,
     last_deliverable_seq,
@@ -63,12 +65,12 @@ from leaf import schema as schema_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.json_block import read_json_block
-from leaf.registry.storage import LAYER, layer_record
+from leaf.refusals import Refused
+from leaf.registry.storage import LAYER, layer_record, write_layer
 from leaf.served_state import context as context_model
 
 
@@ -608,6 +610,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     def freeze_then_transfer(batches, **kwargs):
         delivery = freeze(batches, **kwargs)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+        hooks_run_this_tree("s2")
         assert service_model.claim_page(moved)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
         return delivery
@@ -1147,10 +1150,12 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
         "".join(json.dumps(record) + "\n" for record in records)
         + being_written[: being_written.index("e4") + 5]
     )
-    assert harness_model.claude_code_entered(transcript) == {"e1", "e2"}
-    assert harness_model.claude_code_entered(tmp_path / "missing.jsonl") == set()
+    entered = harness_model.claude_code_entered
+    opening = hook_transport_model.INLINE_OPENING
+    assert entered(transcript, opening) == [inline]
+    assert entered(tmp_path / "missing.jsonl", opening) == []
     (tmp_path / "empty.jsonl").write_text("")
-    assert harness_model.claude_code_entered(tmp_path / "empty.jsonl") == set()
+    assert entered(tmp_path / "empty.jsonl", opening) == []
     assert (
         harness_model.ClaudeCodeHarness.hook_payload(
             {"hook_event_name": "Stop", "prompt_id": "p1"}
@@ -1203,7 +1208,7 @@ def test_receipt_never_passes_a_handover_the_transcript_does_not_show(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "entered_context",
-        lambda harness, payload: set(shown),
+        lambda harness, payload, marker: entered_contexts(shown),
     )
 
     def hook(event: str) -> str:
@@ -1274,6 +1279,35 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
     turn_record_9 = cleanup_model.session_record("s1")
     assert turn_record_9 is not None
     assert turn_record_9["turn_closed"] is not None
+
+
+def test_a_claude_code_turn_run_under_a_closed_prompt_hears_its_input(claimed, capsys):
+    """Another session's message that opens a turn as a Stop ends runs under the
+    prompt of the turn before it (Claude Code 2.1.330), whose turn Leaf holds closed.
+    Its tool boundaries and the prompt hook a wake joining it runs still hand over
+    the input waiting, and its Stop closes it, each time Claude Code runs another
+    turn under that prompt."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    hook("UserPromptSubmit")
+    hook("Stop")
+    for event in ("PostToolBatch", "UserPromptSubmit"):
+        record = cleanup_model.session_record("s1")
+        assert record is not None and record["turn_closed"] is not None
+        comment = append_carried_log_record(
+            claimed, {"kind": "comment", "author": "user", "text": "which first?"}
+        )
+        assert comment["id"] in hook(event)
+        record = cleanup_model.session_record("s1")
+        assert record is not None and record["turn_closed"] is None
+        receive_through(claimed, comment["seq"])
+        hook("Stop")
 
 
 def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
@@ -1950,7 +1984,7 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(
     receive_through(claimed, asked["seq"])
     ref = delivered_ref(claimed, asked["id"])
     original = delivery_model.delivery_path(ref.partition(":")[0])
-    captured = original.read_bytes()
+    captured = delivery_model.DELIVERY.file(original).read_bytes()
     deliveries = set(original.parent.glob("*.json"))
     for name in ("UserPromptSubmit", "UserPromptSubmit", "Stop"):
         hooks_model.cmd_hook(
@@ -1960,7 +1994,7 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(
         context = output["hookSpecificOutput"]["additionalContext"]
         assert re.findall(r'<leaf-delivery id="(\w+)"', context) == [original.stem]
         assert set(original.parent.glob("*.json")) == deliveries
-        assert original.read_bytes() == captured
+        assert delivery_model.DELIVERY.file(original).read_bytes() == captured
         assert delivered_ref(claimed, asked["id"]) == ref
 
 
@@ -1983,6 +2017,7 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
         )[asked["id"]]
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
     fresh = [
         append_carried_log_record(
             claimed, {"kind": "comment", "author": "user", "text": text}
@@ -2266,94 +2301,95 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     assert "page protocol" not in context
     assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
-    assert session_runtime_model.selected_launcher("s1") is None
 
 
-def select_another_leaf(tmp_path) -> Path:
-    """Have session s1 deliver through another checkout, and return its launcher."""
-    other = tmp_path / "other checkout" / "bin" / "leaf"
-    other.parent.mkdir(parents=True)
-    other.write_text("#!/bin/sh\n")
-    other.chmod(0o755)
-    session_runtime_model.select_launcher("s1", other)
-    return other.resolve()
+def hooks_run_leaf_at(tmp_path, protocol: int) -> Path:
+    """Have session s1's hooks last run another Leaf, one at `protocol`, and return
+    its root (`leases.mark_skill`, `registry.kernel.installed_protocol`)."""
+    root = tmp_path / f"leaf at {protocol}"
+    registry = root / cleanup_model.KERNEL_REGISTRY.relative_to(
+        cleanup_model.PLUGIN_ROOT
+    )
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    kernel = json.loads(cleanup_model.KERNEL_REGISTRY.read_text())
+    kernel["$events"]["protocol"] = protocol
+    registry.write_text(json.dumps(kernel))
+    hooks_run_leaf("s1", root)
+    return root
 
 
-def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(claimed):
-    """A command from a checkout, such as a worktree's `bin/leaf`, that re-vendors
-    a page becomes its session's delivering Leaf where the session had no selection,
-    as an installed plugin's doesn't, so its hooks and watch can still read the
-    page."""
+@pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])
+def test_a_checkout_acts_only_for_a_session_whose_hooks_run_it(
+    claimed, tmp_path, monkeypatch, ahead
+):
+    """A checkout, as a worktree's `bin/leaf` in a session's shell is, acts for the
+    session only where the session's hooks run it: before any hook has run, or once
+    they run another Leaf at any page protocol, it acts as a command from a bare shell
+    does, finds no harness, claims nothing for the session and writes none of its
+    records. An installed copy acts for the session whatever the hooks last ran, as
+    the copy a process loaded after an update does before its first hook."""
+    # No hook of the session has run yet.
+    cleanup_model.session_file("s1", cleanup_model.SKILL_SUFFIX).unlink()
+    assert harness_model.session_harness() is None
+    hooks_run_leaf_at(tmp_path, LAYER.since + ahead)
+    lifecycle = cleanup_model.session_record("s1")
+
+    assert harness_model.session_harness() is None
+    with pytest.raises(Refused, match="only the Leaf an agent session's hooks run"):
+        hosting_model.cmd_claim(claimed, manual_delivery=True)
+    assert cleanup_model.session_record("s1") == lifecycle
+
+    installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    with monkeypatch.context() as patched:
+        patched.setattr(cleanup_model, "PLUGIN_ROOT", installed)
+        harness = harness_model.session_harness()
+        assert harness is not None and harness.session == "s1"
+
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    harness = harness_model.session_harness()
+    assert harness is not None and harness.session == "s1"
+
+
+def test_a_claim_holds_its_page_only_while_its_session_lives(claimed, monkeypatch):
+    """Whether a claim holds its page comes from its session's record alone: one
+    naming a harness this Leaf doesn't know holds its page only while its session
+    lives. So once the session ended, a terminal initializes the page."""
+    path = service_model.CLAIM.file(service_model.claim_path(claimed))
+    stored = json.loads(path.read_text())
+    stored["harness"] = "a-harness-a-later-leaf-named"
+    cleanup_model.end_session("s1")
+    path.write_text(json.dumps(stored))
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+
+    assert service_model.held_elsewhere(claimed, None) is None
+    assert vendoring_model.cmd_init(claimed, ())["packages"] == []
+
+
+@pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])
+def test_only_the_holding_sessions_leaf_changes_a_held_page(claimed, tmp_path, ahead):
+    """A page a live session holds is served and re-initialized only by the Leaf
+    that session's hooks run, whatever the protocols, with its server down as up:
+    any other Leaf, as a checkout's `bin/leaf` acting for no session, neither renews
+    it nor initializes it, and its own first serve of the page is refused too. So no
+    other Leaf moves a held page to a protocol the hooks can't read. The holding
+    session's own Leaf initializes it."""
+    hooks_run_leaf_at(tmp_path, LAYER.since + ahead)
     vendored_at_another_protocol(claimed)
 
-    vendoring_model.renew_layer(claimed, harness_model.session_harness(), command=True)
+    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    for command in (
+        lambda: vendoring_model.cmd_init(claimed),
+        lambda: vendoring_model.cmd_init(claimed, dry_run=True),
+        lambda: hosting_model.cmd_serve(claimed, harness=None, acquire=True),
+    ):
+        with pytest.raises(Refused, match="is held by session s1"):
+            command()
+    refusal = event_contracts_model.write_refusal(claimed)
+    assert refusal is not None and refusal.code == "foreign-layer"
 
+    leases_model.mark_skill("s1", hooks_model.skill_mark())
+    assert vendoring_model.cmd_init(claimed)["packages"]
     assert event_contracts_model.write_refusal(claimed) is None
-    own = session_runtime_model.own_launcher()
-    assert session_runtime_model.selected_launcher("s1") == own
-
-
-def deliveries_started(monkeypatch) -> list:
-    """The Leaf selected for session s1 each time a command starts its delivery."""
-    started = []
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness,
-        "ensure_delivery",
-        lambda harness: started.append(
-            session_runtime_model.selected_launcher(harness.session)
-        ),
-    )
-    return started
-
-
-def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
-    claimed, tmp_path, monkeypatch
-):
-    """A checkout's `page init` of a page its session doesn't hold, as a scratch page
-    a subagent builds in its own worktree, which runs with its parent's session id,
-    leaves the session's hooks on the Leaf they run, since they never read that
-    page, and leaves its delivery running."""
-    other = select_another_leaf(tmp_path)
-    started = deliveries_started(monkeypatch)
-
-    vendoring_model.cmd_init(tmp_path / "scratch", ())
-
-    assert session_runtime_model.selected_launcher("s1") == other
-    assert started == []
-
-
-@pytest.mark.parametrize("command", ["page claim", "server start", "server run"])
-def test_a_claim_makes_its_checkout_the_sessions_leaf_before_preparing_delivery(
-    claimed, tmp_path, monkeypatch, command
-):
-    """A command from a checkout that takes a page for its session makes that
-    checkout the session's Leaf, so its hooks can read the page, and does so before
-    it prepares delivery: a Codex task's adapter starts from the selected Leaf, and
-    one running from another Leaf leaves once this one is selected, so a selection
-    made after preparing would retire the adapter that preparing had joined."""
-    select_another_leaf(tmp_path)
-    seen = []
-
-    class Prepared(Exception):
-        pass
-
-    def prepare(harness):
-        seen.append(session_runtime_model.selected_launcher(harness.session))
-        raise Prepared
-
-    monkeypatch.setattr(harness_model.ClaudeCodeHarness, "ensure_delivery", prepare)
-    with pytest.raises(Prepared):
-        if command == "page claim":
-            service_model.cmd_claim(claimed)
-        elif command == "server start":
-            with hosting_model.claim_and_start(claimed):
-                pass
-        else:
-            hosting_model.cmd_serve(
-                claimed, harness=harness_model.session_harness(), acquire=True
-            )
-
-    assert seen == [session_runtime_model.own_launcher()]
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
@@ -2370,8 +2406,14 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
     receive_through(claimed, last_deliverable_seq(claimed))
     old = delivered_ref(claimed, asked["id"]).partition(":")[0]
     written = delivery_model.delivery_path(old)
-    envelope = json.loads(written.read_text(encoding="utf-8"))
-    cleanup_model.write_json(written, {**envelope, "format": "leaf-delivery/0"})
+    envelope = json.loads(
+        delivery_model.DELIVERY.file(written).read_text(encoding="utf-8")
+    )
+    delivery_model.DELIVERY.remove(written)
+    cleanup_model.write_json(
+        written.with_name(f"{written.stem}@0{written.suffix}"),
+        {**envelope, "format": "leaf-delivery/0"},
+    )
     cleanup_model.close_session_turn("s1")
 
     hooks_model.cmd_hook(
@@ -2396,15 +2438,15 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     """A hook lists its session's pages and then re-vendors each, and another session
     can take one in between. The re-vendor is then that session's to make, under its
     own Leaf, so this hook leaves the page as it found it."""
-    vendored = vendored_at_another_protocol(claimed)
+    vendored_at_another_protocol(claimed)
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
     service_model.claim_page(claimed)
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 
     assert hook_transport_model.read_plans("s1") == []
-    layer = layer_record(claimed)
-    assert layer is not None
-    assert layer["protocol"] == vendored
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 
 def test_two_renewals_of_a_page_take_turns(claimed, monkeypatch):
@@ -2454,36 +2496,25 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
     """Two versions of Leaf can each find the page vendored at a protocol they do not speak and
     each set out to re-vendor it. Whichever takes the page lock second finds the page
     the other left, and an older Leaf finding a newer Leaf's page leaves it there."""
+    stamp = claimed / schema_model.LAYER_FILE
+    record = layer_record(claimed)
+    assert record is not None
     vendored_at_another_protocol(claimed)
     locked = vendoring_model.page_locked
     raced = iter([True])
+    newer = {"format": f"leaf-layer/{LAYER.since + 1}", **record}
 
     def newer_leaf_first(page_dir):
         if next(raced, False):
             # Another Leaf's own `page init` reaches the page before this one.
-            record = layer_record(page_dir)
-            (page_dir / schema_model.LAYER_FILE).unlink()
-            assert record is not None
-            LAYER.write(
-                page_dir / schema_model.LAYER_FILE,
-                {**record, "protocol": record["protocol"] + 2},
-            )
+            stamp.unlink()
+            cleanup_model.write_json(stamp, newer)
         return locked(page_dir)
 
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
-    layer_2 = layer_record(claimed)
-    assert layer_2 is not None
-    newer = layer_2["protocol"] + 2
 
-    assert (
-        vendoring_model.renew_layer(
-            claimed, harness_model.session_harness(), command=True
-        )
-        is None
-    )
-    layer_3 = layer_record(claimed)
-    assert layer_3 is not None
-    assert layer_3["protocol"] == newer
+    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
+    assert json.loads(stamp.read_text()) == newer
 
 
 def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
@@ -2517,7 +2548,7 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
 
     stamp.unlink()
     assert vendored is not None
-    LAYER.write(stamp, vendored)
+    write_layer(claimed, vendored)
     assert prompt().startswith(hook_transport_model.INLINE_OPENING)
     assert handed(claimed, comment["id"])
 

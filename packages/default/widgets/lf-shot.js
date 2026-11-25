@@ -59,30 +59,24 @@ import { ShotView } from "./shot-view.js";
  * scrolling them never opens the viewer. Image options holds scale, outlines and the
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
-// A containing widget can create a pair absent from the authored document.
 import { render } from "/vendor/lit.js";
 import {
-  setScroll,
   afterPresentation,
-  once,
-  offer,
-  failSoft,
   frameFor,
-  placesFailure,
   focusDestination,
-  nextFrame,
-  layoutChanged,
   scopedMediaUrl,
-  widgetController,
   move,
   whileConnected,
-  sizeObserver,
-  registerReadingRegion,
-  compoundReadingRegionId,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { failSoft, placesFailure } from "/runtime/lib/failure.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { offer } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps } from "/runtime/lib/keeps.js";
+import { plainPress } from "/runtime/lib/keys.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 import "/vendor/webawesome-views.js";
 
 /** @type {(() => Promise<void>)[]} */
@@ -130,8 +124,6 @@ export class Shot extends HTMLElement {
   #capture = null;
   /** @type {Element | null} */
   #error = null;
-  /** @type {((promise: Promise<unknown>) => void) | undefined} */
-  _lfPresentGenerated;
   static observedAttributes = ["alt", "before", "after", "density", ...FOCUS];
 
   get difference() {
@@ -182,13 +174,15 @@ export class Shot extends HTMLElement {
       this.append(box);
       return true;
     });
+    // The shot hosts its stage's reading region (shot-view.js marks the stage).
+    keeps(this, "data-lf-scroll-host", "capture");
     const drawing = this.#drawing;
     drawing.view = this.getAttribute("view") ?? drawing.view;
     drawing.metadata = this.#metadata();
     render(drawing.render(), this, { host: this });
     drawing.fit();
     render(drawing.render(), this, { host: this });
-    drawing.chooseView = (view, label) => this.#chooseView(view, label);
+    drawing.chooseView = (view) => this.#chooseView(view);
     drawing.chooseScale = (scale) => {
       this.#drawing.actual = scale === "actual";
       this.#fit();
@@ -216,15 +210,8 @@ export class Shot extends HTMLElement {
         () => {
           if (this.#drawing.view !== "pair" || !this.#drawing.actual) return;
           const peer = index === 0 ? drawing.viewports[1] : drawing.viewports[0];
-          if (
-            peer.scrollLeft !== viewport.scrollLeft ||
-            peer.scrollTop !== viewport.scrollTop
-          )
-            setScroll(peer, {
-              left: viewport.scrollLeft,
-              top: viewport.scrollTop,
-              behavior: "instant",
-            });
+          const at = { left: viewport.scrollLeft, top: viewport.scrollTop };
+          if (scrollMoves(peer, at)) peer.scrollTo({ ...at, behavior: "instant" });
         },
         { passive: true },
       );
@@ -241,24 +228,9 @@ export class Shot extends HTMLElement {
       // Pair's bound in flow is the screen's height, which the stage doesn't track.
       const refit = () => this.#fit();
       window.addEventListener("resize", refit, { passive: true });
-      const unregister = [
-        registerReadingRegion({
-          id: compoundReadingRegionId(this, "capture"),
-          host: this,
-          body: this.#drawing.stage,
-        }),
-        ...this.#drawing.viewports.map((body, index) =>
-          registerReadingRegion({
-            id: compoundReadingRegionId(this, index === 0 ? "before" : "after"),
-            host: index === 0 ? drawing.frames[0] : drawing.frames[1],
-            body,
-          }),
-        ),
-      ];
       return () => {
         observer.disconnect();
         window.removeEventListener("resize", refit);
-        for (const release of unregister) release();
       };
     });
     this.#loadImages();
@@ -336,8 +308,7 @@ export class Shot extends HTMLElement {
    * waits for what this shot draws when it lands.
    * @param {Promise<unknown>} promise */
   #present(promise) {
-    if (this._lfPresentGenerated) this._lfPresentGenerated(promise);
-    else widgetController(this).present(promise);
+    this.dispatchEvent(new PendingTaskEvent(promise));
   }
 
   /** @param {Capture} capture @param {string | null} [pixels] */
@@ -375,20 +346,18 @@ export class Shot extends HTMLElement {
       this.#drawing.paper ??= paperOf(shown);
     this.#drawing.fit();
     this.#paint();
-    layoutChanged(this);
+    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   }
 
-  /** @param {string} view @param {string} label */
-  #chooseView(view, label) {
+  // The view's own radio says which view shows, as focus lands on it.
+  /** @param {string} view */
+  #chooseView(view) {
     if (view === this.#drawing.view) return;
     if (view === "pixels") void this.#showPixels();
     else {
       this.#drawing.view = view;
       this.#fit();
     }
-    window.dispatchEvent(
-      new CustomEvent("lf-announce", { detail: `Showing ${label.toLowerCase()}` }),
-    );
   }
 
   #syncComparison() {
@@ -435,11 +404,8 @@ export class Shot extends HTMLElement {
           focusDestination(handle, "press");
       });
       comparison.addEventListener("click", (event) => {
-        // The primary button with no modifier: a modified click keeps its usual meaning.
-        const plain =
-          event.button === 0 &&
-          !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
-        if (dragged || handleOf(event) || !plain) return;
+        // A modified click keeps its usual meaning.
+        if (dragged || handleOf(event) || !plainPress(event)) return;
         event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });
@@ -459,8 +425,10 @@ export class Shot extends HTMLElement {
           },
         ],
       };
-      commandsChanged(comparison);
       this.#drawing.canvas.append(comparison);
+      comparison.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
       this.#comparison = comparison;
       void comparison.updateComplete.then(() => this.#paintHandle());
     }
@@ -484,7 +452,9 @@ export class Shot extends HTMLElement {
     if (!this.#drawingOwner) return;
     render(this.#drawing.render(), this, { host: this });
     this.#paintHandle();
-    commandsChanged(this);
+    this.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
 
   /** @param {Capture} capture */

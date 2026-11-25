@@ -20,6 +20,7 @@ from referencing.exceptions import Unresolvable
 from websockets.exceptions import WebSocketException
 
 from .harness import claim_harness
+from .inference import harness_generator
 from .refusals import Refused
 from .registry.schema import check_schema, unresolved_schema_reference
 from .service import PageTransaction
@@ -57,7 +58,8 @@ def generate(page_dir: Path, request: dict) -> dict:
 
     with PageTransaction(page_dir) as page:
         claim = page.active_claim
-    inference = claim_harness(claim).inference_generator() if claim else None
+    harness = claim_harness(claim)
+    inference = harness_generator(harness) if harness else None
     if inference is None:
         raise LLMError(
             "LLM access needs a page claimed by Codex, Claude Code or Pi.", 503

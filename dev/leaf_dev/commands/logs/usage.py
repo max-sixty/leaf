@@ -17,7 +17,7 @@ to put to the maintainer, with what the feature costs beside it.
   record this Leaf reads. A record at another shape, an older Leaf's or a newer
   one's, counts as none, where `page init` would refuse the newer one.
 - **Commands**: each command a person ran, by key or by press, from the `command`
-  observations a tab writes (`browser/runtime/interaction-log.js`), with the sessions
+  observations a tab writes (`browser/runtime/transport/interaction-log.js`), with the sessions
   and pages it ran in. A session whose browser calls itself headless is a check or a
   probe driving the page, not a person, and is left out. Only commands that ran are
   listed: the runtime registers them as each page's widgets load, so no file lists
@@ -41,8 +41,7 @@ import click
 
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.contract import is_element_name
-from leaf.registry.storage import LAYER
-from leaf.schema import LAYER_FILE
+from leaf.registry.storage import layer_packages
 from leaf.state import state_home
 from leaf_dev.docs import registries
 
@@ -120,9 +119,9 @@ def survey(pages: list[Path], since: datetime | None) -> dict:
                 if tag in widgets:
                     held[tag].add(page.name)
                     uses[tag] += count
-        if record := LAYER.read(page / LAYER_FILE):
+        if (packages := layer_packages(page)) is not None:
             layered += 1
-            for package in record["packages"]:
+            for package in packages:
                 selected[Path(package).name] += 1
         rows = read_interactions(
             page, since=since, types=("session_start", "command", "leaf_command")

@@ -142,18 +142,17 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
-          const {commandScope, presentContributionEntry} =
-            await window.__lfWidgetApi();
+          const {presentContributionEntry} = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'projected-only-command';
           document.querySelector('main').append(control);
-          const scope = commandScope('On a projected-only control', [{
+          const scope = {title: 'On a projected-only control', rows: [{
             id: 'test.projected-only',
             keys: ['Mod+Alt+0'],
             title: 'Exercise the generated command scope',
             line: 'exercise projected command',
             run: () => {},
-          }]);
+          }]};
           presentContributionEntry(control, {
             key: 'projected-only',
             icon: 'question',
@@ -452,7 +451,6 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'changing-command-scope';
           control.textContent = 'Changing command scope';
@@ -476,8 +474,8 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
               run: () => { control.dataset.ran = 'second'; },
             },
           ] };
-          commandsChanged(control);
-          commandsChanged(document.body);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+          document.body.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           control.focus();
         }"""
     )

@@ -48,8 +48,8 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
+from leaf import tasks as tasks_model
 from leaf import thread as thread_model
-from leaf import todos as todos_model
 from leaf.render_checks import rendered
 from leaf_dev.browser import open_on_me
 
@@ -895,8 +895,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         f'.lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-leaves'
     )
     expect(word).to_have_accessible_name("Still to do, Open in On Codex")
-    key = json.dumps(["todo", promise["id"]], separators=(",", ":"))
-    item = page.locator(f".lf-fp-view .lf-fp-on-item[data-lf-key='{key}']")
+    item = page.locator(f".lf-fp-view .lf-fp-on-item[data-lf-key='{promise['id']}']")
     word.focus()
     page.keyboard.press("Enter")
     expect(item).to_have_attribute("data-lf-open", "")
@@ -919,7 +918,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     )
     expect(head.locator(".lf-msg-leaves")).to_have_text("On it")
 
-    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    tasks_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
     told(page)
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
 

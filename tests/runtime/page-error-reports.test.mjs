@@ -2,7 +2,7 @@
 
    A producer reports each failure it sees, even where owners share one exception; a
    consumer that carries a fault up reports it only where no producer did. A widget's
-   failure reaches it as the `error` event the widget dispatches (widget-upgrade.js),
+   failure reaches it as the `error` event the widget dispatches (lib/failure.js),
    named for the widget. */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -14,8 +14,9 @@ canonical.href = "https://leaf.test/";
 document.head.append(canonical);
 // The log's door answers every report; only what reaches the console is read here.
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { reportCarried, reportPageError } = await import("/runtime/layer-client.js");
-const { failSoft } = await import("/runtime/widget-upgrade.js");
+const { reportCarried, reportPageError } =
+  await import("/runtime/transport/layer-client.js");
+const { failSoft } = await import("/runtime/lib/failure.js");
 
 let flushReports;
 test.beforeEach((t) => {

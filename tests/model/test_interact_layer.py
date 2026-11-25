@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import tinycss2
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool, _retire
+from conftest import LEAF_COMMAND, PagePool, _retire, hooks_run_this_tree
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
@@ -65,6 +65,7 @@ from leaf import packages as packages_model
 from leaf import page_memory
 from leaf import revision_artifact as artifact_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
@@ -75,7 +76,11 @@ from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
-from leaf.registry.contract import DECLARED_WORDS, stamp_grammars
+from leaf.registry.contract import (
+    DECLARED_WORDS,
+    complete_declarations,
+    stamp_grammars,
+)
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
@@ -302,38 +307,6 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
-    """A process the session started before its plugin updated still runs the older
-    Leaf, and must not take the page back to it: the newer Leaf's next hook would
-    re-vendor it up again, reloading the user's tabs each time. Neither a command
-    naming the page nor an explicit `page init` re-vendors it down, and each names
-    the newer Leaf as the repair rather than the re-vendor it refuses."""
-    publish(claimed)
-    foreign = vendored_at_another_protocol(claimed, newer=True)
-    for command in (["page", "check"], ["page", "init"]):
-        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
-        assert refused.exit_code != 0
-        assert "Use a newer Leaf" in refused.output
-        assert "leaf page init" not in refused.output
-        layer_4 = registry_storage.layer_record(claimed)
-        assert layer_4 is not None
-        assert layer_4["protocol"] == foreign
-    # A fresh process in a session that does not hold the page reads the state of
-    # the revision published before, and reports the same refusal as its source
-    # error.
-    stated = subprocess.run(
-        [*LEAF_COMMAND, "page", "state", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
-    )
-    assert stated.returncode == 0, stated.stderr
-    error = json.loads(stated.stdout)["source"]["error"]
-    assert "Use a newer Leaf" in error
-
-
 def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
     """A server keeps the Leaf it started under, so a check by another Leaf, at
     another path or commit, may pass on code the user's tab doesn't run. `page check`
@@ -370,38 +343,80 @@ def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
     assert advised("0123456789ab", enabled=False) == []
 
 
-def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
-    """A newer Leaf may change the layer record's shape without a protocol bump, and
-    this Leaf reads that format as no record at all. Told "no layer.json; run `leaf
-    page init` first", an agent would replace the page's packages and theme under
-    this Leaf, so the page is refused as a newer Leaf's instead, by the hooks and
-    writers that ask first as by `page check` and `page init`."""
+def test_a_page_an_older_leaf_initialized_is_renewed_keeping_its_packages(claimed):
+    """A layer record an older Leaf wrote, at that Leaf's shape, is its page rather
+    than none: the check each hook makes before writing refuses it as
+    `foreign-layer`, which is what has the session renew it, and `page init` with no
+    `--package` keeps the packages it selected, the one field this Leaf reads off
+    another Leaf's record. Read as none, the page would never be renewed, and `page
+    init` would select no packages."""
     from leaf.event_contracts import write_refusal
 
     path = claimed / schema_model.LAYER_FILE
     record = registry_storage.layer_record(claimed)
+    assert record is not None and record["packages"]
+    # The shape before a page's theme was one of its packages.
+    older = {
+        "format": "leaf-layer/36",
+        "packages": record["packages"],
+        "theme": {"name": "reading", "source": "default"},
+        "generation": record["generation"],
+        "protocol": 53,
+    }
+    cleanup_model.write_json(path, older)
+
+    refusal = write_refusal(claimed)
+    assert refusal is not None
+    assert (refusal.code, refusal.values["recorded"]) == ("foreign-layer", 36)
+    renewed = CliRunner().invoke(cli_model.cli, ["page", "init", str(claimed)])
+    assert renewed.exit_code == 0, renewed.output
+    assert write_refusal(claimed) is None
+    layer = registry_storage.layer_record(claimed)
+    assert layer is not None
+    assert layer["packages"] == record["packages"]
+    assert layer["generation"] != record["generation"]
+
+
+def test_a_page_a_newer_leaf_initialized_is_refused_whatever_its_shape(claimed):
+    """A process the session started before its plugin updated still runs the older
+    Leaf, and must not take the page back to it: the newer Leaf's next hook would
+    renew it again, reloading the user's tabs each time. So a layer record at a
+    newer format refuses the page as that newer Leaf's, here one whose shape moved
+    `packages`: the check each hook makes before writing, and every command that
+    reads the page's layer, name the newer Leaf as the repair, rather than crashing
+    on the shape or reading it as none and naming `page init`, and none rewrites the
+    file."""
+    from leaf.event_contracts import write_refusal
+
+    publish(claimed)
+    path = claimed / schema_model.LAYER_FILE
+    record = registry_storage.layer_record(claimed)
     assert record is not None
-    path.unlink()
-    later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
-    path.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+    newer = {
+        "format": f"leaf-layer/{registry_storage.LAYER.since + 1}",
+        "selection": {"packages": record["packages"]},
+        "generation": record["generation"],
+    }
+    cleanup_model.write_json(path, newer)
     recorded = path.read_bytes()
 
     refusal = write_refusal(claimed)
     assert refusal is not None and refusal.code == "newer-layer"
-    for command in (["page", "check"], ["page", "init"]):
-        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
-        assert refused.exit_code != 0
-        assert "Use a newer Leaf" in refused.output
-        assert "leaf page init" not in refused.output
-        assert path.read_bytes() == recorded
+    for command in ("check", "init", "state", "vocabulary"):
+        refused = CliRunner().invoke(cli_model.cli, ["page", command, str(claimed)])
+        assert refused.exit_code != 0, command
+        assert "Use a newer Leaf" in refused.output, command
+        assert "leaf page init" not in refused.output, command
+        assert path.read_bytes() == recorded, command
 
 
-def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
-    """`page state` on a page this Leaf can neither serve nor write, from a session
-    that may not re-vendor it since another one holds the page, still prints its
-    reading, and says why under `source.error`, naming the re-vendor, from the one
-    reading the servers and the append door refuse on (`layer.incompatible_layer`).
-    Activation writes no revision under that layer, even for an edited source.
+def test_page_state_refuses_a_layer_this_leaf_cannot_serve(claimed):
+    """`page state` on a page an older Leaf initialized, from a session that may not
+    renew it since another one holds the page, refuses it, naming the renewal, from
+    the one reading the servers and the append door refuse on
+    (`registry.storage.layer_record`), since this Leaf reads no page at another
+    protocol. Activation writes no revision under that layer, even for an edited
+    source.
 
     A fresh process, as an agent's is: this one holds the revision `publish`
     captured in memory, under the vocabulary before the change."""
@@ -412,6 +427,7 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
     source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>"))
     revisions = interact_files.list_revisions(page_dir)
 
+    hooks_run_this_tree("s2")
     result = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(page_dir)],
         capture_output=True,
@@ -420,12 +436,10 @@ def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
         check=False,
         env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
-    assert result.returncode == 0, result.stderr
-    state = json.loads(result.stdout)
-    assert state["source"]["live"] is False
-    assert "page protocol" in state["source"]["error"]
-    assert f"leaf page init {page_dir}" in state["source"]["error"]
-    assert state["active"]["revision"] == revisions[-1]
+    said = result.stdout + result.stderr
+    assert result.returncode != 0, said
+    assert "page protocol" in said
+    assert f"leaf page init {page_dir}" in said
     assert interact_files.list_revisions(page_dir) == revisions
 
 
@@ -1218,7 +1232,8 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "layer.json").unlink()
     (first / "layer.json").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    (first / "stream.json").write_text("{}")
+    stream = service_model.STREAM.file(Path("stream.json"))
+    (first / stream).write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1228,7 +1243,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     for name in ("layer.json", "events.jsonl"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
     # A stream the test wrote is a file it added, so the reset takes it away.
-    assert not (second / "stream.json").exists()
+    assert not (second / stream).exists()
 
 
 def _css_parse_errors(nodes):
@@ -1499,7 +1514,7 @@ def test_leaf_writes_its_own_marks_under_its_prefix():
         for mark in found
     ]
     assert len(marks) > 1000, "the reading of marks is broken"
-    faces = schema_model.ASSETS / "runtime" / "control-faces.js"
+    faces = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     constants = json.loads(js_facts("literals", [faces]))[str(faces)]["constants"]
     roles = {
         key: value
@@ -1798,7 +1813,8 @@ def test_layout_style_and_widgets_never_read_each_other():
             and not (
                 home == layouts
                 and source
-                == schema_model.ASSETS / "runtime/annotation-overlay/margin-layout.js"
+                == schema_model.ASSETS
+                / "runtime/annotations/annotation-overlay/margin-layout.js"
             )
         ]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -1992,7 +2008,7 @@ def test_no_has_reads_where_focus_is():
     """No `:has()` in Leaf's sheets reads where focus is: a focus mark, a box's
     `data-lf-control-focus` marks, or a focus pseudo-class. A box that shows the focus of
     a control inside it is named by the control (`--lf-focus-box`, base.css), and
-    focus.js marks the box. In Chromium, a `:has()` reading a focus mark makes each focus
+    dom/focus.js marks the box. In Chromium, a `:has()` reading a focus mark makes each focus
     move restyle what lies under every element whose `:has()` the move might change, and
     the whole page wherever any rule, an author's included, puts a `:has()` before a
     subject naming no element, as an authored `.zz:has(> .yy) > *` does. Without such
@@ -2216,15 +2232,16 @@ def test_controls_are_built_by_role_and_never_by_face():
     cannot draw two controls of one kind two ways. The classes of a role's face are
     spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
-    module-controls.md lists the roles for package authors, in the table's order."""
-    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
-    table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
+    The table's header describes each role, in the table's order, for whoever picks
+    one."""
+    owner = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
+    source = owner.read_text()
+    table = re.search(r"const ACTION_FACES = \{(.*?)\};", source, re.DOTALL)
     assert table is not None
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
     assert {"symbol", "word", "commit"} <= roles.keys(), roles
-    reference = (SKILL_ROOT / "references" / "module-controls.md").read_text()
-    documented = re.findall(r"^- `\"(\w+)\"`, ", reference, re.MULTILINE)
-    assert documented == list(roles), "module-controls.md lists other roles"
+    described = re.findall(r"^   - `(\w+)`: ", source, re.MULTILINE)
+    assert described == list(roles), "control-faces.js's header describes other roles"
     faces = {name for classes in roles.values() for name in classes.split()}
     named = re.compile(r"(?<![\w-])(" + "|".join(sorted(faces)) + r")(?![\w-])")
     spelled = []
@@ -2475,7 +2492,7 @@ def _face_overrides(sheets, faces, placed, homes):
 def _role_classes():
     """The classes of each role's face (control-faces.js, `ACTION_FACES`), and every
     class a bundled module's builder writes beside a role."""
-    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
+    owner = schema_model.ASSETS / "runtime" / "lib" / "control-faces.js"
     constants = json.loads(js_facts("literals", [owner]))[str(owner)]["constants"]
     faces = {
         name
@@ -2775,83 +2792,93 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     )
 
 
-# The page-side order `composed_sheets` reads a composed example's layer in: each
-# root's own sheets, root by root in layer order.
-_LAYER_SHEET_ORDER = [
-    sheet
-    for root in SHIPPED_PACKAGES
-    for sheet in (
-        root / name
-        for name in (
-            ("styles/control-face.css", "shadow.css", "base.css")
-            if root == schema_model.ASSETS
-            else schema_model.PACKAGE_STYLES
+# The page-side order `composed_sheets` reads a composed example's layer in, one list
+# for each of the document's two halves: the theme's tiers below the page's `base`
+# layer and Leaf's above it, each root's own sheets root by root in layer order.
+def _layer_sheet_order(kernel_names, package_names):
+    return [
+        sheet
+        for root in SHIPPED_PACKAGES
+        for sheet in (
+            root / name
+            for name in (kernel_names if root == schema_model.ASSETS else package_names)
         )
-    )
-    if sheet.is_file()
-]
+        if sheet.is_file()
+    ]
+
+
+_THEME_SHEET_ORDER = _layer_sheet_order(
+    ("styles/page-control-face.css", "styles/markup.css", "base.css"), ("theme.css",)
+)
+_PARTS_SHEET_ORDER = _layer_sheet_order(
+    ("styles/control-face.css", "styles/parts.css", "elements.css"),
+    ("widget-shadow.css", "defaults.css", "overrides.css"),
+)
 
 
 def test_the_injected_control_face_is_one_default_in_both_trees():
-    """Document and declared-shadow controls share one default before component rules.
+    """Document and declared-shadow controls share one default before component rules,
+    and the page's own controls a default of their own before the theme's rules.
 
-    It weighs nothing and comes first in the document, so every component rule
-    outranks it, and markup's reading face, a layer below, loses to it. A shadow tree
-    places the same sheet below what a widget adopts, which
+    Each weighs nothing and comes first in its half of the document, so every component
+    rule outranks it, and markup's reading face, a layer below, loses to it. A control
+    Leaf builds takes its default above the page's `base` layer, and one the page writes
+    takes its own below it, so a framework's rule for the page's controls outranks it. A
+    shadow tree places Leaf's sheet below what a widget adopts, which
     `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
     holds. Only native controls and those carrying a face class receive it: a widget's
     apparatus marked `lf-ui`, such as diff line numbers, retains the component's own
-    typography. The default ends with the floor a typed field takes on a touch screen.
+    typography. Each default ends with the floor a typed field takes on a touch screen.
     """
-    faces = [
-        (sheet, selector)
-        for sheet in _LAYER_SHEET_ORDER
-        for _conditions, _enclosing, selector, declarations in _style_rules(
-            sheet, whole=True
-        )
-        if any(name in _FACE for name, _value in declarations)
-    ]
-    assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # One sheet gives both delivery trees the default.
-    face_sheet = schema_model.ASSETS / "styles/control-face.css"
     controls = ("button", "input", "select", "textarea")
-    control_face = [
-        ":where(:is(:root, :host) .lf-ui-face)",
-        ":where(:is(:root, :host) .lf-btn)",
-        *(f":where(:root body {tag}:not(.lf-chrome *))" for tag in controls),
-        *(f":where(:host {tag})" for tag in controls),
+    halves = [
+        (
+            _PARTS_SHEET_ORDER,
+            "styles/control-face.css",
+            [
+                ":where(:is(:root, :host) .lf-ui-face)",
+                ":where(:is(:root, :host) .lf-btn)",
+                *(f":where(:host {tag})" for tag in controls),
+                ":where(.lf-ui-face)",
+                ':where(:host input:not([type="checkbox"], [type="radio"]))',
+                ":where(:host select)",
+                ":where(:host textarea)",
+            ],
+        ),
+        (
+            _THEME_SHEET_ORDER,
+            "styles/page-control-face.css",
+            [
+                *(f":where(:root body {tag}:not(.lf-chrome *))" for tag in controls),
+                ':where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"]))',
+                ":where(:root body select:not(.lf-chrome *))",
+                ":where(:root body textarea:not(.lf-chrome *))",
+            ],
+        ),
     ]
-    control_ink = [":where(.lf-ui-face)"]
-    control_floor = [
-        ':where(:root body input:not(.lf-chrome *, [type="checkbox"], [type="radio"]))',
-        ":where(:root body select:not(.lf-chrome *))",
-        ":where(:root body textarea:not(.lf-chrome *))",
-        ':where(:host input:not([type="checkbox"], [type="radio"]))',
-        ":where(:host select)",
-        ":where(:host textarea)",
-    ]
-    default = [
-        (face_sheet, each) for each in (*control_face, *control_ink, *control_floor)
-    ]
-    assert faces[: len(default)] == default, faces[: len(default)]
-    defaults = [
-        face
-        for face in faces
-        if face[1]
-        in {
-            ".lf-ui-face",
-            ":where(:root) .lf-ui-face",
-            *control_face,
-            *control_ink,
-            *control_floor,
-        }
-    ]
-    assert defaults == default, defaults
+    for order, name, selectors in halves:
+        faces = [
+            (sheet, selector)
+            for sheet in order
+            for _conditions, _enclosing, selector, declarations in _style_rules(
+                sheet, whole=True
+            )
+            if any(name in _FACE for name, _value in declarations)
+        ]
+        assert faces, "no face was read from the layer's sheets — the reading is broken"
+        default = [(schema_model.ASSETS / name, each) for each in selectors]
+        assert faces[: len(default)] == default, faces[: len(default)]
+        defaults = [
+            face
+            for face in faces
+            if face[1] in {".lf-ui-face", ":where(:root) .lf-ui-face", *selectors}
+        ]
+        assert defaults == default, defaults
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names."""
-    page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
+    page_paint = schema_model.ASSETS / "runtime" / "base" / "page-paint.js"
     read = json.loads(js_facts("literals", [page_paint]))
     assets = schema_model.ASSETS
     sheet = (assets / "base.css").read_text() + (
@@ -3308,7 +3335,7 @@ def test_pages_reading_one_shared_layer_keep_their_revisions_vocabularies(
         ("defaults.css", ".note { broken; }\n", "defaults.css syntax error"),
         (
             "widgets/helper.js",
-            'export { x } from "/runtime/semantic-state.js";\n',
+            'export { x } from "/runtime/state/semantic-state.js";\n',
             "imports private kernel module",
         ),
         (
@@ -3409,7 +3436,7 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     roots = [tmp_path / name for name in ("first", "second")]
     for root, sheet, css in zip(
         roots,
-        ("base.css", "overrides.css"),
+        ("base.css", "theme.css"),
         (first, ".y { color: red; }"),
         strict=True,
     ):
@@ -3421,7 +3448,7 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
         composed, skip_whitespace=True, skip_comments=True
     )
     assert [rule.lower_at_keyword for rule in rules] == ["layer", "layer", "layer"]
-    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-overrides"
+    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-theme"
     later = tinycss2.parse_rule_list(
         rules[-1].content, skip_whitespace=True, skip_comments=True
     )
@@ -3600,7 +3627,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
         json.dumps({"lf-contribution": element_declaration("lf-contribution")})
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
-    for name in ("defaults.css", "widget-shadow.css", "chrome.css"):
+    for name in ("theme.css", "defaults.css", "widget-shadow.css", "chrome.css"):
         (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()
@@ -3681,29 +3708,17 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     project_layer.mkdir(parents=True)
     user_entry = {
         "description": "user shape",
-        "attributes": {
-            "type": "object",
-            "properties": {"user-only": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"user-only": {"type": "string"}}},
         "content": "empty",
     }
     project_entry = {
         "description": "project shape",
-        "attributes": {
-            "type": "object",
-            "properties": {"project-only": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {"project-only": {"type": "string"}}},
         "content": "empty",
     }
     project_only = {
         "description": "project-only shape",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "empty",
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
@@ -3729,7 +3744,9 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page)
     composed = stamp_grammars(
-        {"lf-local": project_entry, "lf-project-only": project_only}
+        complete_declarations(
+            {"lf-local": project_entry, "lf-project-only": project_only}
+        )
     )
     assert registry["lf-local"] == composed["lf-local"]
     assert registry["lf-project-only"] == composed["lf-project-only"]
@@ -4182,7 +4199,7 @@ def test_a_page_wears_the_themes_it_lists_in_that_order(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     dense = tmp_path / "dense"
     dense.mkdir()
-    (dense / "defaults.css").write_text(":root { --lf-accent: #814b07; }\n")
+    (dense / "theme.css").write_text(":root { --lf-accent: #814b07; }\n")
     # The reading theme's ground, which no other sheet of the layer states.
     paper, accent = "--lf-paper: light-dark(", "--lf-accent: #814b07"
 
@@ -4634,13 +4651,48 @@ def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypa
     assert (unrelated / "missing").is_symlink()
 
 
-def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeypatch):
+def test_package_init_writes_a_starter_for_each_widget_named(tmp_path, monkeypatch):
+    """`--widget` given more than once writes each tag's starter, its declaration,
+    module and style rule, and a tag named twice once; `package check` finds nothing
+    to say about what it wrote."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["package", "init", str(package), "--widget", "risk-note"],
+        ["package", "init", str(package)]
+        + ["--widget", "lf-first", "--widget", "lf-second", "--widget", "lf-first"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["widgets"] == ["lf-first", "lf-second"]
+    registry = json.loads((package / "registry.json").read_text())
+    assert registry == {
+        tag: packages_model.starter_element_declaration(tag)
+        for tag in ("lf-first", "lf-second")
+    }
+    assert {
+        path.name: path.read_bytes() for path in (package / "widgets").iterdir()
+    } == {
+        f"{tag}.js": packages_model.starter_widget_module(tag)
+        for tag in ("lf-first", "lf-second")
+    }
+    styles = (package / "defaults.css").read_bytes()
+    assert [
+        styles.count(packages_model.starter_widget_styles(tag))
+        for tag in ("lf-first", "lf-second")
+    ] == [1, 1]
+    assert package_findings(package) == (0, [])
+
+
+def test_package_init_widget_validates_each_tag_without_writing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package)]
+        + ["--widget", "lf-risk-note", "--widget", "risk-note"],
     )
 
     assert result.exit_code != 0
@@ -5268,16 +5320,16 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
     other listener enters its browsing context on trusted input without answering a
-    key; the same listener handles pointer input. document-inputs.js records inputs
-    from the document's first script. focus.js reads keys as the end of a label press
+    key; the same listener handles pointer input. base/document-inputs.js records inputs
+    from the document's first script. dom/focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. Any key but Escape puts away the
     preview a pointer reads and goes on to its command, and off a served page, where the
     register holds no page scopes, the listener takes the preview's Escape step
-    (preview.js). The
+    (annotations/preview.js). The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
     (role-button-press.js), on any page; the register names that press as native
-    activation (keyboard/text-entry.js), as it does a <button>'s, so no surface promises
+    activation (dom/keyboard/text-entry.js), as it does a <button>'s, so no surface promises
     a key it misses. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
@@ -5862,7 +5914,7 @@ def test_portable_css_carries_the_widgets_look_and_no_theme():
     layer = layer_model.compose_layer(layer_model.layer_inputs(("reading", "timeline")))
     sheet = layer.top_files["portable.css"].decode()
     assert layer_model.stylesheet(timeline / "defaults.css", timeline) in sheet
-    assert layer_model.stylesheet(reading / "defaults.css", reading) in (
+    assert layer_model.stylesheet(reading / "theme.css", reading) in (
         layer.top_files["theme.css"].decode()
     )
-    assert layer_model.stylesheet(reading / "defaults.css", reading) not in sheet
+    assert layer_model.stylesheet(reading / "theme.css", reading) not in sheet

@@ -93,7 +93,10 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         assert consumer["widget"] == identity
         stored = data_model.source_file(serve.page_dir, source)
         assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
-        assert json.loads(stored.read_text())["value"] == value
+        assert (
+            json.loads(data_model.PUBLICATION.file(stored).read_text())["value"]
+            == value
+        )
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
@@ -392,7 +395,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         held.pop(0).continue_()
         page.evaluate(
             """async () => {
-              const {loadMarkdown} = await window.__lfWidgetApi();
+              const {loadMarkdown} = await import("/runtime/lib/markdown.js");
               await loadMarkdown();
             }"""
         )

@@ -3,6 +3,9 @@
 (helpers) => {
   const { named } = helpers;
 
+  // Whether a computed colour paints nothing.
+  const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
+
   function deepFocus() {
     let e = document.activeElement;
     while (e) {
@@ -37,12 +40,11 @@
   // away. Returned as the width, because a spread has no offset of its own, so the outset
   // a caller measures is the whole of the band; nought where the box paints no such thing.
   //
-  // The accent arrives resolved twice because the layer spells it twice: a plain
-  // `var(--lf-accent)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
+  // The ring's ink arrives resolved twice because the layer spells it twice: a plain
+  // `var(--lf-ok)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
   // `color(srgb r g b / a)`. The mix is matched on its triple alone, so how much of the
-  // accent a rule laid down is not part of the question — the bar carries an accent border
-  // as well and wants less of it than a chip standing over the page's own words.
-  function shadowBand(cs, accent, mixed) {
+  // ink a rule laid down is not part of the question.
+  function shadowBand(cs, ringInk, mixed) {
     const w = parseFloat(cs.getPropertyValue("--lf-focus-ring-w")) || 0;
     if (!w) return 0;
     // Split on the commas between layers, not on the ones inside `rgba(...)`.
@@ -54,32 +56,31 @@
       const [x, y, blur, spread] = lengths.map(parseFloat);
       if (x || y || blur || spread !== w) continue;
       const ink = text.replace(/-?(?:\d*\.)?\d+px/g, "").trim();
-      if (ink === accent || (mixed && ink.includes(mixed))) return w;
+      if (ink === ringInk || (mixed && ink.includes(mixed))) return w;
     }
     return 0;
   }
 
-  // The accent as the browser resolves it, in both of the spellings the layer writes it in.
-  // Read back through an outline so a comparison is between values of one kind: read
-  // straight off an element, a custom property serializes as it was written while
-  // `outline-color` serializes as it resolved, and the two agree for `#2f5480` and for
-  // nothing more exotic. Read straight, `color-mix()` or `light-dark()` in a package's
-  // accent would leave every rule in the layer uncredited and the gate red on a page
+  // The ring's ink as the browser resolves it, in both of the spellings the layer writes
+  // it in. Read back through an outline so a comparison is between values of one kind:
+  // read straight off an element, a custom property serializes as it was written while
+  // `outline-color` serializes as it resolved, and the two agree for a plain hex colour
+  // and for nothing more exotic. Read straight, `color-mix()` or `light-dark()` in a package's
+  // ink would leave every rule in the layer uncredited and the gate red on a page
   // drawing every ring correctly.
   //
-  // `mixed` is the srgb triple a `color-mix()` resolves the accent into, which is a
+  // `mixed` is the srgb triple a `color-mix()` resolves the ink into, which is a
   // different serialization of the same colour, so a shadow written that way is read on the
   // triple and not on the whole string.
   //
   // In <head>, because this must not put a node in the page's own content while the page is
   // being read. The same span in <body> answers the same.
-  function accentSwatch() {
+  function ringSwatch() {
     const swatch = document.createElement("span");
-    swatch.style.cssText = "outline: 1px solid var(--lf-accent)";
+    swatch.style.cssText = "outline: 1px solid var(--lf-ok)";
     document.head.append(swatch);
-    const accent = getComputedStyle(swatch).outlineColor;
-    swatch.style.outlineColor =
-      "color-mix(in srgb, var(--lf-accent) 100%, transparent)";
+    const ringInk = getComputedStyle(swatch).outlineColor;
+    swatch.style.outlineColor = "color-mix(in srgb, var(--lf-ok) 100%, transparent)";
     const mixed =
       getComputedStyle(swatch).outlineColor.match(
         /color\(srgb ([\d.]+ [\d.]+ [\d.]+)/,
@@ -87,7 +88,7 @@
     swatch.style.outlineColor = "var(--lf-mark-ink)";
     const markInk = getComputedStyle(swatch).outlineColor;
     swatch.remove();
-    return { accent, mixed, markInk };
+    return { ringInk, mixed, markInk };
   }
 
   // Which rule drew a ring is the browser's answer, not the page's: the readings below
@@ -105,8 +106,8 @@
   //
   // Asked of every box painting one, rather than of the focused one.
   // The two are not the same set: three rules draw the ring on something other than the
-  // control holding focus — a decision wears it for whichever of its controls the user
-  // reached, a joined option group wears the one its picks give up, and an element
+  // control holding focus — a decision wears it while the user is on its margin
+  // marker, a joined option group wears the one its picks give up, and an element
   // a focused thread is anchored to wears it with no focus of its own — and a reading that
   // asks only `getComputedStyle(activeElement)` returns `no ring here` for every one, so a
   // cut planted on one of those carriers would pass the entire example corpus.
@@ -136,12 +137,12 @@
     getComputedStyle(el).clipPath !== "none";
 
   function ringCandidates() {
-    const { accent, mixed } = accentSwatch();
+    const { ringInk, mixed } = ringSwatch();
     // The band this box casts as a shadow, where it draws one, in the width it draws it
     // at. Its own comment carries what makes a shadow that band rather than a lift.
-    const hereShadow = (cs) => shadowBand(cs, accent, mixed);
+    const hereShadow = (cs) => shadowBand(cs, ringInk, mixed);
     // Whether this box paints the layer's ring: `--lf-focus-ring` is
-    // `var(--lf-focus-ring-w) solid var(--lf-accent)`, so style, width and colour are all what
+    // `var(--lf-focus-ring-w) solid var(--lf-ok)`, so style, width and colour are all what
     // the element computes them to.
     //
     // Or the same band cast as a shadow, which is the same ring to the user and so the
@@ -153,7 +154,7 @@
     const isFocusRing = (cs) =>
       (cs.outlineStyle === "solid" &&
         cs.outlineWidth === cs.getPropertyValue("--lf-focus-ring-w").trim() &&
-        cs.outlineColor === accent) ||
+        cs.outlineColor === ringInk) ||
       hereShadow(cs) > 0;
     // Every box painting the ring, read off the composed page. Whether a ring is there is
     // what the paint says, so this asks the paint; which rule drew it is the protocol's
@@ -235,10 +236,10 @@
       return false;
     };
     const focused = deepFocus();
-    // The box the runtime rings in the focused control's place (`ringBox`, focus.js), as
+    // The box the runtime rings in the focused control's place (`ringBox`, dom/focus.js), as
     // a choice's label rings its checkbox: it wears the focused control's ring.
     const wearer = focused && ringBox(focused);
-    const { accent } = accentSwatch();
+    const { ringInk } = ringSwatch();
     // A colour as the screenshot holds it, whatever space it was written in: a canvas
     // paints it into sRGB.
     const canvas = document.createElement("canvas").getContext("2d", {
@@ -313,10 +314,9 @@
           if (getComputedStyle(a).position === "fixed") return true;
         return false;
       };
-      // A decision's ring while Tab is inside it follows the landing's rule
-      // (landing-scroll.js): the runtime reveals that ring only if the decision fits its
-      // room, so a decision taller than its room is held only through the control's own
-      // ring, not the edge rule below.
+      // A decision's ring while the user is on its margin marker: the landing reveals
+      // the marker, not the decision, so a decision taller than its room is held only
+      // through the marker's own ring, not the edge rule below.
       const unlanded = !own && el.matches("[data-lf-obligation]") && !fitsWhole(el);
       const pastFoot =
         !own &&
@@ -374,7 +374,7 @@
               who +
               ` (ring ${at(ring)} vs band ${at(band)})`;
       };
-      // `clipped` in runtime/geometry.js is this walk, and this is its shape: from the box itself
+      // `clipped` in runtime/dom/geometry.js is this walk, and this is its shape: from the box itself
       // rather than its parent, skipping the box's own band because an element is not clipped
       // by its own overflow, and stopping at the first fixed box. Its comment records what
       // starting at the parent costs — "the question of every ancestor of a fixed box and
@@ -402,7 +402,6 @@
       // Whether a box paints at a ring sample: its fill anywhere, or its border where the
       // sample lies on it. A face drawn by its border alone, such as a playground choice,
       // can cover a pixel of its neighbour's ring, which a reading of fills alone misses.
-      const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
       const paints = (n, x, y) => {
         const s = getComputedStyle(n);
         if (s.backgroundImage !== "none" || !clear(s.backgroundColor)) return true;
@@ -516,6 +515,11 @@
           if (holds(el, over)) {
             if (!lifted(over)) break;
             if (!paints(over, x, y)) continue;
+            // A hit on a pseudo-element names its host, whose styles don't say what the
+            // pseudo-element paints there, as with the transparent reach an option's
+            // mark lays over its row's ring. So the screenshot confirms the cover, as
+            // it does a neighbour's (below).
+            coverPoints.push({ index: covers.length, point: [x, y] });
             covers.push(
               `its ${side} edge is under ` +
                 named(over) +
@@ -662,7 +666,7 @@
           // order says which — and the depth it asks for is more than a shallow overlap
           // has: a control standing over a scrolling list can have a thread's receipt reach
           // its last two pixels, and its ring's bottom run would come back reported while
-          // every pixel of it is the accent's own. Asked where
+          // every pixel of it is the ring's own. Asked where
           // the two boxes meet, since that is the only place hit testing can order them,
           // and only when both answer there — a point some third box owns says nothing
           // about these two. Hit testing answers a control inside a shadow root with its
@@ -715,7 +719,7 @@
         );
         const end = radius + grow + w + 1;
         // A focus preview stands clear of its control and of what the user could work
-        // next, and may cover the rest of the page (preview.js), such as the
+        // next, and may cover the rest of the page (annotations/preview.js), such as the
         // question around the control, so only the focused control's own ring is read
         // under it. One that lets the pointer through (`data-lf-covers`) may stand over
         // its control too, as a chart's point's words do past the chart's edge, so no
@@ -761,7 +765,7 @@
       }
       answers.push({
         who: named(el),
-        ink: srgb(outlined ? cs.outlineColor : accent),
+        ink: srgb(outlined ? cs.outlineColor : ringInk),
         ringAt: at(ring),
         runs,
         // A hit names a candidate cover, not outline paint. Confirm it in pixels
@@ -814,33 +818,33 @@
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
   //
-  // A marked element answers the keyboard with the same accent ring as any other
+  // A marked element answers the keyboard with the same ring as any other
   // focusable passage. Its hover and current-thread contours are written out rather
   // than drawn with the ring's token, so they cannot be mistaken for focus.
   //
   // The band cast as a shadow is the third. The anchored response bar draws it that way —
   // its focused states take the outline off so the field and its choices keep one
   // silhouette — and to a user that is the same ring. It is the sweep's own reading
-  // (shadowBand), so the paint and keyboard-stop readings agree on an accent shadow ring
-  // rather than each keeping a spelling of it: taking any shadow carrying the accent
+  // (shadowBand), so the paint and keyboard-stop readings agree on a shadow ring
+  // rather than each keeping a spelling of it: taking any shadow carrying the ring's ink
   // would accept a wash or a tinted lift. Read on the
   // stop itself and never on an ancestor, since a card's decorative drop shadow is no
   // answer to where the keyboard is and accepting one from any ancestor would pass every
   // stop on a page with one shadowed box above it.
   //
   // Every colour is resolved through a swatch rather than compared as written, and the
-  // accent is resolved twice: `outline-color` serializes as the browser resolved it, and a
+  // ring's ink is resolved twice: `outline-color` serializes as the browser resolved it, and a
   // `color-mix` resolves into a different space than a plain token does, so the ring's
   // `rgb(...)` and the shadow's `color(srgb ...)` are the same colour written two ways and
   // each needs the browser to say so.
   function seenStop() {
     const e = deepFocus();
     if (!e) return null;
-    const { accent, mixed } = accentSwatch();
+    const { ringInk, mixed } = ringSwatch();
     const ringed = (cs) =>
       cs.outlineStyle === "solid" &&
       cs.outlineWidth === cs.getPropertyValue("--lf-focus-ring-w").trim() &&
-      cs.outlineColor === accent;
+      cs.outlineColor === ringInk;
     // A box whose own content paints over its outline draws the same ring on a later
     // pseudo-element instead: the scrolling thread list's frame, a page thread over its
     // pinned reply row, a code block's host over its sticky notes. It answers under the
@@ -857,9 +861,17 @@
       const cs = getComputedStyle(el, "::after");
       if (cs.content !== "none" && ringed(cs)) carriers.push([el, "after"]);
     };
+    // The stop's own outline shows where the keyboard is in any visible ink: an
+    // author's outline replaces Leaf's ring as it replaces the browser's
+    // (surfaces.css, "The user chose this").
     const cs = getComputedStyle(e);
-    if (cs.outlineStyle === "auto" || ringed(cs)) return null;
-    if (shadowBand(cs, accent, mixed) > 0) return null;
+    if (
+      cs.outlineStyle !== "none" &&
+      Number.parseFloat(cs.outlineWidth) > 0 &&
+      !clear(cs.outlineColor)
+    )
+      return null;
+    if (shadowBand(cs, ringInk, mixed) > 0) return null;
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even
     // when its source has no id, and so does a focused stop's ring round what it

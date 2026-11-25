@@ -2,8 +2,7 @@
 
    A write that restates what a node already says still reaches everything watching
    the page: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty
-   box for whatever reads next, on a Leaf page the document's disclosure watch, which
-   repaints every key on the page, and, while CSS highlight ranges hold a quoted
+   box for whatever reads next, and, while CSS highlight ranges hold a quoted
    comment's marks, Chrome's paint of the whole document. A render that runs on every change of
    the state it draws writes at that rate on a page nobody has touched, and a placement
    that follows the scroll writes at the scroll's.
@@ -69,6 +68,28 @@ export function keepsOnOne(name) {
     on?.removeAttribute(name);
     element?.toggleAttribute(name, true);
     on = element;
+  };
+}
+
+// An attribute a set of elements wears, as a mark stands on each box an element shows
+// through: the returned call gives it to each element `next` names, with the value it
+// names, and takes it off every other element an earlier call gave it to, writing only
+// what changes, and answers every element that wore it before the call or wears it
+// after. It must be the attribute's only writer: it finds what to take the attribute
+// off by what it gave it to, not by a query of the page.
+/** @param {string} name */
+export function keepsOnEach(name) {
+  /** @type {ReadonlyMap<Element, unknown>} */
+  let on = new Map();
+  return (/** @type {ReadonlyMap<Element, unknown>} */ next) => {
+    const reached = new Set(on.keys());
+    for (const element of reached) if (!next.has(element)) keeps(element, name, null);
+    for (const [element, value] of next) {
+      keeps(element, name, value);
+      reached.add(element);
+    }
+    on = next;
+    return reached;
   };
 }
 

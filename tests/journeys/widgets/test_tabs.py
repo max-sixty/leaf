@@ -115,8 +115,8 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     """A tab switch is not fragment travel. The strip stays where it is on screen: a view
     never read opens at its start when the strip is stuck and leaves the shared header
     alone when it is not, and a view read past its start reopens where the user left it.
-    Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
-    shows the page's top.
+    Pointer and keyboard agree. Back and Forward open their entry's view where the user
+    was on that entry, and a fresh load of the remembered view shows the page's top.
 
     A view's place is where the user was reading in it, not a pixel offset: a window
     resized while the view is hidden rewraps everything above that passage, and the view
@@ -253,8 +253,9 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     """A switch between a page's parts is not fragment travel. The list stays where it is
     on screen under the page's title: a part never read opens at its start, at the top
     of the page level with the title, and a part read past its start reopens where the
-    user left it. Pointer, keyboard, and Back/Forward agree, and a fresh load of the
-    remembered part shows the page's top.
+    user left it. Pointer and keyboard agree. Back and Forward open their entry's part
+    where the user was on that entry, and a fresh load of the remembered part shows the
+    page's top.
 
     A part's place is where the user was reading in it, not a pixel offset: a window
     resized while the part is hidden rewraps everything above that passage, and the part
@@ -590,7 +591,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     and, coming round, back up through the list, while the item it opens starts in the
     window. Running with the page, the walk scrolled each item's start away, and a tab
     left past the window's foot, or read away from, was out of sight, so the next arrow
-    let go of it (keyboard/controller.js), focus fell to the page and no tab opened.
+    let go of it (panel/page-keys/controller.js), focus fell to the page and no tab opened.
     The row the walk heads for shows beside the open tab, so the list doesn't look as
     though it starts or ends there. Read down an item, the list stays beside it, and the
     next arrow opens the next item at its start. A list shorter than the window stays

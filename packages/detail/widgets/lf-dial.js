@@ -69,8 +69,8 @@
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
  * around the reader or opening out from them. Leaf's one hold keeps the place
- * (`holdPlace`, given the line's words by `readingAt`), since the browser's scroll
- * anchoring can't: Skim hides the block it anchors.
+ * (`holdPlace`), since the browser's scroll anchoring can't: Skim hides the block it
+ * anchors.
  *
  * The dial is a radio group of the three depths, Web Awesome's, the control every
  * choice among a few views takes, as a recording's scopes and an image pair's views
@@ -108,26 +108,24 @@
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
 import {
-  actionClass,
-  addressableLabel,
+  nameOf,
   focusDestination,
-  foldDuration,
   holdPlace,
-  LeafElement,
   motion,
   move,
-  nextRender,
-  offer,
-  offerAction,
   phrasing,
   onPress,
-  readingAt,
-  registerRootHeader,
   shownWindow,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { actionClass } from "/runtime/lib/control-faces.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { nextRender } from "/runtime/lib/frame-pass.js";
+import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { plainPress } from "/runtime/lib/keys.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -153,12 +151,6 @@ const PARTIAL = "data-lf-partial";
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
 
-// Whether a press is the primary button with no modifier held, which the dial takes; a
-// modified one keeps its usual meaning.
-/** @param {MouseEvent} event */
-const plainPress = (event) =>
-  event.button === 0 &&
-  !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
 /** @param {Element} heading */
@@ -436,6 +428,9 @@ customElements.define(
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
       this.addEventListener("lf-preview-ended", this.#ended);
+      // The dial sticks at the window's top while the reader scrolls the page under it,
+      // so landings arrive below it.
+      this.toggleAttribute("data-lf-root-header", true);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -478,13 +473,7 @@ customElements.define(
         );
         const stored = tabStore.get(this.#key);
         if (stored) this.#apply(stored, { moving: false });
-        // The dial sticks at the window's top while the reader scrolls the page under
-        // it, so landings arrive below it.
-        const stopHeader = registerRootHeader(this);
-        return () => {
-          stopHeader();
-          this.#restore();
-        };
+        return () => this.#restore();
       });
     }
 
@@ -895,7 +884,7 @@ customElements.define(
         this.#unfoldRun(marker, { pressed: true }),
       );
       button.lfPreview = () => {
-        const names = outermost(blocks).map(addressableLabel).filter(Boolean);
+        const names = outermost(blocks).map(nameOf).filter(Boolean);
         return names.length
           ? {
               list: {
@@ -953,16 +942,7 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      // The block holding the words at the line, since a fold replaces whole blocks:
-      // its gist lands where the block's top stood, line for line. A block that began
-      // above the window would take its gist out of sight with its top, 978px up for a
-      // paragraph of 2,700px, so its gist lands where the words read stood.
-      const words = readingAt(scope);
-      const at = words instanceof Range ? words.startContainer : words;
-      const block =
-        at && [...this.#blocks(scope, scope)].find((each) => each.contains(at));
-      const begun = block && block.getBoundingClientRect().top < shownWindow().top;
-      const hold = holdPlace(block && !begun ? block : words, (node) => {
+      const hold = holdPlace(scope, (node) => {
         const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
         return folded && owner.get(folded);
       });
@@ -993,7 +973,7 @@ customElements.define(
     // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
-      const duration = foldDuration();
+      const duration = motionTime("--lf-motion-fold");
       const window = shownWindow();
       const after = this.#positions(scope);
       for (const [node, top] of after) {

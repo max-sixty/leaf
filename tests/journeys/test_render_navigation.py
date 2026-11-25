@@ -100,7 +100,6 @@ QUICK_KEYS_PAGE = leaf_page(
 </div>
 """,
     head="""<script type="module">
-import { commandsChanged } from "/runtime/widget-api.js";
 const note = document.querySelector("#shortcut-note");
 document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sample", rows: [{
   id: "note.focus",
@@ -111,7 +110,7 @@ document.querySelector("#local-shortcuts").lfCommands = { title: "In the note sa
   description: "Focus the sample note",
   run: () => note.focus(),
 }] };
-commandsChanged(document.querySelector("#local-shortcuts"));
+document.querySelector("#local-shortcuts").dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
 </script>""",
 )
 
@@ -322,7 +321,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
     it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
-    and announced it with `layoutChanged`. A box the window grows out of scrolling gives
+    and announced it with an `lf-layout` event. A box the window grows out of scrolling gives
     all three back. The window's case asks its height, which no box's size follows. A
     table first drawn when its disclosure opens is read in the size delivery that draws
     it, and a script announcing from a size delivery is heard, both without a
@@ -364,20 +363,19 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     page.evaluate(
         """async () => {
         document.getElementById('holder').style.width = '400px';
-        const { layoutChanged } = await window.__lfWidgetApi();
         const box = document.getElementById('by-script');
         new ResizeObserver((entries, observer) => {
             observer.disconnect();
             box.classList.add('scrolls');
-            layoutChanged(box);
+            box.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
         inserted.className = 'lf-scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
-        layoutChanged(inserted);
-        layoutChanged(document.getElementById('meter'));
+        inserted.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
+        document.getElementById('meter').dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
     }"""
     )
     boxes["insert"] = page.locator("#by-insert")
@@ -762,9 +760,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         has_text="Which map should the sample team carry?"
     )
     expect(map_obligation).to_have_count(1)
-    expect(map_obligation).to_have_attribute(
-        "data-lf-key", '["widget","widget:bg-choice"]'
-    )
+    expect(map_obligation).to_have_attribute("data-lf-key", "widget:bg-choice")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     gallery_tab("tab", name="Decisions").click()
@@ -1010,7 +1006,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-ok"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
@@ -1235,7 +1231,7 @@ def _stale_keys(page):
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    # `paintKeys` reads every element's keys again (keyboard/scopes.js). Saying an
+    # `paintKeys` reads every element's keys again (dom/keyboard/scopes.js). Saying an
     # element's commands changed reads only that element's, and `body` declares none.
     page.evaluate("async () => (await window.__lfCheckApi()).paintKeys()")
     rendered(page)
@@ -1249,7 +1245,7 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read
     moves. So a module's own state that a row's `when` reads must be a signal
-    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    (`dom/keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
     reader announces keys that no longer apply, until something else repaints them.
 
     The sweep presses or fills a random visible control, in an order seeded by the
@@ -2091,7 +2087,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     # A card the page has carried half past the window's top, Reply with it, is as
     # unseen there as one scrolled off: a landing in it brings it back all the same.
     # The box goes more than the pixel of slack past the top that reads a card held
-    # flush at the edge as shown (off-flow.js, `unseen`).
+    # flush at the edge as shown (readings/off-flow.js, `unseen`).
     reply.evaluate(
         """async (box) => {
           const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

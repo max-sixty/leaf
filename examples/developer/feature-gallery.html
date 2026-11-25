@@ -178,19 +178,18 @@
     <script type="module">
       import {
         afterPresentation,
-        commandsChanged,
         connection,
         generate,
-        once,
-        quoted,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
 
       document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
-        if (!section || quoted(section) || !once(section)) return;
+        if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
+          return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
         whileConnected(section, (signal) => {
@@ -218,7 +217,8 @@
 
       document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-llm");
-        if (!section || quoted(section) || !once(section)) return;
+        if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
+          return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
         whileConnected(section, (signal) => {
@@ -273,7 +273,9 @@
           },
         ],
       };
-      commandsChanged(localShortcuts);
+      localShortcuts.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',
@@ -2503,6 +2505,29 @@ gallery/
                 colour scheme, and the display formula stands centred on its own line.
                 Select from “costs” to “reads” and press <kbd>c</kbd>: the comment
                 quotes each formula by its LaTeX.
+              </p>
+            </section>
+
+            <section id="bg-age">
+              <hgroup>
+                <p class="bg-feature-elements">lf-age</p>
+                <h3>
+                  <strong>Age</strong
+                  ><span class="bg-feature-detail">: how long ago, kept current</span>
+                </h3>
+              </hgroup>
+              <p id="bg-age-line">
+                The sample import last ran
+                <lf-age id="bg-age-ran" datetime="2026-11-20T02:10:00Z"
+                  >20 Nov 2026, 02:10 UTC</lf-age
+                >
+              </p>
+              <p id="bg-age-guide">
+                The line above holds the time its author wrote, and Leaf shows how long
+                ago that was. Rest the pointer on the age: the preview says when, in
+                your own zone. Select the line from “sample” to its end and press
+                <kbd>c</kbd>: the comment quotes the time as written, so it still finds
+                its passage after the age has grown.
               </p>
             </section>
 

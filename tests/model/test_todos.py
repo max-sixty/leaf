@@ -45,6 +45,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import standing as standing_model
 from leaf import state as state_model
+from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.event_contracts import append_admitted
@@ -239,11 +240,21 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
 
-def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
-    page_dir,
-):
-    """The plan nests steps by depth and shows a named item's own state, and a
-    rewrite that leaves a to-do out leaves it owed on the agent's list."""
+def titles(page_dir) -> dict[str, str]:
+    """Each to-do on the page by its id, with its title."""
+    return {
+        record["id"]: record["prompt"]["text"]
+        for record in state_json(page_dir)["obligations"]
+        if record["source"]["kind"] == "todo"
+    }
+
+
+def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
+    """The plan nests steps by depth and writes no standing: a step shows its to-do's
+    or obligation's own, a heading that of the records under it, and a `todo` step
+    opens the to-do the plan then names. A step follows its to-do's start and end, and
+    the end says where the result is, so the plan follows the work without a rewrite,
+    and a rewrite that leaves a to-do out leaves it owed on the agent's list."""
 
     def plan(steps) -> Result:
         return CliRunner().invoke(
@@ -258,18 +269,27 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     written(
         leaf("task", "start", page_dir, todo["id"], "--text", "Cutting the example")
     )
-    written(
+    record = written(
         plan(
             [
-                {"depth": 0, "title": "Review the change", "state": "working"},
-                {"depth": 1, "title": "Check the diffs", "state": "done"},
-                {"depth": 1, "title": "Draft the response", "state": "working"},
+                {"depth": 0, "title": "Review the change"},
+                {"depth": 1, "todo": "Check the diffs"},
+                {"depth": 1, "title": "Draft the response"},
                 {"depth": 2, "item": todo["id"]},
                 {"depth": 1, "item": item["id"]},
-                {"depth": 1, "title": "Post it", "state": "dropped"},
+                {"depth": 1, "todo": "Post it"},
             ]
         )
     )
+    checking, posting = [
+        step["item"]
+        for step in record["steps"]
+        if "item" in step and step["item"] not in (todo["id"], item["id"])
+    ]
+    opened = titles(page_dir)
+    assert (opened[checking], opened[posting]) == ("Check the diffs", "Post it")
+    written(leaf("task", "end", page_dir, checking, "done", "--text", "In PR #12"))
+    written(leaf("task", "end", page_dir, posting, "dropped", "--text", "Not needed"))
     [goal] = state_json(page_dir)["plan"]["steps"]
 
     def shape(step):
@@ -285,9 +305,9 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
 
     assert shape(goal) == (
         "Review the change",
-        "running",
+        "waiting",
         None,
-        "agent",
+        "user",
         1,
         3,
         [
@@ -305,9 +325,19 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
             ("Post it", "done", "dropped", None, 0, 0, []),
         ],
     )
+    assert goal["steps"][0]["detail"] == "In PR #12"
     cut = goal["steps"][1]["steps"][0]
     assert cut["item"] == {"kind": "todo", "id": todo["id"]}
     assert cut["since"] == cut["running"]["ts"]
+
+    # Once the start is put down and the to-do ends, the heading over it reads done
+    # with no rewrite; the question waiting on the user keeps the goal on the user.
+    written(leaf("page", "open", page_dir))
+    [goal] = state_json(page_dir)["plan"]["steps"]
+    assert (goal["next_actor"], goal["steps"][1]["state"]) == ("user", "waiting")
+    written(leaf("task", "end", page_dir, todo["id"], "done", "--text", "Cut"))
+    [goal] = state_json(page_dir)["plan"]["steps"]
+    assert (goal["next_actor"], goal["steps"][1]["outcome"]) == ("user", "done")
 
     # A question whose thread the agent resolved, as it does once the user answers
     # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
@@ -316,66 +346,112 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     )
     asked = f"message:{question['id']}"
     written(leaf("thread", "resolve", page_dir, question["id"]))
+    left = written(leaf("task", "create", page_dir, "page", "--title", "Tidy up"))
     written(
-        plan(
-            [
-                {"depth": 0, "title": "Review the change", "state": "done"},
-                {"depth": 1, "item": asked},
-            ]
-        )
+        plan([{"depth": 0, "title": "Review the change"}, {"depth": 1, "item": asked}])
     )
     [goal] = state_json(page_dir)["plan"]["steps"]
+    assert (goal["state"], goal["outcome"]) == ("done", "done")
     assert [
         (step["item"]["id"], step["state"], step["outcome"]) for step in goal["steps"]
     ] == [(asked, "done", "done")]
-    assert ("todo", todo["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
+    assert ("todo", left["id"]) in kinds(state_json(page_dir)["queues"]["on_agent"])
     outline = page_dir.parent / "plan.json"
     # A step that skips a level reads one level below the step before it, so the plan
     # is written and the command says where the step went.
-    outline.write_text(json.dumps([{"depth": 1, "title": "Too deep", "state": "open"}]))
+    outline.write_text(json.dumps([{"depth": 1, "item": left["id"]}]))
     [skipped] = command_notes("task", "plan", page_dir, "--file", outline)
     assert (skipped.code, skipped.severity) == ("plan-depth", "advice")
     [step] = state_json(page_dir)["plan"]["steps"]
-    assert (step["title"], step["steps"]) == ("Too deep", [])
+    assert (step["title"], step["steps"]) == ("Tidy up", [])
+    todos_before = len(titles(page_dir))
     for steps, code in (
         ([{"depth": 0, "item": "no-such-item"}], "unknown-plan-item"),
         (
-            [{"depth": depth, "title": "Deep", "state": "open"} for depth in range(10)],
+            [{"depth": 0, "todo": "Opens nothing"}, {"depth": 0, "title": "Alone"}],
+            "plan-empty-heading",
+        ),
+        (
+            [{"depth": depth, "title": "Deep"} for depth in range(9)]
+            + [{"depth": 9, "item": left["id"]}],
             "invalid-event",
         ),
     ):
         outline.write_text(json.dumps(steps))
         [refused] = command_findings("task", "plan", page_dir, "--file", outline)
         assert refused.code == code
-    # A step close to one of the two shapes is refused at the field it gets wrong.
-    outline.write_text(json.dumps([{"depth": 0, "title": "Ship", "state": "active"}]))
-    [unknown] = command_findings("task", "plan", page_dir, "--file", outline)
-    assert (unknown.code, unknown.values["field"]) == (
-        "invalid-event",
-        "/steps/0/state",
+    # A refused plan opens none of its to-dos.
+    assert len(titles(page_dir)) == todos_before
+    # A step close to one of the shapes is refused for the field it gets wrong.
+    outline.write_text(
+        json.dumps(
+            [
+                {"depth": 0, "title": "Ship", "state": "working"},
+                {"depth": 1, "todo": "X"},
+            ]
+        )
     )
+    [unknown] = command_findings("task", "plan", page_dir, "--file", outline)
+    assert (unknown.code, unknown.values["field"]) == ("invalid-event", "/steps/0")
+    assert "'state' was unexpected" in unknown.values["error"]
     written(plan([]))
     assert state_json(page_dir)["plan"] is None
 
 
 def test_a_goal_counts_only_the_steps_that_ended_done(task_log):
-    """A to-do that failed ended, but finished nothing, so its goal reads none done."""
+    """A to-do that failed ended, but finished nothing, so its goal reads none done
+    and failed, as it does where the failed to-do stands deeper under a step that
+    finished."""
     append, log = task_log
     todo = append("todo", subject={"kind": "page"}, title="Rebuild the chart")
     append("todo_end", todo=todo["id"], outcome="failed", detail="The data is gone")
-    append(
-        "plan",
-        steps=[
-            {"depth": 0, "title": "Chart the year", "state": "working"},
-            {"depth": 1, "item": todo["id"]},
-        ],
+    published = append("todo", subject={"kind": "page"}, title="Publish the chart")
+    append("todo_end", todo=published["id"], outcome="done", detail="On the site")
+
+    def goal_of(steps):
+        append("plan", steps=steps)
+        reading = plans_model.plan_reading(
+            log, set(), todos_model.TodoReading(log).todos
+        )
+        assert reading is not None
+        [goal] = reading["steps"]
+        return goal
+
+    goal = goal_of(
+        [{"depth": 0, "title": "Chart the year"}, {"depth": 1, "item": todo["id"]}]
     )
-    reading = plans_model.plan_reading(log, set(), todos_model.TodoReading(log).todos)
-    assert reading is not None
-    [goal] = reading["steps"]
     [step] = goal["steps"]
     assert (step["state"], step["outcome"]) == ("done", "failed")
-    assert (goal["done"], goal["total"]) == (0, 1)
+    assert (goal["outcome"], goal["done"], goal["total"]) == ("failed", 0, 1)
+    goal = goal_of(
+        [
+            {"depth": 0, "title": "Chart the year"},
+            {"depth": 1, "item": published["id"]},
+            {"depth": 2, "item": todo["id"]},
+        ]
+    )
+    assert (goal["outcome"], goal["done"], goal["total"]) == ("failed", 1, 1)
+
+
+def test_a_plan_step_may_name_an_update_the_agent_owes(page_dir):
+    """An update the user handed over is an obligation on the agent's list, so a step
+    naming its id is admitted and reads where that update stands."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Quieter."},
+    )
+    owed = f"update:{comment['id']}"
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(page_dir)],
+            input=json.dumps([{"depth": 0, "item": owed}]),
+        )
+    )
+    [step] = state_json(page_dir)["plan"]["steps"]
+    assert step["item"] == {"kind": "obligation", "id": owed}
+    assert (step["next_actor"], step["state"]) == ("agent", "waiting")
 
 
 def test_a_plan_step_reads_its_todo_stopped_once_the_turn_that_started_it_ends(
@@ -438,9 +514,13 @@ def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
     )
     assert answered["todo"] == fitted
     outline = page_dir.parent / "plan.json"
-    outline.write_text(json.dumps([{"depth": 0, "title": words, "state": "open"}]))
+    outline.write_text(
+        json.dumps([{"depth": 0, "title": words}, {"depth": 1, "todo": words}])
+    )
     planned = cut(leaf("task", "plan", page_dir, "--file", outline))
-    assert [step["title"] for step in planned["steps"]] == [fitted]
+    heading, step = planned["steps"]
+    assert heading["title"] == fitted
+    assert titles(page_dir)[step["item"]] == fitted
 
 
 def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
@@ -619,7 +699,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A message whose reply failed is the user's to send again, an obligation of its
     own on On Me. A question the agent then leaves in its thread is a second
     obligation there, listed ahead of it, and the thread reads as that question: `m`
-    stops at a thread once (queue-walk.js)."""
+    stops at a thread once (panel/queue-walk.js)."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -774,7 +854,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
 
     def take_in_hand():
         if claim == "task start":
-            todos_model.cmd_start(page_dir, comment["id"], "Tightening it")
+            tasks_model.cmd_start(page_dir, comment["id"], "Tightening it")
         else:
             thread_model.post_response(reference, "Tightening it", ephemeral=True)
 

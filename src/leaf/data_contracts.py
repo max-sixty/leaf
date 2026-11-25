@@ -11,10 +11,10 @@ from urllib.parse import urlsplit
 
 from .files import latest_revision
 from .findings import Finding, element_at
+from .json_block import json_value
 from .refusals import Refused
 from .registry.schema import (
     json_validator,
-    json_value,
 )
 from .revision_artifact import read_revision, revision_history
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR

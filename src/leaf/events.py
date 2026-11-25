@@ -525,7 +525,7 @@ def rewritten(message: dict, edit: dict) -> dict:
     """What a rewrite changes of a message as a thread holds it (`message_reading`):
     its words, and `edited`, when it was last rewritten and what it said before, so a
     reader of the thread alone sees which answers were about other words. A rewrite to
-    no words deletes the message (`deleted` in thread/model.js)."""
+    no words deletes the message (`deleted` in state/thread/model.js)."""
     return {
         "text": edit["text"],
         "edited": {
@@ -552,40 +552,26 @@ def message_reading(event: dict, undo: dict | None) -> dict:
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. The user rewriting a covered
-    message, or undoing such a rewrite, retires every summary covering it, and so
-    does the user taking back a message its thread held when the summary was
-    written, which its words or label may report wherever the message stood: a
-    summary the agent wrote cannot account for the user's change. The agent's own
-    edit leaves the summary standing, since the agent knows what it changed and
-    says whether the summary still holds (`thread.cmd_edit`). A summary folds no
-    progress: the thread shows only the steps nothing has superseded, as working
-    messages (`progress_completions`).
+    A summary stands until a later one overlapping it replaces it whole, or until a
+    message bounding its range leaves the thread. An edit or a take-back of any other
+    message, the user's or the agent's, leaves it standing as written: the agent hears
+    of the change, judges whether the summary still holds, and summarizes the range
+    again where it doesn't. `thread.cmd_edit` names the summary over a message the
+    agent edits, and the handling of the user's edit in a thread that holds a summary
+    asks the agent to check it (the kernel registry's `edit` clauses). The maintainer
+    chose this. Retiring a summary on the user's change,
+    which a later change might reach for so that no summary hides the user's words,
+    decides for the agent whether the summary still holds, as root `AGENTS.md`'s
+    "Leaf's role" says code doesn't. A summary folds no progress: the thread shows
+    only the steps nothing has superseded, as working messages
+    (`progress_completions`).
     """
-    edits = {}
-    edited = {}
-    said = {}
-    taken = {}
     written = {}
     for event in events:
-        if event["kind"] in kinds_declaring("message"):
-            # The thread a message was said in, and when, whatever became of it since.
-            thread = said[event["parent"]][0] if "parent" in event else event["id"]
-            said[event["id"]] = (thread, event["seq"])
-        elif event["kind"] == "edit" and event["author"] != "agent":
-            edited[event["id"]] = event["message"]
-            edits[event["message"]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in edited:
-            edits[edited[event["undoes"]]] = event["seq"]
-        elif event["kind"] == "undo" and event["undoes"] in said:
-            thread, made = said[event["undoes"]]
-            taken.setdefault(thread, []).append((made, event["seq"]))
-        elif event["kind"] == "summary" and event["thread"] in threads:
+        if event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
     return {
-        thread_id: _thread_summaries(
-            thread, written.get(thread_id, []), edits, taken.get(thread_id, [])
-        )
+        thread_id: _thread_summaries(thread, written.get(thread_id, []))
         for thread_id, thread in threads.items()
     }
 
@@ -618,9 +604,7 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
-def _thread_summaries(
-    thread: dict, summaries: list, edits: dict, taken: list
-) -> list[dict]:
+def _thread_summaries(thread: dict, summaries: list) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
     # The summaries in force cover disjoint messages, so each message names the one
@@ -637,10 +621,6 @@ def _thread_summaries(
         for replaced in {holder[identity] for identity in covers if identity in holder}:
             for identity in active.pop(replaced)["covers"]:
                 del holder[identity]
-        if any(edits.get(identity, 0) > event["seq"] for identity in covers) or any(
-            made < event["seq"] < undone for made, undone in taken
-        ):
-            continue
         active[event["id"]] = {
             "id": event["id"],
             "seq": event["seq"],
@@ -777,6 +757,40 @@ def owed_turns(thread: dict) -> list[dict]:
     obligations open on the thread, so the panel, its filters and the margin read
     one answer to whose turn it is."""
     return [] if thread["answered_by"] else unanswered_turns(thread)
+
+
+def unlined(thread: dict, through: int | None = None) -> list[dict]:
+    """The user's turns waiting in `thread` (`unanswered_turns`), oldest first, while
+    the thread stands open and the agent has said nothing in it since the oldest of
+    them, by a message or a rewrite of one: a round that awaits the line fork's line
+    (`forks`); else none.
+
+    `through` reads the round as it stood at that seq, as the follower reads it as
+    its newest turn arrived (`forks.look`) and a delivery as the message it carries
+    did (`thread_context.batch_threads`). That reading counts the agent's messages
+    alone: the fold keeps only a message's latest rewrite, so counting rewrites
+    would let a later one change what an earlier moment read, and the follower and
+    a delivery must read each round the same way for good. A rewrite counts where
+    it matters, in the reading that decides whether the line goes in."""
+    if thread["resolved"]:
+        return []
+    waiting = [
+        turn
+        for turn in unanswered_turns(thread)
+        if through is None or turn["seq"] <= through
+    ]
+    if not waiting or any(
+        waiting[0]["seq"] < said and (through is None or said <= through)
+        for message in spoken_turns(thread)
+        if message["author"] == "agent"
+        for said in (
+            (message["seq"], message.get("edited", {}).get("seq", 0))
+            if through is None
+            else (message["seq"],)
+        )
+    ):
+        return []
+    return waiting
 
 
 def seat_root(thread: dict) -> str | None:

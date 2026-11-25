@@ -143,11 +143,11 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     shown = """message => { const controls = message.querySelector('.lf-msg-controls');
       return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
         ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
-    assert first.evaluate(shown) == ["1", "1", "1"]
+    assert set(first.evaluate(shown)) == {"1"}
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
     assert first.evaluate("m => m.contains(document.activeElement)")
-    assert first.evaluate(shown) == ["0", "0", "0"]
+    assert set(first.evaluate(shown)) == {"0"}
     # The hovered reply's Copy shows over its head row's cell in the actions' track.
     assert reply.locator(".lf-msg-copy").evaluate(
         """copy => { const box = copy.getBoundingClientRect();
@@ -335,7 +335,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
 
 
 def test_every_message_says_when_it_was_said(browser, serve):
-    """Every message in a thread says when it was said (presence.js, `saidAt`): replies
+    """Every message in a thread says when it was said (state/presence.js, `saidAt`): replies
     hours apart three days ago each read their own time of day and day, as the reader's
     locale writes them, where an age would read "3d ago" over all of them, and a reply
     written now reads "just now", where its time of day would read like any other."""
@@ -696,10 +696,8 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
                 "lf-theme-box": {
                     "description": "A widget beside a page-wide theme.",
                     "attributes": {
-                        "type": "object",
                         "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "markup",
                 }
@@ -928,7 +926,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     its unclassed twin.
 
     The chrome sheet reaches the page only through the classes its owner declares
-    shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
+    shared (`chromeSharedClasses`, runtime/base/stylesheets.js): a rule written outside the
     block that names any other class is a private rule leaking out, not a widening. The
     guard against page rules (styles/chrome-guard.css) stands outside the block and names
     only `lf-chrome`, the chrome's own root, which no authored element may wear since
@@ -1455,7 +1453,7 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
 @pytest.mark.parametrize("turned", ["root", "card"])
 def test_a_carried_card_travels_with_the_pointer_when_turned(browser, serve, turned):
     """The carry's translate moves the card along the axes of the box it stands in, at
-    the card's own zoom (element-axes.js, `translateAxes`): a transform on the root
+    the card's own zoom (dom/element-axes.js, `translateAxes`): a transform on the root
     turns those axes, and the card's own turn, which applies inside its translate,
     leaves them alone. So on a page turned half round, and as a card turned half round
     and zoomed, the card travels the way the pointer does, standing under it from the

@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import replace
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import comment as open_thread
 from interact_support import (
     owed_answers,
@@ -17,6 +18,7 @@ from interact_support import (
     revision_root,
     running_http_server,
     served_state_error,
+    vendored_at_another_protocol,
 )
 
 import leaf_website as website_server
@@ -25,11 +27,10 @@ from leaf.file_bindings import bind_file
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
-from leaf.registry.storage import LAYER, layer_record, load_registry
+from leaf.registry.storage import load_registry
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.runtime_selection import executing, serving_runtime
-from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
 from leaf_dev.commands.journey import _journey as journey
@@ -383,10 +384,7 @@ def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tm
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
-    record = layer_record(published)
-    (published / LAYER_FILE).unlink()
-    assert record is not None
-    LAYER.write(published / LAYER_FILE, {**record, "protocol": 999})
+    vendored_at_another_protocol(published, newer=True)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
     root = f"http://127.0.0.1:{httpd.server_address[1]}/examples/decision"
@@ -409,6 +407,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     # answered by the host's agent.
     monkeypatch.setenv("LEAF_AGENT", "Claude")
     monkeypatch.setenv("LEAF_SESSION_ID", "authoring-session")
+    hooks_run_this_tree("authoring-session")
     opened = open_thread(published, "--text", "Which plan reads best?")
     assert opened.exit_code == 0, opened.output
     monkeypatch.delenv("LEAF_AGENT")
@@ -531,6 +530,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert forged.value.code == 400
         monkeypatch.setenv("LEAF_AGENT", "Agent")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
+        hooks_run_this_tree("leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",

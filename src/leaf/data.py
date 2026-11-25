@@ -32,8 +32,8 @@ from .data_contracts import (
     working_data_bindings,
 )
 from .files import file_stamp, replace_files
+from .json_block import json_value
 from .page_memory import memo
-from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_SOURCE_NAME
 from .service import PageTransaction
@@ -77,14 +77,8 @@ def source_file(page_dir: Path, source: str) -> Path:
 
 
 def _source_names(page_dir: Path) -> list[str]:
-    """Each source the page holds a publication file for."""
-    try:
-        names = [entry.name for entry in (page_dir / DATA_DIR).iterdir()]
-    except FileNotFoundError:
-        return []
-    return sorted(
-        name.removesuffix(".json") for name in names if name.endswith(".json")
-    )
+    """Each source the page holds a publication file of this shape for."""
+    return sorted(path.stem for path in PUBLICATION.glob(page_dir / DATA_DIR))
 
 
 def read_contracts(page_dir: Path) -> dict[str, str]:
@@ -104,7 +98,11 @@ def write_data(page_dir: Path, publications: dict[str, dict]) -> None:
     (page_dir / DATA_DIR).mkdir(exist_ok=True)
     replace_files(
         [
-            (source_file(page_dir, source), PUBLICATION.encode(publication), False)
+            (
+                PUBLICATION.file(source_file(page_dir, source)),
+                PUBLICATION.encode(publication),
+                False,
+            )
             for source, publication in publications.items()
         ]
     )
@@ -145,7 +143,7 @@ class _Publications:
 def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
     """The source's publication and its value's revision, or None before one exists."""
     path = source_file(page_dir, source)
-    stamp = file_stamp(path)
+    stamp = file_stamp(PUBLICATION.file(path))
     held = memo(page_dir, _Publications).held
     if stamp is None:
         held.pop(source, None)
@@ -295,7 +293,7 @@ def cmd_data_clear(page_dir: Path, source: str) -> dict:
         raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir):
         try:
-            source_file(page_dir, source).unlink()
+            PUBLICATION.file(source_file(page_dir, source)).unlink()
             cleared = True
         except FileNotFoundError:
             cleared = False

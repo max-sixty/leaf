@@ -10,17 +10,26 @@ the page as a whole:
 ```bash
 leaf thread create <page> --quote "<passage in the current page>" --obligation --text "…?"
 leaf thread create <page> --section <element-id> --text "…"
-leaf thread create <page> --section <diagram-id> --part node:<source-id> --text "…"
+leaf thread create <page> --section <visual-id> --part <part-id> --text "…"
 leaf thread create <page> --obligation --text "…?"
 ```
 
-For a diagram, percent-encode the entire source id in the part token:
-`node:Line%20Item` names `Line Item`.
+A visual is a widget whose declaration in `leaf page vocabulary <page>` has a `visual`
+key, such as a diagram or a chart. Where that key gives `parts` or `prefixes`, a thread
+can name one part of the visual. Copy a part's id from `leaf page state <page>`, which
+lists the parts a thread can name in each visual as `parts` on the visual's entry in
+`elements`, each with its `id` and `label`. The list appears once `page check --render`,
+or the page's server after you hand the page over, has read the version the page shows
+with the data it holds now. So run the check if the visual has no `parts`, as after you
+save the page or update its data. A visual lists only the parts it had drawn when the
+check read it. A part it finds only when asked, such as a chart's single data point, or
+draws only while a view of it is open, is missing from the list; name such a part as the
+widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
-words from the page's HTML that the user can see, within one widget part. The
-command refuses a quote that matches more than one place, or is retired, replaced,
-or crosses a boundary, rather than open a thread with no anchor. The thread's id is
+words the user can see, within one widget part, including words a page's script
+draws. The command refuses a quote that matches more than one place, or is retired,
+replaced, or crosses a boundary, rather than open a thread with no anchor. The thread's id is
 the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
 `reopen` take the id of any message in the thread.
@@ -28,7 +37,9 @@ the `id` of its opening comment, in the record the command prints.
 Link directly to a thread by adding `thread=<message-id>` to the page URL's query
 parameters, preserving any existing access parameters: `?thread=<message-id>`, or
 `&thread=<message-id>` when a query is already present. The link takes the user to
-the thread's usual card or reader, including a page-level thread with no anchor. With
+the thread's usual card or reader, including a page-level thread with no anchor, and
+a reply's id lands them on that reply. A message's Copy link copies such a link, so
+one the user pastes names a message by its id. With
 an `#element-id` as well, the page lands on that element and the thread opens without
 taking the user there. Input during startup cancels the automatic opening. The page
 keeps `thread=` in its own address while a thread stands open, so a link the user
@@ -147,7 +158,7 @@ reply on a revision, list each open thread whose anchor no longer resolves and w
 revision moves it: to its section if that survives, otherwise detached.
 
 Where you know what replaced the passage, move the thread onto it in the reply that
-reports the change, with `--section`, narrowed by `--quote` or, in a diagram,
+reports the change, with `--section`, narrowed by `--quote` or, in a visual,
 `--part`:
 
 ```bash
@@ -214,7 +225,8 @@ The text holds the question, what is true of every option and your
 reason; each card holds what is true of its option alone, such as what choosing it
 does and costs. The choice needs no heading or group round it. Title each option by
 what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
-question holds").
+question holds"). In the titles, as in your text, “I” means you and “you” the user:
+“Hold it until you've read it”, not “Hold it for my review”.
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'
@@ -363,7 +375,7 @@ leaf thread summarize <page> --from <first-message-id> --through <last-message-i
 Either form takes `--label <name>` where the range has a name worth giving it; the
 thread shows the name in bold ahead of the summary's words.
 
-The user rewriting a message inside a summary, or taking back a message the thread
-held when you wrote it, cancels that summary, words or label, so it cannot hide their
-change. Your own edit leaves the summary standing, and `thread edit` names it, so
-summarize the range again where your edit changes what the summary reports.
+A summary stands as written when a message it folds is rewritten or taken back, by
+the user or by you, so summarize the range again where the change alters what the
+summary reports. A delivery's `summaries` list the messages each one folds, and
+`thread edit` names the summary over a message you edit.

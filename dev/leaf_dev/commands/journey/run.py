@@ -2,8 +2,7 @@
 the page's own record and checked.
 
     uv run leaf-dev journey run TARGET [--browser | --http] [--release RELEASE]
-                                   [--sandbox] [--preview]
-                                   [--case waiting|working]
+                                   [--sandbox] [--case waiting|working]
 
 TARGET names what answers the user's release ask and the steps around it, which
 `_journey`'s header describes:
@@ -20,8 +19,7 @@ TARGET names what answers the user's release ask and the steps around it, which
 - an origin such as `https://leaf.page`: the deployed website, at `--release` or
   whichever release it serves.
 
-`--sandbox` runs the session's shell commands in its harness's sandbox; `--preview`
-has Codex serve the page with the canonical `leaf-dev preview --user`.
+`--sandbox` runs the session's shell commands in its harness's sandbox.
 
 The JSON on stdout is the journey's sample (`User.sample`). Each sample is also
 kept on the machine that ran it (`samples_path`), and `leaf-dev journey chart`
@@ -88,7 +86,6 @@ def target_session(
     release: str | None,
     *,
     sandbox: bool,
-    preview: bool,
 ) -> Generator[tuple[User, dict, Callable[[], None]]]:
     """The user at the page TARGET answers, what names TARGET in the journey's
     output (`target` the same across runs, as a local server's `origin` is not), and
@@ -109,9 +106,8 @@ def target_session(
             from leaf_dev.commands.journey._codex import answering
 
             assert transport is not None
-            answered = answering(browser, transport, preview=preview, sandbox=sandbox)
+            answered = answering(browser, transport, sandbox=sandbox)
             named |= {"transport": transport}
-            named |= {"preview": True} if preview else {}
             named |= {"sandbox": True} if sandbox else {}
         with answered as (user, run):
             yield user, named, run
@@ -165,11 +161,6 @@ def target_session(
     "harness's sandbox, configured as the README says.",
 )
 @click.option(
-    "--preview",
-    is_flag=True,
-    help="On a codex target, serve the page with `leaf-dev preview --user`.",
-)
-@click.option(
     "--case",
     type=click.Choice(CASES),
     default="waiting",
@@ -187,7 +178,6 @@ def journey(
     target: str,
     release: str | None,
     sandbox: bool,
-    preview: bool,
     case: str,
     browser: bool | None,
 ) -> None:
@@ -203,10 +193,6 @@ def journey(
     harness = HARNESS_TARGETS[target].harness if target in HARNESS_TARGETS else None
     if sandbox and harness not in ("claude-code", "codex"):
         raise click.UsageError("--sandbox is an option of claude-code and codex")
-    if preview and harness != "codex":
-        raise click.UsageError("--preview is an option of the codex targets")
-    if preview and sandbox:
-        raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
     website = harness is None
     if website and case == "working":
         raise click.UsageError("a website's journey has no terminal to start a turn")
@@ -222,7 +208,6 @@ def journey(
                 target,
                 release,
                 sandbox=sandbox,
-                preview=preview,
             )
         )
         user.case = case

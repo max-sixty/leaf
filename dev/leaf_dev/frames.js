@@ -5,7 +5,7 @@
  * `lfFrames.begin(read)` calls `read()` in a task each frame posts once its frame
  * callbacks have run, so the reading shows what that frame drew. A read inside a frame
  * callback of the reader's own runs before the runtime's rendering pass for that frame
- * (browser/runtime/rendering.js) and sees the frame before. An input the browser
+ * (browser/runtime/lib/frame-pass.js) and sees the frame before. An input the browser
  * handles between the frame and that task, as Firefox handles one ahead of other
  * tasks, changes a layout no frame has drawn yet, so that reading is dropped.
  *

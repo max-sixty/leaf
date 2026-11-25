@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     COMMAND_SUBJECTS,
     FLOW_PAGE,
@@ -50,17 +51,18 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import todos as todos_model
-from leaf.findings import Finding, Rejected
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.structure import SourceDocument
-from leaf.thread_context import logged_fragment, thread_digest
-from leaf.validation import composition as validation_model
-from leaf.validation.admission import (
+from leaf.authored_checks.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.validation.instances import question_errors, reference_errors
+from leaf.authored_checks.declarations import declaration_advice
+from leaf.findings import Finding, Rejected
+from leaf.markup_checks.instances import question_errors, reference_errors
+from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
+from leaf.registry.validation import incoming_registry
+from leaf.structure import SourceDocument
+from leaf.thread_context import logged_fragment, thread_digest
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -391,10 +393,7 @@ def test_registry_examples_validate(page_dir):
     assert any(
         tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
-    assert (
-        validation_model.declaration_advice(registry, registry, "vendored registry")
-        == []
-    )
+    assert declaration_advice(registry, registry, "vendored registry") == []
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
@@ -407,7 +406,7 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     )
 
     assert (
-        validation_model.declaration_advice(
+        declaration_advice(
             {"lf-diff": {}, "lf-code": {}}, registry, "independent examples"
         )
         == []
@@ -443,7 +442,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     seen — a gap that reads as coverage, since the widget's own tests are green.
     examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = set().union(
         *(
@@ -513,7 +512,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     titled = [
         tag
         for tag, entry in registry.items()
@@ -526,7 +525,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     """`class` and `style`, the page's styling hooks, and the attributes that describe
     any element and record nothing, stand on a widget as on any element; Leaf's own
     `data-lf-` namespace and `hidden` still meet its schema."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
 
     def refused(attributes):
         # What the widget's attribute schema says; `data-lf-` names are the runtime's
@@ -915,7 +914,7 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
     planned = runner.invoke(
         cli_model.cli,
         ["task", "plan", str(page_dir), "--text"]
-        + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
+        + ['[{"depth": 0, "todo": "Check the rows"}]'],
     )
     assert planned.exit_code == 0, planned.output
 
@@ -927,6 +926,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     watcher the panel names — and every publication stay the hub's, untouched
     by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
+    hooks_run_this_tree("hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
     _tasks_version(page_dir, "active")
@@ -945,6 +945,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
@@ -957,6 +958,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     indexed = reply("indexing done")
     assert indexed.exit_code == 0, indexed.output
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    hooks_run_this_tree("worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
@@ -1103,6 +1105,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
 
     opened = comment(page_dir, "--text", "The index is still pending.")
@@ -1203,6 +1206,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
 
     before = events_model.read_events(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    hooks_run_this_tree("worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     foreign = CliRunner().invoke(
         cli_model.cli,
@@ -1260,6 +1264,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
 
     def reply_for(event_id, text):
         result = CliRunner().invoke(
@@ -1578,6 +1583,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     opened = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "U1"},
@@ -1714,6 +1720,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     message = append_carried_log_record(
         page_dir,
         {

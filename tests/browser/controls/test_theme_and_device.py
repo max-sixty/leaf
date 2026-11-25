@@ -162,7 +162,8 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     context = browser.new_context(reduced_motion="no-preference")
     page = open_page(browser, serve(source), context=context)
     result = page.evaluate("""async () => {
-      const owner = await window.__lfWidgetApi();
+      const {backgroundFlash} = await window.__lfWidgetApi();
+      const {motionTime} = await import('/runtime/lib/motion-timing.js');
       const chrome = document.querySelector('.lf-chrome');
       const arrival = document.createElement('button');
       arrival.className = 'lf-margin-face';
@@ -170,13 +171,12 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const {agentArrivalDuration} = await window.__lfCheckApi();
-      const animation = owner.backgroundFlash(document.querySelector('#subject'));
+      const animation = backgroundFlash(document.querySelector('#subject'));
       const played = animation.effect.getTiming().duration;
       animation.finish();
       arrival.remove();
-      return {cssArrival, cssFold, played,
-        fold: owner.foldDuration(), agent: agentArrivalDuration()};
+      return {cssArrival, cssFold, played, fold: motionTime('--lf-motion-fold'),
+        agent: motionTime('--lf-motion-agent-arrival')};
     }""")
     assert result == {
         "cssArrival": "0.91s",
@@ -210,7 +210,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 
     page.emulate_media(reduced_motion="no-preference")
 
-    # A glide shares a frame the page already asked for (rendering.js), so with none
+    # A glide shares a frame the page already asked for (lib/frame-pass.js), so with none
     # asked for, its frames are the ones held here.
     rendered(page)
     page.evaluate(
@@ -353,7 +353,7 @@ def test_a_code_block_wraps_its_lines_whatever_holds_it(browser, serve, subtests
 
 
 def test_a_wrapped_row_hangs_from_its_line_s_indent_behind_a_mark(browser, serve):
-    """Each line of a code block stands in a box of its own (code-lines.js), so the
+    """Each line of a code block stands in a box of its own (readings/code-lines.js), so the
     rows a long line wraps onto start two columns past that line's own indent, and the
     first of those columns holds a mark on each of them, which a line that fits never
     shows (reading.css, `pre`). The boxes change no text: the block reads, selects and
@@ -688,7 +688,7 @@ CONTRAST = """([selector, property]) => {
 # `offer`), into the page's `#controls`: Leaf's own controls, which wear their faces
 # with a theme or without one.
 LEAF_CONTROLS = """async () => {
-    const {offerAction, offer} = await window.__lfWidgetApi();
+    const {offerAction, offer} = await import("/runtime/lib/controls.js");
     const press = offerAction('word', '', 'Recompute');
     press.id = 'press';
     const field = offer('input', '', undefined, 'text');
@@ -735,7 +735,7 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, readin
     )
     page.evaluate(LEAF_CONTROLS)
     page.evaluate("""async () => {
-      const {offerAction} = await window.__lfWidgetApi();
+      const {offerAction} = await import("/runtime/lib/controls.js");
       const commit = offerAction('commit', '', 'Commit');
       commit.id = 'commit';
       const done = offerAction('commit', '', 'Done');
@@ -948,8 +948,10 @@ def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
     assert evaluate_probe(page, "unreadSyntax") == []
 
 
+# A framework's reset in the layer Tailwind keeps it in, beside the author's own base
+# rules.
 RESET = (
-    "@layer reset { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
+    "@layer base { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
     " button, input { background: transparent; border-radius: 0; font: inherit;"
     " color: inherit; } }"
 )

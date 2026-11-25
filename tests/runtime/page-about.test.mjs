@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { claimantDiagnostics } from "/runtime/page-about.js";
+import { claimantDiagnostics } from "/runtime/panel/page-about.js";
 
 const held = {
   agent: "Claude",

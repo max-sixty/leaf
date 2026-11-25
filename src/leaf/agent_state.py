@@ -14,14 +14,16 @@ is live and whether an invalid source save leaves the last valid version active.
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
 registry leaves no active document or readable vocabulary; its
-source error still remains readable. A page at a protocol this Leaf cannot
-serve (`layer.incompatible_layer`) is still read, its `source.error` the refusal
-naming `page init`: the reading gives the agent the page's context, and the error
-says not to act on it before `page init`.
+source error still remains readable. `page state` refuses a page at a protocol
+this Leaf cannot serve and names its repair, since reading the page's layer record
+refuses it (`registry.storage.layer_record`). Printing the reading anyway, with the
+refusal as `source.error`, would give the agent the page's context, but computed from
+a log this Leaf may misread.
 """
 
 from pathlib import Path
 
+from .authored_checks.admission import logged_id
 from .construction import constructed_content
 from .data import data_errors
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
@@ -32,11 +34,19 @@ from .events import bare_reaction, is_reaction
 from .file_bindings import granted_files
 from .files import revision_path
 from .passages import page_passages
-from .projection import ThreadMarkupReading, retirement_outcomes
+from .projection import (
+    AuthoredOrders,
+    StateProjection,
+    ThreadMarkupReading,
+    folded_positions,
+    retirement_outcomes,
+)
 from .publishing import authored_digest, authored_files
 from .refusals import Refused
+from .registry.contract import state_specs
 from .registry.storage import layer_metadata
-from .revision_artifact import active_enclosing
+from .render_reading import drawn_visuals
+from .revision_artifact import active_enclosing, read_revision
 from .revisioning import activate_source
 from .schema import DATA_DIR
 from .served_state.context import read_page
@@ -44,7 +54,6 @@ from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .user_views import read_user_views, viewed_at
-from .validation.admission import logged_id
 from .work import page_subject
 
 # How many of a thread's messages one `page state PAGE MESSAGE` prints by default.
@@ -193,23 +202,71 @@ def _base_state(
     }
 
 
+def _orders(
+    record: dict, orders: AuthoredOrders, projection: StateProjection, registry: dict
+) -> dict | None:
+    """Each position verb the element `record` owns → container id → its units in
+    the order the page draws them (`folded_positions`), or None for an element that
+    records no positions. A version that changes a container writes each moved unit
+    where this order puts it (`package-data.md`, "User state")."""
+    owner = record["attrs"].get("id")
+    specs = [
+        (verb, spec["record"])
+        for verb, spec in state_specs(registry.get(record["tag"], {}))
+        if (spec.get("record") or {}).get("kind") == "position"
+    ]
+    if owner is None or not specs:
+        return None
+    return {
+        verb: folded_positions(owner, verb, position, orders, projection)
+        for verb, position in specs
+    }
+
+
+def _element(
+    record: dict,
+    thread: str | None,
+    order: dict | None,
+    identity=None,
+    parts: list[dict] | None = None,
+) -> dict:
+    element = {
+        "tag": record["tag"],
+        "id": identity or record["attrs"].get("id"),
+        "line": record["line"],
+        "thread": thread,
+    }
+    if order is not None:
+        element["order"] = order
+    if parts is not None:
+        element["parts"] = parts
+    return element
+
+
 def _apply_document_state(
     state: dict,
     document: DocumentReading,
     stored_data: dict,
     registry: dict,
     facts: EventFacts,
+    drawn: dict[str, dict],
 ) -> None:
+    """The version's elements, each visual among them with the `parts` it drew where
+    the page's render reading read this version with the data the page holds now
+    (`render_reading.drawn_visuals`), and the state in force on them."""
     parser = document.document
     projection = document.projection
     state["title"] = parser.authoring.title.strip()
+    orders = AuthoredOrders(parser.by_id, registry)
     state["elements"] = [
-        {
-            "tag": record["tag"],
-            "id": record["attrs"].get("id"),
-            "line": record["line"],
-            "thread": None,
-        }
+        _element(
+            record,
+            None,
+            _orders(record, orders, projection, registry),
+            parts=visual["parts"]
+            if (visual := drawn.get(record["attrs"].get("id", "")))
+            else None,
+        )
         for record in parser.lf_elements
     ]
     in_force = projection.actions.items()
@@ -224,7 +281,7 @@ def _apply_document_state(
 
 
 def _apply_thread_state(
-    state: dict, thread: ThreadMarkupReading, facts: EventFacts
+    state: dict, thread: ThreadMarkupReading, registry: dict, facts: EventFacts
 ) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user
@@ -241,13 +298,14 @@ def _apply_thread_state(
     thread_actions = thread.projection
     thread_byid = thread.by_id
     thread_of = thread.thread_by_widget
+    orders = AuthoredOrders(thread_byid, registry)
     state["elements"] += [
-        {
-            "tag": record["tag"],
-            "id": widget,
-            "line": record["line"],
-            "thread": thread_of[widget],
-        }
+        _element(
+            record,
+            thread_of[widget],
+            _orders(record, orders, thread_actions, registry),
+            widget,
+        )
         for widget, record in thread_byid.items()
     ]
     state["elements"].sort(
@@ -332,17 +390,20 @@ def page_state(
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf page events` is how a decision
-    in force gets missed. So this holds the active revision's elements, the projection of
-    the user's current state and the reports in force on the agent channel,
-    authored measurements whose live source has run again
+    in force gets missed. So this holds the active revision's elements, each visual
+    with the parts it drew where the page's render reading read that revision with
+    the page's current data (`render_reading.drawn_visuals`), the projection of the
+    user's current state and the reports in force on the agent channel, authored
+    measurements whose live
+    source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, the obligations, the agent's
     to-dos among them, the two lists, On Me and On <agent>, that they and the workflows
     add up to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
-    selection from the reading /api/state serves (`read_served_page`), computed on
-    demand from the log, revision, registry, and source store — no derived reading is
-    stored, and none is folded a second time here, so there is no second copy of the
+    selection from the reading /api/state serves (`read_served_page`), with the parts,
+    computed on demand from the log, revision, registry, source store and render
+    reading — no derived reading is stored, and none is folded a second time here, so there is no second copy of the
     truth to reconcile.
 
     Every markup-derived reading is of the latest valid revision, because that
@@ -421,10 +482,19 @@ def page_state(
         view = browser["views"][str(active["revision"])]
         facts = EventFacts(page_dir, events, registry, browser["thread_memberships"])
         _apply_document_state(
-            state, reading.documents[active["revision"]], stored_data, registry, facts
+            state,
+            reading.documents[active["revision"]],
+            stored_data,
+            registry,
+            facts,
+            drawn_visuals(
+                page_dir,
+                read_revision(page_dir, active["revision"]).digest,
+                stored_data["version"],
+            ),
         )
         state["reports"] = view["reports"]
-        _apply_thread_state(state, reading.thread, facts)
+        _apply_thread_state(state, reading.thread, registry, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.

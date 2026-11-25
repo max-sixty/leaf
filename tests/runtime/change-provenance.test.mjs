@@ -4,10 +4,10 @@ import {
   savedAfter,
   versionProvenance,
   waitedWords,
-} from "/runtime/change-provenance.js";
-import { runtime } from "/runtime/context.js";
-import { loadMarkdown } from "/runtime/markdown.js";
-import { wordsText } from "/runtime/voice.js";
+} from "/runtime/features/change-provenance.js";
+import { runtime } from "/runtime/state/context.js";
+import { loadMarkdown } from "/runtime/lib/markdown.js";
+import { wordsText } from "/runtime/base/voice.js";
 
 const said = (provenance) => provenance.lines.map((line) => wordsText(line));
 // A message the server names, in the thread `thread`: a comment where it opened it.

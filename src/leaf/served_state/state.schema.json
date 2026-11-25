@@ -17,7 +17,7 @@
       "required": ["generation", "fingerprint"]
     },
     "reading": {
-      "description": "The token of the page's own facts this answer read (`served_state.reading`), which the `reading` a news answer names is compared with. No other page moves it.",
+      "description": "The token of the page's own facts this answer read (`page_inputs.join_reading`), which the `reading` a news answer names is compared with. No other page moves it.",
       "type": "string"
     },
     "release": {
@@ -77,7 +77,7 @@
           "additionalProperties": { "type": "string" }
         },
         "seen": {
-          "description": "The newest revision a tab showed the user while they were there, posted as they left (`read_state.seen_revision`), from which the browser counts what changed since (since-seen.js). Null before any, and on a hosted copy, whose reader is not the page's user.",
+          "description": "The newest revision a tab showed the user while they were there, posted as they left (`read_state.seen_revision`), from which the browser counts what changed since (host/since-seen.js). Null before any, and on a hosted copy, whose reader is not the page's user.",
           "anyOf": [{ "$ref": "#/$defs/Revision" }, { "type": "null" }]
         },
         "source_error": {
@@ -485,7 +485,7 @@
       "additionalProperties": false
     },
     "WorkKind": {
-      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/activity-words.js`).",
+      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/state/activity-words.js`).",
       "enum": [
         "working",
         "thinking",
@@ -673,7 +673,7 @@
       "additionalProperties": false
     },
     "PlanStep": {
-      "description": "One step of the plan (`plans.plan_reading`): plain, or naming an obligation, a to-do among them, whose title and standing it shows; `done` of `total` counts its children that ended done, dropped ones left out.",
+      "description": "One step of the plan (`plans.plan_reading`): a heading, which names no `item` and reads its standing from the records its steps name, or a step naming an obligation, a to-do among them, whose title and standing it shows, with the words a finished to-do's end gave as `detail`; `done` of `total` counts its steps that ended done, dropped ones left out.",
       "type": "object",
       "properties": {
         "title": { "type": ["string", "null"] },
@@ -699,6 +699,7 @@
           "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }]
         },
         "since": { "type": ["string", "null"] },
+        "detail": { "type": ["string", "null"] },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/PlanStep" } },
         "done": { "type": "integer" },
         "total": { "type": "integer" }
@@ -712,6 +713,7 @@
         "item",
         "running",
         "since",
+        "detail",
         "steps",
         "done",
         "total"
@@ -737,7 +739,7 @@
         },
         {
           "properties": { "form": { "const": "move" } },
-          "required": ["unit", "to"]
+          "required": ["unit"]
         },
         { "properties": { "form": { "const": "edit" } }, "required": [] },
         { "properties": { "form": { "const": "add" } }, "required": ["words"] },
@@ -1590,7 +1592,7 @@
                 "properties": {
                   "thread": { "type": "string" },
                   "message": {
-                    "description": "The message as its thread held it at the latest of the version's revisions it waited at (`event_facts.EventFacts.message_at`), which the browser reads as a thread reads a message (`thread/messages.js`, `messageWords`): its words then, `edited` by the rewrite then standing.",
+                    "description": "The message as its thread held it at the latest of the version's revisions it waited at (`event_facts.EventFacts.message_at`), which the browser reads as a thread reads a message (`records/thread/messages.js`, `messageWords`): its words then, `edited` by the rewrite then standing.",
                     "anyOf": [
                       { "$ref": "leaf:message/comment" },
                       { "$ref": "leaf:message/reply" }
@@ -1614,7 +1616,7 @@
       "additionalProperties": false
     },
     "Tail": {
-      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `layer-client.js`).",
+      "description": "What a page server sends a tab in place of a reading when the tab's request names, in `Leaf-Held-Basis`, the `browser.basis.key` of a reading it holds and the server still remembers that reading (`served_state.tail`). The browser applies `patch` to the reading `since` names and completes the whole answer from it (`completeState` in `transport/layer-client.js`).",
       "type": "object",
       "properties": {
         "since": {

@@ -36,7 +36,7 @@ from leaf import data as data_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
@@ -49,7 +49,7 @@ def thread_row(page, key):
     not the view standing open, and unfolding Resolved for a resolved thread folded
     there; a row the standing list holds in its place is drawn already. Its
     `.lf-row-end` says the thread's state. `key` may be the thread's id: a thread this
-    tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
+    tab started is keyed by the attempt that sent it (state/thread/model.js, `threadKey`)."""
     key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
@@ -65,21 +65,6 @@ def thread_row(page, key):
     return row
 
 
-def choose_threads_in_panel(page, on=True):
-    """Have this tab open threads about a passage in the panel, or with `on` false
-    beside their passages, as for a user who chose that on an earlier visit
-    (thread/threads-in-panel.js): the choice stored for the tab and read again, which
-    says nothing in the panel's field, as a reload doesn't."""
-    page.evaluate(
-        """async (on) => {
-          const api = await window.__lfCheckApi();
-          api.tabStore.set(api.THREADS_IN_PANEL_KEY, on ? "panel" : null);
-          api.restoreThreadsInPanel();
-        }""",
-        on,
-    )
-
-
 def open_panel_thread(page, thread_id):
     """Open the thread `thread_id` in the panel the way a reader finds it, and return its
     view, standing open: Threads, then its row, among the open threads or under
@@ -87,7 +72,7 @@ def open_panel_thread(page, thread_id):
     for threads (`choose_threads_in_panel`), so the tab makes that choice for one; a
     thread about the whole page opens there by itself. A thread already open there is left
     as it stands. A row is keyed by the thread's key, which for a thread this tab
-    started is the attempt that sent it (thread/model.js, `threadKey`), so the page's
+    started is the attempt that sent it (state/thread/model.js, `threadKey`), so the page's
     own reading finds it."""
     view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
     if view.count():
@@ -273,10 +258,8 @@ def _shadow_tree_widget(tag):
     declaration = {
         "description": "A project-supplied tree.",
         "attributes": {
-            "type": "object",
             "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,

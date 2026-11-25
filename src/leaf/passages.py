@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread create` writes one down
 # against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors the runtime's capture (passages.js) rather than
+# was never made, so this mirrors the runtime's capture (readings/passages.js) rather than
 # approximating it: the same skip list, the same block-boundary space, the same collapse,
 # the same caps.
 #
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 #               has drawn a picture.
 #   `retired-when`  the outcome under which this element leaves the page: a
 #               decided suggestion's losing slot. The browser builds its anchor pass's
-#               skip list from this key too (`quotable` in passages.js), so a reading
+#               skip list from this key too (`quotable` in readings/passages.js), so a reading
 #               given the log's outcomes drops here exactly what drops there — and a
 #               widget whose decision leaves nothing showing goes with its slots
 #               (settledAway there, `gone` here). Its values are also the vocabulary's
@@ -96,7 +96,7 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
 
 def _fence_words(state) -> None:
     """A message's fence shows the words on its opening line as its code's first line,
-    unless one word names the language of the code below (markdown.js,
+    unless one word names the language of the code below (lib/markdown.js,
     `fence_words`)."""
     for token in state.tokens:
         words = token.info.strip()
@@ -111,7 +111,7 @@ def _fence_words(state) -> None:
 @lru_cache(maxsize=3)
 def markdown_dialect(message: bool, html: bool = False):
     """The browser's safe Markdown dialect for one of its readings, with its linkify
-    and task lists (markdown.js, `makeMarkdown`; `renderMarkdown` says how the
+    and task lists (lib/markdown.js, `makeMarkdown`; `renderMarkdown` says how the
     readings differ). A thread message and a user-created child's words read as a
     message, and a Markdown body reads as a file. `html` keeps the raw HTML an
     agent's message holds (`message_markup`), which every other reading shows as
@@ -195,7 +195,7 @@ def markdown_dialect(message: bool, html: bool = False):
 
 def markdown_markup(source: str) -> str:
     """A Markdown body (`content: markdown`) as the browser paints it, read as
-    a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
+    a file (lib/markdown.js, `paintMarkdown`), as inert markup for passage reading and a
     revision's prepaint."""
     return markdown_dialect(False).render(source)
 
@@ -203,7 +203,7 @@ def markdown_markup(source: str) -> str:
 def message_markup(text: str) -> str:
     """The markup an agent's message draws: its Markdown read as a message, with the
     raw HTML in it kept, as the browser renders
-    it (markdown.js, `renderAuthoredMarkdown`). Every reading of the message's
+    it (lib/markdown.js, `renderAuthoredMarkdown`). Every reading of the message's
     elements, its check among them, parses this."""
     return markdown_dialect(True, html=True).render(text)
 
@@ -311,7 +311,7 @@ class _PassageParser:
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`). A
     decision retires a slot — the registry's `retired-when` names which outcome —
-    and the browser's anchor pass reads the same key (`quotable` in passages.js), so
+    and the browser's anchor pass reads the same key (`quotable` in readings/passages.js), so
     this reading drops it the same way. A decision that leaves its widget with nothing —
     a deletion accepted, an insertion refused — empties the wrapper too (`gone`),
     because an element showing nothing is one nobody can point at, however present its

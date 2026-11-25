@@ -113,7 +113,7 @@ def widget_groups(content: list, registry: dict):
     the innermost named group round it (`group_tags`), or None. The group's `label`
     (`gesture_words.element_name`) is the widget's prompt, and the group is where the
     obligation stands and going to it starts while it holds no other
-    (`obligations/place.js` in the browser); the registry requires both its id and its
+    (`records/obligations/place.js` in the browser); the registry requires both its id and its
     label. Python reads only the authored source, so a group the runtime draws holds no
     question. A widget set among words (`inline`), such as a suggestion, has none: its
     sentence and its own words name it.
@@ -367,7 +367,9 @@ def verb_answers(
     """Whether one answering verb's declared condition holds for this widget now.
 
     The condition reads current state and nothing else. `empty` asks the projected
-    containment the verb's position records leave; an attribute or value record reads
+    containment the verb's position records leave in its own containers (the record's
+    `within`); `every` asks for an action meeting `detail` at each member the widget
+    holds now; an attribute or value record reads
     through authored markup (`marks`, the document's `projection.attribute_marks`) as
     well as the fold, so a version that honors the answer keeps it answered and a
     cleared value opens the obligation again; any other verb answers while one of its
@@ -376,21 +378,43 @@ def verb_answers(
     condition = answer_verbs(entry)[verb]
     if not matches_when(replayed_attrs(rec, projection), condition.get("when")):
         return False
+    spec = entry["verbs"][verb]
     if empty := condition.get("empty"):
-        return container_empty(rec, empty, byid, registry, holders)
+        within = spec["record"]["within"]
+        return container_empty(rec, within, empty["when"], byid, registry, holders)
     owner = rec["attrs"].get("id")
+    if every := condition.get("every"):
+        return all(
+            meets(projection.actions.get((owner, unit, verb)), condition)
+            for unit in held_members(rec, every["member"], byid, holders)
+        )
     held = projection.actions.get((owner, owner, verb))
     if "detail" in condition:
-        return held is not None and all(
-            key in held[0]["detail"] and held[0]["detail"][key] == value
-            for key, value in condition["detail"].items()
-        )
-    spec = entry["verbs"][verb]
+        return meets(held, condition)
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
         value = folded_value(*held) if held else markup_value(owner, spec, byid, marks)
         return value not in (None, "", [])
     return held is not None
+
+
+def meets(held, condition: dict) -> bool:
+    """Whether an action in force (`held`) meets a condition's `detail`: every named
+    field equals its declared value in the action's detail, and with no `detail`,
+    that the action stands at all."""
+    return held is not None and all(
+        key in held[0]["detail"] and held[0]["detail"][key] == value
+        for key, value in condition.get("detail", {}).items()
+    )
+
+
+def held_members(owner: dict, tag: str, byid: dict, holders: dict[str, dict]):
+    """The ids of the `tag` elements whose widget is `owner` once position records in
+    force have moved them (`holders`), so a member a version adds joins the set
+    and one it removes leaves it."""
+    for unit, record in byid.items():
+        if record["tag"] == tag and holders.get(unit, record.get("holder")) is owner:
+            yield unit
 
 
 def obligation_answered(
@@ -582,13 +606,14 @@ def quoted_in(rec: dict, registry: dict) -> bool:
 
 def container_empty(
     owner: dict,
-    empty: dict,
+    within: str,
+    when: dict,
     byid: dict,
     registry: dict,
     holders: dict[str, dict],
 ) -> bool:
-    """Whether the one member container `empty` names inside `owner` holds no
-    vocabulary members under the projected holder relation.
+    """Whether the one `within` container inside `owner` whose attributes match
+    `when` holds no vocabulary members under the projected holder relation.
 
     A predicate over the same containment the position records change, so undoing
     or superseding one moves the arrangement and the answer in one operation.
@@ -610,9 +635,9 @@ def container_empty(
     containers = [
         record
         for record in byid.values()
-        if record["tag"] == empty["within"]
+        if record["tag"] == within
         and inside(record, owner)
-        and matches_when(record["attrs"], empty["when"])
+        and matches_when(record["attrs"], when)
     ]
     if len(containers) != 1:
         return False

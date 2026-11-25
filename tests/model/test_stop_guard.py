@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -71,6 +72,7 @@ from leaf import thread as thread_model
 from leaf.json_block import read_json_block
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from leaf.service import PREVIEW
 
 
 def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differs():
@@ -117,6 +119,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
     try:
         assert page_state(page_dir)["listening"]
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "harness-owner")
+        hooks_run_this_tree("harness-owner")
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
@@ -264,7 +267,9 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(
     # Presence is the whole reading. The serve path's user raises on a preview
     # file it cannot parse, and this guard fails open by saying nothing, so a
     # user here would take every page the session holds down without a word.
-    (claimed / schema_model.PREVIEW_FILE).write_text("{not json", encoding="utf-8")
+    PREVIEW.file(claimed / schema_model.PREVIEW_FILE).write_text(
+        "{not json", encoding="utf-8"
+    )
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -537,11 +542,10 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     record = registry_storage.layer_record(claimed)
-    layer = claimed / schema_model.LAYER_FILE
-    layer.unlink()
+    (claimed / schema_model.LAYER_FILE).unlink()
     assert record is not None
-    registry_storage.LAYER.write(
-        layer, {**record, "packages": [*record["packages"], "./moved-package"]}
+    registry_storage.write_layer(
+        claimed, {**record, "packages": [*record["packages"], "./moved-package"]}
     )
     # Without this the test passes for the wrong reason: it has to be a page
     # whose layer the current Leaf really does refuse.

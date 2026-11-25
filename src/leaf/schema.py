@@ -73,15 +73,25 @@ _RECORD_BODY = {
     "required": ["kind"],
     "additionalProperties": False,
 }
+# A value record may also name the element's `property` that holds the value in the
+# browser, and the `event` the element says a change of it with, `change` unless
+# named (`RECORD_BINDING`, host/element-integration.js "Recorded properties").
 _RECORD_VALUE = {
     "type": "object",
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+        "event": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9:._-]*$"},
     },
     "required": ["kind", "attr"],
+    "dependentRequired": {"event": ["property"]},
     "additionalProperties": False,
 }
+# The members of a record that bind it to the element in the browser. They say how
+# the page's element holds the state, not what the state is or where it reads in
+# markup, so no fold reads them (`registry.contract.recorded`).
+RECORD_BINDING = frozenset({"property", "event"})
 
 # A `when` predicate selects instances by string attribute values or, with a
 # boolean, by an attribute's presence or absence. One condition shape serves
@@ -101,8 +111,10 @@ AWAITING_CONDITION = {
 # the condition its current state meets. An empty condition means the verb's state
 # stands (a non-empty attribute or value record, otherwise an action in force). `when`
 # narrows the verb to instances whose attributes match; `empty` holds when the one
-# member container it names inside the widget is left with no members by the current
-# positions. One map, so every answer is a reading of state the fold already keeps.
+# container of the verb's position record (`within`) inside the widget that its `when`
+# selects is left with no members by the current positions; `every` holds when each
+# `member` element the widget holds has an action of the verb in force at its own id.
+# One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -114,11 +126,16 @@ ANSWERED_SCHEMA = {
             "detail": {"type": "object", "minProperties": 1},
             "empty": {
                 "type": "object",
+                "properties": {"when": AWAITING_CONDITION},
+                "required": ["when"],
+                "additionalProperties": False,
+            },
+            "every": {
+                "type": "object",
                 "properties": {
-                    "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-                    "when": AWAITING_CONDITION,
+                    "member": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
                 },
-                "required": ["within", "when"],
+                "required": ["member"],
                 "additionalProperties": False,
             },
         },
@@ -149,7 +166,10 @@ REFERENCE_SCHEMA = {
 # A custom detail carries exactly the keys its declaration spells. Field meanings
 # such as `resolves` read those declarations, so patternProperties and combinators
 # cannot admit unnamed keys. `registry.schema.check_schema` validates the nested
-# schemas and the standard keywords left unrestricted here.
+# schemas and the standard keywords left unrestricted here. A declaration may leave
+# out `type` and `additionalProperties`: composition writes them in
+# (`registry.contract.complete_declarations`), so every composed detail has both, and
+# one that writes another value for either is refused.
 _VERB_DETAIL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -167,6 +187,9 @@ _VERB_DETAIL_SCHEMA = {
 # user writes it. The writers differ in what their state may be, not its shape. The
 # served state hands the browser each admitted event's verb in this shape, and the
 # browser build generates its type from this schema (`build/browser/contract-types.mjs`).
+# A declaration may leave out `unit` and a record's `kind`: composition writes each
+# default in (`registry.contract.complete_declarations`), so this schema requires both
+# and every reader finds them.
 VERB_SCHEMA = {
     "type": "object",
     "properties": {
@@ -242,6 +265,9 @@ VERBS_SCHEMA = {
     "additionalProperties": VERB_SCHEMA,
 }
 # A widget's obligation is answered by its own state (`value` and `answered`).
+# Composition writes `answered` wherever a declaration names a `value` and leaves it
+# out (`registry.contract.complete_declarations`), so every reader finds it. This
+# schema doesn't require it, so that an `awaits` naming no `value` is refused for that.
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -251,7 +277,7 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["value", "answered"],
+    "required": ["value"],
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -261,6 +287,16 @@ INSTRUCTIONS_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": {"type": "string", "pattern": r"\S"},
 }
+_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
+# The keys of an input (`inputs`) that bind it. Each names the attribute whose value
+# binds the input on an element: `source` names the attribute holding a page source's
+# id, and `reference` the `refers` attribute naming a widget, whose one output of the
+# input's contract the input reads. An input declares at least one of them, and
+# composition writes each attribute it names into the element's attribute schema
+# (`registry.contract.complete_declarations`). The browser's copy is `bindingAttributes`
+# (runtime/state/registry.js), and the input type the build generates from this schema checks
+# the key names it reads.
+INPUT_BINDINGS = ("source", "reference")
 DATA_INPUTS_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -272,24 +308,20 @@ DATA_INPUTS_SCHEMA = {
                 "type": "string",
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
-            "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            # The `refers` attribute naming a widget, whose one output of this
-            # input's contract the input reads.
-            "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            **dict.fromkeys(INPUT_BINDINGS, _ATTRIBUTE_NAME),
             # The element property the runtime sets to the delivered value
-            # (element-data.js, "Bound values").
+            # (host/element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
             # The widget attribute holding the receipt of the source's run that
             # produced the value written in the element's content.
             "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "required": ["contract"],
-        "anyOf": [{"required": ["source"]}, {"required": ["reference"]}],
+        "anyOf": [{"required": [key]} for key in INPUT_BINDINGS],
         "additionalProperties": False,
     },
 }
 
-_ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 _TAGS = {
     "type": "array",
     "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -382,7 +414,7 @@ FACTS: dict[str, dict] = {
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,
-    # Each output's name is the element property holding it (data.js).
+    # Each output's name is the element property holding it (host/data.js).
     "outputs": {
         "type": "object",
         "minProperties": 1,
@@ -406,14 +438,20 @@ DECLARATION_SCHEMA = {
     "type": "object",
     "properties": {
         "description": {"type": "string", "pattern": r"\S"},
-        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The two
-        # keywords Leaf's readers take an attribute's own schema and presence from are
-        # named, so the browser's types know them.
+        # A JSON Schema, held to Draft 2020-12 apart (`registry.widgets`). The keywords
+        # Leaf's readers read are named, so the browser's types know them: an
+        # attribute's own schema (`properties`), its presence (`required`), and whether
+        # the schema admits attributes it doesn't name (`additionalProperties`). A
+        # declaration may leave the schema out, or `type` and `additionalProperties`
+        # out of it. Composition writes them in
+        # (`registry.contract.complete_declarations`), so this schema, which reads a
+        # composed declaration, still requires `attributes`.
         "attributes": {
             "type": "object",
             "properties": {
                 "properties": {"type": "object"},
                 "required": {"type": "array", "items": {"type": "string"}},
+                "additionalProperties": {},
             },
         },
         "content": {"enum": ["markup", "members", "data", "markdown", "empty"]},
@@ -548,7 +586,7 @@ LAYER_FACTS = {
         "required": ["tokens"],
     },
 }
-# The work roles, which Leaf owns and `runtime/work.js` reads: what each role's
+# The work roles, which Leaf owns and `runtime/host/work.js` reads: what each role's
 # `$work.widgets` entry holds beside `role`, then which of those it must hold. A goal
 # or worker names its recorded state attribute and the values of it that mean done or
 # stopped, running or retired, and may name the attribute saying when it stopped or
@@ -633,15 +671,20 @@ LAYER_TOP_FILES = (
 KERNEL_STYLES = (
     "shadow.css",
     "base.css",
+    "elements.css",
     "layouts.css",
     "state.css",
     "styles/control-face.css",
+    "styles/page-control-face.css",
+    "styles/markup.css",
+    "styles/parts.css",
     "styles/shadow-leading.css",
 )
 KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
+    "theme.css",
     "widget-shadow.css",
     "defaults.css",
     "overrides.css",

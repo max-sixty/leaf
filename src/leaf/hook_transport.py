@@ -24,16 +24,17 @@ update, which Claude Code's focus view would show in its place; the watch wakes 
 turn of its own whose prompt hook names the update, once per delivery of it
 (`session.left_owed`).
 
-Where something that outlives the turn opens a turn of its own for the input
-(`Harness.later_turn_takes_input`), Stop hands no input over: a watch wakes once
-the turn closes and opens a turn whose prompt hook does, and Codex's App Server
-adapter starts one. Continuing the turn for the input would have the agent write one
-more message, and a harness that shows each turn's final message alone, as Claude
-Code's focus view does, would show that reply in place of the answer the turn had
-written. Under plain `--print`, or a Codex task that waits with `leaf wait`, nothing
-opens that turn, so Stop hands the input into the turn it continues. Codex's queue
-adapter would open one on a pointer Codex shows as the user's own message, which is
-noisier than the extra message, so Stop hands the input in there too.
+Where something that outlives the turn opens a turn of its own for the input,
+Stop hands no input over: a watch between turns (`Harness.watches_between_turns`)
+wakes once the turn closes and opens a turn whose prompt hook does, and Codex's App
+Server adapter starts one (`codex_adapter.later_turn_takes_input`). Continuing the
+turn for the input would have the agent write one more message, and a harness that
+shows each turn's final message alone, as Claude Code's focus view does, would show
+that reply in place of the answer the turn had written. Under plain `--print`, or a
+Codex task that waits with `leaf wait`, nothing opens that turn, so Stop hands the
+input into the turn it continues. Codex's queue adapter would open one on a pointer
+Codex shows as the user's own message, which is noisier than the extra message, so
+Stop hands the input in there too.
 
 For an update already picked up and still owed an answer, the hook reminds the
 agent by naming the delivery that holds its answer reference. An update the page's
@@ -104,7 +105,7 @@ names the refusal and records no pickup there.
 
 While the agent works, the page's status shows the line it last started. Each
 `STATUS_RENEWAL`, a tool boundary checks the session's pages, Claude Code's
-`PostToolBatch` here and Codex's tool hook through `CodexHarness.offer_at_step`, and
+`PostToolBatch` here and Codex's tool hook through `hooks.offer_at_step`, and
 reminds the agent of any working line that has stood that long to restate it, in
 new words where its work has moved on (`status_reminders`). A restatement renews
 the line even where its words stay, so while the agent runs tools a working status
@@ -157,6 +158,7 @@ from .schema import (
     PREVIEW_FILE,
 )
 from .service import (
+    PREVIEW,
     PageTransaction,
     owned_pages,
 )
@@ -294,9 +296,9 @@ def read_plans(session_id: str) -> list[PagePlan]:
         try:
             with PageTransaction(page_dir) as page:
                 claim = page.active_claim
-                if claim is None or claim["id"] != session_id:
-                    continue
                 harness = claim_harness(claim)
+                if claim is None or claim["id"] != session_id or harness is None:
+                    continue
                 # The lifecycle is independently published. Its revision makes
                 # a concurrent prompt/ending visible without holding a session
                 # lock over a page projection or taking locks in reverse order.
@@ -349,7 +351,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         owed,
                         acknowledged_obligations(state),
                         watched,
-                        (page_dir / PREVIEW_FILE).exists(),
+                        PREVIEW.file(page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
                         unready,
                     )
@@ -642,8 +644,10 @@ def carry_turn(
         plan.claim["turn"] != payload["turn_id"] for plan in plans
     ):
         return
+    # Only a harness whose hooks carry input has batches here, and its later turn
+    # opens only where a watch wakes one; Codex's Stop rule is `hooks.offer_at_step`.
     carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
-        event == "Stop" and not harness.later_turn_takes_input()
+        event == "Stop" and not harness.watches_between_turns()
     )
     through = (
         pointed(sid, expected["turn"], expected["turn_opened"])

@@ -19,25 +19,19 @@
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import { nothing } from "/vendor/lit.js";
-import {
-  commandScope,
-  commandsChanged,
-  LeafElement,
-  failSoft,
-  quoted,
-  registerContribution,
-  says,
-} from "/runtime/widget-api.js";
+import { registerContribution, says } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { failSoft } from "/runtime/lib/failure.js";
 import { keeps } from "/runtime/lib/keeps.js";
-import { foldBlock } from "../runtime/motion.js";
-import { renderRetired, textNodesUnder } from "../runtime/passages.js";
-import { alignText } from "../runtime/text-alignment.js";
-import { shownParts } from "../runtime/geometry.js";
+import { foldBlock } from "../runtime/dom/motion.js";
+import { renderRetired, textNodesUnder } from "../runtime/readings/passages.js";
+import { alignText } from "/runtime/lib/text-alignment.js";
+import { shownParts } from "../runtime/dom/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
-/** @typedef {import("../runtime/contribution-model.js").EntryInput} EntryInput */
+/** @typedef {import("../runtime/base/contribution-model.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
 /** @param {SuggestionState} state */
@@ -199,8 +193,8 @@ customElements.define(
 
     /** @type {ReturnType<typeof registerContribution> | null} */
     #margin = null;
-    /** @type {ReturnType<typeof commandScope> | null} */
-    #commandScope = null;
+    /** @type {HTMLElement["lfCommands"]} */
+    #commands = null;
     /** @type {Outcome | null} */
     #presentedOutcome = null;
 
@@ -230,7 +224,7 @@ customElements.define(
       // Quoted material is exhibited, not offered: a suggestion inside an
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
-      if (quoted(this) || this.#margin) return;
+      if (this.matches("[data-lf-exhibit] *") || this.#margin) return;
       this.#ensureCommands();
       this.#margin = registerContribution({
         key: `suggestion:${this.id}`,
@@ -282,7 +276,7 @@ customElements.define(
           accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
           rank: "primary",
           activation: "undo",
-          scope: this.#commandScope,
+          scope: this.#commands,
         }),
       };
       /** @param {Outcome} kind @returns {EntryInput} */
@@ -293,20 +287,20 @@ customElements.define(
         accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
         disabled: !this.state?.decide?.available,
         activation: kind,
-        scope: this.#commandScope,
+        scope: this.#commands,
       });
       return this.#offered().map((key) =>
         key === "undo" ? entry.undo() : decision(key),
       );
     }
 
-    /** @returns {import("../runtime/contribution-model.js").ReadingOptions} */
+    /** @returns {import("../runtime/base/contribution-model.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();
       return {
         // What a suggestion is, for a face that stands for it: a pin folded for want of
-        // room wears this kind's (margin-model.js, `clusterProjection`).
+        // room wears this kind's (features/margin-model.js, `clusterProjection`).
         kind: "change",
         // The slots use tint and strike/insert paint to carry their relationship on the
         // page. Away from that paint, concatenating them turns `red` → `blue` into the
@@ -345,20 +339,22 @@ customElements.define(
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
       });
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #ensureCommands() {
-      if (this.#commandScope) return;
+      if (this.#commands) return;
       /** @type {[Outcome | "undo", string][]} */
       const labels = [
         ["accept", "Accept"],
         ["reject", "Reject"],
         ["undo", "Undo"],
       ];
-      this.#commandScope = commandScope(
-        "On a suggested change",
-        labels.map(([key, label]) => ({
+      this.#commands = {
+        title: "On a suggested change",
+        rows: labels.map(([key, label]) => ({
           id: `suggestion.${key}`,
           contextKeys: () => {
             const position = this.#offered().indexOf(key);
@@ -371,9 +367,11 @@ customElements.define(
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
+      };
+      this.lfCommands = this.#commands;
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
-      this.lfCommands = this.#commandScope;
-      commandsChanged(this);
     }
 
     // What the change is about, for the button's label and failure receipt: the
@@ -568,7 +566,7 @@ customElements.define(
     render() {
       const { state } = this;
       this.#draw(state);
-      if (quoted(this) || !this.#margin) return nothing;
+      if (this.matches("[data-lf-exhibit] *") || !this.#margin) return nothing;
       // Signals publish before the projection adapter. Keep the currently focused entry
       // until that adapter applies the new state: the next complete reading can hand
       // focus directly to its semantic replacement instead of losing the user's place

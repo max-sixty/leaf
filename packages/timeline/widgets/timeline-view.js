@@ -1,17 +1,12 @@
 /* The timeline has one browser view. Labels pack by their measured extents in the
  * actual ruler column; stepping changes states and the playhead, never geometry. */
 import { html, nothing, repeat } from "/vendor/lit.js";
-import {
-  offered,
-  offeredAction,
-  selectableOffered,
-  generated,
-} from "/runtime/portable-api.js";
+import { offered, offeredAction, selectableOffered } from "/runtime/lib/controls.js";
 import { textWidth } from "/runtime/lib/text-width.js";
 import {
   assignRows,
-  axisTicks,
-  seconds,
+  timeAxis,
+  elapsed,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_LABEL_CHROME as LABEL_CHROME,
@@ -23,8 +18,6 @@ import {
 /** @typedef {{time: number, events: TimelineEvent[]}} TimelineStep */
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
-/** @param {number} value */
-const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
 /** Authored runs, lanes and events become the timeline's one ordered reading. Every
  * run shares the one axis, scaled to the longest, and the one playhead, so a moment
@@ -153,8 +146,8 @@ export function timelineLayout(model, width, font) {
       placed.set(label.id, { place: label.place, row: rowOf.get(label.id) });
     return 1 + Math.max(0, ...rowOf.values());
   });
-  const ticks = axisTicks(0, model.duration, model.duration, span / model.duration);
-  return { rows, placed, ticks };
+  const axis = timeAxis(0, model.duration, model.duration, span / model.duration);
+  return { rows, placed, axis };
 }
 
 /** @param {TimelineEvent} event @param {number} now */
@@ -221,7 +214,7 @@ const stepPreview = (step) => {
 export function render(host, current, model, layout) {
   current = Math.max(0, Math.min(model.steps.length - 1, current));
   const now = model.steps[current]?.time ?? 0;
-  const along = (/** @type {number} */ ms) => fraction(ms / model.duration);
+  const along = (/** @type {number} */ ms) => ms / model.duration;
   // Compared runs each take a column of the step list, named once in the list's head,
   // so a row shows every run at its moment without repeating a run's name. A run
   // number on each row would keep one column at any width, but the reader would look
@@ -233,9 +226,9 @@ export function render(host, current, model, layout) {
   /** @type {(TimelineRun | null)[]} */
   const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
-    ? `Step ${current + 1} of ${model.steps.length} · ${seconds(now)}`
+    ? `Step ${current + 1} of ${model.steps.length} · ${elapsed(now)}`
     : "No events";
-  return html`<div class="lf-timeline-view" ${generated({ says: false })}>
+  return html`<div class="lf-timeline-view" data-lf-gen="1">
     <div
       ${offered("lf-timeline-controls")}
       role="group"
@@ -248,7 +241,8 @@ export function render(host, current, model, layout) {
     <div
       class="lf-timeline-chart"
       aria-hidden="true"
-      ${generated({ says: "echo" })}
+      data-lf-gen="1"
+      data-lf-echo
       style="--lf-timeline-bands: ${model.bands}; --lf-axis-edge: ${EDGE}px"
     >
       ${model.runs.map(
@@ -265,35 +259,8 @@ export function render(host, current, model, layout) {
             >${lane.label}</span
           >`,
       )}
-      <div class="lf-timeline-ruler lf-axis-ruler">
-        ${
-          layout &&
-          repeat(
-            layout.ticks,
-            (tick) => `${tick.step}:${tick.time}`,
-            (tick) =>
-              html`<span
-                class="lf-axis-tick"
-                ?data-lf-major=${tick.major}
-                ?data-lf-flip=${tick.flip}
-                style="--lf-axis-at: ${along(tick.time)}"
-                >${tick.label ?? nothing}</span
-              >`,
-          )
-        }
-      </div>
-      <div class="lf-timeline-grid lf-axis-grid">
-        ${repeat(
-          (layout?.ticks ?? []).filter((tick) => tick.major),
-          (tick) => tick.time,
-          (tick) =>
-            html`<span
-              class="lf-axis-gridline"
-              ?data-lf-flip=${tick.flip}
-              style="--lf-axis-at: ${along(tick.time)}"
-            ></span>`,
-        )}
-      </div>
+      <div class="lf-timeline-ruler">${layout?.axis.ruler}</div>
+      <div class="lf-timeline-grid">${layout?.axis.grid}</div>
       ${model.lanes.map(
         (lane) =>
           html`<div
@@ -341,7 +308,8 @@ export function render(host, current, model, layout) {
     </div>
     <ol
       class="lf-timeline-steps lf-rows"
-      ${generated({ says: true })}
+      data-lf-gen="1"
+      data-lf-said
       style="--lf-timeline-columns: ${columns.length}"
     >
       ${
@@ -366,7 +334,7 @@ export function render(host, current, model, layout) {
           html`<li>
             <span
               ${selectableOffered("button", "lf-timeline-step", "row")}
-              ${generated({ says: true })}
+              data-lf-said
               tabindex="0"
               data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}
@@ -374,7 +342,7 @@ export function render(host, current, model, layout) {
               .lfPreview=${stepPreview(step)}
             >
               <span class="lf-timeline-step-time lf-row-lead"
-                >${seconds(step.time)}</span
+                >${elapsed(step.time)}</span
               >
               ${columns.map((run, column) => {
                 const events = step.events.filter((event) => event.lane.run === run);

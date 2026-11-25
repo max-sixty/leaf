@@ -545,7 +545,7 @@ def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser,
     expect(picks).to_be_in_viewport()
 
 
-# Whether the options with id `arg` are taking the tint of a change now (motion.js,
+# Whether the options with id `arg` are taking the tint of a change now (dom/motion.js,
 # `backgroundFlash`), rows and all: each row paints its own ground over the box's.
 TINTED = """(id) => [document.getElementById(id), ...document.querySelectorAll(`#${id} > lf-option`)]
   .every((box) => box.getAnimations().some((played) =>
@@ -1383,7 +1383,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
             page.keyboard.press(key)
         # The drop lands while the card still slides from where it stood, outside the
         # board that shrank under it: a slide held paused carries the user nowhere
-        # (user-place.js, `carried`), so it runs, too slowly to end before the refusal.
+        # (readings/user-place.js, `carried`), so it runs, too slowly to end before the refusal.
         page.evaluate(
             "() => __lfHeld.forEach(motion => {"
             " motion.playbackRate = 1e-6; motion.play(); })"
@@ -1530,7 +1530,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { LeafElement } from "/runtime/widget-api.js";
+        """import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-outer-board", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -2939,10 +2939,8 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
@@ -2950,13 +2948,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         },
         layer_widgets={
             "lf-preparation.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    widgetController(this).present(fetch('/preparation-content').then(() => {
+    this.dispatchEvent(new PendingTaskEvent(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
-    }));
+    })));
   }
 });
 """

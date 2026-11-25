@@ -8,6 +8,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setTimeout as nodeTimeout } from "node:timers";
+
+// A browser runs each task's microtasks before the next task. The DOM stub's timers run
+// the callbacks due together back to back, so the tasks here are Node's own timers.
+globalThis.setTimeout = nodeTimeout;
 
 const queued = new Map();
 let nextId = 1;
@@ -35,19 +40,17 @@ globalThis.ResizeObserver = class {
 };
 
 const {
-  nextRender,
-  nextFrame,
-  cancelRender,
   afterScript,
   afterOwedFrame,
   afterSettling,
-  sizeObserver,
   renderingState,
   holdRendering,
   observePreparations,
-} = await import("/runtime/rendering.js");
+} = await import("/runtime/base/rendering.js");
+const { nextRender, nextFrame, cancelRender, sizeObserver } =
+  await import("/runtime/lib/frame-pass.js");
 
-const { observeQueuedWork } = await import("/runtime/queued-work.js");
+const { observeQueuedWork } = await import("/runtime/lib/queued-work.js");
 
 async function update({ delivering = [] } = {}) {
   const due = [...queued.values()];
@@ -209,6 +212,24 @@ test("a task waiting on the frame already asked for runs once that frame has pai
     delete document.hidden;
   }
   await update();
+});
+
+// The reading that answers a gesture is part of the gesture's rendering: the task that
+// waited for the gesture's frame runs before the check that would settle the page, so
+// the work it starts keeps the page unsettled.
+test("a task that waited for the owed frame runs before the page settles", async () => {
+  await update();
+  const order = [];
+  nextRender(() => order.push("frame"));
+  afterSettling(() => order.push("settled"));
+  void afterOwedFrame().then(() => {
+    order.push("task");
+    nextRender(() => order.push("the task's paint"));
+  });
+  await update();
+  assert.deepEqual(order, ["frame", "task"]);
+  await update();
+  assert.deepEqual(order, ["frame", "task", "the task's paint", "settled"]);
 });
 
 test("a chain that keeps asking finishes on the next frame", async () => {

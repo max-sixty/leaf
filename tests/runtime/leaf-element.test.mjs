@@ -5,20 +5,21 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { html, nothing } from "/vendor/lit.js";
-import { LeafElement, shadowStage } from "/runtime/widget-api.js";
-import { focused, focusDestination } from "/runtime/focus.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { focused, focusDestination } from "/runtime/dom/focus.js";
+import { showFailure } from "/runtime/lib/failure.js";
+import { keys, reflectFirstScopes, reflectKeys } from "/runtime/dom/keyboard/scopes.js";
 import {
   applicationState,
   readApplicationPresentation,
   readPart,
-} from "/runtime/semantic-state.js";
-import { clockValue, tickClock } from "/runtime/presence.js";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+} from "/runtime/state/semantic-state.js";
+import { clockValue, tickClock } from "/runtime/state/presence.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
 
 const phase = readPart((root) => root.phase);
 const host = readPart((root) => root.hostAvailable);
@@ -451,7 +452,7 @@ test("a failed preparation stands beside the render root, which the next draw st
   document.body.append(element);
   await settled(element);
   // The controller shows a rejected `present()` on its owner, as here.
-  failSoftUnreported(element, new Error("could not prepare"));
+  showFailure(element, new Error("could not prepare"));
   assert.ok(element.part.isConnected);
   assert.match(element.textContent, /failed: could not prepare/);
   applicationState.setPhase("offline");
@@ -497,6 +498,8 @@ test("a draw reads again the keys of what it drew and around it, not of the page
       render() {
         return html`<button>Open</button><button>Close</button>`;
       }
+      // A subclass that leaves `super.updated()` out still has its keys read.
+      updated() {}
     },
   );
   const element = document.createElement(tag);

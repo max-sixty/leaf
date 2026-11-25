@@ -197,8 +197,8 @@ that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 Where the product already answers a question, use its answer: `root_overflow` for
 sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
 entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
-`__lfOverlayApi()` for overlay geometry); tests can't import private source
-paths.
+`__lfOverlayApi()` for overlay geometry), and a library module by its served path,
+`import("/runtime/lib/<module>.js")`; tests can't import private source paths.
 
 Give a corpus source its own case only when its content is the cause under test. Put a
 probe's independent faults on one composed page beside clean controls and call the gate
@@ -210,7 +210,7 @@ against the click tree, a declaration key against the guide, a table against its
 registry.
 Leave wording with no machine side to review.
 
-Current location and visible focus are separate (`focus.js` owns their contract):
+Current location and visible focus are separate (`dom/focus.js` owns their contract):
 controls and reading destinations follow the browser's focus visibility, while text
 entry keeps its cue. Test with real clicks and keyboard arrivals, require
 `:focus`, and compare the paint, including when the focused control has no ring. A
@@ -328,9 +328,11 @@ is no per-test
 allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
-  moves nothing. Fix a DOM writer with `runtime/lib/keeps.js`; the runtime's scroll writes
-  go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
-  nothing, and a stop goes through `stopWhereItStands`. A write
+  moves nothing. Fix a DOM writer with `runtime/lib/keeps.js`. The runtime's scroll writes
+  go through `setScroll` (`runtime/dom/arrivals.js`), which never writes one that moves
+  nothing, and a stop goes through `stopWhereItStands`. A package's `scrollTo` that may
+  name the position its box holds asks `scrollMoves` first
+  (`runtime/lib/scroll-range.js`). A write
   that must restate, as a vendored component's does, joins `EXPECTED` or
   `EXPECTED_SCROLLS` in `write_watch.js` with its reason; a test that reads the page by
   changing it and putting it back does so inside `lfUnwatched`.
@@ -360,7 +362,7 @@ commits a visible effect after an `await` loses its input; a fixture that must c
 after one captures the commit callback with `lfInputWork.capture` first. A private
 channel between documents, such as a live sample's `MessagePort`, carries input only
 where each end sets the port as `lfDocumentPort` on its bootstrap script element before
-the first message (`bootstrap.js`, `sample.js`).
+the first message (`bootstrap.js`, `host/sample.js`).
 
 `test_widget_quality.py` holds Leaf's own widgets to the report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`).

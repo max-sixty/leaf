@@ -1,4 +1,6 @@
-"""Durable and process-owned page servers.
+"""Durable and process-owned page servers, and the claims a session publishes with
+or without one (`claim_and_start`, `cmd_claim`), which prepare its delivery first
+(`preparing_delivery`).
 
 Desired service transitions need only records and leases. HTTP dependencies load
 when a server is constructed, so stopping or reviving a service doesn't load a
@@ -28,7 +30,13 @@ from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
 from .findings import Finding, note, with_held
-from .harness import Harness, claim_harness, harness_argument, session_harness
+from .harness import (
+    Harness,
+    claim_harness,
+    harness_argument,
+    session_harness,
+    unserved_session,
+)
 from .leases import (
     end_if_terminated,
     lock_is_held,
@@ -40,6 +48,7 @@ from .machine import caller_exited
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
+    SERVICE,
     exit_serving,
     exit_serving_on_signals,
     host_key,
@@ -60,9 +69,10 @@ from .service import (
     claimant_matches,
     page_claim,
     prepare_claim,
+    refuse_held,
     same_claim,
 )
-from .session_runtime import select_checkout
+from .state import PLUGIN_ROOT
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord
@@ -222,6 +232,12 @@ class LeafHTTPServer:
     samples: dict
 
     def __init__(self, address, endpoint) -> None:
+        # Requests run on a thread pool, and the first to validate imports jsonschema
+        # (`registry/schema.py`). jsonschema's submodules import their package, so one
+        # thread importing the package while another imports a submodule first
+        # deadlocks on CPython's per-module import locks, and that request answers 500.
+        # The server loads the package before any request can.
+        import jsonschema  # noqa: F401
         import uvicorn
 
         from .http import page_app
@@ -532,15 +548,12 @@ def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | N
     A server another Leaf started keeps serving a page this Leaf cannot write, so the
     page is judged here as a fresh bind judges it (`http.page_endpoint`), before its
     URL is handed out as this Leaf's."""
-    from .findings import Rejected
-    from .layer import incompatible_layer
-    from .registry.storage import layer_record
+    from .registry.storage import layer_metadata
 
     existing = running_server(page_dir)
     if not existing:
         return None
-    if refusal := incompatible_layer(page_dir, layer_record(page_dir) or {}):
-        raise Rejected([refusal])
+    layer_metadata(page_dir)
     if host and urlsplit(existing["url"]).hostname != host.lower():
         raise Refused(
             f"already serving at {existing['url']}; "
@@ -564,6 +577,15 @@ def _take_server_lease(page_dir: Path):
     lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
+    if SERVICE.others(page_dir / SERVICE_FILE):
+        # Its record is of a shape this Leaf doesn't read, so no start can reuse
+        # the server or ask it to stop; a stop removes that record (`cmd_stop`).
+        raise Refused(
+            f"a server another Leaf version started is serving {page_dir}, and this "
+            f"Leaf can't read its record, so a start can't reuse or replace it: run "
+            f"`leaf server stop {page_dir}`, then `leaf server start {page_dir}`, "
+            "which serves the page at a new address"
+        )
     raise Refused(f"another server run is serving {page_dir}; re-run")
 
 
@@ -591,6 +613,45 @@ def _service_record(
     }
 
 
+def preparing_delivery(harness: Harness) -> contextlib.AbstractContextManager:
+    """Prepare `harness`'s watcher before the caller publishes its page, and retain
+    it until then. A task whose watcher is an adapter (`Harness.adapter`) starts or
+    joins it (`codex_adapter.preparing_adapter`); hooks or a host own every other
+    harness's delivery, which needs no process of its own."""
+    if not harness.adapter:
+        return contextlib.nullcontext()
+    from .codex_adapter import preparing_adapter
+
+    return preparing_adapter(harness)
+
+
+def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
+    """Connect delivery before publishing ownership, without starting a server.
+
+    An explicit watcher claims with manual_delivery before its first wait, in the
+    same turn, and only a prompt hook serving a page again prepares an adapter
+    (`reconnect`), so this interval leaves delivery to that watcher; once its wait is
+    live, ordinary serving and reclaiming preserve the selected watch.
+    """
+    harness = session_harness()
+    if harness is None:
+        raise Refused(
+            "only the Leaf an agent session's hooks run can claim a page for that "
+            "session"
+        )
+    claim = prepare_claim(harness, page_dir)
+    preparation = (
+        contextlib.nullcontext() if manual_delivery else preparing_delivery(harness)
+    )
+    with (
+        preparation,
+        PageTransaction(page_dir) as page,
+        page.publishing_claim(claim),
+    ):
+        pass
+    return {"session": harness.session}
+
+
 def cmd_serve(
     page_dir: Path,
     host: str | None = None,
@@ -615,9 +676,9 @@ def cmd_serve(
     A revival takes no acquisition.
     """
     from .delivery import retire_gone_deliveries
+    from .handover_pass import HandoverPass
     from .http import page_endpoint
     from .layer import payload_provenance
-    from .render_gate.handover_pass import HandoverPass
     from .server_rows import RowPublisher
 
     lease = None
@@ -626,10 +687,8 @@ def cmd_serve(
     if acquire and not persistent and harness is not None:
         prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
         if handshake is None:
-            # The serve takes the page in this process, so it selects its Leaf
-            # before it prepares delivery (`session_runtime.select_checkout`).
-            select_checkout(harness.session)
-            delivery = harness.preparing_delivery()
+            # A detached serve's starter holds delivery for it (`claim_and_start`).
+            delivery = preparing_delivery(harness)
     try:
         with delivery, page_locked(page_dir):
             previous_service = service = read_service(page_dir)
@@ -643,6 +702,11 @@ def cmd_serve(
                 )
             url = _reuse_server(page_dir, host, persistent)
             if url is None:
+                if not claimed:
+                    # A serve that takes no claim starts a server for no session.
+                    refuse_held(page_dir, harness)
+                    if handshake is None:
+                        note_serving_for_no_session(page_dir, harness)
                 access = page_access(page_dir, host)
                 token = host_key()
                 endpoint = page_endpoint(page_dir, token)
@@ -669,7 +733,8 @@ def cmd_serve(
                 try:
                     with PageTransaction(page_dir) as page:
                         if acquire and claimed:
-                            with page.publishing_claim(prepared_claim) as (_, claim):
+                            with page.publishing_claim(prepared_claim) as taken:
+                                claim = taken.claim
                                 if httpd is not None:
                                     assert service is not None
                                     write_service(page_dir, service)
@@ -690,7 +755,7 @@ def cmd_serve(
                         or not same_claim(page_claim(page_dir), prepared_claim)
                     ):
                         if previous_service is None:
-                            (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+                            SERVICE.remove(page_dir / SERVICE_FILE)
                         else:
                             write_service(page_dir, previous_service)
                     raise
@@ -702,7 +767,11 @@ def cmd_serve(
 
             if handshake is not None:
                 announced = handshake.announce(
-                    {"url": url, "claim": prepared_claim if acquire else None},
+                    {
+                        "url": url,
+                        "claim": prepared_claim if acquire else None,
+                        "fresh": httpd is not None,
+                    },
                     commit=commit,
                 )
             else:
@@ -742,6 +811,8 @@ class PageStart:
     url: str
     claim: dict | None
     page: Path
+    # Whether this start bound the server, rather than reusing one already serving.
+    fresh: bool
 
 
 @contextlib.contextmanager
@@ -776,7 +847,7 @@ def _starting_server(
         what=f"the server for {page_dir}",
         deadline=deadline,
     ) as ready:
-        yield PageStart(ready["url"], ready["claim"], page_dir)
+        yield PageStart(ready["url"], ready["claim"], page_dir, ready["fresh"])
 
 
 def start_server(
@@ -821,22 +892,16 @@ def claim_and_start(
     restore a superseded owner; the captured acquisition governs owner cleanup.
 
     A caller whose environment does not imply the harness it acts for passes a
-    claim it prepared, and holds delivery preparation through this commit: a
-    detached preview's launcher, whose child uses the captured lifetime and cwd
-    rather than discovering its own ancestry, and a prompt hook, whose payload names
-    the session (`reconnect`). Neither selects a checkout here. The hook also passes
-    its own `deadline`; a start not ready and confirmed by then is refused.
+    claim it prepared, and holds delivery preparation through this commit: a prompt
+    hook, whose payload names the session (`reconnect`). It also passes its own
+    `deadline`; a start not ready and confirmed by then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     claim = prepared_claim
     delivery = contextlib.nullcontext()
     if claim is None and not persistent and harness is not None:
         claim = prepare_claim(harness, page_dir)
-        # The start takes the page in this process, so it selects its Leaf before
-        # it prepares delivery (`session_runtime.select_checkout`), as a detached
-        # preview's launcher did before preparing the claim it hands over.
-        select_checkout(harness.session)
-        delivery = harness.preparing_delivery()
+        delivery = preparing_delivery(harness)
     with delivery:
         try:
             with _starting_server(
@@ -853,6 +918,26 @@ def claim_and_start(
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+    if ready.fresh:
+        note_serving_for_no_session(page_dir, harness)
+
+
+def note_serving_for_no_session(page_dir: Path, harness: Harness | None) -> None:
+    """Say so where this Leaf has just bound a server for no session in a session it
+    doesn't act for (`harness.unserved_session`), since the agent would read the
+    serve as its session's. A start that reuses a server, or is refused, serves
+    nothing of this Leaf's, so it says nothing."""
+    if harness is None and (session := unserved_session()):
+        note(
+            Finding(
+                "serves-for-no-session",
+                values={
+                    "page": str(page_dir),
+                    "session": session,
+                    "leaf": str(PLUGIN_ROOT),
+                },
+            )
+        )
 
 
 def start_page(page_dir: Path, host: str | None, persistent: bool) -> PageStart:
@@ -923,7 +1008,7 @@ def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
 
     held = page_claim(page_dir)
     if held is None or not claim_is_active(held):
-        renew_layer(page_dir, None, command=False)
+        renew_layer(page_dir, None)
     elif unready := renew_held(page_dir, held["id"]):
         from .clerk import queue
 
@@ -936,7 +1021,7 @@ def follow_copy(page_dir: Path, server_id: str, handshake: Handshake) -> None:
         return
     if running["lifetime"] == "session" and not live:
         return
-    with restarting_server(page_dir, claim_harness(held) if held and live else None):
+    with restarting_server(page_dir, claim_harness(held) if live else None):
         pass
 
 
@@ -983,25 +1068,21 @@ def cmd_stop(
                     return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
-            # Whether a server runs is the lease's to say: one an older Leaf started
-            # over a record this version cannot read holds it without a readable
-            # record to show it by. A private preparation holds the lease too, but
-            # has no service record and has not become a running service.
+            others = SERVICE.others(page_dir / SERVICE_FILE)
+            # Whether a server runs is the lease's to say: one a Leaf of another
+            # `SERVICE` shape started holds it while that shape's record stands,
+            # whatever this shape's says. A private preparation holds the lease too,
+            # but has no service record and has not become a running service.
             stopped = (
                 stopped
                 or running_server(page_dir) is not None
-                or (
-                    service is None
-                    and (page_dir / SERVICE_FILE).exists()
-                    and lock_is_held(page_dir / SERVER_LOCK)
-                )
+                or (bool(others) and lock_is_held(page_dir / SERVER_LOCK))
             )
-            if service is None:
-                # A record this version cannot read names no service it could
-                # disable. Discarding it is what stops a server an older Leaf
-                # started over it, which exits once its record is gone.
-                (page_dir / SERVICE_FILE).unlink(missing_ok=True)
-            elif first:
+            # A stop ends the page's service at every shape (`state.Record`), and
+            # a server another shape's Leaf started exits once its record is gone.
+            for other in others:
+                other.unlink(missing_ok=True)
+            if service is not None and first:
                 disabled = service.copy()
                 disabled.pop("restart", None)
                 disabled["enabled"] = False
@@ -1009,7 +1090,7 @@ def cmd_stop(
                     disabled["restart"] = restart
                 if disabled != service:
                     write_service(page_dir, disabled)
-            elif service["enabled"]:
+            elif service is not None and service["enabled"]:
                 write_service(page_dir, {**service, "enabled": False})
             first = False
             lease = take_lease(page_dir / SERVER_LOCK)
@@ -1035,12 +1116,13 @@ def restarting_server(
 
     Only an enabled service comes back, under its recorded lifetime and address; a
     stopped one stays stopped, and a page never served has nothing to hold down. A
-    session service comes back only for the session holding its claim, and claims
-    nothing to do it: the claim is still that session's, and taking it again would
-    reopen a turn the Stop hook closed. Another live session's service is refused
-    before anything stops, since only that session could start it again. One whose
-    session has ended has no owner to come back for, so it is stopped and stays
-    stopped for the next `server start` to claim.
+    service on a page another session holds is refused before anything stops,
+    whatever its lifetime, since only that session's Leaf serves the page
+    (`service.refuse_held`). A session service comes back only for the session
+    holding its claim, and claims nothing to do it: the claim is still that
+    session's, and taking it again would reopen a turn the Stop hook closed. One
+    whose session has ended has no owner to come back for, so it is stopped and
+    stays stopped for the next `server start` to claim.
 
     The service comes back only after a block that completed. The caller decides
     whatever can refuse before it enters, while the page is still served; a block
@@ -1059,10 +1141,14 @@ def restarting_server(
     next start or stop writes a record without it.
     """
     service = read_service(page_dir)
-    if service is None and lock_is_held(page_dir / SERVER_LOCK):
-        # A server runs over a record this version cannot read, as one an older Leaf
-        # started does. It has no lifetime this version could bring back, so it
-        # stops and stays stopped.
+    # A server runs over a record this version cannot read, as one an older Leaf
+    # started does.
+    unread = service is None and lock_is_held(page_dir / SERVER_LOCK)
+    if unread or (service and service["enabled"]):
+        refuse_held(page_dir, harness)
+    if unread:
+        # It has no lifetime this version could bring back, so it stops and stays
+        # stopped.
         cmd_stop(page_dir)
         note(Finding("server-stays-stopped", values={"page": str(page_dir)}))
         yield
@@ -1072,7 +1158,7 @@ def restarting_server(
         return
     persistent = service["lifetime"] == "persistent"
     held = page_claim(page_dir)
-    comes_back = persistent or _restarts_for_session(page_dir, harness)
+    comes_back = persistent or claim_is_active(held)
     mark = secrets.token_hex(8) if comes_back else None
     # The stop is the claim's this read decided for: a session that takes the page
     # meanwhile keeps its service, and the block does not run.
@@ -1110,19 +1196,3 @@ def restarting_server(
         )
     except StartRefused as error:
         raise Refused(f"the page's server did not start again: {error}") from error
-
-
-def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
-    """Whether `harness`'s session may restart a session service: its claim is that
-    session's. False when no live session holds it any more; a refusal when
-    another one does."""
-    claim = page_claim(page_dir)
-    if not claim_is_active(claim):
-        return False
-    if harness is None or not claimant_matches(claim, harness):
-        raise Refused(
-            f"{page_dir} is served for another session, and only that session can "
-            "start its server again; re-initialize it from there, or take the page "
-            f"over first with `leaf server start {page_dir}`"
-        )
-    return True

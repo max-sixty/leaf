@@ -14,7 +14,7 @@ input is a dispatched tool message rather than a user prompt. Its synchronous
 prompt hook records the provider turn even before the session claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
 their turn identity (`Harness.reconcile_turn`), then offer input between steps
-or before Stop (`Harness.offer_at_step`) and leave receipt to the agent's explicit
+or before Stop (`offer_at_step`) and leave receipt to the agent's explicit
 confirmation of complete input.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
 reading or receiving page input. Pi calls it after its SDK reserves the run;
@@ -64,15 +64,14 @@ start hook only then (`hooks.json`), since a resumed session's first reply waits
 its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
-session; `harness.hook_harness` says why neither comes from the environment. A
-developer-selected session runtime (`session_runtime`) owns the entire hook;
-`main` execs it before this module publishes lifecycle or reads pages."""
+session; `harness.hook_harness` says why neither comes from the environment. Every
+hook runs the Leaf its harness loaded (`session-lifetime.md`, "Which Leaf runs a
+session")."""
 
 import json
 import os
 import time
-from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 from .leases import first_hook_for_tool, mark_hooks, mark_skill
 from .refusals import Refused
@@ -88,10 +87,14 @@ from .state import (
     prompt_turn,
     session_lock_path,
     session_record,
+    status_check_due,
     still_named,
     turn_closed,
     worker_tool_batch,
 )
+
+if TYPE_CHECKING:
+    from .harness import Harness
 
 
 def cmd_hook(harness: str, payload: dict) -> None:
@@ -177,7 +180,11 @@ def cmd_hook(harness: str, payload: dict) -> None:
         from .delivery import confirm_entered
 
         confirm_entered(hooked, payload)
-    prompt, expected = hooked.offer_at_step(event, payload, expected)
+    prompt, expected = (
+        offer_at_step(hooked, event, payload, expected)
+        if hooked.adapter
+        else (None, expected)
+    )
     if prompt:
         print(json.dumps(hooked.hook_context(event, prompt)))
         return
@@ -198,6 +205,59 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # A Stop that ends the turn printed nothing, so its output can tell the user.
         if notice := hooked.unloaded_module():
             print(json.dumps(notice), flush=True)
+
+
+def offer_at_step(
+    harness: "Harness", event: str, payload: dict, expected: dict | None
+) -> tuple[str | None, dict | None]:
+    """Offer the session's pending page input through hook `event` ahead of the hook
+    transport (`hook_transport.carry_turn`), for a harness whose adapter's delivery
+    record holds it (`Harness.adapter`). Returns what the hook puts in the turn's
+    context, which ends the hook, and the lifecycle the hook goes on with otherwise:
+    `expected`, or the renewal an offer made under it.
+
+    Both the tool hook and Stop offer an envelope through Codex's one transport
+    reservation (`codex.offer_hook_delivery`), since empty-input resume can reach
+    Stop without running another tool. Stop offers only where no adapter will start
+    a turn of its own for the input over App Server
+    (`codex_adapter.later_turn_takes_input`), and the turn would continue for it
+    (`hook_transport.stop_continues`). The tool hook offers input the cursor has not
+    passed, and input the cursor passed that no pickup names, which a Codex
+    session's receipts never leave, and Stop also an update the session holds no
+    usable reference for (`delivery.deliverable`). The tool hook also carries the
+    reminder of a status line left standing (`hook_transport.status_reminders`).
+
+    Codex's tool hook runs after every tool call, so the adapter's module, which
+    imports much that the tool hook doesn't need, loads only at Stop."""
+    sid = harness.session
+    if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
+        return None, expected
+    if not owned_pages(sid):
+        return None, expected
+    if event == "Stop":
+        from .codex_adapter import later_turn_takes_input
+
+        if later_turn_takes_input(sid):
+            return None, expected
+        from .hook_transport import read_plans, stop_continues
+
+        plans = read_plans(sid)
+        if not stop_continues(
+            plans,
+            [plan.batch for plan in plans if plan.batch],
+            repeated=bool(payload.get("stop_hook_active")),
+            reminds=harness.watches_between_turns(),
+        ):
+            return None, expected
+    from .codex import offer_hook_delivery
+
+    prompt, expected = offer_hook_delivery(sid, expected, received=event == "Stop")
+    if event == "PostToolUse" and status_check_due(sid):
+        from .hook_transport import read_plans, status_reminders
+
+        renewals = status_reminders(sid, read_plans(sid))
+        prompt = "\n".join(filter(None, [prompt, *renewals])) or None
+    return prompt, expected
 
 
 def reload_skill(session_id: str) -> str | None:
@@ -257,9 +317,8 @@ def skill_changed(session_id: str, before: str, now: str) -> None:
 
     The Leaf a session's hooks run changes when Claude Code loads another copy, which
     it does as a process starts, on a resume or a background job's wake, and at
-    `/reload-plugins`; when Codex replaces its copy in place, which the next hook
-    runs; and when `session_runtime` hands the session's delivery to another Leaf.
-    The transcript carries over, so the agent still holds the skill and references
+    `/reload-plugins`; and when Codex or Pi replaces its copy in place, which the
+    next hook runs. The transcript carries over, so the agent still holds the skill and references
     it read under the old Leaf, while its hooks and `leaf` commands run the new one.
     Two versions whose skills match byte for byte, as an update that changed only code
     leaves them, need no notice. An installed copy at the same root is another Leaf
@@ -341,7 +400,7 @@ def cmd_pages(payload: dict) -> None:
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    The follower is the session's forks lane (`forks.take_lane`) while it runs, and
+    The follower is the session's forks lane (`leases.take_lane`) while it runs, and
     lists the line forks while it holds it. Between presence reads it waits on each
     page's subscription (`file_changes.page_changes`) and on the lane's name, so it
     looks again as a message is admitted or as a later follower takes the lane. It
@@ -349,15 +408,15 @@ def cmd_pages(payload: dict) -> None:
     takes the log as it stands, so it lists no round older than itself, and a
     follower started again lists none an earlier one listed.
 
-    It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
-    runs another Leaf than its own (`_moved_on`), and the module starts it again,
-    under that Leaf. A follower runs as long as its session, while the Leaf the
-    session's hooks run can change between calls: to a checkout the session selected
-    since, or to the same checkout moved past a protocol bump.
+    It exits with `EX_TEMPFAIL`, without a last line, once the tree it runs from has
+    moved on under it (`_moved_on`), and the module starts it again from that tree.
+    A follower runs as long as its session, while a checkout Claude Code loads in
+    place (`--plugin-dir`) can move past a protocol bump between calls.
 
     The module that reads the list stays the one the session loaded until
-    `/reload-plugins`, so a follower under a checkout's newer Leaf may print it to an
-    older module, which runs its instructions as any (`carrier.py`).
+    `/reload-plugins`, so a follower started again from such a checkout's newer code
+    may print it to an older module, which runs its instructions as any
+    (`carrier.py`).
 
     The follower notes once in each page it holds that it runs
     (`interaction_log.record_follower`), so a round that got no line fork says
@@ -377,9 +436,8 @@ def cmd_pages(payload: dict) -> None:
     from .completions import listed as completions_listed
     from .completions import watch
     from .file_changes import FileChanges, page_changes, wait
-    from .forks import lane_path, take_lane
     from .interaction_log import record_follower
-    from .leases import release_lease
+    from .leases import lane_path, release_lease, take_lane
     from .page_memory import memory_of
     from .presence import PRESENCE_CACHE_S, live_leaves
 
@@ -396,8 +454,8 @@ def cmd_pages(payload: dict) -> None:
     shown = None
     try:
         while True:
-            if _moved_on(sid):
-                # EX_TEMPFAIL: the module starts it again, under that Leaf.
+            if _moved_on():
+                # EX_TEMPFAIL: the module starts it again, from the tree as it is.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
             record_follower(sorted(held - noted), sid)
@@ -454,26 +512,19 @@ def cmd_pages(payload: dict) -> None:
             renamed.close()
 
 
-def _moved_on(sid: str) -> bool:
-    """Whether the session's delivery now runs another Leaf than this process: a
-    checkout selected since it started, which its hooks hand themselves to as `main`
-    does (`session_runtime.delivering_launcher`), or its own checkout moved under it
-    to another page protocol (`registry.kernel.installed_protocol`), or its own tree
-    removed, as a selected checkout's is when its worktree goes. The module then
-    starts the follower again from the launcher of the copy the session loaded,
-    which hands it to the Leaf delivering now; where the removed tree is that copy's
-    own, no follower starts again until `/reload-plugins`. A registry read mid-write
-    reads as unmoved until it settles."""
+def _moved_on() -> bool:
+    """Whether the tree this process runs from has moved on under it: a checkout
+    moved to another page protocol (`registry.kernel.installed_protocol`), or the
+    tree removed, as Claude Code may remove a copy it replaced. The module then
+    starts the follower again from the same launcher; where the tree is gone, none
+    starts until `/reload-plugins`. A registry read mid-write reads as unmoved until
+    it settles."""
     from .registry.kernel import installed_protocol, kernel_protocol
-    from .session_runtime import delivering_launcher, own_launcher
 
-    own = own_launcher()
-    if not os.access(own, os.X_OK):
+    if not os.access(PLUGIN_ROOT / "bin" / "leaf", os.X_OK):
         return True
     try:
-        return (
-            delivering_launcher(sid) != own or installed_protocol() != kernel_protocol()
-        )
+        return installed_protocol() != kernel_protocol()
     except (OSError, ValueError, KeyError):
         return False
 
@@ -482,7 +533,7 @@ def _lines(sid: str, page_dir, looked: dict) -> list[dict]:
     """The line forks to list for the page (`forks.look`), read again only once the
     page's reading has moved, from the seq the follower's first look took."""
     from .forks import look
-    from .served_state.reading import page_reading
+    from .page_inputs import page_reading
 
     try:
         stamp = page_reading(page_dir)
@@ -511,17 +562,14 @@ def main(
     with; an Interrupt it answers again leaves the turn its predecessor closed as it
     was (`state.close_session_turn`). The harness started this process and waits on
     it: Pi's extension reads the line it prints and stops it by its pid, so the
-    watch carries on under the new copy with no change to the extension, as a hook
-    handed to a selected checkout does. Exiting for the extension to start the
-    watch again would need the extension to tell that exit from a watch with
-    nothing to say. A new copy that can't start, as one whose environment can't be
+    watch carries on under the new copy with no change to the extension. Exiting
+    for the extension to start the watch again would need the extension to tell
+    that exit from a watch with nothing to say. A new copy that can't start, as one whose environment can't be
     built, leaves the session unwatched until the extension starts the watch again
     after the next run, as any failed watch does; the session's hooks can't run
     until that copy can start either.
     """
     import sys
-
-    from .session_runtime import delivering_launcher, own_launcher
 
     try:
         payload = json.load(sys.stdin)
@@ -533,21 +581,10 @@ def main(
     if payload.get("hook_event_name") == "PreToolUse" and sid:
         # Hooks run outside the harness's sandbox and shell commands inside it.
         # Claude Code's registration runs this only before a command naming
-        # `leaf`, so a session that never runs one opens no road out. Each Leaf
-        # the hook passes through opens it before handing the hook on, the copy
-        # the harness loaded among them (`bridge.py`).
+        # `leaf`, so a session that never runs one opens no road out (`bridge.py`).
         from .harness import hook_harness
 
         hook_harness(harness, sid).escape_sandbox()
-    launcher = delivering_launcher(sid)
-    flags = [
-        flag
-        for flag, given in (("--watch", watch), ("--pages", pages), ("--fork", fork))
-        if given
-    ]
-    if launcher != own_launcher():
-        # Delegate the whole hook before publishing lifecycle or pickup.
-        _run_hook(launcher, harness, flags, payload)
     if pages:
         cmd_pages(payload)
         return
@@ -568,26 +605,32 @@ def main(
             # A stop that arrived as the watch let go, whose raise a finalizer
             # discarded, ends it here rather than the successor never hearing it.
             end_if_terminated()
-            _run_hook(own_launcher(), harness, flags, payload)
+            _watch_from_new_copy(harness, payload)
         if woke:
             print(woke, flush=True)
         return
     cmd_hook(harness, payload)
 
 
-def _run_hook(
-    launcher: Path, harness: str, flags: list[str], payload: dict
-) -> NoReturn:
-    """Replace this process with `launcher`'s `leaf hook` for `harness` with
-    `flags`, given `payload` on its stdin. The harness's process handle then
-    reaches the hook wherever it runs, so cancellation and a watch's lifetime hold.
-    The stdin is a file rather than a pipe, which a large tool payload would fill."""
+def _watch_from_new_copy(harness: str, payload: dict) -> NoReturn:
+    """Replace this process with the watch for `harness` of the copy now at this
+    one's path, through its launcher, given `payload` on its stdin. The harness's
+    process handle then reaches the new watch, so cancellation and the watch's
+    lifetime hold. The stdin is a file rather than a pipe, which a large payload
+    would fill. The environment drops the host's choice of launcher
+    (`LEAF_HOST_LAUNCHER`, which `bin/leaf` reads), since that would send the call
+    back to the host's."""
     import tempfile
-
-    from .session_runtime import run_under
 
     with tempfile.TemporaryFile() as incoming:
         incoming.write(json.dumps(payload).encode())
         incoming.seek(0)
         os.dup2(incoming.fileno(), 0)
-    run_under(launcher, ["hook", "--harness", harness, *flags])
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    environment = dict(os.environ)
+    environment.pop("LEAF_HOST_LAUNCHER", None)
+    os.execve(
+        launcher,
+        [str(launcher), "hook", "--harness", harness, "--watch"],
+        environment,
+    )

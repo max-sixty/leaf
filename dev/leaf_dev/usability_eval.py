@@ -26,7 +26,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
-from leaf.state import turn_open
+from leaf.state import record_name, turn_open
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -433,7 +433,7 @@ def build_cutover_hidden(run: Run, page: Path) -> None:
 
 
 def reads_on_its_own(run: Run) -> bool:
-    """Whether this arm's page server runs the render pass (`render_gate.handover_pass`),
+    """Whether this arm's page server runs the render pass (`handover_pass`),
     which a base from before it doesn't."""
     kernel = json.loads(
         (run.payload / "browser/runtime/kernel-registry.json").read_text()
@@ -539,9 +539,15 @@ def build_plan_resume(run: Run, page: Path) -> None:
     run.leaf("page", "init", "--package", "reading", str(page), check=True)
     (page / "index.html").write_text(html)
     run.leaf("page", "stamp", str(page), "--text", inputs["stamp"], check=True)
-    run.leaf(
+    planned = run.leaf(
         "task", "plan", str(page), input_text=json.dumps(inputs["plan"]), check=True
     )
+    # The latency table, refreshed in the stamped version, is the step already done.
+    refreshed = json.loads(planned.stdout.splitlines()[-1])["steps"][1]["item"]
+    run.leaf(
+        "task", "end", str(page), refreshed, "done", "--text", inputs["refreshed"],
+        check=True,
+    )  # fmt: skip
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
         "detail": {"value": [inputs["choice"]]},
@@ -854,7 +860,8 @@ def ignore(directory, names):
     return {
         n
         for n in names
-        if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
+        if n in ("runtime", "vendor", "widgets", "instructions")
+        or record_name(n) == "service.json"
         or n.endswith((".lock", ".js", ".css"))
     }
 

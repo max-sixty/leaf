@@ -1,5 +1,5 @@
 /* A custom element that is no `LeafElement` is given its state and data from outside
-   (element-integration.js).
+   (host/element-integration.js).
 
    These hold what the host and `widgetState` decide on their own: the `state` a
    reading becomes, when a plain element's bound data is set on it, what an element
@@ -10,12 +10,12 @@
    suite's (tests/browser/test_plain_elements.py). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hostDeclaredElements } from "/runtime/element-integration.js";
-import { widgetState } from "/runtime/widget-controller.js";
-import { failureOf, placesFailure } from "/runtime/widget-upgrade.js";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { readApplicationPresentation } from "/runtime/semantic-state.js";
+import { hostDeclaredElements } from "/runtime/host/element-integration.js";
+import { widgetState } from "/runtime/host/widget-controller.js";
+import { failureOf, placesFailure } from "/runtime/lib/failure.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
+import { readApplicationPresentation } from "/runtime/state/semantic-state.js";
 
 let tags = 0;
 
@@ -103,7 +103,7 @@ test("a plain element is set nothing until the page has read its data, then each
   element.remove();
 });
 
-test("a reading becomes a state saying what the user may do and take back", () => {
+test("a reading becomes a state saying what the user may do, why not, and what they may take back", () => {
   const picked = (candidate) => ({
     action: "pick",
     value: null,
@@ -119,11 +119,13 @@ test("a reading becomes a state saying what the user may do and take back", () =
     actions: {
       decide: {
         available: true,
+        unavailable: null,
         inForce: [{ unit: "verdict", event: { id: "e1" } }],
         undo: [{ id: "e1" }],
       },
       pick: {
         available: false,
+        unavailable: "no agent or server is available",
         inForce: [
           { unit: "ada", event: { id: "e2" } },
           { unit: "grace", event: { id: "e3" } },
@@ -134,15 +136,26 @@ test("a reading becomes a state saying what the user may do and take back", () =
   };
   const state = widgetState(reading);
   assert.deepEqual(state, {
-    decide: { ...reading.state.decide, undoable: true, available: true },
+    decide: {
+      ...reading.state.decide,
+      undoable: true,
+      available: true,
+      unavailable: null,
+    },
     pick: {
       units: {
         ada: { ...picked("ada"), undoable: false },
         grace: { ...picked("grace"), undoable: true },
       },
       available: false,
+      unavailable: "no agent or server is available",
     },
-    status: { ...reading.state.status, undoable: false, available: false },
+    status: {
+      ...reading.state.status,
+      undoable: false,
+      available: false,
+      unavailable: null,
+    },
   });
   assert.ok(Object.isFrozen(state.pick.units.ada), "the element can't write its state");
 });
@@ -330,4 +343,44 @@ test("a drawing an element announces by itself holds its region until it is in",
   await settled();
   assert.deepEqual(pending(), []);
   element.remove();
+});
+
+test("an element says its failure with `error`, and `lf-error` on the window tells the user", async () => {
+  const { errorsReading, dismissErrors } = await import("/runtime/transport/errors.js");
+  const host = document.body.appendChild(document.createElement("section"));
+  const part = host
+    .attachShadow({ mode: "open" })
+    .appendChild(document.createElement("div"));
+  const failures = [];
+  const report = (event) => failures.push(failureOf(event));
+  window.addEventListener("error", report);
+  try {
+    // The failure is the element's the event began at, and its reason the event's
+    // error, or its message where it carries none.
+    const reason = new Error("cannot draw this file");
+    part.dispatchEvent(
+      new ErrorEvent("error", { error: reason, bubbles: true, composed: true }),
+    );
+    host.dispatchEvent(
+      new ErrorEvent("error", { message: "no rows", bubbles: true, composed: true }),
+    );
+    assert.deepEqual(failures, [
+      { element: part, reason },
+      { element: host, reason: "no rows" },
+    ]);
+    dismissErrors();
+    window.dispatchEvent(
+      new CustomEvent("lf-error", {
+        detail: "Wait for the current edit to finish saving",
+      }),
+    );
+    assert.deepEqual(
+      errorsReading().map(({ message, subject }) => [message, subject]),
+      [["Wait for the current edit to finish saving", null]],
+    );
+  } finally {
+    window.removeEventListener("error", report);
+    dismissErrors();
+    host.remove();
+  }
 });

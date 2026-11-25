@@ -30,7 +30,7 @@ from leaf.file_bindings import (
     save_file,
 )
 from leaf.locations import PATH_LOCKS, path_lock_key
-from leaf.served_state.reading import page_reading
+from leaf.page_inputs import page_reading
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -223,7 +223,7 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             save_file(page_dir, "notes", body)
     assert target.read_bytes() == b"original\n"
     with pytest.raises(FileBindingError):
-        bind_file(page_dir, "grants", page_dir / "files.json")
+        bind_file(page_dir, "grants", BINDINGS.file(page_dir / "files.json"))
     substitute = tmp_path / "other.txt"
     substitute.write_bytes(b"private\n")
     target.unlink()

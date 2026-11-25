@@ -27,19 +27,21 @@ from .leases import (
     waiter_lease_path,
 )
 from .locations import path_location, paths_same
-from .presence import nudge_unwatched, turn_ending
-from .refusals import Refused
-from .registry.kernel import kinds_declaring
-from .schema import ANSWER_INSTRUCTION
-from .served_state.reading import (
+from .page_inputs import (
     outside_inputs,
     page_input,
     page_reading,
     page_roots,
 )
+from .presence import nudge_unwatched, turn_ending
+from .refusals import Refused
+from .registry.kernel import kinds_declaring
+from .schema import ANSWER_INSTRUCTION
 from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
+    CLAIM,
+    SESSION,
     SESSION_SUFFIX,
     CopyReplaced,
     LoadedCopy,
@@ -97,14 +99,19 @@ def cmd_idle(page_dir: Path) -> dict:
         work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
-        harness = claim_harness(claim) if claim is not None else None
+        harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
         if pending:
-            remedy = (
-                harness.input_unpicked(page_dir, listening=state["listening"])
-                if harness
-                else "`leaf wait` prints them."
-            )
+            holder = page.holder(None)
+            if harness:
+                remedy = harness.input_unpicked(page_dir, listening=state["listening"])
+            elif isinstance(holder, str):
+                remedy = (
+                    f"{holder} holds the page; `leaf server start {page_dir}` in an "
+                    "agent session takes it over."
+                )
+            else:
+                remedy = "`leaf wait` prints them."
             raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot close yet. {remedy}"
@@ -192,7 +199,7 @@ class Watch:
         # The lines Leaf queued for the session's next step, some of which wake it
         # (`clerk.waking`); no page's reading stamps them.
         self.told = (
-            session_file(self.session_id, QUEUED.kind).resolve()
+            QUEUED.file(session_file(self.session_id, QUEUED.kind)).resolve()
             if self.session_id
             else None
         )
@@ -235,7 +242,8 @@ class Watch:
         if not self.session_id:
             return set()
         return {
-            self.claims.parent / locator.name for locator in self.claims.glob("*.json")
+            CLAIM.file(self.claims.parent / locator.name)
+            for locator in CLAIM.glob(self.claims)
         }
 
     def reading(self, discovery: set[Path] | None = None) -> tuple:
@@ -261,7 +269,11 @@ class Watch:
                 target for page in pages for target in outside_inputs(page)
             }
             if self.session_id:
-                targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+                targets.add(
+                    SESSION.file(
+                        session_file(self.session_id, SESSION_SUFFIX)
+                    ).resolve()
+                )
             if self.told:
                 targets.add(self.told)
             targets.update(path.resolve() for path in self.lease_paths)
@@ -518,7 +530,7 @@ def read_watch_pass[DeliveryResult](
         readings.append(reading)
         if reading.watch_state == "lost":
             if named is not None and paths_same(reading.page_dir, named):
-                note(Finding("not-owned", values={"pages": [str(named)]}))
+                note(_lost([reading], watch.harness))
                 return _WatchPass(readings, live, 2)
             continue
         if reading.live and not reading.lost:
@@ -554,18 +566,32 @@ def _server_down(reading: PageTick) -> Finding:
     return Finding("server-down", values={"page": str(reading.page_dir)})
 
 
-def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
+def _lost(readings: list[PageTick], harness: Harness | None) -> Finding:
+    """Why a wait stopped watching pages another session holds: its own session
+    no longer does, or, for a wait acting for no session, which names one page,
+    a session does."""
+    pages = [str(reading.page_dir) for reading in readings]
+    if harness is None and (holder := readings[0].transaction.holder(None)):
+        if isinstance(holder, dict):
+            holder = f"session {holder['id']}"
+        return Finding(
+            "held-for-a-session", values={"page": pages[0], "holder": holder}
+        )
+    return Finding("not-owned", values={"pages": pages})
+
+
+def _ended_watch(
+    readings: list[PageTick], page_dir: Path | None, harness: Harness | None
+) -> int:
     """Explain why a pass with no live pages has nowhere left to wait."""
     held = [
         str(reading.page_dir) for reading in readings if reading.watch_state != "lost"
     ]
     if not held:
         if transferred := [
-            str(reading.page_dir)
-            for reading in readings
-            if reading.watch_state == "lost"
+            reading for reading in readings if reading.watch_state == "lost"
         ]:
-            note(Finding("not-owned", values={"pages": transferred}))
+            note(_lost(transferred, harness))
         else:
             page = str(page_dir) if page_dir is not None else None
             note(Finding("nothing-to-watch", values={"page": page}))
@@ -642,7 +668,7 @@ def cmd_wait(page_dir: Path | None = None) -> int:
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
-                return _ended_watch(reading.readings, page_dir)
+                return _ended_watch(reading.readings, page_dir, harness)
             watch.await_news(mark)
         note(Finding("watch-taken-over"))
         return 2

@@ -19,10 +19,10 @@ from render_cases_navigation import (
 )
 from render_harness import (
     close_panel_menu,
-    draft_control,
     expect_comment_notes,
     open_page,
     panel_menu,
+    press_draft_control,
     round_trip,
     selection_field,
     stamp_page,
@@ -92,7 +92,7 @@ def test_page_round_trip(browser, serve):
     assert draft.locator(".lf-draft-body").inner_text() == DRAFT_DRAWN
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
 
     # Every gesture above must be in the log before v2's note lands, or the trail below
@@ -229,7 +229,9 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     ]
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignInlineText, alignText, sentenceUnits} = await window.__lfCheckApi();
+          const {alignInlineText, alignText, sentenceUnits} = await import(
+            "/runtime/lib/text-alignment.js"
+          );
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -260,7 +262,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     local = page.evaluate(
         """async () => {
-          const {alignInlineText} = await window.__lfCheckApi();
+          const {alignInlineText} = await import("/runtime/lib/text-alignment.js");
           return alignInlineText(
             'Each section names a feature and provides a live example.',
             'Each section names a feature and provides a live example, including focused replays of its motion.'
@@ -280,7 +282,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     for text in edits:
         draft.locator(".lf-draft-body").dblclick()
         write(draft.locator("leaf-text"), text)
-        draft_control(page, "save", "draft-ops").click()
+        press_draft_control(page, "save", "draft-ops")
         round_trip(page)
         expect(draft.locator(".lf-draft-body")).to_have_text(text)
 

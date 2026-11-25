@@ -56,6 +56,7 @@ from render_harness import (
     PANEL,
     SAID_PAGE,
     _traffic,
+    available_commands,
     compare_with,
     comparison_view,
     consume_browser_errors,
@@ -82,7 +83,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import choose_threads_in_panel, open_panel_thread, thread_row
+from browser.threads import open_panel_thread, thread_row
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -90,7 +91,7 @@ from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import evaluate_probe, rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -380,6 +381,121 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         page.keyboard.press("Escape")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+# A custom element the page's own script fills with words no file holds.
+DRAWN_WORDS_PAGE = leaf_page(
+    "drawn words",
+    """
+<h1 id="title">Lanterns</h1>
+<p id="authored">The authored words stand in the file.</p>
+<lantern-note id="drawn"></lantern-note>
+""",
+    head="""<script>
+customElements.define("lantern-note", class extends HTMLElement {
+  connectedCallback() { this.textContent ||= "Lantern words a script draws."; }
+});
+</script>""",
+)
+
+
+def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
+    browser, serve
+):
+    """`leaf thread create --quote` finds words the page's own script draws, which no
+    file holds, on the page as the browser draws it, and stores the anchor the user's
+    selection of them makes, so the thread marks those words. Words the drawn page
+    doesn't show are refused as before."""
+    url = serve(DRAWN_WORDS_PAGE)
+
+    def create(quote: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--quote",
+                quote,
+                "--text",
+                "Why lanterns?",
+            ],
+        )
+
+    created = create("Lantern words")
+    assert created.exit_code == 0, created.output
+    root = json.loads(created.output)
+    assert root["anchor"] == {
+        "section": "drawn",
+        "quote": "Lantern words",
+        "prefix": "words stand in the file.",
+        "suffix": "a script draws.",
+    }
+    page = open_page(browser, url)
+    expect(thread_head(page, root["id"]).locator(".lf-thread-quote")).to_have_text(
+        "Lantern words"
+    )
+
+    refused = create("Words no script draws")
+    assert refused.exit_code != 0
+    assert "doesn't say 'Words no script draws'" in refused.output
+
+
+# A diagram, which shows a thread on a box it didn't draw nowhere, beside a timeline,
+# which shows a thread on an event it didn't draw on the whole timeline.
+DRAWN_PARTS_PAGE = leaf_page(
+    "drawn parts",
+    """
+<h1 id="title">Deploy</h1>
+<lf-diagram id="flow" parts="all"><pre>flowchart LR
+  build[Build] --&gt; test[Test] --&gt; ship[Ship]</pre></lf-diagram>
+<lf-timeline id="deploy-order" aria-label="Deploy order">
+  <lf-lane label="Build">
+    <lf-event id="deploy-compile" at="0" end="4000" label="Compile"></lf-event>
+  </lf-lane>
+</lf-timeline>
+""",
+)
+
+
+def test_a_part_no_check_has_read_is_checked_on_the_page_as_drawn(serve):
+    """Where no render check has read the version the page shows, as right after a
+    save, `leaf thread create --part` draws the page and reads what each visual draws
+    there. A box the diagram didn't draw is refused, naming the boxes it drew; an event
+    the timeline didn't draw is taken with a note, since the page puts the thread on
+    the whole timeline."""
+    serve(DRAWN_PARTS_PAGE)
+
+    def create(section: str, part: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--section",
+                section,
+                "--part",
+                part,
+                "--text",
+                "Is this the slow step?",
+            ],
+        )
+
+    refused = create("flow", "node:nope")
+    assert refused.exit_code != 0
+    assert (
+        "§ flow drew no part 'node:nope' when Leaf drew the page just now; it drew"
+        " node:build, node:test, node:ship."
+    ) in refused.output
+
+    taken = create("deploy-order", "event:nope")
+    assert taken.exit_code == 0, taken.output
+    assert [found["text"] for found in json.loads(taken.output)["findings"]] == [
+        "§ deploy-order drew no part 'event:nope' when Leaf drew the page just now,"
+        " so the thread stands on the whole visual until the visual draws that part;"
+        " it drew event:deploy-compile"
+    ]
 
 
 # One sentence two quoted threads discuss, which the agent's next revision rewrites.
@@ -1206,7 +1322,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     # The clipped source sits beyond the near observer's 600px scroll margin
-    # (geometry.js, `nearObserver`), so the synchronous first reading and the
+    # (dom/geometry.js, `nearObserver`), so the synchronous first reading and the
     # observer's first record agree it stays out of layout. A nearer source enters
     # layout on that record, before or after presentation as load decides.
     url = live_url(
@@ -1953,7 +2069,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await window.__lfWidgetApi();
+          const { syntax } = await window.__lfLibImport('syntax-tokens.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -2008,7 +2124,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
 
     heredoc = page.evaluate("""async () => {
-      const { syntax } = await window.__lfWidgetApi();
+      const { syntax } = await window.__lfLibImport('syntax-tokens.js');
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
@@ -2616,36 +2732,27 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")
     assert not details.evaluate("el => el.open")
-    # The line is one of two surfaces naming this row's keys, and a listener reads the
-    # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
-    # and the repaint that keeps them together is the document's disclosure watch rather
-    # than anything this widget does, which is what leaves a widget free to declare a
-    # disclosure row and nothing else. Read once, by the same clock as the line: the
-    # heartbeat repaints scopes too, so a retrying read goes green on the tick inside its
-    # budget whether or not the watch painted anything.
-    rendered(page)
-    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    # The widget declares no row for its file's disclosure: the page's disclosure scope
+    # names its keys, reading which way the staged disclosure stands as it is asked.
+    offered = available_commands(page)["disclosure.toggle"]
+    assert "ArrowRight" in offered and "ArrowLeft" not in offered, offered
 
-    # The row also names an arrow, which no browser answers, so unlike the pair above it is
-    # only ever as good as the scope that runs it — and that scope has to find a staged
-    # disclosure the same way this declaration had to reach a staged control. Read off the
-    # document alone it finds none here, the page's only <details> being the ones the
-    # widget put in a shadow root. The press is what says so, not the chip: this widget's
-    # own row is the nearer of the two naming these keys, so it prints them either way.
+    # The arrow is a key no browser answers, so it is only ever as good as the scope that
+    # runs it, and that scope has to find a staged disclosure. Read off the document
+    # alone it finds none here, the page's only <details> being the ones the widget put
+    # in a shadow root.
     page.keyboard.press("ArrowRight")
     assert details.evaluate("el => el.open")
-    # And the keys turn over inside the press, read once so a poll cannot answer for it.
-    # A toggle from a staged root is not composed, so no document listener hears it: this
-    # is the watch `shadowStage` hands each root.
-    rendered(page)
-    assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
+    # And the offer has turned over once the press returns.
+    offered = available_commands(page)["disclosure.toggle"]
+    assert "ArrowLeft" in offered and "ArrowRight" not in offered, offered
 
 
 def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_location(
     browser, serve
 ):
     """A component that makes its own shadow root, as a Web Awesome control does, moves
-    focus between its own controls with no event reaching any root focus.js listens on.
+    focus between its own controls with no event reaching any root dom/focus.js listens on.
     The current location is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""
     page = open_page(browser, serve(DIFF_PAGE))
@@ -3710,10 +3817,8 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "attributes": {
-                    "type": "object",
                     "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-decoration id="decoration"></lf-decoration>',
@@ -3721,7 +3826,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         },
         layer_widgets={
             "lf-decoration.js": """
-                import {once} from '/runtime/widget-api.js';
+                import {once} from '/runtime/lib/once.js';
                 customElements.define('lf-decoration', class extends HTMLElement {
                   connectedCallback() {
                     if (!once(this)) return;
@@ -3833,7 +3938,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
-    # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
+    # refresh is what writes this card's placement (`scrollToThread`, features/anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
     # long enough to have covered the wait.
@@ -5225,10 +5330,8 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
 LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
     "attributes": {
-        "type": "object",
         "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "shadow": True,
@@ -5290,7 +5393,7 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
 def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
     """The anchor paint builds a thread's marks, the index the pointer is found in and
     the highlight painting them only for a presentation that changes a mark: ten that
-    change none build nothing (anchor-paint.js, `paint`)."""
+    change none build nothing (annotations/anchor-paint.js, `paint`)."""
     url = serve(leaf_page("Kept", '<p id="kept">Words a thread is about.</p>'))
     append_carried_log_record(
         serve.page_dir,
@@ -5378,7 +5481,7 @@ def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
     old = page.evaluate(words, stood)
     page.mouse.move(old["left"] - 30, old["top"] - 30)
     page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
-    # The hover frame the move queued (anchor-paint.js, `refreshHover`) has painted
+    # The hover frame the move queued (annotations/anchor-paint.js, `refreshHover`) has painted
     # the hand where it found a mark.
     rendered(page)
     expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
@@ -5584,7 +5687,7 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
 
 
 # What the page hears as it starts that its input clock counts as the user's
-# (document-inputs.js), and where focus lands: startup reopens a saved draft only while
+# (base/document-inputs.js), and where focus lands: startup reopens a saved draft only while
 # neither has moved (`recoverComposer` in leaf.js). Registered before the reload, so its
 # listeners come before the clock's.
 HEARD_AS_IT_STARTS = """(() => {
@@ -5629,14 +5732,14 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.set_viewport_size({"width": 900, "height": 600})
-    # A draft written on the passage, which the page opens again as it loads.
+    # A draft written on the passage, which the page opens again on a visit.
     page.evaluate(
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
           const load = (path) => import(new URL(path, new URL(boot, location.href)).href);
-          const {saveDraft} = await load('runtime/drafts.js');
-          const {DRAFT_FORMAT} = await load('runtime/kernel-facts.js');
-          const {anchorKey} = await load('runtime/anchor-coordinate.js');
+          const {saveDraft} = await load('runtime/records/drafts.js');
+          const {DRAFT_FORMAT} = await load('runtime/state/kernel-facts.js');
+          const {anchorKey} = await load('runtime/base/anchor-coordinate.js');
           const anchor = {section: 'both', quote: 'match starts here and ends inside'};
           saveDraft('composer:' + anchorKey(anchor), 'My draft words', {
             format: DRAFT_FORMAT, anchor, revision: 1, suggest: false, about: null,
@@ -5645,7 +5748,7 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         }"""
     )
     page.add_init_script(script=HEARD_AS_IT_STARTS)
-    page.reload()
+    page.goto(page.url)
     try:
         expect(page.locator(".lf-composer")).to_be_visible()
     except AssertionError as closed:
@@ -5716,7 +5819,7 @@ def _changed_page(request, engine, serve):
 
 def _rest_on(page, box):
     """Rest the pointer on a box, from away, and read the hand once the hover frame
-    each move queued (anchor-paint.js, `refreshHover`) has run: once, since a later
+    each move queued (annotations/anchor-paint.js, `refreshHover`) has run: once, since a later
     presentation would find the marks again and hide a fault."""
     page.mouse.move(2, 2)
     rendered(page)

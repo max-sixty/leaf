@@ -2,7 +2,8 @@
 
 `admitted_event` validates and derives a record from `page_view.PageView`, the
 current log, and a command. `append_admitted` performs that reading and write
-under `service.PageTransaction`'s lease.
+under `service.PageTransaction`'s lease, and `append_all_admitted` does so for
+several events that land together or not at all.
 
 This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
@@ -10,7 +11,12 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
+from leaf.event_log import (
+    APPEND_STAMPED,
+    EventRefused,
+    _matching_attempt,
+    new_event_id,
+)
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
     build_threads,
@@ -21,12 +27,13 @@ from leaf.events import (
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
-from leaf.layer import incompatible_layer
+from leaf.markup_checks.instances import attribute_slot_errors
 from leaf.obligations import questions_in_words, quoted_in
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
     AuthoredOrders,
+    container_owner,
     generated_children,
     projected_action_holders,
     record_members,
@@ -50,9 +57,9 @@ from leaf.registry.kernel import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
+from leaf.state import now_iso
 from leaf.thread_context import thread_names
 from leaf.todos import todo_error
-from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
 from leaf.workflows import agent_inputs, attention_reading
 
@@ -239,7 +246,7 @@ def position_record_error(
     # destination belongs there too.
     if (
         not inside(target, current)
-        or recorded_owner(target_id, record, by_id, registry, holders=projected_holders)
+        or container_owner(target_id, by_id, registry, holders=projected_holders)
         != owner
     ):
         return Finding("outside-destination", values=named)
@@ -558,8 +565,9 @@ def _anchored_comment_error(view, event: dict, registry: dict):
     answered: the page holds words no file reading can produce — a widget's label,
     a module's own rendering — and an earlier runtime may spell the same words in
     whitespace this reading collapses away. Reading it back off the file would
-    refuse both. `leaf thread create` captures its anchor against the file reading
-    before it writes.
+    refuse both. `leaf thread create` captures its anchor before it writes, against the
+    file reading, or against the drawn page where that reading lacks the quote
+    (`render_gate.drawn_anchor`).
     """
     if event["kind"] != "comment":
         return None
@@ -732,7 +740,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
     holds (`plans.plan_error`)."""
     if event["kind"] != "plan":
         return None
-    return plan_error(event, readings.log.todos, readings.work.all_obligations["all"])
+    return plan_error(event, readings.log.todos, readings.work.plan_ids)
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
@@ -887,14 +895,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
 
 def write_refusal(page_dir: Path) -> Finding | None:
     """Why this Leaf may write no event to the page, or None where it may: the page
-    is at another page protocol (`layer.incompatible_layer`). A writer that must not
-    fail on a page it cannot write, such as a hook, asks this first, and so does
-    `page check`."""
+    is at another page protocol (`registry.storage.layer_record`). A writer that
+    must not fail on a page it cannot write, such as a hook, asks this first."""
     try:
-        record = layer_record(page_dir)
+        layer_record(page_dir)
     except IncompatibleLayer as refused:
         return refused.findings[0]
-    return None if record is None else incompatible_layer(page_dir, record)
+    return None
 
 
 def voiced(event: dict) -> dict:
@@ -935,3 +942,22 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
         )
     )
     return record, True
+
+
+def append_all_admitted(page, events: list[dict]) -> list[dict]:
+    """Admit `events` in order, each against the log as the ones before it leave it,
+    then append them; their records. A refusal of any appends none, so a command that
+    writes several events writes all of them or none. An event keeps the `id` it
+    names, so a later one in `events` can name it."""
+    view = PageView(page.page_dir)
+    trial = list(page.events)
+    for event in events:
+        # A retry the trial already holds appends nothing, and one whose attempt
+        # names another payload is refused here, before anything is written.
+        if _matching_attempt(trial, voiced(event)) is not None:
+            continue
+        record = admitted_event(view, trial, voiced(event))
+        # Stamped as the append stamps it, so the next is read after it.
+        seq = trial[-1]["seq"] + 1 if trial else 1
+        trial.append({**record, "ts": now_iso(), "seq": seq})
+    return [append_admitted(page, event, view=view)[0] for event in events]

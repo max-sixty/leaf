@@ -23,8 +23,8 @@ from render_harness import (
     told,
 )
 
-from browser.threads import choose_threads_in_panel
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1347,7 +1347,7 @@ ROW_MARKS = """(toc) => {
     probe.remove();
     return value;
   };
-  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
+  const marks = { thread: colour('--lf-accent'), 'on-me': colour('--lf-ok') };
   const markers = [...toc.querySelectorAll('.lf-toc-marker')];
   return Object.fromEntries([...toc.querySelectorAll('.lf-toc-start, li')]
     .filter((row, index) => row.dataset.lfTocMark && (
@@ -1569,7 +1569,7 @@ def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase previews it to
     a resting pointer and to Tab, which reaches its Explain control, in the face every
-    preview wears (preview.js), and a click pins it as the page's card for mouse or
+    preview wears (annotations/preview.js), and a click pins it as the page's card for mouse or
     touch. The preview and the card each stay inside the viewport, Escape puts either
     away, and both the phrase and explanation remain the page's authored words."""
     source = leaf_page(
@@ -1661,6 +1661,22 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     expect(gloss).to_have_css("outline-style", "solid")
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
+
+    # Enter pins the card while the phrase's words stand selected: a press from the
+    # keyboard ends no selection, so the selected words don't refuse it.
+    gloss.evaluate(
+        """el => {
+          const words = document.createRange();
+          words.selectNodeContents(el.childNodes[0]);
+          getSelection().removeAllRanges();
+          getSelection().addRange(words);
+        }"""
+    )
+    expect(mark).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(bubble).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(bubble).to_be_hidden()
 
     assert gloss.evaluate("el => el.childNodes[0].textContent.trim()") == (
         "walking skeleton"

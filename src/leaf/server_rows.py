@@ -30,10 +30,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from .page_inputs import page_reading
 from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts, nudge_interrupted
 from .rows import ROW, row_path
-from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .server import exit_serving
 from .service import page_claim
@@ -86,7 +86,7 @@ class RowPublisher:
             reading == self.reading
             and live == self.live
             and not due
-            and self.path.is_file()
+            and ROW.file(self.path).is_file()
         ):
             return
         # Only an idle harness record with no watcher can mean an interrupted turn
@@ -99,7 +99,7 @@ class RowPublisher:
         self.transition = (
             datetime.fromisoformat(deadline).timestamp() if deadline else None
         )
-        if row != self.row or not self.path.is_file():
+        if row != self.row or not ROW.file(self.path).is_file():
             ROW.write(
                 self.path,
                 {

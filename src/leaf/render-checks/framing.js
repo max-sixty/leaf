@@ -1,5 +1,4 @@
-import { declarationFor, inChrome } from "/runtime/widget-api.js";
-import { servedElements } from "/runtime/check-api.js";
+import { declarationFor, inChrome, servedElements } from "/runtime/check-api.js";
 import { upFrom } from "/runtime/lib/shadow-tree.js";
 import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -283,7 +282,7 @@ export function splitEdges() {
 // finds next. An element the runtime adds beside the page's own changes those answers for
 // as long as it stands, so the page's own rules restyle and move its content, which
 // nothing Leaf draws may do (browser/AGENTS.md, "The page holds still under the user's aim"). What the runtime
-// says about an element stands in the chrome instead (details-shelf.js).
+// says about an element stands in the chrome instead (features/details-shelf.js).
 //
 // The page's own elements are the document tree under `body`, excluding Leaf's own surfaces.
 // A widget's own children are its module's to arrange, whether the layer declares it or

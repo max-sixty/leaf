@@ -1,34 +1,38 @@
-import {
-  agePreview,
-  offerActionElement,
-  fragmentTarget,
-  generatedElement,
-  tabStore,
-} from "/runtime/widget-api.js";
+import { elementById, tabStore } from "/runtime/widget-api.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
  * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
  * behavior module holds/reveals authoritative history through HeldReading and supplies
- * the live clock, thread action and current-document target reading. */
+ * the thread action and current-document target reading. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
 
 /** @typedef {{id: string, ts: string, actor: string, what: string, label?: string | null | undefined, widget?: string | null | undefined, thread?: string | undefined, excerpt?: string | null, undone: boolean}} ActivityRow */
 /** @typedef {{open: boolean, shown: string, label: string, news: boolean}} ActivityReading */
-/** @typedef {(fragment: string, document: Document) => Element | null} ActivityTarget */
-/** @typedef {{printing?: boolean, names?: ActivityTarget, age?: (ts: string) => string, openThread?: (id: string) => void}} ActivityCapabilities */
+/** @typedef {(fragment: string) => Element | null} ActivityTarget */
+/** @typedef {{printing?: boolean, names?: ActivityTarget, openThread?: (id: string) => void}} ActivityCapabilities */
 /** @param {Element} link @param {string} widget @param {typeof keeps} write @param {ActivityTarget} names */
 function refreshTarget(link, widget, write, names) {
   const fragment = `#${encodeURIComponent(widget)}`;
-  const href = names(fragment, link.ownerDocument) ? fragment : null;
+  const href = names(fragment) ? fragment : null;
   // Preserve the focused node as a link becomes historical text, and back again.
   // Give it a programmatic stop before removing href; restore href before removing
   // that stop. The unavailable target is never a Tab offer.
   if (!href) write(link, "tabindex", "-1");
   write(link, "href", href);
   if (href) write(link, "tabindex", null);
+}
+
+// What a row's target previews: when its row happened, as the age at the row's end
+// previews it to a pointer, since the keyboard reaches the target and not the age.
+/** @this {Element} @param {"pointer" | "focus" | "hold"} route */
+function rowTime(route) {
+  const age = this.closest(".lf-activity-line")?.querySelector("lf-age");
+  const said = age?.lfPreview?.(route);
+  return said && said.name ? { detail: [said.name] } : null;
 }
 
 /** @param {HTMLElement} host */
@@ -62,14 +66,12 @@ export function createActivity(host) {
     if (thread)
       return html`<button
         ${ref(
-          (node) =>
-            node &&
-            generatedElement(offerActionElement(node, "inline", "lf-activity-target"), {
-              says: "echo",
-            }),
+          (node) => node && offerActionElement(node, "inline", "lf-activity-target"),
         )}
         type="button"
+        data-lf-echo
         data-lf-carry=${`row-${row.id}`}
+        .lfPreview=${rowTime}
         @click=${openThread ? () => openThread(thread) : null}
       >
         ${row.label}
@@ -80,10 +82,10 @@ export function createActivity(host) {
     return html`<a
       class="lf-activity-target"
       data-lf-carry=${`row-${row.id}`}
+      .lfPreview=${rowTime}
       ${ref(
         (node) =>
-          node &&
-          refreshTarget(node, widget, keeps, capabilities.names ?? fragmentTarget),
+          node && refreshTarget(node, widget, keeps, capabilities.names ?? elementById),
       )}
       >${row.label}</a
     >`;
@@ -93,8 +95,7 @@ export function createActivity(host) {
       <p class="lf-activity-line">
         <strong class="lf-activity-actor">${row.actor}</strong>
         <span class="lf-activity-what">${row.what}</span> ${target(row)}
-        <time class="lf-activity-time" datetime=${row.ts} .lfPreview=${agePreview}
-          >${capabilities.age?.(row.ts) ?? ""}</time
+        <lf-age class="lf-activity-time" datetime=${row.ts}></lf-age
         >${row.undone ? html` <span class="lf-activity-undone">undone</span>` : nothing}
       </p>
       ${row.excerpt ? html`<p class="lf-activity-excerpt">${row.excerpt}</p>` : nothing}
@@ -118,18 +119,20 @@ export function createActivity(host) {
       <ol
         class="lf-activity-list"
         data-lf-scroll
+        data-lf-gen="1"
         ?hidden=${hidden}
         ${ref((node) => {
-          if (node) drawing.list = generatedElement(node, { says: false });
+          if (node) drawing.list = node;
         })}
       >
         ${repeat(rows, (row) => row.id, rowTemplate)}
       </ol>
       <p
         class="lf-activity-empty"
+        data-lf-gen="1"
         ?hidden=${hidden || rows.length > 0}
         ${ref((node) => {
-          if (node) drawing.empty = generatedElement(node, { says: false });
+          if (node) drawing.empty = node;
         })}
       >
         Nothing shown yet.

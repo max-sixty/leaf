@@ -38,6 +38,7 @@ from render_harness import (
     margins_laid_out,
     navigate,
     open_page,
+    press_draft_control,
     resized,
     sending,
     ticked,
@@ -386,11 +387,12 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     browser, serve
 ):
     """Read beside its passage, a card holds its top, so a turn arriving extends it
-    downward. Written in, it holds its reply's foot: each wrap of the reply grows the
-    card up from the line typed, its transcript unscrolled, until it reaches the
-    window's head, and then the editor scrolls internally. A send empties the reply,
-    so the card holds its top again: the sent turn and the answer after it grow the
-    card down past the reply box."""
+    downward. Written in, it holds its reply's top: each wrap of the reply grows the
+    card down from the line the draft starts on, its transcript unscrolled, until it
+    reaches the window's foot, which then lifts it to the window's head, and then the
+    editor scrolls internally. A send empties the reply, so the card holds its top
+    again: the sent turn and the answer after it grow the card down past the reply
+    box."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
@@ -444,30 +446,28 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
         rendered(page)
         readings.append(page.evaluate(CARD_AND_REPLY))
     for now in readings:
-        for edge in ("cardBottom", "editorBottom"):
+        for edge in ("cardTop", "turn", "editorTop"):
             assert now[edge] == pytest.approx(before[edge], abs=0.5), (
                 edge,
                 before,
                 now,
             )
         assert now["scrolled"] == 0, now
-    # Layout is ready before the box's motion has carried the card's head to its landing.
-    # Keep the per-input stability readings, then measure the completed wrap.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     wrapped = page.evaluate(CARD_AND_REPLY)
-    for edge in ("cardTop", "turn", "editorTop"):
-        assert wrapped[edge] < before[edge] - 30, (edge, before, wrapped)
+    for edge in ("cardBottom", "editorBottom"):
+        assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
 
     source_top = marker.bounding_box()["y"]
 
-    # A long draft grows the card up from the reply's foot, keeping the turn it
-    # answers in view, until the card reaches the window's head; then the editor
-    # scrolls.
+    # A long draft grows the card down from the reply's top to the window's foot,
+    # which lifts it, keeping the turn it answers in view, until the card reaches the
+    # window's head; then the editor scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     tall = page.evaluate(CARD_AND_REPLY)
-    assert tall["cardBottom"] == pytest.approx(before["cardBottom"], abs=1), tall
+    assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
     assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall
     assert tall["turn"] - tall["cardTop"] == pytest.approx(
         before["turn"] - before["cardTop"], abs=0.5
@@ -806,7 +806,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(draft_control(page, "save", "d-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
-        draft_control(page, "save", "d-draft").click()
+        press_draft_control(page, "save", "d-draft")
     expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
         body, use_inner_text=True
     )

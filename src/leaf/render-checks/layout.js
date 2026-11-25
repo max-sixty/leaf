@@ -7,6 +7,7 @@ import {
   inPage,
   readingRegions,
   regionScrollBehavior,
+  servedElements,
   shownBand,
   shownRegionBounds,
   TEXT_BOX,
@@ -170,34 +171,47 @@ export function arrangedBoxes(open, { shown = false } = {}) {
   });
 }
 
-// How a workspace holds the page's own panes: for each body of a `main.layout-workspace`
-// that has panes the page wrote as its cells, whether the Layout fills the window
-// (`--lf-full-height`, layouts.css) and the most of those panes that stand side by side, meaning
-// how many share some stretch of the page's height. One is a column of panes; a grid with
-// two stacked on the left of a tall third is two.
+// How a workspace holds the page's own panes: for each of its grids of them shown, a box
+// that holds only panes the page wrote, such as the body or a page tab's one block, other
+// than a pane's body (layouts.css, "A page's grid of panes"), whether the grid is told the
+// height it fills (`--lf-full-height`) and the most of those panes that stand side by
+// side, meaning how many share some stretch of the page's height. One is a column of
+// panes; a grid with two stacked on the left of a tall third is two.
 export function heldPanes() {
   const main = layoutBox();
   if (!main?.matches(".layout-workspace")) return [];
-  const held =
-    getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
-  return [...main.children].flatMap((body) => {
-    if (body.matches("header, footer")) return [];
-    const rects = [...body.children]
+  const grids = new Set(
+    [...main.querySelectorAll(AUTHORED_PANE)]
+      .map((pane) => /** @type {Element} */ (pane.parentElement))
+      .filter(
+        (grid) =>
+          !grid.parentElement?.matches(PANE) &&
+          [...grid.children].every((el) =>
+            el.matches(`${AUTHORED_PANE}, script, style, template`),
+          ) &&
+          !skipped(grid),
+      ),
+  );
+  return [...grids].flatMap((grid) => {
+    const rects = [...grid.children]
       .filter((el) => el.matches(AUTHORED_PANE))
       .map((pane) => pane.getBoundingClientRect())
       .filter((r) => r.width > 0 && r.height > 0);
     if (rects.length < 2) return [];
+    const held =
+      getComputedStyle(grid).getPropertyValue("--lf-full-height").trim() === "1";
     const beside = Math.max(
       ...rects.map(
         (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
       ),
     );
     return [
-      { at: element(body), place: place(body), held, panes: rects.length, beside },
+      { at: element(grid), place: place(grid), held, panes: rects.length, beside },
     ];
   });
 }
-const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
+const PANE = '[data-lf-reading-role="pane"]';
+const AUTHORED_PANE = `${PANE}:not([data-lf-generated])`;
 
 // Each region of a screen that runs past its room. A full-height workspace is a screen
 // rather than a page to scroll (page-layout.md, A workspace), so each region of it the
@@ -538,16 +552,23 @@ export function misplacedBoxes() {
   // (locate.js) beside its code, so a reader that takes this pass at several widths
   // (the gate's sweep) can tell one fault met again from a new one by those two,
   // whatever pixel count the width gives it.
-  /** @typedef {{past: number, item?: string, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number}} Misplacement */
+  /** @typedef {{past: number, item?: string, built?: boolean, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number, built?: boolean}} Misplacement */
   /** @type {(Misplacement & {code: string, at: string, place: ReturnType<typeof place>})[]} */
   const found = [];
   /** @param {Element} el @param {string} code @param {Misplacement} values */
   const report = (el, code, values) =>
     found.push({ code, at: at(el), place: place(el), ...values });
+  // A box the page's source didn't write is a module's, so the remedy for it is the
+  // package's (`built`): the page's own scroll class names the page's boxes only. With
+  // no version source to read, every box counts as the page's.
+  const served = servedElements();
+  /** @param {Element} el */
+  const built = (el) =>
+    served.size && el !== pageScroller && !served.has(el) ? { built: true } : {};
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
     if (host) report(el, "outside-part", { past, host: at(host) });
-    else if (!wide) report(el, "past-column", { past, ...asItem(el) });
+    else if (!wide) report(el, "past-column", { past, ...asItem(el), ...built(el) });
     else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
     else report(el, "past-room", { past });
   }
@@ -709,7 +730,7 @@ export function misplacedBoxes() {
       sealed.down && s.webkitLineClamp === "none"
         ? cut(el.scrollHeight, el.clientHeight)
         : 0;
-    if (across || down) report(el, "clipped-content", { across, down });
+    if (across || down) report(el, "clipped-content", { across, down, ...built(el) });
   }
   // One finding per fault where two elements share a name, as their words would be.
   const seen = new Set();

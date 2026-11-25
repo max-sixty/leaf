@@ -119,11 +119,11 @@ def neighbor_candidates() -> tuple:
             return _candidates[1]
         # Atomic producer publications move the directory stamp. Scan only when
         # it changes; the parsed rows retain their per-file stamps between scans.
-        current = set(rows.glob("*.json")) if rows.is_dir() else set()
+        current = set(ROW.glob(rows)) if rows.is_dir() else set()
         for path in _row_files.keys() - current:
             del _row_files[path]
         for path in current:
-            key = file_stamp(path)
+            key = file_stamp(ROW.file(path))
             if key is None:
                 _row_files.pop(path, None)
             elif path not in _row_files or _row_files[path][0] != key:
@@ -186,7 +186,7 @@ def live_servers(among: set[Path] | None = None):
         try:
             info = running_server(candidate)
             if info is None and not lock_is_held(candidate / SERVER_LOCK):
-                row_path(candidate).unlink(missing_ok=True)
+                ROW.remove(row_path(candidate))
         except Exception:
             continue
         if info is not None:
@@ -252,7 +252,9 @@ def page_list() -> list[dict]:
                 "harness": claim["harness"] if claim else None,
                 "claim_session": claim["id"] if claim else None,
                 "session_name": (
-                    claim_harness(claim).session_name() if claim else None
+                    harness.session_name()
+                    if (harness := claim_harness(claim))
+                    else None
                 ),
                 "session_cwd": claim["cwd"] if claim else None,
                 "session_alive": claim_is_active(claim) if claim else None,
@@ -270,15 +272,18 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
     so every cache of a presence reading keys on them, and the freshness token
     carries them."""
     active = claim if claim_is_active(claim) else None
+    harness = claim_harness(active)
     return {
         "listening": process
         and wait_is_live(page_dir, active["id"] if active else None),
         # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
-        "live_turn": claim_harness(active).live_turn() if active else None,
-        "session_name": claim_harness(claim).session_name() if claim else None,
+        "live_turn": harness.live_turn() if harness else None,
+        "session_name": (
+            named.session_name() if (named := claim_harness(claim)) else None
+        ),
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
-        "input_wakes": bool(active and claim_harness(active).input_wakes()),
+        "input_wakes": bool(harness and harness.input_wakes()),
     }
 
 
@@ -374,7 +379,9 @@ def presence_with_activity(
         # When that turn opened, and whether an open turn of this session's takes
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
-        "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
+        "turn_takes_input": bool(
+            (harness := claim_harness(active)) and harness.turn_takes_input()
+        ),
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -418,7 +425,7 @@ def presence_fingerprint(present: dict) -> str:
 def presence_reading(page_dir: Path, files: str) -> str:
     """The presence token shared by readers for one bounded freshness interval.
 
-    It keys on `files`, the page's own reading (`served_state.reading`), which
+    It keys on `files`, the page's own reading (`page_inputs.page_reading`), which
     names every page input, and on the claimant's wait lease, the one input of
     presence outside them. A move in either invalidates it immediately; process
     and lock leases are refreshed when the interval expires. The facts are read
@@ -475,7 +482,8 @@ def nudge_unwatched(page: PageTransaction) -> None:
     if (
         nudge_due(present, turn)
         and claim.get("messaged_ending") != mark
-        and claim_harness(claim).nudge(page_dir)
+        and (harness := claim_harness(claim)) is not None
+        and harness.nudge(page_dir)
     ):
         page.note_messaged(mark)
 

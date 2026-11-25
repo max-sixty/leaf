@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
@@ -183,6 +183,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         item["kind"] == "pickup" for item in events_model.read_events(page_dir)
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    hooks_run_this_tree("successor")
     assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
     assert acknowledged_through(page_dir) == 1
 
@@ -336,6 +337,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     assert waiting.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    hooks_run_this_tree("successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
 

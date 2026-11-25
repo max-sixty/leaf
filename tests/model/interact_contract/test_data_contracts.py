@@ -8,11 +8,14 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    ROOT,
     append_carried_log_record,
     check_findings,
     declare_data_input,
     element_declaration,
     found,
+    package_findings,
+    package_path,
     read_page_data,
     registry_refusal,
 )
@@ -24,11 +27,13 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.findings import Rejected
+from leaf.page import page_instructions
+from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
-from leaf.validation import composition as composition_model
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -108,6 +113,12 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
     assert found(findings, code, **values), findings
 
 
+def _also_reads_an_output(entry):
+    entry["attributes"]["properties"]["for"] = {"type": "string"}
+    entry["refers"] = {"for": {}}
+    entry["inputs"]["data"].update({"contract": "missing-contract", "reference": "for"})
+
+
 @pytest.mark.parametrize(
     ("change", "code"),
     [
@@ -117,6 +128,9 @@ def test_the_registry_door_validates_data_contracts(page_dir, contracts, code, v
             ),
             "data-contract",
         ),
+        # `leaf data set` validates a source's value against the contract, so an input
+        # that can bind a source needs it declared whatever else the input can bind.
+        (_also_reads_an_output, "data-contract"),
         (
             lambda entry: entry.update(
                 {
@@ -141,22 +155,21 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, code):
 @pytest.mark.parametrize(
     "change",
     [
-        lambda entry: entry["attributes"]["properties"].pop("source"),
+        lambda entry: entry["attributes"]["properties"].update({"source": True}),
         lambda entry: entry["attributes"]["properties"].update(
             {"source": {"type": "number"}}
         ),
     ],
 )
 def test_a_data_source_attribute_not_declared_a_string_is_advice(page_dir, change):
-    """A source attribute declared as anything but a string still works, since each
-    element's source passes `leaf data`'s own grammar, so the registry advises
-    declaring it a string rather than refusing the declaration."""
+    """A source attribute the declaration gives a schema other than a string's draws
+    advice to declare it a string, not a refusal of the declaration."""
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
     change(registry["lf-test-data"])
 
     registry_validation.validate_registry(registry, "test registry")
-    said = composition_model.declaration_advice(
+    said = declaration_advice(
         {"lf-test-data": registry["lf-test-data"]}, registry, "test registry"
     )
     assert [(f.code, f.at, f.severity) for f in said] == [
@@ -208,9 +221,7 @@ def test_a_measured_input_joins_its_source_to_one_run_receipt(
     change(registry["lf-num"])
 
     registry_validation.validate_registry(registry, "test registry")
-    said = composition_model.declaration_advice(
-        {"lf-num": registry["lf-num"]}, registry, "test registry"
-    )
+    said = declaration_advice({"lf-num": registry["lf-num"]}, registry, "test registry")
     [advice] = found(said, code, "<lf-num>", **values)
     assert advice.severity == "advice"
 
@@ -523,24 +534,15 @@ def test_page_owned_data_contract_can_change_without_changing_source_meaning(
 
 
 def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings():
-    from leaf.validation.instances import reference_errors, widget_errors
+    from leaf.markup_checks.instances import reference_errors, widget_errors
 
     registry = {
         "lf-producer": {
-            "attributes": {
-                "type": "object",
-                "properties": {},
-            },
+            "attributes": {"properties": {}},
             "content": "empty",
             "outputs": {"rows": {"contract": "rows"}},
         },
         "lf-consumer": {
-            "attributes": {
-                "type": "object",
-                "properties": {
-                    name: {"type": "string"} for name in ("id", "source", "for")
-                },
-            },
             "content": "empty",
             "inputs": {
                 "rows": {
@@ -549,9 +551,12 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
                     "reference": "for",
                 }
             },
-            "refers": {"for": {}},
         },
     }
+    # As composing a layer leaves it: the consumer's input names `source` and `for`,
+    # which declares each an attribute and `for` an element relation, and every element
+    # takes an `id`.
+    registry_contract.stamp_grammars(registry_contract.complete_declarations(registry))
 
     def errors(binding):
         document = SourceDocument(
@@ -570,7 +575,6 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
         "ambiguous-data-binding"
     ]
     registry["lf-consumer"]["inputs"]["rows"].pop("source")
-    registry["lf-consumer"]["attributes"]["properties"].pop("source")
     assert errors('for="feed"') == []
     # The input reads the one output of its contract, whatever the producer names it.
     registry["lf-producer"]["outputs"]["more"] = {"contract": "other"}
@@ -585,3 +589,113 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]
+
+
+@pytest.mark.parametrize(
+    ("declared", "properties", "refers"),
+    [
+        # Named by the input alone: each is a string attribute, and `for` a relation.
+        (
+            {},
+            {"source": {"type": "string"}, "for": {"type": "string"}},
+            {"for": {}},
+        ),
+        # A schema or a relation the entry writes stands beside what composition writes.
+        (
+            {
+                "attributes": {"properties": {"for": {"minLength": 2}}},
+                "refers": {"about": {}},
+            },
+            {"for": {"minLength": 2}, "source": {"type": "string"}},
+            {"about": {}, "for": {}},
+        ),
+        # An entry that writes the input's attributes out as well declares each once.
+        (
+            {
+                "attributes": {
+                    "properties": {"source": {"type": "string"}, "for": True}
+                },
+                "refers": {"for": {}},
+            },
+            {"source": {"type": "string"}, "for": True},
+            {"for": {}},
+        ),
+        # A declaration of another shape is left as written, for validation to name.
+        ({"attributes": {"properties": ["for"]}, "refers": ["for"]}, ["for"], ["for"]),
+        ({"inputs": {"rows": {"contract": "rows", "reference": ["for"]}}}, None, None),
+        ({"inputs": ["rows"]}, None, None),
+    ],
+)
+def test_composing_declares_the_attributes_an_input_binds_by(
+    declared, properties, refers
+):
+    entry = {
+        "inputs": {"rows": {"contract": "rows", "source": "source", "reference": "for"}}
+    } | declared
+
+    composed = registry_contract.complete_declarations({"lf-reader": entry})
+
+    assert composed["lf-reader"]["attributes"].get("properties") == properties
+    assert composed["lf-reader"].get("refers") == refers
+
+
+SHORTLIST, FINALISTS = (
+    ROOT / "tests" / "fixtures" / "packages" / name
+    for name in ("shortlist", "finalists")
+)
+
+
+def test_a_package_reads_another_packages_output_by_the_contracts_name(
+    initialized_page, tmp_path
+):
+    """The finalists fixture reads a `shortlist` only from the widget its `for` names
+    and declares no contract. The shortlist fixture, written apart from it, declares
+    the one both name. So the finalists package checks alone, and on a page that
+    selects both, `page check` matches the input to the output by that name. The
+    contract's instructions reach the reader's author on that page, and a page that
+    selects the reader alone returns the reader's own."""
+    status, findings = package_findings(FINALISTS)
+    assert status == 0, findings
+
+    page_dir = initialized_page(
+        tmp_path / "page", (package_path(SHORTLIST), package_path(FINALISTS))
+    )
+
+    def checked(target):
+        (page_dir / "index.html").write_text(
+            '<!doctype html><html lang="en"><head><title>Final round</title></head>'
+            '<body><main><lf-shortlist id="hires"><ul><li><button type="button"'
+            ' commandfor="hires" command="--toggle" value="ada">Ada Lovelace</button>'
+            '</li></ul></lf-shortlist><p id="plain">No shortlist here.</p>'
+            f'<lf-finalists id="finalists" for="{target}"></lf-finalists>'
+            "</main></body></html>"
+        )
+        status, findings = check_findings(page_dir)
+        return status, [
+            (finding.at, finding.values)
+            for finding in found(findings, "output-contract")
+        ]
+
+    assert checked("hires") == (0, [])
+    assert checked("plain") == (
+        1,
+        [
+            (
+                "<lf-finalists>",
+                {
+                    "line": 1,
+                    "input": "shortlist",
+                    "target": "plain",
+                    "outputs": [],
+                    "contract": "shortlist",
+                },
+            )
+        ],
+    )
+
+    def audiences(page):
+        return set(page_instructions(page, entries=("lf-finalists",)))
+
+    assert audiences(page_dir) == {"author", "producer"}
+    alone = initialized_page(tmp_path / "alone", (package_path(FINALISTS),))
+    assert audiences(alone) == {"author"}

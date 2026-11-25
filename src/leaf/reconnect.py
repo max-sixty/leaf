@@ -41,7 +41,7 @@ from .findings import Finding
 from .harness import Harness
 from .refusals import Refused
 from .schema import PREVIEW_FILE
-from .service import claim_is_active, claim_records, prepare_claim
+from .service import PREVIEW, claim_is_active, claim_records, prepare_claim
 
 
 def serve_again(harness: Harness, started: float) -> list[Finding]:
@@ -57,19 +57,19 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
     (`hosting.listening_socket`)."""
     found = []
     if pages := to_serve(harness):
-        from .hosting import claim_and_start
+        from .hosting import claim_and_start, preparing_delivery
         from .vendoring import renew_layer
 
         deadline = _deadline(started)
         for page_dir in pages:
-            if unready := renew_layer(page_dir, harness, command=False):
+            if unready := renew_layer(page_dir, harness):
                 found.append(unready)
             try:
                 if time.monotonic() >= deadline:
                     raise Refused("the prompt had no time left to start it")
                 prepared = prepare_claim(harness, page_dir)
                 with (
-                    harness.preparing_delivery(),
+                    preparing_delivery(harness),
                     claim_and_start(
                         page_dir, prepared_claim=prepared, deadline=deadline
                     ),
@@ -103,7 +103,7 @@ def to_serve(harness: Harness) -> list[Path]:
         page_dir = Path(claim["page"])
         if (
             claim["harness"] != harness.name
-            or (page_dir / PREVIEW_FILE).exists()
+            or PREVIEW.file(page_dir / PREVIEW_FILE).exists()
             or not initialized(page_dir)
         ):
             continue

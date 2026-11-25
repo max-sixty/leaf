@@ -20,9 +20,9 @@ async function frame() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-const { applicationState } = await import("/runtime/semantic-state.js");
-const { nextRender } = await import("/runtime/rendering.js");
-const { createStateApplication } = await import("/runtime/state-application.js");
+const { applicationState } = await import("/runtime/state/semantic-state.js");
+const { nextRender } = await import("/runtime/lib/frame-pass.js");
+const { createStateApplication } = await import("/runtime/host/state-application.js");
 
 applicationState.identify(1);
 applicationState.captureDocument({
@@ -53,7 +53,7 @@ const settle = async () => {
 
 // After a long gesture task the browser may run an arriving reading before the frame
 // that paints what the gesture drew; the reading waits for that frame instead
-// (rendering.js, `afterOwedFrame`).
+// (base/rendering.js, `afterOwedFrame`).
 test("a reading arriving while a gesture's frame is owed is adopted after that frame", async () => {
   applicationState.enqueue(
     { kind: "comment", attempt: "sent", text: "Keep my words", revision: 1 },
@@ -86,9 +86,9 @@ test("a reading with no gesture in flight is adopted without waiting for a frame
 // refuses leaves no widget for a node to take up, as a renderer's replacement for a
 // widget's node does, nor any element under the widget's id; one it adopts gives both.
 test("a refused reading leaves its messages' widgets unfound, and an adopted one finds them", async () => {
-  const { adoptRegistry } = await import("/runtime/registry.js");
-  const { widgetDescriptor } = await import("/runtime/widget-descriptors.js");
-  const { addressableAt } = await import("/runtime/thread/messages.js");
+  const { adoptRegistry } = await import("/runtime/state/registry.js");
+  const { widgetDescriptor } = await import("/runtime/records/widget-descriptors.js");
+  const { addressableAt } = await import("/runtime/records/thread/messages.js");
   adoptRegistry({ $layer: { generation: "refused-reading" }, "lf-refused": {} });
   const message = {
     id: "refused-message",

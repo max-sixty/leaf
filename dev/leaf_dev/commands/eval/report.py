@@ -37,7 +37,6 @@ import click
 import turbohtml
 from PIL import Image
 
-from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND, gallery
@@ -50,12 +49,12 @@ from leaf_dev.regrade import ASPECTS, saved_comparison
 EXPORT_PHASE = """
 from pathlib import Path
 import sys
+from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.exporting import cmd_export
 from leaf.files import stamped_version
 from leaf.publishing import cmd_stamp
 from leaf.revisioning import planned_activation
-from leaf.validation.source import check_source
 page, target = map(Path, sys.argv[1:])
 events = read_events(page)
 checked = check_source(page, events)
@@ -1556,7 +1555,7 @@ def eval_report(
     heading = turbohtml.parse_fragment(source, context="main").find("h1")
     if heading is None:
         raise click.ClickException("The review needs an <h1>, the report's title.")
-    packages = list(layer_packages(page)) if initialized(page) else []
+    packages = layer_packages(page) or []
     if any(name not in packages for name in REQUIRED_PACKAGES):
         leaf(
             "page",

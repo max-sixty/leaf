@@ -1,12 +1,15 @@
 # Previews
 
-Read with [module-authoring.md](module-authoring.md), which holds what every behavior
-module owes.
+Read with [module-authoring.md](module-authoring.md).
 
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
 pointer rests on it, when Tab brings the keyboard to it or something inside it, and when
 a finger holds it, beside the element over the page, in one face: a name with key chips,
-then lines of detail. A command's landing, such as a walk's, previews nothing, since
+then lines of detail. An element with no Tab stop, such as an age, previews to the
+keyboard when the caret stands in it and the user presses `K`, in browsers with caret
+browsing (Chromium and Firefox), so a preview needs no Tab stop of its own. Leaf then
+calls `lfPreview("focus")`, though the element doesn't hold focus. A command's
+landing, such as a walk's, previews nothing, since
 what the user asked the command for is in front of them (`module-input.md`, "Focus and layers"). The preview holds no control, so a control the user presses stays
 on the widget; a pointer may cross onto it to read it, and a finger's long press reads
 it and presses nothing, so a widget's click answers a tap alone.
@@ -28,8 +31,10 @@ come back the same leave the preview as it is. It returns:
 - `{name, keys, detail, list, at, about, excerpt, unseen}`, every field optional. `name`
   replaces the control's accessible name in the preview, or names an element that has
   none. `keys`
-  lists presses the register can't see, each as the steps its chips draw, as a control's
-  own activation keys a drag grip names. `detail` is lines under the name, each words or
+  adds presses Leaf's own chips leave out, such as the activation keys a drag grip
+  names. Each press is a list of bindings, one for a single key and one for each step
+  of a sequence, spelled as a command row's `keys` are (`module-input.md`, "Command
+  rows"), as in `keys: [["Enter"], [" "]]`, and Leaf draws each binding as a key chip. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
   declaring element by default: another element, as a message stands its preview by
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as

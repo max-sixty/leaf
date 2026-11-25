@@ -47,7 +47,7 @@ the URL's key, which the browser keeps in a cookie. One key covers every page on
 machine, so sharing one page's URL gives access to all of them. Leaf opens no public
 tunnel; binding beyond loopback exposes the port to that network.
 
-A page keeps its host and port in `<page>/service.json`, so serving again, changing
+A page keeps its host and port in its directory's service record, so serving again, changing
 its packages and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
 macOS, restarting a `--host` page can wait about 30 seconds for the port to free up, and
 serving refuses if it is still taken.
@@ -88,8 +88,8 @@ at the session's next turn or at a `leaf` command that writes to the page. A com
 that only reads the page, such as `leaf page state`, leaves it at the old protocol.
 
 While another live session holds the page, Leaf refuses to serve or write it, and
-`leaf page state` explains in `source.error`, naming the `leaf page init` command to
-run from the session that holds the page. A page a newer Leaf initialized is refused
+`leaf page state` refuses it too, naming the `leaf page init` command to run from the
+session that holds the page. A page a newer Leaf initialized is refused
 as well; the refusal says how to load a newer Leaf.
 
 An update can change what a widget accepts or how it draws, and a page's own widgets

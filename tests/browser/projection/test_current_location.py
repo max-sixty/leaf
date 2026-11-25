@@ -46,11 +46,11 @@ from render_harness import (
 
 from browser.threads import (
     PANEL_REPLY,
-    choose_threads_in_panel,
     open_panel_thread,
     thread_row,
 )
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -151,7 +151,7 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     Which control they were holding is not a thing the obligation can answer: the controls are
     the widget's, most carry no id, and the first one that answers the obligation is the
     walk's landing rule rather than a restore. Handing that back is the failure
-    version.js names — a user holding the second option would be given the first, and
+    features/version.js names — a user holding the second option would be given the first, and
     their next press would choose it. The obligation's opening holds a lent tab stop rather
     than a decision, so the digits still reach the option they meant and Space decides
     nothing. Where the revision withdraws the question there is nothing to come back to,
@@ -571,7 +571,7 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     browser, serve
 ):
     """A choosing lf-options that stands at its own source, as each does in a named
-    group holding two questions (`obligations/place.js`), gives its location ring up to
+    group holding two questions (`records/obligations/place.js`), gives its location ring up to
     the row as a group's question does. If the choice kept its ring, a Tab in would
     draw the choice's ring on its frame and the row's just inside it, two accent lines
     for one fact."""
@@ -605,12 +605,75 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
 
     page.keyboard.press("Tab")
     expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
-    # The ring is painted in the frame the focus move asks for (repaint.js).
+    # The ring is painted in the frame the focus move asks for (dom/repaint.js).
     rendered(page)
     assert choice.evaluate(LOCATION_RING)[0] == "none", (
         "the choice kept its ring round the row"
     )
     assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
+
+
+def test_focus_shown_inside_a_decision_carries_the_band_alone(browser, serve):
+    """Whatever Leaf rings for the user's focus inside a decision, the decision's
+    location ring stands down, so one band says where the user is. A draft's editor
+    rings the draft's frame just inside the question's ring, so keeping both drew two
+    boxes round the words being typed; a link in the premise, and a comment's note on
+    the details shelf, which rings the heading it is about, are the same fact."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Opening",
+                """<h1 id="h">Opening</h1>
+<lf-group id="opening" label="Edit the opening paragraph">
+<h2 id="opening-h">Edit the opening paragraph</h2>
+<p id="opening-note">As <a id="opening-link" href="#h">the issue</a> has it.</p>
+<lf-draft id="opening-draft" required><pre>
+Once the session has built up some context, the model decides.</pre></lf-draft>
+</lf-group>""",
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Should the heading say README?",
+                    "anchor": {"section": "opening-h"},
+                    "id": "c" * 32,
+                }
+            ],
+        ),
+    )
+    question = page.locator("#opening")
+    link = page.locator("#opening-link")
+    link.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(link).to_be_focused()
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the focused link"
+    )
+
+    page.locator("#opening-draft .lf-draft-body").click()
+    draft = page.locator("#opening-draft")
+    expect(draft.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert draft.evaluate(RING)[0] == "solid", "the draft's frame shows no focus"
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the draft being edited"
+    )
+
+    # Assistive technology reaches the note; its ring stands round the heading.
+    page.locator(".lf-mark-note").focus()
+    expect(page.locator("#opening-h")).to_have_attribute("data-lf-proxied", "")
+    rendered(page)
+    expect(question).to_have_attribute("data-lf-obligation", "1")
+    assert question.evaluate(LOCATION_RING)[0] == "none", (
+        "the question kept its ring round the heading the note rings"
+    )
 
 
 def test_the_ring_says_where_the_user_is_located(browser, serve):
@@ -629,9 +692,9 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     there, in the browser's blue, would stand a few inches from a decision ringed in the
     page's accent, with nothing saying the two rectangles meant one thing.
 
-    A joined options control is the one shape that draws the band somewhere else: it is
-    already a framed box, so a ring around the decision *and* one inside it would read as
-    a second border that comes and goes, and while the user is in the control the exact
+    Inside a joined options control the band moves to the row: the control is already
+    a framed box, so a ring around the decision *and* one inside it would read as a
+    second border that comes and goes, and while the user is in the control the exact
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
     still meaning one thing. An arrival is the other side of that: it places the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
@@ -643,7 +706,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert arrival_ring == [
         "solid",
         "2px",
-        token_colour(page, "--lf-accent"),
+        token_colour(page, "--lf-ok"),
     ], f"the decision the walk stood the user on is not ringed: {arrival_ring}"
 
     # One press in, and the band moves to the row rather than doubling: the frame is the
@@ -659,7 +722,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert row_ring == [
         "solid",
         "2px",
-        token_colour(page, "--lf-accent"),
+        token_colour(page, "--lf-ok"),
     ], f"the row the user is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a user working one has
@@ -865,7 +928,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
-    card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
+    card = page.locator(".lf-fp-on-item[data-lf-key='widget:store']")
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")

@@ -1398,7 +1398,11 @@ def _title_option(command):
 @page_argument(renew=True)
 @click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
-@click.option("--part", metavar="ID", help="declared visual part within --section")
+@click.option(
+    "--part",
+    metavar="ID",
+    help="a visual part within --section, such as one `page state` lists in its `parts`",
+)
 @body_options("the comment's text")
 @_title_option
 @click.option(
@@ -1472,7 +1476,11 @@ def thread_create(
 )
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
-@click.option("--part", metavar="ID", help="new declared visual part within --section")
+@click.option(
+    "--part",
+    metavar="ID",
+    help="a new visual part within --section, such as one `page state` lists in its `parts`",
+)
 @click.option("--detach", is_flag=True, help="remove the thread's page target")
 def thread_reply(
     destination: str,

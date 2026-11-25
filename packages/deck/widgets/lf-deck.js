@@ -84,6 +84,7 @@ import {
   keepView,
   motion,
   obligationActions,
+  onUserInput,
   placeOf,
   openingView,
   viewMembers,
@@ -112,6 +113,8 @@ const LEAVE_MS = 200;
 const ARRIVE_MS = 260;
 const FADE_MS = 140;
 const SETTLE_MS = 250;
+// The inputs that aim a gesture at the deck, as against a wheel that reads past it.
+const GESTURES = new Set(["pointerdown", "keydown"]);
 const LEAVE = "cubic-bezier(0.3, 0, 0.8, 0.15)";
 const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
@@ -228,9 +231,13 @@ customElements.define(
       if (this.matches("[data-lf-exhibit] *")) return;
       whileConnected(this, (signal) => {
         const options = { signal };
-        const gesture = () => (this.#moves = retainUserIntent());
-        this.addEventListener("pointerdown", gesture, { signal, capture: true });
-        this.addEventListener("keydown", gesture, { signal, capture: true });
+        // A press or key in the deck is the user's latest gesture toward it, read from
+        // the document's one reading of the user's inputs, which binds no key.
+        const forget = onUserInput((event) => {
+          if (GESTURES.has(event.type) && event.composedPath().includes(this))
+            this.#moves = retainUserIntent();
+        });
+        signal.addEventListener("abort", forget);
         // The cards reflow at a new width, so the height held at the old one goes
         // until the next change of card takes one again.
         const widths = sizeObserver(([entry]) => {

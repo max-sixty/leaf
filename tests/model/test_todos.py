@@ -45,6 +45,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import standing as standing_model
 from leaf import state as state_model
+from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.event_contracts import append_admitted
@@ -832,7 +833,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
 
     def take_in_hand():
         if claim == "task start":
-            todos_model.cmd_start(page_dir, comment["id"], "Tightening it")
+            tasks_model.cmd_start(page_dir, comment["id"], "Tightening it")
         else:
             thread_model.post_response(reference, "Tightening it", ephemeral=True)
 

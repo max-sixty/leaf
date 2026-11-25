@@ -32,6 +32,7 @@ from typing import NamedTuple
 from .obligations import response_address
 from .standing import STRANDED, strength
 from .state import turn_closed, turn_open
+from .todos import TodoReading, last_start, start_reading
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
@@ -68,8 +69,6 @@ def declaration(events: list) -> dict:
     an `idle` (`todos.start_reading`) reads as a bare `waiting` from that start on.
     It has no event of its own, since a declaration puts down every start before
     it."""
-    from .todos import start_reading
-
     reopened = None
     for event in reversed(events):
         if event["kind"] == "status":
@@ -354,7 +353,7 @@ def start_holds(start: dict, present: dict, *, ended: datetime | None) -> bool:
 
 def in_hand(obligation: dict, state: dict) -> bool:
     """Whether a start of the claimant's session holds this update now
-    (`start_holds`, `todos.take_in_hand`): one covering it (`workflows.handed_over`,
+    (`start_holds`, `tasks.take_in_hand`): one covering it (`workflows.handed_over`,
     `started_by`), written since its pickup.
 
     Read from the covering starts rather than the update's own standing, which follows
@@ -496,8 +495,6 @@ def claimant_turn(
 def declared_at(present: dict, events: list) -> str | None:
     """When the agent last declared anything about the page: its newest status, or
     the newest start in the log (`todos.last_start`)."""
-    from .todos import last_start
-
     moments = [
         (parsed, moment)
         for moment in (present["status"].get("ts"), last_start(events))
@@ -779,8 +776,6 @@ def canonical_activity(
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .todos import TodoReading
-
     log = todo_reading or TodoReading(events)
     now = datetime.fromisoformat(now_iso)
     status = present["status"]

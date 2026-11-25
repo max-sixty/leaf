@@ -2401,7 +2401,7 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
-    # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
+    # The thread and task commands' refusals (`thread`, `tasks.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
     # (`authored_checks.admission.logged_id`), and `answer` the command that answers an
     # owed update (`activity.answer_command`).

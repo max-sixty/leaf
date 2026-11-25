@@ -82,7 +82,7 @@ does as well on the eval's cases.
 
 The session's pages follower (`hooks.cmd_pages`) lists a report for each round that
 awaited a line as its newest turn arrived (`look`, `listed`) while it holds the
-session's lane, a lease each new follower takes from the last (`take_lane`), so one
+session's lane, a lease each new follower takes from the last (`leases.take_lane`), so one
 follower lists for a session at a time. It lists only rounds whose newest turn came after it first read the page, and
 the module runs each listed id once (`carrier.py`), so each round, named by its newest
 turn, gets at most one line fork, even where a module reload starts a follower again.
@@ -130,9 +130,8 @@ from pathlib import Path
 from . import summary_fork
 from .events import unlined
 from .json_block import json_block
-from .leases import lease_speaks_here, take_wait_lease
 from .service import PageTransaction
-from .state import page_key, session_file
+from .state import page_key
 
 # The words that open the line fork's question, which the transcript carries.
 LINE_OPENING = "<leaf-line-fork>"
@@ -152,22 +151,6 @@ ANSWER = {
 # What Leaf does with the answer of each fork it makes beside a line fork, by the
 # duty its basis names (`ask`'s `beside`).
 BESIDE = {"summary": summary_fork.take_answer}
-
-
-def lane_path(session_id: str) -> Path:
-    return session_file(session_id, "fork-lane")
-
-
-def take_lane(session_id: str):
-    """Hold the session's lane, from any earlier holder, while this follower lists
-    the session's line forks (`hooks.cmd_pages`)."""
-    return take_wait_lease(lane_path(session_id), supersede=True)
-
-
-def lane_up(session_id: str) -> bool:
-    """Whether a follower holds the session's lane, and so lists a line fork, and the
-    forks beside it, for each round that awaits a line."""
-    return lease_speaks_here(lane_path(session_id))
 
 
 def _threads(page: PageTransaction) -> dict[str, dict]:

@@ -6239,6 +6239,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Home")
+    page.keyboard.press("ArrowLeft")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]

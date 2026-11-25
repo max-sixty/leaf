@@ -628,8 +628,9 @@ def reload_in_a_row(page, serve, waits, slow=()):
     reloads = {"count": 0}
     replaced = {"documents": 0}
     # The answers each document the reloads bring asks for, by its number from 1, held
-    # until it has taken its step.
+    # until it has taken its step; from then on its answers go out as it asks.
     held = {}
+    released = {"through": 0}
 
     # Each reload asks for a new document; a rename of the entry the page makes is no
     # new document.
@@ -654,7 +655,7 @@ def reload_in_a_row(page, serve, waits, slow=()):
         if urlsplit(route.request.url).path == "/registry.json":
             answer(route)
             reloads["count"] += 1
-        elif 1 <= replaced["documents"] == reloads["count"]:
+        elif released["through"] < replaced["documents"] == reloads["count"]:
             held.setdefault(replaced["documents"], []).append(route)
         else:
             answer(route)
@@ -673,6 +674,7 @@ def reload_in_a_row(page, serve, waits, slow=()):
         page.wait_for_function("() => document.readyState !== 'loading'")
         wait()
         with page.expect_navigation(wait_until="commit"):
+            released["through"] = document
             while waiting:
                 answer(waiting.pop(0))
     wait_until_ready(page)

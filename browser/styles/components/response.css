@@ -56,6 +56,14 @@ leaf-composition-field {
 .lf-compose-field > leaf-text {
   grid-area: 1 / 1;
 }
+/* A field's ring says the caret is in its words. A field the user stands on rather
+   than in, as a walk's stop at a kept comment leaves them (input.js, `text.enter`),
+   keeps its resting edge, and its key chip says what puts the caret in. The user
+   chose this over the ring every focus destination wears (element-marks.css), which
+   made the stop look like typing, so letters typed there ran page commands instead. */
+.lf-compose-field[data-lf-focus-visible] {
+  outline: none;
+}
 /* One line whatever its key badge's box: the badge paints into the field's padding, so
    the hint stands where the words will and sizes nothing. A narrow field shortens the
    label and keeps the key, unless it also says the new-line key (below). It is

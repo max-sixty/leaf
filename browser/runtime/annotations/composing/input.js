@@ -883,13 +883,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     sync.composition = () => ({ field: visualField, frame: field });
     // A box the user stands on rather than in, as a walk's stop at a kept comment
     // leaves them (features/anchor-travel.js, `onFrame`), takes `c` or Enter into its
-    // words, with the caret after them. It wears `c` as a key chip on its corner
-    // (`bindingBadge`), since its words cover the placeholder that says `c` in an empty
-    // box, and without the chip a box the user stands on looks like one they write in
-    // but for the caret. Rejected: the key after the words, where the caret will stand,
-    // which has no room where the last line runs to the box's end, as a one-line
-    // comment's does in a wide window; and the key in the panel's walk status, away from
-    // the box the user is reading.
+    // words, with the caret after them. It keeps its resting edge (response.css) and
+    // wears `c` as a key chip on its corner (`bindingBadge`), since its words cover the
+    // placeholder that says `c` in an empty box. The user chose this. Rejected: the
+    // key after the words, where the caret will stand, which has no room where the last
+    // line runs to the box's end, as a one-line comment's does in a wide window; the
+    // key in the panel's walk status, away from the box the user is reading; and the
+    // words greyed until the caret enters, which reads as a placeholder.
     keys(visualField, "On a text box", [
       {
         id: "text.enter",

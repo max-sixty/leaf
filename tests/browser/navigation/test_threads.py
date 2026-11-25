@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import overlapped_words, ring_faults, rings_drawn
+from render_cases_layout import overlapped_words, ring_faults, ring_rule, rings_drawn
 from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
@@ -513,9 +513,10 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     order among the open threads, as Threads lists the two together, a comment about a
     passage of a paragraph holding a thread included. The walk opens the comment's box
     on its words and stands the user on the box, not in it, so the next `t` walks on and
-    puts the box away, and `c` or Enter puts the caret after the words. The box wears `c`
-    as a key chip while the user stands on it, since its words cover the placeholder
-    that says `c`."""
+    puts the box away, and `c` or Enter puts the caret after the words. While the user
+    stands on the box it keeps its resting edge, so it doesn't look like one they type
+    in, and wears `c` as a key chip, since its words cover the placeholder that says
+    `c`."""
     url = serve(
         leaf_page(
             "drafts in the walk",
@@ -558,9 +559,12 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     expect(field).to_have_js_property("value", "About the passage.")
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip.filter(has_text="c")).to_be_visible()
+    assert ring_rule(box) == ""
+    assert ring_rule(box, "after") == ""
     page.keyboard.press(enters)
     expect(chip).to_have_count(0)
     expect(field).to_be_focused()
+    assert ring_rule(box, "after")
     expect(field).to_have_js_property("value", "About the passage.")
     expect(field).to_have_js_property("selectionStart", len("About the passage."))
 

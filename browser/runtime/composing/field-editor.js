@@ -1943,7 +1943,8 @@ function fieldEditor(
   //   same kind and depth. One starting below them keeps its start too, unless it is
   //   what is left of a block that held part of those lines, as the paragraph's lines
   //   after one that Delete joins to a heading above.
-  // - The draft shows no character it didn't, except those the user put, `typed`.
+  // - The draft shows no character it didn't, except those the user put, `typed`, and
+  //   those they spell, as `©` for `&copy;`.
   // - It shows each character it showed, except those the changes take from the source
   //   and don't put back, and except those typing hides, as a `)` typed after
   //   `[link](url` makes a link of them.
@@ -1952,7 +1953,9 @@ function fieldEditor(
   // edits, as words that a paragraph above would take in, a `---` that the words above
   // would make a heading's underline, or two lists that a line between them kept apart.
   // A block's end past the draft's, where it takes in the word a bare last line is read
-  // as holding (`read`), counts as the draft's end.
+  // as holding (`read`), counts as the draft's end. Characters are counted, not matched
+  // to their places in the source, so an edit that hides one `#` and shows another
+  // passes, as Backspace at `# ▏# T` does.
   /** @param {EditorState} state @param {Changes} changes @param {string} [typed] */
   function keeps(state, changes, typed = "") {
     const doc = changes.apply(state.doc);

@@ -342,14 +342,13 @@ rule sets only its place, size and padding.
 
 ### Delayed work
 
-A widget's own navigation that waits, such as for a file or renderer to load, calls
-`const intent = retainUserIntent()` in the gesture that starts it, before the first
-wait. After every wait, it moves focus or scroll only if `intent()` is still true; it
-turns false once the user presses, types, scrolls, leaves the window or moves focus. If
-the navigation then opens or closes a surface that moves focus, wrap that change in
-`intent.handoff(() => changeSurface())` so the move doesn't count as the user's; it
-returns false if the change had already moved focus. `threadActions.open` handles this
-itself (`module-annotations.md`, "Reading and opening Threads from a widget").
+A widget's own navigation that waits, such as for a file or renderer to load, moves
+focus or scroll after the wait only where the user has done nothing since the gesture
+that started it. The library's
+[`input-since.js`](../../../browser/runtime/lib/input-since.js) says so:
+`const intended = noInputSince()` in that gesture, and `intended()` after each wait.
+`threadActions.open` keeps the same rule itself (`module-annotations.md`, "Reading and
+opening Threads from a widget").
 
 ### Pointer presses
 

@@ -120,6 +120,7 @@ export {
   restorePlace,
 } from "./reading-place.js";
 export { replaceEntry } from "./history.js";
+export { retainUserIntent } from "./user-intent.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";

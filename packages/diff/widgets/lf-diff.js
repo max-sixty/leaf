@@ -37,7 +37,6 @@ import {
   langForPath,
   move,
   threadSurface,
-  retainUserIntent,
   setChildren,
   shadowStage,
   whileConnected,
@@ -52,6 +51,7 @@ import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -1978,7 +1978,7 @@ customElements.define(
     // both walks capture the pressing gesture's intent first and land only while it stands.
     /** @param {boolean} back */
     async stepHunk(back) {
-      const mayLand = retainUserIntent();
+      const mayLand = noInputSince();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
       const currentLocation = here
@@ -2009,7 +2009,7 @@ customElements.define(
 
     /** @param {boolean} back */
     async stepFile(back) {
-      const mayLand = retainUserIntent();
+      const mayLand = noInputSince();
       const here = this.hereNode();
       const entries = this.navigationEntries();
       const order = back ? [...entries].reverse() : entries;

@@ -53,9 +53,6 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
-// Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "The page holds still under the user's aim").
-export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
 export { registerContribution } from "./contributions.js";

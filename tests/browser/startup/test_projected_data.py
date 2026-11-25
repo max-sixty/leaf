@@ -1158,49 +1158,6 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
     )
 
 
-def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve):
-    """A widget's held reading waits for its growth to go unseen across a departure
-    and return, though the return draws nothing again."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    result = page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
-          const {noChange} = await window.__lfVendorImport('lit.js');
-          const settle = () => new Promise((resolve) => setTimeout(resolve));
-          customElements.define('lf-held-probe', class extends LeafElement {
-            render() {
-              shown = held.hold(current);
-              return noChange;
-            }
-          });
-          const owner = document.createElement('lf-held-probe');
-          const region = document.createElement('p');
-          region.textContent = 'Rows';
-          owner.append(region);
-          let current = 'first';
-          let shown = null;
-          const refresh = () => { owner.requestUpdate(); owner.performUpdate(); };
-          const held = new api.HeldReading(owner, () => [region], refresh);
-          document.body.prepend(owner);
-          await settle();
-          current = 'second';
-          refresh();
-          const waiting = shown;
-          owner.remove();
-          await settle();
-          document.body.prepend(owner);
-          await settle();
-          region.hidden = true;
-          for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
-          await settle();
-          owner.remove();
-          return {waiting, shown};
-        }"""
-    )
-    assert result == {"waiting": "first", "shown": "second"}
-
-
 def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     """The data stamp proves that every drawing a delivery holds has settled.
 

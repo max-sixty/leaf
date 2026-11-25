@@ -53,7 +53,7 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
     expect(row).to_contain_text("chose “Fast path” in")
 
 
-def test_activity_prints_complete_history_even_when_closed_or_held(browser, serve):
+def test_activity_prints_complete_history_even_when_closed(browser, serve):
     page = open_page(
         browser,
         serve(
@@ -82,45 +82,25 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
     expect(control).to_be_visible()
     expect(control).to_have_attribute("aria-expanded", "false")
     control.click()
-    comment = append_command(
+    append_command(
         serve.page_dir,
         {
             "revision": 1,
             "kind": "comment",
             "author": "user",
-            "text": "A held record for paper.",
+            "text": "A record for paper.",
         },
     )
     told(page)
-    expect(control).to_have_text("Show 1 new")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
-    page.emulate_media(media="print")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
-    expect(page.locator("#feed .lf-activity-row").first).to_contain_text(
-        "A held record for paper."
-    )
-    page.emulate_media(media="screen")
-    expect(control).to_have_text("Show 1 new")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
-
-    control.click()
-    resolution = append_command(
-        serve.page_dir, {"kind": "resolve", "author": "user", "parent": comment["id"]}
-    )
-    told(page)
-    control.click()
-    target = page.locator("#feed .lf-activity-row").first.locator("button")
+    expect(control).to_have_text("Hide activity")
+    rows = page.locator("#feed .lf-activity-row")
+    expect(rows).to_have_count(2)
+    target = rows.first.locator("button")
     control.press("Tab")
     expect(target).to_be_focused()
-    append_command(
-        serve.page_dir, {"kind": "undo", "author": "user", "undoes": resolution["id"]}
-    )
-    told(page)
-    expect(control).to_have_text("Activity changed")
     page.emulate_media(media="print")
-    expect(page.locator("#feed .lf-activity-row").first).to_have_attribute(
-        "data-lf-undone", ""
-    )
+    expect(rows).to_have_count(2)
+    expect(rows.first).to_contain_text("A record for paper.")
     page.emulate_media(media="screen")
-    expect(control).to_have_text("Activity changed")
+    expect(control).to_have_text("Hide activity")
     expect(target).to_be_focused()

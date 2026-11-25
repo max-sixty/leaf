@@ -28,16 +28,14 @@ import { createActivity } from "./activity-view.js";
  * An excerpt is the words its Markdown renders, never the source.
  *
  * History has no authored size. Its fixed disclosure stands from first paint; rows
- * appear only when the reader opens it. Once open, HeldReading keeps visible history
- * behind that same disclosure until the reader asks to see the change or leaves it
- * off screen. Rows retain their event identity and focus while that reading stands.
- * Targets stay live: a held row keeps its historical words and geometry, but its
- * fragment link follows only a destination in the current document. A departed
- * destination leaves historical text in the same node, without an active link.
- * Tab memory retains the drawn presentation through a fresh document. The ready
- * authoritative reading is compared through HeldReading. This never folds events or records a decision. */
+ * appear only when the reader opens it. Once open, each reading draws as it arrives,
+ * a new row joining at the top; while closed, the disclosure counts the rows the
+ * reader hasn't seen. Rows retain their event identity and focus across readings. A
+ * row's fragment link follows only a destination in the current document. A departed
+ * destination leaves historical text in the same node, without an active link. Tab
+ * memory retains the drawn presentation through a fresh document. This never folds
+ * events or records a decision. */
 import {
-  HeldReading,
   tabStore,
   elementById,
   layerFact,
@@ -176,19 +174,9 @@ customElements.define(
       });
     }
     #opened = false;
-    #reading = new HeldReading(
-      this,
-      () =>
-        [this.#drawing.notice, this.#drawing.list, this.#drawing.empty].filter(
-          (node) => node !== null,
-        ),
-      () => this.requestUpdate(),
-    );
     #printing = false;
     /** @type {string | null} */
     #closedReading = null;
-    /** @type {string | null} */
-    #restored = null;
     #ready = false;
 
     setup() {
@@ -198,11 +186,9 @@ customElements.define(
       if (!notice) throw new Error("Activity did not draw its disclosure");
       this.#opened = drawing.reading.open;
       this.#closedReading = drawing.restored ? drawing.reading.shown : null;
-      this.#restored = drawing.restored ? drawing.reading.shown : null;
       notice.addEventListener("click", () => {
         if (notice.hasAttribute("data-lf-news")) this.#opened = true;
         else this.#opened = !this.#opened;
-        this.#reading.release();
         this.requestUpdate();
         this.performUpdate();
       });
@@ -233,12 +219,6 @@ customElements.define(
     /** @param {readonly import("../../../browser/types/contract.js").ServedHistoryRow[]} history */
     #render(history) {
       if (!this.#ready && !this.#printing) return this.#template(undefined);
-      if (this.#restored !== null) {
-        if (this.#ready) {
-          this.#reading.hold(this.#restored);
-          this.#restored = null;
-        }
-      }
       const current = history.map((served) => ({
         ...describe(served),
         excerpt: served.excerpt
@@ -249,18 +229,14 @@ customElements.define(
         actor: actorOf(served),
         undone: served.undone,
       }));
-      // Hold the complete drawn reading, including an undo or a changed title:
-      // those may wrap too. The reactive reading supplies the authoritative history.
+      // The reading drawn whole, an undo or a changed title included, is what the
+      // closed disclosure compares the next one against.
       for (const row of current) {
         if (row.widget || row.label) row.label ??= nameById(row.widget);
       }
       const wanted = JSON.stringify(current);
       if (this.#closedReading === null) this.#closedReading = wanted;
-      const shown = this.#printing
-        ? wanted
-        : this.#opened
-          ? this.#reading.hold(wanted)
-          : this.#closedReading;
+      const shown = this.#printing || this.#opened ? wanted : this.#closedReading;
       /** @type {import("./activity-view.js").ActivityRow[]} */
       const rows = JSON.parse(shown);
       const news = shown !== wanted;
@@ -268,11 +244,7 @@ customElements.define(
       const arrived = current.filter(({ id }) => !known.has(id)).length;
       const label = !this.#opened
         ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
-        : news
-          ? arrived
-            ? `Show ${arrived} new`
-            : "Activity changed"
-          : "Hide activity";
+        : "Hide activity";
       if (this.#opened && !this.#printing) this.#closedReading = shown;
       const reading = { open: this.#opened, shown, label, news };
       if (!this.#printing) tabStore.set(this.#storageKey, JSON.stringify(reading));

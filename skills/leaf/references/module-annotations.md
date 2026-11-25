@@ -169,9 +169,6 @@ if (editor?.matches(":focus") && editor.setSelectionRange) {
 }
 ```
 
-Don't test a `retainUserIntent` predicate taken before the call (`module-input.md`,
-"Delayed work"): the route's own move to the editor turns it false.
-
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the Thread doesn't
 offer the action, and otherwise a promise of the admitted event, or of `null` if the
 server refused. A reply needs text, and reopens a resolved Thread. `setReaction` takes
@@ -359,7 +356,6 @@ element with an `id`, `node` itself included, and throws where there is none.
 `reveal(key)` takes the user to that Thread, in the outlet that holds it or else in
 Leaf's panel.
 
-Keep outlets keyed by thread, and hold size changes back with `HeldReading`
-(`module-scroll-and-motion.md`, "Holding the reader's place"). An owner that scrolls
+Keep outlets keyed by thread. An owner that scrolls
 inside its own box registers it as a reading region. Whatever the owner doesn't show
 stays in Threads and the On lists of Leaf's panel.

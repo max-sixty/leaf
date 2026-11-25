@@ -7,7 +7,8 @@ task's delivery record, offers one delivery at a time, and reconciles the receip
 page is owed however that delivery was taken.
 
 While a turn runs, its tool hook can offer the shared record between steps
-(`codex.offer_hook_delivery`), and on the queue route its Stop hook as it would end.
+(`codex.offer_hook_delivery`), and on the queue route its Stop hook as it would end
+(`later_turn_takes_input`).
 The adapter reserves its own transport only once that turn ends, or at once where
 nothing would show it the turn's end (`_offer_queued_delivery`), and an unread hook
 pointer then falls back to the same durable delivery.
@@ -1068,15 +1069,20 @@ def run_adapter(
 
 
 @contextmanager
-def preparing_adapter(harness: CodexHarness):
+def preparing_adapter(harness: Harness):
     """Retain a ready adapter for `harness`'s task until the caller commits page
-    ownership.
+    ownership (`hosting.preparing_delivery`), unless a model wait this task
+    already selected remains its watcher.
 
     The same task start lock serializes adapter startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
-    claim exists, without an adapter retiring in that gap. A new adapter captures
+    claim exists, without an adapter retiring in that gap, and a failed
+    preparation precedes any page ownership transition. A new adapter captures
     the launching harness's canonical session generation before subscribing to turns.
     """
+    if wait_is_live(None, harness.session) and not adapter_is_live(harness.session):
+        yield
+        return
     executable = shutil.which("codex")
     if executable is None:
         raise Refused("cannot find the `codex` executable on PATH")
@@ -1180,6 +1186,26 @@ def running_adapter(session_id: str) -> dict | None:
     if not adapter_is_live(session_id):
         return None
     return ADAPTER.read_any(adapter_lease_path(session_id))
+
+
+def later_turn_takes_input(session_id: str) -> bool:
+    """Whether input that arrives as this task's turn ends goes to a turn of its own
+    rather than into the ending one, where the Stop hook would hand it
+    (`hooks.offer_at_step`): only where the task's adapter delivers over App Server.
+
+    That turn opens on a `leaf_delivery` tool output, which adds no message to the
+    user's conversation. Through `codex queue` the turn opens on a `leaf-delivery`
+    pointer that Codex shows as a message from the user, which is noisier than the
+    one more message the ending turn writes, so there Stop hands the input into the
+    ending turn.
+
+    An adapter takes its lease before it writes its transport there, and holds the
+    start lock across that, so the record is read under the start lock."""
+    if not adapter_is_live(session_id):
+        return False
+    with flocked(adapter_start_lock_path(session_id)):
+        adapter = running_adapter(session_id)
+    return adapter is not None and adapter["app_server"] is not None
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

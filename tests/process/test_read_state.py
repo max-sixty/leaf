@@ -158,7 +158,7 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
 
     harness = harness_model.HARNESSES["claude-code"]
     monkeypatch.setattr(harness, "nudge", nudge)
-    monkeypatch.setattr(harness, "title_generator", lambda self: None)
+    monkeypatch.setattr(harness, "inference", None)
     status, answer = endpoint_model.accept_event(
         page_dir,
         {

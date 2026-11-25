@@ -31,6 +31,7 @@ from interact_support import (
     declared,
     delivered,
     delivered_ref,
+    entered_contexts,
     freeze_events,
     inlined,
     last_deliverable_seq,
@@ -1149,10 +1150,12 @@ def test_claude_codes_transcript_says_which_handovers_reached_the_model(tmp_path
         "".join(json.dumps(record) + "\n" for record in records)
         + being_written[: being_written.index("e4") + 5]
     )
-    assert harness_model.claude_code_entered(transcript) == {"e1", "e2"}
-    assert harness_model.claude_code_entered(tmp_path / "missing.jsonl") == set()
+    entered = harness_model.claude_code_entered
+    opening = hook_transport_model.INLINE_OPENING
+    assert entered(transcript, opening) == [inline]
+    assert entered(tmp_path / "missing.jsonl", opening) == []
     (tmp_path / "empty.jsonl").write_text("")
-    assert harness_model.claude_code_entered(tmp_path / "empty.jsonl") == set()
+    assert entered(tmp_path / "empty.jsonl", opening) == []
     assert (
         harness_model.ClaudeCodeHarness.hook_payload(
             {"hook_event_name": "Stop", "prompt_id": "p1"}
@@ -1205,7 +1208,7 @@ def test_receipt_never_passes_a_handover_the_transcript_does_not_show(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "entered_context",
-        lambda harness, payload: set(shown),
+        lambda harness, payload, marker: entered_contexts(shown),
     )
 
     def hook(event: str) -> str:
@@ -2333,7 +2336,7 @@ def test_a_checkout_acts_only_for_a_session_whose_hooks_run_it(
 
     assert harness_model.session_harness() is None
     with pytest.raises(Refused, match="only the Leaf an agent session's hooks run"):
-        service_model.cmd_claim(claimed, manual_delivery=True)
+        hosting_model.cmd_claim(claimed, manual_delivery=True)
     assert cleanup_model.session_record("s1") == lifecycle
 
     installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
@@ -2376,7 +2379,7 @@ def test_a_page_whose_session_another_leaf_recorded_is_held_while_it_lives(
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
     hooks_run_this_tree("s2")
-    service_model.cmd_claim(claimed, manual_delivery=True)
+    hosting_model.cmd_claim(claimed, manual_delivery=True)
     claim = service_model.page_claim(claimed)
     assert claim is not None and claim["id"] == "s2"
     assert not service_model.held_elsewhere(claimed, harness_model.session_harness())

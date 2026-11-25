@@ -14,7 +14,7 @@ input is a dispatched tool message rather than a user prompt. Its synchronous
 prompt hook records the provider turn even before the session claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
 their turn identity (`Harness.reconcile_turn`), then offer input between steps
-or before Stop (`Harness.offer_at_step`) and leave receipt to the agent's explicit
+or before Stop (`offer_at_step`) and leave receipt to the agent's explicit
 confirmation of complete input.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
 reading or receiving page input. Pi calls it after its SDK reserves the run;
@@ -71,7 +71,7 @@ session")."""
 import json
 import os
 import time
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 from .leases import first_hook_for_tool, mark_hooks, mark_skill
 from .refusals import Refused
@@ -87,10 +87,14 @@ from .state import (
     prompt_turn,
     session_lock_path,
     session_record,
+    status_check_due,
     still_named,
     turn_closed,
     worker_tool_batch,
 )
+
+if TYPE_CHECKING:
+    from .harness import Harness
 
 
 def cmd_hook(harness: str, payload: dict) -> None:
@@ -176,7 +180,11 @@ def cmd_hook(harness: str, payload: dict) -> None:
         from .delivery import confirm_entered
 
         confirm_entered(hooked, payload)
-    prompt, expected = hooked.offer_at_step(event, payload, expected)
+    prompt, expected = (
+        offer_at_step(hooked, event, payload, expected)
+        if hooked.adapter
+        else (None, expected)
+    )
     if prompt:
         print(json.dumps(hooked.hook_context(event, prompt)))
         return
@@ -197,6 +205,59 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # A Stop that ends the turn printed nothing, so its output can tell the user.
         if notice := hooked.unloaded_module():
             print(json.dumps(notice), flush=True)
+
+
+def offer_at_step(
+    harness: "Harness", event: str, payload: dict, expected: dict | None
+) -> tuple[str | None, dict | None]:
+    """Offer the session's pending page input through hook `event` ahead of the hook
+    transport (`hook_transport.carry_turn`), for a harness whose adapter's delivery
+    record holds it (`Harness.adapter`). Returns what the hook puts in the turn's
+    context, which ends the hook, and the lifecycle the hook goes on with otherwise:
+    `expected`, or the renewal an offer made under it.
+
+    Both the tool hook and Stop offer an envelope through Codex's one transport
+    reservation (`codex.offer_hook_delivery`), since empty-input resume can reach
+    Stop without running another tool. Stop offers only where no adapter will start
+    a turn of its own for the input over App Server
+    (`codex_adapter.later_turn_takes_input`), and the turn would continue for it
+    (`hook_transport.stop_continues`). The tool hook offers input the cursor has not
+    passed, and input the cursor passed that no pickup names, which a Codex
+    session's receipts never leave, and Stop also an update the session holds no
+    usable reference for (`delivery.deliverable`). The tool hook also carries the
+    reminder of a status line left standing (`hook_transport.status_reminders`).
+
+    Codex's tool hook runs after every tool call, so the adapter's module, which
+    imports much that the tool hook doesn't need, loads only at Stop."""
+    sid = harness.session
+    if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
+        return None, expected
+    if not owned_pages(sid):
+        return None, expected
+    if event == "Stop":
+        from .codex_adapter import later_turn_takes_input
+
+        if later_turn_takes_input(sid):
+            return None, expected
+        from .hook_transport import read_plans, stop_continues
+
+        plans = read_plans(sid)
+        if not stop_continues(
+            plans,
+            [plan.batch for plan in plans if plan.batch],
+            repeated=bool(payload.get("stop_hook_active")),
+            reminds=harness.watches_between_turns(),
+        ):
+            return None, expected
+    from .codex import offer_hook_delivery
+
+    prompt, expected = offer_hook_delivery(sid, expected, received=event == "Stop")
+    if event == "PostToolUse" and status_check_due(sid):
+        from .hook_transport import read_plans, status_reminders
+
+        renewals = status_reminders(sid, read_plans(sid))
+        prompt = "\n".join(filter(None, [prompt, *renewals])) or None
+    return prompt, expected
 
 
 def reload_skill(session_id: str) -> str | None:

@@ -2113,6 +2113,13 @@ def comment_once_served():
         thread.join(timeout=STATED_TIMEOUT)
 
 
+def entered_contexts(event_ids) -> list[str]:
+    """What a harness's record shows entered the model's context where the inputs
+    `event_ids` did (`Harness.entered_context`): one inline handover of them."""
+    events = [{"id": event_id} for event_id in sorted(event_ids)]
+    return [hook_transport_model.inline_context({"batches": [{"events": events}]})]
+
+
 class ContextRecord:
     """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
     `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
@@ -2142,7 +2149,7 @@ def context_record(monkeypatch):
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "entered_context",
-        lambda harness, payload: record.entered(harness),
+        lambda harness, payload, marker: entered_contexts(record.entered(harness)),
     )
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,

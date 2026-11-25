@@ -351,6 +351,7 @@ import {
   clippedRect,
   drawsText,
   lined,
+  placeHolder,
   seenRect,
   shownBox,
   shownParts,
@@ -1106,9 +1107,7 @@ function readFrom(from, route, read) {
     const outward = from.isConnected ? readOutward(from, route) : null;
     return outward && { ...outward, holder: outward.target };
   }
-  const holder = isElement(from.startContainer)
-    ? from.startContainer
-    : from.startContainer.parentElement;
+  const holder = placeHolder(from);
   let declared = null;
   try {
     declared = holder?.isConnected && read ? read(route) : null;

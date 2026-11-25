@@ -77,12 +77,14 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf import cli as cli_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
@@ -2956,7 +2958,11 @@ def live_leaf(tmp_path, monkeypatch):
         waiters.append(leases_model.take_wait_lease(lease_path))
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, persistent=True, harness=None).url
+        holder = service_model.page_claim(d)
+        assert holder is not None
+        url = hosting_model.start_server(
+            d, persistent=True, harness=harness_model.claim_harness(holder)
+        ).url
         served.append(d)
         # The address is announced before the row producer starts. All pages can
         # discover this neighbour only after that producer publishes its first row.

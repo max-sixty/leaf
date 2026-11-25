@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "/runtime/state/semantic-state.js";
-import { createUndo } from "/runtime/annotations/undo.js";
+import { createUndo } from "/runtime/records/undo.js";
 import { servedState } from "../served.mjs";
 
 const spec = { unit: "widget" };

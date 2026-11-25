@@ -218,7 +218,7 @@ reading.
   server's state, and delivery says why in the notice seat. A refused send returns the
   words to their box (`standGesture` in `records/drafts.js`), an undone message or rewrite
   returns them to the draft they were written in (`giveBackWords`), and a gesture that
-  moved the user, such as resolving a thread, leaves them at its place again (`annotations/undo.js`
+  moved the user, such as resolving a thread, leaves them at its place again (`records/undo.js`
   owns where undo leaves the user).
 
 ### Controls are few and quiet
@@ -470,13 +470,16 @@ width or gesture behind it ends, and an absent value is a missing attribute, whi
 around the rows already there (`margin-layout.js`). `test_page_fixture_renders` checks
 these rules on every corpus page.
 
-Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
-(`../skills/leaf/references/packages.md`, "Styles and composition"), above the
-layer a page's reset stands in (`PAGE_RESET_LAYER`). A widget package's rules
-name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
-controls as they reach the page's own; the chrome keeps unlayered page rules up to one
-class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
-purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
+Stylesheets apply in cascade layers, ranked by whose element a rule styles
+(`DOCUMENT_LAYER_ORDER` in `layer.py`; `../skills/leaf/references/packages.md`,
+"Styles and composition"): a theme's rules for the author's content below the page's
+`base` layer, and Leaf's rules for what it draws above it and below the page's other
+layers and unlayered rules. A widget package's
+rules name the widgets they style, so a rule several packages need belongs in the
+kernel. The page's unlayered rules, its layers after Leaf's and a package's overrides
+reach widget controls as they reach the page's own; the chrome keeps unlayered page rules up to one class's
+weight off itself (`styles/chrome-guard.css`), and a package restyles it on purpose by
+part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 ### Import layers
 

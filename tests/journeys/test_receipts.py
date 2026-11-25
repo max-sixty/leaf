@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     acknowledged_through,
@@ -150,6 +151,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     assert waiting.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    hooks_run_this_tree("successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
     append_carried_log_record(

@@ -132,7 +132,7 @@ const bindTo = (filter, target) => ({
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
-  // Leaf captures without `reconcile` (`runtime/annotations/composing/page-image.js` says why), and
+  // Leaf captures without `reconcile` (`runtime/host/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
   //

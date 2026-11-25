@@ -27,7 +27,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Queued for Claude** | An update no turn has taken in (`waiting` and not `seen`), whether or not the log has accepted it or a harness queue holds it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
 | **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (a `local` send that is `launching`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
 | **On it** | The agent has explicitly started this update or to-do, or a progress message of its own stands after the update in its thread, such as a line fork's working line (state `running`); page activity alone doesn't mean it has |
-| **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`annotations/undo.js`) |
+| **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`records/undo.js`) |
 | **Threads** | The On view's tab in Leaf's panel, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source. Versions names the one the user last saw **v3 (last seen)** while the page has changed since |
 

@@ -282,7 +282,6 @@ import { drawnThreadId, THREAD } from "../records/thread/selectors.js";
 import { declareThreadParts } from "../records/thread/selectors.js";
 import { openingPart } from "../records/thread/focus.js";
 import { inPageOrder, threadPlace } from "../records/thread/placement.js";
-import { isComposerDraft } from "../annotations/composing/selection.js";
 import { dismissReply, releaseReplies } from "../records/thread/replies.js";
 import {
   BESIDE_PASSAGES,
@@ -296,6 +295,7 @@ import {
   draftAnchor,
   draftSends,
   draftsReading,
+  isComposerDraft,
   loadDraft,
   mirrorDraft,
   saveDraft,
@@ -2772,7 +2772,7 @@ export function createFloatingPanel({
       data-lf-key=${key ?? nothing}
       .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
-      aria-current=${current ? "true" : nothing}
+      aria-current=${current ? "location" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-lf-opens=${opens}
@@ -3954,7 +3954,7 @@ export function createFloatingPanel({
   };
 
   // The undo list's entry for the gesture that answered an obligation, where it can still be
-  // taken back (annotations/undo.js).
+  // taken back (records/undo.js).
   /** @param {import("../state/semantic-application.js").ObligationRecord} item */
   const answerGesture = (item) => {
     const id = item?.answer?.event?.id ?? item?.answer?.event;

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import HOOKED_SESSIONS, LEAF_COMMAND
+from conftest import HOOKED_SESSIONS, LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -39,6 +39,7 @@ from leaf import presence as presence_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.refusals import Refused
 
 
 def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
@@ -89,6 +90,7 @@ def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
     assert out.split() == ["CodexHarness", "inner-codex"]
 
     # Claude Code run from that Codex task's shell: the shell is its harness.
+    hooks_run_this_tree("inner-claude")
     inner = shlex.join([sys.executable, "-c", probe])
     ran = under_codex(
         f"CLAUDE_CODE_SESSION_ID=inner-claude CLAUDE_PID=$$ {inner}",
@@ -139,6 +141,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
+    hooks_run_this_tree("thread-nobody")
     monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
     refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
     assert refused.exit_code == 1, refused.output
@@ -242,6 +245,7 @@ def test_a_session_whose_shell_is_sandboxed_claims_its_page(page_dir, monkeypatc
     still takes, since the session is this user's; a pid of another user's still
     reads as gone."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sandboxed")
+    hooks_run_this_tree("sandboxed")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     signals_stay_inside = (
         "(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))"
@@ -277,6 +281,7 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
     and what to do, whether the command or the server it starts meets it, rather
     than a traceback or an OS error the agent would read as the host's."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "confined")
+    hooks_run_this_tree("confined")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     state = os.path.realpath(os.environ["XDG_STATE_HOME"])
@@ -301,6 +306,7 @@ def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
     take there at all. The refusal says so where the harness declares its sandbox,
     since the agent's fix is to rerun the command outside it."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "namespaced")
+    hooks_run_this_tree("namespaced")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
@@ -647,6 +653,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     page_dir, monkeypatch
 ):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
+    hooks_run_this_tree("first")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     first = harness_model.session_harness()
@@ -667,6 +674,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     assert page_state(page_dir)["listening"]
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    hooks_run_this_tree("replacement")
     assert service_model.claim_page(page_dir)
     claim_record_10 = service_model.page_claim(page_dir)
     assert claim_record_10 is not None
@@ -680,6 +688,7 @@ def test_page_claim_takes_a_page_without_watching_it(page_dir, monkeypatch):
     it, and Leaf's background Stop hook watches the page from the end of the turn: a
     `leaf wait` there would hold the lease that watch needs."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
+    hooks_run_this_tree("s7")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     record_claim(page_dir, id="s2")
     result = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
@@ -740,11 +749,14 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     assert not argv.exists()
 
 
-def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
+def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_watch(
     tmp_path, page_dir, monkeypatch, capsys
 ):
-    """A foreign record format cannot disrupt another page's current watcher."""
+    """A claim an older Leaf wrote in another shape reads as the same claim, through
+    the keys every shape keeps (`state.Record.kept`), and a watcher walking every page
+    the session holds delivers what another page holds."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
+    hooks_run_this_tree("s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s8")  # its harness runs Leaf's hooks
     # The walk is in path order, so a name ahead of the user's page is what
@@ -767,18 +779,19 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
     )
 
-    # The failure this guards: the watcher walks every page the session holds, and
-    # the record it cannot read belongs to a page the user is not on.
+    # The watcher walks every page the session holds, and the record in another
+    # shape belongs to a page the user is not on.
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exception is None, repr(waited.exception)
     assert waited.exit_code == 0, repr(waited.output)
     _, _, [event] = woken(waited.output)
     assert event["text"] == "hi"
 
-    assert service_model.page_claim(stale) is None
-    assert service_model.owned_pages("s8") == [page_dir.resolve()]
+    assert service_model.page_claim(stale) == claim
+    assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
 
-    # An unknown harness is a dispatch value, independently of record format.
+    # A harness this Leaf doesn't know still names a claim, which its hooks can't
+    # act through.
     cleanup_model.write_json(
         service_model.claim_path(stale),
         service_model.CLAIM.stored(
@@ -787,7 +800,8 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s8"})
     assert str(stale) not in capsys.readouterr().out
-    assert service_model.page_claim(stale) is None
+    stale_claim = service_model.page_claim(stale)
+    assert stale_claim is not None and stale_claim["id"] == "s8"
 
 
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(
@@ -820,6 +834,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     job.mkdir()
     cleanup_model.write_json(job / "state.json", {"sessionId": "guarded"})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "guarded")
+    hooks_run_this_tree("guarded")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page)
@@ -906,3 +921,14 @@ def test_a_claim_outlives_a_protocol_bump_that_leaves_its_shape_alone(
     events = cleanup_model.kernel_registry()["$events"]
     monkeypatch.setitem(events, "protocol", events["protocol"] + 1)
     assert service_model.claim_is_active(service_model.page_claim(page))
+
+
+def test_a_claude_code_session_without_its_process_is_refused_by_name(monkeypatch):
+    """A shell that names a Claude Code session but not its process, as
+    `env -u CLAUDE_PID` leaves one, can't say how long the session lives, so taking
+    its lifetime is refused, naming the variable that is missing."""
+    monkeypatch.delenv("CLAUDE_PID")
+    harness = harness_model.session_harness()
+    assert harness is not None
+    with pytest.raises(Refused, match="CLAUDE_PID is unset"):
+        harness.lifetime()

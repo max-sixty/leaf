@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
@@ -37,6 +38,7 @@ def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
     old = record_claim(page_dir, id="reused", pid=dead_pid, turn="old-turn")
     assert not service_model.claim_is_active(old)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "reused")
+    hooks_run_this_tree("reused")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     assert service_model.claim_page(page_dir)
@@ -320,6 +322,7 @@ def test_first_claim_enriches_prompt_provenance_without_replacing_it(
         assert before is not None
         assert before["generation"] != old["generation"]
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "before-claim")
+    hooks_run_this_tree("before-claim")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     after = cleanup_model.session_record("before-claim")

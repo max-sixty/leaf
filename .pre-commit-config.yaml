@@ -82,10 +82,9 @@ repos:
         language: node
         additional_dependencies: [dependency-cruiser@18.3.1]
         entry: >-
-          depcruise --config .config/dependency-cruiser.mjs
-          --ignore-known .config/dependency-cruiser-known.json --output-type err browser/runtime
+          depcruise --config .config/dependency-cruiser.mjs --output-type err browser/runtime
         pass_filenames: false
-        files: ^(browser/(leaf\.js|runtime/.*\.js)|\.config/dependency-cruiser(\.mjs|-known\.json))$
+        files: ^(browser/(leaf\.js|runtime/.*\.js)|\.config/dependency-cruiser\.mjs)$
       # JavaScript's vulture: the modules, exports and types nothing reads, and
       # import cycles (`.config/knip.js`). Whole-tree; files only wakes it.
       - id: knip

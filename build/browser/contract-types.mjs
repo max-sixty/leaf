@@ -218,6 +218,7 @@ from leaf.schema import DECLARATION_SCHEMA
 from leaf_dev import declared_records
 records = {
     kind: {"since": record.since, "schema": record.schema}
+    | ({"kept": list(record.kept)} if record.kept else {})
     for kind, record in declared_records().items()
 }
 print(json.dumps({"references": leaf_resources(), "records": records, "widget": DECLARATION_SCHEMA}))
@@ -232,7 +233,8 @@ print(json.dumps({"references": leaf_resources(), "records": records, "widget": 
 
 /** Every schema the generated types and the page protocol read (`protocol.mjs`): the
  * kernel event records and browser commands (`$events`), the served state, the
- * verb (`verbs`), and each `state.Record` with the protocol its shape was set at. */
+ * verb (`verbs`), and each `state.Record` with the protocol its shape was set at
+ * and the keys every shape of it keeps. */
 export async function protocolSchemas(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root), "utf8"));
   const { $events } = await read("browser/runtime/kernel-registry.json");

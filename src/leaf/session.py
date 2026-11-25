@@ -97,7 +97,7 @@ def cmd_idle(page_dir: Path) -> dict:
         work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
-        harness = claim_harness(claim) if claim is not None else None
+        harness = claim_harness(claim)
         pending = len(unacknowledged(events, page.cursor))
         if pending:
             remedy = (
@@ -518,7 +518,7 @@ def read_watch_pass[DeliveryResult](
         readings.append(reading)
         if reading.watch_state == "lost":
             if named is not None and paths_same(reading.page_dir, named):
-                note(Finding("not-owned", values={"pages": [str(named)]}))
+                note(_lost([reading], watch.harness))
                 return _WatchPass(readings, live, 2)
             continue
         if reading.live and not reading.lost:
@@ -554,18 +554,30 @@ def _server_down(reading: PageTick) -> Finding:
     return Finding("server-down", values={"page": str(reading.page_dir)})
 
 
-def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
+def _lost(readings: list[PageTick], harness: Harness | None) -> Finding:
+    """Why a wait stopped watching pages another session holds: its own session
+    no longer does, or, for a wait acting for no session, which names one page,
+    a session does."""
+    pages = [str(reading.page_dir) for reading in readings]
+    if harness is None and (claim := readings[0].transaction.claim):
+        return Finding(
+            "held-for-a-session", values={"page": pages[0], "session": claim["id"]}
+        )
+    return Finding("not-owned", values={"pages": pages})
+
+
+def _ended_watch(
+    readings: list[PageTick], page_dir: Path | None, harness: Harness | None
+) -> int:
     """Explain why a pass with no live pages has nowhere left to wait."""
     held = [
         str(reading.page_dir) for reading in readings if reading.watch_state != "lost"
     ]
     if not held:
         if transferred := [
-            str(reading.page_dir)
-            for reading in readings
-            if reading.watch_state == "lost"
+            reading for reading in readings if reading.watch_state == "lost"
         ]:
-            note(Finding("not-owned", values={"pages": transferred}))
+            note(_lost(transferred, harness))
         else:
             page = str(page_dir) if page_dir is not None else None
             note(Finding("nothing-to-watch", values={"page": page}))
@@ -642,7 +654,7 @@ def cmd_wait(page_dir: Path | None = None) -> int:
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
-                return _ended_watch(reading.readings, page_dir)
+                return _ended_watch(reading.readings, page_dir, harness)
             watch.await_news(mark)
         note(Finding("watch-taken-over"))
         return 2

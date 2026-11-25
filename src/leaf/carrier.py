@@ -6,10 +6,9 @@ thread is running, the main thread's last request, which a fork resends, and the
 of a main-loop turn the model answered.
 
 Claude Code keeps the module it loaded until `/reload-plugins`, while a session whose
-hooks run a checkout, one it selected (`session_runtime.py`) or one Claude Code loads
-in place (`--plugin-dir`), runs each hook from that checkout as it stands, so its
-module and the Python the module reports to can come from different commits, either
-one the newer. The user chose that the module only carry instructions, over running
+hooks run a checkout Claude Code loads in place (`--plugin-dir`) runs each hook from
+that checkout as it stands, so its module and the Python the module reports to can
+come from different commits, either one the newer. The user chose that the module only carry instructions, over running
 each kind of fork's steps itself, so a change to what Leaf forks for, to what it asks
 of a call, or to what it does with an answer changes only the Python, and an older
 module runs it as it runs any instruction. The module changes only for a call or an

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import hooks_run_leaf
 from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
@@ -144,6 +144,9 @@ def watching(tmp_path, preview_slot, spawn, user: bool, *, env=None):
     )
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
+    if user:
+        # The session's hooks run the preview's runtime, so it claims for the session.
+        hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], runtime)
     process, url = start_preview(
         spawn,
         [
@@ -504,6 +507,8 @@ def test_a_preview_records_real_gestures_outside_the_task(
 
     user_slot = f"{slot}-user"
     user_dir = page_dir.with_name(user_slot)
+    # The session's hooks run the preview's runtime, so the `--user` one claims for it.
+    hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], runtime)
     user_command = [
         *driven_command[:-1],
         user_slot,
@@ -607,6 +612,8 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     theme = runtime / "browser" / "base.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
+    # The task's hooks run the preview's runtime, so the preview acts for the task.
+    hooks_run_leaf("preview-codex", runtime)
     # The Codex task runs the preview as its own long-running command.
     owner = spawn(
         [
@@ -744,13 +751,14 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
 
     A source edit leaves the server up, and a runtime edit's re-vendor restarts it,
     which a wait watches through as it watches any stopped server. The comment after the
-    update is the proof: only a wait still watching delivers it.
+    update is the proof: only a wait still watching delivers it. The wait is the
+    runtime's, the Leaf the session's hooks run.
     """
     source, runtime, directory, _, _, log = served_preview
     waited = tmp_path / "wait.log"
     with waited.open("w", encoding="utf-8") as output:
         waiter = spawn(
-            [*LEAF_COMMAND, "wait"],
+            [runtime / "bin" / "leaf", "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
             text=True,

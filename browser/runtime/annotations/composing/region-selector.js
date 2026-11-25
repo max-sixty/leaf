@@ -42,7 +42,7 @@ import { nextRender } from "../../lib/frame-pass.js";
 import { clamp } from "../../dom/rect.js";
 import { layoutWindow } from "../../dom/geometry.js";
 import { notice } from "../../transport/notifications.js";
-import { pageImage } from "./page-image.js";
+import { pageImage } from "../../host/page-image.js";
 import { raiseError } from "../../transport/errors.js";
 import { captured } from "../../readings/anchor-resolution.js";
 

@@ -12,7 +12,7 @@ import urllib.request
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -137,10 +137,10 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
 ):
     """Only an enabled service this command may restart comes back.
 
-    A stopped service was stopped on purpose and stays stopped. A session service
-    whose session has ended has nobody to come back for, so the re-vendor stops it
-    and leaves it for the next `server start`. One another live session holds is
-    refused before anything stops, since only that session could start it again.
+    A page another live session holds is refused before anything stops, served or
+    stopped, since only that session's Leaf changes it (`service.refuse_held`). A
+    session service whose session has ended has nobody to come back for, so the
+    re-vendor stops it and leaves it for the next `server start`.
     """
     publish(page_dir)
     started = start_server_command(page_dir, session_id="other")
@@ -160,17 +160,17 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     layer_4 = layer_record(page_dir)
     assert layer_4 is not None
     revendored = layer_4["generation"] != generation
-    if service == "foreign":
+    if service != "orphaned":
         assert result.exit_code == 1
-        assert "served for another session" in result.output
-        assert server_model.running_server(page_dir)
+        assert "is held by session other" in result.output
+        assert bool(server_model.running_server(page_dir)) == (service == "foreign")
         assert not revendored
         return
     assert result.exit_code == 0, result.output
     assert revendored
     assert server_model.running_server(page_dir) is None
     assert not read_record(page_dir / "service.json")["enabled"]
-    assert ("has no live session owner" in result.output) == (service == "orphaned")
+    assert "has no live session owner" in result.output
 
 
 @pytest.mark.parametrize("lifetime", ["persistent", "session"])
@@ -180,7 +180,9 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     """Re-vendoring a served page restarts its server under the recorded lifetime
     and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
-    old_plugin = install_payload(page_dir.parent / "old-plugin")
+    old_plugin = install_payload(
+        page_dir.parent / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    )
 
     if lifetime == "persistent":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
@@ -348,6 +350,7 @@ def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
     app = {"cliSessionId": "app-session", "isArchived": False}
     cleanup_model.write_json(record, app)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "app-session")
+    hooks_run_this_tree("app-session")
     monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     assert service_model.claim_page(page_dir)
@@ -479,6 +482,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
 
     # A session picks the page up, the way `leaf wait` does.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
+    hooks_run_this_tree("later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
@@ -517,6 +521,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     job.mkdir()
     cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    hooks_run_this_tree("bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page_dir)

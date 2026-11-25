@@ -8,7 +8,7 @@
    said in the walk's live position rather than words given here (`answerStep`). A
    notice is text, but for the one press it may carry (`press`): after the user's own
    gesture, the press that matters most next, such as the next open thread after a
-   Resolve or the undo that takes a gesture back (records/thread/folding.js, `nextStep`; annotations/undo.js,
+   Resolve or the undo that takes a gesture back (records/thread/folding.js, `nextStep`; records/undo.js,
    `offerUndo`), and with news, the press that shows what it reports, as Show changes
    does for the changes since the version the user last saw (host/since-seen.js). The
    floating panel's field says the press at its end, after the words, as "Resolved “One
@@ -16,7 +16,7 @@
    whose press it makes unless it brings its own `run`, as Show changes compares with
    the version the user last saw under Compare's keys (host/since-seen.js). It names none
    while no command would make its press, as Undo names ⌘Z only while ⌘Z would take
-   the gesture its notice reports (annotations/undo.js, `offerUndo`). The field shows the press
+   the gesture its notice reports (records/undo.js, `offerUndo`). The field shows the press
    with the keys that would make that command now, and only while some would
    (panel/floating-panel.js, `pressReading`): so never on a touchscreen, where the panel's
    menu and lists reach
@@ -205,7 +205,7 @@ function retireNotice() {
 // How long a notice stands is one rule, kept in one place (`showNotice`) so a better
 // guess at what the user still needs can replace it whole. Every notice stands its
 // time. One answering the user's own gesture with a press, or one its caller holds
-// (`holds`), as an undo's is (annotations/undo.js), then stays until the user's next input: the
+// (`holds`), as an undo's is (records/undo.js), then stays until the user's next input: the
 // panel says the press at the field's end, so one leaving on its timer would take it
 // from under a hand on its way there. The user's inputs within its time leave it
 // standing, so the Escape that takes the caret out of a reply box, where the field shows

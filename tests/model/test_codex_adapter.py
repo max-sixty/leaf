@@ -19,7 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND, hooks_run_leaf
 from interact_support import (
     EVERY_TURN_DEPENDENCIES,
     PAGE,
@@ -61,7 +61,6 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -804,8 +803,10 @@ def test_an_adapter_hands_its_task_to_the_copy_codex_puts_in_its_place(
     )
     for directory in (".git", ".venv"):
         (root / directory).mkdir(parents=True)
-    for module in (cleanup_model, session_runtime_model):
-        monkeypatch.setattr(module, "PLUGIN_ROOT", root)
+    monkeypatch.setattr(cleanup_model, "PLUGIN_ROOT", root)
+    if not installed:
+        # A checkout acts for the task only where the task's hooks run it.
+        hooks_run_leaf("codex-thread", root)
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
     monkeypatch.setattr(
         codex_adapter_model, "owned_pages", lambda _session: [tmp_path / "page"]

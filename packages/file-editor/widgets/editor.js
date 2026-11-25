@@ -453,10 +453,12 @@ export function createEditor(
     shownLanguage = null,
     conflict = original,
     replacing = false,
-    // Where `goToLine` put the caret, which a reveal keeps in the middle of the view
-    // until the caret moves. CodeMirror scrolls once a frame, to the last request, and
-    // a link's landing asks to reveal the caret just after the line is placed: at the
-    // nearest edge, that request left the line at the editor's foot.
+    // Where `goToLine` put the caret, which the next reveal of the caret keeps in the
+    // middle of the view, unless the caret has moved by then. CodeMirror scrolls once a
+    // frame, to the last request, and a link's landing asks to reveal the caret just
+    // after the line is placed: at the nearest edge, that request left the line at the
+    // editor's foot. Later reveals, as on a resize, take the nearest edge again, so
+    // they leave where the reader has scrolled since.
     centred = -1;
   const readonlyExtension = () => [
     EditorState.readOnly.of(readonly),
@@ -584,11 +586,9 @@ export function createEditor(
   showLanguage(langForPath(filename));
   const revealCaret = () => {
     const head = reading().selection.main.head;
-    dispatch({
-      effects: EditorView.scrollIntoView(head, {
-        y: head === centred ? "center" : "nearest",
-      }),
-    });
+    const y = head === centred ? "center" : "nearest";
+    centred = -1;
+    dispatch({ effects: EditorView.scrollIntoView(head, { y }) });
   };
   const resize =
     original === null
@@ -710,6 +710,16 @@ export function createEditor(
         selection: { anchor: from },
         effects: EditorView.scrollIntoView(from, { y: "center" }),
       });
+    },
+    // Whether the caret stands on line `number`, or on the last line where the file is
+    // shorter, as `goToLine` would put it.
+    /** @param {number} number */
+    caretOn(number) {
+      const { doc, selection } = reading();
+      return (
+        doc.lineAt(selection.main.head).number ===
+        Math.min(Math.max(1, number), doc.lines)
+      );
     },
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.

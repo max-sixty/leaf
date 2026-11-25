@@ -348,13 +348,16 @@ lf-text-document iframe.lf-text-document-preview {
   }
 }
 /* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
-   workspace pane's body is, the document fills it: the tab shown takes what the
-   caption and strip leave, in place of the bound, and scrolls inside it. Each box
-   passes the height on to the next, since the property doesn't inherit. */
+   workspace pane's body is, a document whose text arrives after first paint fills it:
+   the tab shown, or a plain listing, takes what the caption and strip leave, in place
+   of the bound, and scrolls inside it. A Markdown preview of text written in the page
+   keeps its rendering's height. Each box passes the height on to the next, since the
+   property doesn't inherit. */
 @media screen {
   @container style(--lf-full-height: 1) {
-    lf-text-document[data-lf-bound],
+    lf-text-document[data-lf-bound]:not([preview="markdown"]:not([source], [for])),
     lf-text-document > .lf-text-document-view,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing,
     lf-text-document[preview] > .lf-text-document-view > lf-tabs {
       --lf-full-height: inherit;
       display: flex;
@@ -363,7 +366,9 @@ lf-text-document iframe.lf-text-document-preview {
       min-block-size: 0;
       margin-block: 0;
     }
-    lf-text-document > .lf-text-document-view > :is(lf-tabs, .lf-text-document-listing),
+    lf-text-document > .lf-text-document-view > lf-tabs,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing > pre,
     lf-text-document[preview]
       > .lf-text-document-view
       > lf-tabs

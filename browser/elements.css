@@ -367,4 +367,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: var(--lf-pane-top) var(--lf-pane-inset) var(--lf-pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
+  /* The body takes the pane's width as a block takes its container's, so auto inline
+     margins centre a body the page caps, as `max-inline-size` with `margin-inline:
+     auto` does on a column. A grid item with auto margins takes its content's width
+     instead, and a container has none, so such a body shrank to its padding. Firefox
+     lacks `stretch`. */
+  inline-size: -webkit-fill-available;
+  inline-size: stretch;
 }

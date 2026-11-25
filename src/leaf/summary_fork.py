@@ -17,7 +17,7 @@ back the working line by seconds.
 
 The hint is the fork's for a thread whose newest delivered message came to a round
 that awaited a line (`forks.unlined`) while a follower listed the session's line forks
-(`forks.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
+(`leases.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
 the session's delivery leaves it out (`thread_context.batch_threads`), so the session
 spends no step on it. A delivery whose newest message in the thread joined a round
 the agent had spoken in, as one arriving while the session still owed the thread its
@@ -99,7 +99,7 @@ ANSWER = {
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
 # The page readings this module takes are imported where they're read: `forks`,
-# which every delivery imports (`delivery.batch_data`), imports this module.
+# which every delivery imports (`thread_context.batch_threads`), imports this module.
 _WEIGHED = "summary-fork"
 
 

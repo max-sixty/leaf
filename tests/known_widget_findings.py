@@ -19,6 +19,10 @@ PACKAGES = [
 ]
 
 KNOWN: dict[str, set[tuple[str, str]]] = {
+    # An age first paints the time its author wrote, which the runtime replaces with
+    # the age itself, whose width changes as it grows; its registry entry tells the
+    # author to end the line with it or reserve its room.
+    "browser": {("lf-age", "keeps-first-box")},
     # A written Markdown preview first paints its source, which the module replaces
     # with the rendering. Matching the rendering's height before upgrade needs the
     # Markdown renderer.

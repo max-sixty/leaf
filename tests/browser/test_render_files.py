@@ -77,6 +77,69 @@ def test_file_editor_page_navigation_preserves_the_caret_position(
         previous = current["scroll"]
 
 
+def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
+    browser, serve, tmp_path
+):
+    """A rendered copy bound to the editor with `for` follows what the reader types once
+    it saves, and its passages name the file, so a comment on one says which file it is
+    about. A link naming a line far down the file, followed or loaded, brings that line
+    to the middle of the editor rather than its foot."""
+    file = tmp_path / "README.md"
+    file.write_text(
+        "# Notes\n\n"
+        + "\n\n".join(f"Paragraph {number}." for number in range(1, 201))
+        + "\n"
+    )
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<main class="layout-workspace"><header><h1>Notes</h1>'
+            '<p><a id="to-line" href="#notes-file:notes:301">paragraph 150</a></p>'
+            '</header><div id="regions" style="display: grid; '
+            'grid-template-columns: 1fr 1fr">'
+            '<lf-pane id="source" label="Source">'
+            '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor></lf-pane>'
+            '<lf-pane id="rendered" label="Rendered"><lf-text-document id="preview" '
+            'for="notes-file" label="README.md" preview="markdown"></lf-text-document>'
+            "</lf-pane></div></main>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    preview = page.locator("#preview .lf-text-document-preview")
+    expect(preview.get_by_role("heading", name="Notes")).to_be_visible()
+
+    expect(preview).to_have_attribute("data-lf-identity", "preview:notes")
+    centred = """() => {
+      const root = document.querySelector('lf-file-editor').shadowRoot;
+      const line = root.querySelector('.cm-activeLine').getBoundingClientRect();
+      const port = root.querySelector('.cm-scroller').getBoundingClientRect();
+      const middle = (line.top + line.bottom) / 2 - port.top;
+      return Math.abs(middle - port.height / 2) < port.height / 6;
+    }"""
+
+    page.locator("#to-line").click()
+    expect(editor).to_be_focused()
+    expect(editor.locator(".cm-activeLine")).to_have_text("Paragraph 150.")
+    page.wait_for_function(centred)
+
+    page.keyboard.insert_text("Typed here. ")
+    expect(preview).to_contain_text("Typed here. Paragraph 150.")
+    assert "Typed here. Paragraph 150." in file.read_text()
+
+    loaded = open_page(browser, live_url(url) + "#notes-file:notes:301")
+    loaded_editor = loaded.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    expect(loaded_editor.locator(".cm-activeLine")).to_have_text(
+        "Typed here. Paragraph 150."
+    )
+    loaded.wait_for_function(centred)
+
+
 def test_paper_keeps_the_files_words_and_drops_the_editors_controls(
     browser, serve, tmp_path
 ):

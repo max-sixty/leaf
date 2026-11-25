@@ -68,9 +68,9 @@ OUTCOME = """() => {
 }"""
 
 # The page's scroll as each key arrives, recorded before any of the page's own listeners
-# hear it. `__lfLog` keeps each key, scroll, scroll end and focus with its time, the page's
-# scroll and the focused node's box, so a failure that only the macOS nightly shows
-# carries its own sequence in the assertion's message.
+# hear it. `__lfLog` keeps each key, scroll, scroll end and focus with its time and the
+# page's scroll, and each but a scroll with the focused node's box, so a failure that only
+# the macOS nightly shows carries its own sequence in the assertion's message.
 AT_EACH_KEY = """globalThis.__lfLog = [];
 {
 const focused = () => {
@@ -80,14 +80,16 @@ const focused = () => {
   return `${node?.id || node?.localName}@${Math.round(box?.top)}..${Math.round(box?.bottom)}`;
 };
 const note = (...entry) =>
-  __lfLog.push([...entry, Math.round(performance.now()), Math.round(scrollY), focused()]);
+  __lfLog.push([...entry, Math.round(performance.now()), Math.round(scrollY)]);
 addEventListener("keydown", (event) => {
   globalThis.__lfAtKey = scrollY;
-  note("key", event.key);
+  note("key", event.key, focused());
 }, {capture: true});
-addEventListener("keydown", (event) => note("handled", event.key, event.defaultPrevented));
-for (const kind of ["scroll", "scrollend", "focusin"]) {
-  addEventListener(kind, () => note(kind), {capture: true});
+addEventListener("keydown", (event) =>
+  note("handled", event.key, event.defaultPrevented, focused()));
+addEventListener("scroll", () => note("scroll"), {capture: true});
+for (const kind of ["scrollend", "focusin"]) {
+  addEventListener(kind, () => note(kind, focused()), {capture: true});
 }
 }"""
 

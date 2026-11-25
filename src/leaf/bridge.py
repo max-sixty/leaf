@@ -34,18 +34,17 @@ plugin update as a new copy beside the one a running session loaded, and both
 copies reach the same bridge. The bridge serves while any session a hook
 registered with it lives (`service.session_lives`), by the lifetime its claims would
 record (`Harness.lifetime`), until its record says it ended. A registration is one of
-its session's files, so the session's end removes it with them (`state.end_session`),
-whether or not a record of the session stays. A background job outlives the worker
-hosting its current sitting, and its next sitting may run `leaf` from a script,
-before which no hook runs. That script reaches this bridge where the later sitting's
-copy ships the same file. Each process of a session that lives as its own pid keeps
-its own registration, so the bridge serves while any of them lives; but the first to
-end the session ends it for all of them (`state.end_harness_instance`), which
-removes every registration along with their claims. A hook registers the session from
-the copy Claude Code loaded
-(`hooks.main`), whose client a sandboxed bare `leaf` runs, so a checkout's sandboxed
-`bin/leaf` reaches a bridge only where it ships this file as that copy does. The
-running bridge holds its lease
+its session's files, so it goes when they do (`state._retire`, once no claim keeps the
+session's records); until then the session's ended record stops it counting, and the
+sweep forgets it (`live_sessions`). A background job outlives the worker hosting its
+current sitting, and its next sitting may run `leaf` from a script, before which no
+hook runs. That script reaches this bridge where the later sitting's copy ships the
+same file. Each process of a session that lives as its own pid keeps its own
+registration, so the bridge serves while any of them lives, until the first to end
+the session ends it for all of them (`state.end_harness_instance`). A hook registers
+the session from the copy Claude Code loaded (`hooks.main`), whose client a
+sandboxed bare `leaf` runs, so a checkout's sandboxed `bin/leaf` reaches a bridge
+only where it ships this file as that copy does. The running bridge holds its lease
 (`leases.take_lease`). A hook registers its session and tries the lease under the
 registrations' lock, and a retiring bridge reads the registrations a last time
 and releases the lease under that lock too (`retire`), so a session that

@@ -2716,7 +2716,7 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
               const nextHost = document.createElement('div');
               const nextRoot = nextHost.attachShadow({mode: 'open'});
               oldHost.after(nextHost);
-              const {move} = await window.__lfWidgetApi();
+              const {move} = await import('/runtime/lib/dom-move.js');
               const place = removed === 'retained-immediate' ? move : (parent, node) => parent.moveBefore(node, null);
               place(nextRoot, oldRoot.querySelector('dialog'), null);
               place(nextRoot, oldRoot.getElementById('two'), null);

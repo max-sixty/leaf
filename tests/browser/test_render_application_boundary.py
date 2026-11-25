@@ -1897,10 +1897,10 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     if mode == "Reply only":
         workspace.evaluate("""async workspace => {
-          const api = await window.__lfWidgetApi();
+          const {setChildren} = await import('/runtime/lib/dom-children.js');
           const outlet = workspace.outlet('reply-only');
           workspace.present = (collection, parts) => {
-            api.setChildren(workspace.reader, [outlet]);
+            setChildren(workspace.reader, [outlet]);
             parts.reply(collection.threads.find(thread => thread.id === 'opening').key, outlet);
           };
           await workspace.presentation.update({release: true});

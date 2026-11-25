@@ -91,7 +91,7 @@ rule draws at once is drawn.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
-  and a message's words (`setRenderedChildren` in `dom-children.js`) do. Leaf turns
+  and a message's words (`setRenderedChildren` in `lib/dom-children.js`) do. Leaf turns
   anchoring off in a box the reader reads in only while its own motion moves the box,
   as a glide does, whose landing then places the destination (`scrolling.js`), or the
   box's content, as a ride does (`box-motion.js`). A revision then restores the reader's
@@ -765,8 +765,8 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | The next element in a walk; Chromium keeps each `children` or `childNodes` list for its node's life   | `firstElementChild` and `nextElementSibling`, or `firstChild` and `nextSibling`        |
 | The nodes a node draws as its children, through the shadow roots the walk names (`rootOf`)            | `lib/shadow-tree.js` `eachRenderedChild`, `eachRenderedElement`                        |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                    |
-| Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                    |
-| Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                        |
+| Move a node, keeping the user's place in it                                                           | `lib/dom-move.js` `move(parent, node, before)` (_lint_)                                |
+| Make a list of nodes, some already placed, a parent's children                                        | `lib/dom-children.js` `setChildren`                                                    |
 | Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                                 |
 | Which keys the focused control keeps from Leaf's commands, a widget's typeahead included              | `keyboard/text-entry.js` `nativeClaimAt`                                               |
 | Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                      |

@@ -129,7 +129,7 @@ import { clamp, clippingAxes, overlaps, shifted, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { layoutPx, inlineStyle } from "../lib/keeps.js";
-import { move } from "../dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { objectIds } from "../ids.js";
 import { offerActionElement } from "../lib/controls.js";
 import { LAYOUT } from "../lib/widget-events.js";

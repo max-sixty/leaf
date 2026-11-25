@@ -111,10 +111,10 @@ import {
   nameOf,
   focusDestination,
   motion,
-  move,
   onPress,
   tabStore,
 } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";

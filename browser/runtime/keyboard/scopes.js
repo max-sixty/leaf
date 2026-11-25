@@ -80,7 +80,7 @@ import {
   renderedParent,
 } from "../lib/shadow-tree.js";
 import { repaint } from "../repaint.js";
-import { installMoveKeys } from "../dom-move.js";
+import { installMoveKeys } from "../lib/dom-move.js";
 import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS } from "../lib/widget-events.js";

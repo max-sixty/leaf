@@ -726,7 +726,7 @@ column's properties non-inheriting and passing them down with `inherit`.
 
 ### State-preserving content reordering
 
-`browser/runtime/dom-move.js` uses `moveBefore` for retained nodes within one
+`browser/runtime/lib/dom-move.js` uses `moveBefore` for retained nodes within one
 composed root. In engines without it, ordinary insertion restores focus and
 caret but still blurs the descendant and reloads an iframe. Playwright WebKit
 26.6 lacked the API on 2026-10-10, and WebKit 27.2 (build 2388) still lacked it on

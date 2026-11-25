@@ -60,7 +60,8 @@ import { ShotView } from "./shot-view.js";
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
 import { render } from "/vendor/lit.js";
-import { focusDestination, scopedMediaUrl, move } from "/runtime/widget-api.js";
+import { focusDestination, scopedMediaUrl } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { presented } from "/runtime/lib/presented.js";

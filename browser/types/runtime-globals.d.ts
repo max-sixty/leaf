@@ -208,7 +208,7 @@ interface HTMLScriptElement {
 }
 
 interface Window {
-  lfMove?: typeof import("../runtime/dom-move.js").move;
+  lfMove?: typeof import("../runtime/lib/dom-move.js").move;
 
   /** The sample bridge, kept across a sample child's document swaps. */
   lfSampleBridge?: LeafSampleBridge;

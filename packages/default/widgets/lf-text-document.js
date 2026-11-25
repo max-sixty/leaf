@@ -31,7 +31,6 @@
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
-import { pageLinks } from "/runtime/widget-api.js";
 import {
   setChildLists,
   setChildren,
@@ -43,7 +42,7 @@ import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { presented } from "/runtime/lib/presented.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
-import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
+import { loadMarkdown, pageLinks, renderMarkdown } from "/runtime/lib/markdown.js";
 import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import {

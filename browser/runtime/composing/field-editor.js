@@ -761,7 +761,7 @@ function fieldEditor(
 
   // A picture's syntax, while the caret is away, is the picture the message shows for it,
   // from the source the parser resolved, a reference's included, at the address the
-  // renderer gives page media (page-markdown.js, `pageLinks`). A press on it puts the
+  // renderer gives page media (page-markdown.js, `viewerLinks`). A press on it puts the
   // caret in its source.
   class Picture extends WidgetType {
     /** @param {string} src @param {string} alt */

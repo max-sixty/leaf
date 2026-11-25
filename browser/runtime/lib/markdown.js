@@ -11,8 +11,9 @@
    except `renderAuthoredMarkdown`, which keeps raw HTML. A destination the reading
    doesn't admit leaves its words and no link. The caller passes `links`
    (`MarkdownLinks`), which say how to write each link and picture the reading admits:
-   `{}` writes each as the source wrote it, and a Leaf page's are `pageLinks`, from
-   `/runtime/widget-api.js`.
+   `{}`, the default, writes each as the source wrote it, as Python's reading does, and
+   `pageLinks` writes them for a page (below). A picture inside a link stays as written,
+   since the link is what a press on it follows.
 
    The parser stays lazy, since most pages hold no Markdown supplied at runtime. Until
    it loads, each renderer returns the escaped source; `loadMarkdown()` resolves once it
@@ -74,8 +75,8 @@ let ready;
 // rather than its reader, four spaces after a blank line open code, and a line of `=`
 // or `-` underlines a heading. A Markdown body (`paintMarkdown`), such as a draft,
 // reads as a file.
-/** @param {string} text @param {MarkdownLinks} links @param {boolean} [message] */
-export const renderMarkdown = (text, links, message = true) =>
+/** @param {string} text @param {MarkdownLinks} [links] @param {boolean} [message] */
+export const renderMarkdown = (text, links = {}, message = true) =>
   render(text, links, message);
 // An agent's message holding HTML (`html` on its served message) reads as a message
 // that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`),
@@ -85,8 +86,8 @@ export const renderMarkdown = (text, links, message = true) =>
 // write to. Rejected: a widget's block running past blank lines to its closing tag,
 // and a `<code>` holding its words as written, since no author knows either rule from
 // Markdown.
-/** @param {string} text @param {MarkdownLinks} links */
-export const renderAuthoredMarkdown = (text, links) => renderAuthored(text, links);
+/** @param {string} text @param {MarkdownLinks} [links] */
+export const renderAuthoredMarkdown = (text, links = {}) => renderAuthored(text, links);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 // With `imageAlt`, an image counts as the words its control is named by, its alt text,
@@ -114,12 +115,12 @@ function fragmentWords(fragment, imageAlt = false) {
 /** @param {string} text @param {boolean} [message] the reading (`renderMarkdown`) */
 export const markdownWords = (text, message = true) =>
   renderedWords(renderMarkdown(text, {}, message));
-/** @param {string} text @param {MarkdownLinks} links @param {boolean} [message] */
-export const renderInlineMarkdown = (text, links, message = true) =>
+/** @param {string} text @param {MarkdownLinks} [links] @param {boolean} [message] */
+export const renderInlineMarkdown = (text, links = {}, message = true) =>
   renderInline(text, links, message);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
-/** @param {string} text @param {MarkdownLinks} links @param {boolean} [message] */
-export function inlineMarkdownFragment(text, links, message = true) {
+/** @param {string} text @param {MarkdownLinks} [links] @param {boolean} [message] */
+export function inlineMarkdownFragment(text, links = {}, message = true) {
   const parsed = document.createElement("template");
   parsed.innerHTML = renderInlineMarkdown(text, links, message);
   return parsed.content;
@@ -133,8 +134,8 @@ export function inlineMarkdownFragment(text, links, message = true) {
 // as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
 // (`leaf.passages.markdown_markup`) and the field editing it in place reads it
 // (composing/field-editor.js, `read`).
-/** @param {Element} element @param {string} source @param {MarkdownLinks} links */
-export function paintMarkdown(element, source, links) {
+/** @param {Element} element @param {string} source @param {MarkdownLinks} [links] */
+export function paintMarkdown(element, source, links = {}) {
   if (element.getAttribute("data-lf-source-words") === source) return;
   const markup = renderMarkdown(source, links, false);
   if (markdownReady()) element.setAttribute("data-lf-source-words", source);
@@ -674,6 +675,44 @@ function sourcePositions(markdown) {
   });
 }
 
+// The links and pictures of Markdown shown on a page, where Markdown can't say where a
+// link opens: a link that leaves the page opens in a new tab, so the page the reader
+// followed it from stays open where they were, and a picture is a link to its own
+// file, which a press opens as the picture alone, in Leaf's image viewer on a Leaf
+// page. A link leaves the page when it is http(s) on another origin, the rule Leaf's
+// external-link mark reads (prepaint.js, `opensElsewhere`), which runs before any
+// module can be imported. The page's own media answers at the page's address because
+// Leaf rewrites a `/media/…` address on every element as it arrives (media.js).
+/** @type {Required<MarkdownLinks>} */
+export const pageLinks = {
+  link: (href) => {
+    const url = URL.parse(href, document.baseURI);
+    return url !== null &&
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.origin !== location.origin
+      ? { target: "_blank" }
+      : undefined;
+  },
+  picture: (image) => {
+    const link = image.ownerDocument.createElement("a");
+    link.setAttribute("href", image.getAttribute("src") ?? "");
+    link.append(image);
+    return link;
+  },
+};
+
+// Whether the token at `at` stands inside a link the same inline run opened.
+/** @param {NativeToken[]} tokens @param {number} at */
+const inLink = (tokens, at) => {
+  let depth = 0;
+  for (let index = at - 1; index >= 0; index--) {
+    const type = tokens[index]?.type;
+    if (type === "link_close") depth--;
+    else if (type === "link_open" && ++depth > 0) return true;
+  }
+  return false;
+};
+
 // A render's `links` ride in the parser's per-render `env`, which markdown-it hands
 // every rule, the nested renders of an image's label included.
 /** @param {unknown} env @returns {MarkdownLinks | undefined} */
@@ -794,7 +833,7 @@ export function makeMarkdown(module, message, html = false) {
     token.attrSet("alt", alt);
     if (href === null) return escapeHtml(alt);
     const markup = renderer.renderToken(tokens, at, options);
-    const picture = linksOf(env)?.picture;
+    const picture = inLink(tokens, at) ? undefined : linksOf(env)?.picture;
     // The image stands in the parser's inert template document, where its source
     // isn't fetched, and only the markup of what `picture` returns is kept.
     return picture

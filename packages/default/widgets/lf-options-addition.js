@@ -10,13 +10,14 @@
  * Rejected: a textarea, whose words wrap as the option's will, since a phone's Return
  * writes a line break there unless a press of Leaf's own adds the option. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
-import { draft, pageLinks } from "/runtime/widget-api.js";
+import { draft } from "/runtime/widget-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
+  pageLinks,
 } from "/runtime/lib/markdown.js";
 
 const ANOTHER = "Another option";

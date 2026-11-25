@@ -386,7 +386,6 @@
     "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
     "attributes": { "required": ["id"] },
     "content": "members",
-    "space": "available",
     "verbs": {
       "move": {
         "record": {

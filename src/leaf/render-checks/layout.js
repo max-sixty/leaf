@@ -26,7 +26,7 @@ import { coveredWords, shrunkLabelReading } from "./words.js";
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 /** @param {Element} el */
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A direct document child granted a wider track by its own declared width.
+// A direct document child granted a wider track by its own `data-width`.
 // Holders request their own width; a wide child alone stays inside its holder.
 /** @param {Element} el */
 const breaksOut = (el) =>
@@ -81,7 +81,7 @@ function takesItsWords(el) {
   });
 }
 
-// Advice about a declared space that doesn't do what it asks. A block breaks out only
+// Advice about an authored width that doesn't do what it asks. A block breaks out only
 // from the column or a flow in it, so a holder can keep it in, and one that does break
 // out can take the words it holds off the column. Either may be deliberate, so this
 // reading never refuses a page.
@@ -380,9 +380,9 @@ export function misplacedBoxes() {
   const wides = new Set(
     [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
   );
-  // A widget the registry declares wide is answered for out here, the way
+  // A block its author widened (`data-width`) is answered for out here, the way
   // absolutely-positioned margin content is: standing past the column is what it was
-  // declared for. What still has to hold is the page's own box — the room the layout
+  // asked for. What still has to hold is the page's own box — the room the layout
   // measured is the column's leftover and the rail margin rows stand in, and an
   // exhibit over that edge is in the margin whether or not the window happened to
   // scroll for it. So the question is the same one, asked

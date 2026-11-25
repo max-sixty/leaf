@@ -938,7 +938,7 @@ _TEXT = {
         " box around the <pre>, or select the reading package"
     ),
     "contained-space": lambda at, v: (
-        f"{at} declares {v['space']} space but stays inside "
+        f'{at} has data-width="{v["space"]}" but stays inside '
         + ", ".join(v["holders"])
         + "; to let it break out with the words around it staying on the column, write"
         " each unframed wrapper as a section, article or details, which hands the"

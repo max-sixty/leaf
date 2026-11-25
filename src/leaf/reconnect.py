@@ -57,7 +57,7 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
     (`hosting.listening_socket`)."""
     found = []
     if pages := to_serve(harness):
-        from .hosting import claim_and_start
+        from .hosting import claim_and_start, preparing_delivery
         from .vendoring import renew_layer
 
         deadline = _deadline(started)
@@ -69,7 +69,7 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
                     raise Refused("the prompt had no time left to start it")
                 prepared = prepare_claim(harness, page_dir)
                 with (
-                    harness.preparing_delivery(),
+                    preparing_delivery(harness),
                     claim_and_start(
                         page_dir, prepared_claim=prepared, deadline=deadline
                     ),

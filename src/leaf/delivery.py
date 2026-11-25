@@ -1171,8 +1171,7 @@ def deliverable(
     `received=False`, as Claude Code's does before it folds its pages
     (`hook_transport.new_input`), and hands over only what the cursor has not
     passed, read from the log alone, without the page's layer. The adapter, or the
-    Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`)."""
+    Stop hook where no adapter runs, hands over the rest (`hooks.offer_at_step`)."""
     cursor = page.cursor
     pending = unacknowledged(page.events, cursor)
     held = awaiting_receipt(page) if pending else ()
@@ -1252,9 +1251,16 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
+    from .hook_transport import INLINE_OPENING, inline_delivery
     from .service import owned_pages
 
-    entered = harness.entered_context(payload)
+    entered = {
+        event["id"]
+        for context in harness.entered_context(payload, INLINE_OPENING)
+        if (inline := inline_delivery(context)) is not None
+        for batch in inline[0]["batches"]
+        for event in batch["events"]
+    }
     if not entered:
         return
     for page_dir in owned_pages(harness.session):
@@ -1383,16 +1389,22 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     The explicit acknowledgement command, `leaf delivery ack`, proves the
     consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
-    including the exact turn a Codex hook offered it to. Automatic hook and
-    provider receipts observe an already-open turn through `receive` instead.
+    including the exact turn a Codex hook offered it to
+    (`Harness.receive_pointer`). Explicit confirmation is strict: a transferred
+    page or ended turn reports refusal rather than silently accepting a partial
+    receipt. Automatic hook and provider receipts observe an already-open turn
+    through `receive` instead.
     """
     payload = read_delivery(delivery_id)
     acting_on_delivery(payload)
     harness = session_harness()
     if harness:
         open_session_turn(harness.session)
-        if payload["acknowledge"] is None:
-            return harness.receive_pointer(payload)
+        if (
+            payload["acknowledge"] is None
+            and (received := harness.receive_pointer(payload)) is not None
+        ):
+            return received
     return receive(payload, harness.session if harness else None)
 
 

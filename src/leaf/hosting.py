@@ -1,4 +1,6 @@
-"""Durable and process-owned page servers.
+"""Durable and process-owned page servers, and the claims a session publishes with
+or without one (`claim_and_start`, `cmd_claim`), which prepare its delivery first
+(`preparing_delivery`).
 
 Desired service transitions need only records and leases. HTTP dependencies load
 when a server is constructed, so stopping or reviving a service doesn't load a
@@ -611,6 +613,45 @@ def _service_record(
     }
 
 
+def preparing_delivery(harness: Harness) -> contextlib.AbstractContextManager:
+    """Prepare `harness`'s watcher before the caller publishes its page, and retain
+    it until then. A task whose watcher is an adapter (`Harness.adapter`) starts or
+    joins it (`codex_adapter.preparing_adapter`); hooks or a host own every other
+    harness's delivery, which needs no process of its own."""
+    if not harness.adapter:
+        return contextlib.nullcontext()
+    from .codex_adapter import preparing_adapter
+
+    return preparing_adapter(harness)
+
+
+def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
+    """Connect delivery before publishing ownership, without starting a server.
+
+    An explicit watcher claims with manual_delivery before its first wait, in the
+    same turn, and only a prompt hook serving a page again prepares an adapter
+    (`reconnect`), so this interval leaves delivery to that watcher; once its wait is
+    live, ordinary serving and reclaiming preserve the selected watch.
+    """
+    harness = session_harness()
+    if harness is None:
+        raise Refused(
+            "only the Leaf an agent session's hooks run can claim a page for that "
+            "session"
+        )
+    claim = prepare_claim(harness, page_dir)
+    preparation = (
+        contextlib.nullcontext() if manual_delivery else preparing_delivery(harness)
+    )
+    with (
+        preparation,
+        PageTransaction(page_dir) as page,
+        page.publishing_claim(claim),
+    ):
+        pass
+    return {"session": harness.session}
+
+
 def cmd_serve(
     page_dir: Path,
     host: str | None = None,
@@ -647,7 +688,7 @@ def cmd_serve(
         prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
         if handshake is None:
             # A detached serve's starter holds delivery for it (`claim_and_start`).
-            delivery = harness.preparing_delivery()
+            delivery = preparing_delivery(harness)
     try:
         with delivery, page_locked(page_dir):
             previous_service = service = read_service(page_dir)
@@ -859,7 +900,7 @@ def claim_and_start(
     delivery = contextlib.nullcontext()
     if claim is None and not persistent and harness is not None:
         claim = prepare_claim(harness, page_dir)
-        delivery = harness.preparing_delivery()
+        delivery = preparing_delivery(harness)
     with delivery:
         try:
             with _starting_server(

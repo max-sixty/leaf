@@ -480,7 +480,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
 import contextlib, json, os, sys
 from pathlib import Path
 from leaf import codex_adapter
-from leaf.service import cmd_claim
+from leaf.hosting import cmd_claim
 native_flocked = codex_adapter.flocked
 @contextlib.contextmanager
 def observed_flocked(path):
@@ -1882,7 +1882,7 @@ from pathlib import Path
 from leaf.service import page_claim
 from leaf.state import end_session, write_json
 from leaf.harness import session_harness
-from leaf.hosting import cmd_stop
+from leaf.hosting import cmd_stop, preparing_delivery
 from leaf_dev.commands.preview import PreviewService
 
 page, ready, done = map(Path, sys.argv[1:4])
@@ -1895,7 +1895,8 @@ try:
             pass
         started = (url, preview.note)
         # Joining the current adapter preserves the preview's acquisition.
-        session_harness().ensure_delivery()
+        with preparing_delivery(session_harness()):
+            pass
         assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
         assert not preview.ended
     elif handoff == "start":

@@ -250,6 +250,7 @@ def test_failed_delivery_preserves_the_existing_preview(
     page_dir, monkeypatch, failure, handoff
 ):
     """Failure before acceptance preserves both listener and original watcher."""
+    from leaf import hosting as hosting_model
     from leaf.harness import session_harness
     from leaf.hosting import claim_and_start, cmd_serve, cmd_stop
     from leaf.server import running_server
@@ -268,7 +269,7 @@ def test_failed_delivery_preserves_the_existing_preview(
         assert not original.ended
         raise failure("delivery refused")
 
-    monkeypatch.setattr(type(session_harness()), "ensure_delivery", refuse)
+    monkeypatch.setattr(hosting_model, "preparing_delivery", refuse)
     try:
         with pytest.raises(failure, match="delivery refused"):
             if handoff == "start":

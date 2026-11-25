@@ -23,7 +23,7 @@ import importlib
 import os
 import secrets
 import sys
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
@@ -820,33 +820,6 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
 
 def claim_page(page_dir: Path) -> bool:
     return take_page_claim(page_dir) is not None
-
-
-def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
-    """Connect delivery before publishing ownership, without starting a server.
-
-    An explicit watcher claims with manual_delivery before its first wait, in the
-    same turn, and only a prompt hook serving a page again prepares an adapter
-    (`reconnect`), so this interval leaves delivery to that watcher; once its wait is
-    live, ordinary serving and reclaiming preserve the selected watch.
-    """
-    from leaf.harness import session_harness
-
-    harness = session_harness()
-    if harness is None:
-        raise Refused(
-            "only the Leaf an agent session's hooks run can claim a page for that "
-            "session"
-        )
-    claim = prepare_claim(harness, page_dir)
-    preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
-    with (
-        preparation,
-        PageTransaction(page_dir) as page,
-        page.publishing_claim(claim),
-    ):
-        pass
-    return {"session": harness.session}
 
 
 def restore_page_claim(

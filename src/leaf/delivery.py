@@ -1190,7 +1190,7 @@ def deliverable(
 
     if write_refusal(page.page_dir):
         return []
-    # Advice wakes nobody, so it goes with what does (`render_gate.handover_pass`).
+    # Advice wakes nobody, so it goes with what does (`handover_pass`).
     advice = [
         event
         for event in page.events

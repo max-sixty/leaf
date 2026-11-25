@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { assignRows, timeAxis } from "/runtime/lib/time-axis.js";
+import { assignRows, elapsed, timeAxis } from "/runtime/lib/time-axis.js";
 
 // What the axis from `from` to `to` draws: each tick's words and each gridline, with
 // the share of the axis it stands at and whether it reads back from its time.
@@ -55,6 +55,79 @@ test("A window of a longer axis draws only its own times, at their place on the 
       ["1.5 s", 0.75],
     ],
   );
+});
+
+test("An axis of hours reads in hours and minutes on the clock's round steps", () => {
+  // A session from 12:56 to 17:28, across 800 pixels.
+  const duration = (4 * 60 + 32) * 60_000;
+  const { major } = drawn(0, duration, duration, 800 / duration);
+  assert.deepEqual(
+    major.map(({ label }) => label),
+    [
+      "0 s",
+      "30 min",
+      "1 h",
+      "1 h 30 min",
+      "2 h",
+      "2 h 30 min",
+      "3 h",
+      "3 h 30 min",
+      "4 h",
+      "4 h 30 min",
+    ],
+  );
+});
+
+test("An axis of minutes steps by round spans of seconds", () => {
+  // The last label reads back, and the 120 pixels before it hold only one of
+  // "2 min 15 s" and "2 min 30 s", so the earlier goes unlabeled.
+  const { major } = drawn(0, 150_000, 150_000, 1200 / 150_000);
+  assert.deepEqual(
+    major.map(({ label }) => label),
+    [
+      "0 s",
+      "15 s",
+      "30 s",
+      "45 s",
+      "1 min",
+      "1 min 15 s",
+      "1 min 30 s",
+      "1 min 45 s",
+      "2 min",
+      "",
+      "2 min 30 s",
+    ],
+  );
+});
+
+test("A label that reads back leaves its predecessor's out where the two would meet", () => {
+  // 105 minutes across 588 pixels: a major tick each 84 pixels, and "1 h 30 min"
+  // reading on from 504 pixels would run into "1 h 45 min" reading back from 588.
+  const duration = 105 * 60_000;
+  const { major } = drawn(0, duration, duration, 588 / duration);
+  assert.deepEqual(
+    major.map(({ label, flip }) => [label, flip]),
+    [
+      ["0 s", false],
+      ["15 min", false],
+      ["30 min", false],
+      ["45 min", false],
+      ["1 h", false],
+      ["1 h 15 min", false],
+      ["", false],
+      ["1 h 45 min", true],
+    ],
+  );
+});
+
+test("A time reads in seconds under a minute and in larger units past it", () => {
+  assert.equal(elapsed(0), "0 s");
+  assert.equal(elapsed(1200), "1.2 s");
+  assert.equal(elapsed(59_999), "59.999 s");
+  assert.equal(elapsed(60_000), "1 min");
+  assert.equal(elapsed(125_400), "2 min 5 s");
+  assert.equal(elapsed(10_200_000), "2 h 50 min");
+  assert.equal(elapsed(3_600_000 + 7_000), "1 h 7 s");
 });
 
 test("Overlapping extents never share a row", () => {

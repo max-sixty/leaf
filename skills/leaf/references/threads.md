@@ -14,14 +14,16 @@ leaf thread create <page> --section <visual-id> --part <part-id> --text "…"
 leaf thread create <page> --obligation --text "…?"
 ```
 
-Copy a part's id from `leaf page state <page>`, which lists the parts a thread can
-name in each visual as `parts` on the visual's entry in `elements`, each with its `id`
-and `label`. The list appears once `page check --render`, or the page's server after
-you hand the page over, has read the version the page shows with the data it holds
-now. So run the check if the visual has no `parts`, as after you save the page or
-update its data. A visual lists only the parts it had drawn when the check read it. A
-part it finds only when asked, such as a chart's single data point, or draws only
-while a view of it is open, is missing from the list; name such a part as the
+A visual is a widget whose declaration in `leaf page vocabulary <page>` has a `visual`
+key, such as a diagram or a chart. Where that key gives `parts` or `prefixes`, a thread
+can name one part of the visual. Copy a part's id from `leaf page state <page>`, which
+lists the parts a thread can name in each visual as `parts` on the visual's entry in
+`elements`, each with its `id` and `label`. The list appears once `page check --render`,
+or the page's server after you hand the page over, has read the version the page shows
+with the data it holds now. So run the check if the visual has no `parts`, as after you
+save the page or update its data. A visual lists only the parts it had drawn when the
+check read it. A part it finds only when asked, such as a chart's single data point, or
+draws only while a view of it is open, is missing from the list; name such a part as the
 widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
@@ -154,7 +156,7 @@ reply on a revision, list each open thread whose anchor no longer resolves and w
 revision moves it: to its section if that survives, otherwise detached.
 
 Where you know what replaced the passage, move the thread onto it in the reply that
-reports the change, with `--section`, narrowed by `--quote` or, in a diagram,
+reports the change, with `--section`, narrowed by `--quote` or, in a visual,
 `--part`:
 
 ```bash

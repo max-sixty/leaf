@@ -2431,13 +2431,13 @@ def type_drafts(page, field, drafts):
 
 CONTINUED = {
     "fence in a quote": ("> ```⏎x⏎```⏎after", "> ```\n> x\n> ```\n> after"),
-    "fence in an item": ("- a⏎⌫⌫  ```⏎x⏎```⏎more", "- a\n  ```\n  x\n  ```\n  more"),
+    "fence in an item": ("- a⏎```⏎x⏎```⏎more", "- a\n- ```\n  x\n  ```\n  more"),
     "leaving a list": ("- a⏎⏎b", "- a\n\nb"),
     "leaving a quote": ("> a⏎⏎b", "> a\n\nb"),
     "leaving a nested quote": ("> > a⏎⏎b", "> > a\n>\n> b"),
     "outdenting a nested item": (
-        "1. a⏎b⏎⌫⌫⌫   - c⏎⏎d",
-        "1. a\n2. b\n   - c\n3. d",
+        "1. a⏎b⏎⇥c⏎⏎d",
+        "1. a\n2. b\n   1. c\n3. d",
     ),
     "splitting an item": ("- one two←←←⏎", "- one \n- two"),
     "leaving a list, then its quote": ("> - a⏎⏎⏎x", "> - a\n\nx"),

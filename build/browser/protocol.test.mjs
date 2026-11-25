@@ -162,6 +162,39 @@ test("a record keeps each kept key through every shape", () => {
     changed((s) => (s.records.claim.kept = ["page", "batches/*/page"]), kept),
     refused("record claim: kept batches/*/page is not in its schema"),
   );
+  // A Leaf reads a record lacking a kept key it requires as absent, so no shape
+  // requires a kept key that its last shape lacked or left optional.
+  assert.deepEqual(
+    changed(
+      moved((claim) => {
+        claim.schema.properties.cwd = { type: "string" };
+        claim.schema.required.push("cwd");
+        claim.kept.push("cwd");
+      }),
+      kept,
+    ),
+    refused(
+      "record claim: kept cwd is required where its last shape didn't require it",
+    ),
+  );
+  const keptPid = structuredClone(kept);
+  keptPid.records.claim.kept.push("pid");
+  assert.deepEqual(
+    changed(
+      moved((claim) => claim.schema.required.push("pid")),
+      keptPid,
+    ),
+    refused(
+      "record claim: kept pid is required where its last shape didn't require it",
+    ),
+  );
+  assert.deepEqual(
+    changed(
+      moved((claim) => claim.kept.push("pid")),
+      kept,
+    ),
+    none,
+  );
 });
 
 test("a kept key's anyOf may gain variants, but keeps each", () => {

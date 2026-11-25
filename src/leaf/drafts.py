@@ -45,16 +45,19 @@ against a write's answer keeps the later of the two. A page directory replaced, 
 leaf.page session started at a new page protocol, starts another store with another
 identity, whose versions say nothing of the one a tab heard before.
 
-So does a store another Leaf wrote in another shape, as after an update that changes
-the store's shape. The new store holds what every shape keeps of each draft
-(`DRAFTS.kept`): its attempt, its words, what its send depends on beside them
-(`payload`), such as a comment's anchor or drawing, and a reply handed back to it
-(`held`). Every shape keeps the payload only as an object, which is safe because a
-payload already outlives the runtime that wrote it: a Leaf update that leaves the
-store's shape alone serves the same store to a newer runtime. The new store starts
-at version 1, since a tab reads no drafts from a store at version 0
-(`browser/runtime/drafts.js`, `hearDrafts`), and a generation the log admitted
-settles in it as in any store.
+A store another Leaf wrote in another shape, as after an update that changes the
+store's shape, goes on in this one. Every shape keeps the store's identity and
+version, and of each draft its attempt, its words, its version, what its send depends
+on beside the words (`payload`), such as a comment's anchor or drawing, and a reply
+handed back to it (`held`) (`DRAFTS.kept`). The first reading or write takes the
+store over as a write of its own, which rewrites it in this shape and moves its
+version, and a generation the log admitted settles in it as in any store. So a tab
+hears the same store at a later version and reads it as it reads any other write,
+rather than meeting a new store and writing back as unsent the words it holds that
+this one lacks, such as a draft cancelled on another device. Every shape keeps the
+payload only as an object, which is safe because a payload already outlives the
+runtime that wrote it: a Leaf update that leaves the store's shape alone serves the
+same store to a newer runtime.
 """
 
 import secrets
@@ -119,7 +122,15 @@ DRAFTS = Record(
         ),
     ),
     since=51,
-    kept=("drafts/*/attempt", "drafts/*/text", "drafts/*/payload", "drafts/*/held"),
+    kept=(
+        "store",
+        "version",
+        "drafts/*/attempt",
+        "drafts/*/text",
+        "drafts/*/version",
+        "drafts/*/payload",
+        "drafts/*/held",
+    ),
 )
 _WRITE = {
     "type": "object",
@@ -143,41 +154,32 @@ def no_drafts() -> dict:
     return {"store": secrets.token_hex(16), "version": 0, "drafts": {}}
 
 
-def _carried(path: Path) -> dict:
-    """A new store for a page whose file holds no store of this shape, holding the
-    drafts of the one another Leaf wrote there in another shape, if any, as its
-    first write (module header)."""
-    stored = no_drafts()
-    if (kept := DRAFTS.read_any(path)) and kept["drafts"]:
-        stored["version"] = 1
-        stored["drafts"] = {
-            context: {**record, "version": 1}
-            for context, record in kept["drafts"].items()
-        }
-    return stored
-
-
 def _change[T](
     page_dir: Path, change: Callable[[dict], tuple[bool, T]]
 ) -> tuple[dict, T]:
     """Run `change` on the store under its lock, and save the store where `change` says
-    it changed it or the page had none of this shape: the store and what `change`
-    returned. A host that keeps the page elsewhere takes the save only over the store
-    the file held, and answers with the store it holds; where that is another, the
-    file takes it and `change` runs once more against it. RuntimeError where the host
-    turns that away too."""
+    it changed it or the file held none of this shape: the store and what `change`
+    returned. A store another Leaf wrote in another shape goes on here as a write of
+    its own, at its next version (module header). A host that keeps the page elsewhere
+    takes the save only over the store the file held, and answers with the store it
+    holds; where that is another, the file takes it and `change` runs once more
+    against it. RuntimeError where the host turns that away too."""
     path = page_dir / DRAFTS_FILE
     provider = commit_provider()
     with flocked(page_dir / DRAFTS_LOCK):
         for _ in range(2):
             stored = DRAFTS.read(path)
-            replaces = stored and {
-                "store": stored["store"],
-                "version": stored["version"],
+            other = None if stored else DRAFTS.read_any(path)
+            current = stored or other
+            replaces = current and {
+                "store": current["store"],
+                "version": current["version"],
             }
-            stored = stored or _carried(path)
+            if other:
+                stored = {**other, "version": other["version"] + 1}
+            stored = stored or no_drafts()
             changed, result = change(stored)
-            if not changed and replaces is not None:
+            if not changed and replaces is not None and other is None:
                 return stored, result
             held = (
                 provider.publish_drafts(page_dir, stored, replaces)
@@ -215,8 +217,8 @@ def _settle_sent(page_dir: Path, stored: dict, *, check: bool = False) -> bool:
 def read_drafts(page_dir: Path) -> dict:
     """The drafts the user is writing, by context, with the store's identity and
     version. A generation sent since the last reading or write is settled first, and
-    a page with no store of this shape starts one (`_carried`), so every reading
-    names the store it read."""
+    a page with no store of this shape takes over one another Leaf wrote in another
+    shape, or else starts one (`_change`), so every reading names the store it read."""
     stored = DRAFTS.read(page_dir / DRAFTS_FILE)
     if stored is None or _settle_sent(page_dir, stored, check=True):
         stored, _ = _change(

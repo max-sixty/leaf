@@ -71,11 +71,11 @@ def test_a_store_keeps_its_identity_until_its_file_is_replaced(tmp_path):
 
 
 def test_unsent_words_outlive_a_change_to_the_stores_shape(tmp_path):
-    """A store another Leaf wrote in another shape gives way to a new store holding
-    each draft's attempt, words, payload and handed-back reply, which every shape
-    keeps (`DRAFTS.kept`), at a version a tab reads drafts from; a generation the log
-    admitted meanwhile settles there as in any store, and tabs write on over the
-    words they hold."""
+    """A store another Leaf wrote in another shape goes on in this one under its own
+    identity, at a later version, with what every shape keeps of each draft
+    (`DRAFTS.kept`), so a tab hears it as a later write of the store it knew rather
+    than a new store; a generation the log admitted meanwhile settles there as in any
+    store, and tabs write on over the generations they hold."""
     start_log(tmp_path)
     _write(tmp_path, [], "a1", "My unsent comment", payload={"revision": 3})
     _write(tmp_path, [], "a2", "Typed on the phone", "reply:t1", held="Handed back")
@@ -87,10 +87,10 @@ def test_unsent_words_outlive_a_change_to_the_stores_shape(tmp_path):
     append_event(tmp_path, {"kind": "comment", "text": "Sent", "attempt": "s1"})
 
     reading = drafts_model.read_drafts(tmp_path)
-    assert reading["store"] != old["store"]
+    # Taking the store over is one write, and settling s1 another.
     assert reading == {
-        "store": reading["store"],
-        "version": 2,
+        "store": old["store"],
+        "version": old["version"] + 2,
         "drafts": {
             "general": {
                 "attempt": "a1",
@@ -102,7 +102,7 @@ def test_unsent_words_outlive_a_change_to_the_stores_shape(tmp_path):
                 "attempt": "a2",
                 "text": "Typed on the phone",
                 "held": "Handed back",
-                "version": 1,
+                "version": 2,
             },
         },
     }

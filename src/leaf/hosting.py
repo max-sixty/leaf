@@ -1016,8 +1016,8 @@ def cmd_stop(
                     return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
-            # Whether a server runs is the lease's to say: one an older Leaf started
-            # over a record this version cannot read holds it without a readable
+            # Whether a server runs is the lease's to say: one started over a record
+            # no Leaf reads, as one with no `format`, holds it without a readable
             # record to show it by. A private preparation holds the lease too, but
             # has no service record and has not become a running service.
             stopped = (
@@ -1030,9 +1030,9 @@ def cmd_stop(
                 )
             )
             if service is None:
-                # A record this version cannot read names no service it could
-                # disable. Discarding it is what stops a server an older Leaf
-                # started over it, which exits once its record is gone.
+                # A record no Leaf reads, as one with no `format`, names no service
+                # it could disable. Discarding it is what stops a server started
+                # over it, which exits once its record is gone.
                 (page_dir / SERVICE_FILE).unlink(missing_ok=True)
             elif first:
                 disabled = service.copy()
@@ -1093,8 +1093,7 @@ def restarting_server(
     next start or stop writes a record without it.
     """
     service = read_service(page_dir)
-    # A server runs over a record this version cannot read, as one an older Leaf
-    # started does.
+    # A server runs over a record no Leaf reads, as one with no `format`.
     unread = service is None and lock_is_held(page_dir / SERVER_LOCK)
     if unread or (service and service["enabled"]):
         refuse_held(page_dir, harness)

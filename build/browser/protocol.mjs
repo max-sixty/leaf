@@ -8,11 +8,12 @@
  * declares `skippable`, since a Leaf that skips it still reads the rest of the log
  * rightly. A `state.Record` changes its schema, apart from its annotations, only by
  * setting its `since` to the current protocol, and never drops a key it keeps
- * (`state.Record.kept`), loosens one from required, or changes its schema or
- * whether a `*` on its path walks a list or a map, since every Leaf reads a record's
- * kept keys whichever Leaf wrote it. A kept key's `anyOf` may gain variants, which
- * an older Leaf reads as it reads any value it doesn't know (`layer-registry.md`,
- * "Page protocol").
+ * (`state.Record.kept`), loosens one from required, requires a key on a kept path
+ * that its last shape didn't, or changes a kept key's schema or whether a `*` on its
+ * path walks a list or a map, since every Leaf reads a record's kept keys whichever
+ * Leaf wrote it, and reads a record lacking one it requires as absent. A kept key's
+ * `anyOf` may gain variants, which an older Leaf reads as it reads any value it
+ * doesn't know (`layer-registry.md`, "Page protocol").
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -119,9 +120,15 @@ export function protocolBreaks(baseline, current) {
     current.records,
   )) {
     const before = baseline.records[kind];
-    for (const path of keeps)
-      if (!kept(schema, path))
-        refused.push(`record ${kind}: kept ${path} is not in its schema`);
+    for (const path of keeps) {
+      const now = kept(schema, path);
+      const was = before && (kept(before.schema, path)?.required ?? []);
+      if (!now) refused.push(`record ${kind}: kept ${path} is not in its schema`);
+      else if (was && now.required.some((required, step) => required && !was[step]))
+        refused.push(
+          `record ${kind}: kept ${path} is required where its last shape didn't require it`,
+        );
+    }
     for (const path of before?.kept ?? []) {
       const [was, now] = [kept(before.schema, path), kept(schema, path)];
       if (!keeps.includes(path) || !now)

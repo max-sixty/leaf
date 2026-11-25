@@ -86,7 +86,7 @@
     "drafts": {
       "since": 51,
       "schema": {"description":"The user's unsent message drafts on a page, in the page directory's `drafts.json`.","type":"object","properties":{"store":{"description":"The store's identity, minted when its file is created.","type":"string","minLength":1},"version":{"description":"Counts the store's writes; each record holds the count at its own.","type":"integer","minimum":0},"drafts":{"description":"Each draft's latest generation, by its context, which a generation the log admitted no longer is.","type":"object","additionalProperties":{"type":"object","properties":{"attempt":{"description":"The generation's attempt, which its send carries into the log.","type":"string","minLength":1,"maxLength":128},"text":{"description":"The words, untrimmed.","type":"string"},"payload":{"description":"What the generation's send depends on beside its words, such as a comment's anchor (`$events.draft`).","type":"object"},"held":{"description":"A reply a refusal handed back to the draft whose message opens its thread.","type":"string"},"version":{"type":"integer","minimum":0}},"required":["attempt","text"]}}},"required":["store","version","drafts"]},
-      "kept": ["drafts/*/attempt","drafts/*/text","drafts/*/payload","drafts/*/held"]
+      "kept": ["store","version","drafts/*/attempt","drafts/*/text","drafts/*/version","drafts/*/payload","drafts/*/held"]
     },
     "file-bindings": {
       "since": 50,

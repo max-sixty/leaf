@@ -5,7 +5,8 @@ connection and an origin-relative path; they cannot select methods, headers or
 credentials. The trusted bind command reads the credential from its environment
 and stores it privately on the host, so ordinary server restarts retain access, and
 so does an update that changes the record's shape, since every shape keeps each
-grant whole (`CONNECTIONS.kept`). A grant authorizes every GET path on its origin:
+grant's origin, credential, header, prefix and remaining allowance
+(`CONNECTIONS.kept`). A grant authorizes every GET path on its origin:
 choosing a trustworthy origin and credential scope belongs to the grantor, not to
 page-authored JavaScript.
 

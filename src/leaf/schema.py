@@ -407,7 +407,6 @@ FACTS: dict[str, dict] = {
         "additionalProperties": False,
     },
     "space": {"enum": ["wide", "available"]},
-    "bound": {"enum": ["start", "end"]},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,

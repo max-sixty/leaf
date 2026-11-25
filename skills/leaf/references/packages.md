@@ -347,7 +347,6 @@ role on the page:
 | -------------- | ------------------------------------------------------------------------------------ |
 | `reading-role` | `lf-pane`                                                                            |
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
-| `bound`        | `lf-activity`                                                                        |
 | `history`      | `lf-activity`                                                                        |
 | `views`        | `lf-tabs`                                                                            |
 

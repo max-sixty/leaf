@@ -1,15 +1,14 @@
 # An author new to Leaf asked for a widget that shows a growing log in a box of its own,
 # following the newest line until the reader scrolls back, is pulled to build that in the
 # module: a scroller in the stylesheet, a check for whether the reader is at the bottom,
-# and a `scrollTop` written after each draw. Leaf already does it from one key of the
-# tag's declaration, `bound: "end"`, which it reads before any module runs: the box opens
-# at its end before the page is presented, follows the newest line while the reader is
-# there, and is still following after a revision. `module-scroll-and-motion.md`,
-# "Scrolling", sends a widget's scrolling box to the key, and `page-layout.md`, "Bounds
-# and widths", says what each value does.
+# and a `scrollTop` written after each draw. Leaf already does it from one mark the
+# module writes on the box it scrolls, `data-lf-bound="end"`: the box opens at its end,
+# follows the newest line while the reader is there, and is still following after a
+# revision. `module-scroll-and-motion.md`, "Scrolling", sends a widget's scrolling box to
+# the mark, and `page-layout.md`, "Bounds and widths", says what each value does.
 description: widget-log-keeps-to-its-bound
 metadata:
-  purpose: A widget whose box scrolls and follows its newest entry declares Leaf's bound rather than scrolling itself.
+  purpose: A widget whose box scrolls and follows its newest entry marks Leaf's bound rather than scrolling itself.
   tags:
     - packages
     - package-interface
@@ -28,15 +27,14 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if Leaf bounds the box and follows its end: the registry entry
-      declares `"bound": "end"` (a `data-bound="end"` that the entry's example and
-      instructions write on every occurrence also counts), and the module writes no
-      scroll position of its own. The stylesheet may choose the bounded box's height,
-      as with `max-block-size` or `--lf-bound`, and may name an inner box as the one
-      that scrolls with `--lf-bound-box`.
-      Fail if the entry declares no bound; if the module follows the newest line
-      itself, by writing `scrollTop`, calling `scrollTo`, `scrollBy` or
-      `scrollIntoView`, or tracking whether the reader is at the bottom; or if the
-      lines scroll in a box inside the widget that no `--lf-bound-box` names, which
-      Leaf doesn't follow.
+      Pass only if Leaf bounds the box and follows its end: the module writes
+      `data-lf-bound="end"` on the box that scrolls the lines, the element or a box it
+      builds (a `data-bound="end"` that the entry's example and instructions write on
+      every occurrence also counts, where the element itself scrolls), and the module
+      writes no scroll position of its own. The stylesheet may choose the bounded
+      box's height, as with `max-block-size` or `--lf-bound`.
+      Fail if nothing marks the bound; if the module follows the newest line itself,
+      by writing `scrollTop`, calling `scrollTo`, `scrollBy` or `scrollIntoView`, or
+      tracking whether the reader is at the bottom; or if the lines scroll in a box
+      that wears no bound, which Leaf doesn't follow.
       Execution is unavailable, so not running checks is not a failure.

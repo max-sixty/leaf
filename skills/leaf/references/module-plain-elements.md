@@ -245,7 +245,9 @@ this.dispatchEvent(hold);
   parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
   with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
-  regions").
+  regions"). `data-lf-bound` on a box has Leaf bound it and keep the reader's place
+  in it, following its end where it says `end` (`module-scroll-and-motion.md`,
+  "Scrolling").
 - **The page's views.** An element whose members (`views`) are the page's own views,
   as the first tab set in `main` is, wears `data-lf-page-views` for as long as it is.
   Leaf then names the member it shows in the address, by the member's id. A member

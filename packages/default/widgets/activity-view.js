@@ -118,6 +118,7 @@ export function createActivity(host) {
       </button>
       <ol
         class="lf-activity-list"
+        data-lf-bound="start"
         data-lf-scroll
         data-lf-gen="1"
         ?hidden=${hidden}

@@ -968,11 +968,11 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
 
 
 def test_replay_findings_keep_the_throw_site(browser, serve):
-    """A direct complete-state replay retains the package's original exception."""
+    """A complete-state replay retains the package's original exception."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
       const {validationWidgetStates} = await window.__lfCheckApi();
-      const widget = validationWidgetStates().find(s => s.widget?.redraw).widget;
+      const widget = validationWidgetStates().find(s => s.widget?.state).widget;
       window.restoreReplay = () => { delete widget.render; };
       widget.render = function replayProjection() { throw new TypeError('replay rejected'); };
     }""")

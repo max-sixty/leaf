@@ -6,8 +6,9 @@
    sets its `state` on (element-integration.js), which owns the widget's render
    region; the controller owns its asynchronous preparation region (`prepare`), which
    removal pauses and reconnection restores. Registered preparation also holds full
-   rendering readiness until completion or removal. A package reaches `read` and
-   `dispatch` (`widgetController`), and says preparation only with the event below.
+   rendering readiness until completion or removal. A package reads a widget's
+   `state` and records with the events below, and says preparation only with the
+   event below; `widgetController` gives tests `read` and `dispatch` (check-api.js).
 
    A widget's element tells the controller of its drawing through events Leaf hears
    at the document. It says it has drawing under way with `pending-task`
@@ -179,7 +180,7 @@ function createWidgetController(owner) {
 /** @type {WeakMap<Element, Controller>} */
 const created = new WeakMap();
 /** The controller of a widget the page has captured, made on the first call, with its
- * watch of the owner's leaving and return. Leaf's own code asks here; a package asks
+ * watch of the owner's leaving and return. Leaf's own code asks here; a test asks
  * `widgetController`.
  * @param {Element} owner */
 export function controllerOf(owner) {
@@ -188,7 +189,7 @@ export function controllerOf(owner) {
   return controller;
 }
 
-/** What a package reads and records of a widget: `read` and `dispatch`. A custom
+/** What a test reads and records of a widget: `read` and `dispatch`. A custom
  * element constructed with document.createElement receives its authored id only after
  * its constructor and field initializers run, so the descriptor is resolved on first
  * use, which is normally connectedCallback, and a data renderer can build a

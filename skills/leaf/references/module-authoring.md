@@ -67,8 +67,6 @@ In this file:
 
 In [module-state.md](module-state.md):
 
-- "The widget controller": `widgetController` reads what Leaf holds for a widget, the
-  module's own or another's.
 - "State only this tab keeps": `tabStore` keeps a string for this tab.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.

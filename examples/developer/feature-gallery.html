@@ -2389,10 +2389,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <pre
                 id="bg-javascript-code"
-              ><code class="language-js">const source = referencedElement(card, "for");
-const api = widgetController(source);
+              ><code class="language-js">const source = document.getElementById(card.getAttribute("for"));
 // Read the source widget's current selection.
-const ids = api.read().state.choose.value;</code></pre>
+const ids = source.state.choose.value;</code></pre>
               <p id="bg-annotated-code-guide">
                 The marked return value keeps its annotation while the whole block shows
                 Python syntax colors. Line wrappers and the empty link target stay in

@@ -296,7 +296,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     sequence = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {widgetController} = await window.__lfCheckApi();
           const widget = document.getElementById('draft-ops');
           const controller = widgetController(widget);
           const first = controller.read().actions.edit.history;
@@ -335,7 +335,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "First recorded body."
     )
     old_sequence = old.evaluate(
-        """async () => (await window.__lfWidgetApi())
+        """async () => (await window.__lfCheckApi())
           .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
@@ -346,7 +346,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Second recorded body."
     )
     latest_sequence = latest.evaluate(
-        """async () => (await window.__lfWidgetApi())
+        """async () => (await window.__lfCheckApi())
           .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )

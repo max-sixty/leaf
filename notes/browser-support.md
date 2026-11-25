@@ -813,18 +813,36 @@ card's `.lf-page-thread` matches `:focus-visible`.
 ### A keyboard caret in Safari
 
 Safari has no caret browsing, so a keyboard user there can't put the caret on words
-that take no focus. `K` (`preview.js`, `here`) then can't read an element that
-previews without a Tab stop, such as an age, and the keyboard can't select words to
-comment on (`browser.caret` in `keyboard/page.js`). A pointer and a finger's hold
-still read the preview. On 2026-11-24, in Playwright WebKit 27.2 (build 2388), F7,
-ArrowRight and Shift+ArrowRight each left a collapsed caret where a script had put it
-in a paragraph's words, while arrows walked it into an age's words in Playwright
-Chromium 159.0.8154.6 (build 1255) with `--enable-caret-browsing` and Firefox 159.0
-(build 1572) with `accessibility.browsewithcaret`.
-A route every engine has, such as Go-to hints on elements that preview, is a decision
-for the maintainer.
-Recheck in WebKit: collapse the selection in a paragraph's text, press F7 and then
-ArrowRight, and read whether `getSelection().focusOffset` moved.
+that take no focus. `K` (`preview.js`, `here`) can't read at a caret there, and the
+keyboard can't select words to comment on (`browser.caret` in `keyboard/page.js`).
+Safari's Tab, as Playwright WebKit runs it, stops only at text fields and elements with
+their own `tabindex`, so Leaf's own keys move a keyboard user there: walks, Go-to and
+arrows in the panel's lists. A pointer and a finger's hold read every preview.
+
+These reach an age's clock time without a caret, the same in every engine:
+
+- An age an author wrote in the page takes a Go-to hint, which lands on it and shows
+  its time (`go-to-sequence.js`, `pageAges`). An age a widget wrote takes none, so
+  three in the examples have no keyboard route in Safari: the command hub's atlas
+  tree and each of its workers' "Last heard", and the PR walkthrough's brief.
+- A row of Threads or of an On list, reached by arrows, names its age's time in the
+  preview `K` reads there (`floating-panel.js`, `ageLine`).
+- An activity row's target previews its row's time. Safari's Tab reaches the target
+  only with Option+Tab or "Press Tab to highlight each item", and Go-to presses it
+  rather than landing on it.
+- A message a walk lands on (`m`, on a message that asks something) previews when it
+  was said.
+
+A message that asks nothing has no keyboard route to its time in Safari: no key
+walks a thread's messages, and one would need new keys in the thread's scope for a
+path few take. Nor does a plan step's running time, which stands in no row.
+
+On 2026-11-24, in Playwright WebKit 27.2 (build 2388), F7, ArrowRight and
+Shift+ArrowRight each left a collapsed caret where a script had put it in a
+paragraph's words, while arrows walked it into an age's words in Playwright Chromium
+159.0.8154.6 (build 1255) with `--enable-caret-browsing` and Firefox 159.0 (build 1572) with `accessibility.browsewithcaret`. Recheck in WebKit: collapse the selection
+in a paragraph's text, press F7 and then ArrowRight, and read whether
+`getSelection().focusOffset` moved.
 
 ### A control's own arrows after focus leaves it in Chromium and WebKit
 

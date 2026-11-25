@@ -319,7 +319,7 @@ import {
   itemOutcome,
   onList,
 } from "./queues.js";
-import { agePreview, ago, shortAgo, timeOfDay } from "./presence.js";
+import { agePreview, ago, clockTime, shortAgo, timeOfDay } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords } from "./obligations/model.js";
@@ -569,6 +569,12 @@ const panelAge = (ts, { face = "lf-fp-age", spoken = false, long = false } = {})
   >`;
   return spoken ? html`<span data-lf-voice="leaf">${age}</span>` : age;
 };
+// What a row whose face ends in a word and an age adds to its preview: the word and
+// the clock time behind the age, as "Resolved Sat, Nov 21, 2026, 9:05 AM PT", since
+// the face says only how long ago (browser/AGENTS.md, "A preview says what its target
+// doesn't"). The keyboard reads it at the row, where it can't point at the age.
+/** @param {import("./voice.js").Words} word @param {string} ts */
+const ageLine = (word, ts) => html`${voiced(word)} ${clockTime(ts)}`;
 
 /** @typedef {(typeof GROUPS)[number]} MenuGroup */
 /** @typedef {({view: "thread", thread: string} | {view: "group", group: MenuGroup} |
@@ -3535,10 +3541,12 @@ export function createFloatingPanel({
       .filter(({ section }) => section === "resolved")
       .map(({ thread }) => thread);
     // A row previews its thread as the thread's margin entry and mark do
-    // (`threadPreview`), leaving out to the keyboard the word its status already says.
+    // (`threadPreview`), leaving out to the keyboard the word its status already says,
+    // and a resolved one says when it was resolved (`ageLine`).
     /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
     const row = (thread) => {
       const attention = threadAttention(thread, agentName());
+      const resolved = thread.resolved?.ts;
       return html`<button
         type="button"
         ${offeredAction("row", "lf-fp-thread")}
@@ -3546,11 +3554,15 @@ export function createFloatingPanel({
         ?data-lf-unread=${isNews(thread)}
         ?data-lf-resolved=${thread.resolved}
         data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
-        .lfPreview=${(/** @type {import("./preview.js").Route} */ route) =>
-          threadPreview(
+        .lfPreview=${(/** @type {import("./preview.js").Route} */ route) => {
+          const read = threadPreview(
             [thread],
             route === "focus" && attention ? wordsText(attention.word) : null,
-          )}
+          );
+          return read && resolved
+            ? { ...read, detail: [...(read.detail ?? []), ageLine(RESOLVED, resolved)] }
+            : read;
+        }}
         @click=${() => openRow(thread.key)}
       >
         <span class="lf-row-lead"
@@ -4509,16 +4521,21 @@ export function createFloatingPanel({
     // only the newest in the status.
     /** @type {unknown} */
     let end = nothing;
+    // The clock time behind the age the line's end shows, which its preview says.
+    /** @type {import("./preview.js").Line} */
+    let ageSaid = null;
     const work = list === "agent" ? workOn(item) : null;
     if (work) {
       end = html`<span class="lf-fp-value"
         >${voiced(work.word ?? "")}${work.since ? html` ${panelAge(work.since)}` : nothing}</span
       >`;
-    } else if (ending)
+      if (work.since) ageSaid = ageLine(work.word ?? "", work.since);
+    } else if (ending) {
       end = html`<span class="lf-fp-value"
         >${voiced(itemOutcome(item))}${ending.ended ? html` ${panelAge(ending.ended)}` : nothing}</span
       >`;
-    else if (answered && !opened)
+      if (ending.ended) ageSaid = ageLine(itemOutcome(item), ending.ended);
+    } else if (answered && !opened)
       end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
     else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
     const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
@@ -4553,6 +4570,7 @@ export function createFloatingPanel({
         ${offeredAction("row", "lf-fp-item lf-fp-on-line")}
         aria-expanded=${String(opened)}
         ?data-lf-resolved=${!opened && (list === "done" || Boolean(answered))}
+        .lfPreview=${() => (ageSaid ? { name, detail: [ageSaid] } : null)}
         @click=${() => toggleItem(key)}
       >
         <span class="lf-fp-value lf-fp-on-noun lf-row-lead">${kind}</span

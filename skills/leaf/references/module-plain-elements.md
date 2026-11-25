@@ -70,11 +70,26 @@ question on On Me and admits the ids its buttons mark:
 records with `lf-action` as this one does, under names of its own, and puts no question
 on On Me and marks no comment target.
 
-Leaf hears `lf-action` and `lf-undo` on the widget's own element, where it sets
-`state`, so the element dispatches them on itself with no option but `detail`. Leaf
-hears every other `lf-` event here, and `pending-task` and `error`, at the document, so
-each bubbles and is composed, and reaches Leaf from inside any shadow tree. Where an
-entry says an event carries a promise, the promise is the event's `complete` property:
+`lf-action` and `lf-undo` record the widget's own actions and take them back, so Leaf
+listens for them on the widget's element: dispatch them on it; they need no option but
+`detail`. Every other `lf-` event below that is dispatched on an element, and
+`pending-task` and `error`, tells the page something about that element. Leaf listens
+for it at the document, and an ancestor element may listen too, so dispatch it on the
+element with `bubbles: true` and `composed: true`, in addition to any option its entry
+names. `lf-announce` and `lf-error` are about no element, and are dispatched on the
+window, where they need neither option.
+
+Leaf notices one of these `lf-` events that its listeners will not hear: one that does
+not bubble, or, inside a shadow root, one that is not composed. It reports that as a
+failure of the element that dispatched the event, as it reports an `error` (below),
+and the event has no other effect. It does not notice a `pending-task` or an `error`
+dispatched without `bubbles` and `composed`. Nor does it notice anything inside a
+shadow root other than one `shadowStage` builds or the open root of an element that
+dispatches `lf-connect` (`module-authoring.md`, "Shadow stages and styles"): there, an
+event that is not composed goes unheard and unreported.
+
+Where an entry says an event carries a promise, the promise is the event's `complete`
+property:
 
 ```js
 const hold = new Event("lf-hold", { bubbles: true, composed: true });

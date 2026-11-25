@@ -6,7 +6,13 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_harness import leaf_page, open_page, round_trip, wait_for_check_api
+from render_harness import (
+    holding,
+    leaf_page,
+    open_page,
+    round_trip,
+    wait_for_check_api,
+)
 
 from leaf import event_log as events_model
 
@@ -203,6 +209,24 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
     open_card(watching, "store-ask")
 
 
+def test_an_answer_read_back_after_the_user_left_the_window_moves_on(browser, serve):
+    """An answer moves its card on when the server's reading of it comes back,
+    wherever the user is by then: one whose reading arrives after they turned to
+    another window, as a slow first answer on a hosted page can, still brings up the
+    next card."""
+    page = open_page(browser, serve(DECK_PAGE))
+    open_card(page, "store-ask")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#store-yes").click()
+    holding(page, held, 1, "the answer whose reading is held")
+    page.evaluate("() => { Document.prototype.hasFocus = () => false; }")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    open_card(page, "beta-ask")
+
+
 DRAFT_DECK_PAGE = leaf_page(
     "Deck with a draft",
     '<h1>Before the release</h1><lf-deck id="deck">'
@@ -281,6 +305,27 @@ def test_a_card_brought_back_below_the_opening_stands_whole_above_the_panel(
     open_card(page, "tall-ask")
     panel_top = page.locator(".lf-fp-row").bounding_box()["y"]
     page.wait_for_function(WHOLE_ABOVE, arg=panel_top)
+
+
+LANDED = "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
+
+
+def test_a_shorter_card_at_the_page_end_leaves_the_bar_where_it_stood(browser, serve):
+    """The deck keeps the height of the tallest card it has shown, so a shorter card
+    coming up at the page's end leaves the bar, and the control the pointer pressed in
+    it, where they stood, rather than the page sliding down as the deck shrinks."""
+    page = open_page(browser, serve(TALL_DECK_PAGE))
+    open_card(page, "store-ask")
+    answer(page, "store-yes")
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    page.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
+    back = page.locator("lf-deck .lf-deck-back")
+    before = back.bounding_box()["y"]
+    back.click()
+    open_card(page, "store-ask")
+    page.wait_for_function(LANDED)
+    assert back.bounding_box()["y"] == pytest.approx(before, abs=1)
 
 
 def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):

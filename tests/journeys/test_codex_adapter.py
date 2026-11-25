@@ -352,10 +352,10 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 == {"page", "claim", "through_seq", "threads", "handling", "events"}
                 for batch in payload["batches"]
             )
-            queue_history = (
+            queue_history = codex_model.RECORD.file(
                 codex_state_model.delivery_dir("codex-thread")
                 / "history"
-                / payload_path.name
+                / f"{delivery.attrib['id']}.json"
             )
             # The page cursor is durable before the adapter records that receipt and
             # archives its queue. Wait for that second boundary instead of treating the

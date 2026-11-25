@@ -528,11 +528,10 @@ class Record(Generic[_RecordValue]):
 
     def read(self, path: Path) -> _RecordValue | None:
         """The record at `path`, less its `format`, or None where there is none of
-        this shape."""
+        this shape, as where a hand edit left an object without its `format`."""
         stored = stored_record(self.file(path))
-        if stored is None:
+        if stored is None or stored.pop("format", None) != self.format:
             return None
-        del stored["format"]
         return cast(_RecordValue, stored)
 
     def stored(self, value: _RecordValue) -> dict:

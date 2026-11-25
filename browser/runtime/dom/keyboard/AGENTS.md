@@ -129,6 +129,9 @@ reopens it.
 
 ## Page grammar
 
+A change that needs a key proposes one by this grammar for the maintainer's
+approval (root `AGENTS.md`, "The maintainer decides").
+
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase

@@ -67,9 +67,16 @@ as any architectural problem they leave stays easy to fix.
 
 ## The maintainer decides
 
-Make the improvements the repository's goals and code already justify, and take a
-call its guidance settles, saying which passage settled it. Ask the maintainer only
-where a choice depends on a purpose or intent the code can't tell you:
+Make the improvements the repository's goals and code already justify. Every call
+outside the list below is yours, including the interface calls these principles
+settle. Make the call, land the change without asking first, and name the call in
+the pull request, with the passage that settled it where one did, so the
+maintainer can reverse it after it lands. His time is the project's bottleneck, so
+a question costs him more than a reversal.
+
+Ask the maintainer where a choice depends on a purpose or intent the code can't
+tell you, or adds to what every later user, package author or change has to learn
+or work around:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
 - **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
@@ -88,6 +95,33 @@ where a choice depends on a purpose or intent the code can't tell you:
 - **An open design.** Where a visual or interaction design is still open after
   these principles, show the candidates side by side and let the maintainer
   select one (`/developing-leaf`, "Explore an open design").
+- **Reading markup another way.** "Read what the page states" says which facts
+  Leaf takes from a page, and an exception to it is his.
+- **Changing Leaf's keys.** Adding or removing a key, or changing which command a
+  key runs or where it runs it, in Leaf's runtime or a bundled package. Leaf's keys
+  work the same on every page, so the maintainer keeps the whole set in view.
+- **Growing the package interface.** Adding something a package's author must
+  newly learn, such as a declaration key, one of Leaf's elements, an event, a
+  function or a new rule for using one. Each stays for every author to learn ("Keep
+  the package interface small"), and `uv run leaf-dev interface --base` lists the
+  names a change adds. A rename, or one more member of a family authors use alike,
+  such as a theme token beside its siblings, is the change's own to weigh.
+- **Complicating the core.** Adding to the browser runtime or the server a
+  mechanism that later changes there must reason about, such as a mode or state
+  several modules read, a special case spread across owners, or a queue with
+  ordering rules of its own. Such code costs every change near it ("Regular
+  maintenance"). A fix that keeps the code's existing design, or a change that
+  leaves the core simpler, is the change's own to weigh.
+
+Weigh a key, a name or a mechanism first, as "Weigh what a change adds" says: one
+the weighing rejects goes without asking, and only one it keeps waits for the
+maintainer. A change the list holds for him merges only once he has approved it, in
+the session, on a page or on its pull request. A request of his that named that
+very change, such as the key to bind, approves it. Until he approves, its pull
+request stays a draft that names what waits on him. Once he has approved all of
+it, the pull request says what he approved and leaves draft. Build as much of the
+change as makes the question concrete, and land the rest of the work without it
+where the rest stands alone, as a new control can land without its key.
 
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it

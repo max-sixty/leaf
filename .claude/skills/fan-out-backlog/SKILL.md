@@ -82,7 +82,8 @@ maintainer; send Tend's findings to the author as above. Drafts held for the
 user wait while main moves on, and other sessions can fix their items first.
 
 A PR stays a draft, with its decision on the user's page, when it leaves a call
-for the user, or when it adds something beyond the repair and the test that
+for the user, such as a change root `AGENTS.md`, "The maintainer decides", holds
+for the maintainer, or when it adds something beyond the repair and the test that
 protects it that later changes must keep working with: a new mechanism, gate,
 public option, dependency or protocol bump. The author lists these under `adds`
 in its report, and the reviewer checks the list.

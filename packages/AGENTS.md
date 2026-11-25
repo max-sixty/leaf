@@ -27,15 +27,16 @@ needing something of Leaf asks, before it adds a name:
   another library's component included, so prefer it to a function the widget calls.
 - **Which kind of thing it is.** Each kind of thing a package leans on Leaf for takes
   one form (`../skills/leaf/references/module-authoring.md`, "The interface"). A need
-  takes its kind's form. One that fits no kind is a gap in the contract, to put to the
-  maintainer.
+  takes its kind's form. One that fits no kind is a gap in the contract.
 - **Who else would use it.** A name only one bundled widget uses is usually in the wrong
   place: the promise belongs to Leaf, kept for every element, or the code belongs to
   that widget. A need a page's author has too, who writes no module, is an element both
   can write, weighed as any new tag is (root `AGENTS.md`, "Weigh what a change adds").
 
 The commit that adds a name says what the name replaces, or why no existing name
-carries the need. A name that stays after a change tried to remove it states in its
-owner's header what removing it broke, so the next attempt starts from that: a
-guarantee of `SOUL.md`, or something only Leaf holds that no property, event or
-attribute could carry. Lines the widget would write instead are not such a reason.
+carries the need, and root `AGENTS.md`, "The maintainer decides", says when adding
+one waits for the maintainer's approval. A name that stays after a change tried to
+remove it states in its owner's header what removing it broke, so the next attempt
+starts from that: a guarantee of `SOUL.md`, or something only Leaf holds that no
+property, event or attribute could carry. Lines the widget would write instead are
+not such a reason.

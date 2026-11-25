@@ -498,8 +498,8 @@ const lastTurn = (model) =>
    the thread stands after its messages, where it shares their heads' track
    (annotation-chrome.css) and the notice takes only the room the heads leave
    (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which grows the
-   floating card at the edge it does not hold, would move what the user is on
-   (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in it
+   floating card away from the line it keeps, would move what the user is on
+   (thread-preview.js, `keptLine`), and since the card stands itself, a landing in it
    scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the end
    the card's transcript follows, as its keeper says (dom/scrolling.js, `followEnd`).
    The thread draws each part apart in a box of its own (`apart`), which the container
@@ -732,7 +732,7 @@ export class ThreadView {
     if (this.#fold) return false;
     const pinned = pinnedReply(this.#reply?.node);
     // A floating card grows at one of its own edges: the one it does not hold
-    // (`CardOutlets`, `endNewsMoves`; thread-preview.js, `heldEdge`). That edge is the
+    // (`CardOutlets`, `endNewsMoves`; thread-preview.js, `keptLine`). That edge is the
     // card's alone, since it stands itself rather than in a flow its growth moves, so
     // no place its parts stand in says it.
     // News shows at once only where it changes the thread's end and the card says growth

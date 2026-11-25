@@ -11,8 +11,8 @@
    landing on words the box already holds does begin one, since those words are the
    user's draft. Everything that asks whether the user is writing reads the session
    (`replyIsEditing`), a margin card's news as a margin's entry
-   (annotations/annotation-overlay/thread-preview.js, `endNewsMoves`); the edge the card holds
-   asks only whether the user is typing words in its reply box (`heldEdge`), not the
+   (annotations/annotation-overlay/thread-preview.js, `endNewsMoves`); the line the card keeps
+   asks only whether the user is typing words in its reply box (`keptLine`), not the
    session, which stands through a send until the server accepts it. Rejected:
    beginning on every `focusin`, which made an opening's caret a session nobody began
    and kept a resolved thread's card standing over its empty box.

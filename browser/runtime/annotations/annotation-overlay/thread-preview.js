@@ -20,30 +20,33 @@
    target hidden by the document withholds the card's native draft and focus until it
    is drawn again.
 
-   As it grows, the card holds the edge it is attached by (comment-placement.js,
-   `attachedEdge`): its foot above its subject, so it grows up over its transcript and
-   leaves the words the thread is about in view, and its top beside or below it. Beside
+   As it grows, the card keeps one line of itself still (comment-placement.js,
+   `keeps`): what stands over that line grows it up, and what stands under it grows it
+   down. The line is the edge the card is attached by (`attachedEdge`): its foot above
+   its subject, so it grows up over its transcript and leaves the words the thread is
+   about in view, and its top beside or below it. Beside
    its subject it also rises (`rises`; `size-rises` in placement-rules.json): it may
    outgrow the room below its top, and the window's foot lifts it, so an answer
    arriving stays in view with the turn it answers, and its top stays where it stood,
    so a shorter thread brings it back down. While the user writes words in its reply
-   box (readings/user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
-   as one above it does: the line being typed stays still as the conversation grows
-   above it. A send leaves the box for the thread (records/thread/landing.js, `landSent`), so
-   the card holds its top through the send and grows down past the box, keeping still
-   the transcript the user was reading; so does the empty box a click's opening leaves
-   the caret in (records/thread/focus.js, `openingPart`). A refusal gives back what the send took: its turn goes, and its words
-   return under the refusal's cover (transport/errors.js), which shows no line being typed either,
-   so the card holds its top through the refusal too, and its foot once the user comes
-   back to the words. The user chose this over letting the card drop, which moves both
-   its edges and slides it out from under the pointer. A user who
-   empties the box themselves, as Select All and Backspace do, sees it rise to where
-   the empty box stands, a rare path SOUL.md lets move, since to the card that looks
-   the same as the empty box an opening leaves. A message's rewrite, whose field stands in the transcript, holds
-   the top as well, so the rewrite grows down. Below its subject the card keeps its top
-   even while the user writes, so it never grows up over the words it is about.
-   Nothing else chooses the edge, whatever the user pressed, and the card remembers no
-   press or send (`heldEdge`). News at the thread's end shows at once where that edge
+   box (readings/user-place.js, `focusPlace`), a card beside its subject keeps the top of that
+   box instead (`underReply`): the conversation grows
+   above that line, as above its subject, and the words typed grow the card down from
+   it, as a field in the page grows, so neither moves the line the draft starts on or
+   the turn it answers. A send leaves the box for the thread (records/thread/landing.js,
+   `landSent`), so the card holds its top through the send and grows down past the
+   box, keeping still the transcript the user was reading; so does the empty box a
+   click's opening leaves the caret in (records/thread/focus.js, `openingPart`), and the box
+   a user empties themselves. A refusal gives back what the send took: its turn goes,
+   and its words return under the refusal's cover (transport/errors.js), which shows no line
+   being typed either, so the card holds its top through the refusal too, and the
+   box's top once the user comes back to the words. The user chose this over letting
+   the card drop, which moves both its edges and slides it out from under the
+   pointer. A message's rewrite, whose field stands in the transcript, holds the top
+   as well, so the rewrite grows down. Below its subject the card keeps its top even
+   while the user writes, so it never grows up over the words it is about.
+   Nothing else chooses the line, whatever the user pressed, and the card remembers no
+   press or send (`keptLine`). News at the thread's end shows at once where that line
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
    thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
    not where the user is, so that news may carry the control from under it, as the
@@ -51,16 +54,21 @@
 
    The user chose this rule as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and
-   neither it nor Floating UI holds a pressed control. They asked for a
-   send to grow the card down: holding the foot whenever the caret is in the box
+   neither it nor Floating UI holds a pressed control. Anchoring keeps that node's
+   start, so what grows above the field moves the content above it and the field's
+   own growth moves what follows it, which is the line the card holds. They asked for
+   a send to grow the card down: holding the foot whenever the caret is in the box
    lifts the whole transcript at each send, and an empty box has no typed line to keep
    still. Rejected: keeping a pressed
    control under the pointer, by remembering each press until
    the change it caused has fitted, and each send until the next words arrive, which
    ties the card's layout to every gesture's lifetime; the attached edge with no
    exception for typing, under which an answer arriving while the user types in a card
-   beside its words waits behind the thread's notice; and the card rising beside its
-   subject as the user writes. The rule
+   beside its words waits behind the thread's notice, or moves the line they type
+   down; and holding the card's foot while the user writes, under which each line the
+   draft gains lifts the head and every turn, and a card whose head meets the
+   window's scrolls the turn being answered out of its transcript while room shows
+   below it. The rule
    keeps two other choices: the foot above the subject, over keeping a
    written card's top there, which grows the draft down over its subject; and rising
    beside it for an answer, over keeping a read card's top, which scrolls
@@ -620,6 +628,23 @@ export function createThreadPreview({
     session.positionFrame = 0;
     return placeThreadPreview(delivered);
   }
+  // The landing of the placement that stands a card whose size has changed since it
+  // last stood (readings/off-flow.js, `standing`), started here, since the frame that follows
+  // the change has yet to ask for it. Nothing where the card stands at its size, where
+  // the grip carries it, or where no placement can start, as with its entry gone: the
+  // card is then judged as it stands rather than whenever a later placement lands.
+  const standingThreadPreview = () => {
+    const session = previewSession;
+    if (
+      !session ||
+      preview.hasAttribute("data-lf-carried") ||
+      !placementDriver.resized()
+    )
+      return null;
+    session.positionResult ??= Promise.withResolvers();
+    const { promise } = session.positionResult;
+    return placeNow(session) ? promise : null;
+  };
   // Floating UI follows what moves the card's target: its scroll containers, the window
   // and visual viewport, and the target and card changing size or moving.
   // A card that stays open keeps its spot while its next placement is worked out from
@@ -667,13 +692,14 @@ export function createThreadPreview({
     });
   }
 
-  // The edge a card on `side` holds now (the header's rule): the one it is attached by,
-  // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (readings/user-place.js, `focusPlace`), and no error covers them (transport/errors.js). Also
-  // where they are, if in the card, whether they type there, and whether they write
-  // words in its reply box.
+  // The line a card on `side` keeps still now (the header's rule): the edge it is
+  // attached by, but beside its subject its own line, the top of its reply box
+  // (`underReply`), while the user writes words in that box, where they are
+  // (readings/user-place.js, `focusPlace`), and no error covers them (transport/errors.js). Also where
+  // they are, if in the card, whether they type there, whether they write words in its
+  // reply box, and whether the card stands beside its subject.
   /** @param {import("./comment-placement.js").Side} side */
-  function heldEdge(side) {
+  function keptLine(side) {
     const place = focusPlace();
     const at = place && under(place, preview) ? place : null;
     const typing = typesText(at);
@@ -681,27 +707,39 @@ export function createThreadPreview({
     const writing =
       typing && Boolean(words && "value" in words && words.value) && !errorOver(words);
     const beside = side === "left" || side === "right";
-    /** @type {"top" | "foot"} */
-    const edge = writing && beside ? "foot" : attachedEdge(side);
-    return { edge, typing, writing, at };
+    /** @type {"top" | "foot" | "line"} */
+    const line = writing && beside ? "line" : attachedEdge(side);
+    return { line, typing, writing, at, beside };
   }
 
-  // Whether news at the thread's end, which grows the card at the edge it does not
-  // hold, would move what the user is on (thread-card.js, `newsMoves`). Held by its top,
+  // How much of the card stands under its own line, which a card beside its subject
+  // keeps while the user writes (the header's rule): the height of its reply box, the field that
+  // ends its reply row at the card's foot (annotation-chrome.css), in client pixels.
+  // The shelf of pictures the row holds over the field stands over the line, so a
+  // picture pasted into a draft lifts the turns as an answer does and leaves the
+  // words where they are. A field its motion is carrying (dom/box-motion.js) keeps its
+  // height, where its edges are drawn off its layout.
+  const underReply = () =>
+    previewList
+      .querySelector(".lf-thread-reply .lf-compose-field")
+      ?.getBoundingClientRect().height ?? 0;
+
+  // Whether news at the thread's end, which grows the card away from the line it
+  // keeps, would move what the user is on (thread-card.js, `newsMoves`). Keeping its top,
   // the card grows down past its reply row, which the user is on while they write a
   // reply there (replies.js, `replyIsEditing`), not while the caret only rests in the
-  // empty box an opening left, so the answer they wait for shows. Held by its
-  // foot, it grows up under the head and transcript, which the user is on unless they
-  // stand at the reply row: in it, or on the thread itself, as a send leaves them,
-  // which waits at its reply box unless a click left the caret in its words
-  // (readings/user-place.js, `standingAt`).
+  // empty box an opening left, so the answer they wait for shows. Keeping its
+  // foot, or its reply box's top, it grows up under the head and transcript, which
+  // the user is on unless they stand at the reply row: in it, or on the thread
+  // itself, as a send leaves them, which waits at its reply box unless a click left
+  // the caret in its words (readings/user-place.js, `standingAt`).
   /** @param {Session} session */
   function endNewsMoves(session) {
     const { side } = session.side.capture();
     if (!side) return false;
-    const { edge, at } = heldEdge(side);
+    const { line, at } = keptLine(side);
     const inReply = Boolean(at && closestAcross(standingAt(at), ".lf-thread-reply"));
-    return edge === "foot"
+    return line !== "top"
       ? !inReply
       : inReply && replyIsEditing(threadKey(session.item.thread));
   }
@@ -713,8 +751,17 @@ export function createThreadPreview({
   // delivery, where resizing the card would be a loop for the card's other observers
   // (dom/box-motion.js, `placedParts`): it keeps the card's width and cap, and the next
   // frame fits the card again.
-  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered */
-  function measureThreadCard(room, cap, reading, session, delivered) {
+  // A card keeping its reply box's top (`ownLine`) also caps a transcript that scrolls
+  // at its share of the cap: the cap less everything else the card holds. A line the
+  // draft loses then shortens the card in the layout that takes it, and the placement
+  // that follows only moves the card. Under the card's cap alone, that layout gave the
+  // line to the transcript, the browser clamped its scroll, and the placement's cap
+  // took the line back within the frame: no size reading saw the transcript change, so
+  // its reader was left a line short of its end (dom/scrolling.js, `followEnd`) wherever
+  // scroll anchoring did not put them back. The card keeps its own cap, which its
+  // other tracks share once the transcript has none left to give.
+  /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session @param {boolean} delivered @param {boolean} ownLine */
+  function measureThreadCard(room, cap, reading, session, delivered, ownLine) {
     if (delivered && preview.style.getPropertyValue("width") !== layoutPx(room)) {
       scheduleThreadPreviewPosition();
       return preview.getBoundingClientRect().height;
@@ -731,13 +778,30 @@ export function createThreadPreview({
       );
     const worn = parseFloat(preview.style.getPropertyValue("max-height"));
     const height = preview.offsetHeight;
-    const overflow = [
-      session.transcript,
-      ...previewList.querySelectorAll(REPLY_BOX),
-    ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
-    if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5)) {
-      if (delivered) scheduleThreadPreviewPosition();
-      else preview.style.setProperty("max-height", layoutPx(cap));
+    /** @param {Element | null} box */
+    const scrolls = (box) => Boolean(box && box.scrollHeight > box.clientHeight + 0.5);
+    const overflow = [transcript, ...previewList.querySelectorAll(REPLY_BOX)].some(
+      scrolls,
+    );
+    const fits = !(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5);
+    const wornShare = parseFloat(
+      transcript?.style.getPropertyValue("max-height") ?? "",
+    );
+    const share =
+      ownLine && transcript && scrolls(transcript)
+        ? Math.max(0, cap - (height - transcript.offsetHeight))
+        : null;
+    const shares =
+      share === null ? wornShare >= 0 : !(Math.abs(wornShare - share) < 0.5);
+    if (delivered) {
+      if (fits || shares) scheduleThreadPreviewPosition();
+    } else {
+      if (fits) preview.style.setProperty("max-height", layoutPx(cap));
+      if (shares)
+        transcript?.style.setProperty(
+          "max-height",
+          share === null ? "" : layoutPx(share),
+        );
     }
     session.gutter?.();
     // A reader at the end stays there through this fit by the transcript's own keeper
@@ -892,16 +956,17 @@ export function createThreadPreview({
       .then((ui) => {
         if (!stillCurrent()) return null;
         // Adoption keeps the editor's attachment, so the card Send grows out of the
-        // box stands where it stood. Otherwise the card holds the edge the header's rule
-        // names, rising beside its subject where that is its top.
-        const held = heldEdge(side);
-        const edge = seat.adopted ? attachedEdge(side) : held.edge;
-        const rises =
-          !seat.adopted && edge === "top" && (side === "left" || side === "right");
-        // Held by its foot, or rising, the card's growth lifts its head, which news
-        // may do here as in the floating panel's thread view (tests/shift_watch.js,
-        // `appendGrowth`).
-        keeps(preview, "data-lf-rises", edge === "foot" || rises ? "" : null);
+        // box stands where it stood. Otherwise the card keeps the line the header's rule
+        // names, rising beside its subject where that is its top. Beside its subject
+        // it says at every placement how much of it stands under its reply box's top
+        // (`under`), so the first line a draft gains already grows it down.
+        const held = keptLine(side);
+        const line = seat.adopted ? attachedEdge(side) : held.line;
+        const rises = !seat.adopted && line === "top" && held.beside;
+        // Keeping its foot or its reply box's top, or rising, the card's growth lifts
+        // its head, which news may do here as in the floating panel's thread view
+        // (tests/shift_watch.js, `appendGrowth`).
+        keeps(preview, "data-lf-rises", line !== "top" || rises ? "" : null);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
           room: place.room,
@@ -919,7 +984,7 @@ export function createThreadPreview({
               session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
-              keepTop: stationary && !fresh && edge === "top" && !held.typing,
+              keepTop: stationary && !fresh && line === "top" && !held.typing,
               latest: session.arriving,
               transcript: session.transcript,
             };
@@ -958,27 +1023,24 @@ export function createThreadPreview({
             const stoodNarrow = Math.abs(preview.offsetWidth - narrow) < 0.5;
             if (!session.wide && stoodNarrow && outgrown()) session.wide = true;
             // Choosing its spot, the card is capped by the boundary alone, and slides
-            // inside it rather than shrinking. Held, it has the room from its held edge
-            // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Beside its subject, it has the
+            // inside it rather than shrinking. Held, it has the room from the line it
+            // keeps to the boundary's far edge, or the tallest it has stood since its
+            // line last moved where that is more. Beside its subject, it has the
             // boundary's whole height (`rises`): a growing editor or an arriving
             // answer lifts it from the window's foot, then it scrolls internally.
-            let fitted = measureThreadCard(
-              room(),
-              Math.max(stood, height),
-              reading,
-              session,
-              delivered,
-            );
-            if (!session.wide && !stoodNarrow && outgrown()) {
-              session.wide = true;
-              fitted = measureThreadCard(
+            const measure = () =>
+              measureThreadCard(
                 room(),
                 Math.max(stood, height),
                 reading,
                 session,
                 delivered,
+                line === "line",
               );
+            let fitted = measure();
+            if (!session.wide && !stoodNarrow && outgrown()) {
+              session.wide = true;
+              fitted = measure();
             }
             // A card at the width it starts at declares that it may yet widen,
             // carrying its controls (tests/shift_watch.js, `permittedWidening`).
@@ -1005,7 +1067,8 @@ export function createThreadPreview({
               placeThreadPreview();
             }
           },
-          edge,
+          keeps: line,
+          under: held.beside ? underReply : null,
           rises,
         });
         watch(ui);
@@ -1533,6 +1596,7 @@ export function createThreadPreview({
       }
     });
     declareOffFlowSurface(preview, {
+      standing: standingThreadPreview,
       bringBack: (behavior) =>
         scrollToElement(
           entryPlace(previewSession?.entry) ?? previewSession?.control ?? null,

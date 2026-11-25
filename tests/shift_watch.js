@@ -2862,8 +2862,8 @@
   // more. This is the one place news may carry what is read without a gesture (the
   // user's choices, recorded at `answersAtOnce` in `panel/floating-panel.js`, where an answer
   // the user waits for grows the panel's thread view, and in thread-preview.js's header,
-  // where news lifts a margin card's head as it holds its foot or rises beside its
-  // subject).
+  // where news lifts a margin card's head as it holds its foot or its reply box's top,
+  // or rises beside its subject).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,

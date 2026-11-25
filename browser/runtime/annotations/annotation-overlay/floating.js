@@ -51,7 +51,8 @@
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the
    other, the edge its alignment names, the start for a centred box, or the edge the
-   surface keeps still of its own accord (a `hold` middleware's `edge`); and on an axis
+   surface names (a `hold` middleware's `edge`): the one it keeps still, or its foot
+   where it keeps a line between its edges (comment-placement.js); and on an axis
    where the boundary shifted the box in, the edge against that boundary. Content that
    grows the box then moves only its free edges, in the layout that grows it. Stood by
    its top-left corner, a box that grows at its left or top would paint grown the wrong
@@ -150,7 +151,7 @@ const anchorAt = (reference) => ({
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
 // from. It runs after the surface's middleware, so it reads the box as sized and shifted.
-// A surface middleware named `hold` that keeps a block edge still reports it as `edge`,
+// A surface middleware named `hold` names the block edge to stand the box by as `edge`,
 // and one that carries an inline offset its inline edge as `inline`; an edge the
 // boundary shifted the box against outranks either.
 /** @type {import("@floating-ui/dom").Middleware} */
@@ -482,7 +483,8 @@ export function floatingPlacement({ floating, update }) {
       // at that size too, which its motion takes as where the box would have stood had
       // it kept its size (dom/box-motion.js, `placed`). It is solved after the surface has
       // read its answer (`planeOf`), from the room its middleware keeps from the last
-      // solve, and without sizing, which writes the box's size.
+      // solve, and without sizing, which writes the box's size. It names itself to that
+      // middleware (`stood`), which then answers for the box as it stood.
       const { width, height } = answer.middlewareData.held;
       if (
         stoodSize &&
@@ -498,6 +500,7 @@ export function floatingPlacement({ floating, update }) {
             /** @type {unknown} */ ({ getDimensions: () => size })
           ),
           middleware: [
+            { name: "stood", fn: () => ({}) },
             ...options.middleware.filter(
               (middleware) => middleware && middleware.name !== "size",
             ),
@@ -600,6 +603,14 @@ export function floatingPlacement({ floating, update }) {
     // What holds the box where its last placement stood it, as dom/box-motion.js reads it:
     // the edges its spot is written from; null while no placement stands it.
     held: () => holding,
+    // Whether the box has changed size since its last placement stood it, read in its
+    // own layout pixels, which round to whole ones. Until the placement that follows
+    // the change lands, its rectangle is where the layout that resized it left it,
+    // which can reach past the room the placement keeps it in.
+    resized: () =>
+      stoodSize !== null &&
+      (Math.abs(floating.offsetWidth - stoodSize.width) >= 1 ||
+        Math.abs(floating.offsetHeight - stoodSize.height) >= 1),
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;

@@ -669,7 +669,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         leaf_page(
             "Browse patch files",
             "<h1>Review the importer</h1>"
-            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
+            '<lf-file-tree id="files" for="patch"></lf-file-tree>'
             f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
         )
     )

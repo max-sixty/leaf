@@ -121,7 +121,7 @@ render check then reads content the box cuts as the drawing's framing, and still
 reports a control the user can't reach there.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
-writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
+writes onto each element as `[data-lf-space]`, `[data-lf-bound]`,
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
 largest width and height among its images, so a widget can size its frame before they

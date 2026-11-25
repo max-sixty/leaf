@@ -5,7 +5,8 @@ own CSS. How a page meets them is its author's call; Leaf's exact specs bind onl
 Which goals Leaf should also check on other authors' pages is still being settled.
 
 - **The page holds still under the user's aim.** A change the user didn't make moves
-  nothing they are reading, pointing at or typing into.
+  nothing they are reading, pointing at or typing into, once the page has loaded: a
+  widget may move what follows it once as it first draws.
 - **Typed words survive.** Words in an editor stay there until the user sends or
   discards them.
 - **A gesture shows its result at once.** What the page can draw from the user's act

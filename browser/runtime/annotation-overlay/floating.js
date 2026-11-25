@@ -477,7 +477,8 @@ export function floatingPlacement({ floating, update }) {
       // at that size too, which its motion takes as where the box would have stood had
       // it kept its size (box-motion.js, `placed`). It is solved after the surface has
       // read its answer (`planeOf`), from the room its middleware keeps from the last
-      // solve, and without sizing, which writes the box's size.
+      // solve, and without sizing, which writes the box's size. It names itself to that
+      // middleware (`stood`), which then answers for the box as it stood.
       const { width, height } = answer.middlewareData.held;
       if (
         stoodSize &&
@@ -493,6 +494,7 @@ export function floatingPlacement({ floating, update }) {
             /** @type {unknown} */ ({ getDimensions: () => size })
           ),
           middleware: [
+            { name: "stood", fn: () => ({}) },
             ...options.middleware.filter(
               (middleware) => middleware && middleware.name !== "size",
             ),

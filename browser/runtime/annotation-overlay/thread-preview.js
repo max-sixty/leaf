@@ -20,15 +20,17 @@
    target hidden by the document withholds the card's native draft and focus until it
    is drawn again.
 
-   As it grows, the card holds the edge it is attached by (comment-placement.js,
-   `attachedEdge`): its foot above its subject, so it grows up over its transcript and
-   leaves the words the thread is about in view, and its top beside or below it. Beside
+   As it grows, the card keeps one line of itself still (comment-placement.js,
+   `keeps`): what stands over that line grows it up, and what stands under it grows it
+   down. The line is the edge the card is attached by (`attachedEdge`): its foot above
+   its subject, so it grows up over its transcript and leaves the words the thread is
+   about in view, and its top beside or below it. Beside
    its subject it also rises (`rises`; `size-rises` in placement-rules.json): it may
    outgrow the room below its top, and the window's foot lifts it, so an answer
    arriving stays in view with the turn it answers, and its top stays where it stood,
    so a shorter thread brings it back down. While the user writes words in its reply
-   box (user-place.js, `focusPlace`), a card beside its subject holds the top of that
-   box instead (`underReply`; comment-placement.js, `under`): the conversation grows
+   box (user-place.js, `focusPlace`), a card beside its subject keeps the top of that
+   box instead (`underReply`): the conversation grows
    above that line, as above its subject, and the words typed grow the card down from
    it, as a field in the page grows, so neither moves the line the draft starts on or
    the turn it answers. A send leaves the box for the thread (thread/landing.js,
@@ -44,7 +46,7 @@
    as well, so the rewrite grows down. Below its subject the card keeps its top even
    while the user writes, so it never grows up over the words it is about.
    Nothing else chooses the line, whatever the user pressed, and the card remembers no
-   press or send (`heldEdge`). News at the thread's end shows at once where that line
+   press or send (`keptLine`). News at the thread's end shows at once where that line
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
    thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
    not where the user is, so that news may carry the control from under it, as the
@@ -683,15 +685,14 @@ export function createThreadPreview({
     });
   }
 
-  // The edge a card on `side` holds now (the header's rule): the one it is attached by,
-  // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (user-place.js, `focusPlace`), and no error covers them (errors.js); the
-  // placement then holds the reply box's top, the line that far above the foot
-  // (`underReply`). Also where they are, if in the card, whether they type there,
-  // whether they write words in its reply box, and whether the card stands beside its
-  // subject.
+  // The line a card on `side` keeps still now (the header's rule): the edge it is
+  // attached by, but beside its subject its own line, the top of its reply box
+  // (`underReply`), while the user writes words in that box, where they are
+  // (user-place.js, `focusPlace`), and no error covers them (errors.js). Also where
+  // they are, if in the card, whether they type there, whether they write words in its
+  // reply box, and whether the card stands beside its subject.
   /** @param {import("./comment-placement.js").Side} side */
-  function heldEdge(side) {
+  function keptLine(side) {
     const place = focusPlace();
     const at = place && under(place, preview) ? place : null;
     const typing = typesText(at);
@@ -699,13 +700,13 @@ export function createThreadPreview({
     const writing =
       typing && Boolean(words && "value" in words && words.value) && !errorOver(words);
     const beside = side === "left" || side === "right";
-    /** @type {"top" | "foot"} */
-    const edge = writing && beside ? "foot" : attachedEdge(side);
-    return { edge, typing, writing, at, beside };
+    /** @type {"top" | "foot" | "line"} */
+    const line = writing && beside ? "line" : attachedEdge(side);
+    return { line, typing, writing, at, beside };
   }
 
-  // How much of the card stands under the line a card beside its subject holds while
-  // the user writes (the header's rule): the height of its reply box, the field that
+  // How much of the card stands under its own line, which a card beside its subject
+  // keeps while the user writes (the header's rule): the height of its reply box, the field that
   // ends its reply row at the card's foot (annotation-chrome.css), in client pixels.
   // The shelf of pictures the row holds over the field stands over the line, so a
   // picture pasted into a draft lifts the turns as an answer does and leaves the
@@ -716,12 +717,12 @@ export function createThreadPreview({
       .querySelector(".lf-thread-reply .lf-compose-field")
       ?.getBoundingClientRect().height ?? 0;
 
-  // Whether news at the thread's end, which grows the card at the edge it does not
-  // hold, would move what the user is on (thread-card.js, `newsMoves`). Held by its top,
+  // Whether news at the thread's end, which grows the card away from the line it
+  // keeps, would move what the user is on (thread-card.js, `newsMoves`). Keeping its top,
   // the card grows down past its reply row, which the user is on while they write a
   // reply there (replies.js, `replyIsEditing`), not while the caret only rests in the
-  // empty box an opening left, so the answer they wait for shows. Held by its
-  // foot, or by its reply box's top, it grows up under the head and transcript, which
+  // empty box an opening left, so the answer they wait for shows. Keeping its
+  // foot, or its reply box's top, it grows up under the head and transcript, which
   // the user is on unless they stand at the reply row: in it, or on the thread
   // itself, as a send leaves them, which waits at its reply box unless a click left
   // the caret in its words (user-place.js, `standingAt`).
@@ -729,11 +730,11 @@ export function createThreadPreview({
   function endNewsMoves(session) {
     const { side } = session.side.capture();
     if (!side) return false;
-    const { edge, at } = heldEdge(side);
+    const { line, at } = keptLine(side);
     const inReply = Boolean(at && closestAcross(standingAt(at), ".lf-thread-reply"));
-    return edge === "foot"
-      ? !inReply
-      : inReply && replyIsEditing(threadKey(session.item.thread));
+    return line === "top"
+      ? inReply && replyIsEditing(threadKey(session.item.thread))
+      : !inReply;
   }
 
   // Placement supplies the outer bounds; the native tracks share them between
@@ -922,17 +923,17 @@ export function createThreadPreview({
       .then((ui) => {
         if (!stillCurrent()) return null;
         // Adoption keeps the editor's attachment, so the card Send grows out of the
-        // box stands where it stood. Otherwise the card holds the edge the header's rule
+        // box stands where it stood. Otherwise the card keeps the line the header's rule
         // names, rising beside its subject where that is its top. Beside its subject
-        // it says at every placement how much of it the reply box and what follows
-        // take (`under`), so the first line a draft gains already grows it down.
-        const held = heldEdge(side);
-        const edge = seat.adopted ? attachedEdge(side) : held.edge;
-        const rises = !seat.adopted && edge === "top" && held.beside;
-        // Held by its foot or its reply box's top, or rising, the card's growth lifts
+        // it says at every placement how much of it stands under its reply box's top
+        // (`under`), so the first line a draft gains already grows it down.
+        const held = keptLine(side);
+        const line = seat.adopted ? attachedEdge(side) : held.line;
+        const rises = !seat.adopted && line === "top" && held.beside;
+        // Keeping its foot or its reply box's top, or rising, the card's growth lifts
         // its head, which news may do here as in the floating panel's thread view
         // (tests/shift_watch.js, `appendGrowth`).
-        keeps(preview, "data-lf-rises", edge === "foot" || rises ? "" : null);
+        keeps(preview, "data-lf-rises", line !== "top" || rises ? "" : null);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
           room: place.room,
@@ -950,7 +951,7 @@ export function createThreadPreview({
               session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
-              keepTop: stationary && !fresh && edge === "top" && !held.typing,
+              keepTop: stationary && !fresh && line === "top" && !held.typing,
               latest: session.arriving,
               transcript: session.transcript,
             };
@@ -1036,7 +1037,7 @@ export function createThreadPreview({
               placeThreadPreview();
             }
           },
-          edge,
+          keeps: line,
           under: held.beside ? underReply : null,
           rises,
         });

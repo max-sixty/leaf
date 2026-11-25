@@ -450,7 +450,6 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
       scroller: scroller(1000),
       coarse: false,
     });
-    const edge = "top";
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
       room: paragraph,
@@ -460,7 +459,7 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
       fit(room) {
         ({ stood } = room);
       },
-      edge,
+      keeps: "top",
     });
     const answer = await ui.computePosition(
       { getBoundingClientRect: () => reference },
@@ -519,7 +518,7 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
       fit(offered) {
         room = offered.height;
       },
-      edge: "top",
+      keeps: "top",
       rises,
     });
     const answer = await ui.computePosition(
@@ -542,6 +541,88 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   // Shorter again, it comes back down to the top it held.
   height = 150;
   assert.equal(await place(true), 692);
+});
+
+test("a card keeping a line of its own grows up over it and down under it", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  // What stands over the card's own line, as its transcript does, and under it, as its
+  // reply box does.
+  let over = 200;
+  let under = 40;
+  const platform = windowPlatform(() => ({ width: 320, height: over + under }));
+  const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
+  const card = commentPlacement();
+  // What the last fit offered the card, and the height it caps no lower than.
+  let room = null;
+  let stood = null;
+  // A tall element 400px down, `scrolled` further by a scroll of the page. With
+  // `stoodAt`, the solve is floating.js's for the card at that height, the one it last
+  // stood at, which names itself ahead of the card's middleware (`position`).
+  const place = async (keeps, scrolled = 0, stoodAt = null) => {
+    const clear = block(300, 300, 400 - scrolled, 2000 - scrolled);
+    const seat = card.choose({
+      clear,
+      room: paragraph,
+      boundary,
+      element: subject,
+      scroller: scroller(1000),
+      coarse: false,
+    });
+    const { reference, placement, middleware } = seat.options(ui, {
+      clear,
+      room: paragraph,
+      row: clear.top,
+      lastRow: clear.bottom,
+      boundary,
+      fit(offered) {
+        ({ height: room, stood } = offered);
+      },
+      keeps,
+      under: () => under,
+    });
+    const answer = await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      {
+        placement,
+        middleware: [
+          ...(stoodAt ? [{ name: "stood", fn: () => ({}) }] : []),
+          ...middleware,
+          held,
+        ],
+        platform: stoodAt
+          ? windowPlatform(() => ({ width: 320, height: stoodAt }))
+          : platform,
+        strategy: "fixed",
+      },
+    );
+    if (!stoodAt) card.landed(answer);
+    return answer.y;
+  };
+  // Read, it keeps its top, level with its row.
+  assert.equal(await place("top"), 392);
+  // A line the draft gains stands under the line: the top stays and the foot drops.
+  // The card is offered the room over its line and what stands under it.
+  under = 61;
+  assert.equal(await place("line"), 392);
+  assert.equal(room, 392 + 200 + 61 - boundary.top);
+  // A turn joining the transcript stands over the line, and lifts the top by its height.
+  over = 300;
+  assert.equal(await place("line"), 292);
+  // A line taken from the draft lifts the foot again.
+  under = 40;
+  assert.equal(await place("line"), 292);
+  // Solved for the size it stood at, it stands where it landed, whatever is under its
+  // line now (floating.js, `position`).
+  under = 82;
+  assert.equal(await place("line", 0, 300 + 40), 292);
+  under = 40;
+  // A scroll carries its rule's top past the window's head, which holds it in. A line
+  // the draft gains there may still grow it, by as much as stands under its line.
+  assert.equal(await place("line", 500), boundary.top);
+  under = 61;
+  assert.equal(await place("line", 500), boundary.top);
+  assert.equal(stood, 300 + 61);
 });
 
 test("a surface with no subject keeps the room's gap, not a mark's", async () => {

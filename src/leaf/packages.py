@@ -494,7 +494,7 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
     host's browser, and report one object in `page check`'s shape: `status`, the exit
     status; `findings`, each finding as a record: the findings a refusal carries, such
     as a registry's, any other refusal as one `package` record, or else what its
-    declarations advise (`validation.composition.layer_advice`), the advice
+    declarations advise (`authored_checks.declarations.layer_advice`), the advice
     `unset_properties` gives and the widget quality findings; and `browser`, what the
     browser gate ran in or why none could, null
     where none was asked for or the package check refused."""
@@ -516,7 +516,7 @@ def cmd_package_check(package: Path, render: bool = False) -> dict:
             else [Finding("package", values={"text": str(error)})]
         )
         return reported(1, found)
-    from .validation.composition import layer_advice
+    from .authored_checks.declarations import layer_advice
 
     advice = [
         *layer_advice([package], composition.vocabulary.registry),

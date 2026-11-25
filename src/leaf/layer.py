@@ -966,12 +966,12 @@ def _composition(
     then the vocabulary `vocabulary_of` composes, whose stamping reads the registry
     as valid, its modules checked for private kernel imports, and its sheets and
     browser files read."""
+    from .registry.validation import incoming_registry
     from .revision_artifact import (
         PUBLIC_MODULES,
         dependency_reference,
         javascript_imports,
     )
-    from .validation.composition import incoming_registry
 
     incoming_registry(roots)
     vocabulary = vocabulary_of()

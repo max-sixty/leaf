@@ -812,27 +812,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     > lf-option[data-lf-control-focus-visible] {
     outline: var(--lf-focus-ring);
   }
-  /* A row is a positioned table (below), and Firefox paints a positioned table's own
-   * ground over its outline wherever the outline stands inside its edge, which a joined
-   * row's does, so a row draws the ring on a box laid over it, its ::after, at its
-   * corners, as a ring overlay does (surfaces.css). Rejected: a row that isn't a table,
-   * or isn't positioned, which would move its words, mark and digit; a stacking context
-   * on the row, which Firefox still paints the ground over. */
-  lf-options:not([settled]):not(:where([data-lf-exhibit]) *):not(
-      :has(> lf-option:where([label]))
-    )
-    > lf-option[data-lf-control-focus-visible] {
-    outline: none;
-    &::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      pointer-events: none;
-      outline: var(--lf-focus-ring);
-      outline-offset: var(--lf-focus-ring-inset);
-    }
-  }
   lf-options:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option[data-lf-control-focus] {
     --lf-wears-ring: 1;
@@ -899,7 +878,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     min-width: 0;
     min-height: 0;
     padding: 0;
-    margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
     --lf-field-end-room: var(--lf-option-action-room);
     border: 0;
     outline: none;
@@ -948,45 +926,42 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
 /* The row form: a list whose rows open at one column with the mark leading, and the
  * block reference at the line's end.
  *
- * A table, because a row is a run of prose between apparatus, and a table's anonymous
- * cell is the only box the words can have while the markup stays the author's; flex
- * items would split the label at each inline element and trim its spaces. The width is
- * the whole box (border-box), since a live group pads it for the binding badge
- * and the group clips what overflows. */
+ * A row is a block holding the author's words as they wrote them, its own formatting
+ * context so it holds the reference's float; the mark and the digit stand out of flow
+ * in its leading column (below). Rejected: a table, whose own ground Firefox paints
+ * over an outline standing inside its edge, where every mark on a row stands, so the
+ * row would wear no focus ring there and a comment's brackets would draw as lines along
+ * its top and foot; and flex, whose items would split the label at each inline element
+ * and trim its spaces. */
 lf-options:not(:has(> lf-option:where([label]))) > lf-option {
   position: relative;
-  display: table;
-  width: 100%;
-  box-sizing: border-box;
-  border-spacing: var(--lf-row-gap) 0;
-  padding: var(--lf-option-pad-block) 0;
+  display: flow-root;
+  padding-block: var(--lf-option-pad-block);
   --lf-block-frame: 1;
 }
-/* The mark's own 17px column, after the binding badge's: a row is one line, so the two
- * cannot share a gutter as they do on a card. Every child opens after it, the add cell
- * included. The live group sets --lf-key-badge-col on every child, so the second
+/* The mark's own 17px column, after the binding badge's, then the row's gap before the
+ * words, and the gap again at the row's end: a row is one line, so the badge and the
+ * mark cannot share a gutter as they do on a card. Every child opens after it, the add
+ * cell included. The live group sets --lf-key-badge-col on every child, so the second
  * rule adds to it at a weight that outranks that. */
 lf-options:not(:has(> lf-option:where([label]))) > :is(lf-option, .lf-another) {
   --lf-pick-col: 17px;
   --lf-row-gap: var(--lf-sp-2);
-  padding-inline-start: var(--lf-pick-col);
+  padding-inline: calc(var(--lf-pick-col) + var(--lf-row-gap)) var(--lf-row-gap);
 }
 lf-options:not(:where([data-lf-exhibit]) *):not(:has(> lf-option:where([label])))
   > :is(lf-option, .lf-another) {
-  padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col));
+  padding-inline-start: calc(
+    var(--lf-key-badge-col) + var(--lf-pick-col) + var(--lf-row-gap)
+  );
 }
-/* The add field has no table cell, so it takes the same named gap, and the option's
- * vertical inset, so the draft and the option it becomes are one row. */
+/* The add field takes the option's vertical inset, so the draft and the option it
+ * becomes are one row. */
 lf-options:not(:has(> lf-option:where([label]))) > .lf-another:not([hidden]) {
   gap: 0;
   padding-block: var(--lf-option-pad-block);
-  padding-inline-end: var(--lf-row-gap);
 }
-lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
-  --lf-compose-text-margin-inline-start: var(--lf-row-gap);
-}
-/* Separate-border spacing adds a gap outside each end, so a narrow group takes the
- * compact gap to keep the table inside it. */
+/* A narrow group takes the compact gap, leaving its width to the words. */
 @container (max-width: 20rem) {
   lf-options:not(:has(> lf-option:where([label]))) > :is(lf-option, .lf-another) {
     --lf-row-gap: var(--lf-sp-1);
@@ -1124,7 +1099,7 @@ lf-options[settled] > .lf-settled[aria-expanded="false"] {
    * spend no height. This is the disclosure's behavior, including its generated add
    * and Done rows, so it outranks authored card padding and minimum heights. Opening
    * removes hidden and restores those styles. A block keeps until-found's containment
-   * effective even when an authored option normally uses a table display. */
+   * effective whatever display an option's own rules give it. */
   lf-options[settled] > [hidden="until-found"] {
     display: block !important;
     block-size: 0 !important;

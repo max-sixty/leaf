@@ -587,9 +587,9 @@ customElements.define(
       // for.
       mark.lfPreview = () => false;
       this.#controls.set(option, mark);
-      // First, so the row form's table puts it in the cell before the words. A card
-      // places its mark out of flow in the header and cannot see this, so one insertion
-      // serves both forms and the theme states each form's placement.
+      // First, before the option's words. Both forms place the mark out of flow, a card
+      // in its header and a row in its leading column, so one insertion serves both and
+      // the theme states each form's placement.
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);

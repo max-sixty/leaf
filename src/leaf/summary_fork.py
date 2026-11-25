@@ -16,7 +16,7 @@ answer: a fork's answer arrives whole, and a summary's few hundred words would h
 back the working line by seconds.
 
 The hint is the fork's for a thread whose newest delivered message came to a round
-that awaited a line (`forks.unlined`) while a follower listed the session's line forks
+that awaited a line (`events.unlined`) while a follower listed the session's line forks
 (`forks.lane_up`), since `forks.ask` asks this fork beside that round's line fork:
 the session's delivery leaves it out (`thread_context.batch_threads`), so the session
 spends no step on it. A delivery whose newest message in the thread joined a round

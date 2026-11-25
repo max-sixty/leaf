@@ -843,7 +843,6 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                     "required": ["id"],
                 },
                 "content": "markup",
-                "shadow": True,
                 "example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
         }
@@ -1562,7 +1561,6 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                     "required": ["id"],
                 },
                 "content": "empty",
-                "shadow": True,
             }
         },
         layer_widgets={
@@ -1791,7 +1789,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "description": "A declared nested physical reader stage.",
         "attributes": {"properties": {}},
         "content": "empty",
-        "shadow": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
     module = module.replace(

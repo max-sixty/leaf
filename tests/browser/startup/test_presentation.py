@@ -227,13 +227,6 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     registry = {
         tag: {
             **entry,
-            **(
-                {
-                    "shadow": True,
-                }
-                if tree == "shadow"
-                else {}
-            ),
             "example": f'<{tag} id="{tree}-example"></{tag}>',
         }
         for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
@@ -258,10 +251,10 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
 }
 """)
     modules = {}
-    for tag, declaration in registry.items():
+    for tag in registry:
         stage = (
             "shadowStage(this, nodes)"
-            if declaration.get("shadow")
+            if tag == "lf-motion-shadow"
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
@@ -355,7 +348,6 @@ def test_settled_and_shadow_links_wear_the_pages_external_mark(browser, serve):
     }
     shadow = {
         **entry,
-        "shadow": True,
         "example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
     }
     authored = leaf_page(

@@ -12,7 +12,6 @@ import { watchHeadingLinks } from "./heading-links.js";
 import { watchRootHeaders } from "./root-headers.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring, upgrades } from "./registry.js";
-import { loadShadowRules } from "./shadow.js";
 import { revealLayer, sameLayer } from "./layer-client.js";
 import {
   applicationState,
@@ -36,8 +35,7 @@ import { widgetImports } from "./widget-imports.js";
 
    A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
    the markup about to be upgraded, imports each declared tag standing in it once per
-   tab. Shared dependency preparation loads shadow rules where the scope
-   holds or declares creation of a `shadow` widget, alongside any declared Markdown parser. Three
+   tab, after loading any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
    version activation with the incoming authored body, and the state application with the
    markup an agent's reply carries, ahead of the panel building a body. Each of them
@@ -146,19 +144,6 @@ const widgetUrl = (tag) =>
     : runtimeResource(`/widgets/${tag}.js`);
 
 /** @param {Scope} scope */
-async function loadWidgetDependencies(scope) {
-  // Before the modules import, because a widget's first render asks for these rules and
-  // an async stage would put every `shadow` widget's look a fetch behind its own
-  // nodes. The creating module imports its child's constructor; its declaration brings
-  // the child's shared rules in before even the first child exists. The rules are read
-  // once for the tab however many scopes ask.
-  await Promise.all([
-    loadDeclaredMarkdown(scope),
-    ...(widgetImports(scope, registry).shadow ? [loadShadowRules()] : []),
-  ]);
-}
-
-/** @param {Scope} scope */
 async function importWidgetModules(scope) {
   const required = widgetImports(scope, registry);
   await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
@@ -168,7 +153,7 @@ async function importWidgetModules(scope) {
 // import ahead of activation, then format their copied arrivals after typed capture.
 /** @param {Scope} scope */
 export async function preloadWidgets(scope) {
-  await loadWidgetDependencies(scope);
+  await loadDeclaredMarkdown(scope);
   await importWidgetModules(scope);
 }
 
@@ -176,7 +161,7 @@ export async function preloadWidgets(scope) {
 // before module imports can synchronously connect an already-present custom element.
 /** @param {Scope} scope */
 export async function importWidgets(scope) {
-  await loadWidgetDependencies(scope);
+  await loadDeclaredMarkdown(scope);
   formatDeclaredMarkdown(scope);
   await importWidgetModules(scope);
 }

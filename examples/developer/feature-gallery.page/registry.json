@@ -3,7 +3,6 @@
     "description": "A worked package reader sharing Leaf conversations and obligations.",
     "attributes": { "required": ["id"] },
     "content": "empty",
-    "shadow": true,
     "example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
   },
   "lf-margin-entry-gallery": {

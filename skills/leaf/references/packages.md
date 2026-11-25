@@ -160,8 +160,8 @@ declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
 internals through its inputs or API; overrides are deliberately page-wide.
 
-Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet when its element says `lf-connect`, or through
+Document selectors don't reach into a shadow root. A shadow root gets the composed
+shared stylesheet when its element says `lf-connect`, or through
 `shadowStage` for an imperative renderer (`module-authoring.md`, "Shadow stages and
 styles"). Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public

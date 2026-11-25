@@ -252,7 +252,6 @@ SHADOW_VISUAL_LAYER = {
             "required": ["id", "parts"],
         },
         "content": "empty",
-        "shadow": True,
         "visual": {"parts": "parts"},
         "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
     }

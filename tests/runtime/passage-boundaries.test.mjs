@@ -312,9 +312,7 @@ test("a widget fenced after a reading was taken is in the next one", () => {
 
 test("a declared shadow tree's words are read, and its changes are seen", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-doors" },
   });
   document.body.innerHTML = "<main><p>Alpha</p><lf-staged></lf-staged></main>";
@@ -330,9 +328,7 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
 
 test("each document's reading is forgotten alone: the page's and a reply's", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-documents" },
   });
   document.body.innerHTML = "<main><p>Alpha</p></main>";
@@ -426,9 +422,7 @@ test("a reading kept from the page is made again when an id or a part's name cha
 // reach every root the reading would cross into, a stage inside another stage included.
 test("startup refuses bare text staged inside another widget's root", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-nested-bare" },
   });
   document.body.innerHTML = "<main><lf-staged id=outer></lf-staged></main>";
@@ -456,9 +450,7 @@ test("startup refuses bare text staged inside another widget's root", () => {
 // sibling widgets.
 test("startup's refusal sweep asks each of many sibling stages once", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-flat-sweep" },
   });
   const count = 200;
@@ -499,9 +491,7 @@ test("an undeclared shadow tree is opaque, and its host reads by its children", 
 // stands, not where its slot does.
 test("chrome over a declared tree stops at its root, and not for what it slots", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-contexts" },
   });
   document.body.innerHTML =
@@ -524,9 +514,7 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
 
 test("a line break assigned to a shadow slot separates its words", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-slotted-break" },
   });
   document.body.innerHTML = "<main><lf-staged></lf-staged></main>";
@@ -544,9 +532,7 @@ test("a line break assigned to a shadow slot separates its words", () => {
 // words of a span would; a widget's own words stand apart from those beside it.
 test("words a slot draws run into the words around the slot", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-slotted-words" },
   });
   document.body.innerHTML = "<main><p>Before<lf-staged></lf-staged>after</p></main>";
@@ -561,9 +547,7 @@ test("words a slot draws run into the words around the slot", () => {
 
 test("a selection in nested slots keeps exactly the rendered words it covers", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-nested-slots" },
   });
   document.body.innerHTML =
@@ -671,9 +655,7 @@ test("a selection in an undeclared host that reorders its children keeps its wor
 // A range from any word to any later one covers exactly the reading's words between them.
 test("the reading's words stand in the order a selection is compared in", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "passage-reading-order" },
   });
   const nodes = (html) => {
@@ -833,9 +815,7 @@ test("telling a quote's copies apart reads only around them", () => {
 // those a change came near.
 test("a kept quote answers each change as a fresh pass over the page does", () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "quote-index" },
   });
   document.body.innerHTML =

@@ -5219,7 +5219,6 @@ LATE_STAGE = {
         "required": ["id"],
     },
     "content": "markup",
-    "shadow": True,
     "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
 LATE_STAGE_MODULE = """

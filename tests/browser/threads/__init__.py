@@ -262,7 +262,6 @@ def _shadow_tree_widget(tag):
             "required": ["id"],
         },
         "content": "empty",
-        "shadow": True,
         "example": f'<{tag} id="example"></{tag}>',
     }
     module = f"""

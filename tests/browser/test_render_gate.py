@@ -3344,7 +3344,6 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-callout"].pop("verbatim")
-    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -4127,7 +4126,6 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-callout"].pop("verbatim")
-    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
         'import { shadowStage } from "/runtime/widget-api.js";\n'

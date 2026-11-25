@@ -587,7 +587,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     ("tag", "key", "fallback"),
     [
         ("lf-options", "verbs", None),
-        ("lf-note", "shadow", True),
+        ("lf-note", "verbatim", True),
     ],
 )
 def test_runtime_features_require_a_module(page_dir, tag, key, fallback):

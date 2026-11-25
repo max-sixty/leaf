@@ -3,7 +3,7 @@
 import { noChange } from "/vendor/lit.js";
 import {
   HeldReading,
-  obligationActions,
+  go,
   nameOf,
   readObligations,
   answerWords,
@@ -185,7 +185,7 @@ customElements.define(
           const node = offer("li");
           const button = offerAction("word", "");
           button.addEventListener("click", () => {
-            void threadActions.open(key, { part: "thread" });
+            void go({ key }, { part: "thread" });
           });
           node.append(button);
           row = { node, button };
@@ -284,7 +284,7 @@ customElements.define(
           if (!row) {
             const node = offer("li");
             const open = offerAction("word", "");
-            open.addEventListener("click", () => void obligationActions.open(key));
+            open.addEventListener("click", () => void go({ id: key }));
             row = { node, open };
             this.queueRows.set(identity, row);
           }

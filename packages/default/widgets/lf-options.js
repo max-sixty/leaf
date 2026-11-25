@@ -56,8 +56,8 @@
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
  * generated option joins the walk on replay just like an authored one.
  *
- * In a thread the existing reply box already owns those words, so Enter from a mark
- * continues into that box. Every `multiple` group grows a Done press: each toggle
+ * In a thread the existing reply box already owns those words, which `c` reaches from
+ * a mark as from anywhere in the thread. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
  * whole, posted as an `answer` action and held as the obligation's closing condition
  * (`awaits.answered`). Answered is paint on the press, never a wider word. A
@@ -116,8 +116,6 @@ import {
   aimedAt,
   nameOf,
   elementById,
-  threadInput,
-  landInThread,
   placePreview,
   rowWalk,
   named,
@@ -362,12 +360,6 @@ customElements.define(
       });
     }
 
-    // A page obligation owns the ordinary add form below its options. An obligation already
-    // inside a thread has no second form; its surrounding thread owns the reply.
-    #reply() {
-      return this.#addition.input ? null : threadInput(this);
-    }
-
     // The one statement a live channel can't derive: the set is whole. Done is a
     // reversible gesture; its pressed state is the answer action in force. It records
     // the user's answer, so it wears the commit face, which the user chose over the
@@ -472,21 +464,6 @@ customElements.define(
         mark.lfCommands = {
           title: SECTION,
           rows: [
-            {
-              id: "option.reply",
-              keys: ["Enter"],
-              title: "reply",
-              when: () => Boolean(this.#reply()),
-              // The box hands the user back to the thread it belongs to, and to
-              // this option where that thread is nowhere to stand — the route
-              // `landInThread` records for exactly that case, and the one Escape
-              // out of a text box reads.
-              run: () => {
-                const reply = this.#reply();
-                if (reply)
-                  landInThread(reply, { target: mark, line: "back to the options" });
-              },
-            },
             ...rowWalk({
               id: "option",
               noun: "Option",

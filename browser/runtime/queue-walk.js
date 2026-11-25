@@ -59,7 +59,7 @@
    Each grouping orders its items within a group by page order (`inWalkOrder`), but a
    goal's by its steps' order.
 
-   The walk can also step within one region of the page (`obligationActions.next`, as an
+   The walk can also step within one region of the page (`go({within})`, as an
    `lf-tally`'s Next On Me presses it): its stops are then the obligations waiting on the user
    that the region holds (`readObligations(region)`, obligations/place.js), stepped by the same current location and
    page order, and its position counts them alone. A press from outside the region, such as
@@ -617,7 +617,7 @@ export function createQueueWalk({
   const arriveAtItem = (item) => arriveAt(stopOf(item));
 
   // A press naming one obligation outright, as a Page Map row or
-  // `obligationActions.open` does, arrives where the walk would and says where the
+  // `go` with an obligation does, arrives where the walk would and says where the
   // obligation stands in On Me as `m` landing there would, so every route counts the one
   // list. It says so only where the stop the user then stands on is the obligation's
   // own: one On Me doesn't hold, answered or left with the agent, can stand inside a
@@ -674,11 +674,11 @@ export function createQueueWalk({
     wentTo = (place && obligationHolding(readObligations().all, place)?.id) ?? null;
   });
 
-  // The public walk within a region (`obligationActions.next`).
+  // The public walk within a region (`go({within})`).
   /** @param {{within: Element, dir?: number}} options */
   function nextWithin({ within, dir = 1 }) {
     if (!(within instanceof Element))
-      throw new TypeError("leaf: obligationActions.next needs an element `within`");
+      throw new TypeError("leaf: go({within}) needs an element `within`");
     const here = walkOrigin();
     const items = readObligations(within).all;
     const kept = items.find((item) => item.id === wentTo);

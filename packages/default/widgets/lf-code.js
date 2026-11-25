@@ -23,7 +23,7 @@
  * referenced like any other — `hi` tints the elided row, and a note whose `at` falls
  * there becomes that row's caption, saying what was left out.
  *
- * `lfElementsFor(key)` answers a reference into the block (`navigateToDatum`) in that
+ * `lfElementsFor(key)` answers a reference into the block (`go` with a key) in that
  * same grammar. A number outside the block addresses nothing.
  * The reader can switch wrapping through the code block’s command scope without rebuilding source rows. This
  * is tab-local reading state, retained by widget id across revisions, not a decision.

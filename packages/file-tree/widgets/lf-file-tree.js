@@ -19,8 +19,9 @@
  */
 import { render } from "/vendor/lit.js";
 import {
+  elementById,
   focusDestination,
-  navigateToDatum,
+  go,
   onCurrentLocation,
   scrollIntoView,
   shadowStage,
@@ -161,8 +162,10 @@ class FileTreeWidget extends LeafElement {
       }
       selectOnly(current, item.getPath());
       const file = files.find((entry) => entry.path === item.getPath());
-      if (this.hasAttribute("for") && file?.key)
-        void navigateToDatum(this, "for", file.key, {
+      const target = elementById(this.getAttribute("for"), this);
+      if (target && file?.key)
+        void go(target, {
+          key: file.key,
           focus: false,
           success: `Opened ${file.path}.`,
           missing: `${file.path} is no longer available.`,

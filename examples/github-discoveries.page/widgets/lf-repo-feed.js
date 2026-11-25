@@ -7,6 +7,7 @@ import {
   whileConnected,
   tabStore,
   HeldReading,
+  go,
   threadActions,
   readThreads,
   pageLinks,
@@ -234,14 +235,14 @@ class RepoFeed extends LeafElement {
         !thread.resolved,
     );
     if (existing) {
-      void threadActions.open(existing.key, { part: "reply" });
+      void go(existing, { part: "reply" });
       return;
     }
     const created = threadActions.create({
       text: `How does “${item.title}” in ${item.repo} connect to my work?\n\n${item.url}`,
       anchor: { section: this.id, datum: item.id },
     });
-    if (created) void threadActions.open(created.key, { part: "thread" });
+    if (created) void go(created, { part: "thread" });
   }
 
   render() {

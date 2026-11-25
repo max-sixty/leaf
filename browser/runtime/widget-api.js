@@ -34,7 +34,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 export { nameOf } from "./names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
-export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
@@ -52,9 +51,9 @@ export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 export { readWork } from "./work.js";
-export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
 export {
+  go,
   placePageThreads,
   registerThreadPresentation,
   threadActions,
@@ -124,5 +123,4 @@ export async function mountSample(frame, options) {
   }
 }
 export { wear } from "./dress.js";
-export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";

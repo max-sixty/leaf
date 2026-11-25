@@ -348,8 +348,8 @@ wait. After every wait, it moves focus or scroll only if `intent()` is still tru
 turns false once the user presses, types, scrolls, leaves the window or moves focus. If
 the navigation then opens or closes a surface that moves focus, wrap that change in
 `intent.handoff(() => changeSurface())` so the move doesn't count as the user's; it
-returns false if the change had already moved focus. `threadActions.open` handles this
-itself (`module-annotations.md`, "Reading and opening Threads from a widget").
+returns false if the change had already moved focus. `go` handles this itself
+(`module-reading.md`, "Taking the user somewhere").
 
 ### Pointer presses
 

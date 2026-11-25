@@ -289,9 +289,12 @@ concrete and playable").
   Caret browsing in Chromium and Firefox walks the caret through words that take no
   focus, so there an element such as an age previews to the keyboard without a Tab
   stop of its own (check: `test_k_reads_the_caret_where_no_tab_reaches`). Safari has
-  no such caret (`../notes/browser-support.md`, "A keyboard caret in Safari"). A
-  preview the user put away stays away until they aim again, whatever the element
-  declares meanwhile. A `title` is its writer's: the
+  no such caret, so an age reaches the keyboard there without one: a row that shows
+  an age names its clock time in the row's own preview, and an age an author wrote in
+  the page takes a Go-to hint (check:
+  `test_an_age_reads_its_time_to_the_keyboard_with_no_caret`;
+  `../notes/browser-support.md`, "A keyboard caret in Safari"). A preview the user
+  put away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
   browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
   so two tooltips never stand together. Leaf's own controls declare their words to the
   preview and write no title on Leaf.

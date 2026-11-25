@@ -265,6 +265,15 @@ export function aimableAt(node) {
 // Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
 const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empty";
+// Whether a widget drew `node`: a registered widget that draws its content itself
+// stands round it as the page renders it, as an activity list does round its rows.
+// What a widget holds of the author's markup, as a pane's words, it didn't draw.
+/** @param {Node} node */
+export const drawnByWidget = (node) => {
+  for (let at = renderedParent(node); at; at = renderedParent(at))
+    if (drawsItsContent(registry[at.localName])) return true;
+  return false;
+};
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which

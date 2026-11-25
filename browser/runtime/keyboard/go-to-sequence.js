@@ -1,8 +1,9 @@
 /* The Go-to sequence: `g` opens one prefix grammar, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, the presses a widget built, and visible margin entries are read together
-   in screen order and receive short prefix-free labels. `hints.js` owns that map — the
+   tabs, folds, the presses a widget built, visible margin entries and the ages an
+   author wrote in the page (`pageAges`) are read together in screen order and receive
+   short prefix-free labels. `hints.js` owns that map — the
    codes, the typed prefix, the audible walk, the scroll freeze, the revalidation before
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
@@ -72,7 +73,7 @@ import {
 } from "./key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
-import { PRESSABLE } from "../widget-elements.js";
+import { drawnByWidget, PRESSABLE } from "../widget-elements.js";
 import { el } from "../lib/elements.js";
 import { actionClass } from "../lib/control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
@@ -81,7 +82,7 @@ import { letGo, focusDestination, focused } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce } from "../notifications.js";
-import { inPage, pageQueryAll } from "../passages.js";
+import { GENERATED, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc } from "./scopes.js";
 import { saying } from "./control-keys.js";
@@ -150,6 +151,20 @@ export function createGoToSequence({
   // means a different section the moment one of them opens.
   /** @returns {HTMLElement[]} */
   const pageDisclosures = () => pageParts("details > summary");
+  // The ages an author wrote in the page's own content: the `lf-age` elements in the
+  // page outside what a widget wrote, which is words a module marks as its own
+  // (`GENERATED`) and the body of a widget that draws all its content
+  // (widget-elements.js, `drawnByWidget`). An age takes no focus, so in Safari, which
+  // has no caret browsing, this is the keyboard's way to when it was. A row the panel
+  // or an activity list draws says its age's time in its own preview instead
+  // (floating-panel.js, `ageLine`), so a list of rows adds no hints, and so does a
+  // message's head. Arriving stands in for Tab (`step`), so the age previews its clock
+  // time at once, which is what the user went there for.
+  /** @returns {Element[]} */
+  const pageAges = () =>
+    pageQueryAll("lf-age").filter(
+      (age) => inPage(age) && !age.closest(GENERATED) && !drawnByWidget(age),
+    );
   // Narrower than the disclosure scope's own reading: this route can reveal a native
   // disclosure by its summary, while an aria-expanded group has no equivalent arrival.
   // The presses themselves, wherever a widget put them. Each is declared as it is built:
@@ -277,6 +292,7 @@ export function createGoToSequence({
       focusDestination(summary, "move");
     }),
     targetKind("Control", pageControls, press),
+    targetKind("Time", pageAges, (age) => focusDestination(age, "step")),
   ];
   /** @type {TargetFilter[]} */
   const TARGET_FILTERS = [

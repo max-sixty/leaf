@@ -248,6 +248,7 @@ test("a kept path's * walks each item of a list or each value of a map, and keep
         batches: { type: "array", items: entry() },
         drafts: { type: "object", additionalProperties: entry() },
       },
+      required: ["batches", "drafts"],
     },
     kept: ["batches/*/page", "drafts/*/page"],
   });
@@ -286,6 +287,22 @@ test("a kept path's * walks each item of a list or each value of a map, and keep
   assert.deepEqual(
     changed((s) => s.records.claim.kept.push("batches/*"), walked),
     refused("record claim: kept batches/* is not in its schema"),
+  );
+  // A new key of each value may be kept where it is optional, under a parent every
+  // shape requires, and is refused only where it is required.
+  const created = (required) => (s) => {
+    s.records.claim.since = 4;
+    const value = s.records.claim.schema.properties.drafts.additionalProperties;
+    value.properties.created = { type: "number" };
+    if (required) value.required.push("created");
+    s.records.claim.kept.push("drafts/*/created");
+  };
+  assert.deepEqual(changed(created(false), walked), none);
+  assert.deepEqual(
+    changed(created(true), walked),
+    refused(
+      "record claim: kept drafts/*/created is required where its last shape didn't require it",
+    ),
   );
 });
 

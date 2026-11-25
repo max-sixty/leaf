@@ -62,28 +62,34 @@ function widens(was, now) {
   );
 }
 
-// The schema at `path` (`a/*/b`, `*` for each item of a list or value of a map) in a
-// record's schema, whether each key on the way is required, and what each `*` walks;
-// none where the path leaves the schema, or ends at a `*`, since `a/*` would keep what
-// `a` keeps.
-function kept(schema, path) {
+// `path` (`a/*/b`, `*` for each item of a list or value of a map) followed through a
+// record's schema as far as the schema goes: the schema it reaches, or none where it
+// leaves the schema; whether each key it reached is required; and what each `*` walks.
+function walk(schema, path) {
   let node = schema;
   const required = [];
   const walks = [];
-  const steps = path.split("/");
-  if (steps.at(-1) === "*") return undefined;
-  for (const step of steps) {
+  for (const step of path.split("/")) {
     if (step === "*") {
-      const walk = node?.type === "array" ? "items" : "additionalProperties";
-      walks.push(walk);
-      node = node?.[walk];
+      const into = node?.type === "array" ? "items" : "additionalProperties";
+      walks.push(into);
+      node = node?.[into];
     } else {
       required.push(Boolean(node?.required?.includes(step)));
       node = node?.properties?.[step];
     }
-    if (node === undefined) return undefined;
+    if (node === undefined) break;
   }
   return { schema: node, required, walks };
+}
+
+// `walk` for a path the schema holds to its end; none for one it leaves, or one that
+// ends at a `*`, since `a/*` would keep what `a` keeps.
+function kept(schema, path) {
+  const reached = walk(schema, path);
+  return reached.schema === undefined || path.split("/").at(-1) === "*"
+    ? undefined
+    : reached;
 }
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
@@ -122,7 +128,8 @@ export function protocolBreaks(baseline, current) {
     const before = baseline.records[kind];
     for (const path of keeps) {
       const now = kept(schema, path);
-      const was = before && (kept(before.schema, path)?.required ?? []);
+      // Each key the last shape lacked or left optional reads as not required there.
+      const was = before && walk(before.schema, path).required;
       if (!now) refused.push(`record ${kind}: kept ${path} is not in its schema`);
       else if (was && now.required.some((required, step) => required && !was[step]))
         refused.push(

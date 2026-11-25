@@ -68,15 +68,11 @@ as any architectural problem they leave stays easy to fix.
 ## The maintainer decides
 
 Make the improvements the repository's goals and code already justify. Every call
-outside the list below is yours, including the interface calls these principles
-settle. Make the call, land the change without asking first, and name the call in
-the pull request, with the passage that settled it where one did, so the
-maintainer can reverse it after it lands. His time is the project's bottleneck, so
-a question costs him more than a reversal.
-
-Ask the maintainer where a choice depends on a purpose or intent the code can't
-tell you, or adds to what every later user, package author or change has to learn
-or work around:
+outside the list below is yours: make it without asking, and name it in the pull
+request, with the passage that settled it where one did, so the maintainer can
+reverse it. Ask him only where a choice depends on a purpose or intent the code
+can't tell you, or shapes what every later user, package author or change works
+with:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
 - **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
@@ -95,19 +91,19 @@ or work around:
 - **An open design.** Where a visual or interaction design is still open after
   these principles, show the candidates side by side and let the maintainer
   select one (`/developing-leaf`, "Explore an open design").
-- **Inferring a fact from a page's look or words.** Leaf takes each fact about a
-  page from where the page states it ("Read what the page states"), such as a
-  heading from `<h2>` rather than from large bold text, and an exception is his.
-- **Changing core UX.** Adding, removing or changing how the user works with Leaf on
-  every page, such as a keyboard shortcut, a gesture or what Escape closes, in
-  Leaf's runtime or a bundled package. A user learns these once and relies on them
-  on every page, so the maintainer keeps the whole set in view.
-- **Growing the package interface.** Adding something a package's author must
-  newly learn, such as a declaration key, one of Leaf's elements, an event, a
-  function or a new rule for using one. Each stays for every author to learn ("Keep
-  the package interface small"), and `uv run leaf-dev interface --base` lists the
-  names a change adds. A rename, or one more member of a family authors use alike,
-  such as a theme token beside its siblings, is the change's own to weigh.
+- **Changing core UX.** Changing how the user does a task on every page, such as
+  commenting, replying or moving through the page, or adding or rebinding a
+  keyboard shortcut, in Leaf's runtime or a bundled package. A user learns these
+  once and relies on them everywhere, so the maintainer keeps the whole set in
+  view. A smaller change within one of these tasks, such as what one press of
+  Escape closes, is the change's own to weigh.
+- **Growing the package interface.** Adding to the package interface, such as a
+  declaration key, one of Leaf's elements, an event, a function or a new rule for
+  using one. The maintainer keeps that interface small and coherent, and it sprawls
+  through additions that each look reasonable alone ("Keep the package interface
+  small"). `uv run leaf-dev interface --base` lists the names a change adds. A
+  rename, or one more member of an existing family, such as a theme token beside
+  its siblings, is the change's own to weigh.
 - **Complicating the core.** Adding to the browser runtime or the server a
   mechanism that later changes there must reason about, such as a mode or state
   several modules read, a special case spread across owners, or a queue with
@@ -115,16 +111,10 @@ or work around:
   maintenance"). A fix that keeps the code's existing design, or a change that
   leaves the core simpler, is the change's own to weigh.
 
-Weigh a change on the list first, as "Weigh what a change adds" says: one the
-weighing rejects goes without asking, and only one it keeps waits for the maintainer. A
-change the list holds for him merges only once he has approved it, in the session,
-on a page or on its pull request. A request of his that named that very change,
-such as the keyboard shortcut to bind, approves it. Until he approves, its pull
-request stays a draft that names what waits on him. Once he has approved all of
-it, the pull request says what he approved and leaves draft. Build as much of the
-change as makes the question concrete, and land the rest of the work without it
-where the rest stands alone, as a new control can land without its keyboard
-shortcut.
+A change the list holds lands only once the maintainer has approved it, and a
+request of his that named that very change approves it. Land the rest of the work
+without it where the rest stands alone, as a new control can land without its
+keyboard shortcut.
 
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it

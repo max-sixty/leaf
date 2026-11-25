@@ -112,7 +112,7 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
-import { aimedAt, nameOf, elementById, named } from "/runtime/widget-api.js";
+import { aimedAt, nameOf, named } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -412,7 +412,6 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
       this.#syncDone();
     }
 
@@ -533,7 +532,9 @@ customElements.define(
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, this);
+      const block = /** @type {Document | ShadowRoot} */ (
+        this.getRootNode()
+      ).getElementById(target);
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;

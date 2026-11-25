@@ -398,7 +398,6 @@ FACTS: dict[str, dict] = {
         ]
     },
     "parts": {"const": True},
-    "space": {"enum": ["wide", "available"]},
     "bound": {"enum": ["start", "end"]},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),

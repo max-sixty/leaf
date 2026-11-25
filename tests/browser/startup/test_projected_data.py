@@ -1112,7 +1112,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
             failed[name] = 0;
             const owner = owned(`failing-${name}`, () => {
               failed[name] += 1;
-              api.readObligations();
+              api.obligations.read();
               if (name === 'rejecting') {
                 owner.work = Promise.reject(new Error(`${name} paint failed`));
                 owner.work.catch(() => {});
@@ -1129,7 +1129,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
           const finished = new Promise((resolve) => { finish = resolve; });
           const owner = owned('pending-paint', () => {
             paints += 1;
-            api.readObligations();
+            api.obligations.read();
             owner.work = finished;
             return noChange;
           });

@@ -4,7 +4,7 @@
  * version that asserted its state. A worker that claims work it hasn't reported on for
  * a quarter of an hour is quiet. */
 import { html, noChange } from "/vendor/lit.js";
-import { readHistory } from "/runtime/widget-api.js";
+import { history } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
@@ -49,7 +49,7 @@ customElements.define(
     render() {
       const state = this.state.state.value;
       keeps(this, "state", state);
-      const { phase, events } = readHistory();
+      const { phase, events } = history.read();
       const report = events.find(
         (row) => row.kind === "report" && row.widget === this.id,
       );

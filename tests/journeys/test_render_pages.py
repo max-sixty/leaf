@@ -490,11 +490,12 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     assert painted == wanted, f"anchors in {source.stem} painted text they don't name"
 
 
-def test_available_space_is_a_generic_package_capacity(browser, serve):
-    """An available surface with no sidebar receives the page room even when it is
-    ordinary compound markup. Diagram's source-sized layout must not be the mechanism
-    that grants the shared capacity. An ordinary prose-adjacent sidebar then withholds
-    its whole side, unlike the contents spine that declares its shell-edge occupancy."""
+def test_an_available_package_widget_takes_the_page_room(browser, serve):
+    """A project package's widget its author widens with `data-width="available"`
+    receives the page room even when it is ordinary compound markup: the room is the
+    Layout's to hand any block, not a diagram's source-sized layout. An ordinary
+    prose-adjacent sidebar then withholds its whole side, unlike the contents spine
+    that declares its shell-edge occupancy."""
     entry = {
         "description": "A project package's compound review surface.",
         "attributes": {
@@ -502,7 +503,6 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
             "required": ["id"],
         },
         "content": "markup",
-        "space": "available",
         "example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
     }
     source = leaf_page(
@@ -513,7 +513,7 @@ lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
 </style>
 <h1 id="t">Available package surface</h1>
-<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+<lf-roomy id="roomy" data-width="available"><section>One</section><section>Two</section></lf-roomy>
 """,
     )
     page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
@@ -550,7 +550,7 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
   <p>Further notes</p><p>Useful actions</p>
 </div></aside><div class="layout-column">
 <h1 id="t">Available package surface</h1>
-<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy></div></div>
+<lf-roomy id="roomy" data-width="available"><section>One</section><section>Two</section></lf-roomy></div></div>
 """,
     )
     page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
@@ -575,8 +575,8 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands on a document
     page. A sidebar page's body is wider than `--lf-wide` at a large window, so the
     breakout's growth alone left a named-wide block at the holder's width there. The
-    cap holds an authored occurrence and a package default (a diff) alike, at the
-    page's own `--lf-wide`, while a block that names no width still fills its holder and
+    cap holds a plain block and a widget (a diff) alike, at the page's own
+    `--lf-wide`, while a block that names no width still fills its holder and
     `available` takes it all. At the theme's own `--lf-wide`, which it derives from the
     code size, the diff's 100-column line at four-digit line numbers reads without
     scrolling. A workspace states no evidence width, so there both fill
@@ -586,7 +586,7 @@ def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     line = (line + "x" * 100)[:100]
     blocks = f"""
 <div id="named" data-width="wide">Named wide.</div>
-<lf-diff id="patch"><pre>
+<lf-diff id="patch" data-width="wide"><pre>
 diff --git a/feeders/mount.py b/feeders/mount.py
 --- a/feeders/mount.py
 +++ b/feeders/mount.py

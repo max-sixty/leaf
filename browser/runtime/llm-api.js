@@ -1,6 +1,7 @@
 /* One generation against the host's model, independent of page state and data.
    The server owns credentials and request validation. A failed request is never
-   retried here: it may already have incurred a charge. */
+   retried here: it may already have incurred a charge. `generate` stays in the
+   package interface because only Leaf's server holds the host's model login. */
 import { offlineInteractive, pageUrl } from "./context.js";
 import { requestJson } from "./layer-client.js";
 import { readPart } from "./semantic-state.js";

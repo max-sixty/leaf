@@ -3,6 +3,12 @@
    surfaces call the owner; this module only chooses among them by what it is handed, so
    a widget names any of these as Leaf does without knowing which rule names it.
 
+   It is the package interface's one name for a part of the page. It stays a function
+   because the rules it chooses among read what only Leaf holds: the registry's `label`
+   attribute, the page's authored title, a thread's title from the log and an On list
+   row's. The words a widget shows for an element where these give none, the kind's
+   word or the words it quotes, are the widget's own (lib/element-word.js).
+
    Two decisions, each with the alternative a later change might reach for:
 
    - A comment's anchor is not a kind `nameOf` takes. Its words are its place and the

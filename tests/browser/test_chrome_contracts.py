@@ -1200,9 +1200,10 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
             await window.__lfCheckApi();
           if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
-          const {shadowStage}=await window.__lfWidgetApi();
           const host=document.createElement('div'); document.querySelector('main').append(host);
-          const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
+          const root=host.attachShadow({mode: 'open'});
+          root.append(document.createTextNode('A declared shadow stage'));
+          host.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
           if (!root.adoptedStyleSheets.includes(marks))
             throw new Error('The shadow stage did not adopt the marks');
           if (annotationSheets.length !== (files['annotation-chrome'] ? 1 : 0))

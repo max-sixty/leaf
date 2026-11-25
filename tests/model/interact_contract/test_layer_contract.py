@@ -1041,7 +1041,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"space": "wider, in this project"}})
+        json.dumps({"$keys": {"inline": "set among words, in this project"}})
     )
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1054,7 +1054,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
     )
     assert result.exit_code == 0, result.output
     keys = registry_storage.load_registry(page_dir)["$keys"]
-    assert keys["space"] == "wider, in this project"
+    assert keys["inline"] == "set among words, in this project"
     assert keys["verbatim"]  # the rest of the shipped members stand
 
 

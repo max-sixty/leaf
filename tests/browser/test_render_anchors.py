@@ -115,14 +115,14 @@ def thread_head(page, thread_id):
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
     page.wait_for_function(
-        "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
+        "id => window.__lfThreadsApi.threads.read().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
     choose_threads_in_panel(page)
     page.evaluate(
         """async (id) => {
           const api = window.__lfThreadsApi;
-          const thread = api.readThreads().threads.find((t) => t.id === id);
+          const thread = api.threads.read().threads.find((t) => t.id === id);
           await api.go(thread, { part: "thread", travel: false });
         }""",
         thread_id,
@@ -149,7 +149,7 @@ def stranded_quotes(page):
     """The quote of each thread the page reads whose passage it finds nowhere, read in
     the panel's view of every thread, which is put away again."""
     ids = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readThreads().threads"
+        "async () => (await window.__lfWidgetApi()).threads.read().threads"
         ".map((thread) => thread.id)"
     )
     stranded = []
@@ -2409,60 +2409,17 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in lines
     )
 
-    # The same host then serves as a widget's shadow stage. Restaging retains a Lit
-    # container and its editor while other nodes leave, and a passage spanning the
-    # stage's children reads the stage as the host's section.
+    # A passage spanning the children of the host's open root reads the root as the
+    # host's section.
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
-          const {html, render} = await window.__lfVendorImport('lit.js');
-          const host = document.querySelector('lf-diff');
-          const container = document.createElement('div');
-          const input = document.createElement('input');
-          input.value = 'draft reply';
-          const paint = text => render(html`<p>${text}</p>${input}`, container);
-          paint('Before restaging');
-          const old = document.createElement('p');
-          old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), container]);
-          input.focus();
-          input.setSelectionRange(2, 5);
-          const next = document.createElement('p');
-          next.textContent = 'new reading';
-          shadowStage(host, [next, container]);
-          paint('After restaging');
-          return {
-            text: [...host.shadowRoot.childNodes]
-              .filter(node => node.localName === 'p')
-              .map(node => node.textContent),
-            comments: [...host.shadowRoot.childNodes]
-              .filter(node => node.nodeType === Node.COMMENT_NODE).length,
-            rendered: container.querySelector('p').textContent,
-            focused: host.shadowRoot.activeElement === input,
-            value: input.value,
-            selection: [input.selectionStart, input.selectionEnd],
-          };
-        }"""
-    )
-    assert result == {
-        "text": ["new reading"],
-        "comments": 0,
-        "rendered": "After restaging",
-        "focused": True,
-        "value": "draft reply",
-        "selection": [2, 5],
-    }
-
-    result = page.evaluate(
-        """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
           const {anchorForRange} = await window.__lfCheckApi();
           const host = document.querySelector('lf-diff');
           const first = document.createElement('p');
           first.textContent = 'first';
           const last = document.createElement('p');
           last.textContent = 'last';
-          shadowStage(host, [first, last]);
+          host.shadowRoot.replaceChildren(first, last);
           const range = document.createRange();
           range.setStart(first.firstChild, 0);
           range.setEnd(last.firstChild, last.firstChild.length);
@@ -5225,9 +5182,11 @@ LATE_STAGE = {
     "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
 LATE_STAGE_MODULE = """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {
-  stage() { shadowStage(this, [...this.childNodes]); }
+  stage() {
+    (this.shadowRoot ?? this.attachShadow({mode: 'open'})).append(...this.childNodes);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
+  }
 });
 """
 
@@ -6782,9 +6741,11 @@ def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
 # declared shadow tree as it connects.
 VERBATIM_STAGE = {**LATE_STAGE, "verbatim": True}
 STAGED_ON_CONNECT = """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {
-  connectedCallback() { shadowStage(this, [...this.childNodes]); }
+  connectedCallback() {
+    (this.shadowRoot ?? this.attachShadow({mode: 'open'})).append(...this.childNodes);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
+  }
 });
 """
 

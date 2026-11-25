@@ -70,8 +70,8 @@ of a widget its own name, and require an `id` in the declaration of a widget tha
 one. Where two boxes take one name under one such element, both are regions, but a
 revision that replaces the two returns the user to their place in one of them alone.
 A box in a thread message is a region whose place Leaf keeps only while the box stands.
-Leaf finds the marks in the page, in a stage `shadowStage` builds and in the open
-shadow root of an element that has said `lf-connect` (`module-plain-elements.md`).
+Leaf finds the marks in the page and in the open shadow root of an element that has
+said `lf-connect` (`module-plain-elements.md`).
 
 Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of
@@ -210,8 +210,8 @@ covering the page and opens whatever holds the element. A fragment can also name
 part of a widget by the widget's id and a key
 ([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 A widget that opens the part a
-fragment names reads it with `elementById(hash)`
-([module-reading.md, "Reading the page"](module-reading.md#reading-the-page)).
+fragment names reads the id the fragment encodes from `location.hash` and finds it with
+`getElementById`.
 
 Before Leaf travels to a target, such as a comment's anchor, it reveals the target as
 the browser's find-in-page does: it opens each closed `<details>` holding it, and fires

@@ -56,12 +56,7 @@ import { sectionMarks } from "./toc-marks.js";
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
-import {
-  comparisonChanges,
-  readObligations,
-  readThreads,
-  named,
-} from "/runtime/widget-api.js";
+import { comparisonChanges, obligations, threads, named } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
@@ -193,8 +188,8 @@ customElements.define(
       this.#drawing.mark(
         main
           ? sectionMarks(main, standing, {
-              threads: readThreads().threads,
-              onMe: readObligations(main).user,
+              threads: threads.read().threads,
+              onMe: obligations.read(main).user,
               changes: comparisonChanges(main),
             })
           : new Map(),

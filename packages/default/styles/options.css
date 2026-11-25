@@ -265,7 +265,7 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > .lf-another:not([hidden]) {
       padding-block: var(--lf-option-pad-block);
     }
-    & > .lf-another > leaf-composition-field > .lf-compose-field {
+    & > .lf-another > textarea {
       min-height: var(--lf-card-state-height);
     }
     /* The mark's box is the whole seat the binding badge takes, the mark centred in it,
@@ -310,10 +310,8 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-sp-2);
     }
-    /* An empty draft's binding badge stands in the Add seat while Add is hidden, at the
-    * digit column every card's badge shares; once the field has words, the write
-    * route's badge takes the inner seat. Both seats are reserved before either face
-    * appears. */
+    /* The field's binding badge stands at the digit column every card's badge shares,
+    * centred on the field's last line. */
     & > .lf-another > .lf-key-badge {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-sp-2);
@@ -321,53 +319,19 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
       bottom: var(--lf-option-add-badge-end);
       margin: 0;
     }
-    & > .lf-another {
-      --lf-option-action-room: calc(
-        var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--lf-sp-2)
-      );
-    }
-    & > .lf-another:has(.lf-option-add:not([data-lf-empty])) > .lf-key-badge {
-      inset-inline-end: var(--lf-option-write-badge-inset);
-    }
     /* A card's digit draws in its mark's seat, over the mark, which turns transparent.
      * The mark still takes a press there, since the digit takes no pointer
      * (surfaces.css, `.lf-binding-seat`). */
     & > lf-option:has(> .lf-key-badge[data-lf-binding-badge]) > .lf-pick {
       opacity: 0;
     }
-    /* Add stands in the field's end corner by the field's own grid, sharing the words'
-     * cell and painted over them in document order, its face centred on their last line
-     * as the seat's insets (above) stand it: no positioned box, which Chromium's hit
-     * test visits on every call. The cell is the containing block of its badge and of
-     * the field's error only while one shows. Under a mouse, Add's face meets the aim
-     * floor, so it hangs no reach (surfaces.css); under a finger the floor is taller
-     * than the face, so Add keeps its reach and is the reach's containing block. */
+    /* The cell is the containing block of its badge only while the badge shows: no
+     * positioned box otherwise, which Chromium's hit test visits on every call. */
     & > .lf-another {
       position: static;
     }
-    & > .lf-another:has(> .lf-key-badge:not(:empty), .lf-compose-error:not([hidden])) {
+    & > .lf-another:has(> .lf-key-badge:not(:empty)) {
       position: relative;
-    }
-    & > .lf-another .lf-option-add {
-      grid-area: 1 / 1;
-      position: static;
-      z-index: auto;
-      justify-self: end;
-      align-self: end;
-      margin-inline-end: calc(var(--lf-option-add-seat-inset) - var(--lf-sp-3));
-      margin-block: calc(-1 * var(--lf-icon-action-hit))
-        calc((var(--lf-option-line) - var(--lf-icon-action-face)) / 2);
-    }
-    @media (pointer: coarse) {
-      & > .lf-another .lf-option-add {
-        position: relative;
-        inset: auto;
-      }
-    }
-    @media not (pointer: coarse) {
-      & > .lf-another .lf-option-add::after {
-        content: none;
-      }
     }
   }
 }
@@ -818,7 +782,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
-  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
+  .lf-another > textarea {
     --lf-focus-box: .lf-another;
   }
   lf-options:not(:where([data-lf-exhibit]) *)
@@ -845,10 +809,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       var(--lf-option-add-seat-end) +
         (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2
     );
-    --lf-option-write-badge-inset: calc(
-      var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--lf-sp-2)
-    );
-    --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;
     display: flex;
     align-items: center;
@@ -865,20 +825,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     bottom: 0;
     margin: auto 0;
   }
-  /* The field takes the group's answer face before and after it becomes an lf-option.
-   * Its submit action carries the accessible name; the empty state changes paint, not
-   * layout. */
-  .lf-another > leaf-composition-field > .lf-compose-field {
-    --lf-compose-pad-block: 0px;
-    --lf-compose-pad-inline-start: 0px;
-    position: static;
-  }
-  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
+  /* The field takes the group's answer face before and after it becomes an lf-option,
+   * one line high, as the option it becomes is. */
+  .lf-another > textarea {
     flex: 1;
     min-width: 0;
     min-height: 0;
     padding: 0;
-    --lf-field-end-room: var(--lf-option-action-room);
+    field-sizing: content;
     border: 0;
     outline: none;
     background: transparent;
@@ -891,17 +845,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     font: inherit;
     margin-block: calc((var(--lf-option-line) - 1lh) / 2);
     resize: none;
-  }
-  .lf-another .lf-compose-placeholder {
-    font: inherit;
-  }
-  .lf-another .lf-option-add {
-    inset-inline-end: var(--lf-option-add-seat-inset);
-    inset-block-end: var(--lf-option-add-seat-end);
-  }
-  /* Keep an empty Add press visible while it owns focus after submission. */
-  .lf-another .lf-option-add[data-lf-empty]:not([data-lf-focus]) {
-    visibility: hidden;
   }
   /* The leading column holds the key badge (from an 8px inset, --lf-key-badge-size wide)
    * and 6px before the words. It is held before the badge appears, so focusing an
@@ -1058,18 +1001,6 @@ lf-options:not(:has(> lf-option:where([label])))
     inset-block: 0;
     inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
   }
-}
-lf-options:not(:has(> lf-option:where([label])))
-  > .lf-another
-  > .lf-key-badge[data-lf-binding-badge]
-  ~ leaf-composition-field
-  > .lf-compose-field
-  > leaf-text::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: calc(var(--lf-key-badge-col) + var(--lf-pick-col) + var(--lf-row-gap));
 }
 /* Paper prints the group as never choosable: the offers go with the rest of the UI and
  * the chosen card's mark stays, because its label declares a word the page says

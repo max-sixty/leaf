@@ -20,8 +20,8 @@
    the event retargets a source inside a shadow root to its host and goes unheard from a
    root nobody staged. Dismissal stays each layer's own `popover` or `closedby` value. A
    popover opened declaratively inside a shadow root nobody staged fires a `toggle` this
-   module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
-   for a widget's shadow tree. A modal a script opens there, as a web component's
+   module cannot hear, so it never reaches the stack; saying `lf-connect` with its root
+   attached is the declared route for a widget's shadow tree. A modal a script opens there, as a web component's
    dialog is, still joins the stack through the `showModal` patch, so page keys don't
    act behind it; its own `beforetoggle` goes unheard from that root too.
 

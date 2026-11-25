@@ -177,8 +177,8 @@ for input, would close that gap. Every shape of the queue from `QUEUED.kept_sinc
 keeps each line and whether it wakes the session (`QUEUED.kept`), so the lines outlive
 the session's move to a Leaf of another shape, whose first hook adds to them
 (`hooks.skill_changed`). A queue of an earlier shape reads as empty, and the next line
-queued replaces it: there a line could name a turn, and left the queue once that turn
-ended, which no later shape records.
+queued replaces it: a line of that shape can name a turn whose end takes it off the
+queue, which no later shape records.
 
 A line queued with `wake` tells the session of work it now owes, such as a finding
 Leaf changed nothing for. Until a hook has

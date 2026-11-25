@@ -1922,10 +1922,6 @@ _TEXT = {
         _EXAMPLES, lambda at, v: f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
-    "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
-        f" before upgrade, {_size(v['now'])} once presented"
-    ),
     "shows-context-keys": lambda at, v: (
         f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
         " context keys and no"

@@ -208,8 +208,8 @@ script", lists.
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
   "Words it writes").
-- Keep the widget's visible geometry stable as its state updates ("First paint"), and
-  meet the rest of [interface-goals.md](interface-goals.md).
+- Keep the widget's visible geometry stable as its state updates, and meet the rest of
+  [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size through the library's frame pass, and
   write a value only where it changes ("Scheduling paints", "Writes that change
   nothing").
@@ -361,10 +361,11 @@ readings.
 - Draw a widget's complete view in one place, its `state` setter or its one `render()`.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
   a second initial renderer or transfer generated nodes between renderers.
-- Size the widget in the package theme, including its initial authored drawing.
-  A shadow template uses native slots for authored children, keeping their nodes and
-  browser state in the light DOM. Where the markup can't say how tall the drawing will
-  be, the page moves once as it draws.
+- Size the widget in the package theme, including its initial authored drawing. A
+  custom element is inline until a rule gives it a `display`, so give the tag its
+  `display` there. A shadow template uses native slots for authored children, keeping
+  their nodes and browser state in the light DOM. Where the markup can't say how tall
+  the drawing will be, the page moves once as it draws.
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as

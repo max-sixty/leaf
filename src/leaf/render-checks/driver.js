@@ -101,32 +101,11 @@
     return read();
   };
 
-  // Widget-quality comparison holds the entry while these authored boxes are laid
-  // out. Retain the actual nodes so the final reading compares the same instances.
-  /** @type {import("../../../browser/types/render-checks.js").FirstBox[]} */
-  let firstBoxes = [];
-  const captureFirstBoxes = () => {
-    /** @type {NodeListOf<HTMLElement>} */
-    const elements = document.querySelectorAll("body *");
-    firstBoxes = [...elements]
-      .filter(
-        (element) =>
-          element.localName.startsWith("lf-") &&
-          !element.closest(".lf-chrome, [data-lf-runtime]"),
-      )
-      .map((element) => {
-        const { width, height } = element.getBoundingClientRect();
-        return { element, width, height };
-      });
-  };
-
   globalThis.__leafRenderDriver = Object.freeze({
     load,
     call,
     requestFrame,
     framePresented,
     renderingState,
-    captureFirstBoxes,
-    firstBoxes: () => firstBoxes,
   });
 })();

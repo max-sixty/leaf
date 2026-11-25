@@ -3942,6 +3942,45 @@ def test_observer_rejects_stale_running_snapshot(claimed):
     assert cleanup_model.session_record("s1") == current
 
 
+def test_a_turn_recovering_after_a_failure_receipt_shows_its_draft(page_dir):
+    """Leaf gave up on a delivery it could not confirm and wrote the failure receipt,
+    and the provider turn turns out to be running. The thread shows the turn's draft
+    beside the receipt while it runs, and its answer in the draft's place once it
+    ends."""
+    revisioning_model.activate_source(page_dir)
+    prepared = _codex_delivery(page_dir)
+    assert codex_model.begin_delivery_start("codex-thread", prepared.payload["id"])
+    codex_model.abandon_uncertain_delivery("codex-thread", prepared.payload)
+    turn = {
+        "id": "late-turn",
+        "status": "inProgress",
+        "itemsView": "full",
+        "items": [
+            _delivery_item(prepared.payload),
+            {
+                "id": "late",
+                "type": "agentMessage",
+                "phase": "final_answer",
+                "text": "Recovered answer",
+            },
+        ],
+    }
+
+    def shown():
+        [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
+        return [message["text"] for message in thread["msgs"]][1:]
+
+    connection = _observer()
+    connection._resume(
+        {"status": {"type": "active", "activeFlags": []}, "turns": [turn]}
+    )
+    assert shown() == [codex_model.UNCONFIRMED_TEXT, "Recovered answer"]
+    connection._resume(
+        {"status": {"type": "idle"}, "turns": [{**turn, "status": "completed"}]}
+    )
+    assert shown() == [codex_model.UNCONFIRMED_TEXT, "Recovered answer"]
+
+
 def test_observer_continues_after_a_recovered_provider_completion(claimed):
     cleanup_model.prompt_turn("s1", "old")
     observer = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "s1")

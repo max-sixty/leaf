@@ -24,9 +24,11 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
     address would let an answer whose address has moved stand beside its own
-    placeholder, and the panel draw the draft rather than the answer the log holds.
+    placeholder, and the panel draw the draft rather than the answer the log holds. A
+    failure receipt is no answer (`is_answer`), so a turn recovering after one keeps
+    its draft on show.
     """
-    return any(
+    return is_answer(event) and any(
         event.get(named) == live_reply[named] for named in ("attempt", "responds")
     )
 

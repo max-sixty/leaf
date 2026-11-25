@@ -452,9 +452,9 @@ test("a list item records the indent its later lines stand at past its container
 });
 
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
-  const { registry } = await import("/runtime/registry.js");
-  const { preloadWidgets } = await import("/runtime/widget-loader.js");
-  const { formatDeclaredMarkdown } = await import("/runtime/page-markdown.js");
+  const { registry } = await import("/runtime/state/registry.js");
+  const { preloadWidgets } = await import("/runtime/records/widget-loader.js");
+  const { formatDeclaredMarkdown } = await import("/runtime/records/page-markdown.js");
   const { dataBody } = await import("/runtime/lib/data-body.js");
   registry["lf-source-contract"] = {
     content: "markdown",
@@ -488,11 +488,11 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
 });
 
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
-  const { registry } = await import("/runtime/registry.js");
+  const { registry } = await import("/runtime/state/registry.js");
   const { loadDeclaredMarkdown, formatDeclaredMarkdown } =
-    await import("/runtime/page-markdown.js");
-  const { annotationAt } = await import("/runtime/anchor-resolution.js");
-  const { blockAt, elementReading } = await import("/runtime/passages.js");
+    await import("/runtime/records/page-markdown.js");
+  const { annotationAt } = await import("/runtime/readings/anchor-resolution.js");
+  const { blockAt, elementReading } = await import("/runtime/readings/passages.js");
   registry["lf-seat-contract"] = {
     content: "markdown",
   };

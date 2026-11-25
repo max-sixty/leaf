@@ -96,7 +96,7 @@ describe("published runtime bundle", () => {
         `export const state = { revision: "${revision}" };`,
       );
       expect(
-        await readFile(join(layer, "runtime", "layer-client.js"), "utf8"),
+        await readFile(join(layer, "runtime", "transport", "layer-client.js"), "utf8"),
       ).toContain(revision);
     }
   });
@@ -152,9 +152,11 @@ describe("published runtime bundle", () => {
       const output = join(directory, "bundled");
       await bundleLayer(runtime, "/published/layer", output);
       const bundled = await readFile(join(output, "leaf.js"), "utf8");
-      expect(await readFile(join(output, "runtime", "media.js"), "utf8")).toBeTruthy();
       expect(
-        await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
+        await readFile(join(output, "runtime", "records", "media.js"), "utf8"),
+      ).toBeTruthy();
+      expect(
+        await readFile(join(output, "runtime", "transport", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       const verifier = await readFile(
         fileURLToPath(new URL("../../dev/leaf_dev/website.js", import.meta.url)),

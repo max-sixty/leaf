@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { summaryRanges, workingPlace } from "/runtime/thread/summary-ranges.js";
+import { summaryRanges, workingPlace } from "/runtime/records/thread/summary-ranges.js";
 
 const messages = ["a", "b", "c", "d", "e"].map((id) => ({ id, key: id }));
 

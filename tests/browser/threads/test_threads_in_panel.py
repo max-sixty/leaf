@@ -1,7 +1,7 @@
 """Where a thread about a passage opens: beside its passage as a card, or in the floating
 panel once the user chose the panel with a card's Open in panel, until the panel's Show
-on page chooses cards again (thread/threads-in-panel.js; the rule is
-thread/destination.js's)."""
+on page chooses cards again (records/thread/threads-in-panel.js; the rule is
+records/thread/destination.js's)."""
 
 import pytest
 from interact_support import append_carried_log_record
@@ -107,7 +107,7 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
 
     page.reload()
     wait_until_ready(page)
-    # The reload returns the user to the reply the row's press put them in (history.js),
+    # The reload returns the user to the reply the row's press put them in (records/history.js),
     # which Escape leaves for its thread, where `t` walks on.
     expect(page.locator(PANEL_REPLY)).to_be_focused()
     page.keyboard.press("Escape")

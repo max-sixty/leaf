@@ -425,7 +425,7 @@ def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, se
 
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):
     """High-contrast mode keeps a real outline on the focused comment frame, the box
-    the runtime rings for the focused field (focus.js, `ringBox`), which draws it on
+    the runtime rings for the focused field (dom/focus.js, `ringBox`), which draws it on
     its `::after` over what the frame holds (surfaces.css)."""
     context = browser.new_context(
         viewport={"width": 420, "height": 800}, forced_colors="active"

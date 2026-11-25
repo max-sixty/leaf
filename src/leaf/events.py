@@ -525,7 +525,7 @@ def rewritten(message: dict, edit: dict) -> dict:
     """What a rewrite changes of a message as a thread holds it (`message_reading`):
     its words, and `edited`, when it was last rewritten and what it said before, so a
     reader of the thread alone sees which answers were about other words. A rewrite to
-    no words deletes the message (`deleted` in thread/model.js)."""
+    no words deletes the message (`deleted` in records/thread/model.js)."""
     return {
         "text": edit["text"],
         "edited": {

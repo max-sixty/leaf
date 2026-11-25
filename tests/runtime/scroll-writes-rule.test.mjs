@@ -8,7 +8,7 @@ import { scrollWritesRule } from "../../eslint.config.mjs";
 import { ruleReports } from "./lint-rule.mjs";
 
 const at = (path) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
-const restorer = "browser/runtime/carry.js";
+const restorer = "browser/runtime/records/carry.js";
 
 // How many times the rule reports on `code`.
 const reports = (code, file = "packages/default/widgets/probe.js") =>

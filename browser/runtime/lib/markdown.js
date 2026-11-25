@@ -132,7 +132,7 @@ export function inlineMarkdownFragment(text, links, message = true) {
 // parser loads leaves the element unstamped, so the next paint renders. The body reads
 // as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
 // (`leaf.passages.markdown_markup`) and the field editing it in place reads it
-// (composing/field-editor.js, `read`).
+// (annotations/composing/field-editor.js, `read`).
 /** @param {Element} element @param {string} source @param {MarkdownLinks} links */
 export function paintMarkdown(element, source, links) {
   if (element.getAttribute("data-lf-source-words") === source) return;

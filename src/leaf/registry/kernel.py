@@ -7,7 +7,7 @@ attribute name grammars, and `$authored` the page-wide declarations `page check`
 an author to. A layer that declares any of these differently is told the layer's
 value has no effect (`layer.kernel_fact_advice`). All are read
 from the running Leaf's kernel registry, which the browser reads too
-(`runtime/kernel-facts.js`), rather than from a page's composed vocabulary, which may
+(`runtime/state/kernel-facts.js`), rather than from a page's composed vocabulary, which may
 be another Leaf's at the same `protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module
 imports none: the page service sorts every event by these kinds, including in a harness
 hook that validates nothing."""

@@ -7,20 +7,23 @@
    pages with threads and on pages holding only a draft, every thread's placement, the
    draft's and a saved draft's, stands
    where a resolution of its anchor read afresh puts it: no reader reads placement older
-   than the page (anchor-placement.js, `settle`), a reading kept from it included. A fresh resolution names the quote
+   than the page (annotations/anchor-placement.js, `settle`), a reading kept from it included. A fresh resolution names the quote
    with a space before it, which the page's index of quotes doesn't keep, so it reads
-   the page by a pass of its own (passages.js, `copiesOf`). */
+   the page by a pass of its own (readings/passages.js, `copiesOf`). */
 // Stages watched as the page's are, which the reading watcher hears inside.
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createAnchorPlacement } from "/runtime/anchor-placement.js";
-import { kept } from "/runtime/kept.js";
-import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js";
-import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
-import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { createAnchorPlacement } from "/runtime/annotations/anchor-placement.js";
+import { kept } from "/runtime/state/kept.js";
+import {
+  resolveAnchor,
+  setAnchoringReady,
+} from "/runtime/readings/anchor-resolution.js";
+import { neighbourhood, pageText, spanIn } from "/runtime/readings/passages.js";
+import { registry } from "/runtime/state/registry.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
 
 import { random } from "./seeded.mjs";
 
@@ -192,7 +195,7 @@ test("placement stands where a fresh resolution does, after every change", async
       draft: where(placement.pendingAt()),
       saved: where(placement.savedAt("kept")),
     });
-    // A reading kept from placement (kept.js, `kept`), which no change leaves older
+    // A reading kept from placement (state/kept.js, `kept`), which no change leaves older
     // than placement, a saved draft's placement included.
     const keptPlaces = kept(placedNow);
     keptPlaces();

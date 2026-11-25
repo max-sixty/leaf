@@ -62,7 +62,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
     spans, in order: its letters, a space or an edge between two of them where the quote
     has a space, and nothing or an edge where it has none. An edge is where two inline
     elements meet, and only the page's CSS says whether a word ends there, so either
-    reading of it matches: the file side of `passages.js.scan`. A copy past a fence is
+    reading of it matches: the file side of `readings/passages.js.scan`. A copy past a fence is
     no copy, since the page has words there this text doesn't, but it takes its place
     in order: the next copy starts past it. An empty quote names no passage, as in the
     browser's `findQuote`."""
@@ -92,7 +92,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
 
 def _context(passages, lo: int, hi: int) -> tuple[str, str]:
     """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
-    passage-cell fence: the file side of `passages.js.neighbourhood`, which capture
+    passage-cell fence: the file side of `readings/passages.js.neighbourhood`, which capture
     stores and resolution compares against. The text is collapsed, so the space is
     the only collapse character left to trim; Python's own whitespace is wider."""
     text, fences = passages.text, passages.fences
@@ -104,7 +104,7 @@ def _context(passages, lo: int, hi: int) -> tuple[str, str]:
 def resolve_quote(passages, anchor: dict) -> int | None:
     """Resolve a stored quote by exact context, or a sole surviving occurrence.
 
-    This is the file side of `passages.js.findQuote`: document order never
+    This is the file side of `readings/passages.js.findQuote`: document order never
     disambiguates repeated words, and a passage-cell fence cannot be crossed.
     An observation already detached at capture cannot become exact by losing siblings.
     """

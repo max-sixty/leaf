@@ -1,7 +1,7 @@
 /** Names hand-written code spells out stay the ones the other runtime spells.
  *
  * Runtime modules read what they can from the kernel registry itself
- * (`runtime/kernel-facts.js`), but a stylesheet's selector, the inline prepaint, a
+ * (`runtime/state/kernel-facts.js`), but a stylesheet's selector, the inline prepaint, a
  * package's own module (`references/package-themes.md`), a render check's probe and
  * the markup Python writes can only spell a name out. Each test here holds those spellings to their other
  * side:

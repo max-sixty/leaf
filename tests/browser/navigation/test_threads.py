@@ -663,7 +663,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     then centre it vertically in the document. `scrollIntoView` also moved the document,
     jumping it to the nearest edge in the press's own task before the smooth centred
     navigation step began. Both local axes must move in that task, while the page waits
-    for its glide (scrolling.js, `glideTo`), whose frames carry it to the centre in one
+    for its glide (dom/scrolling.js, `glideTo`), whose frames carry it to the centre in one
     trip: each one further down, never turning back."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)

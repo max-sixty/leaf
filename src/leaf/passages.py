@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread create` writes one down
 # against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors the runtime's capture (passages.js) rather than
+# was never made, so this mirrors the runtime's capture (readings/passages.js) rather than
 # approximating it: the same skip list, the same block-boundary space, the same collapse,
 # the same caps.
 #
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 #               has drawn a picture.
 #   `retired-when`  the outcome under which this element leaves the page: a
 #               decided suggestion's losing slot. The browser builds its anchor pass's
-#               skip list from this key too (`quotable` in passages.js), so a reading
+#               skip list from this key too (`quotable` in readings/passages.js), so a reading
 #               given the log's outcomes drops here exactly what drops there — and a
 #               widget whose decision leaves nothing showing goes with its slots
 #               (settledAway there, `gone` here). Its values are also the vocabulary's
@@ -311,7 +311,7 @@ class _PassageParser:
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`). A
     decision retires a slot — the registry's `retired-when` names which outcome —
-    and the browser's anchor pass reads the same key (`quotable` in passages.js), so
+    and the browser's anchor pass reads the same key (`quotable` in readings/passages.js), so
     this reading drops it the same way. A decision that leaves its widget with nothing —
     a deletion accepted, an insertion refused — empties the wrapper too (`gone`),
     because an element showing nothing is one nobody can point at, however present its

@@ -125,7 +125,7 @@ def test_a_turned_sample_reads_the_part_of_its_window_the_user_sees(browser, ser
     """A sample turned a quarter shows down what its window holds across, so with the
     window's top cutting its frame in half the user sees the far half of the sample's
     window, its whole height, and that is the part the sample reads as shown, in its
-    window's own coordinates (geometry.js, `frameView`)."""
+    window's own coordinates (dom/geometry.js, `frameView`)."""
     page = open_page(
         browser,
         serve(

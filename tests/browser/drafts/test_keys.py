@@ -313,7 +313,7 @@ def reading_keys_walk(page, down, up):
 
     def land(top):
         """Where a glide aimed at `top` rests: every glide's goal is a whole pixel
-        (scrolling.js, `glideTo`), and each press adds its step to that goal."""
+        (dom/scrolling.js, `glideTo`), and each press adds its step to that goal."""
         return math.floor(top + 0.5)
 
     def rests_at(act, expected):

@@ -1979,9 +1979,10 @@ wa-copy-button.lf-icon-action {
 .lf-row[data-lf-band] {
   color: inherit;
 }
+/* The row a list stands on is where the user is, in their ink. */
 .lf-row[aria-current]:not([aria-current="false"]) {
-  border-inline-start-color: var(--lf-accent);
-  background-color: var(--lf-accent-tint);
+  border-inline-start-color: var(--lf-here);
+  background-color: color-mix(in srgb, var(--lf-here) 12%, transparent);
   color: var(--lf-ink);
 }
 /* The row of the thread whose passage the pointer is on (`.lf-mark-hover`,

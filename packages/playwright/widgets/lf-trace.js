@@ -1405,11 +1405,11 @@ export class Trace extends LeafElement {
 
   /** @param {string} id @param {number | null} [bookmark] */
   #reveal(id, bookmark = null) {
-    this.pause(false);
     const selected = this.#destination(id);
-    if (!selected) return;
     const target = this.#targets.get(id);
-    if (!target) return;
+    // A part this recording doesn't hold still stops playback, drawn as stopped.
+    if (!selected || !target) return this.pause();
+    this.pause(false);
     this.#chosenBookmark = bookmark;
     // Following a point already present in the overview keeps that overview.
     // A page filter changes only when it cannot display the exact destination.

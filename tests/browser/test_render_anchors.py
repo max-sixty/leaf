@@ -83,7 +83,7 @@ from render_harness import (
     write,
 )
 
-from browser.threads import choose_threads_in_panel, open_panel_thread, thread_row
+from browser.threads import open_panel_thread, thread_row
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -91,7 +91,7 @@ from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import evaluate_probe, rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed

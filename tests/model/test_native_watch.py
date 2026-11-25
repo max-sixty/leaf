@@ -153,7 +153,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     from leaf.cli import resolve_dir
     from leaf.file_bindings import bind_file
     from leaf.file_changes import FileChanges, page_changes
-    from leaf.served_state.reading import page_reading
+    from leaf.page_inputs import page_reading
 
     def respelled(path):
         alias = path.with_name(path.name.swapcase())
@@ -264,7 +264,7 @@ def test_a_directory_arriving_deep_in_a_page_tree_joins_its_subscription(
     moved there from outside the page, move the page's reading, which is what sends
     its owner to subscribe again, and that subscription hears a file written in the
     innermost one."""
-    from leaf.served_state.reading import page_reading
+    from leaf.page_inputs import page_reading
 
     shallow = page_dir / "page" / "modules"
     shallow.mkdir(parents=True, exist_ok=True)

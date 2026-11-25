@@ -23,8 +23,8 @@ from render_harness import (
     told,
 )
 
-from browser.threads import choose_threads_in_panel
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

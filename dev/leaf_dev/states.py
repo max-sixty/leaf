@@ -36,6 +36,7 @@ from leaf_dev.browser import (
     QUOTE_RANGE,
     WINDOWS,
     Window,
+    choose_threads_in_panel,
     go_to_threads,
     load,
     open_menu,
@@ -46,9 +47,10 @@ from leaf_dev.browser import (
 from leaf_dev.corpus import sources as corpus_sources
 
 # A thread the user opens stands where the window has room for it: a margin card beside
-# the column, or the floating panel's view of it on a phone, which focus enters as it
-# opens. One surface laid out for its window (see the header), so a state that opens a
-# thread waits for it in either, reads it inside either (`THREAD`) and frames either
+# the column, or the floating panel's view of it on a phone or for a user who chose the
+# panel for threads (`choose_threads_in_panel`), which focus enters as it opens. One
+# surface laid out for its window (see the header), so a state that opens a thread
+# waits for it in either, reads it inside either (`THREAD`) and frames either
 # (`THREAD_REGION`).
 OPEN_THREAD = (
     "() => document.querySelector('.lf-margin-preview:not([hidden])')"
@@ -491,15 +493,19 @@ def panel_errors_list(page: Page) -> None:
 
 
 def open_thread(page: Page, key: str) -> None:
-    """The thread `key`, opened from Threads in the floating panel's view."""
+    """The thread `key`, opened from Threads in the floating panel's view by a user who
+    chose the panel for threads."""
+    choose_threads_in_panel(page)
     go_to_threads(page)
     page.locator(f'.lf-fp-thread[data-lf-key="{key}"]').click()
     expect(page.locator(f"{panel_view('thread')} .lf-msg").first).to_be_visible()
 
 
 def floating_thread(page: Page) -> None:
-    """The floating panel with a thread opened from Threads: the thread's title over
-    its view, and under it, on the row, the way back, Show on page, Resolve and Close."""
+    """The floating panel with a thread opened from Threads by a user who chose the panel
+    for threads: the thread's title over its view, and under it, on the row, the way
+    back, Show on page, Resolve and Close."""
+    choose_threads_in_panel(page)
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
@@ -897,12 +903,13 @@ def summary_card(page: Page) -> None:
 
 
 def summary_panel(page: Page) -> None:
-    """The same thread opened from Threads in the floating panel, its summary over the
-    agent's latest reply."""
+    """The same thread opened from Threads in the floating panel by a user who chose the
+    panel for threads, its summary over the agent's latest reply."""
     summarize_plan_stop()
     wait_until_ready(
         page, PageClient(served_page.get().address).state(), through="state"
     )
+    choose_threads_in_panel(page)
     go_to_threads(page)
     page.locator(".lf-fp-thread", has_text="background children").click()
     expect(
@@ -1112,8 +1119,9 @@ def card_rewrite_empty(page: Page) -> None:
 
 
 def panel_reply_empty(page: Page) -> None:
-    """The last open thread, opened from Threads in the floating panel, with the caret
-    in its empty reply."""
+    """The last open thread, opened from Threads in the floating panel by a user who
+    chose the panel for threads, with the caret in its empty reply."""
+    choose_threads_in_panel(page)
     go_to_threads(page)
     page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
@@ -2159,8 +2167,10 @@ def card_reply_long(page: Page) -> None:
 
 
 def panel_reply_long(page: Page) -> None:
-    """The last open thread, opened from Threads in the floating panel, with a reply
-    of two wrapped paragraphs in the panel's field, its reply box."""
+    """The last open thread, opened from Threads in the floating panel by a user who
+    chose the panel for threads, with a reply of two wrapped paragraphs in the panel's
+    field, its reply box."""
+    choose_threads_in_panel(page)
     go_to_threads(page)
     page.locator(".lf-fp-thread:not([data-lf-resolved])").last.click()
     expect(page.locator(panel_view("thread"))).to_be_visible()

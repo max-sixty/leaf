@@ -2247,7 +2247,7 @@ _TEXT = {
             " markup now places its unit; move it again instead"
         ),
     ),
-    # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
+    # A to-do, a start and an ending (`todos.todo_error`, `work.widget_seat_error`).
     "not-a-widget": _refuses(
         _NAMES, lambda at, v: f"{v['widget']!r} is not a widget on this page"
     ),

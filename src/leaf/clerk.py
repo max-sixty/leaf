@@ -176,8 +176,9 @@ told. Confirming the lines from the transcript, as `delivery.confirm_entered` do
 for input, would close that gap. Every shape of the queue from `QUEUED.kept_since` on
 keeps each line and whether it wakes the session (`QUEUED.kept`), so the lines outlive
 the session's move to a Leaf of another shape, whose first hook adds to them
-(`hooks.skill_changed`). A queue of an earlier shape, which held each line as a plain
-string, reads as empty, and the next line queued replaces it.
+(`hooks.skill_changed`). A queue of an earlier shape reads as empty, and the next line
+queued replaces it: there a line could name a turn, and left the queue once that turn
+ended, which no later shape records.
 
 A line queued with `wake` tells the session of work it now owes, such as a finding
 Leaf changed nothing for. Until a hook has
@@ -377,7 +378,7 @@ QUEUED = Record(
     ),
     since=52,
     kept=("lines/*/line", "lines/*/wake"),
-    kept_since=44,
+    kept_since=52,
 )
 
 # The words that open the fork's question, which the replay and the transcript carry.

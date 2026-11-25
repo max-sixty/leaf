@@ -489,7 +489,9 @@ class Record(Generic[_RecordValue]):
     words they typed or the address their tab polls, and none where losing it costs
     them nothing, as with a cache the next reading rebuilds. `kept_since` is the
     earliest `since` whose records `read_any` reads through them; a record of an
-    earlier shape reads as none. A writer that changes a record, rather than
+    earlier shape reads as none. It is the earliest shape whose kept keys mean what
+    they mean now: the build checks only that the shapes agree in structure, so the
+    author judges their meaning. A writer that changes a record, rather than
     replacing what it holds, starts from `read_any`, so its write carries the kept
     keys into this shape. The build holds every shape from `kept_since` on to the
     kept keys (`build/browser/protocol.mjs`, `layer-registry.md`, "Page protocol"),

@@ -44,6 +44,9 @@ LAYER = Record(
     },
     since=kernel_protocol(),
     kept=("packages",),
+    # A since-36 record keeps an explicit theme in a key of its own rather than in
+    # `packages`, so renewal drops that theme, as on main, where a later window would
+    # drop the page's whole selection.
     kept_since=36,
 )
 

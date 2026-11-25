@@ -1025,8 +1025,8 @@ def test_queued_lines_outlive_a_change_to_the_queues_shape():
     """Every shape of the queue from `QUEUED.kept_since` on keeps each line and whether
     it wakes the session (`QUEUED.kept`), so lines a Leaf of another shape queued reach
     the agent beside the one the next Leaf's first hook adds. A queue from an earlier
-    shape, which held each line as a plain string, reads as empty rather than failing
-    the hook that carries it."""
+    shape reads as empty: at since 44 a line naming a turn left the queue once that
+    turn ended, which no later shape records."""
     clerk_model.queue("s1", ["Leaf asked the user"])
     clerk_model.queue("s1", ["A finding"], wake=True)
     path = state_model.session_file("s1", clerk_model.QUEUED.kind)
@@ -1041,7 +1041,10 @@ def test_queued_lines_outlive_a_change_to_the_queues_shape():
     ]
     assert clerk_model.waking("s1") == ["A finding"]
 
-    path.write_text(json.dumps({"format": "leaf-clerk/36", "lines": ["An old line"]}))
+    fork = {"line": "A fork took the thread; leave it to the fork.", "wake": False}
+    path.write_text(
+        json.dumps({"format": "leaf-clerk/44", "lines": [{**fork, "turn": "t1"}]})
+    )
     assert clerk_model.queued("s1") == []
 
 

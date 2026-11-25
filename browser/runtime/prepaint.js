@@ -337,6 +337,10 @@
   // put the frame's own over it, which the page's next document drops as another
   // entry's.
   //
+  // As the user types through the reload, the key hold and the drafts edit the handoff
+  // this script read (version.js, `captureHandoff`), and a document that hands it on
+  // hands on their edits too.
+  //
   // It puts the user back where they were only while the document stands at the entry
   // that place was read at (`placesUser`, by the entry's key, which a replace keeps):
   // elsewhere, as after Back taken before Leaf starts, and where it holds no place, it
@@ -354,7 +358,7 @@
   // may come back, so its hide writes, and its return removes what it wrote.
   const HANDOFF_KEY = "lf-revision-handoff";
   const entryId = () => window.navigation?.currentEntry?.id ?? null;
-  /** @type {{carry?: {id: string}[], entry?: unknown, typing?: unknown} | null} */
+  /** @type {{carry?: {id: string, focus?: boolean, part?: string}[], entry?: unknown, typing?: unknown} | null} */
   const handoff = (() => {
     const stored = tabStore.get(HANDOFF_KEY);
     tabStore.set(HANDOFF_KEY, null);
@@ -367,6 +371,13 @@
   })();
   const placesUser = () =>
     handoff?.entry != null && handoff.entry === window.navigation?.currentEntry?.key;
+  // The control of the page's own the handoff puts focus back in, where it holds one:
+  // its carried record with focus that names no generated part (carry.js,
+  // `captureCarry`). The key hold types the words the user types through the reload
+  // into it where it holds a caret, and the arrival leaves its focus, and its caret, to
+  // the handoff (bootstrap.js, `typeIntoField`; version.js, `installArrival`).
+  const handedFocus =
+    handoff?.carry?.find((record) => record.focus && record.part === undefined) ?? null;
   // A changed control's state as a carry record holds it (carry.js, `captureCarry`).
   /** @param {Element} node */
   const changedState = (node) => ({
@@ -419,6 +430,7 @@
     userStore,
     handoff,
     placesUser,
+    handedFocus,
     handOnWith: (next) => {
       handingOn = next;
     },

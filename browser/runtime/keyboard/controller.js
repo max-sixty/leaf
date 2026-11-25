@@ -210,9 +210,8 @@ export function mountKeyboard({
     if (!keys) return;
     pressingHeld = true;
     const next = () => {
-      // With single-key commands off, a held key only ever types into a box, as the
-      // words a user typed through a reload do into the box it hands back; the release
-      // lets go of the rest.
+      // With single-key commands off, a held key only ever types into a box; the
+      // release lets go of the rest.
       const [key] = keys;
       if (!key || (!quickShortcuts() && !typesText(focused()))) {
         release();

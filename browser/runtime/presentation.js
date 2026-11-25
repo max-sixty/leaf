@@ -52,8 +52,13 @@
    live sample's child page: the page counts the browser's first reading of the node,
    so a reader of its final boxes waits for whatever that reading starts, and a check
    that reads every document the page can show starts the rest (`startNearWork`), in
-   each live sample's child too. `deferredArrival` is the declaration alone, which both
-   routes make and the runtime's owners make for work they have started. */
+   each live sample's child too. `whenNear` stays in the package interface because only
+   Leaf hears that check ask and counts the wait in the page's readiness: a widget's
+   own IntersectionObserver would leave a live sample below the window unread by
+   `page check --render`. Folded into `mountSample`, the wait would hold back every
+   sample a page script or a test mounts out of view. `deferredArrival` is the
+   declaration alone, which both routes make and the runtime's owners make for work
+   they have started. */
 
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";

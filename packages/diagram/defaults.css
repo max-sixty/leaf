@@ -1,5 +1,6 @@
-/* The diagram package's presentation: the diagram's alignment and scrolling. The
- * shared declaration-driven allocation stays in core. */
+/* The diagram package's presentation: the diagram's alignment and scrolling. Before
+ * the drawing arrives the diagram is its source's height, and the page below it moves
+ * once as it draws. */
 
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
@@ -32,11 +33,11 @@ lf-diagram.lf-rendered > * {
  * minimum: overlay tracks cover the blank bottom padding, and a negative SVG margin
  * lets native classic tracks consume that padding, leaving 1px for strokes. A wider
  * classic track grows the box through native layout instead of clipping the drawing.
- * A declared reservation may hold more room without stretching the SVG. The renderer
- * supplies its dimensions; no measurement or later scroll-state query sizes the box. */
+ * The renderer supplies its dimensions; no measurement or later scroll-state query
+ * sizes the box. */
 @media screen {
   lf-diagram.lf-rendered {
-    min-block-size: max(var(--lf-diagram-height), attr(data-lf-height px, 0px));
+    min-block-size: var(--lf-diagram-height);
   }
   /* `:last-child` outranks the layer's trim of a frame's last margin, which the
    * drawing is. */

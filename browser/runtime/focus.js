@@ -265,7 +265,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // is no longer its root's activeElement: `el.blur()`, and focus moving to another
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 /** @param {Element} element @param {() => unknown} leave */
-export function whenLeft(element, leave) {
+function whenLeft(element, leave) {
   const blur = () => {
     if (activeIn(element.getRootNode()) === element) return;
     element.removeEventListener("blur", blur);

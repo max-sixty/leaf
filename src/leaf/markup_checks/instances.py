@@ -264,14 +264,9 @@ def reference_errors(
     A message widget may point into the page beside it, so its caller supplies the
     page's ids alongside the fragment's own.
 
-    A worker's assignment, the attribute its `$work.widgets` entry names in `on`,
-    names an element whose tag has the role goal there, since the work reading
-    (`runtime/work.js`) assigns the worker to nothing else.
-
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
-    work = registry.get("$work", {}).get("widgets", {})
     for rec in lf_elements:
         # An undeclared tag is `widget_errors`' to report.
         if (entry := registry.get(rec["tag"])) is None:
@@ -291,16 +286,9 @@ def reference_errors(
             target = rec["attrs"].get(attr)
             if not target:
                 continue
-            reference_to = {"attr": attr, "target": target}
             if target not in ids:
-                errors.append(found_at("unknown-reference", rec, **reference_to))
-            elif (
-                attr == work.get(rec["tag"], {}).get("on")
-                and work.get(tag := by_id.get(target, {}).get("tag"), {}).get("role")
-                != "goal"
-            ):
                 errors.append(
-                    found_at("work-assignment", rec, **reference_to, target_tag=tag)
+                    found_at("unknown-reference", rec, attr=attr, target=target)
                 )
         for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             target = rec["attrs"].get(spec.get("reference"))

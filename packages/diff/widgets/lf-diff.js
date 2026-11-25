@@ -37,10 +37,8 @@ import {
   langForPath,
   move,
   threadSurface,
-  retainUserIntent,
   setChildren,
   shadowStage,
-  whileConnected,
   scrollIntoView,
 } from "/runtime/portable-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -52,6 +50,7 @@ import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -1129,24 +1128,31 @@ customElements.define(
       );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, () => {
-        // A page diff's file header pins at `--lf-top`, the top of the page's box that
-        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-        // the module answers it once from the chrome's own mark and paints the answer.
-        this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
-        return () => {
-          this.rendering = (this.rendering ?? 0) + 1;
-          if (this.#showing) this.#shown = undefined;
-          // Leaf retires this surface when it leaves, after this cleanup, and puts
-          // core's views back, so every outlet goes.
-          if (this.threadSeats) {
-            for (const record of this.threadSeats.values()) record.active = false;
-            this.retireThreadOutlets();
-          }
-          this.threadSeats.clear();
-        };
-      });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      // A page diff's file header pins at `--lf-top`, the top of the page's box that
+      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+      // the module answers it once from the chrome's own mark and paints the answer.
+      this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
+    }
+
+    // A move keeps the drawn files and the comment boxes in them.
+    connectedMoveCallback() {}
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.rendering = (this.rendering ?? 0) + 1;
+      if (this.#showing) this.#shown = undefined;
+      // Leaf retires this surface when it leaves, after this cleanup, and puts
+      // core's views back, so every outlet goes.
+      if (this.threadSeats) {
+        for (const record of this.threadSeats.values()) record.active = false;
+        this.retireThreadOutlets();
+      }
+      this.threadSeats.clear();
     }
 
     render() {
@@ -1978,7 +1984,7 @@ customElements.define(
     // both walks capture the pressing gesture's intent first and land only while it stands.
     /** @param {boolean} back */
     async stepHunk(back) {
-      const mayLand = retainUserIntent();
+      const mayLand = noInputSince();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
       const currentLocation = here
@@ -2009,7 +2015,7 @@ customElements.define(
 
     /** @param {boolean} back */
     async stepFile(back) {
-      const mayLand = retainUserIntent();
+      const mayLand = noInputSince();
       const here = this.hereNode();
       const entries = this.navigationEntries();
       const order = back ? [...entries].reverse() : entries;

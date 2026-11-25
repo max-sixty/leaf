@@ -292,12 +292,12 @@ events. `begin(pointerdown, path)`, a passive listener, may return
 `end(event, completed)`: release calls it with `completed: true`; cancellation, a
 native context menu, or leaving the document calls it with `false`. The function `end`
 returns runs when that press is over, after any compatibility mouseup and click it
-owes. Register inside `whileConnected`; the returned unsubscribe stops new presses, and
-the connection's abort signal ends work still running when the widget disconnects.
+owes. Register as the widget connects, and call the returned unsubscribe as it leaves,
+which stops new presses.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;
-register it inside `whileConnected` and call that function in the cleanup. The causes
+register it as the widget connects and call that function as it leaves. The causes
 are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 
 The current location is marked by `data-lf-focus`, and its composed ancestry by
@@ -342,14 +342,12 @@ rule sets only its place, size and padding.
 
 ### Delayed work
 
-A widget's own navigation that waits, such as for a file or renderer to load, calls
-`const intent = retainUserIntent()` in the gesture that starts it, before the first
-wait. After every wait, it moves focus or scroll only if `intent()` is still true; it
-turns false once the user presses, types, scrolls, leaves the window or moves focus. If
-the navigation then opens or closes a surface that moves focus, wrap that change in
-`intent.handoff(() => changeSurface())` so the move doesn't count as the user's; it
-returns false if the change had already moved focus. `threadActions.open` handles this
-itself (`module-annotations.md`, "Reading and opening Threads from a widget").
+A widget's own navigation that waits, such as for a file or renderer to load, moves
+focus or scroll after the wait only where the user has done nothing since the gesture
+that started it. The library's
+[`input-since.js`](../../../browser/runtime/lib/input-since.js) says so:
+`const intended = noInputSince()` in that gesture, and `intended()` after each wait.
+`go` keeps the same rule itself (`module-reading.md`, "Taking the user somewhere").
 
 ### Pointer presses
 
@@ -428,7 +426,7 @@ the draft kept under `ctx`, a string unique on the page such as `option:` and it
 - `watch(callback, {input: box})` calls `callback(text, payload)` when the draft
   changes other than by typing in this box: another tab or device, a send emptying it,
   or a refusal returning the words. Put them in the box with `sync.load(text ?? "")`,
-  and register the watch in `whileConnected`.
+  and register the watch as the widget connects, ending it as the widget leaves.
 - `send(owns, deliver)`, called from `wireInput`'s `send`, calls
   `deliver(attempt, payload)` if the box still shows the stored draft and `owns()` is
   true, and resolves to what `deliver` returns. One `attempt` stands for one version of

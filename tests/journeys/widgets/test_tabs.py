@@ -200,7 +200,7 @@ def test_root_tabs_switch_views_without_moving_the_strip(browser, serve):
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#evidence-tab'), retainUserIntent());
         }"""
     )
@@ -315,7 +315,7 @@ def test_parts_switch_without_moving_the_list(browser, serve):
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#evidence-part'), retainUserIntent());
         }"""
     )

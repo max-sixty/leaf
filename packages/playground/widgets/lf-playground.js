@@ -73,7 +73,6 @@ import {
   onPress,
   says,
   wear,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
@@ -182,60 +181,71 @@ customElements.define(
     #drawn = undefined;
     #ready = false;
     #interactive = false;
+    // What the playground listens to while it stands in the page.
+    #connection = new AbortController();
 
     // A build that throws leaves the playground showing its failure (LeafElement).
     setup() {
       this.#build();
       this.#ready = true;
-      whileConnected(this, (signal) => {
-        const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
-        // The narrow layout places shared controls above the stage. Their actual
-        // height is also the landing inset for its content and any sticky toolbar. A
-        // quoted playground draws only its authored markup, with neither.
-        const controls = this.#view.controls;
-        /** @type {HTMLElement | null} */
-        const split = this.querySelector(":scope > .lf-playground-split");
-        const observer = sizeObserver((entries) => {
-          for (const entry of entries) {
-            const box = entry.borderBoxSize[0];
-            if (!box) continue;
-            split?.style.setProperty(
-              "--lf-playground-controls-height",
-              `${box.blockSize}px`,
-            );
-            return;
-          }
-        });
-        if (controls) observer.observe(controls);
-        // The instruction is a glance at the window's middle; a window changing width
-        // puts it away rather than reflowing it under the user, which also kept Web
-        // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
-        // Height alone changes as a phone's toolbars come and go, which keeps it.
-        let width = innerWidth;
-        const putAway = () => {
-          const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction) instruction.hidePopover();
-          width = innerWidth;
-        };
-        window.addEventListener("resize", putAway, { signal });
-        // Leaving the page records edits the pause hasn't yet, and nothing else: a
-        // value the controls can't hold draws as its default without being an edit.
-        const leave = () => this.#unsent.size && this.#commit();
-        document.addEventListener(
-          "visibilitychange",
-          () => document.visibilityState === "hidden" && leave(),
-          { signal },
-        );
-        window.addEventListener("pagehide", leave, { signal });
-        this.#draw();
-        // An edit left unrecorded across a disconnection records once input pauses.
-        if (this.#unsent.size) this.#recordLater();
-        return () => {
-          observer.disconnect();
-          stopPress();
-          clearTimeout(this.#pause);
-        };
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#ready) return;
+      const { signal } = (this.#connection = new AbortController());
+      const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
+      // The narrow layout places shared controls above the stage. Their actual
+      // height is also the landing inset for its content and any sticky toolbar. A
+      // quoted playground draws only its authored markup, with neither.
+      const controls = this.#view.controls;
+      /** @type {HTMLElement | null} */
+      const split = this.querySelector(":scope > .lf-playground-split");
+      const observer = sizeObserver((entries) => {
+        for (const entry of entries) {
+          const box = entry.borderBoxSize[0];
+          if (!box) continue;
+          split?.style.setProperty(
+            "--lf-playground-controls-height",
+            `${box.blockSize}px`,
+          );
+          return;
+        }
       });
+      if (controls) observer.observe(controls);
+      // The instruction is a glance at the window's middle; a window changing width
+      // puts it away rather than reflowing it under the user, which also kept Web
+      // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
+      // Height alone changes as a phone's toolbars come and go, which keeps it.
+      let width = innerWidth;
+      const putAway = () => {
+        const instruction = this.#view.instruction;
+        if (innerWidth !== width && instruction) instruction.hidePopover();
+        width = innerWidth;
+      };
+      window.addEventListener("resize", putAway, { signal });
+      // Leaving the page records edits the pause hasn't yet, and nothing else: a
+      // value the controls can't hold draws as its default without being an edit.
+      const leave = () => this.#unsent.size && this.#commit();
+      document.addEventListener(
+        "visibilitychange",
+        () => document.visibilityState === "hidden" && leave(),
+        { signal },
+      );
+      window.addEventListener("pagehide", leave, { signal });
+      this.#draw();
+      // An edit left unrecorded across a disconnection records once input pauses.
+      if (this.#unsent.size) this.#recordLater();
+      signal.addEventListener("abort", () => {
+        observer.disconnect();
+        stopPress();
+      });
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+      clearTimeout(this.#pause);
     }
 
     get values() {

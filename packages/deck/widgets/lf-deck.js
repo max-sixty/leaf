@@ -23,7 +23,7 @@
  * waits once the first reading is in; until the module runs, the package theme shows
  * only the first card. Inactive cards are
  * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
- * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
+ * `go({within})`) open the card holding what they reach (`beforematch`); `m`
  * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
  * for the end of the pass. Leaf's Undo travels to the answer it takes back before
  * taking it, which opens its card the same way, so the deck has no Undo of its own.
@@ -66,13 +66,12 @@ import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   answerWords,
   focusDestination,
+  go,
   motion,
-  obligationActions,
   nameOf,
   readObligations,
   readQueues,
   scrollIntoView,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
@@ -202,14 +201,16 @@ customElements.define(
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
       if (this.matches("[data-lf-exhibit] *")) return;
-      whileConnected(this, (signal) => {
-        const options = { signal };
-        this.addEventListener("pointerdown", (event) => this.#press(event), options);
-        this.addEventListener("pointermove", (event) => this.#follow(event), options);
-        this.addEventListener("pointerup", (event) => this.#release(event), options);
-        this.addEventListener("pointercancel", () => this.#settle(), options);
-        return () => this.#settle();
-      });
+      this.addEventListener("pointerdown", (event) => this.#press(event));
+      this.addEventListener("pointermove", (event) => this.#follow(event));
+      this.addEventListener("pointerup", (event) => this.#release(event));
+      this.addEventListener("pointercancel", () => this.#settle());
+    }
+
+    // A drag the deck's departure cut short lets its card go.
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#settle();
     }
 
     // Each card's obligations, or null until the page's first reading is in: what the
@@ -500,7 +501,7 @@ customElements.define(
       }
       const items = readObligations(card);
       const waiting = items.phase === "ready" ? items.user[0] : undefined;
-      if (waiting) obligationActions.open(waiting.id);
+      if (waiting) go(waiting);
       else focusDestination(card, "move");
     }
 

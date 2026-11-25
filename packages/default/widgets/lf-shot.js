@@ -60,19 +60,13 @@ import { ShotView } from "./shot-view.js";
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
 import { render } from "/vendor/lit.js";
-import {
-  frameFor,
-  focusDestination,
-  scopedMediaUrl,
-  move,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { focusDestination, scopedMediaUrl, move } from "/runtime/widget-api.js";
 import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { presented } from "/runtime/lib/presented.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
-import { nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
+import { frameFor, nextFrame, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { plainPress } from "/runtime/lib/keys.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
@@ -165,8 +159,7 @@ export class Shot extends HTMLElement {
     }
   }
 
-  connectedCallback() {
-    if (!once(this)) return;
+  #build() {
     placesFailure(this, (/** @type {Element} */ box) => {
       if (this.#error?.textContent === box.textContent) return true;
       this.#error?.remove();
@@ -221,19 +214,20 @@ export class Shot extends HTMLElement {
     // it runs after ResizeObserver delivery: a fit inside the delivery that asked for
     // it resizes the box being watched, which the browser reports as undelivered
     // notifications.
-    const fit = frameFor(this, () => this.#fit());
-    whileConnected(this, () => {
-      const observer = sizeObserver(fit);
-      observer.observe(this.#drawing.stage);
-      // Pair's bound in flow is the screen's height, which the stage doesn't track.
-      const refit = () => this.#fit();
-      window.addEventListener("resize", refit, { passive: true });
-      return () => {
-        observer.disconnect();
-        window.removeEventListener("resize", refit);
-      };
-    });
+    sizeObserver(frameFor(this, () => this.#fit())).observe(this.#drawing.stage);
     this.#loadImages();
+  }
+
+  // Pair's bound in flow is the screen's height, which the stage doesn't track.
+  #refit = () => this.#fit();
+
+  connectedCallback() {
+    if (once(this)) this.#build();
+    window.addEventListener("resize", this.#refit, { passive: true });
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("resize", this.#refit);
   }
 
   #loadImages() {

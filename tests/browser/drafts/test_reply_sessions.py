@@ -135,7 +135,7 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "revision": 1,
             "text": """Filter the files in this patch.
 
-<lf-diff id="reply-patch" data-height="151">
+<lf-diff id="reply-patch">
 <pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py

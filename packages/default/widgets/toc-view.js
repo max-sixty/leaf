@@ -73,11 +73,12 @@ export function drawToc(host, headingReading) {
   // One preview for each row's link, kept as long as its heading, which reads the row's
   // marks as it shows: their counts alone, in place of the name the link's face already
   // says, so a room holding one line holds the counts, and a screen reader hears them
-  // after the link's name; none where the row has none, so the link previews nothing.
+  // after the link's name; none where the row has none, so the link previews nothing,
+  // not even the place it leads, which Leaf previews for a link that declares nothing.
   /** @param {Element | null} heading */
   const preview = (heading) => () => {
     const words = marksWords(marks.get(heading));
-    return words ? { name: words } : null;
+    return words ? { name: words } : false;
   };
   /** @type {WeakMap<Element, ReturnType<typeof preview>>} */
   const previews = new WeakMap();

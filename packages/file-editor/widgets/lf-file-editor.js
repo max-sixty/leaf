@@ -18,7 +18,7 @@
  *
  * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
- * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
+ * navigator beside it lists them. A reveal of a binding (`go` with its key, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
  * the files, not a change to them, so it enters no log; a reload opens the one its
  * address names, else the first. Each file keeps its own text, selection, history and
@@ -81,7 +81,6 @@ import {
   rowWalk,
   shadowStage,
   tabStore,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rove } from "/runtime/lib/roving.js";
@@ -127,6 +126,12 @@ customElements.define(
     #shown = null;
     /** @type {((binding: string) => string | null) | null} */
     #label = null;
+    // What each connection starts, and what its end stops.
+    /** @type {((signal: AbortSignal) => void) | null} */
+    #connect = null;
+    /** @type {(() => void) | null} */
+    #disconnect = null;
+    #connection = new AbortController();
 
     setup() {
       this.initialize();
@@ -148,9 +153,9 @@ customElements.define(
       this.#drawn?.();
     }
 
-    // A move keeps the views and the user's focus in one, since their connection
-    // lifetime follows the arrival batch (`whileConnected`), but `moveBefore` collapses
-    // the native selection, which CodeMirror would read back as a caret at the start.
+    // A move keeps the views and the user's focus in one, since it disconnects
+    // nothing, but `moveBefore` collapses the native selection, which CodeMirror would
+    // read back as a caret at the start.
     connectedMoveCallback() {
       this.#placeSelection?.();
     }
@@ -838,7 +843,7 @@ customElements.define(
         comparison?.placeSelection();
       };
       let initial = true;
-      whileConnected(this, (signal) => {
+      this.#connect = (signal) => {
         connected = true;
         editor.connect();
         comparison?.connect();
@@ -861,21 +866,33 @@ customElements.define(
         const stopLanding = onCurrentLocation((/** @type {Element | null} */ node) => {
           if (node === this) returnToEditor();
         });
-        return () => {
-          connected = false;
-          stopLanding();
-          stopWatch?.();
-          stopWatch = null;
-          for (const of of files.values()) {
-            clearTimeout(of.timer);
-            finishSaving(of);
-          }
-          paint();
-          remember(file);
-          editor.disconnect();
-          comparison?.disconnect();
-        };
-      });
+        signal.addEventListener("abort", stopLanding);
+      };
+      this.#disconnect = () => {
+        connected = false;
+        stopWatch?.();
+        stopWatch = null;
+        for (const of of files.values()) {
+          clearTimeout(of.timer);
+          finishSaving(of);
+        }
+        paint();
+        remember(file);
+        editor.disconnect();
+        comparison?.disconnect();
+      };
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      this.#connection = new AbortController();
+      this.#connect?.(this.#connection.signal);
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+      this.#disconnect?.();
     }
   },
 );

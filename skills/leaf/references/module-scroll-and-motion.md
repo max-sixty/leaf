@@ -95,14 +95,11 @@ hides what the reader is reading, as folding it does, anchoring can't hold it: r
 where the block the reader reads stands before the change, and scroll its scroller by
 however far it, or what stands in for it, moved, in the same task, as `lf-dial` does.
 
-A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
-the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
-returns the nodes the list draws into and `changed()` redraws the widget. Before each
-draw, pass `hold()` the reading as a value that is `===` the last one only when nothing
-changed, such as `JSON.stringify` of the rows, and draw what it returns: the new
-reading, or the last one while the region's growth would move what the user sees.
-`changed()` is called once that growth would be out of sight. `show()` lets the new
-reading in and redraws, for a "Show new" control, and `release()` lets the next one in.
+A list fed by the log or the clock, such as a feed of reports, grows as each reading
+arrives. Scroll anchoring keeps still what the reader reads below the growth. To keep
+a list from pushing down the rows it shows, draw it in a box with a height of its own
+that scrolls ("Scrolling", above), or keep the reading drawn until the reader asks for
+the new one, as a feed's "N new" control does.
 
 ### Scrolling to a destination
 
@@ -218,7 +215,7 @@ container above it.
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
 covering the page and opens whatever holds the element. A fragment can also name a
 part of a widget by the widget's id and a key
-([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
+([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 A widget that opens the part a
 fragment names reads it with `elementById(hash)`
 ([module-reading.md, "Reading the page"](module-reading.md#reading-the-page)).

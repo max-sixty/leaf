@@ -638,15 +638,11 @@ WORKER = {
         },
     }
 }
-WORKER_MODULE = """import { readReports } from "/runtime/widget-api.js";
-customElements.define("lf-plain-worker", class extends HTMLElement {
+WORKER_MODULE = """customElements.define("lf-plain-worker", class extends HTMLElement {
   #line = null;
   set state({ state }) {
-    const { phase, reports } = readReports(this);
-    if (phase !== "ready") return;
-    const said = reports.findLast((report) => report.disposition === "effective");
     this.#line ??= this.appendChild(document.createElement("output"));
-    this.#line.textContent = `${state.value}: ${said?.text ?? "no report yet"}`;
+    this.#line.textContent = `${state.value}: ${state.detail.text ?? "no report yet"}`;
   }
 });"""
 
@@ -683,11 +679,12 @@ def report_working(page, page_dir):
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_plain_element_draws_its_reports_once_they_are_ready(engine, serve, request):
-    """An element with no base class reads its own reports in its `state` setter. A
-    reading is not ready inside the set that a report moves, so the element draws
-    nothing then, and Leaf sets its `state` again once the reports are ready: on
-    arrival, as a report comes in, and on a page that opens holding one."""
+def test_a_plain_element_draws_the_report_in_force_from_its_state(
+    engine, serve, request
+):
+    """An element with no base class and no import from Leaf draws what its agent
+    last reported from its `state`: the verb's value and the words its `detail`
+    carries, as the report comes in and on a page that opens holding one."""
     url = roster(serve)
     page = open_page(request.getfixturevalue(engine), url)
     worker = page.locator("#wren output")
@@ -697,41 +694,4 @@ def test_a_plain_element_draws_its_reports_once_they_are_ready(engine, serve, re
     expect(worker).to_have_text("working: checking the mount prices")
 
     navigate(page, url)
-    expect(worker).to_have_text("working: checking the mount prices")
-
-
-def test_a_plain_element_that_left_waits_again_for_the_work_it_left_with(
-    browser, serve
-):
-    """A report waits for work under way inside its element. The element leaves and
-    returns before that work is in: Leaf sets its `state` again as it returns, and it
-    is still told to wait, since the work it left with holds its preparation again
-    before it draws. It draws the report once the work is in."""
-    page = open_page(browser, roster(serve))
-    worker = page.locator("#wren output")
-    expect(worker).to_have_text("idle: no report yet")
-    page.evaluate(
-        """async () => {
-          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
-          const {readApplicationPresentation} = await window.__lfCheckApi();
-          window.wren = document.querySelector('#wren');
-          window.home = wren.parentNode;
-          window.work = Promise.withResolvers();
-          window.preparing = () => readApplicationPresentation().pending
-            .includes('widget:wren:preparation');
-          // Said from inside the element, the work is its preparation.
-          wren.querySelector('output').dispatchEvent(new PendingTaskEvent(work.promise));
-        }"""
-    )
-    report_working(page, serve.page_dir)
-    assert worker.text_content() == "idle: no report yet"
-
-    page.evaluate("() => { wren.remove(); }")
-    page.wait_for_function("() => !preparing()")
-    page.evaluate("() => { home.append(wren); }")
-    # The return has drawn by the time the work it left with is presented again.
-    page.wait_for_function("() => preparing()")
-    assert worker.text_content() == "idle: no report yet"
-
-    page.evaluate("() => { work.resolve(); }")
     expect(worker).to_have_text("working: checking the mount prices")

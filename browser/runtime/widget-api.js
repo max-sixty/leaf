@@ -32,9 +32,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// What a place on the page previews: its name, first parts, state and conversations.
-export { placePreview } from "./place-preview.js";
-export { navigateToDatum } from "./application.js";
 // Hearing each move of the user's current location with its cause
 // (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
 // a press that lands away from a surface (`onPressAway`).
@@ -44,18 +41,14 @@ export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-export { readWork } from "./work.js";
-export { obligationActions } from "./application.js";
 export { readQueues } from "./queue-api.js";
 export {
+  go,
   placePageThreads,
   registerThreadPresentation,
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
-// Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "The page holds still under the user's aim").
-export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
 export { registerContribution } from "./contributions.js";
@@ -70,9 +63,8 @@ export { layerFact } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
-export { whenNear, whileInterfaceConnected } from "./presentation.js";
-export { dressCode } from "./code-dressing.js";
-export { readHistory, readReports } from "./reports.js";
+export { whenNear } from "./presentation.js";
+export { readHistory } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
@@ -99,5 +91,3 @@ export async function mountSample(frame, options) {
   }
 }
 export { wear } from "./dress.js";
-export { landInThread } from "./application.js";
-export { threadInput } from "./thread/landing.js";

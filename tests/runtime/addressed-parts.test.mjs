@@ -1,7 +1,7 @@
 /* What travel asks a widget before it reads what a key addresses under it
    (`revealAddressed`): a visual draws the state holding a declared part, and a lazy
    widget hands back its hydration. A thread anchored to a part, a module's
-   `navigateToDatum` and a URL fragment naming a widget's key all ask this, so a part
+   `go` with a key and a URL fragment naming a widget's key all ask this, so a part
    one of them reaches the others reach too.
 
    A visual with too many parts to list answers both directions itself: the part an id

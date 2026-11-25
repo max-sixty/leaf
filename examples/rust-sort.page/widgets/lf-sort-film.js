@@ -6,10 +6,10 @@
 // whose `for` names the film marks those lines where it quotes them, so one value lights
 // only the block that holds them.
 
-import { frameFor, whileConnected, pageLinks } from "/runtime/widget-api.js";
+import { pageLinks } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
-import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
@@ -56,6 +56,7 @@ const PHASE_NAME = {
 
 const SPEEDS = [1, 2, 4, 0.5];
 const AUTO_PLAY_DELAY = 1800;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 function moment(id) {
   const match = /^moment:([a-z]+):(\d+):(\d+)$/.exec(id);
@@ -105,7 +106,6 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       this.#build();
-      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
       if (!reducedMotion.matches)
         this.#autoPlayTimer = setTimeout(() => {
           this.#autoPlayTimer = 0;
@@ -118,26 +118,19 @@ customElements.define(
           )
             this.#play();
         }, AUTO_PLAY_DELAY);
-      whileConnected(this, (signal) => {
-        loadMarkdown().then((ready) => {
-          if (ready && !signal.aborted && this.#step >= 0) this.#renderNote();
-        });
-        reducedMotion.addEventListener(
-          "change",
-          () => {
-            if (reducedMotion.matches) this.#pause();
-          },
-          { signal },
-        );
-        const sized = sizeObserver(() => {
-          if (this.#svgWidth() !== this.#laidOut) this.#relayout();
-        });
-        sized.observe(this.stage);
-        return () => {
-          sized.disconnect();
-          this.#pause();
-        };
+      loadMarkdown().then((ready) => {
+        if (ready && this.#step >= 0) this.#renderNote();
       });
+      reducedMotion.addEventListener("change", () => {
+        if (reducedMotion.matches) this.#pause();
+      });
+      sizeObserver(() => {
+        if (this.#svgWidth() !== this.#laidOut) this.#relayout();
+      }).observe(this.stage);
+    }
+
+    disconnectedCallback() {
+      this.#pause();
     }
 
     // The SVG's own width, which the drawing's units are pixels of.

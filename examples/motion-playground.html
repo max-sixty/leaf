@@ -259,31 +259,24 @@
       </details>
     </main>
     <script type="module">
-      import { whileConnected } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       function initialize() {
         const root = document.querySelector("#panel-candidates");
         if (!root || !once(root)) return;
-        whileConnected(root, (signal) => {
-          root.addEventListener(
-            "click",
-            async (event) => {
-              const button = event.target.closest("[data-enlarge]");
-              if (!button) return;
-              const video = button.closest(".timing-candidate").querySelector("video");
-              try {
-                await video.requestFullscreen();
-              } catch {
-                window.dispatchEvent(
-                  new CustomEvent("lf-announce", {
-                    detail:
-                      "Fullscreen is unavailable. The recording remains on this page.",
-                  }),
-                );
-              }
-            },
-            { signal },
-          );
+        root.addEventListener("click", async (event) => {
+          const button = event.target.closest("[data-enlarge]");
+          if (!button) return;
+          const video = button.closest(".timing-candidate").querySelector("video");
+          try {
+            await video.requestFullscreen();
+          } catch {
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", {
+                detail:
+                  "Fullscreen is unavailable. The recording remains on this page.",
+              }),
+            );
+          }
         });
       }
       document.addEventListener("lf-page-interface", initialize);

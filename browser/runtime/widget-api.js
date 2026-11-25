@@ -73,7 +73,6 @@ export { whenNear, whileInterfaceConnected } from "./presentation.js";
 // the address where the widget's views are the page's, and keeps the user's place in
 // each view of the page's flow (views.js).
 export { keepView, openingView, viewMembers } from "./views.js";
-export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 

@@ -440,14 +440,14 @@ and on</mark> {long}</pre>
     assert narrow["hang"] == pytest.approx(6, abs=0.1), narrow
     assert page.evaluate(
         """async () => {
-              const {dressCode} = await window.__lfWidgetApi();
               const pre = document.createElement('pre');
               pre.textContent = 'first line\\nsecond line\\n';
               document.querySelector('#code').after(pre);
               const text = pre.firstChild;
               getSelection().setBaseAndExtent(text, 6, text, 17);
               const before = getSelection().toString();
-              await dressCode(pre);
+              while (!pre.querySelector('[data-lf-pre-line]'))
+                await new Promise(requestAnimationFrame);
               return [before, getSelection().toString(),
                 pre.querySelectorAll('[data-lf-pre-line]').length];
             }"""

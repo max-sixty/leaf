@@ -89,7 +89,7 @@ In [module-reading.md](module-reading.md):
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath` and `dressCode`.
+- "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
   `answerWords` and `obligationActions`.

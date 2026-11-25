@@ -1011,16 +1011,18 @@ export class MessageView {
     return this.node;
   }
 
-  // Open the user's own words for rewriting here, with the caret after them. False where
-  // the message is not one they may rewrite.
-  openEdit() {
+  // Open the user's own words for rewriting here, with the caret after them; `walked`
+  // where ↑ opened them (message-edit.js, `enter`). False where the message is not one
+  // they may rewrite.
+  /** @param {{walked?: boolean}} [options] */
+  openEdit({ walked = false } = {}) {
     const model = this.#model;
     if (!model?.editable) return false;
     if (!this.#editor) {
       this.#commands.edit.opening(model, this);
       this.#commands.edit.paint(this.node);
     }
-    this.#editor?.enter();
+    this.#editor?.enter({ walked });
     return true;
   }
 

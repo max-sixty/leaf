@@ -38,5 +38,7 @@ assert:
         `element.animate` nor `motion()`.
       Fail if the module imports `says`, `named` or `motion`, calls `.animate(`, or
       labels a button with an authored paragraph's whole `textContent` or with a
-      copy of its nodes that keeps an element marked `data-lf-gen`.
+      copy of its nodes that keeps an element marked `data-lf-gen`. A paragraph the
+      module makes the button itself, as with `role="button"` on it, is labelled by
+      its whole content, which fails too.
       Execution is unavailable, so not running checks is not a failure.

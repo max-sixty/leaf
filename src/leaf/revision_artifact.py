@@ -59,12 +59,20 @@ from leaf.files import (
     revision_path,
 )
 from leaf.findings import Finding, Rejected, note
+from leaf.page_inputs import page_stamps
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import MODULES
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, MEDIA_DIR, SERVED_PATH, kernel_registry
+from leaf.schema import (
+    CONTENT_TYPES,
+    LAYER_FILE,
+    MEDIA_DIR,
+    PACKAGES_DIR,
+    SERVED_PATH,
+    kernel_registry,
+)
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -740,6 +748,23 @@ def _path_stamp(path: Path) -> tuple:
 
 # The page's trees a capture may read a dependency from (`capture_local_resource`).
 CAPTURED_TREES = ("page", MEDIA_DIR)
+
+
+def version_written(page_dir: Path) -> int:
+    """When a file a version is built from was last written, in nanoseconds since the
+    epoch: the document, the layer it selects with the page's package copies, and the
+    trees a capture reads. A data update, for one, moves the page's source
+    (`page_inputs.source_readings`) but makes no new version. It reads the stamps the
+    page's readings take (`page_inputs.page_stamps`)."""
+    inputs = {"index.html", LAYER_FILE, PACKAGES_DIR, *CAPTURED_TREES}
+    return max(
+        (
+            stamp[1]
+            for name, stamp in page_stamps(page_dir)
+            if isinstance(stamp, tuple) and name.split("/", 1)[0] in inputs
+        ),
+        default=0,
+    )
 
 
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:

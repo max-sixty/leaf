@@ -14,6 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
 
+from .. import page_inputs
 from .. import presence as presence_model
 from ..data import read_data
 from ..drafts import read_drafts
@@ -35,7 +36,6 @@ from ..rows import compact_activity
 from ..service import PageTransaction
 from . import browser as served_browser
 from . import page as served_page
-from . import reading as served_reading
 from .context import PageRead, read_page
 from .document import browser_document
 from .thread import thread_counts
@@ -144,7 +144,7 @@ class LivePage:
         """The token naming the page's current reading, the same one a state read
         would answer with now."""
         _activation, files = self._activated()
-        return served_reading.join_reading(
+        return page_inputs.join_reading(
             files, presence_model.presence_reading(self.page_dir, files)
         )
 
@@ -158,13 +158,13 @@ class LivePage:
         stamps doesn't cover them, since otherwise activating would change nothing
         they name."""
         if page is None:
-            files, sources = served_reading.page_readings(self.page_dir)
+            files, sources = page_inputs.page_readings(self.page_dir)
             if (activation := held_activation(self.page_dir, *sources)) is not None:
                 return activation, files
             with PageTransaction(self.page_dir) as page:
                 return self._activated(page)
         activation = activate_source(self.page_dir, transaction=page)
-        return activation, served_reading.held_page_reading(self.page_dir)
+        return activation, page_inputs.held_page_reading(self.page_dir)
 
     def other_pages(self) -> list[dict]:
         return presence_model.neighbor_reading(self.page_dir)
@@ -183,7 +183,7 @@ class LivePage:
             )
 
     def state_reading(self, reading: str, state: dict) -> str:
-        return served_reading.join_reading(
+        return page_inputs.join_reading(
             reading, presence_model.presence_fingerprint(state)
         )
 

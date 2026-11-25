@@ -4,7 +4,7 @@ A stamp of the source in place checks it before taking the page transaction, so
 a state read that activates the same save meanwhile never waits on that check,
 and holds the transaction only to confirm and publish. Under it the stamp
 compares the page's source and history readings with those it took before
-checking (`served_state.reading.source_readings`, the readings activation keys
+checking (`page_inputs.source_readings`, the readings activation keys
 on). A write that lands during the check moves a reading, so equal readings mean
 the check read what the transaction now holds; when one moved, the stamp checks
 again (`_stamp_in_place`).
@@ -26,6 +26,7 @@ from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.files import stamped_version
 from leaf.leases import contract_writer
+from leaf.page_inputs import source_readings
 from leaf.projection import attribute_marks, folded_value, markup_value, page_reading
 from leaf.refusals import Refused
 from leaf.revisioning import (
@@ -33,7 +34,6 @@ from leaf.revisioning import (
     planned_activation,
     publish_checked_event,
 )
-from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
 from leaf.todos import TodoReading
 

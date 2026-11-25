@@ -1,11 +1,4 @@
-"""The readings that name one served view of a page, and the inputs they stamp.
-
-A served reading is the page's file stamp (`page_reading`, or a snapshot's own)
-followed by a fingerprint of who is present (`presence.presence_fingerprint`), which
-moves on its own clock. `/api/state` answers with one, finite `/api/news` reads name
-one without rebuilding state, and the browser compares them whole. `join_reading`
-builds that form; nothing else spells it. Only the page's own inputs move it: the
-machine's other pages have a reading of their own (`presence.pages_reading`).
+"""A page's inputs, and the readings that name a state of them.
 
 A page's inputs are declared once, here: `page_input` says which paths inside the
 page directory count, `page_roots` names the directories whose notifications report
@@ -19,27 +12,33 @@ a write its watchers ignore moves no reading. The one asymmetry is a watcher's
 looseness: it wakes for any write to an entry of a directory the reading stamps
 without descending, since adding or removing one moves that directory's stamp, and
 the read that wake prompts finds nothing moved for an entry rewritten in place.
+
+A served reading names one served view of a page: the page's file stamp
+(`page_reading`, or a snapshot's own) followed by a fingerprint of who is present
+(`presence.presence_fingerprint`), which moves on its own clock. `/api/state` answers
+with one, finite `/api/news` reads name one without rebuilding state, and the browser
+compares them whole. `join_reading` builds that form; nothing else spells it. Only the
+page's own inputs move it: the machine's other pages have a reading of their own
+(`presence.pages_reading`).
 """
 
 import hashlib
 from pathlib import Path
 
-from ..file_bindings import bound_paths
-from ..files import STAGED, entry_stamps, file_stamp
-from ..schema import (
+from .file_bindings import bound_paths
+from .files import STAGED, entry_stamps, file_stamp
+from .schema import (
     DATA_DIR,
     DRAFTS_FILE,
     DRAFTS_LOCK,
     INTERACTIONS_FILE,
-    LAYER_FILE,
-    PACKAGES_DIR,
     PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
 )
-from ..service import claim_path, page_claim
-from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
+from .service import claim_path, page_claim
+from .state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
@@ -155,7 +154,7 @@ def page_readings(page_dir: Path) -> tuple[str, tuple[str, str]]:
     them under the log's lease, for the news a tab asks for several times a second
     (`LivePage._activated`)."""
     with flocked(page_dir / EVENTS_FILE):
-        stamps = _page_stamps(page_dir)
+        stamps = page_stamps(page_dir)
         return _token([*stamps, *_outside_stamps(page_dir)]), _split(stamps)
 
 
@@ -184,7 +183,7 @@ def held_page_reading(page_dir: Path) -> str:
     also carries each bound file's label and stamp (`file_bindings.bound_files`),
     naming which binding moved.
     """
-    return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
+    return _token([*page_stamps(page_dir), *_outside_stamps(page_dir)])
 
 
 def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
@@ -199,7 +198,7 @@ def record_reading(page_dir: Path) -> str:
     what its canonical state answers.
     """
     stamps = [
-        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
+        stamp for stamp in page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
     ]
     stamps.extend((name, file_stamp(path)) for name, path in _bound(page_dir))
     return _token(stamps)
@@ -220,28 +219,7 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     lease without the next state read validating the whole page again; declaring a
     status and acknowledging a delivery append to the log, which is history.
     """
-    return _split(_page_stamps(page_dir))
-
-
-def version_written(page_dir: Path) -> int:
-    """When a file a version is built from was last written, in nanoseconds since the
-    epoch: the document, the layer it selects with the page's package copies, and the
-    trees a capture reads (`revision_artifact.CAPTURED_TREES`). A data update, for one,
-    moves the source but makes no new version. A stamp inside a tree is named under the
-    tree's own name (`_page_stamps`)."""
-    # Here rather than at the top, so that a reader that never asks this, such as a
-    # hook, doesn't import the capture.
-    from ..revision_artifact import CAPTURED_TREES
-
-    inputs = {"index.html", LAYER_FILE, PACKAGES_DIR, *CAPTURED_TREES}
-    return max(
-        (
-            stamp[1]
-            for name, stamp in _page_stamps(page_dir)
-            if isinstance(stamp, tuple) and name.split("/", 1)[0] in inputs
-        ),
-        default=0,
-    )
+    return _split(page_stamps(page_dir))
 
 
 def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
@@ -252,7 +230,10 @@ def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
     )
 
 
-def _page_stamps(page_dir: Path) -> list[tuple[str, object]]:
+def page_stamps(page_dir: Path) -> list[tuple[str, object]]:
+    """Each stamp a reading takes inside the page directory, by name: each direct
+    child's but the diagnostics', and every entry's in `TREES`, named by its path from
+    the page directory, so a stamp inside a tree is named under the tree's own name."""
     stamps = entry_stamps(page_dir, UNWATCHED)
     stamps.extend(
         (entry.relative_to(page_dir).as_posix(), file_stamp(entry))

@@ -67,6 +67,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.json_block import read_json_block
 from leaf.refusals import Refused
@@ -89,7 +90,7 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
 ):
     cleanup_model.end_session("s1")
     assert cleanup_model.held_claims("s1")
-    assert service_model.owned_pages("s1") == []
+    assert transaction_model.owned_pages("s1") == []
 
     def unexpected_watcher(*_args, **_kwargs):
         raise AssertionError("a session with no owned pages opened a watcher")
@@ -285,7 +286,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     working(sibling, "reading the sibling")
     serving(claimed, 1)
     serving(sibling, 2)
-    assert service_model.claim_page(sibling)
+    assert transaction_model.claim_page(sibling)
     hooks_model.cmd_hook(
         "claude-code",
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
@@ -316,7 +317,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     vendoring_model.cmd_init(others)
     working(others, "another session's page")
     serving(others, 3)
-    assert service_model.claim_page(others)
+    assert transaction_model.claim_page(others)
     claim = service_model.page_claim(others)
     assert claim is not None
     record_claim(
@@ -355,7 +356,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     working(sibling, "reading the sibling")
     serving(claimed, 1)
     serving(sibling, 2)
-    assert service_model.claim_page(sibling)
+    assert transaction_model.claim_page(sibling)
     hooks_model.cmd_hook(
         "claude-code",
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
@@ -567,7 +568,9 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     assert acknowledged_through(claimed) == 0
     assert [
         event["id"]
-        for event in service_model.unacknowledged(events_model.read_events(claimed), 0)
+        for event in transaction_model.unacknowledged(
+            events_model.read_events(claimed), 0
+        )
     ] == [error["id"]]
 
     comment = append_carried_log_record(
@@ -598,7 +601,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     once this session holds it again, its next hook hands that input over."""
     moved = tmp_path / "a-moved"  # ahead of `claimed` in the walk's path order
     shutil.copytree(claimed, moved)
-    assert service_model.claim_page(moved)
+    assert transaction_model.claim_page(moved)
     comments = {
         page: append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": f"on {page.name}"}
@@ -611,7 +614,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         delivery = freeze(batches, **kwargs)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
         hooks_run_this_tree("s2")
-        assert service_model.claim_page(moved)
+        assert transaction_model.claim_page(moved)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
         return delivery
 
@@ -636,7 +639,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     assert acknowledged_through(claimed) >= comments[claimed]["seq"]
 
     monkeypatch.setattr(hook_transport_model, "freeze_delivery", freeze)
-    assert service_model.claim_page(moved)
+    assert transaction_model.claim_page(moved)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -811,7 +814,7 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("PI_SESSION_ID", "s1")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     assert harness_model.ClaudeCodeHarness.hook_context_bytes is not None
     text = "x" * harness_model.ClaudeCodeHarness.hook_context_bytes
     comment = append_carried_log_record(
@@ -890,7 +893,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     [workflow] = page_state(claimed)["workflows"]
     assert (workflow["state"], workflow["seen"]) == ("waiting", True)
     assert page_state(claimed)["pending"] == 1
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert delivery_model.deliverable(page) == []
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     claim = service_model.page_claim(claimed)
@@ -1034,7 +1037,7 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
 
     time.sleep(0.01)
     live.update(state="idle", since=datetime.now().astimezone().isoformat())
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert [event["id"] for event in delivery_model.deliverable(page)] == updates
     passed.clear()
     retitled("Which ships first")
@@ -1232,7 +1235,7 @@ def test_receipt_never_passes_a_handover_the_transcript_does_not_show(
     assert acknowledged_through(claimed) < dropped["seq"]
 
     hook("Stop")
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert dropped["id"] in [
             event["id"] for event in delivery_model.deliverable(page)
         ]
@@ -1535,7 +1538,7 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
 
     def left_owed() -> list[str]:
-        with service_model.PageTransaction(claimed) as page:
+        with transaction_model.PageTransaction(claimed) as page:
             return [event["id"] for event in session_model.left_owed(page)]
 
     hooks_model.cmd_hook("claude-code", prompt)
@@ -1591,7 +1594,7 @@ def test_a_start_holds_its_message_while_background_work_runs(
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
 
     def left_owed() -> list[str]:
-        with service_model.PageTransaction(claimed) as page:
+        with transaction_model.PageTransaction(claimed) as page:
             return [event["id"] for event in session_model.left_owed(page)]
 
     def standing() -> tuple[str, str | None]:
@@ -1686,7 +1689,7 @@ def test_a_start_holds_its_message_while_a_background_command_runs(
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
 
     def left_owed() -> list[str]:
-        with service_model.PageTransaction(claimed) as page:
+        with transaction_model.PageTransaction(claimed) as page:
             return [event["id"] for event in session_model.left_owed(page)]
 
     def standing() -> tuple[str, str | None]:
@@ -2008,7 +2011,7 @@ def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered
     )
     receive_through(claimed, asked["seq"])
     original = delivered_ref(claimed, asked["id"])
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         page.take_claim(harness_model.ClaudeCodeHarness("s2", "Claude"))
     assert (
         "ref"
@@ -2108,7 +2111,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     assert not errors
     assert not plans[0].owed
     assert [event["id"] for event in plans[0].pending] == [asked["id"]]
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert not projected(claimed, page.events).work.obligations
         assert page.cursor >= asked["seq"]
 
@@ -2173,7 +2176,7 @@ def test_a_hook_stopped_before_receipt_has_confirmed_nothing(
     and confirmed nothing, and the next hook hands the same input over again."""
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
-    service_model.claim_page(sibling)
+    transaction_model.claim_page(sibling)
     for page in (claimed, sibling):
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
@@ -2402,7 +2405,7 @@ def test_a_claim_another_leaf_wrote_in_another_shape_reads_as_the_same_claim(
     claim = service_model.page_claim(claimed)
     assert claim == before
     assert service_model.claim_is_active(claim)
-    assert service_model.owned_pages("s1") == [claimed]
+    assert transaction_model.owned_pages("s1") == [claimed]
     assert service_model.held_elsewhere(claimed, None)
     assert not service_model.held_elsewhere(claimed, harness_model.session_harness())
 
@@ -2569,7 +2572,7 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
     # Its receipt records the new ref, so no later hook hands it over again.
     assert delivered_ref(claimed, asked["id"]).startswith(f"{handed}:")
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert delivery_model.deliverable(page) == []
 
 
@@ -2583,7 +2586,7 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
     hooks_run_this_tree("s2")
-    service_model.claim_page(claimed)
+    transaction_model.claim_page(claimed)
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 
     assert hook_transport_model.read_plans("s1") == []
@@ -2715,13 +2718,13 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
         monkeypatch.setattr(module, "time", clock)
     sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
     vendoring_model.cmd_init(sibling)
-    service_model.claim_page(sibling)
+    transaction_model.claim_page(sibling)
     for page in (claimed, sibling):
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
         )
     freeze = hook_transport_model.freeze_delivery
-    held = service_model.PageTransaction(sibling)
+    held = transaction_model.PageTransaction(sibling)
 
     def freeze_then_lock_sibling(batches, **kwargs):
         delivery = freeze(batches, **kwargs)
@@ -2748,7 +2751,7 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     # Past the deadline even a free lock is not taken, so nothing is confirmed late.
     with (
         pytest.raises(TimeoutError),
-        service_model.PageTransaction(sibling, deadline=clock.monotonic()),
+        transaction_model.PageTransaction(sibling, deadline=clock.monotonic()),
     ):
         pass
 

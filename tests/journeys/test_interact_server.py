@@ -51,6 +51,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.http import assets_path
 from leaf.registry import storage as registry_storage
@@ -1268,7 +1269,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     page_dir, monkeypatch, owned, same_session
 ):
     """Explicit stops retire a later start; owner cleanup yields to a successor."""
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     owner = service_model.page_claim(page_dir) if owned else None
     assert hosting_model.start_server(
         page_dir, persistent=True, harness=harness_model.session_harness()
@@ -1305,7 +1306,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             failure="the first server did not release its lease",
         )
         if owned:
-            with service_model.PageTransaction(page_dir) as transaction:
+            with transaction_model.PageTransaction(page_dir) as transaction:
                 transaction.take_claim(
                     harness_model.session_harness()
                     if same_session
@@ -1461,7 +1462,7 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
     wait_for(path.is_file, bool, failure="the server did not publish its initial row")
     entered.unlink()
     ended = threading.Event()
-    with service_model.PageTransaction(page_dir):
+    with transaction_model.PageTransaction(page_dir):
         child.stdin.write("read\n")
         child.stdin.flush()
         wait_for(

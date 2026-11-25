@@ -35,7 +35,7 @@ from render_harness import (
 )
 
 from leaf import leases as leases_model
-from leaf import service as service_model
+from leaf import transaction as transaction_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -69,7 +69,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
     assert lease_path is not None
     lease = leases_model.take_wait_lease(lease_path)
     assert lease
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_stream_activity(
             claim["id"], "provider-turn", {"kind": "awaiting_input"}
         )
@@ -77,14 +77,14 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
     expect(live).to_contain_text("Input needed in the terminal")
     announced_wait = live.text_content()
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_stream_activity(
             claim["id"], "provider-turn", {"kind": "tool", "detail": "Checking"}
         )
     told(page)
     assert live.text_content() == announced_wait
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_stream_activity(
             claim["id"], "provider-turn", {"kind": "awaiting_approval"}
         )

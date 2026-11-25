@@ -60,7 +60,9 @@ from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf.refusals import Refused
+from leaf.session import set_status
 from leaf_dev.page_timings import page_timings
 
 
@@ -1540,7 +1542,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer this next"},
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         transaction.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
@@ -1548,7 +1550,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
             "codex-thread",
             page_dir,
             transaction,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
         )
         assert append_batch_result is not None
         path, _, _ = append_batch_result
@@ -1990,7 +1992,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         "ref": response_reference(page_dir, comment),
     }
     thread_model.reserve_delivery_reply("successor-thread", "delivery-2", successor)
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         assert page.stream["reply_reservations"][comment["id"]] == {
             "session": "successor-thread",
             "attempt": service_model.delivery_reply_attempt("delivery-2"),
@@ -2081,10 +2083,10 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
     created = datetime.now().astimezone()
     refreshed = created + timedelta(minutes=10)
     moments = iter((created.isoformat(), refreshed.isoformat()))
-    monkeypatch.setattr(service_model, "now_iso", lambda: next(moments))
+    monkeypatch.setattr(transaction_model, "now_iso", lambda: next(moments))
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
 
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.set_stream_reply(
             "codex-thread",
             "turn-1",
@@ -3978,8 +3980,8 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
                     )
                 else:
                     cleanup_model.prompt_turn("codex-thread", "new-turn")
-                    with service_model.PageTransaction(page_dir) as page:
-                        page.set_status("waiting")
+                    with transaction_model.PageTransaction(page_dir) as page:
+                        set_status(page, "waiting")
                     codex_model.set_stream_activity(
                         "codex-thread",
                         "new-turn",
@@ -4186,11 +4188,11 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
     assert old.open()
     cleanup_model.end_session("codex-thread")
     cleanup_model.prompt_turn("codex-thread", "same-turn")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        page.set_status("waiting")
+        set_status(page, "waiting")
     codex_model.set_stream_activity(
         "codex-thread",
         "same-turn",
@@ -4240,8 +4242,8 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
     assert fold.open()
     if replacement == "prompt":
         cleanup_model.prompt_turn("codex-thread", "new-turn")
-        with service_model.PageTransaction(page_dir) as page:
-            page.set_status("waiting")
+        with transaction_model.PageTransaction(page_dir) as page:
+            set_status(page, "waiting")
         codex_model.set_stream_activity(
             "codex-thread",
             "new-turn",
@@ -4291,11 +4293,11 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
     def supersede_before_construction(turn_id, delivery_id, **scope):
         cleanup_model.end_session("codex-thread")
         cleanup_model.prompt_turn("codex-thread", turn_id)
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(
                 harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
-            page.set_status("waiting")
+            set_status(page, "waiting")
         codex_model.set_stream_activity(
             "codex-thread",
             turn_id,
@@ -4350,11 +4352,11 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     old = connection.turns["same-turn"]
     cleanup_model.end_session("codex-thread")
     cleanup_model.prompt_turn("codex-thread", "same-turn")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        page.set_status("waiting")
+        set_status(page, "waiting")
     expected = cleanup_model.session_record("codex-thread")
     connection.lifecycle = expected
     connection._resume(
@@ -4435,7 +4437,7 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
     }
     if broken_source == "new-generation":
         cleanup_model.end_session("codex-thread")
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(harness)
         successor = cleanup_model.start_session_turn(
             "codex-thread",
@@ -4492,7 +4494,7 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
     restarted = []
 
     if broken_source == "reacquired":
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(harness)
             replacement = page.active_claim
         assert (
@@ -4514,7 +4516,7 @@ def test_an_invalid_automatic_final_delivers_one_exact_correction(
         assert codex_model.delivery_records("codex-thread") == []
         # The terminal refusal cannot strand the oldest offer in the hot queue.
         assert connection._start_delivery(object(), correction)
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             assert service_model.same_claim(page.active_claim, replacement)
         return
 

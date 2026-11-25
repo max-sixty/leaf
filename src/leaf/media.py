@@ -12,7 +12,7 @@ from pathlib import Path
 from leaf.files import replace_files
 from leaf.refusals import Refused
 from leaf.schema import MEDIA_DIGEST, MEDIA_DIR, MEDIA_TYPES
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024
 

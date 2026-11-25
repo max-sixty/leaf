@@ -21,8 +21,8 @@ from .presence import nudge_unwatched
 from .refusals import Refused
 from .registry.contract import RegistryError
 from .registry.kernel import kernel_event_kinds, kernel_event_ownership, kinds_declaring
-from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread, title_generator
+from .transaction import PageTransaction, requires_agent_attention
 
 EventAnswer = tuple[int, dict]
 

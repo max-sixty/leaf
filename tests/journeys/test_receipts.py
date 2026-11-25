@@ -26,6 +26,7 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 
 
 def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
@@ -40,7 +41,7 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
     silent = tmp_path / "silent"
     for page in (second, silent):
         shutil.copytree(claimed, page)
-        service_model.claim_page(page)
+        transaction_model.claim_page(page)
     pages = (claimed, second, silent)
     claim_record = service_model.page_claim(claimed)
     assert claim_record is not None
@@ -153,7 +154,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
     hooks_run_this_tree("successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     append_carried_log_record(
         other,
         {"kind": "comment", "id": "second", "author": "user", "text": "two"},

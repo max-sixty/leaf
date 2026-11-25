@@ -23,10 +23,10 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import event_meaning as event_meaning_model
 from leaf import page_view as page_view_model
-from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf import thread_context as thread_context_model
+from leaf import transaction as transaction_model
 from leaf.registry import storage as registry_storage
 
 
@@ -108,7 +108,7 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
     )
     initial_thread_state_size = len(json.dumps(state_json(page_dir)["threads"]))
     parent, headers = root["id"], []
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     for turn in range(30):
         agent = append_carried_log_record(
             page_dir,

@@ -74,8 +74,8 @@ from leaf.registry.storage import layer_packages, layer_record, selected
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
 from leaf.structure import SourceDocument
+from leaf.transaction import acknowledged
 from leaf_dev.browser import (
     PANEL_THREAD,
     choose_threads_in_panel,

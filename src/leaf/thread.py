@@ -44,10 +44,11 @@ from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
-from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
+from leaf.service import delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_message, thread_names, thread_structure
 from leaf.todos import TodoReading
+from leaf.transaction import PageTransaction
 
 
 def drawn_markup(text: str) -> str:

@@ -14,8 +14,8 @@ from process.test_interact_claude_code_module import band_lines
 from leaf import rows as rows_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
-from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 
 
 def test_the_band_follows_the_pages_the_session_holds(
@@ -78,5 +78,5 @@ def test_the_band_follows_the_pages_the_session_holds(
     # Another session takes the page, so this one holds none.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
     hooks_run_this_tree("cc-s2")
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     band([])

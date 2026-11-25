@@ -427,7 +427,7 @@ class PreviewService:
     def stop(self) -> None:
         """Stop serving and withdraw this preview's acquisition, keeping successors."""
         from leaf.hosting import cmd_stop
-        from leaf.service import PageTransaction
+        from leaf.transaction import PageTransaction
 
         if self.user:
             cmd_stop(self.page, owner=self.claim)

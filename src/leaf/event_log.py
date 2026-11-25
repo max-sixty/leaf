@@ -79,7 +79,11 @@ def _attempt_payload(event: dict) -> dict:
     return {key: value for key, value in event.items() if key not in assigned}
 
 
-def _matching_attempt(events: list[dict], event: dict) -> dict | None:
+def matching_attempt(events: list[dict], event: dict) -> dict | None:
+    """The record an earlier send of `event`'s attempt left in `events`, or None
+    where none did. The same attempt sent with another payload raises
+    `AttemptConflict`. The append door reads it under the log's lease
+    (`event_contracts.append_admitted`)."""
     attempt = event.get("attempt")
     if not attempt:
         return None
@@ -114,9 +118,9 @@ def new_event_id(events: list[dict]) -> str:
             return candidate
 
 
-def _end_last_line(f) -> None:
+def end_last_line(f) -> None:
     """End the log's last line, under its exclusive lease, before an append and
-    before a transaction reads the log (`service.PageTransaction`).
+    before a transaction reads the log (`transaction.PageTransaction`).
 
     A crash can tear an append mid-line: SIGKILL under a buffered flush, a full
     disk. The line discipline is the writer's, so the lease holder restores it.
@@ -132,7 +136,7 @@ def _end_last_line(f) -> None:
             f.flush()
 
 
-def _append_event_unlocked(
+def append_event_unlocked(
     f, event: dict, events: list[dict], *, context: dict | None = None
 ) -> dict:
     """Append while the caller holds this log file's exclusive lease.
@@ -146,7 +150,7 @@ def _append_event_unlocked(
     else:
         event["id"] = new_event_id(events)
     event.setdefault("ts", now_iso())
-    _end_last_line(f)
+    end_last_line(f)
     f.seek(0)
     seq = f.read().count(b"\n") + 1
     stored = event if context is None else {**event, "context": context}
@@ -214,7 +218,7 @@ def append_event(page_dir: Path, event: dict) -> dict:
     with flocked(log) as f:
         f.seek(0)
         events = _parse_events(f.read())
-        return _append_event_unlocked(
+        return append_event_unlocked(
             f, event, events, context=session_context(event.get("session"))
         )
 
@@ -242,7 +246,7 @@ def _stored_events(data: bytes, before: int = 0) -> list[dict]:
         except (json.JSONDecodeError, UnicodeDecodeError):
             # The final line is a concurrent append mid-flush, complete on the
             # next read. An earlier one is the tear a crash left, standing alone
-            # because _append_event_unlocked repairs the discipline before
+            # because append_event_unlocked repairs the discipline before
             # writing: that event's sender already saw its send fail, the seqs
             # around it hold,
             # and there is nothing anyone could do with a fragment — so it is
@@ -387,7 +391,8 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     follower's place in the log (`_Tail`), and a log that is another file now or
     gone ends the follower.
     """
-    # file_changes reads the page's inputs, which reach back here through `service`.
+    # Only a follower waits on the page's changes, so the log's other readers, the
+    # cold hooks among them, don't load the page's inputs.
     from leaf.file_changes import page_changes
 
     log = page_dir / EVENTS_FILE

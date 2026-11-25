@@ -63,7 +63,6 @@ from .server import (
     write_service,
 )
 from .service import (
-    PageTransaction,
     claim_is_active,
     claimant_matches,
     page_claim,
@@ -72,6 +71,7 @@ from .service import (
     same_claim,
 )
 from .state import PLUGIN_ROOT
+from .transaction import PageTransaction
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord

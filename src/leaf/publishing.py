@@ -34,8 +34,8 @@ from leaf.revisioning import (
     planned_activation,
     publish_checked_event,
 )
-from leaf.service import PageTransaction
 from leaf.todos import TodoReading
+from leaf.transaction import PageTransaction
 
 # How many checks a stamp in place runs outside the page transaction before it
 # checks under it, so a page written faster than it checks still gets a stamp.

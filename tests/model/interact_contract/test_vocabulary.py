@@ -28,8 +28,8 @@ from leaf import files as files_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
-from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
@@ -468,7 +468,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     assert ("answer" in action["meaning"]) is (
         not active_attention and declaration == "obligation"
     )
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == (
         [action] if active_attention else []
     )
 
@@ -494,7 +494,7 @@ def test_wakeup_uses_the_recorded_identity_after_an_undo(page_dir):
     )
     assert fresh["id"] != reaction["id"]
     assert fresh["attention"]
-    assert service_model.unacknowledged(
+    assert transaction_model.unacknowledged(
         events_model.read_events(page_dir), fresh["seq"] - 1
     ) == [fresh]
 

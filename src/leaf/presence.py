@@ -24,16 +24,9 @@ from .page_memory import memo
 from .rows import ROW, read_row, row_path
 from .schema import SERVER_LOCK, UNNAMED_AGENT
 from .server import running_server
-from .service import (
-    PageTransaction,
-    acknowledged,
-    claim_is_active,
-    claim_records,
-    page_claim,
-    read_stream,
-    unacknowledged,
-)
+from .service import claim_is_active, claim_records, page_claim, read_stream
 from .state import now_iso, state_home, turn_closed
+from .transaction import PageTransaction, acknowledged, owned_pages, unacknowledged
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -405,6 +398,20 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
         datetime.fromisoformat(now_iso()),
     )
     return present, turn
+
+
+def session_turn_running(session_id: str) -> bool:
+    """Whether a page `session_id` holds reads that session's turn as running
+    (`claimant_reading`), each page read under its own transaction."""
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                present, turn = claimant_reading(page_dir, page.events)
+                if present["claim_session"] == session_id and turn.running:
+                    return True
+        except FileNotFoundError:
+            continue
+    return False
 
 
 def presence(page_dir: Path, events: list) -> dict:

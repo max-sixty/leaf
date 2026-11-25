@@ -34,7 +34,7 @@ The store names itself (`store`), an identity minted when its file is created, a
 every reading and write answer carries it beside the store's `version`, which counts
 its writes. Within one store the version never goes back: every write replaces the
 file under its lock. A host that keeps the page outside this machine holds the store
-of record (`service.commit_provider`), and the file is this machine's copy of it: the
+of record (`transaction.commit_provider`), and the file is this machine's copy of it: the
 host takes a write only over the store the file held, before Leaf replaces the file
 or answers, so a tab never hears a write the host could lose, and a save that reaches
 the host late finds a newer store there and changes nothing. Where the host holds
@@ -53,8 +53,8 @@ from pathlib import Path
 from leaf.event_log import admitted_attempts
 from leaf.registry.schema import schema_error
 from leaf.schema import DRAFTS_FILE, DRAFTS_LOCK
-from leaf.service import commit_provider
 from leaf.state import Record, described, flocked, object_schema
+from leaf.transaction import commit_provider
 
 _ATTEMPT = described(
     "The generation's attempt, which its send carries into the log.",

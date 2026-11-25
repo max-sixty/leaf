@@ -30,9 +30,9 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import handover_pass as handover_pass_model
 from leaf import hooks as hooks_model
-from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
+from leaf import transaction as transaction_model
 from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.files import latest_revision
@@ -41,6 +41,7 @@ from leaf.render_reading import read_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
 from leaf.served_state.context import read_page
+from leaf.session import set_status
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",
@@ -251,8 +252,8 @@ def test_a_page_nobody_holds_has_nobody_to_tell(pass_page):
 def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     save(pass_page.dir, "last words")
     state_model.close_session_turn("s1")
-    with service_model.PageTransaction(pass_page.dir) as page:
-        page.set_status("idle")
+    with transaction_model.PageTransaction(pass_page.dir) as page:
+        set_status(page, "idle")
     pass_page.passes.look()
     assert pass_page.reads == []
 
@@ -339,12 +340,12 @@ def told(claimed):
 
 
 def events_of(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return list(page.events)
 
 
 def deliverable(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return delivery_model.deliverable(page)
 
 

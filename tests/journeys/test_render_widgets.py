@@ -42,8 +42,8 @@ from journeys import first_thread_head
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
@@ -1424,7 +1424,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         for event in events_model.read_events(serve.page_dir)
         if event["id"] == action["id"]
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [logged_action],
@@ -1432,7 +1432,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
             turn="create-artifact",
         )
     with (
-        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        transaction_model.PageTransaction(serve.page_dir) as receipt_page,
         delivery_model.receive_batch(
             receipt_page,
             {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
@@ -1565,7 +1565,7 @@ body { font-family: system-ui, sans-serif; }
         if event["id"] == comment["id"]
     )
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [logged_comment],
@@ -1573,7 +1573,7 @@ body { font-family: system-ui, sans-serif; }
             turn="refine-artifact",
         )
     with (
-        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        transaction_model.PageTransaction(serve.page_dir) as receipt_page,
         delivery_model.receive_batch(
             receipt_page,
             {"events": [{"seq": logged_comment["seq"], "id": logged_comment["id"]}]},

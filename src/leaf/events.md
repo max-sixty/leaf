@@ -162,7 +162,7 @@ told of the withdrawal, whether it has yet to read the gesture or has already ac
 it. A user's edit
 carries it as a reply does; read marks, and closing or reopening an answered thread that
 holds no obligation, do not. `leaf wait`, delivery, pickup, the Stop guard and the idle
-gate read the field through `service.requires_agent_attention`, and the pending count
+gate read the field through `transaction.requires_agent_attention`, and the pending count
 counts only the user's events.
 
 Either side can open or close a thread. A thread has served its purpose once the user

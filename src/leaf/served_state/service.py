@@ -33,7 +33,7 @@ from ..provenance import revision_places, saved_after
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
 from ..rows import compact_activity
-from ..service import PageTransaction
+from ..transaction import PageTransaction
 from . import browser as served_browser
 from . import page as served_page
 from .context import PageRead, read_page

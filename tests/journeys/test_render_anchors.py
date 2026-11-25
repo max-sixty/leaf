@@ -52,8 +52,8 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import passages as passages_model
-from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf import transaction as transaction_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
@@ -1040,7 +1040,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
     expect(inline_status).to_have_text("Delivered")

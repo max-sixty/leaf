@@ -38,7 +38,6 @@ from .refusals import Refused
 from .registry.kernel import kinds_declaring
 from .schema import ANSWER_INSTRUCTION
 from .server import read_service, running_server
-from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
     SESSION_SUFFIX,
     CopyReplaced,
@@ -50,11 +49,30 @@ from .state import (
     still_named,
     turn_closed,
 )
+from .transaction import PageTransaction, owned_pages, unacknowledged
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
 # changes on the clock alone.
 REVIVAL_CHECK_S = 5
+
+
+def set_status(page: PageTransaction, state: str) -> dict:
+    """Append the page's `waiting` or `idle` declaration, a `status` event in the
+    posting session's voice that `activity.declaration` reads, and return the record.
+
+    The work the agent has in hand is no status: it is the log's `start` events, and
+    a declaration puts every start before it down (`todos.item_starts`). The stream
+    the harness observes carries across a `waiting`, and `idle` clears it with the
+    leaf."""
+    from .event_contracts import append_admitted
+
+    record, _ = append_admitted(
+        page, {"kind": "status", "author": "agent", "state": state}
+    )
+    if state == "idle":
+        page.clear_stream()
+    return record
 
 
 def cmd_waiting(page_dir: Path) -> dict:
@@ -68,7 +86,7 @@ def cmd_waiting(page_dir: Path) -> dict:
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
-        status = page.set_status("waiting")
+        status = set_status(page, "waiting")
         owed = read_page(page_dir, page.events).work.obligations
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
@@ -131,7 +149,7 @@ def cmd_idle(page_dir: Path) -> dict:
                 '`leaf task end <page> <id> done --text "<where the result is>"`, or '
                 '`dropped --text "<why>"`.'
             )
-        return page.set_status("idle")
+        return set_status(page, "idle")
 
 
 class PageTick(NamedTuple):

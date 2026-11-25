@@ -36,7 +36,6 @@ from .page_memory import memo
 from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_SOURCE_NAME
-from .service import PageTransaction
 from .state import (
     STRING,
     TIME,
@@ -46,6 +45,7 @@ from .state import (
     now_iso,
     object_schema,
 )
+from .transaction import PageTransaction
 
 PUBLICATION = Record(
     "data-source",

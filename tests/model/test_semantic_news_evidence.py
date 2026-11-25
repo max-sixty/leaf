@@ -8,7 +8,7 @@ from interact_support import (
 )
 
 from leaf import thread
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 
 def test_live_response_evidence_keeps_its_attempt_without_text(page_dir):

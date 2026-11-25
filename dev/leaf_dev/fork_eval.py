@@ -194,7 +194,7 @@ import json, sys
 from pathlib import Path
 from leaf.event_contracts import append_admitted
 from leaf.forks import look
-from leaf.service import PageTransaction
+from leaf.transaction import PageTransaction
 
 page, session = Path(sys.argv[1]), sys.argv[2]
 _, after = look(session, page, None)

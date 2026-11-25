@@ -44,6 +44,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
 from leaf.findings import Finding
@@ -166,7 +167,7 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
     keeps running and the re-vendor is refused rather than run under the new owner."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     fixture_service(page_dir, available_loopback_port(), lifetime="session")
     restarting_for = harness_model.session_harness()
     decided = hosting_model.claim_is_active
@@ -175,7 +176,7 @@ def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
         comes_back = decided(claim)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
         hooks_run_this_tree("s2")
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
         return comes_back
 
     monkeypatch.setattr(hosting_model, "claim_is_active", taken_after_the_decision)
@@ -196,7 +197,7 @@ def test_a_restart_for_another_session_refuses_a_held_page_before_it_stops(
     `server start` or the restart of a server that follows its copy while no
     session's Leaf acts for it, is refused while the page's server still runs,
     whatever the service's lifetime: only the holding session's Leaf serves it."""
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     fixture_service(page_dir, available_loopback_port(), lifetime=lifetime)
     with (
         pytest.raises(Refused, match="is held by session"),
@@ -531,7 +532,7 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
     hooks_run_this_tree("nested")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     claim_record = service_model.page_claim(page_dir)
     assert claim_record is not None
     assert claim_record["pid"] == os.getpid()
@@ -541,7 +542,7 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
 
     (job / "state.json").unlink()
     with pytest.raises(Refused, match="names no job record"):
-        service_model.claim_page(page_dir)
+        transaction_model.claim_page(page_dir)
 
 
 def test_a_claim_takes_the_app_lifetime_only_for_the_apps_own_session(

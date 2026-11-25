@@ -41,6 +41,7 @@ from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf import transaction as transaction_model
 from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import SourceDocument
@@ -471,7 +472,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert preview_model.WATCHER_NOTE in driven_log.read_text()
     assert service_model.page_claim(page_dir) is None
     assert not (page_dir / "service.json").exists()
-    assert page_dir not in service_model.owned_pages(
+    assert page_dir not in transaction_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
     driven = open_page(browser, driven_url)
@@ -528,7 +529,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         if event["kind"] == "action" and event["author"] == "user"
     ]
     assert user_event["id"] != automated_event["id"]
-    assert user_event in service_model.unacknowledged(
+    assert user_event in transaction_model.unacknowledged(
         events_model.read_events(user_dir), 0
     )
     user_feedback = (user_dir / "events.jsonl").read_bytes()
@@ -589,7 +590,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
 
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
-    assert page_dir not in service_model.owned_pages(session)
+    assert page_dir not in transaction_model.owned_pages(session)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
@@ -664,7 +665,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     # Ownership can end while a runtime edit waits for the page transaction.
     # page init needs that transaction before it can stop the service, so do not
     # wait for its stop while holding the transaction ourselves.
-    with service_model.PageTransaction(directory):
+    with transaction_model.PageTransaction(directory):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
         assert claim is not None
@@ -867,7 +868,7 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
         # cleanup boundary directly; the subprocess owns the serving resource.
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         cleanup = preview_model.PreviewService(directory, user=True)
-    with service_model.PageTransaction(directory) as transaction:
+    with transaction_model.PageTransaction(directory) as transaction:
         transaction.take_claim(harness_model.ClaudeCodeHarness("successor", "Claude"))
     if unclaimed:
         assert cleanup.ended

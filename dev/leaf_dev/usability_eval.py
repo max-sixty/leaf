@@ -25,9 +25,9 @@ from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.registry.kernel import kinds_declaring
-from leaf.service import requires_agent_attention
 from leaf.state import turn_open
 from leaf.structure import SourceDocument
+from leaf.transaction import requires_agent_attention
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     TURN_LIMIT,

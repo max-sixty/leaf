@@ -51,6 +51,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import todos as todos_model
+from leaf import transaction as transaction_model
 from leaf.authored_checks.admission import (
     check_markup,
     revision_publication,
@@ -930,7 +931,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
     _tasks_version(page_dir, "active")
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     published(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
@@ -1311,7 +1312,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == edit["id"])
         delivered = delivery_model.freeze_delivery(
             [delivery_model.batch_data(page_dir, page, [stored])]
@@ -1378,7 +1379,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         {"kind": "edit", "author": "user", "message": asked["id"], "text": ""},
     )
     assert [item[0] for item in owed_answers()] == [gone["id"]]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == gone["id"])
         delivered = delivery_model.freeze_delivery(
             [delivery_model.batch_data(page_dir, page, [stored])]
@@ -1562,7 +1563,7 @@ def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
     second = rewrite("B.")
     third = rewrite("C.")
     append_command(page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]})
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == third["id"])
         delivered = delivery_model.freeze_delivery(
             [delivery_model.batch_data(page_dir, page, [stored])]
@@ -1614,7 +1615,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
             )
 
     def suggested(event):
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             [digest] = batch_threads(page.events, [event], active_enclosing(page_dir))
             text = {item["id"]: item.get("text") for item in page.events}
         hint = digest["summary_hint"]

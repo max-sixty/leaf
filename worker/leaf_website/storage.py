@@ -67,8 +67,8 @@ from leaf.schema import (
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
 )
-from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
+from leaf.transaction import PageTransaction
 
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.
@@ -406,7 +406,7 @@ PUBLISHED = Record(
 )
 
 
-# The page commit provider (`service.commit_provider`) a container declares once it
+# The page commit provider (`transaction.commit_provider`) a container declares once it
 # has restored its pages, so every transaction its leaf processes finish publishes its
 # record (`publish`), and every write of a page's drafts its drafts (`publish_drafts`).
 PUBLISHER = "leaf_website.storage"

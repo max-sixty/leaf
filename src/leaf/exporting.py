@@ -95,8 +95,8 @@ from leaf.revision_delivery import (
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
-from leaf.service import PageTransaction
 from leaf.structure import UTF8_BOM, SourceDocument
+from leaf.transaction import PageTransaction
 
 ResourceReader = Callable[[str], Resource]
 

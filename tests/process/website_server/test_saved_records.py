@@ -25,8 +25,8 @@ from leaf import drafts as drafts_model
 from leaf import media as media_model
 from leaf.event_log import read_events
 from leaf.files import latest_revision, revision_path
-from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
+from leaf.transaction import PageTransaction
 from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     write_manifest,

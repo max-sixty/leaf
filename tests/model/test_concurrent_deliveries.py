@@ -7,8 +7,8 @@ from interact_support import append_carried_log_record, published
 
 from leaf import codex as codex_model
 from leaf.delivery import batch_data, freeze_delivery, retire_gone_deliveries
-from leaf.service import PageTransaction
 from leaf.state import state_home, write_json
+from leaf.transaction import PageTransaction
 
 
 def test_live_and_archived_readers_ignore_foreign_formats_and_unknown_states(

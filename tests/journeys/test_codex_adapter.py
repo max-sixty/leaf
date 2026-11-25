@@ -56,6 +56,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 
 
 @pytest.mark.parametrize("reclaimed", ["delivered", "another"])
@@ -86,7 +87,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
     )
     delivered = events_model.read_events(page)[-1]
     session_model.cmd_waiting(page)
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
@@ -726,7 +727,7 @@ def test_codex_retires_a_receipt_on_a_page_its_leaf_cannot_write(codex_claimed_p
         page, {"kind": "comment", "id": "asked", "author": "user", "text": "Why?"}
     )
     (event,) = events_model.read_events(page)[-1:]
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         batch = delivery_model.batch_data(page, transaction, [event])
     delivery_model.freeze_delivery([batch], delivery_id="bbbbbbbbbbbbbbbb")
     directory = codex_state_model.delivery_dir("codex-thread")
@@ -791,7 +792,7 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     # monotonic, so taking receipt for the second batch first would hide the
     # first batch before its pickup record is written.
     for identity, event in (("ffffffffffffffff", first), ("aaaaaaaaaaaaaaaa", second)):
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             batch = delivery_model.batch_data(page, transaction, [event])
         delivery_model.freeze_delivery([batch], delivery_id=identity)
     cleanup_model.write_json(
@@ -819,7 +820,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         page,
         {"kind": "comment", "id": "user-message", "author": "user", "text": "hi"},
     )
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
@@ -1001,7 +1002,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
                 "text": event_id,
             },
         )
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
@@ -1064,11 +1065,11 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
 
     # Accepting the first delivery receipts it, so the second comment is collected
     # into a record of its own rather than joining the one already in a turn.
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
             True,
             "watching",
             False,
@@ -1098,7 +1099,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     )
     delivered = events_model.read_events(page)[-1]
     session_model.cmd_waiting(page)
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
@@ -1353,7 +1354,7 @@ import sys
 from pathlib import Path
 from leaf.harness import session_harness
 from leaf.hosting import start_server
-from leaf.service import claim_page
+from leaf.transaction import claim_page
 live, offline = map(Path, sys.argv[1:])
 claim_page(offline)
 claim_page(live)
@@ -1388,7 +1389,7 @@ start_server(live, harness=session_harness())
         claim = service_model.page_claim(live)
         assert claim is not None
         record_claim(offline, **{**claim, "page": str(offline.resolve())})
-        assert set(service_model.owned_pages("codex-thread")) == {live, offline}
+        assert set(transaction_model.owned_pages("codex-thread")) == {live, offline}
         service = read_record(live / "service.json")
         origin = f"http://{service['host']}:{service['port']}"
         status, body = fetch(
@@ -1611,7 +1612,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         page, {"kind": "comment", "id": "first", "author": "user", "text": "one"}
     )
     first = events_model.read_events(page)[-1]
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
@@ -1671,11 +1672,11 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     ] == ["first"]
 
     assert not codex_model.recover_codex_receipt("codex-thread")
-    with service_model.PageTransaction(page) as transaction:
+    with transaction_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
             transaction.status,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
+            transaction_model.unacknowledged(transaction.events, transaction.cursor),
             True,
             "watching",
             False,
@@ -1707,8 +1708,8 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.service import PageTransaction, claim_page
-from leaf.session import cmd_waiting
+from leaf.transaction import PageTransaction, claim_page
+from leaf.session import cmd_waiting, set_status
 page = Path(sys.argv[1])
 claim_page(page)
 cmd_waiting(page)
@@ -1735,7 +1736,7 @@ try:
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
     with PageTransaction(page) as held:
-        held.set_status("idle")
+        set_status(held, "idle")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """

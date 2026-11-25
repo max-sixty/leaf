@@ -2705,7 +2705,7 @@ def write_log(page: Path, commands: list[dict]) -> None:
     made of the first stands for the rest."""
     from leaf.event_contracts import append_admitted
     from leaf.event_log import jsonl_line, new_event_id, read_events
-    from leaf.service import PageTransaction
+    from leaf.transaction import PageTransaction
 
     admitted: dict[str, tuple[dict, dict]] = {}
     last = {shape(command): index for index, command in enumerate(commands)}
@@ -2818,7 +2818,7 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
     from leaf.event_contracts import append_admitted
     from leaf.revisioning import activate_source
     from leaf.served_state.service import PageStateService
-    from leaf.service import PageTransaction
+    from leaf.transaction import PageTransaction
 
     source = page / "index.html"
     authored = source.read_text()

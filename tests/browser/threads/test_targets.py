@@ -40,7 +40,7 @@ from browser.threads import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf import service as service_model
+from leaf import transaction as transaction_model
 from leaf.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
@@ -536,7 +536,7 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
     }""")
 
     # One transaction, so the page reads both records in one state answer.
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         for event in (
             {
                 "kind": "reply",

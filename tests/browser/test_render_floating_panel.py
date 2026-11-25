@@ -72,8 +72,8 @@ from browser.threads import dispatch_paste, paste_image
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import choose_threads_in_panel, open_on_me, panel_tab
@@ -2205,7 +2205,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(messages.last.locator(".lf-msg-text")).to_contain_text(

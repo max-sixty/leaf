@@ -79,7 +79,7 @@ from leaf.presence import claimant_reading
 from leaf.render_reading import read_reading, write_reading
 from leaf.revision_artifact import read_artifact, version_written
 from leaf.revisioning import activate_source
-from leaf.service import PageTransaction, requires_agent_attention
+from leaf.transaction import PageTransaction, requires_agent_attention
 
 # Set to `off` by a caller whose pages must hold only what it wrote: the suite.
 VARIABLE = "LEAF_RENDER_PASS"

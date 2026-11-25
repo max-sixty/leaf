@@ -63,6 +63,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf import vendoring as vendoring_model
 from leaf.json_block import json_block, read_json_block
 from leaf.refusals import Refused
@@ -139,7 +140,7 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result = codex_model.append_batch(
             "collision-test", page_dir, transaction, transaction.events
         )
@@ -264,7 +265,7 @@ def test_embedded_codex_delivery_retries_the_same_immutable_pointer(
     first = codex_model.prepare_codex_delivery(page_dir, harness)
 
     if ownership_transferred:
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(
                 harness_model.EmbeddedHarness("successor", "Successor", os.getpid())
             )
@@ -511,7 +512,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         append_batch_result_2 = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
         )
@@ -535,7 +536,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     delivered = events_model.read_events(page_dir)[-1]
     session_model.cmd_waiting(page_dir)
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir,
             page.status,
@@ -607,7 +608,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
             ],
         },
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [event])
     delivery_model.freeze_delivery([batch], delivery_id="aaaaaaaaaaaaaaaa")
     if leaving == "restart":
@@ -616,7 +617,7 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
         record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     else:
         cleanup_model.end_session("codex-thread")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         assert page.active_claim is None or leaving == "transfer"
 
     assert codex_model.recover_codex_receipt("codex-thread")
@@ -645,7 +646,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
             },
         )
         delivered = events_model.read_events(page)[-1]
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             reading = session_model.PageTick(
                 page,
                 transaction.status,
@@ -961,7 +962,7 @@ def test_a_codex_stop_leaves_late_input_to_an_app_server_adapters_own_turn(
         )
         # The adapter's watch collects it as it arrives, and holds it back while
         # the running turn's hooks may still offer it.
-        with service_model.PageTransaction(page_dir) as transaction:
+        with transaction_model.PageTransaction(page_dir) as transaction:
             codex_model.append_batch("codex-thread", page_dir, transaction, [comment])
         assert not codex_adapter_model._offer_queued_delivery(
             "codex", "codex-thread", None
@@ -1058,7 +1059,7 @@ def test_codex_hooks_leave_collected_input_after_ownership_transfers(
     event = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Keep the decision"}
     )
-    with service_model.PageTransaction(page_dir) as tx:
+    with transaction_model.PageTransaction(page_dir) as tx:
         codex_model.append_batch("codex-thread", page_dir, tx, [event])
     record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     hooks_model.cmd_hook(
@@ -1298,7 +1299,7 @@ def test_codex_tool_hook_offers_only_what_the_cursor_has_not_passed(
     queued = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "First, queued"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         [event] = [e for e in page.events if e["id"] == queued["id"]]
         delivery_model.record_pickup(
             page, [event], phase="queued", session="codex-thread", turn=None
@@ -1381,7 +1382,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Change this before finishing"},
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir, page.status, [comment], True, "watching", False, None, page
         )
@@ -1468,7 +1469,7 @@ def _comment_before_the_first_tool_step(
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Rename the column"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
             page_dir, page.status, [comment], True, "watching", False, None, page
         )
@@ -1570,7 +1571,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     monkeypatch.setattr(
         harness_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(harness_model.session_harness())
     claim_record_2 = service_model.page_claim(page_dir)
     assert claim_record_2 is not None

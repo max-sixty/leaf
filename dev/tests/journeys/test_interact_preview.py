@@ -27,7 +27,7 @@ from interact_support import (
 )
 
 from leaf import cli as cli_model
-from leaf import hosting, server, service
+from leaf import hosting, server, service, transaction
 from leaf.interaction_log import read_interactions
 from leaf.registry.storage import layer_record
 from leaf_dev.commands import preview
@@ -531,7 +531,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert status == 200, body
     pending = read_events(page)[-1]["id"]
     before = (page / "events.jsonl").read_bytes()
-    cursor = service.acknowledged(read_events(page))
+    cursor = transaction.acknowledged(read_events(page))
     data = read_data(page, load_registry(page))
     first = latest_revision(page)
     layer = load_registry(page)["$layer"]["generation"]
@@ -543,7 +543,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     task, resumed, _ = start(2)
     assert resumed == url
     assert (page / "events.jsonl").read_bytes().startswith(before)
-    assert service.acknowledged(read_events(page)) == cursor
+    assert transaction.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
     assert latest_revision(page) == first
     assert any(event.get("text") == "Preserved reply" for event in read_events(page))
@@ -556,7 +556,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         for event in batch["events"]
     )
     before = (page / "events.jsonl").read_bytes()
-    cursor = service.acknowledged(read_events(page))
+    cursor = transaction.acknowledged(read_events(page))
     stop(task)
 
     # A restart updates authored and runtime inputs, but never replays new seeds
@@ -571,7 +571,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert resumed == url
     assert (page / "events.jsonl").read_bytes().startswith(before)
     assert all(event["id"] != "fictional" for event in read_events(page))
-    assert service.acknowledged(read_events(page)) == cursor
+    assert transaction.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
     current = latest_revision(page)
     assert current is not None and first is not None

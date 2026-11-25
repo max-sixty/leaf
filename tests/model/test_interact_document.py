@@ -80,10 +80,10 @@ from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import samples as samples_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf import transaction as transaction_model
 from leaf.authored_checks.admission import message_markup_findings
 from leaf.authored_checks.source import check_source
 from leaf.authored_checks.source_history import predecessor_reading
@@ -2088,8 +2088,8 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2140,8 +2140,8 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
                 },
             )
         )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2184,8 +2184,8 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as page:
+    transaction_model.claim_page(page_dir)
+    with transaction_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
         delivery_model.record_pickup(
             page,
@@ -2576,7 +2576,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     _tasks_version(page_dir, "review")
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_record = service_model.PageTransaction._append_record
+    original_append_record = transaction_model.PageTransaction._append_record
 
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
@@ -2587,7 +2587,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         return original_append_record(page, event)
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "_append_record", held_append_record
+        transaction_model.PageTransaction, "_append_record", held_append_record
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")

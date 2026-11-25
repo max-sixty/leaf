@@ -9,10 +9,10 @@ import {
   readQueues,
   readThreads,
   registerThreadPresentation,
-  setChildren,
   shadowStage,
   threadActions,
 } from "/runtime/widget-api.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";

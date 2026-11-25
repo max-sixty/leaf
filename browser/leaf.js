@@ -164,7 +164,7 @@ import {
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
-import { installMoveSelection } from "./runtime/dom-move.js";
+import { installMoveSelection } from "./runtime/lib/dom-move.js";
 import { holdSelection } from "./runtime/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves

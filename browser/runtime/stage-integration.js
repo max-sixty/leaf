@@ -7,7 +7,7 @@ import { shadowRules } from "./shadow.js";
 import { chromeSheet, marksSheet } from "./stylesheets.js";
 import { watchCurrentLocationIn } from "./focus.js";
 import { installLayerStyleIntegration } from "./keyboard/layer-stack.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { watchPassageRoot } from "./passages.js";
 
 installLayerStyleIntegration((root) => {

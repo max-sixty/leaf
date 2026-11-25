@@ -85,12 +85,12 @@ import {
 import {
   focusDestination,
   holdFocus,
-  move,
   onUserInput,
   scopedMediaUrl,
   scrollIntoView,
-  setChildren,
 } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";

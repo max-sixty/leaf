@@ -31,13 +31,12 @@
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
+import { focusDestination, pageLinks } from "/runtime/widget-api.js";
 import {
-  setRenderedChildren,
   setChildLists,
   setChildren,
-  focusDestination,
-  pageLinks,
-} from "/runtime/widget-api.js";
+  setRenderedChildren,
+} from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";

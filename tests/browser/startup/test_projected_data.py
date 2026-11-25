@@ -187,7 +187,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import { nothing } from '/vendor/lit.js';
-import { setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/lib/dom-children.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-feed', class extends LeafElement {
   static properties = { value: { attribute: false } };
@@ -460,7 +460,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
 import { nothing } from '/vendor/lit.js';
-import { setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/lib/dom-children.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { offer } from '/runtime/lib/controls.js';
 customElements.define('lf-derived', class extends LeafElement {

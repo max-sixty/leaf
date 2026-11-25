@@ -35,12 +35,12 @@ import {
   focusDestination,
   holdFocus,
   langForPath,
-  move,
   threadSurface,
-  setChildren,
   shadowStage,
   scrollIntoView,
 } from "/runtime/portable-api.js";
+import { move } from "/runtime/lib/dom-move.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { failSoft } from "/runtime/lib/failure.js";

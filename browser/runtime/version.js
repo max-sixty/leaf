@@ -141,7 +141,7 @@ import {
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
-import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
+import { SourcePairs, patchTree, patchRetains } from "./lib/dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -2100,7 +2100,7 @@ export function createVersionController({
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
   // id or matching markup alone.
-  /** @param {Document} doc @returns {import("./dom-children.js").RetentionRules} */
+  /** @param {Document} doc @returns {import("./lib/dom-children.js").RetentionRules} */
   function patchRules(doc) {
     const arrivingRoot = layerRoot(doc);
     return {

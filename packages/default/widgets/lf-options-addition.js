@@ -1,7 +1,8 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
  * draft generation, and the option nodes each `add` in force puts in the group. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
-import { draft, move, wireInput, pageLinks } from "/runtime/widget-api.js";
+import { draft, wireInput, pageLinks } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,

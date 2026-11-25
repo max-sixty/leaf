@@ -79,13 +79,13 @@ import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
   elementById,
-  move,
   motion,
   focusDestination,
   scrollIntoView,
   layerFact,
   widgetController,
 } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";

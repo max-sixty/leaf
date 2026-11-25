@@ -60,8 +60,6 @@ In this file:
 
 - "Startup and presentation": `whenNear` defers heavy work until the reader comes
   near.
-- "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
-  place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
   styles.
 - "Contained examples and scoped appearance": `mountSample` mounts a contained Leaf
@@ -371,14 +369,17 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Retained nodes
 
-To place nodes the module keeps, use `setChildren(parent, nodes)`, which makes `nodes`
-the parent's only children, moving what is out of order and removing every other child,
-the whitespace between authored elements included, or `move(parent, node, before)` for
-one node. Where nodes move between parents, place every list at once with
-`setChildLists([[parent, nodes], …])`, outer parents first. For a subtree the renderer
-owns entirely, `setRenderedChildren(parent, nodes)` edits only changed text and keeps a
-text selection the user made in it. A `LeafElement` places retained nodes in its
-`render()`, which then returns `nothing`.
+To place nodes the module keeps, use the library's
+[`dom-children.js`](../../../browser/runtime/lib/dom-children.js). Its `setChildren`
+makes a list of nodes a parent's only children, moving what is out of order and
+removing every other child, the whitespace between authored elements included. Where
+nodes move between parents, `setChildLists` places every list at once, outer parents
+first. For a subtree the renderer owns entirely, `setRenderedChildren` edits only
+changed text and keeps a text selection the user made in it. For one node, use the
+browser's `moveBefore`, or the `move` of the library's
+[`dom-move.js`](../../../browser/runtime/lib/dom-move.js), which also keeps the user's
+focus in WebKit. A `LeafElement` places retained nodes in its `render()`, which then
+returns `nothing`.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page

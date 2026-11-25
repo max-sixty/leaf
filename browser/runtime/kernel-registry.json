@@ -10,6 +10,8 @@
       "/runtime/lib/control-faces.js",
       "/runtime/lib/controls.js",
       "/runtime/lib/data-body.js",
+      "/runtime/lib/dom-children.js",
+      "/runtime/lib/dom-move.js",
       "/runtime/lib/element-word.js",
       "/runtime/lib/elements.js",
       "/runtime/lib/exception.js",

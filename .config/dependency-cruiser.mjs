@@ -122,7 +122,8 @@ const applicationOwners = [
 // The renderers. Each receives the semantic commands it uses; one that reaches an
 // application owner, through however many helpers, owns state instead of drawing it.
 // The geometry and paint group adds the thread's own presenter, which composes
-// them and must stay above them.
+// them and must stay above them. A renderer in a layer below every module it must
+// not reach needs no entry, since `layering` already keeps it from them.
 const forbiddenClosures = Object.fromEntries([
   ...[
     "records/thread/folding.js",
@@ -139,8 +140,6 @@ const forbiddenClosures = Object.fromEntries([
     "records/projection/presentation.js",
   ].map((root) => [root, applicationOwners]),
   ...[
-    "readings/addressable-names.js",
-    "readings/anchor-resolution.js",
     "annotations/anchor-controls.js",
     "annotations/anchor-paint.js",
     "features/anchor-travel.js",
@@ -148,7 +147,6 @@ const forbiddenClosures = Object.fromEntries([
     "annotations/annotation-overlay/composing/drawing-paint.js",
     "annotations/annotation-overlay/margin-layout.js",
     "panel/page-geometry.js",
-    "readings/target-paint.js",
   ].map((root) => [root, [...applicationOwners, "records/thread/presentation.js"]]),
 ]);
 

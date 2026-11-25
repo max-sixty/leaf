@@ -82,7 +82,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
         expect(send).to_have_attribute("aria-disabled", "false")
         if box != "composer":
             # The panel's field shows Send only once its words hold more than space
-            # (floating-panel.js, `typing`), so its keys send the space.
+            # (panel/floating-panel.js, `typing`), so its keys send the space.
             with sending(page, f"the {box} message"):
                 field.press("ControlOrMeta+Enter")
         else:

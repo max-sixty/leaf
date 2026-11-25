@@ -236,7 +236,7 @@
       return false;
     };
     const focused = deepFocus();
-    // The box the runtime rings in the focused control's place (`ringBox`, focus.js), as
+    // The box the runtime rings in the focused control's place (`ringBox`, dom/focus.js), as
     // a choice's label rings its checkbox: it wears the focused control's ring.
     const wearer = focused && ringBox(focused);
     const { ringInk } = ringSwatch();
@@ -374,7 +374,7 @@
               who +
               ` (ring ${at(ring)} vs band ${at(band)})`;
       };
-      // `clipped` in runtime/geometry.js is this walk, and this is its shape: from the box itself
+      // `clipped` in runtime/dom/geometry.js is this walk, and this is its shape: from the box itself
       // rather than its parent, skipping the box's own band because an element is not clipped
       // by its own overflow, and stopping at the first fixed box. Its comment records what
       // starting at the parent costs — "the question of every ancestor of a fixed box and
@@ -714,7 +714,7 @@
         );
         const end = radius + grow + w + 1;
         // A focus preview stands clear of its control and of what the user could work
-        // next, and may cover the rest of the page (preview.js), such as the
+        // next, and may cover the rest of the page (annotations/preview.js), such as the
         // question around the control, so only the focused control's own ring is read
         // under it. One that lets the pointer through (`data-lf-covers`) may stand over
         // its control too, as a chart's point's words do past the chart's edge, so no

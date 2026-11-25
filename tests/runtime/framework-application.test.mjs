@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSemanticApplication } from "../../browser/runtime/framework/application.js";
-import { createPresentationCoordinator } from "../../browser/runtime/framework/presentation.js";
+import { createSemanticApplication } from "../../browser/runtime/records/framework/application.js";
+import { createPresentationCoordinator } from "../../browser/runtime/records/framework/presentation.js";
 import {
   servedGestureSequence,
   servedObligationRow,
@@ -430,7 +430,7 @@ test("widget action history excludes an action the view classifies nowhere", () 
 });
 
 test("a publication that adds no widget event keeps the coverage records", () => {
-  // The applied stamp (`projection/presentation.js`) skips its walk of the log while
+  // The applied stamp (`records/projection/presentation.js`) skips its walk of the log while
   // the records it last stamped stand, so they must be the same records until a
   // widget event joins.
   const app = setup();

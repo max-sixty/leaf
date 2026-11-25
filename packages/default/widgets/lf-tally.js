@@ -17,7 +17,7 @@ import { render as tallyTemplate } from "./tally-view.js";
  * panel's Next On Me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
  * the walk counts from the obligation the user last went to there, else the first in sight,
- * else the region's start (queue-walk.js says how). With none waiting it is disabled.
+ * else the region's start (panel/queue-walk.js says how). With none waiting it is disabled.
  *
  * One retained Lit drawing follows the server's
  * reading in the same nodes. Its room holds the widest words, both sides two digits

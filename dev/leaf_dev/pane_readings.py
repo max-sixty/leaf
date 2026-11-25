@@ -5,7 +5,7 @@ can't tell from one how much of a pane its content fills, what a pane holds past
 its own scroll, or whether the keyboard reaches it. This module reads those
 directly at each viewport the judge is given: every region Leaf scrolls inside a
 `layout-workspace` shown on arrival (the reading-region inventory,
-`reading-regions.js`), with its box, whether it scrolls itself and how many of its
+`readings/reading-regions.js`), with its box, whether it scrolls itself and how many of its
 own screens it holds, the share of its visible box farther than 16px from any text
 or drawn element, at its top and at its end, and the Tab press that first puts
 focus in it. A page with no workspace shown on arrival, such as one whose

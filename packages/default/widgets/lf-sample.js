@@ -6,7 +6,7 @@
  * a name Leaf reads is data apart from any title the page shows. The inline modes need
  * no controller; the registry owns their quotation semantics.
  * The shared host owns the child page, its independent event log and the frame's
- * height (sample.js): the frame takes its child's height, so the surrounding page
+ * height (host/sample.js): the frame takes its child's height, so the surrounding page
  * scrolls the sample like any other block and focus moves into it the way it moves into
  * any iframe, and a resize the reader did not ask for waits while it would move what
  * they see. A `window`
@@ -148,7 +148,7 @@ export class Sample extends HTMLElement {
     // A frame the reader sees as it mounts is part of what they are being shown, the
     // page arriving or a view they opened, such as a thread in the floating panel: it
     // starts at once, in the task that shows it, so that showing waits for its resize
-    // to its child (sample.js). Any other starts as it nears the window. A window
+    // to its child (host/sample.js). Any other starts as it nears the window. A window
     // keeps its height.
     if (!this.hasAttribute("window") && !this.#modal && growthIsSeen(this.#frame)) {
       this.#start();
@@ -343,7 +343,7 @@ export class Sample extends HTMLElement {
     this.#disclosure = disclosure;
   }
 
-  // Draw the frame's next document loading; the host counts its arrival (sample.js).
+  // Draw the frame's next document loading; the host counts its arrival (host/sample.js).
   /** @param {Promise<SampleReady>} promise */
   #track(promise) {
     keeps(this.#reset, "aria-disabled", "true");
@@ -354,7 +354,7 @@ export class Sample extends HTMLElement {
   // One `ready` per usable document the host promises, so a departure and the reload
   // that follows it are one wait for a selection or a page module. The sample draws
   // the document ready in the turn the host learns it is, before the document reports
-  // its arrival, which the host counts until then (sample.js). A command to the
+  // its arrival, which the host counts until then (host/sample.js). A command to the
   // document awaited first would let the page read arrived while the sample still drew
   // it loading. A posture the document doesn't stand in yet, as one changed while the
   // host was mounting, reaches it now.

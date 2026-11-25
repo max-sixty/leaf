@@ -1,11 +1,11 @@
 /* A reading kept by `kept` or `keptEach` is made again exactly when an argument it
    was read with differs, a signal it read changes, a version it read moves, or a
    reading made inside it is made again; a version that catches up does so before a
-   reading that read it is checked; and a make that threw keeps nothing (kept.js). */
+   reading that read it is checked; and a make that threw keeps nothing (state/kept.js). */
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { kept, keptEach, version } from "/runtime/kept.js";
+import { kept, keptEach, version } from "/runtime/state/kept.js";
 import { effect, signal } from "/vendor/signals-core.js";
 
 test("a reading is kept while each version it read stands, and made again once one moves", () => {
@@ -150,7 +150,7 @@ test("a version that catches up does so before a reading that read it is checked
   // As the page's watcher takes the changes the browser reports a microtask late.
   let pending = 0;
   let caughtUp = 0;
-  /** @type {import("/runtime/kept.js").Version} */
+  /** @type {import("/runtime/state/kept.js").Version} */
   const page = version(() => {
     caughtUp += 1;
     if (!pending) return;

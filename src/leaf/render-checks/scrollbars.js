@@ -42,7 +42,7 @@ const paintedBottom = (el, rect, scroller) => {
   for (; node && node !== scroller; node = renderedParent(node)) {
     const style = getComputedStyle(node);
     if (style.position === "fixed") return -Infinity;
-    // What the node lets the user see of what it holds (geometry.js, `shownBand`),
+    // What the node lets the user see of what it holds (dom/geometry.js, `shownBand`),
     // an SVG viewport's included.
     const band = style.overflowY !== "visible" && shownBand(node);
     if (band) {
@@ -81,7 +81,7 @@ export function scrollbarClearance(drawn = drawnPage()) {
     const required = Math.max(0, (px(bar.height) || 15) - allocated);
     if (!required) continue;
     // How far down the scroller's own border box the content ends, in its own pixels,
-    // carried back from the window through the scroller's frame (element-axes.js).
+    // carried back from the window through the scroller's frame (dom/element-axes.js).
     const toBox = elementBorderFrame(box).matrix.inverse();
     let last = -Infinity,
       content = "";

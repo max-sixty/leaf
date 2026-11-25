@@ -667,7 +667,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * subject after the group's `:has()` names an element, one key per selector
      * (browser/AGENTS.md, "What a style rule costs"). Options come first, so the first
      * option is the first cell, though not always the first child: a word for a screen
-     * reader, such as "my change", stands before it (declared-words.js). */
+     * reader, such as "my change", stands before it (records/declared-words.js). */
     & > lf-option:first-of-type {
       border-start-start-radius: var(--lf-r-in);
       border-start-end-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));

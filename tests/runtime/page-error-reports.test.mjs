@@ -14,7 +14,8 @@ canonical.href = "https://leaf.test/";
 document.head.append(canonical);
 // The log's door answers every report; only what reaches the console is read here.
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { reportCarried, reportPageError } = await import("/runtime/layer-client.js");
+const { reportCarried, reportPageError } =
+  await import("/runtime/transport/layer-client.js");
 const { failSoft } = await import("/runtime/lib/failure.js");
 
 let flushReports;

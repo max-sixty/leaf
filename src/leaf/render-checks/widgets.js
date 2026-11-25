@@ -95,14 +95,14 @@ export function invalidPaints() {
 
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
-// and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
+// and no others (records/widget-loader.js) — asked of the whole declared vocabulary this reports
 // every tag the page simply does not contain. `document`, not the page, so a widget in
 // an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
 /** @param {readonly string[]} modules the tags a module upgrades */
 export const missingUpgrades = (modules) =>
   modules.filter((tag) => document.querySelector(tag) && !customElements.get(tag));
-// visual-parts.js reads each declaration, so a part the gate accepts is one the page
+// state/visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
@@ -160,7 +160,7 @@ export function undeclaredAttrs(declarations) {
   // look, not a state a version could carry — and `title`, `lang` and `dir`, which
   // the page may write on any element (`markup_checks/instances.py`), describe one.
   // `part` is a look too: the runtime gives a box in a widget's shadow tree a part
-  // to anchor or focus it from the document (css-anchors.js, focus.js).
+  // to anchor or focus it from the document (dom/css-anchors.js, dom/focus.js).
   const painted = /^(?:data-|aria-)/;
   const platform = new Set([
     "role",
@@ -189,7 +189,7 @@ export function undeclaredAttrs(declarations) {
 
 // The two sides of the settlement contract, compared on the rendered page. The mark —
 // data-lf-state on a holder — is the layer's paint of a logged decision
-// (`projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
+// (`records/projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
 // retires slots by the application's reading of the same decision, never by the mark.
 // What can still go wrong is a family's, and both failures render perfectly: a module
 // that writes the mark where the log decided nothing styles words as settled that the

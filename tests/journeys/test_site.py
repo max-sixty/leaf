@@ -114,7 +114,7 @@ def open_count(page):
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
 # One runtime draws one chrome root; the boxes it nests, such as the preview's stage
-# (preview.js), wear the class too, so the sheet dresses them wherever they stand.
+# (annotations/preview.js), wear the class too, so the sheet dresses them wherever they stand.
 CHROME_ROOT = ".lf-chrome:not(.lf-chrome .lf-chrome)"
 
 

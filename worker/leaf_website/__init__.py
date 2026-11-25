@@ -1451,7 +1451,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # container. Say so at the canonical HTTP boundary as the outer Worker does;
         # the local adapter has no Worker in front of it to add the same reading. Each
         # also names the release this image runs, which the tab holds to its
-        # document's (`layer-client.js`).
+        # document's (`transport/layer-client.js`).
         return {
             "Leaf-Session": "active",
             "Leaf-Release": self.release,

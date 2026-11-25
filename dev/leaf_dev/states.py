@@ -16,8 +16,9 @@ retaining related controls without shrinking their details behind unrelated view
 changes.
 
 `leaf_dev.visits` brings each arm's tab to a state, in the engine the run chose. A
-state that engine can't reach fails with the reason, as one with an input does on the
-iOS simulator, whose Safari takes none.
+state that engine or window can't reach fails with the reason, as one with an input
+does on the iOS simulator, whose Safari takes none, and one ending on a hover does
+under a finger (`preview_shown`).
 """
 
 import json
@@ -44,7 +45,17 @@ from leaf_dev.browser import (
 )
 from leaf_dev.corpus import sources as corpus_sources
 
-OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
+# A thread the user opens stands where the window has room for it: a margin card beside
+# the column, or the floating panel's view of it on a phone, which focus enters as it
+# opens. One surface laid out for its window (see the header), so a state that opens a
+# thread waits for it in either, reads it inside either (`THREAD`) and frames either
+# (`THREAD_REGION`).
+OPEN_THREAD = (
+    "() => document.querySelector('.lf-margin-preview:not([hidden])')"
+    " || document.activeElement?.closest('.lf-fp-opened')"
+)
+THREAD = ":is(.lf-margin-preview, .lf-fp-opened)"
+THREAD_REGION = ".lf-margin-preview:visible, .lf-fp-opened:visible"
 
 
 def keyboard_modality(page: Page) -> None:
@@ -722,7 +733,17 @@ def preview_shown(page: Page) -> None:
     """Wait until the preview of what the pointer rests on has opened, which it does
     after its dwell (preview.js, `DWELL`), where the runtime draws previews at all. A
     state ending on such a hover waits here, or its still catches the preview in one
-    capture and not the next."""
+    capture and not the next.
+
+    Under a finger (`--touch`, as a phone's window has) no pointer rests, so a state
+    ending on a hover has no surface there and says so at once. Firefox, under
+    Playwright's touch emulation, sends a hover no pointer event, so its preview would
+    never open; Chromium sends a mouse's, which no phone has."""
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
+        raise AssertionError(
+            "a preview the pointer rests on: under a finger no pointer rests "
+            "(--no-touch gives this window a mouse)"
+        )
     page.wait_for_function(
         """() => {
           const tip = document.getElementById('lf-preview');
@@ -824,9 +845,10 @@ def link_preview(page: Page) -> None:
 
 
 def open_card(page: Page, marker: Locator) -> float:
-    """The margin card `marker` opens, by a click on it, returning the page's scroll
-    just before the click. The margin is fixed to the window and anchored to the page,
-    so Playwright's scroll into view leaves a marker below the window where it is: the
+    """The thread `marker` opens, by a click on it, in its margin card or the floating
+    panel's view of it on a phone (`OPEN_THREAD`), returning the page's scroll just
+    before the click. The margin is fixed to the window and anchored to the page, so
+    Playwright's scroll into view leaves a marker below the window where it is: the
     page scrolls it up instead."""
     marker.evaluate(
         "m => { const box = m.getBoundingClientRect();"
@@ -836,7 +858,7 @@ def open_card(page: Page, marker: Locator) -> float:
     settle(page)
     before = page.evaluate("scrollY")
     marker.click()
-    page.wait_for_function(OPEN_CARD)
+    page.wait_for_function(OPEN_THREAD)
     return before
 
 
@@ -923,9 +945,7 @@ def thread_by_marker(page: Page) -> None:
     marker.evaluate("m => scrollBy(0, m.getBoundingClientRect().top - innerHeight / 3)")
     settle(page)
     marker.click()
-    page.wait_for_function(
-        "() => document.activeElement?.closest('.lf-margin-preview, .lf-fp-opened')"
-    )
+    page.wait_for_function(f"() => document.activeElement?.closest('{THREAD}')")
     page.mouse.move(0, 0)
 
 
@@ -1042,12 +1062,11 @@ def card_answer_at_cap(page: Page) -> None:
 
 
 def card_by_keyboard(page: Page) -> None:
-    """The first margin card, opened by `t`, the keyboard's way to the next thread, so
-    its thread holds a visible focus."""
+    """The first thread, opened by `t`, the keyboard's way to the next thread, so its
+    thread holds a visible focus: in its margin card, or in the floating panel's view of
+    it on a phone."""
     page.keyboard.press("t")
-    page.wait_for_function(
-        "() => document.activeElement?.matches('.lf-margin-preview .lf-page-thread')"
-    )
+    page.wait_for_function(f"() => document.activeElement?.closest('{THREAD}')")
 
 
 def card_more_room(page: Page) -> None:
@@ -2744,7 +2763,8 @@ def card_message_by_keyboard(page: Page) -> None:
 
 def card_choice_by_keyboard(page: Page) -> None:
     """An option group the agent asked alone in a thread, reached by Next On Me (`m`),
-    which rings the group's frame inside the card."""
+    which rings the group's frame inside the thread's card, or inside the floating
+    panel's view of it on a phone."""
     as_agent(
         "thread",
         "create",
@@ -2763,18 +2783,19 @@ def card_choice_by_keyboard(page: Page) -> None:
     for _ in range(6):
         page.keyboard.press("m")
         settle(page)
-        if page.evaluate(
-            "() => document.activeElement?.matches('.lf-margin-preview #pr-open')"
-        ):
+        if page.evaluate(f"() => document.activeElement?.matches('{THREAD} #pr-open')"):
             return
-    raise AssertionError("Next On Me never reached the card's option group")
+    raise AssertionError("Next On Me never reached the thread's option group")
 
 
 def card_ask_by_keyboard(page: Page) -> None:
-    """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
-    ask, so the location ring stands round it inside the card's transcript."""
+    """The agent's ask in a thread, reached by Next On Me (`m`), which focuses the ask,
+    so the location ring stands round it inside the transcript of the thread's card, or
+    of the floating panel's view of it on a phone."""
     page.keyboard.press("m")
-    expect(page.locator(".lf-margin-preview [data-lf-obligation]")).to_be_focused()
+    page.wait_for_function(
+        f"() => document.activeElement?.matches('{THREAD} [data-lf-obligation]')"
+    )
     settle(page)
 
 
@@ -3893,7 +3914,7 @@ STATES = (
         "thread-choice-hints",
         card_by_keyboard,
         window=Window((1000, 838)),
-        region=".lf-margin-preview",
+        region=THREAD_REGION,
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
     State(
@@ -4190,13 +4211,13 @@ STATES = (
         "plan-card-choice-keyboard",
         "review-a-plan",
         card_choice_by_keyboard,
-        region=".lf-margin-preview",
+        region=THREAD_REGION,
     ),
     State(
         "ship-card-ask-keyboard",
         "ship-review",
         card_ask_by_keyboard,
-        region=".lf-margin-preview",
+        region=THREAD_REGION,
     ),
     State(
         "ship-card-message-keyboard",

@@ -233,7 +233,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         # Only an agent verb declares `text`.
         (_user_verb_text, "invalid-declaration", {}),
         # The user answers their own obligation; the agent's news never does.
-        (_agent_verb_answers, "awaits-verbs", {}),
+        (_agent_verb_answers, "awaits-value", {}),
         (_body_record_with_prose, "body-content", {}),
         (_body_record_with_nested_widget, "body-nested", {}),
     ],
@@ -811,18 +811,20 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
         assert found(findings, code, f"<{tag}>", **values), findings
 
 
-def test_a_local_obligation_declares_its_answered_condition(page_dir):
+def test_a_local_obligation_names_the_verb_that_answers_it(page_dir):
+    """`awaits` needs only its `value`, and one that names none is refused for that,
+    never for the `answered` composition would have written from it."""
     registry = vocabulary(page_dir)
-    registry["lf-test-task"]["awaits"] = {"value": "answer"}
+    registry["lf-options"]["awaits"] = {"when": {"settled": [False]}}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
     assert status != 0
     [refused] = found(
-        findings, "invalid-declaration", "<lf-test-task>", keyword="required"
+        findings, "invalid-declaration", "<lf-options>", keyword="required"
     )
-    assert "answered" in refused.values["reason"]
+    assert "'value'" in refused.values["reason"]
 
 
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
@@ -834,6 +836,22 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
         lambda: registry_validation.validate_registry(registry, "test registry")
     )
     assert found([finding], "answering-part", "<lf-board>", verb="move")
+
+
+def test_every_member_reads_a_member_verb_that_records_no_position(page_dir):
+    """A move's answer is where the cards stand (`empty`), not that each card moved,
+    so `every` on a position verb would read one widget two ways."""
+    registry = queue_board_registry(vocabulary(page_dir))
+    registry["lf-board"]["awaits"]["answered"]["move"] = {
+        "every": {"member": "lf-card"}
+    }
+
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert found(
+        [finding], "answering-every", "<lf-board>", verb="move", member="lf-card"
+    )
 
 
 def test_check_refuses_a_reference_naming_an_attribute_the_widget_has_not_got(

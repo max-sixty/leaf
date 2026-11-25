@@ -17,7 +17,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
-from render_cases_navigation import _publish
+from render_cases_navigation import CHIPS, _publish
 from render_harness import (
     EXAMPLES,
     RELEASE_FOCUS,
@@ -893,8 +893,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     a message's age to a resting pointer, and the message a walk landed the keyboard
     on to `K`, in its head where its age stands, or would where the message above has
     the same one, which a screen reader hears as the message's description; the
-    message's words say no time to a pointer. The panel's ages are times too. No title
-    stands beside any of them."""
+    message's words say no time to a pointer. The panel's ages are times too, and a
+    resolved thread's row says when it was resolved to the keyboard. No title stands
+    beside any of them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     listed = append_carried_log_record(
@@ -976,10 +977,166 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     page.mouse.move(0, 0)
     expect(preview).to_be_hidden()
 
-    resolved = thread_row(page, settled).locator("time")
+    row = thread_row(page, settled)
+    resolved = row.locator("time")
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
     assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
+    # The row, which the keyboard reaches and the age in it doesn't, says it too.
+    said = preview_parts(row, route="focus")[-1]
+    assert " ".join(said.split()) == "Resolved Sat, Aug 15, 2026, 6:30 PM PT"
+
+
+AGE_IN_PROSE = leaf_page(
+    "Ages",
+    '<p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z">'
+    "20 Nov, 02:10 UTC</lf-age>, and nothing has failed since. "
+    '<a id="notes-link" href="#notes">The <em>notes</em></a> say why.</p>'
+    '<h2 id="notes">Notes</h2><p>Nothing has failed.</p>',
+)
+# Whether the caret stands in the age's drawn words, as the platform says when handed
+# the age's shadow root.
+CARET_IN = """(age) => {
+  const [range] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
+  return range.startContainer.getRootNode() === age.shadowRoot;
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_age_reads_its_time_to_the_keyboard_with_no_caret(engine, request, serve):
+    """Without a caret, as in Safari, an age an author wrote in the page takes a Go-to
+    hint, which lands on it and shows its clock time at once. An activity row's age
+    takes none: the row's target previews when the row happened, as the age does to a
+    pointer, so a list of rows adds no hints."""
+    url = serve(
+        leaf_page(
+            "Ages",
+            '<p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z">'
+            "20 Nov, 02:10 UTC</lf-age>.</p>"
+            '<section id="recent"><h2>Recent</h2>'
+            '<lf-activity id="feed"></lf-activity></section>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "ts": "2026-11-21T17:05:00Z",
+            "text": "What failed last week?",
+            "anchor": {"section": "ran"},
+        },
+    )
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
+    )
+    page = open_page(browser, url, context=context)
+    preview = page.locator(PREVIEW)
+    page.locator("#feed .lf-activity-news").click()
+    target = page.locator("#feed .lf-activity-target").first
+    expect(target).to_be_visible()
+    page.mouse.move(2, 2)
+    page.locator("body").focus()
+
+    page.keyboard.press("g")
+    ages = page.locator(f'{CHIPS}[data-lf-go-to-kind="Time"]')
+    expect(ages).to_have_count(1)
+    page.keyboard.type(ages.get_attribute("data-lf-hint-code"))
+    expect(page.locator("#ran lf-age")).to_be_focused()
+    expect(preview).to_be_visible()
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    page.keyboard.press("Escape")
+
+    assert preview_parts(target, route="focus")[-1] == "Sat, Nov 21, 2026, 9:05 AM PT"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
+    """An age takes no Tab stop, and `K` reads its clock time where the caret stands on
+    it, beside it: caret browsing walks the caret into the age's words, as the
+    engine's own caret movement does here (`Selection.modify`), which Chromium names at
+    the age's edge and Firefox inside its shadow tree. The next key, which walks the
+    caret on, puts that reading away. Where focus is on something the caret isn't in,
+    `K` reads what focus is on, and a caret in the focused element's own words reads
+    that element as focus would."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
+    )
+    page = open_page(browser, serve(AGE_IN_PROSE), context=context)
+    preview = page.locator(PREVIEW)
+    age = page.locator("#ran lf-age")
+    page.evaluate(
+        """() => {
+          const words = document.getElementById('ran').firstChild;
+          getSelection().collapse(words, words.length);
+          for (let step = 0; step < 2; step++)
+            getSelection().modify('move', 'forward', 'character');
+        }"""
+    )
+    assert age.evaluate(CARET_IN)
+    page.keyboard.press("Shift+K")
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    tip = preview.bounding_box()
+    box = age.bounding_box()
+    assert tip["y"] <= box["y"] + box["height"] + 24, (tip, box)
+    assert tip["y"] + tip["height"] >= box["y"] - 24, (tip, box)
+    page.keyboard.press("ArrowRight")
+    expect(preview).to_be_hidden()
+    # A caret before the character that leads the age's words, which draws nothing,
+    # stands before the age's first figure, which the user sees.
+    age.evaluate("(age) => getSelection().collapse(age.shadowRoot.firstChild, 0)")
+    page.keyboard.press("Shift+K")
+    # A preview put away keeps its words, so only its showing says it was read again.
+    expect(preview).to_be_visible()
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    # A selection drawn from inside the age to the link's words reads the end it moves,
+    # though Chromium reports its anchor in the link's words too.
+    age.evaluate(
+        """(age) => getSelection().setBaseAndExtent(
+          age.shadowRoot.lastChild, 1,
+          document.querySelector('#notes-link em').firstChild, 2)"""
+    )
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          api.focusDestination(document.getElementById('notes-link'), 'move');
+        }"""
+    )
+    link = page.locator("#notes-link")
+    expect(link).to_be_focused()
+    assert age.evaluate(CARET_IN)
+    rendered(page)
+    expect(preview).to_be_hidden()
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+
+    # A caret in the focused link's words reads the link, as focus does, though it
+    # stands in an element inside the link: a screen reader hears it as the link's
+    # description, and the next key leaves it standing.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    link.locator("em").evaluate("(em) => getSelection().collapse(em.firstChild, 2)")
+    page.keyboard.press("Shift+K")
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+    assert "lf-preview" in link.evaluate(DESCRIBED)
+    page.keyboard.press("ArrowRight")
+    rendered(page)
+    expect(preview).to_be_visible()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

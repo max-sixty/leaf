@@ -70,13 +70,14 @@
    The module also owns the one rule for where the user is: focus while they can see it
    where the glides under way leave it (`focusPlace`), else what is on screen
    (reading-place.js, `pageReadingBlock`). A key pressed while focus is not where they
-   are lets go of it first (keyboard/controller.js), so every key acts from what they
+   are lets go of it first (page-keys/controller.js), so every key acts from what they
    see, and a revision reading where they are asks the same (reading-place.js,
    `capturePlace`; version.js). */
 import {
   clippedPlace,
   inFront,
   layoutWindow,
+  placeHolder,
   seenRect,
   showsContents,
   shownWindow,
@@ -87,13 +88,13 @@ import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling
 import {
   carriersOf,
   edgeAt,
-  holderOf,
   returnTo,
   scrollersOf,
   seenAhead,
 } from "./scroll-containers.js";
-import { hostIn, renderedParent, under, upFrom } from "./lib/shadow-tree.js";
+import { hostIn, isText, renderedParent, under, upFrom } from "./lib/shadow-tree.js";
 import { inChrome } from "./ui-marks.js";
+import { userCaret } from "./native-selection.js";
 import {
   declareFocusPlace,
   focused,
@@ -248,7 +249,7 @@ export function readingAt(column) {
     reading.setStart(text, at);
     reading.setEnd(text, at + 1);
   }
-  const holder = reading && holderOf(reading);
+  const holder = reading && placeHolder(reading);
   return holder && !inChrome(holder) && !stuckBox(holder) ? reading : null;
 }
 
@@ -256,7 +257,7 @@ export function readingAt(column) {
 // moved anything.
 /** @param {Element | Range} held @param {number} top */
 function returnPlace(held, top) {
-  const boxes = [...scrollersOf(holderOf(held))].map((box) => ({
+  const boxes = [...scrollersOf(placeHolder(held))].map((box) => ({
     box,
     was: box.scrollTop,
   }));
@@ -290,7 +291,7 @@ const keepsWords = (node) => {
 // anything.
 /** @param {Element | Range | null | undefined} node */
 export function holdPlaceOf(node) {
-  const holder = node && holderOf(node);
+  const holder = node && placeHolder(node);
   if (!node || !holder) return () => false;
   const kept = keepsWords(node);
   const top = edgeAt(node, "top");
@@ -315,7 +316,7 @@ export function holdPlaceOf(node) {
  * @param {(node: Element) => Element | null | undefined} [standIn] */
 export function holdPlace(column, standIn) {
   const reading = readingAt(column);
-  const holder = reading && holderOf(reading);
+  const holder = reading && placeHolder(reading);
   if (!reading || !holder) return () => false;
   const kept = keepsWords(reading);
   const read = edgeAt(reading, "top");
@@ -400,18 +401,22 @@ const placeOf = (node) => {
   const [scroller] = scrollersOf(place);
   return scroller && !stuckBox(place, scroller) ? place : null;
 };
-// The words a click on a focused container left the caret in, outside the box it
-// stands at. A message the user clicked in a thread is where they stand, though the
-// thread waits at its reply box. A caret in the box, or in a field the user types in,
-// is the box's or field's, since typing and a send rewrite the words there.
+// The caret a click on a focused container's words left (`userCaret`), where it
+// stands in their text outside the box the container stands at, else null. A message
+// the user clicked in a thread is where they stand, though the thread waits at its reply
+// box, and so is an age or a formula in the message, whose words a shadow root draws. A
+// caret in the box, or in a field the user types in, is the box's or field's, since
+// typing and a send rewrite the words there.
 /** @param {Element} node */
 const caretWords = (node) => {
-  const text = getSelection()?.focusNode;
-  return text instanceof Text &&
-    text.length &&
-    node.contains(text) &&
-    !boxStoodAt(node)?.contains(text)
-    ? text
+  const at = userCaret();
+  const box = boxStoodAt(node);
+  return at &&
+    isText(at.node) &&
+    at.node.length &&
+    under(at.node, node) &&
+    !(box && under(at.node, box))
+    ? at
     : null;
 };
 // Where the user on `node` stands: on the words a click there left the caret in, else at
@@ -419,21 +424,16 @@ const caretWords = (node) => {
 // reply box, else on `node` itself.
 /** @param {Element} node @returns {Element} */
 export const standingAt = (node) =>
-  caretWords(node)?.parentElement ?? boxStoodAt(node) ?? node;
+  caretWords(node)?.element ?? boxStoodAt(node) ?? node;
 // The caret a click on a focused container's words leaves (`caretWords`), where it lies
 // in what the container shows: the letter after it, which the keep holds as it holds
 // words at the reading line, so the message stays as a message above it grows or an
 // answer joins below it, and the box moves.
 /** @param {Element} node @returns {Range | null} */
 const caretPlace = (node) => {
-  const text = caretWords(node);
-  const selection = getSelection();
-  if (!text || !selection) return null;
-  const at = Math.min(selection.focusOffset, text.length - 1);
-  const caret = document.createRange();
-  caret.setStart(text, at);
-  caret.setEnd(text, at + 1);
-  const holder = holderOf(caret);
+  const caret = caretWords(node)?.letter;
+  if (!caret) return null;
+  const holder = placeHolder(caret);
   if (!holder || !seenRect(caret, new Map())) return null;
   const [scroller] = scrollersOf(holder);
   return scroller && !stuckBox(holder, scroller) ? caret : null;
@@ -483,7 +483,7 @@ export function holdUserPlace() {
     if (acted) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
-      const holder = holderOf(place);
+      const holder = placeHolder(place);
       const carriers = [...carriersOf(holder)];
       if (carriers.some((box) => browserScrolls(box) || chosenSince(box, choices)))
         return;

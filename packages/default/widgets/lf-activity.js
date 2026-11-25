@@ -3,7 +3,7 @@ import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
- * reading of `readHistory` restates the whole feed. A row says who acted (You for the
+ * reading of `readHistory` restates the whole feed. A row says who acted (Me for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *
@@ -38,7 +38,6 @@ import { createActivity } from "./activity-view.js";
 import {
   HeldReading,
   tabStore,
-  ago,
   anchorLabel,
   elementById,
   layerFact,
@@ -175,7 +174,6 @@ customElements.define(
       return this.#drawing.render(reading, {
         printing: this.#printing,
         names: elementById,
-        age: ago,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
           if (thread) void threadActions.open(thread.key, { part: "thread" });

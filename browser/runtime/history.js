@@ -66,7 +66,16 @@
  * A revision's reload is a reload, so it returns to this record too; its handoff
  * (version.js) adds only what history never puts back: each reading region's place,
  * the values typed, the words being written with their native editing session, the
- * comparison and the pointer. The record's thread opens where the user stands, moving
+ * comparison and the pointer. Both hold where the user was writing, and the handoff's
+ * is the newer, since words typed through the reload move its caret (bootstrap.js,
+ * `typeBack`). Focus on a control of the page's own is the handoff's to put back, with
+ * its caret where the control has one; the record's return leaves focus there and
+ * returns only the selection (`returnTo`). A draft's box stays the record's: its return
+ * reopens the box and puts the user in it, and the handoff's restore, which runs after,
+ * moves the caret to where the handoff has it (version.js, `restoreEditingContinuity`).
+ * The two aren't one rule because that restore declines once another tab has rewritten
+ * the draft, while the record's return, which doesn't check the draft, still puts the
+ * user in the box, with the caret where the record had it. The record's thread opens where the user stands, moving
  * no scroller, so a card whose passage the revision hid opens in the floating panel
  * (thread/address.js, `claim`). The panel's hold of where the user stepped in from
  * (`readPlace`) reads the same page place, focus identity and thread reading, and stays
@@ -92,7 +101,7 @@
  * it applies a same-document traversal"). Scroll anchoring holds that block still
  * through a change above it, but a change inside it in that frame moves it as the
  * browser does, and a pinned block
- * stays put while the browser scrolls. The claimant and travel read the page before
+ * stays put while the browser scrolls. The view's reveal and travel read the page before
  * the browser applies the traversal, while it still hides what the user hid since.
  * Rejected: placing only after the browser applies the traversal, which let Firefox
  * and WebKit reveal a root view's target before travel read the page, and let a quick
@@ -106,17 +115,18 @@
  * Without a record, the browser restores its saved offset, except that
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
- * So every same-document traversal comes through here, through the Navigation API. An
- * owner that claims the destination (`claimTraversals`) can reveal and place the page
- * itself, as a root tab set does for the entry of each of its views. Travel takes the
- * traversal after any claimant (`mountHistory`'s `returnToFragment`, anchor-travel.js)
+ * So every same-document traversal comes through here, through the Navigation API.
+ * Where the entry's fragment names a place in another of the page's views, such as a
+ * root tab set's, that view is revealed first (`mountHistory`'s `view`, views.js), and
+ * the entry's record then returns the user to where they were in it. Travel takes the
+ * traversal after that (`mountHistory`'s `returnToFragment`, anchor-travel.js)
  * where the entry's fragment still names a place the page doesn't show, such as a
- * widget's key whose part the widget no longer draws inside the view a tab set has
- * just opened: the record was read over a page that has changed, so travel reveals
+ * widget's key whose part the widget no longer draws inside the view just
+ * opened: the record was read over a page that has changed, so travel reveals
  * the place and lands on it. Any other traversal is
  * intercepted to restore its record, or the browser's saved offset
- * for an entry without one. Back and Forward restore that place after its
- * owner has revealed the view, so the next command reads the returned place from the browser.
+ * for an entry without one. Back and Forward restore that place after the
+ * view is shown, so the next command reads the returned place from the browser.
  * A record is where the user was, never a reading of where they are now; a newer
  * gesture cancels a delayed return, and what it names that the page no longer draws
  * is not returned to.
@@ -126,8 +136,8 @@
  * fragment names an element of the page, and lands it through the browser's own
  * fragment placement rule once travel has cleared and revealed the way; any other fragment
  * keeps native landing. An entry this document writes through `pushEntry` or
- * `replaceEntry`, as travel and a tab set do, is not a fragment navigation and is never
- * claimed. */
+ * `replaceEntry`, as travel and a switch between the page's views do, is not a fragment
+ * navigation and is never claimed. */
 
 import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
 import { setScroll } from "./arrivals.js";
@@ -205,11 +215,8 @@ import { reloadDocument } from "./layer-client.js";
  * thread: ViewReading | null, list: RecordList | null}} EntryRecord
  * @typedef {import("./thread/address.js").OpenThread} OpenThread
  * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
- * @typedef {(url: URL) => TraversalHandler | null | undefined} TraversalClaim
  * @typedef {(url: URL, record: EntryRecord | null, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null | undefined} ThreadClaim
  */
-/** @type {Set<TraversalClaim>} */
-const claims = new Set();
 
 // The user's working place, read once as they step into the floating panel, whose
 // place-keeping commands hand it back. `focus` is the node they had focused, when the
@@ -433,15 +440,19 @@ function readingIndex(reading, node, offset) {
   return start === undefined ? null : start + at;
 }
 
-// Put the user back where a record says they were, once the claimants have revealed
-// what the entry shows and the page stands where the record places it: at the reading
+// Put the user back where a record says they were, once the views the entry names
+// stand open and the page stands where the record places it: at the reading
 // they had in the open thread's view, then on what focus was on (carry.js,
 // `focusByKey`), or, where the page no longer draws it, at the reading place beside the
 // page's landmark, unless focus was in the floating panel's list, which the address's
 // claim has shown standing on its row (thread/address.js). The return settles once they
-// are there, so a command acting on the returned place awaits it.
-/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent */
-async function returnTo(record, intent) {
+// are there, so a command acting on the returned place awaits it. Where the arrival's
+// handoff puts focus back on a control of the page's own itself (`returnsFocus`
+// false), focus and its caret are the handoff's, so the return leaves focus where the
+// handoff put it and returns the selection only where no caret is the selection
+// (version.js, `installArrival`).
+/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
+async function returnTo(record, intent, returnsFocus = true) {
   const open = threadParts?.open() ?? null;
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   if (record.thread && drawing) showReading(drawing, record.thread);
@@ -455,12 +466,22 @@ async function returnTo(record, intent) {
     return;
   }
   const thread = key?.thread === null ? (open?.id ?? null) : key?.thread;
-  const focus =
-    key && thread !== null
+  // Focus that puts the user somewhere: on a drawn element, not the page's body, whether
+  // the record returns it or the handoff did, which finds nothing where the revision
+  // dropped the control.
+  /** @param {Element | null} target */
+  const lands = (target) =>
+    target !== null && target !== document.body && presented(target);
+  const handed = deepFocus();
+  const focus = !returnsFocus
+    ? lands(handed)
+      ? handed
+      : null
+    : key && thread !== null
       ? focusByKey(
           /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
           drawingOf,
-          (target) => target !== document.body && presented(target),
+          lands,
         )
       : null;
   // A field's caret is its whole selection, and clearing the document's would
@@ -572,8 +593,8 @@ export function pushEntry(url, state = null) {
 // A rename renames the entry the user is on, at `url`, or at its own address where
 // `url` is absent. One asked for while a navigation is under way waits for it to end,
 // since a history write aborts the navigation in Chromium and Firefox alike, and a
-// rename is no step of the user's that should end one, as a tab set naming the view a
-// traversal's claimant opened would end that traversal before its place came back. It
+// rename is no step of the user's that should end one, as naming the view a traversal
+// revealed would end that traversal before its place came back. It
 // renames only the entry it was asked on: where a newer navigation has moved the user to
 // another, it is dropped. Without `state`, the entry keeps its own, read when the rename
 // is written. A rename that would change nothing writes nothing, and one the browser
@@ -631,18 +652,14 @@ export function prepareEntry() {
   };
 }
 
-// `claim(url)` returns the handler that reveals the destination of a traversal, or
-// nothing when the entry is not the claimant's. The first claim to answer takes it. The
-// thread view the entry names opens or goes after it, whoever claimed the traversal
-// (`mountHistory`).
-// A handler places the viewport itself unless it resolves to false, handing placement
-// back to the entry's record (or the browser for an entry without one).
-// Travel follows it where the entry's fragment names a place its view doesn't show.
-/** @param {TraversalClaim} claim @param {{signal?: AbortSignal}} [options] */
-export function claimTraversals(claim, { signal } = {}) {
-  claims.add(claim);
-  signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
-}
+// The view of the page a traversal's entry names (views.js, `entryView`): the handler
+// that reveals it, or nothing where the entry names none or it already shows. A
+// handler places the viewport itself unless it resolves to false, handing placement
+// back to the entry's record (or the browser for an entry without one), as this one
+// does. Travel follows it where the entry's fragment names a place the view doesn't
+// show.
+/** @type {((url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null) | null} */
+let entryView = null;
 
 // The thread view an entry names (thread/address.js): `claim` opens it or puts it away
 // on a traversal, as it reads the entry's record, and resolves to false, since it places
@@ -752,25 +769,27 @@ export const pendingRestoration = () => restoring;
 // (version.js, `installArrival`), returning to the record where it calls for it
 // (`returnToRecord`), then settled.
 /** @param {Restoration} restoration
- * @param {(returnToRecord: () => Promise<void>) => Promise<void>} land */
+ * @param {(returnToRecord: (returnsFocus?: boolean) => Promise<void>) => Promise<void>} land */
 export const arrive = (restoration, land) =>
-  restoration.run(() => land(() => returnToRecord(restoration)));
+  restoration.run(() =>
+    land((returnsFocus) => returnToRecord(restoration, returnsFocus)),
+  );
 
 // Return to an arrival's record once the page has presented, as a traversal within the
 // document returns to its destination's: the page placed by its record, the thread or
 // list the entry shows opened by the URL's claim (thread/address.js), then where the user
 // was in it (`returnTo`).
-/** @param {Restoration} restoration */
-async function returnToRecord({ record, intent }) {
+/** @param {Restoration} restoration @param {boolean} [returnsFocus] */
+async function returnToRecord({ record, intent }, returnsFocus) {
   await afterPresentation(() => undefined);
   if (!record || !intent()) return;
   if (record.page && placesPage(record.page)) restorePlace(record.page, null, intent);
-  await claimAndReturn(new URL(location.href), record, intent);
+  await claimAndReturn(new URL(location.href), record, intent, returnsFocus);
 }
 // The thread view `url` names opened or put away by its claim (thread/address.js), then
 // the user put back where `record` says they were (`returnTo`), under `intent`.
-/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent */
-async function claimAndReturn(url, record, intent) {
+/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
+async function claimAndReturn(url, record, intent, returnsFocus) {
   /** @type {unknown} */
   let work;
   intent.handoff(() => {
@@ -779,13 +798,14 @@ async function claimAndReturn(url, record, intent) {
   await work;
   if (!record || !intent()) return;
   intent.handoff(() => {
-    work = returnTo(record, intent);
+    work = returnTo(record, intent, returnsFocus);
   });
   await work;
 }
 let mounted = false;
 /** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
  * returnToFragment: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null | undefined,
+ * view: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null,
  * thread: {claim: ThreadClaim, open: () => OpenThread | null,
  * focusTarget: (id: string, part: "thread" | "reply") => Element | null,
  * name: (url: URL) => URL}, list: () => RecordList | null,
@@ -793,12 +813,14 @@ let mounted = false;
 export function mountHistory({
   followFragment,
   returnToFragment,
+  view,
   thread,
   list,
   draft,
 }) {
   if (mounted) return;
   mounted = true;
+  entryView = view;
   threadParts = thread;
   nameThread = thread.name;
   threadClaim = thread.claim;
@@ -828,13 +850,13 @@ export function mountHistory({
       const record = /** @type {EntryRecord | undefined} */ (
         event.destination.getState()
       );
-      const claim = claimed(url);
       const restoration = beginRestoration(
         record ?? null,
         retainUserIntent({ count: entryInputCount }),
         event.signal,
       );
       const mayReturn = restoration.intent;
+      const claim = entryView?.(url, mayReturn) ?? null;
       const applied = traversalApplied(event.signal);
       const traverse = async () => {
         // A traversal taken while the page still starts returns once it has presented.
@@ -851,9 +873,9 @@ export function mountHistory({
         for (const box of scrollers) stopGlide(box);
         await stopBrowserScroll(scrollers);
         if (!mayReturn()) return;
-        // The claimant reveals its view first, so travel reads the place the fragment
-        // names in the page that view leaves. Either one places the viewport unless it
-        // resolves to false.
+        // The view the entry names is revealed first, so travel reads the place the
+        // fragment names in the page that view leaves. Either one places the viewport
+        // unless it resolves to false.
         /** @type {unknown} */
         let work;
         mayReturn.handoff(() => {
@@ -943,13 +965,4 @@ function traversalApplied(signal) {
     }),
   );
   return Promise.race([applied, aborted(signal)]);
-}
-
-/** @param {URL} url */
-function claimed(url) {
-  for (const claim of claims) {
-    const handler = claim(url);
-    if (handler) return handler;
-  }
-  return null;
 }

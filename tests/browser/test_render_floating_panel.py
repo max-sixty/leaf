@@ -68,7 +68,7 @@ from render_harness import (
 )
 from render_harness import leaf_page as titled_page
 
-from browser.threads import choose_threads_in_panel, dispatch_paste, paste_image
+from browser.threads import dispatch_paste, paste_image
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
@@ -76,7 +76,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import open_on_me, panel_tab
+from leaf_dev.browser import choose_threads_in_panel, open_on_me, panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, near, settled
 
 OBLIGATION_PAGE = leaf_page(
@@ -597,8 +597,9 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
 
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
     """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
-    opened on a message is a rung below it, so Escape hands the caret back to the
-    field, and Save leaves the user on the thread's view, as a send does; ↑ from the
+    ↑ opens from it is a rung below it, so Escape hands the caret back to the field,
+    and Save leaves the user on the thread's view, as a send does; one opened on the
+    message itself returns to its Edit control instead. ↑ from the
     empty field opens the rewrite of the user's last message, and ↑ from the start of
     an unchanged rewrite the message before. Resolve leaves the reply as a card's does,
     and the field says how to reopen the thread."""
@@ -626,13 +627,15 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     expect(thread).to_be_visible()
     rewrite = thread.locator(".lf-msg-editor leaf-text")
 
-    # A rewrite opened on the message itself is a rung below the reply box too.
-    thread.locator(".lf-msg-body", has_text="What about the second cohort?").dblclick()
+    # A rewrite opened on the message itself returns to the message's Edit control.
+    second = thread.locator(".lf-msg", has_text="What about the second cohort?")
+    second.locator(".lf-msg-body").dblclick()
     expect(rewrite).to_be_focused()
     page.keyboard.press("Escape")
     expect(rewrite).to_have_count(0)
-    expect(field(page)).to_be_focused()
+    expect(second.locator(".lf-msg-edit")).to_be_focused()
 
+    field(page).focus()
     page.keyboard.press("ArrowUp")
     expect(rewrite).to_be_focused()
     expect(rewrite).to_have_js_property("value", "What about the second cohort?")
@@ -2651,7 +2654,7 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     stop at the page's foot while Threads is still opening over it puts the view away,
     as it does once the view stands open, and the stop ends in sight."""
     # The Tab leaves a stop the view never covers, above where it comes to rest: a key
-    # pressed on a stop the user can't see lets go of it first (keyboard/controller.js).
+    # pressed on a stop the user can't see lets go of it first (page-keys/controller.js).
     foot = (
         '<p><button id="before">Before the foot</button></p>'
         '<div style="height:450px"></div>'
@@ -6236,6 +6239,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Home")
+    page.keyboard.press("ArrowLeft")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]

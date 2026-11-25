@@ -3,7 +3,7 @@ import { sampleNotice } from "../sample-child.js";
    the one press that lets go of it, and the foot of the Escape ladder.
 
    Everything else the page answers is declared by the owner that implements it and joins
-   the stack through `register.js`. This file keeps the document's own parts — a link, a
+   the stack through `keyboard/register.js`. This file keeps the document's own parts — a link, a
    disclosure — and the presses that are nobody's capability: the browser's caret
    browsing and its Back and Forward, letting go of whatever the user is on, and
    backing out of the chrome onto the page.
@@ -19,12 +19,12 @@ import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
 import { heldObligation } from "../current-target.js";
 import { leavesBox } from "../thread/landing.js";
-import { claimsEsc } from "./scopes.js";
-import { MAC, nativePress } from "./bindings.js";
+import { claimsEsc } from "../keyboard/scopes.js";
+import { MAC, nativePress } from "../keyboard/bindings.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "./disclosure.js";
-import { nativeModes } from "./layer-stack.js";
-import { LINK } from "./text-entry.js";
-import { pageCommand, pageRung, pageScope } from "./register.js";
+import { nativeModes } from "../keyboard/layer-stack.js";
+import { LINK } from "../keyboard/text-entry.js";
+import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
 // Where the user is , when what they are on is one of the page's own
 // parts rather than a widget's own declaration. A widget's control scope cannot cover
@@ -42,7 +42,7 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
 // second copy of it is wrong.
-/** @param {string} name @param {string} title @param {string} sel @param {readonly import("./bindings.js").Command[]} rows */
+/** @param {string} name @param {string} title @param {string} sel @param {readonly import("../keyboard/bindings.js").Command[]} rows */
 function currentLocationOn(name, title, sel, rows) {
   const at = () => {
     const el = focused();

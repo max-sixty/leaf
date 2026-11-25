@@ -745,7 +745,7 @@ _TEXT = {
     "no-runtime": _fails(
         _SERVES,
         lambda at, v: (
-            "the runtime never injected its chrome — "
+            "the runtime never started — "
             + (_explained(v["console"]) or "and no console message explains why")
         ),
     ),
@@ -1599,12 +1599,6 @@ _TEXT = {
     "unknown-output-contract": _declared(
         lambda v: f"`outputs` `{v['output']}` names unknown contract {v['contract']!r}"
     ),
-    "data-reference": _declared(
-        lambda v: (
-            f"input `{v['input']}` (`inputs`) reference `{v['attr']}` must name an"
-            " element relation in `refers`"
-        )
-    ),
     "data-source": _declared(
         lambda v: (
             f"input `{v['input']}` (`inputs`) source attribute `{v['attr']}` is"
@@ -1745,8 +1739,8 @@ _TEXT = {
     ),
     "record-unit": _declared(
         lambda v: (
-            f"verb `{v['verb']}` (`verbs`) record `{v['kind']}` requires unit:"
-            f" {v['unit']!r}"
+            f"verb `{v['verb']}` (`verbs`) names a `unit` its `{v['kind']}` record"
+            f" already decides ({v['unit']!r}); leave `unit` out"
         )
     ),
     "record-within": _declared(
@@ -1835,7 +1829,17 @@ _TEXT = {
     ),
     "answering-part": _declared(
         lambda v: _answering(
-            v, "folds on a part rather than the widget, so its condition needs `empty`"
+            v,
+            "folds on a part rather than the widget, so `awaits.answered` gives"
+            " it a condition with `empty` or `every`",
+        )
+    ),
+    "answering-every": _declared(
+        lambda v: _answering(
+            v,
+            f"requires every <{v['member']}>, but `every` needs a verb kept per"
+            " member with no position record and no `empty` beside it, and a"
+            " member that lists this widget in `owners` and requires `id`",
         )
     ),
     "answering-position": _declared(
@@ -2243,7 +2247,7 @@ _TEXT = {
             " markup now places its unit; move it again instead"
         ),
     ),
-    # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
+    # A to-do, a start and an ending (`todos.todo_error`, `work.widget_seat_error`).
     "not-a-widget": _refuses(
         _NAMES, lambda at, v: f"{v['widget']!r} is not a widget on this page"
     ),
@@ -2408,9 +2412,9 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
-    # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
+    # The thread and task commands' refusals (`thread`, `tasks.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
-    # (`validation.admission.logged_id`), and `answer` the command that answers an
+    # (`authored_checks.admission.logged_id`), and `answer` the command that answers an
     # owed update (`activity.answer_command`).
     "unknown-comment": _refuses(
         _NAMES,

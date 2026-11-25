@@ -56,7 +56,7 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -864,8 +864,15 @@ diff --git a/README.md b/README.md
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
-    # The thread's view goes to the line it quotes with Show on page.
+    # The thread's view goes to the line it quotes with Show on page. Its row in
+    # Threads brings the line into view as it opens the view, so the search hides it
+    # again first.
     first_thread_head(page, serve.page_dir)
+    expect(search).to_have_value("")
+    search.fill("nothing-matches")
+    expect(added).to_be_hidden()
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    expect(added).not_to_be_in_viewport()
     page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
@@ -874,10 +881,9 @@ diff --git a/README.md b/README.md
     expect(inline).to_have_count(1)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     panel_settled(page, open=False)
-    # It lands in the thread's reply there, as the field it left was; Escape steps out
-    # onto the thread, so the line can be selected.
-    expect(inline.locator(".lf-thread-reply leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
+    # Show on page chose cards for threads, so it lands on the thread there, where the
+    # panel's field shows that choice's notice (thread/focus.js, `openingPart`).
+    expect(inline.locator(".lf-page-thread")).to_be_focused()
 
     selected = added.evaluate(
         """line => {
@@ -1057,9 +1063,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     expect(panel_status).to_have_count(0)
 
     # The keyboard reaches the seat directly and through the comment note, without
-    # opening the thread in the panel.
+    # opening the thread in the panel, once the tab opens threads beside their
+    # passages again: opening the panel's view chose the panel for them.
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    choose_threads_in_panel(page, on=False)
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)

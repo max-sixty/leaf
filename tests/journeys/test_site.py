@@ -29,7 +29,6 @@ import pytest
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "Waits".
-from browser.threads import choose_threads_in_panel
 from conftest import LENT_LINKED_DIRS
 from interact_support import declared, running_http_server, wait_for
 from PIL import Image
@@ -77,7 +76,12 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
-from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
+from leaf_dev.browser import (
+    PANEL_THREAD,
+    choose_threads_in_panel,
+    panel_tab,
+    show_resolved,
+)
 from leaf_dev.commands.site import _build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
@@ -1677,8 +1681,10 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # The thread holding the words just written, rather than whichever is first:
     # an example that ships a log opens with threads already in the panel, and
     # theirs would be first. triage-board ships none today, so `.first` was
-    # right by accident and would stop being on the day it does.
+    # right by accident and would stop being on the day it does. Its row opens it in
+    # the panel's view once the tab chooses the panel for threads about a passage.
     def written():
+        choose_threads_in_panel(page)
         open_threads(page)
         page.locator(".lf-fp-thread").filter(
             has_text="Can the migration fix ship first?"

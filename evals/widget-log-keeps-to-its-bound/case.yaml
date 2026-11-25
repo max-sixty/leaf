@@ -1,0 +1,42 @@
+# An author new to Leaf asked for a widget that shows a growing log in a box of its own,
+# following the newest line until the reader scrolls back, is pulled to build that in the
+# module: a scroller in the stylesheet, a check for whether the reader is at the bottom,
+# and a `scrollTop` written after each draw. Leaf already does it from one key of the
+# tag's declaration, `bound: "end"`, which it reads before any module runs: the box opens
+# at its end before the page is presented, follows the newest line while the reader is
+# there, and is still following after a revision. `module-scroll-and-motion.md`,
+# "Scrolling", sends a widget's scrolling box to the key, and `page-layout.md`, "Bounds
+# and widths", says what each value does.
+description: widget-log-keeps-to-its-bound
+metadata:
+  purpose: A widget whose box scrolls and follows its newest entry declares Leaf's bound rather than scrolling itself.
+  tags:
+    - packages
+    - package-interface
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-build-log, that shows a CI job's console
+    output while the job runs. Each time the job prints, the widget gets the whole
+    log so far as an array of lines; take that part as given. A log can reach
+    thousands of lines, so the widget keeps to about 24 lines' height and never
+    makes the page longer. While the reader is at the bottom, it keeps the newest
+    line in view. If they scroll up to read an earlier error, it leaves them there
+    as lines keep arriving, and once they scroll back to the bottom it follows the
+    newest line again. Show the registry entry, the module's JavaScript and its
+    stylesheet.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if Leaf bounds the box and follows its end: the registry entry
+      declares `"bound": "end"` (a `data-bound="end"` that the entry's example and
+      instructions write on every occurrence also counts), and the module writes no
+      scroll position of its own. The stylesheet may choose the bounded box's height,
+      as with `max-block-size` or `--lf-bound`, and may name an inner box as the one
+      that scrolls with `--lf-bound-box`.
+      Fail if the entry declares no bound; if the module follows the newest line
+      itself, by writing `scrollTop`, calling `scrollTo`, `scrollBy` or
+      `scrollIntoView`, or tracking whether the reader is at the bottom; or if the
+      lines scroll in a box inside the widget that no `--lf-bound-box` names, which
+      Leaf doesn't follow.
+      Execution is unavailable, so not running checks is not a failure.

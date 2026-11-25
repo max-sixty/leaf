@@ -3,7 +3,7 @@
 from jsonschema.exceptions import SchemaError
 
 from leaf.findings import Finding
-from leaf.schema import DECLARATION_SCHEMA
+from leaf.schema import DECLARATION_SCHEMA, INPUT_BINDINGS
 
 from .contract import (
     body_is_data,
@@ -238,9 +238,13 @@ def _validate_widget_structure(
             raise registry_error(
                 "reading-role-attr", path, tag, role=layout, attr="label"
             )
+    # `leaf data set` validates a source's value against its contract, so an input
+    # that can bind a source names a contract this vocabulary declares. An input that
+    # only reads another widget's output matches that output by the contract's name,
+    # and the package holding the output declares the contract.
     for input_name, spec in entry.get("inputs", {}).items():
         contract = spec["contract"]
-        if contract not in data["contracts"]:
+        if "source" in spec and contract not in data["contracts"]:
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
             )
@@ -252,13 +256,6 @@ def _validate_widget_structure(
                 tag,
                 output=output_name,
                 contract=spec["contract"],
-            )
-    for input_name, spec in entry.get("inputs", {}).items():
-        if (reference := spec.get("reference")) and reference not in entry.get(
-            "refers", {}
-        ):
-            raise registry_error(
-                "data-reference", path, tag, input=input_name, attr=reference
             )
     # A `refers` attribute the widget hasn't got leaves the widget out of every pass
     # that reads it, with no error anywhere, so the door refuses it.
@@ -326,7 +323,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     data_bindings = {
         spec[key]
         for spec in entry.get("inputs", {}).values()
-        for key in ("source", "reference")
+        for key in INPUT_BINDINGS
         if key in spec
     }
     if dynamic := sorted(data_bindings & mutable_values):
@@ -342,11 +339,13 @@ def _validate_widget_interactions(
 ) -> None:
     answered = awaits.get("answered", {})
     # The user answers their own obligation, so only a verb the user writes can answer it.
+    # `value` is asked first: composition writes it into an `answered` the declaration
+    # left out, and a refusal should name what the author wrote.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
-    if unknown := sorted(set(answered) - user_verbs):
-        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
+    if unknown := sorted(set(answered) - user_verbs):
+        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")

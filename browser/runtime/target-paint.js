@@ -1,5 +1,6 @@
 /* The marks a gesture or the user's place puts on a box of the page: the Alt aim, the
- * margin trace, the proxy ring and the location ring.
+ * margin trace, the proxy ring and the location ring, and the stamp on the decision the
+ * user stands in, which draws nothing of its own (`paintLocation`).
  *
  * Each is an attribute on the box it marks (page-paint.js, `RUNTIME_PAINT_ATTRIBUTE`),
  * and the box draws the mark itself, as its own outline, or as its border image where
@@ -11,30 +12,28 @@
 
 import { nextRender } from "./lib/frame-pass.js";
 import { move } from "./dom-move.js";
-import { keeps } from "./lib/keeps.js";
+import { keeps, keepsOnEach } from "./lib/keeps.js";
 import { inkedBox, markedBox, readMarkerSides, shownParts } from "./geometry.js";
-import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { renderedUnder } from "./lib/shadow-tree.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 import { inChrome } from "./ui-marks.js";
 
 // One mark: an attribute on what it marks at a time (page-paint.js), which is each box
-// the element shows through (`shownParts`), so an element with no box of its own, such
-// as a section styled `display: contents`, is marked on the boxes it shows. A layout
-// change can replace those boxes, so `refresh` reads them again.
-/** @param {string} attribute */
-function markOne(attribute) {
+// the element shows through (`shownParts`), or the boxes `boxesOf` names, so an
+// element with no box of its own, such as a section styled `display: contents`, is
+// marked on the boxes it shows. A layout change can replace those boxes, so `refresh`
+// reads them again.
+/** @param {string} attribute @param {(element: Element) => Element[]} [boxesOf] */
+function markOne(attribute, boxesOf = shownParts) {
   /** @type {Element | null} */
   let target = null;
-  /** @type {Element[]} */
-  let marked = [];
+  const paint = keepsOnEach(attribute);
   function draw() {
-    const boxes = target?.isConnected ? shownParts(target) : [];
+    const boxes = target?.isConnected ? boxesOf(target) : [];
     const sideMarkers = readMarkerSides(boxes);
-    for (const box of marked)
-      if (!boxes.includes(box)) box.toggleAttribute(attribute, false);
+    paint(new Map(boxes.map((box) => [box, ""])));
     sideMarkers();
-    for (const box of boxes) box.toggleAttribute(attribute, true);
-    marked = boxes;
   }
   return {
     /** @param {Element | null} element */
@@ -43,6 +42,7 @@ function markOne(attribute) {
       draw();
     },
     refresh: () => target && draw(),
+    marks: () => target,
   };
 }
 
@@ -141,51 +141,60 @@ export function paintTrace(element, surface = element) {
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintProxyRing(element, surface = element) {
   proxyMark.mark(element && surface?.isConnected ? surface : null);
+  locationMark.refresh();
 }
 
-/** @type {Element | null} */
-let locationElement = null;
-let locationFrame = 0;
-/** @type {Element[]} */
-let locationProjected = [];
-const PROJECTED_LOCATION = RUNTIME_PAINT_ATTRIBUTE.location;
+// The decision the user stands in, and each box it shows through.
+/** @param {Element} element */
+const decisionBoxes = (element) => [element, ...shownParts(element)];
+const locationMark = markOne(RUNTIME_PAINT_ATTRIBUTE.location, (element) =>
+  locationStandsDown(element) ? [] : decisionBoxes(element),
+);
+// `data-lf-obligation` stamps the decision whether or not its ring shows, so what
+// reads it, such as a landing's room for the ring (chrome.css), finds the decision
+// while a focus ring inside it stands the ring down.
+const paintDecision = keepsOnEach(RUNTIME_PAINT_ATTRIBUTE.obligation);
 
-// The location ring round `element`, the decision the user stands in, or none
-// (obligations/view.js, `markHere`). Each box the decision shows through draws it, as
-// it would its focus ring, so it is also the focus ring of a decision the user arrived
-// on, and the focus floor draws none of its own there (surfaces.css). A control inside
-// the decision that carries the location itself stands it down (page-paint.js,
-// `locationStandsDown`).
+// Stamps `element`, the decision the user stands in (obligations/view.js, `markHere`),
+// or none, and draws the location ring round it. Each box the decision shows through
+// draws the ring, as it would its focus ring, so it is also the focus ring of a
+// decision the user arrived on, and the focus floor draws none of its own there. A
+// trace or focus mark on a ringed box draws the ring (surfaces.css). A focus ring
+// inside the decision stands it down (`locationStandsDown`).
 /** @param {Element | null} element */
 export function paintLocation(element) {
-  locationElement = element;
-  drawLocation();
+  paintDecision(
+    new Map(element ? decisionBoxes(element).map((box) => [box, "1"]) : []),
+  );
+  locationMark.mark(element);
 }
 
-function drawLocation() {
-  const element = locationElement;
-  const boxes =
-    element?.isConnected && !locationStandsDown(element)
-      ? [element, ...shownParts(element)]
-      : [];
-  const sideMarkers = readMarkerSides(boxes);
-  for (const box of locationProjected)
-    if (!boxes.includes(box)) box.toggleAttribute(PROJECTED_LOCATION, false);
-  sideMarkers();
-  for (const box of boxes) box.toggleAttribute(PROJECTED_LOCATION, true);
-  locationProjected = boxes;
+// Whether Leaf draws the user's focus ring on something inside the decision
+// `element`: visible focus there, or the proxy ring round what a focused note on the
+// details shelf stands for. That ring already says where the user is, so the location
+// ring stands down rather than drawing a second band round the same place: one band
+// says where the user is, whichever widget holds the focus. Rejected: each widget
+// declaring that its focus carries the location, which leaves two bands round every
+// widget that doesn't say so.
+/** @param {Element} element */
+function locationStandsDown(element) {
+  if (
+    element.hasAttribute("data-lf-focus-visible-within") &&
+    !element.hasAttribute("data-lf-focus-visible")
+  )
+    return true;
+  const proxied = proxyMark.marks();
+  return proxied !== null && proxied !== element && renderedUnder(proxied, element);
 }
 
-// Layout can change which boxes a marked element shows through, and a control inside
-// the decision can take the location over.
+// Layout can change which boxes a marked element shows through, and focus inside the
+// decision can stand the location ring down.
+let refreshFrame = 0;
 export function geometryChanged() {
-  if (locationFrame) return;
-  locationFrame = nextRender(() => {
-    locationFrame = 0;
-    drawLocation();
-    aimMark.refresh();
-    traceMark.refresh();
-    proxyMark.refresh();
+  if (refreshFrame) return;
+  refreshFrame = nextRender(() => {
+    refreshFrame = 0;
+    for (const mark of [locationMark, aimMark, traceMark, proxyMark]) mark.refresh();
   });
 }
 export { geometryChanged as shifted };

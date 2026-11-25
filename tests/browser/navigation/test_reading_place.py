@@ -28,6 +28,7 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    word_point,
     write,
 )
 
@@ -54,11 +55,10 @@ def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
     )
     # The region is read in the task that marks its box.
     page.evaluate("""async () => {
-      const api = await window.__lfWidgetApi();
-      const {readingRegionFor} = await window.__lfCheckApi();
+      const api = await window.__lfCheckApi();
       const host = document.querySelector('#reading');
       host.setAttribute('data-lf-scroll', 'reading');
-      window.reading = {api, host, region: readingRegionFor(host)};
+      window.reading = {api, host, region: api.readingRegionFor(host)};
     }""")
     expect(page.locator("#reading")).to_have_attribute("data-lf-more-below", "")
     page.evaluate("""() => {
@@ -706,7 +706,7 @@ def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serv
     page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
     page.evaluate(
         """async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           navigation.addEventListener('navigate', (event) => {
             if (event.destination.url.endsWith('#slow'))
               event.intercept({handler: () => new Promise(() => {})});
@@ -1307,7 +1307,7 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     reading = """async () => {
       const owner = await window.__lfCheckApi();
       return {blocks: [...owner.blocksOnScreen()].map(([block]) => block.id),
-        place: (await window.__lfWidgetApi()).capturePlace(), top: document.querySelector('#visible').getBoundingClientRect().top};
+        place: owner.capturePlace(), top: document.querySelector('#visible').getBoundingClientRect().top};
     }"""
     initial = page.evaluate(reading)
     assert "mixed" not in initial["blocks"]
@@ -1371,7 +1371,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         }""")
         scroll_settled(page)
         place = page.evaluate(
-            """async () => (await window.__lfWidgetApi()).capturePlace()"""
+            """async () => (await window.__lfCheckApi()).capturePlace()"""
         )
         assert place.get("datum") == "record", place
         assert place["quote"].startswith(record)
@@ -1386,7 +1386,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         }""")
         scroll_settled(page)
         reading = page.evaluate("""async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           const place = api.capturePlace();
           return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
         }""")
@@ -1401,7 +1401,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         scroll_settled(page)
         page.evaluate(
             """async place => {
-          (await window.__lfWidgetApi()).restorePlace(place);
+          (await window.__lfCheckApi()).restorePlace(place);
         }""",
             reading["place"],
         )
@@ -1439,8 +1439,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
         with subtests.test(conceal=conceal, quote=quote):
             result = page.evaluate(
                 """async ({identity, words, conceal, quote}) => {
-              const {restorePlace} = await window.__lfWidgetApi();
-              const {landingBand, shownBox} = await window.__lfCheckApi();
+              const {restorePlace, landingBand, shownBox} = await window.__lfCheckApi();
               const section = document.getElementById(identity);
               const place = {section: section.id, sectionTop: 0};
               if (quote) Object.assign(place, {quote: words, quoteTop: 0});
@@ -1653,21 +1652,6 @@ def _select_remembered_backwards(page):
     }""")
 
 
-def _word_point(locator, word):
-    """Place an actual gesture over letters, avoiding blank space in a block's box."""
-    return locator.evaluate(
-        """(node, sought) => {
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
-      const range = document.createRange(), start = word.data.indexOf(sought);
-      range.setStart(word, start); range.setEnd(word, start + sought.length);
-      const box = range.getBoundingClientRect();
-      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
-    }""",
-        word,
-    )
-
-
 ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
@@ -1785,7 +1769,7 @@ def test_align_current_item_uses_bounded_reading_region_and_preserves_horizontal
     assert page.evaluate("scrollY") == root_y
     expect(page.locator("#nested-heading")).to_be_focused()
     # A click and collapsed caret still identify the paragraph in this region.
-    point = _word_point(page.locator("#nested-reading"), "bounded")
+    point = word_point(page.locator("#nested-reading"), "bounded")
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("z")
@@ -1820,7 +1804,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     )
     assert codes and all("z" not in code for code in codes)
     page.keyboard.press("Escape")
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
     page.evaluate("""() => {
       const s = getSelection();
@@ -1854,7 +1838,7 @@ def test_the_menu_keeps_its_place_when_a_revision_shortens_the_words_it_held(
     )
     context = browser.new_context(has_touch=True)
     page = open_page(browser, live_url(serve(source)), context=context)
-    point = _word_point(page.locator("#remembered"), "keeps")
+    point = word_point(page.locator("#remembered"), "keeps")
     page.mouse.click(point["x"], point["y"])
     held = page.evaluate(
         "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
@@ -2233,7 +2217,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     )
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
     page.locator("#remembered").scroll_into_view_if_needed()
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -2392,7 +2376,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
     expect(selection_field(page)).to_be_visible()
     selected = page.evaluate("() => getSelection().toString()")
@@ -2440,7 +2424,7 @@ def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
     page = open_page(browser, serve(DIFF_PAGE))
     line = page.locator("lf-diff [data-line]").filter(has_text="window: 60").first
     line.scroll_into_view_if_needed()
-    point = _word_point(line, "window")
+    point = word_point(line, "window")
     page.mouse.dblclick(point["x"], point["y"])
     selected = page.evaluate("() => getSelection().toString()")
     assert selected
@@ -2479,7 +2463,7 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     page = open_page(browser, live_url(url))
     line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(line).to_contain_text("amber")
-    point = _word_point(line, "amber")
+    point = word_point(line, "amber")
     page.mouse.dblclick(point["x"], point["y"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
@@ -2625,7 +2609,7 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
         viewport={"width": 1200, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
-    point = _word_point(page.locator("#remembered"), "identity")
+    point = word_point(page.locator("#remembered"), "identity")
     page.mouse.dblclick(point["x"], point["y"])
     expect(selection_field(page)).to_be_visible()
     initial = page.evaluate("() => getSelection().toString()")

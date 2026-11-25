@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createHintSession, codedHints } from "/runtime/keyboard/hints.js";
+import { createHintSession, codedHints } from "/runtime/key-badges/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { commandScope, keys } from "/runtime/keyboard/scopes.js";
 import { liveEl } from "/runtime/notifications.js";

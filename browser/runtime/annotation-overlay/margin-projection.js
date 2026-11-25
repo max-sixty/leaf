@@ -209,7 +209,6 @@ import { rowArrows } from "../lib/keys.js";
  * leavePageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["leavePageMap"],
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
- * currentLocationObligation: () => Element | null,
  * marksFor: ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
@@ -226,7 +225,6 @@ export function createMarginProjection({
   renderMarginThread,
   placedAt,
   marksFor,
-  currentLocationObligation,
   scrollToElement,
   openInPanel,
 }) {
@@ -1582,9 +1580,6 @@ export function createMarginProjection({
     // the box its marker stands by.
     const part = entryPart(entry);
     const face = faceOf(entry);
-    // An obligation's location ring already identifies this target, including when
-    // its margin marker holds focus. Quiet brackets on that perimeter cover the ring.
-    const obligationShown = target && target === currentLocationObligation();
     // A Change entry under the pointer or focus outlines its whole change, every block
     // and its gap, in place of the brackets round its first block (margin-bars.js), until
     // its card stands open over the change. A reading names its own change, as each of
@@ -1602,12 +1597,7 @@ export function createMarginProjection({
         ? changeSource.change
         : null,
     );
-    const marked = !(
-      changeSource ||
-      drawingOnly ||
-      currentLocationShown ||
-      obligationShown
-    );
+    const marked = !(changeSource || drawingOnly || currentLocationShown);
     highlight(
       marked ? (face ?? part?.element ?? target) : null,
       marked && !face ? (part?.surface ?? null) : null,

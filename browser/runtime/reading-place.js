@@ -51,8 +51,9 @@
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions, reading-region shifts and the subjects a
- * region shows in turn, a root tab set (lf-tabs) for each of its views, and history
- * for each entry the user leaves, in the entry's record (history.js).
+ * region shows in turn, views.js for each view of the page's flow that a widget shows
+ * in turn, and history for each entry the user leaves, in the entry's record
+ * (history.js).
  * `readingBlock` is the block on screen the reader reads in one region or the page,
  * across the column their pointer or focus names, the column a captured place reads its
  * line from; `sectionsInView` names the sections of every block and drawing on screen,
@@ -67,6 +68,7 @@ import { setScroll } from "./arrivals.js";
 import {
   clippedContents,
   landingBand,
+  placeHolder,
   seenRect,
   shownBox,
   shownWindow,
@@ -135,13 +137,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
 import { focusPlace, readingAt } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import {
-  heldTravel,
-  holderOf,
-  seenAhead,
-  seenGlided,
-  seenLanded,
-} from "./scroll-containers.js";
+import { heldTravel, seenAhead, seenGlided, seenLanded } from "./scroll-containers.js";
 import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 import { keptEach } from "./kept.js";
@@ -816,7 +812,7 @@ function pageReading({ bodies }) {
 // the top of the page.
 const shownAtLine = () => {
   const at = readingAt(pageDocument());
-  const node = at && holderOf(at);
+  const node = at && placeHolder(at);
   return node && node !== document.body ? node : null;
 };
 export const pageReadingBlock = () => pageReading({ bodies: false });

@@ -67,12 +67,19 @@
  * comparison and pointer, which a Back within one document keeps too. Since the handoff
  * describes the moment the document went, a reload that ends the document later, as
  * after the user stays at a page's own leave prompt, hands over the place they then
- * left. Until the arriving document has returned the user to the entry, printed keys
- * wait (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back,
- * as text in the reply box they were writing in. Waiting keys are no input
- * (document-inputs.js, `holdKeys`), so they don't end the return; any other input does,
- * and drops them. The keys not yet pressed when the document goes carry to the next
- * reload Leaf asks for of the address (bootstrap.js, `holdEarlyKeys`). An in-place
+ * left. Words the user types through the reload change it after that moment: the key
+ * hold types them into the value and caret it carries for a field of the page's own,
+ * and the drafts move its record of the box being written (`draftEditing`) with the
+ * words they take in (bootstrap.js, `typeBack`; drafts.js, `takeHeldWords`).
+ *
+ * Until the arriving document has returned the user to the entry, printed keys wait
+ * (keyboard/bindings.js, `placeHandedBack`), then run where the user was put back. Keys
+ * typed for the box the user was writing in are the exception: they are its words as
+ * they are typed, so the box comes back holding them (bootstrap.js, `typeBack`).
+ * Waiting keys are no input (document-inputs.js, `holdKeys`), so they don't end the
+ * return; any other input does, and drops them. The keys not yet pressed when the
+ * document goes carry to the next reload Leaf asks for of the address (bootstrap.js,
+ * `holdEarlyKeys`). An in-place
  * patch is no navigation, so it restores the page's place, the margin's and the panel's
  * thread location, focus, and the selected obligation by id itself; it gives an unnamed
  * replaced control no guessed focus. Explicit historical travel carries reading
@@ -156,6 +163,7 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import {
+  bindingAttributes,
   bodyIsData,
   registry,
   sameRecord,
@@ -850,13 +858,9 @@ function diffBlocks(root) {
     const entry = registry[w.localName] ?? {};
     // A data binding is authored semantics even though the body it fills is
     // opaque to comparison.
-    /** @type {Set<string>} */
-    const bindingAttrs = new Set();
-    for (const input of Object.values(entry.inputs ?? {})) {
-      if (input.source) bindingAttrs.add(input.source);
-      if (input.reference) bindingAttrs.add(input.reference);
-    }
-    const binding = [...bindingAttrs]
+    const binding = [
+      ...new Set(Object.values(entry.inputs ?? {}).flatMap(bindingAttributes)),
+    ]
       .sort()
       .map((attr) => [attr, w.getAttribute(attr)]);
     pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
@@ -3263,10 +3267,10 @@ export function createVersionController({
     const placed = handoff && window.lfStorage.placesUser() ? handoff : null;
     // Printed keys typed while the user is put back wait until the arrival has done so
     // (history.js, `settled`), the entry's record's return and the handoff's restore
-    // (`landArrival`) among its work. Then they run where it put the user, as text in
-    // the box they were writing in. An input of theirs meanwhile ended the arrival, and
-    // the hold let their keys, meant for a place they never got back to, go with it
-    // (bootstrap.js, `holdEarlyKeys`).
+    // (`landArrival`) among its work, then run where it put the user; those typed for
+    // the box they were writing in are its words already (bootstrap.js, `typeBack`). An
+    // input of theirs meanwhile ended the arrival, and the hold let the waiting keys go
+    // with it.
     if (placed) {
       handingBackPlace(true);
       void arrival.settled.then(() => {
@@ -3332,7 +3336,7 @@ export function createVersionController({
     }
     // The arrival in order, returning to the entry's record where it calls for it
     // (`returnToRecord`, history.js `arrive`).
-    /** @param {() => Promise<void>} returnToRecord */
+    /** @param {(returnsFocus?: boolean) => Promise<void>} returnToRecord */
     const landArrival = (returnToRecord) =>
       landContinuity(async () => {
         if (currentIntent()) {
@@ -3344,8 +3348,11 @@ export function createVersionController({
             // thread's card included; the words being written go back after that return,
             // into the box it put the user in, as the reply of whichever view of the
             // thread the claim opened.
+            // Focus on a control of the page's own, with its caret, is the handoff's to
+            // put back, which it did as the document arrived (`restoreCarry`), not the
+            // record's (history.js, `returnTo`).
             await keepReplySession(placed, async () => {
-              await returnToRecord();
+              await returnToRecord(!window.lfStorage.handedFocus);
               await restoreEditingContinuity(placed, currentIntent);
             });
           } else await returnToRecord();
@@ -3379,9 +3386,9 @@ export function createVersionController({
   // the page presents, and after declared deferred arrivals settle. Each landing is
   // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
-  // where it is. The fragment is read before widgets upgrade, since a widget may write
-  // its own view into the URL (a root tab set names its open panel), and that is
-  // display state, not a destination. A reload or history traversal returns to its
+  // where it is. The fragment is read before widgets upgrade, since the page's open
+  // view is then named in the URL (views.js, as a root tab set's open panel), and that
+  // is display state, not a destination. A reload or history traversal returns to its
   // entry's record instead (history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade

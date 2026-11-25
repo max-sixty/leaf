@@ -1433,10 +1433,10 @@ def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
         """
 from contextlib import contextmanager
 from leaf import hosting, server_rows
-from leaf.served_state import reading
+from leaf import page_inputs
 import sys
 
-leased = reading.flocked
+leased = page_inputs.flocked
 
 @contextmanager
 def announced(path, **options):
@@ -1444,7 +1444,7 @@ def announced(path, **options):
     with leased(path, **options) as log:
         yield log
 
-reading.flocked = announced
+page_inputs.flocked = announced
 
 def drive_reading(self):
     self.refresh()

@@ -9,7 +9,7 @@
  * A page's checks are written for its own fields in any case, not for Leaf's. So
  * `keepFieldKeys` stops each keydown, keypress and keyup at the field's host as it
  * bubbles out, once the field's own handling has run and Leaf's key dispatcher has
- * read it there (`readLeavingKeys`, keyboard/controller.js). No listener outside the
+ * read it there (`readLeavingKeys`, page-keys/controller.js). No listener outside the
  * field, the page's or Leaf's, hears it bubble, so Leaf's other readers of these keys
  * listen in capture; a page listener in capture still hears it. A field's `input`
  * still reaches the page, as a textarea's does.

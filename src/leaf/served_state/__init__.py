@@ -1,1 +1,2 @@
-"""Served-page state projection and change readings."""
+"""Served-page state: the page read it folds, its projection, and the patch a tab
+holding an earlier reading is sent."""

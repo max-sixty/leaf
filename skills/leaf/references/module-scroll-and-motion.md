@@ -4,6 +4,13 @@ Read with [module-authoring.md](module-authoring.md).
 
 ## Scrolling
 
+A widget whose box keeps a height of its own and scrolls what it holds, as a log or a
+feed does, declares `bound` in its tag's declaration rather than scrolling a box
+itself. Leaf then keeps the reader's place in the box, and an `end` bound follows the
+newest entry while the reader is at the end (`page-layout.md`, "Bounds and widths").
+To bound a box inside the widget instead, as under a caption, see `package-themes.md`,
+"A theme change".
+
 ### Reading regions
 
 A pane widget declares `reading-role: pane` and `content: markup`, and holds one
@@ -101,12 +108,8 @@ element that held the words, which may stand deep inside the block the change hi
 look outward from it for that block, as `node.closest` does. For words a widget drew
 in its shadow tree, `node` is that widget. The change itself scrolls nothing.
 
-A widget that hides a view and shows it again later keeps the place as
-`capturePlace()`, a landmark in the page's words, and returns to it with
-`restorePlace(place)` however the page has moved since. Both read the page's own
-scroller. `restorePlace(place, null, intent)` restores only
-while an `intent` taken earlier with `retainUserIntent()` still holds
-(`module-input.md`, "Delayed work").
+Leaf keeps the user's place in a member a widget hides and shows again later, where
+the members are views of the page (`module-state.md`, "State only this tab keeps").
 
 A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
 the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
@@ -131,16 +134,16 @@ it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`: the box places the item at `block` with `behavior`,
-as a reading region does, and the boxes inside it reveal it nearest at once. Unlike
-native `Element.scrollIntoView`, it stays inside a live sample. Use it only for a
-deliberate move; focusing a visible control or redrawing keeps the scroll.
+it is, pass that box as `within`: the item comes in at the nearest edge of each box,
+at once, whatever `block` and `behavior` say. Unlike native `Element.scrollIntoView`,
+it stays inside a live sample. Use it only for a deliberate move; focusing a visible
+control or redrawing keeps the scroll.
 
 `scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
 to the page's `document.scrollingElement`. A widget that keeps something in view as
-another widget moves, as `lf-code` keeps the line a film runs, passes the first as
-`within` unless it is the page, so the page stays where the reader left it. It,
-`alreadyShown` and `onUserInput` ([module-input.md](module-input.md)), which says when
+another widget moves, as `lf-code` keeps the line a film runs, sets the scroll of the
+first (`scrollTo`, below) unless it is the page, so the page stays where the reader
+left it. It and `onUserInput` ([module-input.md](module-input.md)), which says when
 the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
@@ -256,31 +259,25 @@ that attribute. It also opens a closed popover holding the target. A widget that
 content hides it with `hidden="until-found"` and opens it on `beforematch`, as `lf-tabs`
 does for a panel, so the browser's find reaches it too; print shows it open. Take a
 folded element that is itself a Tab stop out of the Tab order, since the fold hides
-only what it holds. A widget that switches view sets
-`hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
-handler returns; Leaf reads that as a replaced view and places the target at once rather
-than scrolling from the old view's reading position. A widget that keeps the box of
+only what it holds. Where the reveal replaces one view with another, Leaf places the
+target at once rather than scrolling from the old view's reading position. It reads a
+replaced view from a sibling of the element revealed that is `hidden` once that
+element's `beforematch` listeners have run: Leaf hides the member a `views` widget
+leaves (`module-state.md`, "State only this tab keeps"), and any other widget sets
+`hidden` on the view it leaves in its listener. A widget that keeps the box of
 what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-A widget that adds history entries uses `pushEntry(url, state)` and
-`replaceEntry(url, state)`, where the optional `state` is the entry's `history.state`,
-which `replaceEntry` keeps as it is when given none. An
-entry a press adds says the press takes the user somewhere, as a link's does, so its
-result may scroll away the control pressed; `replaceEntry` only renames the entry the
-user is on. To
-restore the page itself when the user goes Back or Forward to one of its entries, call
-`claimTraversals(claim, {signal})`, where `claim(url)` returns a function that restores
-the page for an entry of the widget's, or nothing. The handler may be asynchronous.
-When it only reveals the destination view, it resolves to `false`, and Leaf returns the
-user to where they were on the entry after the view is shown. Otherwise the handler owns
-viewport placement. Leaf keeps where the user was on each entry in the entry's
-Navigation API state (`navigation.updateCurrentEntry`), so a widget keeps its own
-state for an entry in `history.state`, which `pushEntry(url, state)` writes. Either way, where the entry's fragment still names a place the
-page doesn't show once the handler finishes, Leaf reveals that place and lands there.
+Leaf writes the page's history entries, and a widget writes none: one whose members
+are the page's views says so, and Leaf adds an entry for each switch between them
+(`module-plain-elements.md`, "The page's views"). Leaf keeps where the user was on each
+entry, and Back, Forward and a reload return them there. An entry a press adds says the
+press takes the user somewhere, as a link's does, so its result may scroll away the
+control pressed. Where an entry's fragment still names a place the page doesn't show
+once its view is open, Leaf reveals that place and lands there.
 
 ## Motion
 
@@ -291,6 +288,13 @@ animation. Where a module must branch on the preference itself, as for the `beha
 of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
+
+A package's stylesheet animates with a `transition` or an `animation`. Leaf turns the
+sheet's transitions off until the page is presented (`module-authoring.md`, "Startup
+and presentation"), though an `animation` plays as soon as its rule matches. For a
+user who asked for less motion, Leaf turns the transitions off and ends the
+animations at once. `element.animate` has neither guard, so it plays before the page
+is presented and for that user.
 
 A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
 than choosing a number, and a retained frame returning from an editor to its reading

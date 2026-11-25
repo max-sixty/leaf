@@ -13,6 +13,7 @@ from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.authored_checks.declarations import declaration_advice
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import complete_declarations
 from leaf.registry.layer import stamp_composition
@@ -21,7 +22,6 @@ from leaf.registry.storage import load_registry
 from leaf.schema import DEFAULT_PACKAGE
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
-from leaf.validation import composition as validation_model
 from leaf_dev import declared_records, docs
 from leaf_dev.docs import EXAMPLES, product_sources
 from leaf_dev.example_data import named_source, published_sources
@@ -134,9 +134,7 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     stamp_composition(
         registry_validation.validate_registry(registry, "package tutorial")
     )
-    assert (
-        validation_model.declaration_advice(entry, registry, "package tutorial") == []
-    )
+    assert declaration_advice(entry, registry, "package tutorial") == []
 
 
 # The event log is How it works' "Event log" tab.
@@ -150,6 +148,21 @@ def code_block(page: SourceDocument, block_id: str) -> str:
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
     return select_one_result_2.text.lstrip("\n")
+
+
+def test_how_it_works_shows_the_example_widget_as_the_page_runs_it():
+    """How it works' "Package interface" tab reads a whole widget line by line and runs
+    that widget beside the reading, from the package `docs/verdict`. Each file the tab
+    shows is the file that runs, so its notes, which name lines, describe that file."""
+    page = SourceDocument(named_source("how-it-works").read_text())
+    package = ROOT / "docs" / "verdict"
+    for block_id, file in {
+        "verdict-declaration": "registry.json",
+        "verdict-module": "widgets/lf-verdict.js",
+        "verdict-stylesheet": "defaults.css",
+    }.items():
+        shown = code_block(page, block_id).rstrip("\n")
+        assert shown == (package / file).read_text().rstrip("\n"), file
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -370,7 +383,6 @@ def test_the_event_log_page_quotes_the_registry():
         noted.append(lines[int(position) - 1].strip())
     explained = [
         '"choose": ',
-        '"unit": "widget"',
         '"record": ',
         '"unit": "option"',
         '"creates": ',

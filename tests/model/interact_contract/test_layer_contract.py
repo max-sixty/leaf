@@ -47,7 +47,6 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
-from leaf.validation import composition as validation_composition
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -255,7 +254,7 @@ def test_a_work_role_s_state_verb_may_name_the_property_that_holds_it(page_dir):
 
 def test_the_command_hub_example_maps_its_tags_onto_work_roles():
     """The worked example of `$work.widgets` composes over the shipped layer."""
-    registry = validation_composition.incoming_registry(
+    registry = registry_validation.incoming_registry(
         [*SHIPPED_PACKAGES, ROOT / "examples" / "command-hub.page"]
     )
     assert registry["$work"]["widgets"]["lf-atlas-worker"]["role"] == "worker"
@@ -409,7 +408,7 @@ def test_init_advises_on_instructions_for_a_kind_no_batch_carries(
     assert advice.values["registry"] == str(overlay / "registry.json")
 
 
-@pytest.mark.parametrize("path", [("verbs", "decide", "unit")], ids="-".join)
+@pytest.mark.parametrize("path", [("verbs", "decide", "detail")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):

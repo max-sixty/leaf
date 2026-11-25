@@ -32,7 +32,9 @@ export { generatedElement } from "./element-markers.js";
    mark — so the caller names that apparatus, which is the container's to press. The
    answer otherwise fails closed: declining one ambiguous container gesture is safer
    than recording a choice while the user operates nested evidence. */
-import { pageRange, selectionBackward } from "./native-selection.js";
+import { pageRange, selectionBackward, selectionEnds } from "./native-selection.js";
+import { overCharacter } from "./geometry.js";
+import { pageShadowRoots } from "./shadow.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { bodyIsData, registry, tagsDeclaring } from "./registry.js";
@@ -263,6 +265,15 @@ export function aimableAt(node) {
 // Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
 const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empty";
+// Whether a widget drew `node`: a registered widget that draws its content itself
+// stands round it as the page renders it, as an activity list does round its rows.
+// What a widget holds of the author's markup, as a pane's words, it didn't draw.
+/** @param {Node} node */
+export const drawnByWidget = (node) => {
+  for (let at = renderedParent(node); at; at = renderedParent(at))
+    if (drawsItsContent(registry[at.localName])) return true;
+  return false;
+};
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which
@@ -308,21 +319,60 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // `pointerup`: a tap's `mousedown`, which collapses the selection it landed beside,
 // comes after its `pointerup`. A click that no pointer press began, such as one a
 // script dispatches with a click count, reads the selection as it stands.
-/** @type {import("./focus.js").PressRecords<{focus?: Node | null}>} */
+//
+// A selection the press found standing and left as it was is the press's only where
+// the press came down on its words. Chromium also keeps a selection through a press
+// beside it, before the first line the selection reaches or after the last, though
+// the press reached for nothing the selection holds, and Firefox collapses it there.
+// So a selection the press made or moved, as a drag or a double-click does, is always
+// the press's, and one it found is the press's where the release stands over one of
+// its characters.
+/** @type {import("./focus.js").PressRecords<{before: unknown[], focus?: Node | null}>} */
 const releases = pressRecords();
 onPress((start) => {
-  releases.keep(start, {});
+  const sel = getSelection();
+  releases.keep(start, { before: sel ? selectionEnds(sel) : [] });
 });
 addEventListener(
   "mouseup",
-  () => {
+  (event) => {
     const release = releases.kept();
-    if (release) release.focus = selectionFocus();
+    if (!release) return;
+    const focus = selectionFocus();
+    const sel = getSelection();
+    release.focus =
+      focus !== null &&
+      sel !== null &&
+      selectionEnds(sel).every((end, i) => end === release.before[i]) &&
+      !onSelectedWords(pageRange(sel), event.clientX, event.clientY)
+        ? null
+        : focus;
   },
   { capture: true, passive: true },
 );
 
+// Whether a point lies over a character `range` holds.
+/** @param {Range} range @param {number} x @param {number} y */
+function onSelectedWords(range, x, y) {
+  const caret = document.caretPositionFromPoint(x, y, {
+    shadowRoots: pageShadowRoots(),
+  });
+  const node = caret?.offsetNode;
+  if (!caret || !(node instanceof Text)) return false;
+  return [caret.offset, caret.offset - 1].some(
+    (at) =>
+      at >= 0 &&
+      at < node.length &&
+      range.isPointInRange(node, at) &&
+      range.isPointInRange(node, at + 1) &&
+      overCharacter(node, at, x, y),
+  );
+}
+
 // The node the selection's focus end stands in, or null where no words are selected.
+// It reads the selected words as the page's reading does (`pageRange`), since the
+// question is whether a press reached for words, not where the caret is drawn
+// (`userCaret`).
 function selectionFocus() {
   const sel = getSelection();
   if (!sel?.rangeCount) return null;

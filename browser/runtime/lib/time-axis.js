@@ -1,17 +1,58 @@
-/* Geometry for a horizontal time axis, shared by the widgets that draw one. Times are
- * milliseconds from the axis origin; positions are pixels along the drawn span, which
- * starts and ends AXIS_EDGE inside the drawing. Nothing here touches the DOM, so a
- * widget can call it while drawing, before its upgrade as well as after. The
- * stylesheet's `.lf-axis-…` rules (`browser/styles/components/controls.css`) say how a
- * drawing marks up its ruler, gridlines and marks, and give them their look.
+/* A horizontal time axis, shared by the widgets that draw one: its geometry, its ruler
+ * and its gridlines. Times are milliseconds from the axis origin; positions are pixels
+ * along the drawn span, which starts and ends AXIS_EDGE inside the drawing. Nothing
+ * here touches the DOM, so a widget can call it while drawing, before its upgrade as
+ * well as after.
+ *
+ * `timeAxis` returns the ruler's ticks and the gridlines as Lit templates. The widget
+ * renders the ticks into its ruler and the gridlines into a layer that spans its
+ * lanes, and draws its own marks in the lanes:
+ *
+ * ```js
+ * // `width` is the ruler's, and `span` the part of it the axis is drawn across.
+ * const span = width - 2 * AXIS_EDGE;
+ * const axis = timeAxis(0, duration, duration, span / duration);
+ * html`<div class="my-axis" style="--lf-axis-edge: ${AXIS_EDGE}px">
+ *   <div class="my-ruler">${axis.ruler}</div>
+ *   <div class="my-grid">${axis.grid}</div>
+ *   <div class="my-lane">
+ *     <span
+ *       class="my-bar lf-on-axis"
+ *       style="--lf-axis-at: ${start / duration}; --my-length: ${(end - start) / duration}"
+ *     ></span>
+ *   </div>
+ * </div>`;
+ * ```
+ *
+ * ```css
+ * .my-axis { position: relative; font: var(--lf-font-small); line-height: 1; }
+ * .my-ruler, .my-lane { position: relative; block-size: 22px; }
+ * .my-grid { position: absolute; inset: 22px 0 0; pointer-events: none; }
+ * .my-bar {
+ *   inset-block: 4px;
+ *   inline-size: calc(var(--my-length) * (100% - 2 * var(--lf-axis-edge)));
+ *   background: var(--lf-accent);
+ * }
+ * ```
+ *
+ * Leaf's stylesheet (`browser/styles/components/controls.css`, "A time axis") draws
+ * the ticks and gridlines, and stands each at its time in the nearest positioned box,
+ * as it stands a mark of the widget's own (`module-controls.md`, "A time axis"). So
+ * the ruler, the layer and each lane are positioned boxes as wide as the axis. A major
+ * tick is as tall as the ruler, and a gridline as tall as the layer. The layer comes
+ * before the lanes, so their marks paint over its lines, and it lets the pointer
+ * through to the drawing it covers. A tick's label takes the drawing's type, so the
+ * drawing sets a line that fits the ruler. The labels are words the module writes
+ * (`module-plain-elements.md`, "Words it writes").
  *
  * Ruler ticks fall on 1, 2 and 5 × 10^k milliseconds, the smallest step that keeps
- * major ticks AXIS_TICK_SPACING apart, with four or five minor ticks between them. A
+ * major ticks AXIS_TICK_SPACING apart, with three or four minor ticks between them. A
  * major tick's label reads back from its tick (`flip`) where reading on from it would
  * run past the axis's end. Rows are greedy: an extent takes the first row whose last
  * extent ended at or before its start, so overlapping extents never share a row and
  * the row count is the smallest that greedy order allows.
  */
+import { html, nothing, repeat } from "/vendor/lit.js";
 
 /** How far inside the drawing the axis's span starts and ends, in pixels. */
 export const AXIS_EDGE = 12;
@@ -51,7 +92,7 @@ export function seconds(ms, digits) {
  * label, flip, step}`. Only a major tick has a label, with the decimals the step
  * needs, and only a major tick's label flips. */
 /** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
-export function axisTicks(from, to, duration, pxPerMs) {
+function axisTicks(from, to, duration, pxPerMs) {
   const step = tickStep(pxPerMs);
   const minor = step / (String(step)[0] === "2" ? 4 : 5);
   const ticks = [];
@@ -68,6 +109,45 @@ export function axisTicks(from, to, duration, pxPerMs) {
     });
   }
   return ticks;
+}
+
+/** The axis from `from` to `to`, as templates: `ruler`, a tick at each time, and
+ * `grid`, a line at each major tick's time. `duration`, above zero, is the time the
+ * whole axis spans, and `pxPerMs` its scale. A widget that shows a window of a longer
+ * axis, as a zoomed one does, passes the window's times and draws again when the
+ * window moves; a tick or line that both windows hold stays the element it was. Each
+ * states its time as `--lf-axis-at`, the time over `duration`. */
+/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
+export function timeAxis(from, to, duration, pxPerMs) {
+  const ticks = axisTicks(from, to, duration, pxPerMs);
+  /** @param {(typeof ticks)[number]} tick */
+  const key = (tick) => `${tick.step}:${tick.time}`;
+  /** @param {(typeof ticks)[number]} tick */
+  const at = (tick) => `--lf-axis-at: ${tick.time / duration}`;
+  return {
+    ruler: repeat(
+      ticks,
+      key,
+      (tick) =>
+        html`<span
+          class="lf-axis-tick"
+          ?data-lf-major=${tick.major}
+          ?data-lf-flip=${tick.flip}
+          style=${at(tick)}
+          >${tick.label ?? nothing}</span
+        >`,
+    ),
+    grid: repeat(
+      ticks.filter((tick) => tick.major),
+      key,
+      (tick) =>
+        html`<span
+          class="lf-axis-gridline"
+          ?data-lf-flip=${tick.flip}
+          style=${at(tick)}
+        ></span>`,
+    ),
+  };
 }
 
 /** Greedy rows for extents: a Map from each item's `id` to its row, from 0. */

@@ -130,7 +130,8 @@ Usage: leaf thread create [OPTIONS] PAGE
 Options:
   --quote TEXT  passage text from the active revision
   --section ID  element ID to anchor or scope --quote
-  --part ID     declared visual part within --section
+  --part ID     a visual part within --section, such as one `page state` lists
+                in its `parts`
   --text TEXT   the comment's text
   --file PATH   read the comment's text from PATH, - for stdin; with neither
                 option, from piped stdin
@@ -169,7 +170,8 @@ Options:
                      ask that question again, once per question
   --quote TEXT       new passage text to move this thread onto
   --section ID       new element ID, or scope for --quote
-  --part ID          new declared visual part within --section
+  --part ID          a new visual part within --section, such as one `page
+                     state` lists in its `parts`
   --detach           remove the thread's page target
   --help             Show this message and exit.
 

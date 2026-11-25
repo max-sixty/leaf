@@ -75,7 +75,7 @@
    - `gutter`: a line's number in a code view's gutter, which takes a comment on its
      line, as a diff's do: the number in the code's muted ink, a + before it under
      the keys. The keys reach its line through the target picker, so Go-to gives it
-     no chip of its own (keyboard/go-to-sequence.js).
+     no chip of its own (page-keys/go-to-sequence.js).
    - `picture`: a picture that opens larger in the media viewer, a message's or a
      draft's, whose face is the picture itself, unframed, under a magnifier. One that
      crops or draws its picture, as a draft's attachment and drawing do, wears a

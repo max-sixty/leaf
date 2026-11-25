@@ -162,10 +162,8 @@ For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
 
 A cause waits on the maintainer when its next step is one only they can take, such
-as a decision. Assign it to the maintainer while it waits (`notes/TODO.md`, "Backlog",
-names them), say in it what you found and what their answer should settle, and
-unassign them once they act. A cause that asks them something without
-assigning them is missing from their list of assigned issues.
+as a decision. Say in it what you found and what their answer should settle, and
+assign them (**Issues waiting on a person**).
 
 A failure waits on a recurrence when its next occurrence is the only way left to
 advance its diagnosis, repair or verification. Before concluding that, run copies on
@@ -260,16 +258,24 @@ An issue labelled `backlog` is an item on the maintainer's prioritised backlog
 you, whether through triage or an unread notification, take no action, post
 nothing, and acknowledge the notification.
 
+## Issues waiting on a person
+
+A person learns what waits on them from their list of assigned issues, as
+`notes/TODO.md`, "Backlog", says of the maintainer. So whenever a run stops work on
+an issue because its next step is one only a person can take, such as a decision, a
+review or a go-ahead, it assigns them in the same run, whichever workflow brought it
+to the issue; a later run unassigns them once they act. A comment that asks a person
+something without assigning them is missing from their list.
+
 ## Nightly: issues waiting on a person
 
-A pull request that answers an issue Tend assigned to a person, under **Reading a red
-suite** or **Fixing a CI failure's cause**, sends Tend no event. So each nightly run
-reads every open issue Tend assigned to a person against main. Close each issue that
-a merged change has settled, with a comment naming the change: a change the person
-wrote or merged answered its question, or any change removed its cause. This
-authorizes the closing that `/tend-ci-runner:nightly`'s **Resolved issues** leaves to
-the repository's instructions, cause issues included. Leave `backlog` issues alone
-(**Leave backlog issues to the maintainer**).
+A pull request that answers an issue Tend assigned to a person sends Tend no event.
+So each nightly run reads every open issue Tend assigned to a person against main.
+Close each issue that a merged change has settled, with a comment naming the change:
+a change the person wrote or merged answered its question, or any change removed its
+cause. This authorizes the closing that `/tend-ci-runner:nightly`'s **Resolved
+issues** leaves to the repository's instructions, cause issues included. Leave
+`backlog` issues alone (**Leave backlog issues to the maintainer**).
 
 ## Nightly: model and harness releases
 

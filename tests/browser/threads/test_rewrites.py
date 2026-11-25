@@ -410,9 +410,10 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     padding; where the thread's reply box runs to the frame's edges under the message,
     in the panel and in a card, the rewrite takes the height of its field, less the
     frame's padding a card's box takes in around it. Discard and
-    Save take the message's head. Escape and Discard step back up to the reply box,
-    and Save leaves the user on the thread, as a send does, leaving the thread as it
-    was.
+    Save take the message's head. Escape and Discard take back what opened the
+    rewrite: after ↑ they step back up to the reply box, and after a double click or a
+    press on Edit they return to the message's Edit control. Save leaves the user on
+    the thread, as a send does, leaving the thread as it was.
 
     In the margin card, the reply box's growth-following reading a reply row the
     rewrite has none of would throw on each keystroke in the rewrite; the browser
@@ -502,7 +503,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()
-    expect(reply).to_be_focused()
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
     # Saved, the new words take the box's place, and the user stands on the thread.
     words.dblclick()
     page.keyboard.press("ControlOrMeta+a")
@@ -536,7 +537,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(editor).to_be_focused()
     expect(reply).to_have_js_property("value", "My unfinished reply.")
     page.keyboard.press("Escape")
-    expect(reply).to_be_focused()
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
     expect(reply).to_have_js_property("value", "My unfinished reply.")
 
 
@@ -766,13 +767,16 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
 
 
 def test_a_discarded_rewrite_comes_back(browser, serve):
-    """Escape throws a rewrite's changed words away, so an accidental press could lose a
-    long rewrite for good. Restore discarded edit opens the message on those exact words
-    again, without sending them, by `g D`, which the panel offers with the discard's
-    notice once the caret has left the reply box Escape landed in, where `g` types a
-    letter; Save then sends them as any rewrite, and nothing is left to restore."""
+    """Discard and Escape throw a rewrite's changed words away, so a stray press could
+    lose a long rewrite for good. ⌘Z opens the message on those exact words again,
+    without sending them. A rewrite opened on its message returns the user to its Edit
+    control, where the discard's notice offers that Undo at once; one ↑ opened returns
+    them to the reply box, which keeps ⌘Z for its own words until the caret leaves it.
+    Save then sends the words as any rewrite."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
+    edit = message.locator(".lf-msg-edit")
+    reply = page.locator(PANEL_REPLY)
     rewritten = "  Fit both brackets and keep the longer explanation.  "
 
     def edits():
@@ -782,28 +786,44 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
             if e["kind"] == "edit"
         ]
 
+    def comes_back():
+        expect(editor).to_be_focused()
+        expect(editor).to_have_js_property("value", rewritten)
+        expect(editor).to_have_js_property("selectionStart", len(rewritten))
+        expect_panel_says(page, "Undone: discarded an edit of “Fit the north bracket.”")
+        assert edits() == []
+
     message.locator(".lf-msg-text").dblclick()
+    write(editor, rewritten)
+    message.get_by_role("button", name="Discard").click()
+    expect(editor).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    expect(edit).to_be_focused()
+    expect_panel_says(page, "Edit discarded · Undo")
+    page.keyboard.press("ControlOrMeta+z")
+    comes_back()
+    # Opened again on the message, the rewrite returns there again.
+    page.keyboard.press("Escape")
+    expect(edit).to_be_focused()
+
+    reply.focus()
+    page.keyboard.press("ArrowUp")
     write(editor, rewritten)
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
-    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
-    expect_panel_says(page, "Restore edit", says=False)
+    expect(reply).to_be_focused()
+    expect_panel_says(page, "Edit discarded · Undo", says=False)
+    # In the reply box, ⌘Z is the box's own.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_have_count(0)
     page.keyboard.press("Escape")
-    expect_panel_says(page, "Edit discarded · Restore edit g D")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
-    expect(editor).to_be_focused()
-    expect(editor).to_have_js_property("value", rewritten)
-    expect(editor).to_have_js_property("selectionStart", len(rewritten))
-    assert edits() == []
+    expect_panel_says(page, "Edit discarded · Undo")
+    page.keyboard.press("ControlOrMeta+z")
+    comes_back()
     message.get_by_role("button", name="Save", exact=True).click()
     round_trip(page)
     expect(editor).to_have_count(0)
     assert edits() == [rewritten]
-    page.keyboard.press("Escape")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
-    expect(editor).to_have_count(0)
 
 
 def test_a_rewrite_saves_its_exact_words(browser, serve):
@@ -1080,7 +1100,7 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous)
     message.locator(".lf-msg-text").dblclick()
     page.keyboard.type(" and more")
     page.keyboard.press("Escape")
-    expect(reply).to_be_focused()
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")

@@ -406,10 +406,13 @@
         </p>
         <p id="extending-scope">
           This guide is for whoever builds on Leaf: what a page can hold, how it takes a
-          theme and how it is laid out, then the interfaces for implementing widgets,
-          themes and packages, with a package tutorial and CSS contracts.
+          theme and how it is laid out, then who owns what, how packages share data, a
+          package tutorial, CSS contracts and the registry keys.
           <a href="/how-it-works/">How it works</a> introduces Leaf's core concepts and
-          how they fit together. <a href="/using/">Using</a> covers working on a page.
+          how they fit together, and its
+          <a href="/how-it-works/#package-interface">Package interface</a> topic
+          explains what a package leans on Leaf for and why.
+          <a href="/using/">Using</a> covers working on a page.
         </p>
       </header>
 
@@ -1737,7 +1740,7 @@ flowchart TD
               <ul>
                 <li><a href="#responsibilities">Who owns what</a></li>
                 <li><a href="#boundaries">Choose the extension boundary</a></li>
-                <li><a href="#layer">Package interfaces</a></li>
+                <li><a href="#layer">Data between packages</a></li>
               </ul>
             </nav>
           </details>
@@ -1819,8 +1822,8 @@ flowchart TD
                     </td>
                     <td>
                       Registry declarations, browser modules, scoped styles, and author
-                      instructions. The package connects its controls to Leaf's state,
-                      commands, and annotation APIs.
+                      instructions. Each leans on Leaf through the
+                      <a href="/how-it-works/#package-interface">package interface</a>.
                     </td>
                   </tr>
                   <tr>
@@ -1875,13 +1878,18 @@ flowchart TD
             </ol>
           </section>
           <section id="layer">
-            <h2>Package interfaces</h2>
-            <p>
-              Packages connect through declared inputs, outputs and actions. A release
+            <h2>Data between packages</h2>
+            <p id="package-interface-link">
+              A package meets Leaf through the package interface:
+              <a href="/how-it-works/#package-interface">How it works</a> draws it,
+              walks through a whole widget that records a choice, and gives the form
+              each kind of need takes with the reasons for that design.
+            </p>
+            <p id="package-data-flow">
+              Packages meet each other through declared inputs and outputs. A release
               review can use one package to read a patch and another to navigate its
               files, without either package knowing the other’s implementation.
             </p>
-            <h3 id="package-data-flow">Data connects widgets</h3>
             <figure id="package-data-diagram" class="diagram-figure">
               <lf-diagram id="package-data-contract" data-height="285" parts="all">
                 <pre>
@@ -1898,31 +1906,6 @@ flowchart TD
                 shape. The file tree can also read a stored source with that contract. A
                 published output is a browser-local derivation, not a decision in the
                 page’s log.
-              </figcaption>
-            </figure>
-            <h3 id="package-action-flow">Widgets delegate recorded state to Leaf</h3>
-            <figure id="package-action-diagram" class="diagram-figure">
-              <lf-diagram id="package-action-contract" data-height="398" parts="all">
-                <pre>
-flowchart TD
-  accTitle: A choice is drawn immediately and recorded by Leaf
-  accDescr: The user's choice starts two paths. The browser draws it before the next frame, while Leaf validates the action and appends it to the log. Shared state then reconciles the browser's selection.
-  Choose["Choose Canary clients"]
-  Choose --&gt; Draw["Browser&lt;br/&gt;Draw now"]
-  Choose --&gt; Admit["Leaf&lt;br/&gt;Admit action"]
-  Admit --&gt; State["Shared state"]
-  Draw --&gt; Reconcile["Browser&lt;br/&gt;Reconcile choice"]
-  State --&gt; Reconcile
-</pre>
-              </lf-diagram>
-              <figcaption id="package-action-widget">
-                The package declares <code>choose</code> and the schema for its selected
-                IDs. The browser shows what the gesture decides while admission
-                completes; a refused action restores the server’s state. Undo withdraws
-                the admitted action, and the widget draws the resulting selection.
-                Packages share these guarantees.
-                <a href="/how-it-works/#state">How it works</a> explains how Leaf
-                derives state from the record.
               </figcaption>
             </figure>
             <details id="package-contract-details">
@@ -2030,9 +2013,11 @@ packages/callout/
               Leaf writes a working starter, a yes-or-no choice that records the user's
               press: its element declaration, its browser module and its style rule. It
               checks the complete candidate before changing the package, and each part
-              is there to be changed into the widget you need. The tutorial below stays
-              with the smaller CSS-only form so each contract remains visible. A module
-              that needs Leaf's functions imports them from
+              is there to be changed into the widget you need.
+              <a href="/how-it-works/#example-widget">How it works</a> walks through a
+              widget of that shape line by line. The tutorial below stays with the
+              smaller CSS-only form so each contract remains visible. A module that
+              needs Leaf's functions imports them from
               <code>/runtime/widget-api.js</code>, and one that adds keys declares each
               command once, as the <code>lfCommands</code> of the element it applies in.
               The same live command rows feed keyboard dispatch, help, accessibility
@@ -2062,10 +2047,10 @@ packages/callout/
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
                 >style contract</a
               >
-              distinguishes theme inputs such as <code>--lf-accent</code> from layout
-              declarations, runtime outputs, and vendor bridges. The
-              <a href="#styles-contract">CSS contract</a> explains how widget, theme and
-              control sheets compose.
+              distinguishes a declaration to Leaf, as this one is, from theme tokens
+              such as <code>--lf-accent</code>, facts about a box, and vendor bridges.
+              The <a href="#styles-contract">CSS contract</a> explains how widget, theme
+              and control sheets compose.
             </p>
           </section>
           <section id="widget">

@@ -7,6 +7,7 @@ from .contract import (
     deciding_verbs,
     declares_string,
     detail_schema,
+    record_unit,
     registry_error,
     state_specs,
     verb_writer,
@@ -135,10 +136,9 @@ def validate_widget_record_contracts(
                 raise registry_error("unit-type", path, tag, verb=verb, unit=unit)
             continue
         kind = record["kind"]
-        expected_unit = "unit" if kind == "position" else "widget"
-        if unit != expected_unit:
+        if unit != record_unit(record):
             raise registry_error(
-                "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
+                "record-unit", path, tag, verb=verb, kind=kind, unit=record_unit(record)
             )
         # A container is a declared element, which may be the widget itself; whether
         # the declarations place one at or inside the widget is advice
@@ -230,12 +230,26 @@ def validate_answered_conditions(
     # their more fundamental structural errors. Each answering verb's condition reads
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
     # verb recording positions, the emptiness of one of its own containers (`within`,
-    # which the record gate has found declared) at or inside the widget.
+    # which the record gate has found declared) at or inside the widget; for any other
+    # verb keeping state per member, an action in force at each member it names
+    # (`every`), which must be an element this widget owns and identifies by id.
     for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
         spec = entry["verbs"][verb]
         empty = condition.get("empty")
         record = spec.get("record") or {}
-        if empty is None:
+        if every := condition.get("every"):
+            member = declarations.get(every["member"]) or {}
+            if (
+                empty is not None
+                or spec["unit"] == "widget"
+                or record.get("kind") == "position"
+                or tag not in member.get("owners", [])
+                or "id" not in member.get("attributes", {}).get("required", [])
+            ):
+                raise registry_error(
+                    "answering-every", path, tag, verb=verb, member=every["member"]
+                )
+        elif empty is None:
             if spec["unit"] != "widget":
                 raise registry_error("answering-part", path, tag, verb=verb)
             if "detail" not in condition:

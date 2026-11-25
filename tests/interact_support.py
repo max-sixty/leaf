@@ -82,15 +82,15 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.http import assets_path
+from leaf.markup_checks import instances as instances_model
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry, read_page_registry
+from leaf.registry.validation import incoming_registry
 from leaf.revision_artifact import active_enclosing, read_artifact
 from leaf.runtime_selection import execution_identity
 from leaf.served_state import page as served_page
-from leaf.validation import composition as composition_model
-from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
@@ -208,9 +208,7 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return composition_model.incoming_registry(
-        layer_model.layer_inputs(packages, base=ROOT)
-    )
+    return incoming_registry(layer_model.layer_inputs(packages, base=ROOT))
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -1143,7 +1141,7 @@ def live_versions(d):
 
 def markup_findings(html, registry):
     parser = structure_model.SourceDocument(html)
-    return validation_model.markup_findings(parser, registry)
+    return instances_model.markup_findings(parser, registry)
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">

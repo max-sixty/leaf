@@ -178,8 +178,7 @@ nearby button.
 To show a command's key on the page, set `bindingBadge` on its row or route: an empty
 element the widget positions over its control, or beside it over a box that holds the
 element, or `null` for a badge at the control's corner. Where anything else stands at the
-element's place, the key shows as a chip there instead. Leaf gives the element the class
-`lf-binding-seat`, which positions it
+element's place, the key shows as a chip there instead. Leaf positions the element
 absolutely and has it take no pointer, so a press where it stands lands on what is under
 it. Leaf writes the key into it while the key works, and the widget gives it the class
 `lf-key-badge`, a key's face (`module-controls.md`, "Faces for a widget's parts"). `leaf package check
@@ -359,10 +358,8 @@ A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, listens on the window in the capture phase, passively, for the presses,
 keys, wheels and touches that stop it, so it hears each before any handler in the page.
 Act only on events whose path holds the surface, and end the listeners as the surface
-leaves.
-
-Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
-element drawn on; a moving visual listens for it and freezes what it shows.
+leaves. A press that starts a drawing stroke reaches such a listener too, so the
+surface has stopped before the stroke reads its coordinates.
 
 ## Text entry and drafts
 
@@ -371,9 +368,9 @@ fires `input` only for the user's edits. Build it as a generated control
 (`module-controls.md`) whose tag is `leaf-text`. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink. Under a finger Leaf sets a field's
-type no smaller than `--lf-entry-floor`, so a widget that shows words and then opens a
-field on them sets those words' `font-size` to `max(var(--lf-entry-floor), 1em)`, and
-the two sizes agree.
+type no smaller than 16px, below which iOS Safari zooms the page onto a field. So a
+widget that shows words and then opens a field on them sets those words' `font-size`
+to `max(16px, 1em)` under `@media (pointer: coarse)`, and the two sizes agree.
 
 The widget wires its box's keys itself. A box for one line, such as an option's words,
 can be a native `<textarea>` in a `<form>` whose Return submits the form, as

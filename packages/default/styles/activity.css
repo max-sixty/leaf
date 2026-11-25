@@ -53,7 +53,7 @@ lf-activity .lf-activity-actor {
   font-weight: 600;
 }
 lf-activity .lf-activity-what {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
 }
 /* A row's place: a widget it reached is a link, drawn as the page's links are
    (reading.css), and a thread it reached a press among the line's words, the inline
@@ -61,8 +61,8 @@ lf-activity .lf-activity-what {
 lf-activity a[href].lf-activity-target {
   color: var(--lf-accent);
   text-decoration: underline;
-  text-underline-offset: var(--lf-link-underline-offset);
-  text-decoration-color: var(--lf-link-underline);
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--lf-accent) 35%, transparent);
 }
 lf-activity a[href].lf-activity-target:hover {
   text-decoration-color: currentColor;
@@ -71,7 +71,7 @@ lf-activity button.lf-activity-target {
   text-align: start;
 }
 lf-activity :is(span, a:not([href])).lf-activity-target {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   text-decoration: none;
 }
 lf-activity .lf-activity-time {
@@ -89,10 +89,11 @@ lf-activity .lf-activity-time::before {
 }
 lf-activity .lf-activity-undone {
   color: var(--lf-muted);
-  font: var(--lf-font-chip);
-  border: 1px solid var(--lf-border);
-  border-radius: var(--lf-chip-r);
-  padding: var(--lf-chip-pad);
+  font: var(--lf-font-small);
+  line-height: 1.6;
+  border: 1px solid var(--lf-rule);
+  border-radius: calc(var(--lf-r) / 2);
+  padding: 0 var(--lf-sp-2);
 }
 lf-activity
   [data-lf-undone]

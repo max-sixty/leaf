@@ -718,9 +718,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         )
 
     registry = {
-        "lf-zone": {
-            "reading-role": "pane",
-        },
+        "lf-pane": {},
         "lf-label": {
             "inline": True,
         },
@@ -734,14 +732,14 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<header id="banner" data-width="wide">Banner</header><main data-width="available">'
         '<aside class="lf-callout warn" id="note">Paused.</aside>'
         '<aside class="lf-callout" id="chart-note" data-width="wide">Chart.</aside>'
-        '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
+        '<lf-pane id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-pane>'
         '<lf-board id="board" data-width="available"></lf-board>'
         '<lf-feed id="feed" class="selected" data-bound="end"></lf-feed>'
         '<section id="wide" data-width="wide"></section>'
         '<table id="native"></table>'
         '<pre data-bound="start">log</pre>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
-        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
+        "<template><lf-pane id=later label=Later><p>x</p></lf-pane></template>"
         "</main></body></html>"
     )
     delivered = compose_document(
@@ -767,7 +765,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     }
     assert marks[("header", "banner")] == {"data-lf-space": "wide"}
     assert marks[("main", None)] == {}
-    assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
+    assert marks[("lf-pane", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
     assert marks[("aside", "note")] == {}
@@ -780,7 +778,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-width": "1200",
         "data-lf-media-height": "800",
     }
-    assert marks[("lf-zone", "later")] == {}
+    assert marks[("lf-pane", "later")] == {}
     for mark in (
         ' data-lf-space="wide"',
         ' data-lf-space="wide"',

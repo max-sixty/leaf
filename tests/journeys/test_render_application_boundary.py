@@ -171,7 +171,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     page = open_page(browser, url)
     # The short window moves the workspace's reading regions, and the page puts back
     # the place it recorded before them on the frame after; scrolling to the source
-    # before that has the page undo it (version.js, `restoreShifted`).
+    # before that has the page undo it (features/version.js, `restoreShifted`).
     resized(page, 1440, 320)
     rendered(page)
     heading = page.locator("h1")

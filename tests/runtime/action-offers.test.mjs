@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { nameAction, offerAction, offeredAction } from "/runtime/lib/controls.js";
-import { html, render } from "/runtime/framework.js";
+import { html, render } from "/vendor/lit.js";
 
 const symbolOf = (control) =>
   [...control.querySelectorAll(":scope > svg")].map((svg) => svg.dataset.lfIcon);
@@ -24,7 +24,7 @@ test("a symbol shows its action's symbol and says its name unless its label says
   assert.deepEqual(symbolOf(retry), ["retry"]);
   assert.equal(retry.getAttribute("aria-label"), "Retry");
   // On Leaf the preview says its word on every route, so it writes no title, which the
-  // browser would show to a pointer instead (preview.js); off Leaf the title is the
+  // browser would show to a pointer instead (annotations/preview.js); off Leaf the title is the
   // only reading a pointer gets.
   assert.equal(retry.getAttribute("title"), null);
   const plain = offLeaf(() =>

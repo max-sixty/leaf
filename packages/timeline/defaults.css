@@ -17,11 +17,11 @@ lf-run::before {
   font-weight: 600;
 }
 lf-run > lf-lane {
-  margin-inline-start: var(--lf-list-inset);
+  margin-inline-start: var(--lf-sp-4);
 }
 lf-event {
   display: list-item;
-  margin-inline-start: var(--lf-list-inset);
+  margin-inline-start: var(--lf-sp-4);
 }
 lf-event::before {
   content: attr(at) " ms: " attr(label);
@@ -33,7 +33,7 @@ lf-event::before {
   align-items: center;
   gap: var(--lf-sp-2);
   margin-block-end: var(--lf-sp-2);
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 /* The position follows both buttons, so its changing width never moves them. */
 .lf-timeline-position {
@@ -49,10 +49,11 @@ lf-event::before {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
-  /* The labels are the drawing's references (tokens.css, `--lf-font-status`). Each stands in
+  /* The labels are the drawing's references, in the small font at a medium weight. Each stands in
      a row of a stated height, so its line is as tall as its words, as a mark's count
      is. */
-  font: var(--lf-font-status);
+  font: var(--lf-font-small);
+  font-weight: 500;
   line-height: 1;
   color: var(--lf-ink);
   user-select: none;
@@ -211,7 +212,7 @@ lf-event::before {
  * Leaf"). */
 @media screen and (prefers-reduced-motion: no-preference) {
   .lf-timeline-playhead-line {
-    transition: left var(--lf-motion-mark) ease;
+    transition: left var(--lf-motion-disclosure) ease;
   }
 }
 
@@ -226,7 +227,7 @@ lf-event::before {
   list-style: none;
   margin: var(--lf-sp-3) 0 0;
   padding: 0;
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 /* The list's head names each compared run once, over its column, in the face of the
    run's heading in the chart. */

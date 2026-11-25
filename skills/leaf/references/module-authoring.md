@@ -74,7 +74,6 @@ In [module-reading.md](module-reading.md):
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
-- "Markdown": `pageLinks`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `obligations` and `queues`.
 - "Page history and reports": `history`.
@@ -280,11 +279,12 @@ loading declares `ready()` on its scope, row or route, the most specific winning
 it returns false, that key and every later one keep waiting. A row with
 `decision: true` waits until the page's saved state has loaded.
 
-A module can listen on `document` for two startup events. `lf-presentation` fires once,
-when the page's complete layout is first in place; UI drawn from element geometry takes
-its first measurements there. `lf-page-interface` fires at startup and again when a new
-revision is applied in place; UI built from the authored structure rebuilds there and
-passes any asynchronous preparation to `detail.present(promise)`.
+The page's complete layout is first in place once `body[data-lf-presented]` is set;
+UI drawn from element geometry takes its first measurements then, as the library's
+[`presented.js`](../../../browser/runtime/lib/presented.js) waits for it. A module can
+listen on `document` for the startup event `lf-page-interface`, which fires at startup
+and again when a new revision is applied in place; UI built from the authored structure
+rebuilds there and passes any asynchronous preparation to `detail.present(promise)`.
 
 A page script reaches a widget's methods only once the widget has upgraded, which every
 widget on the page has by the first `lf-page-interface`. A listener for that event
@@ -292,8 +292,8 @@ widget on the page has by the first `lf-page-interface`. A listener for that eve
 after its listeners have run. A playground's page script is the worked example (the
 playground package's author instructions, "Stateful previews").
 
-Start a heavy renderer that can wait until the user has the page at `lf-presentation`,
-or at once where `body[data-lf-presented]` is already set, and say what it draws with a
+Start a heavy renderer that can wait until the user has the page once
+`body[data-lf-presented]` is set, and say what it draws with a
 `pending-task` event (`module-plain-elements.md`, "Drawing"): said after presentation,
 it holds the page's readiness rather than its presentation, so checks and tests wait
 for it. Work that starts now but need not delay presentation, such as a slow load whose
@@ -376,8 +376,8 @@ adopted sheets, the widget adds back the ones it found there. Off Leaf, nobody a
 `lf-connect`, and the root holds only what the widget draws.
 
 Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
-sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the
-page's own stylesheet.
+sit with the widgets' defaults in `lf-base`, above the page's `base` layer and below
+Layouts, package overrides and the page's other layers and unlayered rules.
 
 ### Scheduling paints
 

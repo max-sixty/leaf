@@ -6,7 +6,7 @@
    the class says `static shadow = true`, which draws into an open shadow root.
    `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
    whose tag declares `verbs`, each bound input through the property Leaf sets
-   (element-data.js, "Bound values"), Lit's reactive properties for state the widget
+   (host/element-data.js, "Bound values"), Lit's reactive properties for state the widget
    keeps itself, and any signal-backed reader, such as the page's obligations or
    history. Every signal `render()` reads synchronously is tracked by Lit's Preact
    SignalWatcher, so the element draws again when one moves.
@@ -54,7 +54,7 @@
 
    Off a Leaf page nobody answers `lf-connect` or hears the rest, so `state` stays
    undefined and the element draws what its markup and its own properties give it. */
-import { LitElement, render } from "/vendor/lit.js";
+import { LitElement } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import { COMMANDS, CONNECT, DeferEvent } from "./widget-events.js";
 import { PendingTaskEvent } from "./pending-task.js";
@@ -76,7 +76,7 @@ class UpdateBoundary extends LitElement {
   }
 }
 
-/** @typedef {ReturnType<typeof import("../widget-controller.js").widgetState>} WidgetState */
+/** @typedef {ReturnType<typeof import("../host/widget-controller.js").widgetState>} WidgetState */
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** Whether the element draws into an open shadow root of its own. */
@@ -332,16 +332,5 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     } finally {
       this.#updating = updating;
     }
-  }
-
-  /** The render drawn again at once, outside Lit's own schedule, with a failure thrown
-   *  rather than shown: the render check's replay (render-checks/replay.js), which
-   *  reads this method off any element that has one and holds a draw of the same
-   *  reading to change nothing. `updated()` does not run, since what follows a draw
-   *  may start preparation that would land after the check reads the page. An update
-   *  Lit has queued stays queued. An element with no reading to draw draws nothing
-   *  here either, so one whose `setup()` threw keeps showing that failure. */
-  redraw() {
-    if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
   }
 }

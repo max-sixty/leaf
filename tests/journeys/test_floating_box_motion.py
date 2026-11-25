@@ -1,5 +1,5 @@
 """How a floating box moves as the user edits its words: the margin card's reply, the
-comment box beside a passage and the floating panel's field, which box-motion.js moves.
+comment box beside a passage and the floating panel's field, which dom/box-motion.js moves.
 
 Each change the user makes moves what it moves one way: on each axis, from one input to
 the next, every painted part travels toward where it comes to rest, or stands. A part
@@ -110,7 +110,7 @@ def jerks(frames, marks):
     travels, or vibrating. `marks` holds the recorder's input count before each input, so
     a frame belongs to the input whose events it has seen. An input landing while a part
     moves starts its new motion from where that frame draws it, which may carry it on as
-    far as it was going (box-motion.js), so that step is not a turn."""
+    far as it was going (dom/box-motion.js), so that step is not a turn."""
     found = []
     for at, start in enumerate(marks):
         end = marks[at + 1] if at + 1 < len(marks) else float("inf")
@@ -232,7 +232,7 @@ def test_a_line_removed_among_the_words_moves_only_what_layout_moved(
     words after it stand. The comment box beside its passage stands on its top, so the
     words after the line go up with its rising foot, in the frame the key lands, as
     layout puts them. The line Shift+Enter adds first takes its place in one frame, as
-    every key that adds words does, so nothing travels (box-motion.js). The property
+    every key that adds words does, so nothing travels (dom/box-motion.js). The property
     test never puts words after the caret, so this one adds and takes away a line with
     two after it: by Backspace at the end of a line, where the change ends inside a
     line; at the start of the next, where it ends at a line's start; and, in the panel,

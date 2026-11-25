@@ -162,7 +162,7 @@ def open_compact_comment(page, text=None):
     return field
 
 
-# The top of the window the page shows (geometry.js, `shownWindow`): what a float the
+# The top of the window the page shows (dom/geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfCheckApi()).shownWindow().top"""
 
@@ -714,7 +714,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
 
 # Where the side comment's outline is drawn, its top and its foot, and its first line
 # of words and its Send's foot: its surface draws the outline, a pixel outside the cut
-# of its fill (box-motion.js).
+# of its fill (dom/box-motion.js).
 SIDE_COMMENT_DRAWN = r"""() => {
   const ground = document.querySelector('.lf-fab-ground');
   const at = ground.getBoundingClientRect();
@@ -744,7 +744,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     """A line the comment box gains at the window's foot shifts it up in the frame the
     key lands, its words and Send with its edges, as a textarea's would; a line
     removed carries the words back down with the top edge over the floating boxes'
-    tween while Send rides the foot (box-motion.js, "Whose change it is"). A new line
+    tween while Send rides the foot (dom/box-motion.js, "Whose change it is"). A new line
     that travelled too would hide the word being typed until the edge reached it."""
     page = open_page(
         browser,
@@ -846,7 +846,7 @@ def test_a_ring_the_comment_box_comes_to_wear_mid_tween_waits_for_its_end(
     (annotation-chrome.css), which exists only while the focus paint marks the box. Focus
     coming back to the box while a line it gave up still travels makes that ::after
     anew, and its ring waits for the tween's end as one the box wore from its start
-    does (box-motion.js): drawn at once, it would stand at the box's rest size over an
+    does (dom/box-motion.js): drawn at once, it would stand at the box's rest size over an
     outline still travelling."""
     page = open_page(browser, serve(LONG_PAGE))
     page.emulate_media(reduced_motion="no-preference")
@@ -883,7 +883,7 @@ def test_a_key_that_changes_the_comment_box_draws_it_at_once(browser, serve, cha
     """A comment box widens with its first line's words and grows downward as it takes
     more lines, and the key that widens it or takes it a new line stands it at its new
     size in the frame the key lands, as a textarea sized to its words does
-    (box-motion.js, "Whose change it is"). A tween each key started would trail the
+    (dom/box-motion.js, "Whose change it is"). A tween each key started would trail the
     caret, and the field's cut would hide what was just typed until the tween caught up.
     A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
@@ -2226,7 +2226,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # Hovering names the target — the tag and the id a fix is written against — and
     # draws the aim's own box on it, the promise about the next press.
     option.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
+    expect(page.locator(".lf-aim-name")).to_have_text("lf-option · opt-shim")
     expect(page.locator("[data-lf-aimed]")).to_have_id("opt-shim")
     option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
@@ -2272,7 +2272,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect_design_mode(page)
     page.keyboard.press("Escape")
     expect_design_mode(page, on=False)
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
     expect(page.locator(".lf-legend-box")).to_have_count(0)
 
 
@@ -2397,9 +2397,9 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
         page.keyboard.press("s")
         expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     control.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    expect(page.locator(".lf-aim-name")).to_have_text("Volume · section · volume")
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    expect(page.locator(".lf-aim-name")).to_have_text("Volume · section · volume")
     page.keyboard.up("Alt")
     if route == "picker-keyboard":
         said = page.locator(".lf-live")
@@ -2440,7 +2440,7 @@ def test_a_design_part_is_a_repeat_only_among_its_own_owner_s_parts(browser, ser
     """A part's name is its owner's own: a control inside an item the owner holds is
     that item's part, so a twin there leaves the owner's control unrepeated, and its
     name says no more than a lone control's would. Naming a part reads only what its
-    owner holds as its own (anchor-resolution.js, `namedParts`): a side tab list's tabs
+    owner holds as its own (readings/anchor-resolution.js, `namedParts`): a side tab list's tabs
     stand beside every document its panels hold, which the press and the picker's
     announcement each read in full (#4781)."""
     page = open_page(
@@ -2822,7 +2822,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     browser, serve, subtests
 ):
     """What varies by shape is which target Design mode reads. One reader decides it
-    (anchor-resolution.js, `designTargetAt`), and the press and the picker both go through
+    (readings/anchor-resolution.js, `designTargetAt`), and the press and the picker both go through
     it (`claimPress`, `chooseTarget`), so this reads each shape on one page, walks the
     picker's map to hear each announced as captured, and presses each shape with a default
     or a handler of its own, by each pointer route, up to the comment opening on it.
@@ -3039,14 +3039,14 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
 
     exit_mode = stance_exit(page)
     exit_mode.hover()
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel = page.locator(panel_view("threads"))
     panel_settled(page, view="threads")
     expect(panel).to_be_visible()
     panel.hover()
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
     expect(composer).to_be_hidden()
 
     page.locator(".lf-fp-close").click()
@@ -3223,7 +3223,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # The name floats where the box's tag stood, over the item's corner — on a scrolled
     # page as on a fresh one.
     p.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("paragraph · p20")
+    expect(page.locator(".lf-aim-name")).to_have_text("paragraph · p20")
     expect(page.locator("[data-lf-aimed]")).to_have_id("p20")
     _label_stands_on_the_aim(page, p)
     # Threads opens over the page. Opened by key.
@@ -3242,7 +3242,7 @@ def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
     """A legend box takes the corners of what it names, read once the element shows.
     Chromium answers a style read inside a closed tab by styling everything the tab
     holds, so on a page of text documents in closed tabs entering Design mode could
-    take seconds (design.js, `paintLegend`). The box of what the tab holds
+    take seconds (annotations/design.js, `paintLegend`). The box of what the tab holds
     takes its corners once the tab opens."""
     page = open_page(
         browser,
@@ -3285,7 +3285,7 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     beside it, and a control's own words after its name, said once. A picture says none
     of its own words, since its name describes it: over a text document Design mode
     aims at its view, a picture of the whole document, whose name would otherwise read
-    all of it twice at each move of the pointer (anchor-resolution.js,
+    all of it twice at each move of the pointer (readings/anchor-resolution.js,
     `controlContext`)."""
     filler = " ".join(f"word{n}" for n in range(400))
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
@@ -3330,7 +3330,7 @@ def _label_stands_on_the_aim(page, target):
     the outline `target` draws it as, so this still checks attachment when its gap
     changes."""
     ring = target.evaluate(MARK)
-    name = page.locator(".lf-inspect").bounding_box()
+    name = page.locator(".lf-aim-name").bounding_box()
     assert abs(name["y"] + name["height"] - ring["ring"]["top"]) < 1, (name, ring)
     assert abs(name["x"] - ring["box"]["left"]) < 4, (name, ring)
 
@@ -3388,7 +3388,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
         )
     ) == {"t", "p", "flow", "tree"}
     node.hover()
-    expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
+    expect(page.locator(".lf-aim-name")).to_have_text("lf-diagram · flow")
 
 
 def test_an_authored_drawing_offers_each_named_group_to_a_comment(browser, serve):
@@ -3857,7 +3857,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
-  .authored-contour { outline:1px dashed var(--lf-ink-2); }
+  .authored-contour { outline:1px dashed var(--lf-ink); }
   </style>""",
             )
         ),
@@ -3954,7 +3954,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
         assert pending["ring"] == aimed["ring"], (aimed, pending)
 
 
-# A box drawing the target painter's focus state as its ring (visual-mark-paint.js).
+# A box drawing the target painter's focus state as its ring (annotations/visual-mark-paint.js).
 FOCUS_MARK = '[data-lf-mark~="focus"]'
 
 
@@ -4476,7 +4476,7 @@ def _design_mode(page):
 
 
 # A long page whose paragraphs stand under a header stuck at the window's head, which cuts
-# paint over them in the window's plane (geometry.js, `headerInset`).
+# paint over them in the window's plane (dom/geometry.js, `headerInset`).
 HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
     "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
@@ -4555,7 +4555,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 ):
     """Paint over what the page shows, a mode's names, chips and marks, stands where
     what it names is carried, anchored to it in the frames that cut it
-    (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
+    (readings/target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
     it with the scroll and writes none of it on the scroll's frames. What the scroll
     changes, the map's members and a chip the window's head holds in, is read once it
     settles, and a legend's tags step inside their boxes as they cross a cut. A design
@@ -4627,7 +4627,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 
 def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, serve):
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
-    (key-badges/hints.js, `seatHints`): only what stands still as the page scrolls, the
+    (readings/key-badges/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
     chrome at the foot shared its column, such a chip would stand still mid-page
     through a scroll and jump once it settled."""
@@ -4705,7 +4705,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     """Every frame Chrome draws while a pane scrolls under the pointer in Design mode
     shows the name and the legend box level with what they name."""
     follower = (
-        f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
+        f".lf-aim-name {{ background: {FOLLOWER_MARK} !important; }}"
         if paint == "inspect"
         else '.lf-legend-box[data-lf-for="pane-target"]'
         f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
@@ -4725,7 +4725,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
     _design_mode(page)
     target = page.locator("#pane-target").bounding_box()
     page.mouse.move(target["x"] + 40, target["y"] + 130)
-    expect(page.locator(".lf-inspect")).to_have_text(re.compile("pane-target"))
+    expect(page.locator(".lf-aim-name")).to_have_text(re.compile("pane-target"))
     rendered(page)
     assert_follows_in_every_frame(page, "#design-pane > div")
 
@@ -4749,7 +4749,7 @@ OFF_FLOW_PAGE = leaf_page(
 
 def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
     """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
-    step apart as they meet, with no legend pass between (design.js, `placeTags`):
+    step apart as they meet, with no legend pass between (annotations/design.js, `placeTags`):
     a scroll that left every tag on the same side of its box doesn't keep the steps it
     found, though the tags it had stepped apart now stand elsewhere."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
@@ -4782,7 +4782,7 @@ def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, s
 def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     """Each legend box is anchored to its own element, so it stays on a sticky bar the
     page scrolls under and on an element a transform moves, with no pass to place it
-    again (design.js, `paintLegend`); a fixed bar and a popover's content, which no
+    again (annotations/design.js, `paintLegend`); a fixed bar and a popover's content, which no
     frame cuts, stand beside it."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
     resized(page, 1280, 720)

@@ -552,7 +552,7 @@ weigh the advice.
 
 ## The render pass, 2026-11-05
 
-The pass is built in `src/leaf/render_gate/handover_pass.py`, whose header holds its
+The pass is built in `src/leaf/handover_pass.py`, whose header holds its
 contract and its cost. These runs scored it against the merge base, where the driver's
 `render` move posts the same findings as the page's `error`:
 
@@ -926,7 +926,7 @@ beside a mostly empty decision column.
 The browser user's passage selection picked the contents outline's copy of a
 heading, which Leaf echoes from the heading and offers no comment route for, and
 the sample failed. `eval_user.py` now selects only words in the page's own reading
-(`pageText`, passages.js), the words a comment can anchor to: tab labels and board
+(`pageText`, readings/passages.js), the words a comment can anchor to: tab labels and board
 column headings stay selectable, and Leaf's chrome and echoed copies don't.
 
 The dashboard comment fell back to a whole-page comment wherever the follow-ups

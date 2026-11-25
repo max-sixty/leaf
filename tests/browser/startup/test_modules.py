@@ -184,7 +184,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
 def test_composers_take_their_fields_when_they_first_open(browser, serve):
     """The comment composer holds no field on the page until it first opens, since a
-    field on the page builds its editor (composing/selection.js). Its open, and `c` into
+    field on the page builds its editor (annotations/composing/selection.js). Its open, and `c` into
     the panel's page comment, place the caret in the same turn, so the words typed
     straight after land there, and a draft kept from before a reload reaches the field
     when its composer opens again."""

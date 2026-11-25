@@ -28,8 +28,8 @@ const {
   stopWhereItStands,
   watchScrollEnds,
   watchScrolls,
-} = await import("/runtime/arrivals.js");
-const { clockValue, tickClock } = await import("/runtime/presence.js");
+} = await import("/runtime/dom/arrivals.js");
+const { clockValue, tickClock } = await import("/runtime/state/presence.js");
 const { frameFor } = await import("/runtime/lib/frame-pass.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals, in
@@ -308,10 +308,11 @@ test("a frame paints nothing while its owner is away, and paints once it returns
 });
 
 test("a clock render reports its failure once and recovers on the next reading", async () => {
-  const { reportCarried } = await import("/runtime/layer-client.js");
+  const { reportCarried } = await import("/runtime/transport/layer-client.js");
   const { LeafElement } = await import("/runtime/lib/leaf-element.js");
   const { html } = await import("/vendor/lit.js");
-  const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
+  const { setPresentationFailureReporter } =
+    await import("/runtime/state/semantic-state.js");
   setPresentationFailureReporter(reportCarried);
   let clock = 0;
   customElements.define(

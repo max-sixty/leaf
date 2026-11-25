@@ -1,16 +1,19 @@
 import "/runtime/stage-integration.js";
 /* Some of what a reading of the page reads is not what the page's reading hears: a
    datum's source and identity, or a role that makes a picture's holder a press. A
-   change to one reaches a reading kept from it (kept.js) through its announcement,
+   change to one reaches a reading kept from it (state/kept.js) through its announcement,
    the document presented (`presentDocument`) or a widget's layout changing
    (`lf-layout`), which its reader follows. */
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveAnchor, unclaimedVisualGesture } from "/runtime/anchor-resolution.js";
-import { kept } from "/runtime/kept.js";
-import { registry } from "/runtime/registry.js";
-import { presentDocument } from "/runtime/semantic-state.js";
+import {
+  resolveAnchor,
+  unclaimedVisualGesture,
+} from "/runtime/readings/anchor-resolution.js";
+import { kept } from "/runtime/state/kept.js";
+import { registry } from "/runtime/state/registry.js";
+import { presentDocument } from "/runtime/state/semantic-state.js";
 
 test("a kept datum's place follows its source's revision once the document is presented", async () => {
   Object.assign(registry, { $layer: { generation: "kept-unheard-datum" } });

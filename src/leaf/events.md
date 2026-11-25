@@ -27,7 +27,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                              | `through`, the seq the receipt confirms                                                                                                                                        | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
 | <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                                        | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                         | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                            |
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                              | `text`                                                                                                                                                                         | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
-| <a id="kind-render"></a>`render`             | page            | the page's server (`render_gate/handover_pass.py`)                                       | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                | what the render check newly found in a version the agent handed over                                                                                                                          |
+| <a id="kind-render"></a>`render`             | page            | the page's server (`handover_pass.py`)                                                   | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                | what the render check newly found in a version the agent handed over                                                                                                                          |
 | <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create` or `leaf task plan`, or a reply's `todo` (`leaf thread reply --todo`) | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                             | opens work the agent owes (`todos.py`)                                                                                                                                                        |
 | <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                          | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                       | ends a to-do (`todos.py`)                                                                                                                                                                     |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                                  | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                          | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
@@ -71,7 +71,7 @@ transition or `reanchor` as the thread's location and keeps the old anchor as
 A comment the user writes in the panel with nothing selected is about the whole page and
 has no anchor. The browser records with it `viewing`, the ids of the addressable
 elements around the words and pictures on the user's screen as they sent it, in page
-order (`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one
+order (`runtime/readings/reading-place.js`, `sectionsInView`), so that on a page showing one
 section at a time the agent can tell which section "this one" meant. Page chrome the
 author gave an id, such as a header, is among them. The thread still stands on the
 whole page, since the user chose to comment there; `viewing` records only what they saw.
@@ -83,7 +83,7 @@ with it `box`, the frame's size, `says`, the page's words under the ink, and the
 `viewport` and `scheme` of the window it was drawn in. `drawing.frame`, when present,
 names the native visual under that point by a structural path inside its element, so
 inserting or removing a sibling detaches it rather than retargeting it. Points are in
-the frame's local coordinates (`browser/runtime/composing/drawing-record.js`). The
+the frame's local coordinates (`browser/runtime/annotations/composing/drawing-record.js`). The
 browser reads all of this off the rendered page, which no file reading can reproduce, so
 the door bounds its shape, the stroke count and 500 characters of `says`, refuses a
 drawing without an anchor or `box`, and does not re-read it. `$events.handling.comment`
@@ -127,7 +127,7 @@ and how long ago, in every tab and after a reload. A press withdraws the gesture
 once, unless a message or settlement of the user's is still being sent, which it waits
 for, and leaves the user at the gesture's thread, message, passage or element,
 travelling there where it was out of view, so the user sees what the press took back
-however old it was (`runtime/undo.js`). `runtime/undo.js` names each gesture, and the served list words an
+however old it was (`runtime/records/undo.js`). `runtime/records/undo.js` names each gesture, and the served list words an
 action at its head (`GestureWords.gesture`). An exact control, such as a widget's Undo,
 may withdraw an older gesture it names. It and the undo key may withdraw an action whose
 POST has not returned: the browser keeps both gestures in its ordered ledger and sends

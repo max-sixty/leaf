@@ -779,7 +779,7 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
 def test_a_write_from_another_runtime_is_not_interpreted_or_appended(server, page_dir):
     """A tab from before a restart under another runtime names that runtime, and the
     server admits nothing from it: it answers in its own runtime's name, which the
-    tab refuses and reloads on (`layer-client.js`), so code from one Leaf never
+    tab refuses and reloads on (`transport/layer-client.js`), so code from one Leaf never
     writes against another's server (`runtime_selection`)."""
     publish(page_dir)
     identity = serving_runtime().identity
@@ -4595,7 +4595,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
     @contextmanager
     def starting_detached(arguments, **options):
         calls.append(arguments)
-        yield {"url": "http://127.0.0.1:41234/?t=test", "claim": None}
+        yield {"url": "http://127.0.0.1:41234/?t=test", "claim": None, "fresh": True}
 
     monkeypatch.setattr(hosting_model, "starting_detached", starting_detached)
 

@@ -23,15 +23,16 @@ import { registerContribution } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { keeps } from "/runtime/lib/keeps.js";
-import { foldBlock } from "../runtime/motion.js";
-import { renderRetired, says, textNodesUnder } from "../runtime/passages.js";
+import { foldBlock } from "../runtime/dom/motion.js";
+import { renderRetired, says, textNodesUnder } from "../runtime/readings/passages.js";
+import { addressableSays } from "../runtime/readings/addressable-names.js";
 import { alignText } from "/runtime/lib/text-alignment.js";
-import { shownParts } from "../runtime/geometry.js";
+import { shownParts } from "../runtime/dom/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
-/** @typedef {import("../runtime/contribution-model.js").EntryInput} EntryInput */
+/** @typedef {import("../runtime/base/contribution-model.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
 // The outcome of the decision in force, or null while the suggestion is undecided.
 /** @param {SuggestionState} state */
@@ -294,13 +295,13 @@ customElements.define(
       );
     }
 
-    /** @returns {import("../runtime/contribution-model.js").ReadingOptions} */
+    /** @returns {import("../runtime/base/contribution-model.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();
       return {
         // What a suggestion is, for a face that stands for it: a pin folded for want of
-        // room wears this kind's (margin-model.js, `clusterProjection`).
+        // room wears this kind's (features/margin-model.js, `clusterProjection`).
         kind: "change",
         // The slots use tint and strike/insert paint to carry their relationship on the
         // page. Away from that paint, concatenating them turns `red` → `blue` into the
@@ -384,13 +385,9 @@ customElements.define(
       return text.length > 48 ? text.slice(0, 48) + "…" : text;
     }
 
+    // Its words as the chrome says them away from the page (addressable-names.js).
     #subject() {
-      const cut = this.querySelector(":scope > lf-old");
-      const put = this.querySelector(":scope > lf-new");
-      const before = cut ? says(cut) : "";
-      const after = put ? says(put) : "";
-      if (before && after) return `${before} → ${after}`;
-      return before || after || this.id;
+      return addressableSays(this) || this.id;
     }
 
     // The page's blanket answer (`awaits.all`) calls the deciding verb by name.
@@ -541,26 +538,6 @@ customElements.define(
         del: toRanges(oldSegs, moved.del),
         ins: toRanges(newSegs, moved.ins),
       });
-    }
-
-    // Which of the three changes this is, for anything naming it away from the page:
-    // a row in the panel's On view, the label on a comment anchored here. The slots are the
-    // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
-    // deletes — and it is the reading #voice already speaks on the slots themselves,
-    // said once for the element. A settled suggestion keeps the word it had: the
-    // retired half stays in the markup, and a decision changed the outcome rather than
-    // the kind of thing that was proposed.
-    lfWord() {
-      const cut = this.querySelector(":scope > lf-old");
-      const put = this.querySelector(":scope > lf-new");
-      return cut && put ? "rewrite" : put ? "insertion" : "deletion";
-    }
-
-    // Its words, for the same askers: the slots' text nodes run together away from the
-    // strike and insert paint, and a thread on a rewrite was quoted as
-    // "courtyardcovered terrace".
-    lfSays() {
-      return this.#subject();
     }
 
     render() {

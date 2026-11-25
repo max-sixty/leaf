@@ -452,6 +452,7 @@ DELIVERY = Record(
         ),
     ),
     since=52,
+    kept=("batches/*/page",),
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
@@ -497,7 +498,7 @@ def retire_gone_deliveries() -> None:
     any delivery an agent or a hook waits on: the read grows with every envelope
     the machine has kept."""
     for path in (state_home() / "deliveries").glob("*.json"):
-        retire_if_gone(path)
+        retire_if_gone(DELIVERY, path)
 
 
 def _registry(page_dir: Path):
@@ -1189,7 +1190,7 @@ def deliverable(
 
     if write_refusal(page.page_dir):
         return []
-    # Advice wakes nobody, so it goes with what does (`render_gate.handover_pass`).
+    # Advice wakes nobody, so it goes with what does (`handover_pass`).
     advice = [
         event
         for event in page.events

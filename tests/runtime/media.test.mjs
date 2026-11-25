@@ -3,7 +3,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mediaViewer, readAttachedMedia, writeAttachedMedia } from "/runtime/media.js";
+import {
+  mediaViewer,
+  readAttachedMedia,
+  writeAttachedMedia,
+} from "/runtime/records/media.js";
 
 test("a stored draft preserves its exact text through the attached-media projection", () => {
   const images = ["/media/051bee487bfb5d13.png", "/media/aaaaaaaaaaaaaaaa.png"];

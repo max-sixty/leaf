@@ -355,7 +355,7 @@ export class Trace extends LeafElement {
   #scope = null;
   /** @type {string | null} */
   #selected = null;
-  /** @type {import("../../../browser/runtime/visual-parts.js").VisualPart[]} */
+  /** @type {import("../../../browser/runtime/state/visual-parts.js").VisualPart[]} */
   #inventory = [];
   /** @type {Map<string, TraceTarget>} */
   #targets = new Map();
@@ -726,7 +726,6 @@ export class Trace extends LeafElement {
           new CustomEvent("lf-commands", { bubbles: true, composed: true }),
         ),
     });
-    this.addEventListener("lf-inspect", (event) => this.#inspect(event));
     this.lfParts = {
       read: () => this.#inventory,
       label: (/** @type {string} */ id) => this.#targets.get(id)?.label ?? null,
@@ -766,7 +765,6 @@ export class Trace extends LeafElement {
     const path = event.composedPath();
     if (path.includes(this.#nodes.metadata)) this.pause();
     else if (
-      event.type === "lf-inspect" ||
       path.includes(this.#nodes.viewport) ||
       path.includes(this.#nodes.imageTools)
     )
@@ -1509,7 +1507,7 @@ export class Trace extends LeafElement {
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
     keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
-    // What the scale stands at, which its preview says beside its name (preview.js).
+    // What the scale stands at, which its preview says beside its name (annotations/preview.js).
     keeps(
       this.#nodes.imageScale,
       "aria-description",

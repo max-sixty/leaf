@@ -251,7 +251,7 @@ class _Unread:
     it crashed, Leaf's own preview server stopped answering, or the gate's probe
     failed: the finding is about the run, not the page, so the check counts the gate
     as not run (`render_gate.command.BrowserCheck`), keeps no reading of the version
-    (`render_gate.handover_pass`), and a message it held posts, as on a host with no
+    (`handover_pass`), and a message it held posts, as on a host with no
     browser. It is advice in every record, beside the result."""
 
     words: Callable[[str, dict], str]
@@ -833,16 +833,15 @@ _TEXT = {
     "render-threw": _fails(
         _STATE,
         lambda at, v: (
-            f"{at} render() threw when the complete state was rendered a second time:"
-            f" {v['error']}"
+            f"{at} threw when its complete state was set a second time: {v['error']}"
         ),
     ),
     "relative-render": _fails(
         _STATE,
         lambda at, v: (
-            f"{at} render() is relative — rendering the same complete state changed"
-            f" {', '.join(v['changed'])}. Render the supplied values without stepping"
-            " from the DOM."
+            f"{at} draws relative to what it drew — setting the same complete state"
+            f" again changed {', '.join(v['changed'])}. Draw the supplied values"
+            " without stepping from the DOM."
         ),
     ),
     # Geometry, read across the width sweep.
@@ -1224,22 +1223,22 @@ _TEXT = {
         ' child carries its own (page-layout.md, "A page of parts")'
     ),
     "pane-ends": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds more than one direct"
+        f"{_line(at, v)}: a {v['role']} holds more than one direct"
         " <header> or <footer>; its grid sets each one after the first beside it, in a"
         " column of its own, so put what they hold in one <header> or <footer>"
     ),
     "pane-header-first": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <header> after"
+        f"{_line(at, v)}: a {v['role']} holds its direct <header> after"
         " other children; its grid still draws the header on top, but keyboard and"
         " screen-reader order follow the markup"
     ),
     "pane-footer-last": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <footer> before"
+        f"{_line(at, v)}: a {v['role']} holds its direct <footer> before"
         " other children; its grid still draws the footer at the bottom, but keyboard"
         " and screen-reader order follow the markup"
     ),
     "pane-body": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} "
+        f"{_line(at, v)}: a {v['role']} "
         + (
             "holds loose text as its body, which stands without the body's padding"
             " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
@@ -1535,9 +1534,6 @@ _TEXT = {
     ),
     "undeclared-attributes": _declared(
         lambda v: f"`{v['key']}` names undeclared attributes {_json(v['names'])}"
-    ),
-    "reading-role-attr": _declared(
-        lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
     "data-contract": _declared(
         lambda v: (
@@ -2284,6 +2280,13 @@ _TEXT = {
         f"{v['page']} is at an older page protocol, and this Leaf could not take it"
         f" to its own: {v['error']}"
     ),
+    # A start from a Leaf that doesn't act for the session the environment names
+    # (`hosting.claim_and_start`, `harness.unserved_session`).
+    "serves-for-no-session": lambda at, v: (
+        f"this Leaf ({v['leaf']}) isn't the one session {v['session']}'s hooks run,"
+        f" so it serves {v['page']} for no session: the session's hooks won't hear"
+        f" it. Hear it with `{v['leaf']}/bin/leaf wait {v['page']}`."
+    ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
         " it again."
@@ -2332,6 +2335,10 @@ _TEXT = {
     "not-owned": lambda at, v: (
         f"stopped watching {', '.join(v['pages'])}: this session no longer owns"
         + (" it" if len(v["pages"]) == 1 else " them")
+    ),
+    "held-for-a-session": lambda at, v: (
+        f"stopped watching {v['page']}: session {v['session']} holds it, and this "
+        "Leaf acts for no session"
     ),
     "nothing-to-watch": lambda at, v: (
         "nothing to watch: "

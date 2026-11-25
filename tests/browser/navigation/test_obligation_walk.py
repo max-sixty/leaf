@@ -1420,7 +1420,7 @@ def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_pan
 ):
     """A phone's window has no room for a margin card, so `m` leaves the obligation's
     choices uncovered, a digit answers, and `c` continues its thread in the floating panel
-    rather than starting another (thread/destination.js)."""
+    rather than starting another (records/thread/destination.js)."""
     url = serve(TALL_OBLIGATION_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}

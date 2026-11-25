@@ -13,10 +13,10 @@ and widths").
 
 ### Reading regions
 
-A pane widget declares `reading-role: pane` and `content: markup`, and holds one
-body element, with an optional native `header` before it and `footer` after. Whether a
-pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
-module's, and either way the module marks the body as a reading region, below.
+A pane is Leaf's `lf-pane`, which holds one body element, with an optional native
+`header` before it and `footer` after. Whether a pane's body scrolls is the workspace
+Layout's decision (`layouts.css`), not the module's, and either way the pane marks the
+body as a reading region, below.
 
 While the workspace fills the window, the Layout sets `--lf-full-height: 1` on `main` and
 on a grid of panes, telling their children they have a definite height to fill. A
@@ -269,13 +269,13 @@ is presented and for that user.
 
 A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
 than choosing a number, and a retained frame returning from an editor to its reading
-takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
+takes the same time (`package-themes.md`, "Theme tokens"). The
 library's [`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js) reads a
 token's time in milliseconds.
 
 A brief tint that marks a change, as Leaf marks a newly arrived message, starts from
-`var(--lf-hi-tint)` and fades to the element's own background over
-`--lf-motion-flash`: `playMotion(element, [{ backgroundColor: "var(--lf-hi-tint)",
+`var(--lf-warn-tint)` and fades to the element's own background over
+`--lf-motion-flash`: `playMotion(element, [{ backgroundColor: "var(--lf-warn-tint)",
 offset: 0 }], { duration })`.
 
 ## Notices and spoken words
@@ -288,10 +288,6 @@ listener which keys act next, as after a card is grabbed, give `detail` as
 `{ words, rows }`, where `rows` holds the command rows that act (`module-input.md`,
 "Command rows"). After the words Leaf names each row's keys and title, such as
 `Escape cancel`, leaving out a row no key would run as the words are said.
-
-An `lf-error` event, dispatched the same way, tells the user that something they did
-has not taken, such as a value the server refused (`module-plain-elements.md`,
-"`lf-error`").
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and

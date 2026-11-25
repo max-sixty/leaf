@@ -428,7 +428,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         return register, reference
 
     # No threads and one version: the thread walk still runs, as every page walk does
-    # (keyboard/AGENTS.md, "Page grammar"), and the page has no thread scope and no link.
+    # (dom/keyboard/AGENTS.md, "Page grammar"), and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["runs"]
     assert {"thread.primary", "link.follow"} <= register["absent"]

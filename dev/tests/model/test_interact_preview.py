@@ -8,6 +8,7 @@ opening a browser.
 """
 
 import json
+import os
 import shutil
 import sys
 from functools import partial
@@ -15,8 +16,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_leaf
 from interact_support import (
     ROOT,
+    append_carried_log_record,
     fetch,
     wait_for,
 )
@@ -688,6 +691,39 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
         ) == transferred
         owner.stop()
         assert bool(server.running_server(page_dir)) == transferred
+    finally:
+        cmd_stop(page_dir)
+
+
+def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
+    page_dir, tmp_path, capsys
+):
+    """A developer's flow: a checkout's `--user` preview, in a session whose hooks run
+    another Leaf, as an installed copy, acts for no session. It serves the page
+    unclaimed and says so, and the checkout's own `leaf wait` on the page hears the
+    user."""
+    from leaf.hosting import cmd_stop
+    from leaf.session import cmd_wait
+
+    installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], installed)
+    owner = preview.PreviewService(page_dir, user=True)
+    try:
+        with owner.starting():
+            pass
+        assert owner.claim is None
+        assert service.page_claim(page_dir) is None
+        assert server.running_server(page_dir)
+        notes = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+        assert [note["code"] for note in notes] == ["serves-for-no-session"]
+
+        append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "for the checkout"}
+        )
+        assert cmd_wait(page_dir) == 0
+        [delivery] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        [batch] = delivery["batches"]
+        assert [event["text"] for event in batch["events"]] == ["for the checkout"]
     finally:
         cmd_stop(page_dir)
 

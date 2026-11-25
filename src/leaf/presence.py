@@ -252,7 +252,9 @@ def page_list() -> list[dict]:
                 "harness": claim["harness"] if claim else None,
                 "claim_session": claim["id"] if claim else None,
                 "session_name": (
-                    claim_harness(claim).session_name() if claim else None
+                    harness.session_name()
+                    if (harness := claim_harness(claim))
+                    else None
                 ),
                 "session_cwd": claim["cwd"] if claim else None,
                 "session_alive": claim_is_active(claim) if claim else None,
@@ -270,15 +272,18 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
     so every cache of a presence reading keys on them, and the freshness token
     carries them."""
     active = claim if claim_is_active(claim) else None
+    harness = claim_harness(active)
     return {
         "listening": process
         and wait_is_live(page_dir, active["id"] if active else None),
         # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
-        "live_turn": claim_harness(active).live_turn() if active else None,
-        "session_name": claim_harness(claim).session_name() if claim else None,
+        "live_turn": harness.live_turn() if harness else None,
+        "session_name": (
+            named.session_name() if (named := claim_harness(claim)) else None
+        ),
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
-        "input_wakes": bool(active and claim_harness(active).input_wakes()),
+        "input_wakes": bool(harness and harness.input_wakes()),
     }
 
 
@@ -374,7 +379,9 @@ def presence_with_activity(
         # When that turn opened, and whether an open turn of this session's takes
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
-        "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
+        "turn_takes_input": bool(
+            (harness := claim_harness(active)) and harness.turn_takes_input()
+        ),
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -475,7 +482,8 @@ def nudge_unwatched(page: PageTransaction) -> None:
     if (
         nudge_due(present, turn)
         and claim.get("messaged_ending") != mark
-        and claim_harness(claim).nudge(page_dir)
+        and (harness := claim_harness(claim)) is not None
+        and harness.nudge(page_dir)
     ):
         page.note_messaged(mark)
 

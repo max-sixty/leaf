@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/framework.js";
-import { agentSays, leafSays, voiceOf, voiced, wordsText } from "/runtime/voice.js";
+import { render } from "/vendor/lit.js";
+import {
+  agentSays,
+  leafSays,
+  voiceOf,
+  voiced,
+  wordsText,
+} from "/runtime/base/voice.js";
 
 // A seat draws each word in its speaker's face, and one that holds a single face, such
 // as the field's native placeholder, takes the run's one voice or none.

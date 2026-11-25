@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createDictation } from "/runtime/composing/dictation.js";
+import { createDictation } from "/runtime/annotations/composing/dictation.js";
 
 /**
  * Native speech recognition needs microphone permission and a remote service.

@@ -660,8 +660,9 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     against the complete presented page before semantic interaction opens.
 
     The recorded draft makes the first section much taller during replay. The contents
-    map has already painted the short authored form, so the presentation signal must
-    replace that stale map in the same turn that releases durable interaction."""
+    map has already painted the short authored form, so the page's presentation must
+    replace that stale map before the first frame that releases durable interaction
+    paints."""
     source = contents_page(
         "stable generated interface",
         """
@@ -700,14 +701,16 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
         window.__tocFirstPaint = null;
         new MutationObserver((records, observer) => {
           if (document.body?.dataset.lfPresented !== '1') return;
-          const nav = document.querySelector('.lf-toc-nav');
-          window.__tocFirstPaint = {
-            visible: nav.checkVisibility({visibilityProperty: true}),
-            reach: ("""
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            const nav = document.querySelector('.lf-toc-nav');
+            window.__tocFirstPaint = {
+              visible: nav.checkVisibility({visibilityProperty: true}),
+              reach: ("""
         + PREPARE_REACH
         + """)(nav),
-          };
-          observer.disconnect();
+            };
+          });
         }).observe(document, {
           subtree: true,
           attributes: true,
@@ -1347,7 +1350,7 @@ ROW_MARKS = """(toc) => {
     probe.remove();
     return value;
   };
-  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
+  const marks = { thread: colour('--lf-accent'), 'on-me': colour('--lf-here') };
   const markers = [...toc.querySelectorAll('.lf-toc-marker')];
   return Object.fromEntries([...toc.querySelectorAll('.lf-toc-start, li')]
     .filter((row, index) => row.dataset.lfTocMark && (
@@ -1569,7 +1572,7 @@ def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase previews it to
     a resting pointer and to Tab, which reaches its Explain control, in the face every
-    preview wears (preview.js), and a click pins it as the page's card for mouse or
+    preview wears (annotations/preview.js), and a click pins it as the page's card for mouse or
     touch. The preview and the card each stay inside the viewport, Escape puts either
     away, and both the phrase and explanation remain the page's authored words."""
     source = leaf_page(

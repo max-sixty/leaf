@@ -36,7 +36,7 @@
  * The editor opens where the prose stood and in its faces: its field takes each
  * block's type and the gaps between blocks from the draft's place on the page, and
  * draws a picture as the picture, under its source once the caret reaches it
- * (`facesOf`, composing/text-field.js), so no word moves as it opens. It draws each
+ * (`facesOf`, annotations/composing/text-field.js), so no word moves as it opens. It draws each
  * blank line typed between blocks, and saving writes each run of them as the one gap
  * the prose draws (`valueToSave`). Rejected:
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
@@ -78,7 +78,7 @@
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import { html, render, nothing } from "/vendor/lit.js";
-import { aimedAt, nameOf, draft, pageLinks } from "/runtime/widget-api.js";
+import { aimedAt, nameOf, draft } from "/runtime/widget-api.js";
 import { playMotion } from "/runtime/lib/motion.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
@@ -89,6 +89,7 @@ import { motionTime } from "/runtime/lib/motion-timing.js";
 import { noInputSince } from "/runtime/lib/input-since.js";
 import { focusOn } from "/runtime/lib/focus-on.js";
 import {
+  pageLinks,
   paintMarkdown,
   markdownSourceOffset,
   markdownWords,
@@ -440,7 +441,7 @@ customElements.define(
       if (this.#editor) return;
       if (this.#sending) {
         window.dispatchEvent(
-          new CustomEvent("lf-error", {
+          new CustomEvent("lf-announce", {
             detail: "Wait for the current edit to finish saving",
           }),
         );
@@ -491,9 +492,12 @@ customElements.define(
       }
     }
 
-    // A primary press that begins and completes outside the draft saves it, so a drag
-    // into or out of the box, a finger's scroll the browser cancels and a secondary
-    // press save nothing. Returns what stops hearing presses.
+    // A primary press that begins and completes outside the draft, and leaves the user
+    // outside it, saves it, so a drag into or out of the box, a finger's scroll the
+    // browser cancels and a secondary press save nothing. Where the press leaves the
+    // user is read once the click its release owes is past: a control that stands for
+    // the draft's place keeps the caret in it, as Leaf's writing beacon does, so a press
+    // on it takes the user back and saves nothing. Returns what stops hearing presses.
     #pressAway() {
       const listening = new AbortController();
       addEventListener(
@@ -514,7 +518,11 @@ customElements.define(
             "pointerup",
             (up) => {
               press.abort();
-              if (!up.composedPath().includes(this)) void this.#commit();
+              if (up.composedPath().includes(this)) return;
+              setTimeout(() => {
+                if (!listening.signal.aborted && !this.matches(":focus-within"))
+                  void this.#commit();
+              });
             },
             options,
           );
@@ -536,7 +544,7 @@ customElements.define(
         this.#returnMotion = playMotion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          { duration: motionTime("--lf-motion-return") },
+          { duration: motionTime("--lf-motion-fold") },
         );
       // Words the box already says are no loss, so only changed ones are kept for ⌘Z
       // to take back.

@@ -246,7 +246,7 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   align-content: start;
   gap: var(--lf-sp-3);
   min-width: 0;
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   font: var(--lf-font-ui);
   accent-color: var(--lf-accent);
 }
@@ -286,11 +286,12 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
 :where(.lf-playground-controls-region > aside fieldset)
   > label:has(> input:is([type="radio"], [type="checkbox"])) {
   justify-self: stretch;
-  margin-inline-start: calc(-1 * var(--lf-choice-pad));
+  margin-inline-start: calc(-1 * max(var(--lf-sp-1), var(--lf-focus-ring-room)));
 }
 :where(.lf-playground-controls-region > aside output) {
   color: var(--lf-muted);
-  font: var(--lf-font-code);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
 }
 .lf-playground-presets {
   display: flex;
@@ -298,7 +299,7 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   align-items: center;
   /* Wrapped rows keep each button's reach, which stands past its face under a
      finger, clear of the row above it. */
-  gap: max(var(--lf-sp-2), 2 * var(--lf-reach-room)) var(--lf-sp-2);
+  gap: max(var(--lf-sp-2), var(--lf-aim-floor) - var(--lf-line)) var(--lf-sp-2);
 }
 
 /* A preset is an addressable member; its generated button is chrome, so the
@@ -333,8 +334,8 @@ lf-playground-output {
   --lf-block-frame: 1;
   display: block;
   margin: 0;
-  color: var(--lf-ink-2);
-  font: var(--lf-font-widget);
+  color: var(--lf-ink);
+  font: var(--lf-font-ui);
 }
 
 /* A provider supplies plain text; authored output keeps ordinary HTML whitespace. */
@@ -358,7 +359,7 @@ lf-playground-output output {
 
 .lf-playground-unavailable {
   flex-basis: 100%;
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   font: var(--lf-font-small);
   text-align: end;
 }

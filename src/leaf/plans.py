@@ -46,8 +46,8 @@ its steps that ended done of those not dropped. A step naming an obligation a la
 version removed reads as dropped.
 
 The floating panel's On <agent> shows the plan above its list while one stands, and On
-Me can group its items under the goals whose steps name them (`floating-panel.js`,
-`queue-walk.js`). `conversation-loop.md`, "When to write", asks an agent for a plan
+Me can group its items under the goals whose steps name them (`panel/floating-panel.js`,
+`panel/queue-walk.js`). `conversation-loop.md`, "When to write", asks an agent for a plan
 when its work runs to several steps and past the turn it is in.
 
 Experimental, like to-dos and the lists; nothing outside this repository depends on it.
@@ -89,12 +89,13 @@ def _depths(steps: list[dict]) -> list[int]:
     return read
 
 
-def plan_error(event: dict, todos: list[dict], items: list[dict]) -> Finding | None:
+def plan_error(event: dict, todos: list[dict], known: set[str]) -> Finding | None:
     """Why the append door refuses a `plan` event, or None. `todos` are every to-do
-    on the page and `items` every obligation, open or not."""
+    on the page and `known` the ids of every obligation a step may name, open or not
+    (`WorkReading.plan_ids`)."""
     if event["kind"] != "plan":
         return None
-    known = {todo["id"] for todo in todos} | {item["id"] for item in items}
+    known = known | {todo["id"] for todo in todos}
     steps = event["steps"]
     depths = _depths(steps)
     for at, step in enumerate(steps):

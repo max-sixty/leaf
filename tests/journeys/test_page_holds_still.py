@@ -942,7 +942,7 @@ def floating_places():
     """The places in a thread's two floating boxes, the margin card and the floating
     panel's view: writing a reply, on Send with the reply written, the caret in the
     empty reply box, on the thread itself, where a send and Escape from the box leave
-    the user, which waits at its reply box (thread/reply-landing.js, `standsAt`), and
+    the user, which waits at its reply box (records/thread/reply-landing.js, `standsAt`), and
     the pointer resting on Resolve at the box's head, with and without words in the
     reply box, in a thread whose next message is news (`told`) and in one whose next
     message answers the user (`asked`)."""
@@ -1233,7 +1233,7 @@ class Change:
 # Otherwise it goes once the scroll has ended: its `scrollend` has fired, or, where the
 # engine fires none, the scroll has stood still `quiet` ms over two frames or more,
 # longer than the runtime's own rule for an end it doesn't hear (`SETTLE_MS` in
-# browser/runtime/arrivals.js). So whether the page has heard the end is never left
+# browser/runtime/dom/arrivals.js). So whether the page has heard the end is never left
 # to timing.
 RELEASE = """async ([by, goal, midway, quiet]) => {
   const record = window.__lfPlaceRecord;
@@ -1876,7 +1876,7 @@ RESOLVE_ON_CARD = (
     + SECONDARY
 )
 RESOLVE_OVER_WORDS = (
-    "the card holds its foot under the words in its reply box, grows up for the reply "
+    "the card holds its reply box's top under the words in it, grows up for the reply "
     "and carries Resolve 284-284.5px up from under the pointer resting on it"
     + SECONDARY
 )

@@ -1,13 +1,14 @@
 /* A chart is Plot's drawing, and the page dresses it the way it dresses its own text.
  * Plot writes its axes, ticks and legends in `currentColor`, and its series take the
  * author's `var(--lf-series-N)`, so the whole chart is painted by the page's cascade and a
- * scheme flipped mid-read repaints it. The face is the fine font (base.css), whose 10px
- * is the size Plot lays its axes out for: at the theme's 11.5px an axis label lands
- * on the tick beside it. Plot writes its face as attributes, which any rule here
- * outranks; the same adapter below supplies the legend face. */
+ * scheme flipped mid-read repaints it. The face is the chart's own, 10px at the
+ * browser's default size, since that is the size Plot lays its axes out for: at the
+ * small font's 11.5px an axis label lands on the tick beside it. Plot writes its face
+ * as attributes, which any rule here outranks; the same adapter below supplies the
+ * legend face. */
 lf-chart .lf-chart-drawing {
   display: block;
-  font: var(--lf-font-fine);
+  font: 0.625rem / 1.25 var(--lf-sans);
   color: var(--lf-muted);
 }
 /* Where the runtime runs, the chart's box stands at the height it will draw at

@@ -62,18 +62,12 @@ node. Use the focus query when retaining a focused entry while updating its read
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
-part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and marks
-each part: each node in the visual's light DOM that carries `data-lf-part="<id>"` is the
-part of that id, named by its `aria-label` or else by its words; a node inside another
-visual standing in it is that visual's. Each id marks one node, each marked node needs
-a name, and the `visual` declaration admits the id, a nonempty string with no
-whitespace. A mark inside a shadow root is not read.
-
-Where marks can't say it, the element states its parts as its `lfParts` property, an
-object Leaf reads each time it needs the parts. Set it where the widget builds itself,
-behind its first-connection guard. Its `read()` returns the parts drawn
-now as `{id, element, label}`, in place of the marks, and may name an element in the
-visual's shadow root. `reveal(id)` shows a part when someone follows its thread, even if it is
+part. It declares the ids' prefixes in `visual.prefixes` (here `commit:`) and states its
+parts as its `lfParts` property, an object Leaf reads each time it needs the parts. Set
+it where the widget builds itself, behind its first-connection guard. Its `read()`
+returns the parts drawn now as `{id, element, label}`, and may name an element in the
+visual's shadow root. Each id names one element, each part needs a label, and the
+`visual` declaration admits the id, a nonempty string with no whitespace. `reveal(id)` shows a part when someone follows its thread, even if it is
 visible already, so cancel work that would hide it. `label(id)` names a part in
 Threads, in its margin entry and in Page Map without changing the visual, or returns
 `null`. Each member is optional.
@@ -276,8 +270,8 @@ The widget creates, lays out and removes its outlets, and Leaf fills them, drawi
 thread as a card with its own frame that fills the outlet and stands on the ground the
 widget declares where it paints one (`--lf-ground`). So an outlet's box is the cards'
 shape, and the outlet draws no frame of its own. A card fills its outlet at any
-width. `--lf-thread-card-min` is the narrowest a card stands beside the page, and an
-outlet that insets its cards reads it to leave them that room. Leaf folds an outlet's
+width. A card stands no narrower than 320px beside the page, and an outlet that
+insets its cards leaves them that room. Leaf folds an outlet's
 resolved threads into a disclosure of class `lf-resolved-threads`, and the widget may
 size the disclosure's summary, of class `lf-resolved-summary`, as it sizes its own
 rows. An outlet you stop returning may

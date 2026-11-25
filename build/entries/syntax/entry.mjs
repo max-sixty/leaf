@@ -20,8 +20,8 @@ export const leafTheme = {
   name: themeName,
   type: "light",
   colors: {
-    "editor.foreground": "var(--lf-code-ink)",
-    "editor.background": "var(--lf-pre-bg)",
+    "editor.foreground": "var(--lf-ink)",
+    "editor.background": "var(--lf-card)",
   },
   tokenColors: [
     {
@@ -68,7 +68,7 @@ export const leafTheme = {
     },
     { scope: ["markup.inserted"], settings: { foreground: "var(--lf-ok-ink)" } },
     { scope: ["markup.deleted"], settings: { foreground: "var(--lf-danger-ink)" } },
-    { scope: ["keyword.operator"], settings: { foreground: "var(--lf-code-ink)" } },
+    { scope: ["keyword.operator"], settings: { foreground: "var(--lf-ink)" } },
     // A heading and strong words are bold, emphasis italic and a link's address
     // underlined, as the rendered text would show them.
     { scope: ["markup.heading", "markup.bold"], settings: { fontStyle: "bold" } },

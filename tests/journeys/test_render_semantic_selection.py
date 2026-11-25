@@ -108,7 +108,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(thread).to_have_count(0)
     expect_design_mode(page)
     # A finger does not hover, so no name stays where the last tap was.
-    expect(page.locator(".lf-inspect")).to_be_hidden()
+    expect(page.locator(".lf-aim-name")).to_be_hidden()
 
     # Prose still selects in Design mode. On the narrowest phone row the panel's field
     # quotes the words beside the mode's name and ✕, says the status once they are let

@@ -117,9 +117,11 @@ agent's `--obligation <id>` does (`obligations`), reopening the thread if the us
 closed it. Any other opens a thread of its own, on
 the passage the ask concerns where the fork names words the page shows once, and
 otherwise on the page as a whole, which is also where words the page doesn't show
-once leave it. An ask Leaf can't put in its question's thread, as where that thread
-owes the user a reply, is taken as one naming none, since the fork has no next
-attempt.
+once leave it. Where the question's thread still owes the user a reply, the question
+waits on that reply and is On Me again once it is given, so Leaf asks nothing and
+tells the agent to reply there. An ask Leaf can't otherwise put in its question's
+thread, as where its id names no question, is taken as one naming none, since the
+fork has no next attempt.
 
 An action the agent takes once the user agrees, such as a merge waiting on their
 approval, is usually asked as a choice the user presses, as the user asked, rather than as a
@@ -136,7 +138,11 @@ only in chat. A new question on an old subject still opens a thread of its own. 
 drops no ask for its title, as the user decided: matching it against the threads the
 agent opened to ask dropped, telling no one, a new question that shared an old
 one's title, while the ended questions the fork sees with their ids already keep it
-from wording a withdrawn one anew.
+from wording a withdrawn one anew. The fork also sees each question that still stands
+while its next move is the agent's, as a choice does once the user answers it with a
+question of their own. On Me lists none of them, and a fork shown only On Me reads the
+agent restating such a choice in chat as an ask nothing holds, and opens a second
+thread on it.
 
 The user asked for the routes a question asked well takes, a widget that asks or a
 thread, rather than an ask written as a to-do on the user titled from the chat line,
@@ -380,12 +386,19 @@ OPENING = "<leaf-fork-check>"
 
 def page_facts(state: dict, events: list) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it and the page's `events`: its On Me; the questions asked in a thread message,
-    in words or by a widget, that On Me no longer holds, each with the id
-    `thread.ask_again` takes, its thread and how it ended (answered, or its thread
-    closed), which the fork words anew only to ask one again under its id; and each
-    item the agent has started with the line its start gives it
-    (`todos.item_starts`)."""
+    it and the page's `events`.
+
+    It is shown the page's On Me, and the questions the agent asked that still stand
+    while the next move is the agent's, as a choice does once the user answers it with
+    a question of their own (`obligations`). On Me lists such a question again once
+    the agent has answered or ended the work its answer took on, so the fork asks
+    none of them. It is shown the
+    questions the agent asked in a thread message, in words or by a widget, that On Me
+    no longer holds, each with the id `thread.ask_again` takes, its thread and how it
+    ended (answered, or its thread closed), so it words one anew only to ask it again
+    under its id. A message of the user's, which an update records, asks the user
+    nothing and is in neither list. Last, it is shown each item the agent has started,
+    with the line its start gives it (`todos.item_starts`)."""
     from .thread import widget_question
     from .todos import item_starts
 
@@ -417,23 +430,40 @@ def page_facts(state: dict, events: list) -> dict:
         title = (threads.get(thread) or {}).get("title")
         return f'"{title}"' if title else "an untitled thread"
 
-    on_me = []
-    for row in state["queues"]["on_user"]:
-        record = obligations[row["id"]]
-        if row["kind"] == "message":
-            on_me.append(
-                f"a reply to the agent's message in {thread_named(row['thread'])}: "
+    def question(record: dict) -> str:
+        """A question the agent asked, as the fork reads it: in words, by a widget in
+        a thread message, or by a widget on the page."""
+        if record["source"]["kind"] == "message":
+            return (
+                f"a reply to the agent's message in {thread_named(record['thread'])}: "
                 f"{words(record)}"
             )
-        elif row["kind"] == "update":
-            on_me.append("an update of the user's to send again")
-        elif record.get("message"):
-            on_me.append(
-                f"decision in the agent's message in {thread_named(row['thread'])}: "
-                f"{words(record)}"
+        if record.get("message"):
+            return (
+                f"decision in the agent's message in "
+                f"{thread_named(record['thread'])}: {words(record)}"
             )
-        else:
-            on_me.append(f"decision: {words(record)}")
+        return f"decision: {words(record)}"
+
+    # A row stands for its thread, which may hold more than one question (`also`).
+    on_me = [
+        question(record)
+        if (record := obligations[identity])["source"]["kind"] in ("message", "widget")
+        else "an update of the user's to send again"
+        for row in state["queues"]["on_user"]
+        for identity in (row["id"], *row["also"])
+    ]
+    # The agent's questions alone: an update or a to-do asks the user nothing.
+    asking_user = [
+        record
+        for record in state["obligations"]
+        if record["source"]["kind"] in ("message", "widget")
+    ]
+    held = [
+        question(record)
+        for record in asking_user
+        if record["state"] != "done" and record["next_actor"] == "agent"
+    ]
 
     def ended(record: dict) -> str | None:
         """How a question On Me no longer holds ended, or None while it stands: the
@@ -447,7 +477,7 @@ def page_facts(state: dict, events: list) -> dict:
         return f"closed by the {closer}" if closer else "closed"
 
     asked: dict[str, str] = {}
-    for record in state["obligations"]:
+    for record in asking_user:
         if record.get("message") and (how := ended(record)):
             # By the id `thread.ask_again` takes: a question asked in words by its
             # own, and a widget's by the message holding it.
@@ -480,6 +510,7 @@ def page_facts(state: dict, events: list) -> dict:
         "title": state["title"],
         "path": state["page"],
         "on_me": on_me,
+        "held": held,
         "asked": list(asked.values()),
         "started": started,
     }
@@ -493,6 +524,11 @@ def _block(facts: dict) -> str:
         f'Page "{facts["title"]}" ({facts["path"]})',
         f"On Me, what the page lists as waiting on the user:\n{lines(facts['on_me'])}",
     ]
+    if facts.get("held"):
+        parts.append(
+            "Asked on the page and still open, each waiting on the agent before "
+            "On Me lists it again; ask none of these again:\n" + lines(facts["held"])
+        )
     if facts.get("asked"):
         parts.append(
             "Asked on the page and no longer On Me; don't word one anew, and give "
@@ -849,12 +885,15 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     the line, which the agent owes, hands the agent the ask and why, so it asks the
     user itself. One that asks an earlier question `again` asks it in its
     thread (`ask_again`), which the message reopens if it was closed; any other opens
-    a thread of its own. Where Leaf can't ask the question again, as where its
-    thread owes the user a reply, the ask is taken as one naming none."""
+    a thread of its own. Where that thread still owes the user a reply, the question
+    waits on the reply and is On Me again once it is given, so nothing is posted and
+    the line, which the agent owes, says to give it. Where Leaf can't otherwise ask
+    the question again, as where the id names no question, the ask is taken as one
+    naming none."""
     from .authored_checks.admission import checked_text
     from .findings import Rejected
     from .registry.storage import require_registry
-    from .thread import fit_title
+    from .thread import OwedAnswer, fit_title
 
     registry = require_registry(page_dir)
     for item in asks:
@@ -866,6 +905,9 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
             record = _ask_one(*ask)
         except Rejected as error:
             yield None, _unasked(str(page_dir), title, text, error)
+            continue
+        except OwedAnswer as owed:
+            yield None, _owed(str(page_dir), title, again, owed)
             continue
         yield record, _told(str(page_dir), title, text, passage, record, again)
 
@@ -1170,6 +1212,18 @@ def _unasked(path: str, title: str, text: str, error: Exception) -> str:
         f"{path} with this message:\n{quoted}\nIt refused the message, so nothing "
         f"was asked: {error}\nIf it is still theirs to decide, ask it yourself "
         "(`references/threads.md`)."
+    )
+
+
+def _owed(path: str, title: str, again: str, owed: Exception) -> str:
+    """The line telling the agent that the question an ask names `again` waits on the
+    agent's reply in its thread, which the agent owes, so Leaf asked nothing."""
+    question = f"message:{again.removeprefix('message:')}"
+    return (
+        f'From your last reply, Leaf would have asked the user "{title}" On Me again, '
+        f"in the thread of {question} on {path}, but that thread waits on your reply: "
+        f"{owed}. The question is On Me again once you reply there, so Leaf asked "
+        "nothing."
     )
 
 

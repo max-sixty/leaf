@@ -160,7 +160,7 @@ def scope_page_urls(value, page_root: str):
     A response carries version addresses in their canonical, root-relative form;
     beneath a prefix they answer at the page root, as the live page's media does. A
     message's media is the browser's to address as it renders the message
-    (`scopedMediaUrl` in page-markdown.js and thread/messages.js), since only its
+    (`scopedMediaUrl` in records/page-markdown.js and records/thread/messages.js), since only its
     rendering tells a reference from words that spell one.
     """
     if not page_root:
@@ -231,7 +231,7 @@ def page_delivery(
     such address. `write_live_shell` delivers published documents the same way.
 
     `probe` is where a tab asks whether its source has moved on to another layer or
-    release (`bootstrap.js`'s startup recovery, and for a layer `layer-client.js`'s
+    release (`bootstrap.js`'s startup recovery, and for a layer `transport/layer-client.js`'s
     `sourceMovedOn`), so its answer must name the layer or release a fresh document
     would start under. It defaults to the page's `/registry.json`, whose answer names
     its release. `runtime_identity` is the runtime a host without a release serves the
@@ -568,7 +568,7 @@ class PageEndpoint:
 
         A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
         it still holds leaves out its sources for the tab to restore (`completeState`
-        in `layer-client.js`), as leaf.page's edge does for the answers it stores
+        in `transport/layer-client.js`), as leaf.page's edge does for the answers it stores
         (`prepareStateDelivery` in `worker/src/storage.ts`). Only a whole answer is
         cut, and only once its reading is remembered whole, since a patch carries just
         the sources that changed since the held reading.
@@ -859,7 +859,7 @@ class PageEndpoint:
         holds only until the browser presents the key again: opening the printed
         link in any tab sets the cookie the next request carries. So it is never an
         event rejection, whose `final` would have the browser drop the gesture; the
-        runtime keeps the gesture pending and names the link (`layer-client.js`).
+        runtime keeps the gesture pending and names the link (`transport/layer-client.js`).
         """
         prepared = False
         try:
@@ -994,8 +994,8 @@ class PageEndpoint:
         layer, and can read an answer that carries nothing newer, such as a freshness
         token, in that layer. The newer layer reaches it as a revision whose executable
         changed, which the tab installs once the user is not in the middle of
-        something (`version.js`). Named in the page's newer layer, the same answer
-        would be refused and reload the tab at once (`layer-client.js`)."""
+        something (`features/version.js`). Named in the page's newer layer, the same answer
+        would be refused and reload the tab at once (`transport/layer-client.js`)."""
         if revision is None:
             return self.layer
         reading = self._reading(revision)
@@ -1103,7 +1103,7 @@ class PageEndpoint:
         # alone, Threads listed a draft typed on another page a month before.
         scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
         # The drafts the user is writing arrive with the document, so a box opens on
-        # its words before any look (`runtime/drafts.js`). A release's document may be
+        # its words before any look (`runtime/records/drafts.js`). A release's document may be
         # the edge's, which its visitors share, so there they arrive with the first look.
         drafts = runtime_element(
             "script",
@@ -1318,7 +1318,7 @@ class PageEndpoint:
         A tab naming another runtime than this process's, as one from before a restart
         under an updated Leaf does, gets the answer the layer gate gives a stale tab,
         which names this runtime (`_delivery_headers`), so it reloads rather than
-        writes. Every served document's runtime names its own (`layer-client.js`,
+        writes. Every served document's runtime names its own (`transport/layer-client.js`,
         `layerHeaders`); a client that runs none, such as a harness posting as the
         user, names none. A website release names its runtime, so its tabs name none.
         Every write route passes this first, whatever vocabulary it speaks, and so does
@@ -1606,7 +1606,7 @@ class SampleEndpoint(PageEndpoint):
         # Every child arrives inert, so its startup cannot take focus from the page;
         # the host releases it once it presents. The root carries it, since Leaf's
         # chrome stands after the body. Whether the child lays out as a block or a
-        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # window is its frame's to say (host/sample.js), which its bootstrap asks before it
         # paints.
         delivery = super()._delivery(artifact, revision)
         return replace(

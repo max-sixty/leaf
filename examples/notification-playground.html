@@ -64,7 +64,7 @@
 
       notification-simulator .notification-demo-candidates > legend {
         padding: 0 0 var(--lf-sp-2);
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: 600 var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
@@ -95,7 +95,7 @@
         gap: var(--lf-sp-2);
         align-items: center;
         justify-content: space-between;
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
@@ -113,7 +113,7 @@
       notification-simulator .notification-demo-card {
         --lf-block-frame: 1;
         min-width: 0;
-        border: 1px solid var(--lf-border);
+        border: 1px solid var(--lf-rule);
         border-radius: var(--notification-radius);
         background: var(--lf-card);
       }
@@ -148,7 +148,7 @@
       }
 
       notification-simulator .notification-demo-card-head {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
@@ -172,13 +172,13 @@
       }
 
       notification-simulator .notification-demo-state {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: 600 var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
       notification-simulator .notification-demo-strip-owner {
         grid-column: 2 / -1;
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font: var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
@@ -189,16 +189,16 @@
 
       notification-simulator .notification-demo-owner,
       notification-simulator .notification-demo-time {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font-size: var(--lf-t-6);
       }
 
       notification-simulator .notification-demo-card[data-level="warn"] {
-        border-color: color-mix(in srgb, var(--lf-warn) 55%, var(--lf-border));
+        border-color: color-mix(in srgb, var(--lf-warn) 55%, var(--lf-rule));
       }
 
       notification-simulator .notification-demo-card[data-level="bad"] {
-        border-color: color-mix(in srgb, var(--lf-danger) 55%, var(--lf-border));
+        border-color: color-mix(in srgb, var(--lf-danger) 55%, var(--lf-rule));
       }
 
       @container (max-width: 32rem) {

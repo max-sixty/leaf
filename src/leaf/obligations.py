@@ -84,7 +84,7 @@ from leaf.projection import (
     projected_action_holders,
 )
 from leaf.registry.contract import exhibits, matches_when
-from leaf.registry.kernel import verb_writers
+from leaf.registry.kernel import kernel_marks, verb_writers
 from leaf.registry.reactions import reaction_tokens
 from leaf.standing import ended, is_open, on
 from leaf.thread_context import widget_messages
@@ -99,12 +99,11 @@ def local_obligation_entry(entry: dict) -> bool:
 
 
 def group_tags(registry: dict) -> list[str]:
-    """The tags the vocabulary declares a named group (`reading-role: group`), such as
-    the default package's `lf-group`."""
+    """The tags of a named group the vocabulary holds: Leaf's own `lf-group`, which the
+    kernel names (`$marks`, `reading-role`)."""
+    roles = kernel_marks()["reading-role"]["tags"]
     return sorted(
-        tag
-        for tag, entry in registry.items()
-        if isinstance(entry, dict) and entry.get("reading-role") == "group"
+        tag for tag, role in roles.items() if role == "group" and tag in registry
     )
 
 
@@ -113,7 +112,7 @@ def widget_groups(content: list, registry: dict):
     the innermost named group round it (`group_tags`), or None. The group's `label`
     (`gesture_words.element_name`) is the widget's prompt, and the group is where the
     obligation stands and going to it starts while it holds no other
-    (`obligations/place.js` in the browser); the registry requires both its id and its
+    (`records/obligations/place.js` in the browser); the registry requires both its id and its
     label. Python reads only the authored source, so a group the runtime draws holds no
     question. A widget set among words (`inline`), such as a suggestion, has none: its
     sentence and its own words name it.

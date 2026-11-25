@@ -5,12 +5,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
 import { loadMarkdown } from "/runtime/lib/markdown.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   islandChange,
   messageHolding,
   prepareAuthoredMessage,
-} from "/runtime/thread/messages.js";
+} from "/runtime/records/thread/messages.js";
 
 // Keep the browser loader's real import boundary without putting fixture modules in
 // the shipped widget tree. Every test removes its resolver after the import settles.
@@ -152,7 +152,7 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
     "lf-options": { awaits: { value: "choose" } },
     "lf-option": {},
     "lf-chart": {},
-    "lf-group": { "reading-role": "group" },
+    "lf-group": {},
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(
@@ -181,7 +181,7 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
 test("a drawing that doesn't hold a message's widgets keeps a group that asks nothing", async () => {
   adoptRegistry({
     $layer: { generation: "message-group-kept" },
-    "lf-group": { "reading-role": "group" },
+    "lf-group": {},
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(

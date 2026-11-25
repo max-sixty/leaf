@@ -16,7 +16,7 @@ JavaScript rewriting names only parsed imports, and CSS rewriting names only the
 Over HTTP, media is the page's and everything else a document names is its revision's
 (`DeliveryAddress`). `media/` holds content-addressed images shared across revisions;
 the page root serves them in every host, and the runtime resolves the media a message
-or a widget names against that same root (`runtime/media.js`). The layer's own module
+or a widget names against that same root (`runtime/records/media.js`). The layer's own module
 graph imports rooted paths (`/runtime/…`, `/vendor/…`, `/widgets/…`), which the
 document's import map sends to where its revision's resources answer
 (`layer_import_map`), so layer modules are served as they are held.
@@ -157,7 +157,7 @@ def runtime_settings(
     probe: str,
     declared: Mapping[str, str | Literal[True] | None],
 ) -> str:
-    """The script that says how a host delivered a document (`runtime/context.js`):
+    """The script that says how a host delivered a document (`runtime/state/context.js`):
     the layer generation it belongs to, its page root, the runtime entry, which is
     the seam a harness finds either delivery by, and the registry probe, beside what
     the host `declared` of its own. A served document's runs `bootstrap.js`; an
@@ -430,7 +430,9 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = holds_for(attrs, declaration.get(key))
+            declared = holds_for(attrs, declaration.get(key)) or mark.get(
+                "tags", {}
+            ).get(element.tag)
             authored = mark.get("authored")
             inert = authored and authored_inert(
                 key, declaration, attrs, content=content
@@ -605,7 +607,7 @@ def delivery_sheets(
 ) -> str:
     """Carry the selected layer's adopted sheets, with their own text and addressed URLs.
 
-    `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
+    `runtime/base/stylesheets.js` constructs these synchronously while it evaluates, so
     every document running the layer carries their text without a request or await.
     Shared chrome and marks are always present; the physical annotation chrome is
     absent in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
@@ -634,7 +636,7 @@ def delivery_sheets(
     }
     if annotation_mode(document) == "overlay":
         sheets["annotations"] = text(
-            "/runtime/annotation-overlay/annotation-chrome.css"
+            "/runtime/annotations/annotation-overlay/annotation-chrome.css"
         )
     return runtime_element(
         "script",
@@ -756,10 +758,10 @@ def compose_document(
     # and authored overrides. An adopted sheet would rank after those same defaults.
     if delivery.runtime is not None and annotation_mode(document) == "overlay":
         annotation_theme = rebase_css(
-            resources["/runtime/annotation-overlay/annotation-theme.css"].data.decode(
-                "utf-8"
-            ),
-            "/runtime/annotation-overlay/annotation-theme.css",
+            resources[
+                "/runtime/annotations/annotation-overlay/annotation-theme.css"
+            ].data.decode("utf-8"),
+            "/runtime/annotations/annotation-overlay/annotation-theme.css",
             delivery.address,
         )
         theme = (
@@ -788,7 +790,7 @@ def compose_document(
             runtime_element(
                 "script",
                 {},
-                resources["/runtime/document-inputs.js"].data.decode()
+                resources["/runtime/base/document-inputs.js"].data.decode()
                 + "\n"
                 + resources["/runtime/prepaint.js"].data.decode(),
             )

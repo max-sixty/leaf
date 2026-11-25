@@ -358,8 +358,10 @@ customElements.define(
     // The depth whose preview stands.
     /** @type {string | null} */
     #pointed = null;
-    // Whether a plain press on the dial is under way.
+    // Whether a plain press on the dial is under way, and what ends it.
     #pressing = false;
+    /** @type {(() => void) | null} */
+    #endPress = null;
     // What puts the sheets away once the press on the dial is over.
     /** @type {(() => void) | null} */
     #lifted = null;
@@ -368,9 +370,9 @@ customElements.define(
     // it turned to again (`#aim`) after the press or key that put Leaf's preview away.
     // So they go a frame later, or for a press once it is over, and stay up through a
     // turn without a flicker.
-    #ended = (/** @type {Event} */ event) => {
-      if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
-      const declared = this.#declared;
+    /** @param {object} declared */
+    #ended(declared) {
+      if (declared !== this.#declared) return;
       const away = () => {
         if (this.#declared === declared) this.#unpoint();
       };
@@ -379,7 +381,7 @@ customElements.define(
         if (this.#pressing) this.#lifted = away;
         else away();
       });
-    };
+    }
     // The panel the sheets hang in, under the dial, open while its preview stands.
     /** @type {HTMLElement | null} */
     #hang = null;
@@ -415,7 +417,6 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
-        depth.addEventListener("lf-preview-ended", this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -435,7 +436,6 @@ customElements.define(
       // as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
-      this.addEventListener("lf-preview-ended", this.#ended);
       // The dial sticks at the window's top while the reader scrolls the page under it,
       // so landings arrive below it.
       this.toggleAttribute("data-lf-root-header", true);
@@ -464,18 +464,24 @@ customElements.define(
       );
       // A plain press on the dial puts Leaf's preview away as it goes down, and its
       // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-      // until the press is over: its release or cancel, and then the click a release
-      // owes, which the browser dispatches in the release's task. A finger's tap reads
-      // no preview again, so its sheets go at once.
+      // until the press is over, and then for the click a release owes, which the
+      // browser dispatches in the release's task. The press is over at its release; at
+      // its cancel or a lost capture, as when a native menu or a touch scroll takes it;
+      // as the window loses focus, which a release off it can leave unsaid; or as the
+      // next press begins. A finger's tap reads no preview again, so its sheets go at
+      // once.
       this.addEventListener(
         "pointerdown",
         (down) => {
+          this.#endPress?.();
           if (!down.isPrimary || !plainPress(down) || down.pointerType === "touch")
             return;
           this.#pressing = true;
           const press = new AbortController();
           const over = () => {
+            if (press.signal.aborted) return;
             press.abort();
+            this.#endPress = null;
             setTimeout(() => {
               this.#pressing = false;
               const away = this.#lifted;
@@ -483,12 +489,14 @@ customElements.define(
               if (away) nextRender(away);
             });
           };
+          this.#endPress = over;
           const options = {
             capture: true,
             signal: AbortSignal.any([signal, press.signal]),
           };
-          addEventListener("pointerup", over, options);
-          addEventListener("pointercancel", over, options);
+          for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
+            addEventListener(type, over, options);
+          addEventListener("blur", over, { signal: options.signal });
         },
         { capture: true, passive: true, signal },
       );
@@ -549,10 +557,13 @@ customElements.define(
         );
     }
 
-    // Read what pointing at a depth shows, as Leaf's preview of it does.
+    // Read what pointing at a depth shows, as Leaf's preview of it does, which ends
+    // through the reading's `ended`.
     /** @param {string} name */
     #read(name) {
-      return (this.#declared = this.#preview(name));
+      /** @type {object} */
+      const declared = { ...this.#preview(name), ended: () => this.#ended(declared) };
+      return (this.#declared = declared);
     }
 
     // Take back what pointing at a depth showed, as its preview goes.

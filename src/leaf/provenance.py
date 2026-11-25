@@ -45,12 +45,12 @@ now or when the version went live, since a rewrite made after it stopped waiting
 waited across the version, and one taken back since did. Where it waited at two in
 different words, the later wording stands: the user's rewrite restates what they asked
 for, and the version's later revisions were made with it waiting. The browser reads
-that message as a thread reads one (change-provenance.js), so no reading of a
+that message as a thread reads one (features/change-provenance.js), so no reading of a
 message's text lives here. It is computed when a tab asks, with the base's document
 (`served_state.service.PageStateService.page_comparison`), and nothing of it is kept
 or served otherwise.
 
-That is an order, not a cause, and the words say it as one (change-provenance.js).
+That is an order, not a cause, and the words say it as one (features/change-provenance.js).
 Nothing reliably knows which revision wrote a given paragraph, so a comparison across
 several versions says nothing, and no change names its own revisions: placing each
 changed block by the nearest element with an id can credit the wrong revision to a

@@ -1,8 +1,8 @@
 /* Reading a package's own document does not depend on the private event log. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applicationState } from "../../browser/runtime/semantic-state.js";
-import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
+import { applicationState } from "../../browser/runtime/state/semantic-state.js";
+import { dispatchKey } from "../../browser/runtime/dom/keyboard/dispatch.js";
 import { openingMember, showMember } from "../../browser/runtime/lib/one-shown.js";
 import "../../packages/default/widgets/lf-tabs.js";
 

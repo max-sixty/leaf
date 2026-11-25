@@ -670,24 +670,6 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         assert found(findings, "invalid-declaration", "<lf-suggestion>")
 
 
-@pytest.mark.parametrize("schema", [False, True])
-def test_a_boolean_attribute_schema_is_refused_beside_a_layer_fault(page_dir, schema):
-    """JSON Schema admits `true` or `false` as an attribute's schema, neither naming a
-    type, so a pane whose `label` is one is refused for it, in the same run as a layer
-    fact's problem."""
-    registry = deepcopy(read_page_registry(page_dir).registry)
-    registry["lf-pane"]["attributes"]["properties"]["label"] = schema
-    registry["$languages"]["paths"][".zz"] = "unnamed"
-
-    with pytest.raises(registry_contract.RegistryError) as refused:
-        registry_validation.validate_registry(registry, "test registry")
-
-    assert [(f.code, f.at) for f in refused.value.findings] == [
-        ("undeclared-language", ""),
-        ("reading-role-attr", "<lf-pane>"),
-    ]
-
-
 def test_a_deciding_verb_without_outcomes_is_refused(page_dir):
     """A decision whose verb lost its `outcome` is refused at its widget, which reads
     its own decision before holding the members it names to an outcome."""

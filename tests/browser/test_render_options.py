@@ -941,7 +941,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
                  const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--lf-settled)';
+                 probe.style.color = 'var(--lf-ink)';
                  const paints = [
                    getComputedStyle(probe).color,
                    getComputedStyle(document.querySelector('#c-redis')).backgroundColor,
@@ -1980,7 +1980,7 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     expect(digit).to_have_attribute("data-lf-binding-badge", "")
     seat = digit.bounding_box()
     page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
-    expect(page.locator("#retry > .lf-another textarea")).to_be_focused()
+    expect(page.locator("#retry > .lf-another input")).to_be_focused()
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
@@ -2092,7 +2092,7 @@ def test_a_press_in_a_rows_digit_column_is_a_press_on_its_control(
     expect(add).to_have_attribute("data-lf-binding-badge", "")
     seat = add.bounding_box()
     page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
-    expect(page.locator("#when > .lf-another textarea")).to_be_focused()
+    expect(page.locator("#when > .lf-another input")).to_be_focused()
 
     round_trip(page)
     assert [

@@ -33,21 +33,21 @@
  * new aim (`lf-preview` with `aim`), so a point the pointer or a key reaches after
  * Escape put the preview away shows its own. The ring goes when the aim leaves, the
  * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
- * page puts the preview away (`lf-preview-ended`), as Escape and a press do and as the
+ * page puts the preview away (the reading's `ended`), as Escape and a press do and as the
  * next touch does after a held finger lifts. A finger slides across the drawing to read
  * along it, and scrolls the page up and down it.
  *
  * Crossing the drawing where no point is within reach keeps the reading and its ring,
  * and the next point within reach takes its place. Plot's own tip clears in empty
  * space; this one stays because it can be read: the preview takes no pointer and
- * stands over the drawing (preview.js), so a pointer moving toward it to read it
+ * stands over the drawing (annotations/preview.js), so a pointer moving toward it to read it
  * crosses the drawing's empty space, and clearing there would take the reading away
  * from under the reader's eye.
  *
  * A comment on a point is about the point the reader is on. Leaf's aim and a pointed
  * comment take the point the pointer is on wherever it stands in the drawing: the one
  * its ring is on, or the one it rests on whose reading Escape or a press put away. ⌥
- * alone leaves the reading standing (preview.js). Focus on the chart takes the point
+ * alone leaves the reading standing (annotations/preview.js). Focus on the chart takes the point
  * the ring is on, so the keys reach one too, and the whole chart once Escape has put
  * the ring away, as does ⌥ where no point is within reach or over a legend. The comment
  * names its point by its datum (chart-points.js, `datumOf`). Leaf marks the point on
@@ -210,8 +210,8 @@ customElements.define(
     /** @type {Element | null} */
     #walked = null;
     // What the page's preview last read of the chart, while it stands, which names the
-    // reading a preview that ends had (`lf-preview-ended`), and how many times a finger
-    // has pressed on the chart.
+    // reading a preview that ends had (its `ended`), and how many times a finger has
+    // pressed on the chart.
     /** @type {object | null} */
     #declared = null;
     #presses = 0;
@@ -232,13 +232,46 @@ customElements.define(
     /** @param {"pointer" | "focus" | "hold"} [route] */
     lfPreview = (route) => {
       const ring = this.#reading?.ring.lastElementChild;
+      /** @type {object | null} */
       const declared =
         this.#at && ring
-          ? { ...sayPoint(this.#at), at: ring.getBoundingClientRect() }
+          ? {
+              ...sayPoint(this.#at),
+              at: ring.getBoundingClientRect(),
+              ended: () => this.#ended(declared),
+            }
           : null;
       if (route) this.#declared = declared;
       return declared;
     };
+
+    // The ring marks the point the page's preview says, so it comes off when the
+    // page puts the preview away, whatever puts it away: the pointer leaving the
+    // window from it, the next touch after a held finger lifts, Escape. A redraw
+    // then has no point to read again, and the next aim reads from where it lands,
+    // the keys stepping on from the point put away while the chart has focus, and a
+    // pointer still over the drawing reading nothing until it reaches another point.
+    // The reading that ended no longer stands, at once. Its ring comes off once the
+    // task that put the preview away is done, and only if no reading stands again by
+    // then, its point is still the reader's and no finger has pressed since: a Tab
+    // that puts a resting pointer's preview away lands focus here in the same task,
+    // whose preview reads the point again, and the keyboard takes it on; the press
+    // that starts a second hold on a point puts the first hold's preview away as the
+    // finger presses that point again. A press is an aim, not a reading: a tap that
+    // ends without a hold leaves the ring to go with the finger (`#leave`).
+    /** @param {object | null} declared */
+    #ended(declared) {
+      if (!declared || declared !== this.#declared) return;
+      this.#declared = null;
+      const [read, presses] = [this.#at, this.#presses];
+      nextRender(() => {
+        if (this.#declared || this.#at !== read || this.#presses !== presses) return;
+        if (this.matches(":focus")) this.#place = read;
+        if (this.#over) this.#away = read;
+        this.#choose(null, "pointer");
+        this.#placeAim();
+      });
+    }
 
     connectedCallback() {
       if (!once(this)) return;
@@ -272,7 +305,8 @@ customElements.define(
       // A mouse reads where it moves to, so a drawing that arrives under a still one
       // says nothing; a finger, which lands before it moves, reads where it lands. A
       // finger's press is a new aim even on the point it held last, heard after the
-      // page has put the last hold's preview away (preview.js listens first).
+      // page has put the last hold's preview away (annotations/preview.js listens
+      // first).
       this.addEventListener("pointermove", aim, { passive: true });
       this.addEventListener(
         "pointerover",
@@ -305,33 +339,6 @@ customElements.define(
       this.addEventListener("blur", () => {
         if (this.#at && this.#by !== "pointer") this.#place = this.#at;
         this.#choose(this.#over ? this.#at : null, "pointer");
-      });
-      // The ring marks the point the page's preview says, so it comes off when the
-      // page puts the preview away, whatever puts it away: the pointer leaving the
-      // window from it, the next touch after a held finger lifts, Escape. A redraw
-      // then has no point to read again, and the next aim reads from where it lands,
-      // the keys stepping on from the point put away while the chart has focus, and a
-      // pointer still over the drawing reading nothing until it reaches another point.
-      // The reading that ended no longer stands, at once. Its ring comes off once the
-      // task that put the preview away is done, and only if no reading stands again by
-      // then, its point is still the reader's and no finger has pressed since: a Tab
-      // that puts a resting pointer's preview away lands focus here in the same task,
-      // whose preview reads the point again, and the keyboard takes it on; the press
-      // that starts a second hold on a point puts the first hold's preview away as the
-      // finger presses that point again. A press is an aim, not a reading: a tap that
-      // ends without a hold leaves the ring to go with the finger (`#leave`).
-      this.addEventListener("lf-preview-ended", (event) => {
-        const { declared } = /** @type {CustomEvent} */ (event).detail;
-        if (!declared || declared !== this.#declared) return;
-        this.#declared = null;
-        const [read, presses] = [this.#at, this.#presses];
-        nextRender(() => {
-          if (this.#declared || this.#at !== read || this.#presses !== presses) return;
-          if (this.matches(":focus")) this.#place = read;
-          if (this.#over) this.#away = read;
-          this.#choose(null, "pointer");
-          this.#placeAim();
-        });
       });
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
       // page that box is there already and this settles inside the upgrade, holding the
@@ -751,8 +758,8 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does one whose preview stands, which the page puts away, and the ring with it
-    // (`lf-preview-ended`), once the pointer is on neither the drawing nor the preview, or
-    // at the next touch after a held finger lifts (preview.js); back on the drawing, it
+    // (the reading's `ended`), once the pointer is on neither the drawing nor the preview, or
+    // at the next touch after a held finger lifts (annotations/preview.js); back on the drawing, it
     // reads from where it comes. A point no preview has shown yet goes with the pointer.
     #leave() {
       this.#over = false;

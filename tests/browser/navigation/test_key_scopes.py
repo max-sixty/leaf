@@ -201,7 +201,7 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
 
 def test_the_thread_walk_goes_on_from_a_card_still_carried_in(browser, serve):
     """A walk that changes the card's thread carries the card's list from where the last
-    thread's card stood to the new one's place (box-motion.js), drawn above the window
+    thread's card stood to the new one's place (dom/box-motion.js), drawn above the window
     while the page has scrolled down to it. A key pressed meanwhile is meant for the card
     the walk reached, so `T` steps back from it rather than letting go of it and opening
     it again. The card's tween is held long, so the key lands once the glide has ended
@@ -1699,7 +1699,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
 def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
     """Each page walk's letter is live on every page: on a page with no open thread,
     nothing on the user, no comparison and no search, a press says so in the panel
-    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    rather than doing nothing (dom/keyboard/AGENTS.md, "Page grammar"), and Shift's
     reverse says the same."""
     page = open_page(
         browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))

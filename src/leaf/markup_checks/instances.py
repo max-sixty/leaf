@@ -323,7 +323,7 @@ def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
 
     The browser finds a `commandfor` target in the button's own tree, the first element
     with that id in tree order, where a `refers` reader looks in its message first and
-    then the page (`runtime/references.js`). A message stands in the page's tree, so a
+    then the page (`runtime/readings/references.js`). A message stands in the page's tree, so a
     button in one reaches the page's widgets, and the two readings agree on every id the
     checks admit, since `ids-taken` and `ids-taken-by-messages` keep an id to one element
     across the page and its messages. A live sample's document is its own tree, checked
@@ -390,13 +390,13 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 
 def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each pane (`reading-role: pane`) whose direct children aren't an optional header,
+    """Each pane (Leaf's `lf-pane`, `$marks`) whose direct children aren't an optional header,
     one body element and an optional footer, in that order, with what its grid does with
     them (`base.css`, "A pane is one task region"). Advice, since a pane holding a
     `<script>`, or blocks a script shows one at a time, works as it is."""
     findings = []
     for rec in document.lf_elements:
-        role = registry.get(rec["tag"], {}).get("reading-role")
+        role = kernel_marks()["reading-role"]["tags"].get(rec["tag"])
         if role != "pane":
             continue
         direct = rec["direct"]

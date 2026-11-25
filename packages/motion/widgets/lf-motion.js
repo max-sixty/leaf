@@ -140,7 +140,7 @@ class MotionStudy extends HTMLElement {
     if (!controls || !play || !time || !speed)
       throw new Error("Motion transport did not draw its controls");
     const ui = (this.#ui = { controls, play, time, speed });
-    // A row with no run names the press its control makes (keyboard/bindings.js).
+    // A row with no run names the press its control makes (dom/keyboard/bindings.js).
     this.lfCommands = {
       title: "In a motion study",
       rows: [
@@ -165,7 +165,6 @@ class MotionStudy extends HTMLElement {
       for (const video of this.#videos) video.playbackRate = this.#rate;
       this.#save();
     });
-    this.addEventListener("lf-inspect", () => this.#pause());
     // Media events don't bubble but do pass the study on capture, so a recording a
     // revision adds joins the clock, and gives Play something to play, as one the
     // study started with does.

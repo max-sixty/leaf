@@ -252,6 +252,15 @@ def current_anchor(
     )
 
 
+class UnsaidQuote(Rejected):
+    """A quote the file's reading of `revision` lacks, which the drawn page may show
+    (`render_gate.drawn_anchor`)."""
+
+    def __init__(self, findings: list[Finding], revision: int):
+        super().__init__(findings)
+        self.revision = revision
+
+
 def _capture_anchor(
     page_dir: Path,
     events: list,
@@ -261,8 +270,9 @@ def _capture_anchor(
     part: str,
     revision: int,
 ) -> dict:
-    """Capture a target against one exact document reading."""
-    from leaf.anchor_capture import capture_anchor
+    """Capture a target against one exact document reading. A quote the reading
+    lacks is refused as `UnsaidQuote`, which a caller may answer from the drawn page."""
+    from leaf.anchor_capture import Unsaid, capture_anchor
 
     page = page_reading(reading, events, revision)
     try:
@@ -280,14 +290,15 @@ def _capture_anchor(
             if section
             else None
         )
-        raise Rejected(
-            [
-                Finding(
-                    "unanchorable",
-                    values={"revision": revision, "error": str(err), "held": held},
-                )
-            ]
-        ) from err
+        found = [
+            Finding(
+                "unanchorable",
+                values={"revision": revision, "error": str(err), "held": held},
+            )
+        ]
+        if isinstance(err, Unsaid):
+            raise UnsaidQuote(found, revision) from err
+        raise Rejected(found) from err
     return anchor
 
 
@@ -301,6 +312,7 @@ def cmd_comment(
     *,
     title: str | None = None,
     obligation: bool = False,
+    drawn: tuple[int, dict] | None = None,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -308,7 +320,10 @@ def cmd_comment(
     the work rather than a passage belongs. An anchor is captured against the active
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
-    so a quote is met here the way it would land there."""
+    so a quote is met here the way it would land there. A quote that reading lacks is
+    refused as `UnsaidQuote`; `drawn` is then the revision and anchor the drawn page
+    gave it (`render_gate.drawn_anchor`), which the command passes in, since the render
+    gate stands above this module."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(body):
@@ -325,6 +340,7 @@ def cmd_comment(
             part,
             title=title,
             obligation=obligation,
+            drawn=drawn,
         )
 
 
@@ -339,13 +355,15 @@ def open_thread(
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
+    drawn: tuple[int, dict] | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
     describes, from a `body` already checked (`checked_text`); `identity` names the
     agent and session where the writer isn't the agent's own process, as Leaf's clerk
-    is (`clerk.apply_answer`)."""
+    is (`clerk.apply_answer`). `drawn` is the revision and anchor a quote took on the
+    drawn page where the file's reading lacked it (`render_gate.drawn_anchor`)."""
     events = page.events
-    revision, anchor = current_anchor(
+    revision, anchor = drawn or current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
     twice = []
@@ -375,6 +393,12 @@ def open_thread(
     return record
 
 
+class OwedAnswer(Exception):
+    """A question asked again in a thread that still owes the user a reply: the
+    question waits on that reply, after which it is the user's again
+    (`obligations`). Its words say how to give the reply."""
+
+
 def ask_again(
     page: PageTransaction, question: str, body: str, identity: dict
 ) -> dict | None:
@@ -384,10 +408,10 @@ def ask_again(
     choice, the message asks with it. Otherwise it asks in words: a question first
     asked in words stands open on it under its own id, as `leaf thread reply <page>
     <message> --obligation <question>` posts it, and one a widget asked is asked
-    anew, as `--obligation` alone posts it. None where the thread can't take it: it
-    owes the user a reply, or `question` names no question asked there
-    (`thread_questions`). Refused, as an agent's reply is, where its HTML doesn't
-    validate (`check_markup`)."""
+    anew, as `--obligation` alone posts it. None where `question` names no question
+    asked in its thread (`thread_questions`). `OwedAnswer` where the thread owes the
+    user a reply, which the question waits on. Refused, as an agent's reply is, where
+    its HTML doesn't validate (`check_markup`)."""
     from leaf.registry.storage import require_registry
 
     message = question.removeprefix("message:")
@@ -399,8 +423,9 @@ def ask_again(
     except Rejected:
         return None
     assert addressed is not None
-    if any(found.code == "owed-response" for found in addressed.advice):
-        return None
+    for found in addressed.advice:
+        if found.code == "owed-response":
+            raise OwedAnswer(str(found))
     registry = require_registry(page.page_dir)
     asked = thread_questions(page.events, addressed.thread, registry)
     if name not in asked:

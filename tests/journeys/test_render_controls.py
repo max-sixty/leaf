@@ -10,7 +10,7 @@ from browser.controls import (
     RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
 )
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
@@ -79,7 +79,7 @@ from leaf import hosting as hosting_model
 from leaf import presence as presence_model
 from leaf.render_checks import rendered, start_near_work, wait_until_ready
 from leaf.schema import SERVICE_FILE
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

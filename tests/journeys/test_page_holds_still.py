@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
-from browser.threads import append_agent_reply, choose_threads_in_panel
+from browser.threads import append_agent_reply
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -54,7 +54,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import go_to_threads, settle
+from leaf_dev.browser import choose_threads_in_panel, go_to_threads, settle
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

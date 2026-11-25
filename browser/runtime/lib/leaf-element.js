@@ -7,9 +7,9 @@
    `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
    whose tag declares `verbs`, each bound input through the property Leaf sets
    (element-data.js, "Bound values"), Lit's reactive properties for state the widget
-   keeps itself, and any signal-backed reader, such as obligations, reports or
-   work. Every signal `render()` reads synchronously is
-   tracked by Lit's Preact SignalWatcher, so the element draws again when one moves.
+   keeps itself, and any signal-backed reader, such as the page's obligations or
+   history. Every signal `render()` reads synchronously is tracked by Lit's Preact
+   SignalWatcher, so the element draws again when one moves.
 
    What it says to its host, all of it events a plain element could dispatch:
 

@@ -1,9 +1,31 @@
-/* Atlas owns this dashboard's composition. Shared work readings keep counts,
- * stopped tasks and assignments consistent with the recorded decisions. */
+/* Atlas owns this dashboard's composition. It counts the work its tasks and workers
+ * hold from each one's `state`, which Leaf sets as their recorded state moves, and
+ * each tells the plan to count again as it draws (`atlas-reading`). A task is stopped
+ * while its status says so or a question standing in it, under no task inside it,
+ * waits on the user; a worker is quiet while it claims work it hasn't reported on
+ * for a quarter of an hour (lf-atlas-worker.js). */
 import { html, noChange, render, repeat } from "/vendor/lit.js";
-import { elementById, HeldReading, readWork } from "/runtime/widget-api.js";
+import { elementById, HeldReading, readObligations } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+
+const STOPPED = new Set(["blocked", "review", "stalled"]);
+const RETIRED = new Set(["reaped", "done"]);
+const status = (task) => task.state?.status.value ?? task.getAttribute("status");
+const workerState = (worker) =>
+  worker.state?.state.value ?? worker.getAttribute("state");
+const stopped = (task) =>
+  STOPPED.has(status(task)) ||
+  readObligations(task).user.some(
+    (item) =>
+      item.source.kind === "widget" &&
+      document
+        .getElementById(item.source.id)
+        ?.parentElement?.closest("lf-atlas-task") === task,
+  );
+const stoppedAt = (task) =>
+  Date.parse(task.getAttribute("stopped-at") ?? "") || Infinity;
+
 customElements.define(
   "lf-atlas-plan",
   class extends LeafElement {
@@ -18,9 +40,9 @@ customElements.define(
         keeps(count, "data-lf-gen", "1");
         count.toggleAttribute("data-lf-said", true);
       }
-      const stopped = this.overview.querySelector(".atlas-stopped > ul");
-      keeps(stopped, "data-lf-gen", "1");
-      stopped.toggleAttribute("data-lf-echo", true);
+      const list = this.overview.querySelector(".atlas-stopped > ul");
+      keeps(list, "data-lf-gen", "1");
+      list.toggleAttribute("data-lf-echo", true);
       this.hold = new HeldReading(
         this,
         () => [this.overview.querySelector(".atlas-stopped")],
@@ -37,13 +59,21 @@ customElements.define(
     }
     render() {
       if (!this.overview) return noChange;
-      const reading = readWork(this);
+      const tasks = [...this.querySelectorAll("lf-atlas-task")];
+      const leaves = tasks.filter((task) => !task.querySelector("lf-atlas-task"));
+      const live = [...this.querySelectorAll("lf-atlas-worker")].filter(
+        (worker) => !RETIRED.has(workerState(worker)),
+      );
+      const halted = tasks.filter(stopped).sort((a, b) => stoppedAt(a) - stoppedAt(b));
+      const done = leaves.filter((task) => status(task) === "done").length;
       const counts = {
-        progress: `${reading.done} / ${reading.leaves.length} complete`,
-        running: reading.running.length,
-        workers: reading.liveWorkers.length,
-        quiet: reading.quiet.length,
-        stopped: reading.stopped.length,
+        progress: `${done} / ${leaves.length} complete`,
+        running: live.filter(
+          (worker) => workerState(worker) === "working" && !worker.quiet,
+        ).length,
+        workers: live.length,
+        quiet: live.filter((worker) => worker.quiet).length,
+        stopped: halted.length,
       };
       for (const [name, value] of Object.entries(counts))
         keepsText(
@@ -51,7 +81,7 @@ customElements.define(
           String(value),
         );
       const next = JSON.stringify(
-        reading.stopped.map((row) => [row.element.id, row.title]),
+        halted.map((task) => [task.id, task.getAttribute("label") || task.id]),
       );
       const shown = this.hold.hold(next);
       const pending =

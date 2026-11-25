@@ -183,7 +183,6 @@ const layers = [
   "validation",
   "visual-mark-paint",
   "widget-api",
-  "work",
   "annotation-layer",
   "copyable-text",
   "field-readings",

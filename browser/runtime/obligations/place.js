@@ -32,9 +32,7 @@
    answered obligations included, and each consumer selects what it counts from the
    members: a tab row and `lf-tally` count every member, how many are answered, and whose
    turn the open ones are by next actor, so an obligation the user discussed and left
-   with the agent counts as unanswered and on the agent; and a goal's interventions
-   (work.js) are the members whose next actor is the user, since only those stop work on
-   the user.
+   with the agent counts as unanswered and on the agent.
    A region's reading also says whether its markup asks the user something (`asks`): it
    holds a widget declaring `awaits`, in the page or in a message's markup, whatever the
    inventory says of its obligation. Before the first reading the obligation isn't listed

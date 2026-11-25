@@ -8,7 +8,6 @@ from itertools import pairwise
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    append_carried_log_record,
     append_command,
 )
 from playwright.sync_api import expect
@@ -35,7 +34,6 @@ from render_harness import (
     refuse,
     sending,
     stamp_page,
-    ticked,
     told,
     wait_for_revision,
     write,
@@ -53,7 +51,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 ):
     """The agent channel, end to end in the browser: a `leaf page report`
     reaches the open page on the next poll and paints as provisional news — the status
-    attribute moves, the parent's done-fraction recounts, and Page Map identifies a
+    attribute moves, and Page Map identifies a
     Reported state rather than the user's change. Task status remains work
     state and never creates a user request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
@@ -64,8 +62,6 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     url = serve(REPORT_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
-    fraction = page.locator("#t-feeders > .work-progress")
-    expect(fraction).to_contain_text("1/2 done")
     # Nothing waits on the user.
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", re.compile(r"^Page menu · ")
@@ -96,8 +92,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
         "aria-label", re.compile(r"^Page menu · ")
     )
 
-    # A second report supersedes the first — absolute values fold — and the
-    # progress fraction recounts across the tree.
+    # A second report supersedes the first: absolute values fold.
     sent = CliRunner().invoke(
         cli_model.cli,
         ["page", "report", str(d), "t-parser", "status", "value=done"],
@@ -107,7 +102,6 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("status", "done")
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
-    expect(fraction).to_contain_text("2/2 done")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", re.compile(r"^Page menu · ")
     )
@@ -125,7 +119,6 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "active")
     expect(task).not_to_have_attribute("data-lf-reported", "1")
-    expect(page.locator("#t-feeders > .work-progress")).to_contain_text("1/2 done")
 
     # The diff's state half, mirror-image: v1's markup also said `active`, but
     # the user last saw v1 wearing the report's `done`, so the overrule is a
@@ -243,15 +236,15 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
 
 
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
-    """The half of a roster no version can write down. A report in force states what
-    each worker is doing; only the log knows when it last said so, and a page that keeps
-    a fleet is at its least trustworthy exactly when the user has been away longest.
-    So the row renders elapsed time from the newest report and re-renders on every poll.
+    """The half of a roster no version can write down. The report in force, the
+    worker's `state`, says what each worker is doing; only the log knows when it last
+    said so, and a page that keeps a fleet is at its least trustworthy exactly when the
+    user has been away longest. So the row renders elapsed time from the newest report
+    row in the page's history, which the server sends again on every poll.
 
-    Then the case the line exists for: a claim of work nobody has refreshed. It is
-    called out in words rather than in the tint alone, on the rope the page's status
-    already gives its one agent (quietSince), and only against a claim — an idle worker
-    that has said nothing all day is idle, which is what it said.
+    Then the case the line exists for: a claim of work nobody has refreshed. The
+    fixture calls it out in words rather than in the tint alone, and only against a
+    claim — an idle worker that has said nothing all day is idle, which is what it said.
 
     The direction a freshness line must never fail in: a row nobody has reported on is
     not of unknown age. Its words were asserted when the version landed, and are exactly
@@ -259,7 +252,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     the user is most exposed to — a fleet published at six in the evening, every worker
     dead by seven, read at eight the next morning: a dead fleet drawn exactly like a
     fresh one, on a page whose status's whole design is that a claim nobody revises must
-    not be repeated as fact. And the clock advances that state even with no new state
+    not be repeated as fact. And the clock advances the age even with no new state
     response."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
@@ -338,255 +331,6 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     page.route("**/api/state*", refuse)
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     expect(wren.locator(".lf-heard")).to_have_text("last heard 6h ago")
-    expect(wren.locator(".lf-cold")).to_have_text("quiet")
-    expect(siskin.locator(".lf-cold")).to_have_text("quiet")
-
-
-def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
-    """Worker reports reach widgets through one typed reading. The work the agent has
-    in hand is no report: it is the workflows' Working stage and the tasks' starts."""
-    page = open_page(browser, live_url(serve(ROSTER_PAGE)))
-    d = serve.page_dir
-    # A page refuses an element id its log already gives an event, so the thread
-    # takes its own id. A thread target spelled as the widget's id still reads none
-    # of the widget's reports, and a bare id is refused rather than guessed at.
-    thread = append_carried_log_record(
-        d,
-        {
-            "id": "c-wren",
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "ag-wren"},
-            "text": "Can you check this worker's mount price?",
-        },
-    )
-    told(page)
-
-    report = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=working",
-            "text=checking the mount prices",
-        ],
-    )
-    assert report.exit_code == 0, report.output
-    started = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "task",
-            "start",
-            str(d),
-            thread["id"],
-            "--text",
-            "checking the user's question",
-        ],
-    )
-    assert started.exit_code == 0, started.output
-    told(page)
-
-    reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readReports().reports"
-    )
-    by_source = {report["source"]: report for report in reports}
-    assert set(by_source) == {"report"}
-    assert by_source["report"] == {
-        "id": by_source["report"]["id"],
-        "target": {"kind": "widget", "id": "ag-wren"},
-        "source": "report",
-        "action": "state",
-        "detail": {"value": "working", "text": "checking the mount prices"},
-        "text": "checking the mount prices",
-        "ts": by_source["report"]["ts"],
-        "revision": 1,
-        "seq": by_source["report"]["seq"],
-        "agent": "Claude",
-        "session": by_source["report"]["session"],
-        "disposition": "effective",
-    }
-    assert by_source["report"]["session"]
-    targeted = page.evaluate(
-        """async () => {
-            const feed = await window.__lfWidgetApi();
-            return {
-                widget: feed.readReports(document.querySelector('#ag-wren')).reports,
-                thread: feed.readReports({kind: 'thread', id: 'ag-wren'}).reports,
-                bare: (() => {
-                    try { feed.readReports('ag-wren'); }
-                    catch (error) { return `${error.name}: ${error.message}`; }
-                })(),
-            };
-        }"""
-    )
-    assert [report["source"] for report in targeted["widget"]] == ["report"]
-    assert targeted["thread"] == []
-    assert targeted["bare"].startswith("TypeError: report target must be")
-    expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
-
-    # A version note settles the report.
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Claude",
-            "parent": thread["id"],
-            "revision": 1,
-            "text": "The mount price is in the attached quote.",
-        },
-    )
-    stamp_page(d, ROSTER_PAGE, "recorded")
-    wait_for_revision(page, 2)
-
-    reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readReports().reports"
-    )
-    by_source = {report["source"]: report for report in reports}
-    assert by_source["report"]["disposition"] == "settled"
-    expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
-
-
-@pytest.mark.parametrize("holding", ["defer", "preparation"])
-def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
-    browser, serve, holding
-):
-    """Report prose, coverage, and clocks consume the widget's canonical proof.
-
-    A local editing hold and an asynchronous preparation are distinct owners of
-    completion. Each holds only its widget; report narration cannot jump ahead by
-    inferring that the coordinate was committed because its DOM node still exists.
-    """
-    page = open_page(browser, serve(ROSTER_PAGE))
-    d = serve.page_dir
-    row = page.locator("#ag-wren")
-    first = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=working",
-            "text=first report",
-        ],
-    )
-    assert first.exit_code == 0, first.output
-    told(page)
-    expect(row.locator(".lf-doing")).to_have_text("first report")
-    page.evaluate(
-        """async holding => {
-          const api = await window.__lfWidgetApi();
-          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
-          const {
-            clockValue,
-            projectionRegionsPresented,
-            readApplicationPresentation,
-            whenApplicationRegionsPresented,
-          } = await window.__lfCheckApi();
-          const {noChange} = await window.__lfVendorImport('lit.js');
-          const owner = document.getElementById('ag-wren');
-          window.__proofClock = 0;
-          window.__proofReads = [];
-          customElements.define('lf-report-proof', class extends LeafElement {
-            render() {
-              // The watcher draws nothing until the owner's own drawing is in, and
-              // asks to draw again once it is.
-              if (!projectionRegionsPresented([owner.id])) {
-                this.waiting ??= whenApplicationRegionsPresented([
-                  'projection:chrome',
-                  `widget:${owner.id}:render`,
-                  `widget:${owner.id}:preparation`,
-                ]).then(() => {
-                  this.waiting = null;
-                  this.requestUpdate();
-                });
-                return noChange;
-              }
-              clockValue(() => window.__proofClock);
-              window.__proofReads.push(api.readReports({kind: 'widget', id: owner.id}).reports.map(report => report.text));
-              return noChange;
-            }
-          });
-          window.__proofWatching = document.createElement('lf-report-proof');
-          document.body.append(window.__proofWatching);
-          await window.__proofWatching.updateComplete;
-          window.__proofTick = () => { window.__proofClock += 1; };
-          window.__proofPending = () => {
-            const proof = readApplicationPresentation();
-            return api.readReports({kind: 'widget', id: owner.id}).reports.some(report => report.text === 'held report') &&
-              proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
-              !proof.pending.includes('projection:chrome');
-          };
-          // The watcher gets its first clock reading before the held publication.
-          await Promise.resolve();
-          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
-          // Said from inside a worker, the work is that worker's preparation.
-          const prepare = (worker, promise) =>
-            worker.querySelector('strong').dispatchEvent(new PendingTaskEvent(promise));
-          prepare(
-            document.getElementById('ag-finch'),
-            new Promise(resolve => { window.__proofOtherResume = resolve; }),
-          );
-          window.__proofOtherPending = () =>
-            readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
-          if (holding === 'defer') {
-            window.__proofResume = owner.defer();
-          } else {
-            let resolve;
-            prepare(owner, new Promise(done => { resolve = done; }));
-            window.__proofResume = resolve;
-          }
-        }""",
-        holding,
-    )
-    if holding == "preparation":
-        # A same-epoch reopen has no semantic notification. The next clock paint
-        # must still check proof rather than bypassing its readiness guard.
-        reads = page.evaluate("window.__proofReads.length")
-        page.evaluate(
-            "window.__proofWatching.requestUpdate(); window.__proofWatching.performUpdate()"
-        )
-        assert page.evaluate("window.__proofReads.length") == reads
-        page.evaluate("window.__proofTick()")
-        ticked(page)
-        assert page.evaluate("window.__proofReads.length") == reads
-    second = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=idle",
-            "text=held report",
-        ],
-    )
-    assert second.exit_code == 0, second.output
-    page.wait_for_function("window.__proofPending()")
-    page.evaluate("window.__proofTick()")
-    ticked(page)
-    assert not page.evaluate(
-        "window.__proofReads.some(read => read.includes('held report'))"
-    )
-    expect(row.locator(".lf-doing")).to_have_text("first report")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "2")
-    if holding == "defer":
-        expect(row).to_have_attribute("state", "working")
-    page.evaluate("window.__proofResume()")
-    expect(row).to_have_attribute("state", "idle")
-    expect(row.locator(".lf-doing")).to_have_text("held report")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
-    assert page.evaluate("window.__proofOtherPending()"), (
-        "an unrelated widget's preparation must not block the report or coverage"
-    )
-    page.evaluate("window.__proofOtherResume()")
 
 
 def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(

@@ -268,19 +268,6 @@ user answers at the same place, such as the agent's answer in a thread about it.
 answered only through its widget or thread. Act on a collection only when its `phase`
 is `ready`.
 
-### Work hierarchies
-
-`readWork(element)` reads the work hierarchy of the scope `element` is or stands in,
-such as its goals and the workers on them, so a widget that counts its children's work
-reads it here rather than from their reports. An element outside every scope reads
-the work on its page, or in its message, that stands in no scope. Leaf owns the work
-roles, and a package maps its tags onto them in `$work.widgets`
-([package-data.md, "Work roles"](package-data.md#work-roles)), which composition
-checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`,
-and `running` and `quiet` workers, each with its authored `element`, and `done` counts
-finished leaves; a goal or worker finds its own row by that `element`. Atlas in
-`examples/command-hub.page/` is the worked example.
-
 ### Page history and reports
 
 A widget that shows the page's history declares `history` and reads
@@ -289,19 +276,11 @@ thread, whether it was undone, the agent's name as `agent`, and a gesture's word
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads `readReports(this)` as it draws its `state`, in a
-`LeafElement`'s `render()` or a plain element's `state` setter: `{phase, reports}`.
-`phase` turns `ready` once the server's reading has arrived and the state the reports
-describe is drawn. Until then the widget draws no report: a `render()` returns
-`noChange`. Leaf sets the widget's `state` again as `phase` turns `ready`, so it draws
-its reports then. Each report has `id`, `target`, `source`, `action`,
-`detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
-on the same unit and verb, or `settled` by a stamped version. The element form is for
-the widget's own drawing: its `phase` waits on that element's drawing, and Leaf sets
-only that element's `state` again. Pass `{kind: "widget", id}` for another widget's
-reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them. Their
-`phase` is the page's, and only a `LeafElement`'s `render()` follows them: nothing
-sets a plain element's `state` when they move.
+The report in force on a widget an agent reports on is its own `state`: the
+agent-written verb's `value`, with the words a `text` verb carries in its `detail`.
+When it last reported, and what it said before, are `readHistory()` rows of `kind`
+`report`, naming the `widget`, with its words as `excerpt` and the time as `ts`. The
+history holds the newest rows only, so a report older than them is not there.
 
 ### Reading version changes
 

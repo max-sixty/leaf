@@ -1,9 +1,14 @@
-/* Atlas owns roster composition. A visible report keeps its reading until the
- * user asks for the latest, while identity and state come from the public projection. */
+/* Atlas owns roster composition. A visible report keeps its reading until the user
+ * asks for the latest. The worker's state is its own `state`; what it last said, and
+ * when, is its newest report in the page's history, which the hub's record has the
+ * server send, else the note of the version that asserted its state. A worker that
+ * claims work it hasn't reported on for a quarter of an hour is quiet. */
 import { html, noChange } from "/vendor/lit.js";
-import { HeldReading, readReports, readWork } from "/runtime/widget-api.js";
+import { HeldReading, readHistory } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
+
+const QUIET_MS = 15 * 60 * 1000;
 customElements.define(
   "lf-atlas-worker",
   class extends LeafElement {
@@ -48,27 +53,30 @@ customElements.define(
       return this.querySelector(".atlas-worker-report");
     }
     render() {
-      keeps(this, "state", this.state.state.value);
-      const worker = readWork(this).workers.find((row) => row.element === this);
+      const state = this.state.state.value;
+      keeps(this, "state", state);
+      const { phase, events } = readHistory();
+      const report = events.find(
+        (row) => row.kind === "report" && row.widget === this.id,
+      );
+      const heard = report?.ts ?? events.find((row) => row.kind === "note")?.ts;
+      this.quiet =
+        state === "working" &&
+        Boolean(heard) &&
+        Date.now() - Date.parse(heard) > QUIET_MS;
       keepsText(
         this.querySelector(".atlas-worker-state"),
-        `${worker.state}${worker.quiet ? " · quiet" : ""}`,
+        `${state}${this.quiet ? " · quiet" : ""}`,
       );
-      const { phase, reports } = readReports(this);
+      this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
       if (phase !== "ready") return noChange;
-      const report = reports.findLast(
-        (row) => row.source === "report" && row.disposition === "effective",
-      );
       const next = JSON.stringify({
-        heard: worker.heard,
-        text: report?.text ?? "No report yet.",
+        heard: heard ?? null,
+        text: report?.excerpt ?? "No report yet.",
       });
       const shown = this.held.hold(next);
       const reading = JSON.parse(shown);
-      if (this.pending !== (next !== shown)) {
-        this.pending = next !== shown;
-        this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
-      }
+      this.pending = next !== shown;
       return html`${reading.text}${
         reading.heard
           ? html` Last heard <lf-age datetime=${reading.heard}></lf-age>`

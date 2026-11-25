@@ -195,20 +195,34 @@ def test_a_new_tab_opens_on_the_first_card_that_waits(browser, serve):
     open_card(second, "beta-ask")
 
 
+PAIR_DECK_PAGE = leaf_page(
+    "Deck with a card of two questions",
+    '<h1>Before the release</h1><lf-deck id="deck">'
+    '<lf-group id="pair-ask" label="Two calls on the store">'
+    + card("store", "Keep Redis?")
+    + card("cache", "Keep the cache?")
+    + "</lf-group>"
+    + card("notes", "Post the notes?")
+    + "</lf-deck>",
+)
+
+
 def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
-    """A card the user pressed in stays put when its answer comes from a window other
-    than this one, which is news; Next then moves on."""
-    url = live_url(serve(DECK_PAGE))
+    """A card stays put when the answer that closes it comes from a window other than
+    this one, which is news, even where this window answered the card's other
+    question; Next then moves on."""
+    url = live_url(serve(PAIR_DECK_PAGE))
     watching = open_page(browser, url)
-    watching.locator("#store-ask h3").click()
-    watching.evaluate("() => { Document.prototype.hasFocus = () => false; }")
+    open_card(watching, "pair-ask")
+    answer(watching, "store-yes")
+    open_card(watching, "pair-ask")
 
     answering = open_page(browser, url)
-    answer(answering, "store-yes")
+    answer(answering, "cache-no")
     expect(watching.locator("lf-deck .lf-deck-forward")).to_have_attribute(
         "aria-label", "Next"
     )
-    open_card(watching, "store-ask")
+    open_card(watching, "pair-ask")
 
 
 def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve):
@@ -231,6 +245,29 @@ def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve
     open_card(page, "tall-ask")
     page.wait_for_function(LANDED)
     assert page.evaluate("() => scrollY") == 0
+
+
+def test_a_scroll_as_the_card_moves_on_keeps_the_page(browser, serve):
+    """An answer by key brings up the next card, and a wheel the user turns while it
+    comes up leaves the page where the wheel took it: neither the card's landing nor
+    the focus that follows the answer pulls it back."""
+    page = open_page(browser, serve(TALL_DECK_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    page.keyboard.press("m")
+    expect(page.locator("#store-ask")).to_be_focused()
+    page.keyboard.press("1")
+    page.mouse.wheel(0, -3000)
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    # The arrival an answer by key makes waits as long as the card that came up takes
+    # no press, and was timed just after it: once that card takes presses again, a
+    # timer posted then runs behind the arrival.
+    page.wait_for_function(
+        "() => !document.querySelector('lf-deck [data-lf-deck-settling]')"
+    )
+    page.evaluate("() => new Promise((then) => setTimeout(then))")
+    assert page.evaluate("() => scrollY") == 0
+    expect(page.locator("#tall-ask")).not_to_be_focused()
 
 
 DRAFT_DECK_PAGE = leaf_page(

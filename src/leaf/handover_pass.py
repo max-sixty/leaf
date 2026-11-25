@@ -77,7 +77,7 @@ from leaf.harness import detached_environment
 from leaf.page_inputs import source_readings
 from leaf.presence import claimant_reading
 from leaf.render_reading import read_reading, write_reading
-from leaf.revision_artifact import read_artifact, version_written
+from leaf.revision_artifact import read_revision, version_written
 from leaf.revisioning import activate_source
 from leaf.service import PageTransaction, requires_agent_attention
 
@@ -251,7 +251,7 @@ def _live(page_dir: Path, transaction=None) -> tuple[int, str] | None:
     revision = activate_source(page_dir, transaction=transaction).revision
     if revision is None:
         return None
-    return revision, read_artifact(page_dir, revision).digest
+    return revision, read_revision(page_dir, revision).digest
 
 
 def _unread(page_dir: Path) -> str | None:

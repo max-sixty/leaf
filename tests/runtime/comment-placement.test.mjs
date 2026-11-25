@@ -623,6 +623,16 @@ test("a card keeping a line of its own grows up over it and down under it", asyn
   under = 61;
   assert.equal(await place("line", 500), boundary.top);
   assert.equal(stood, 300 + 61);
+  // Filling the room, it may not outgrow it: a line the draft gains there takes its
+  // room from what stands over the line, at this placement and the next.
+  over = boundary.height - 61;
+  await place("line", 500);
+  for (const lines of [82, 103]) {
+    over = boundary.height - lines;
+    under = lines;
+    assert.equal(await place("line", 500), boundary.top);
+    assert.equal(Math.max(room, stood), boundary.height);
+  }
 });
 
 test("a surface with no subject keeps the room's gap, not a mark's", async () => {

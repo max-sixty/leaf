@@ -703,6 +703,9 @@ def sending_from_a_full_card(browser, serve):
     rendered(page)
     page.wait_for_function(CARD_AT_REST)
     assert transcript.evaluate("list => list.scrollTop > 100"), "nothing scrolled away"
+    assert preview.evaluate(
+        "card => card.getBoundingClientRect().bottom <= innerHeight"
+    ), "the draft's second line stood the card past the window's foot"
     stood = preview.evaluate(FULL_CARD_DRAWN)
     page.evaluate("() => {" + HOLD_MOTION + "}")
     with sending(page, "the reply"):

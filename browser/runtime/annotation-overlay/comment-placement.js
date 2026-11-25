@@ -111,8 +111,10 @@
    under that line now, so a surface the boundary's head holds in, as one beside a
    tall element scrolled part out of the window is, still grows down as its user
    types, and a line taken from the draft gives its height back rather than room to
-   the transcript, which would move the line. One that `rises` (`size-rises`, decided
-   in thread-preview.js)
+   the transcript, which would move the line. What joins it under its line never
+   stands it taller than the room, unless it has stood that tall: in a card that
+   fills the room, the transcript gives way to the draft and the line rises. One
+   that `rises` (`size-rises`, decided in thread-preview.js)
    holds its top but has the boundary's whole height, so the boundary
    lifts it as it outgrows the room below; its held top is the spot before that lift,
    so shrinking brings it back down to where it stood. Against
@@ -632,9 +634,9 @@ export function commentPlacement() {
   // attachment line, its height, and how much of it stood under its own line.
   /** @type {HeldBox | null} */
   let held = null;
-  // The tallest what stands over the surface's own line has stood since the rule's
-  // line last moved, and that line.
-  /** @type {{height: number, line: number} | null} */
+  // The tallest the surface, and what stands over its own line, have each stood since
+  // the rule's line last moved, and that line.
+  /** @type {{whole: number, over: number, line: number} | null} */
   let tallest = null;
   // How much of the surface stands under its own line, as the last request reads it
   // (`under`), which each landing records.
@@ -866,21 +868,20 @@ export function commentPlacement() {
         // The height a held surface caps no lower than (the header's `stood`): the
         // tallest what stands over its own line has stood while the rule's line
         // stood where it stands now, else what last stood over it, with what stands
-        // under that line now, as far as the room's height. The room is read from
-        // where the rule stands the surface, so where the boundary's head holds it
-        // in, lower than that, only this lets what joins it under its line grow it.
+        // under that line now. The room is read from where the rule stands the
+        // surface, so where the boundary's head holds it in, lower than that, only
+        // this lets what joins it under its line grow it. It grows that way as far
+        // as the room's height, or the tallest the whole surface has stood, and past
+        // that what stands over the line gives way.
         const stationary = Boolean(tallest && Math.abs(tallest.line - line) < 0.5);
-        const over = held
-          ? Math.max(
-              held.height - held.under,
-              stationary && tallest ? tallest.height : 0,
-            )
-          : 0;
-        const stood = held
-          ? Math.min(
-              over + (under?.() ?? 0),
-              Math.max(over + held.under, shown.height),
-            ) / scale.y
+        const tall =
+          held &&
+          (stationary && tallest
+            ? tallest
+            : { whole: held.height, over: held.height - held.under });
+        const stood = tall
+          ? Math.min(tall.over + (under?.() ?? 0), Math.max(tall.whole, shown.height)) /
+            scale.y
           : 0;
         fit({
           side,
@@ -1129,12 +1130,10 @@ export function commentPlacement() {
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const height = middlewareData.held.height * scale.y;
       const under = underLine?.() ?? 0;
-      const over = height - under;
+      const last = tallest && Math.abs(tallest.line - line) < 0.5 ? tallest : null;
       tallest = {
-        height:
-          tallest && Math.abs(tallest.line - line) < 0.5
-            ? Math.max(tallest.height, over)
-            : over,
+        whole: Math.max(last?.whole ?? 0, height),
+        over: Math.max(last?.over ?? 0, height - under),
         line,
       };
       held = { top, height, under };

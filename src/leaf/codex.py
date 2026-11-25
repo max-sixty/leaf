@@ -2332,14 +2332,13 @@ UNCONFIRMED_TEXT = (
 
 
 def reply_target_answered(target: dict) -> bool | None:
-    """Whether an answer settled the reply target's input (`thread.settling_answer`),
-    or None when its page no longer exists."""
-    from .thread import settling_answer
+    """Whether an answer settled the reply target's input (`thread.answered`), or None
+    when its page no longer exists."""
+    from .thread import answered
 
     try:
         with PageTransaction(Path(target["page"])) as page:
-            answer = settling_answer(page.page_dir, page.events, target["responds"])
-            return answer is not None
+            return answered(page.page_dir, page.events, target["responds"])
     except FileNotFoundError:
         return None
 

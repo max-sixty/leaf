@@ -1172,17 +1172,27 @@ def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
     assert answer["answer"]["parent"] == asked["id"]
 
 
-@pytest.mark.parametrize("again", ["message", "pick"])
-def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, again):
-    """A harness that gives up on a delivery holding the user's pick and their
-    message after it writes one failure, at the thread's one answer, and hands both
-    back on that record, leaving nothing on the agent. The user's next input there, a
+def update_records(state: dict) -> dict:
+    """Each update record's id → its next actor."""
+    return {
+        record["id"]: record["next_actor"]
+        for record in state["obligations"]
+        if record["id"].startswith("update:")
+    }
+
+
+@pytest.mark.parametrize("then", ["message", "pick", "undo", "recovered"])
+def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, then):
+    """A harness that gives up on a delivery holding the user's message and their
+    pick after it writes one failure, at the thread's one answer, and hands both back
+    on that record, leaving nothing on the agent. The user's next input there, a
     message or another pick, is a new request, which the agent owes, and the failure
-    stops waiting on the user."""
+    stops waiting on the user. Taking the pick back leaves the message handed back.
+    A turn that recovers and answers settles the batch as answered."""
     asked = offer_choice(claimed)
-    picked = choose(claimed, "file")
     message = say(claimed, asked, "ok, can we file an issue requesting this?")
-    for event in (picked, message):
+    picked = choose(claimed, "file")
+    for event in (message, picked):
         thread_model.fail_answer(
             claimed,
             event["id"],
@@ -1195,25 +1205,93 @@ def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, again):
         )
     failed = state_json(claimed)
     assert owed(failed) == []
-    assert {
-        record["id"]: record["next_actor"]
-        for record in failed["obligations"]
-        if record["id"].startswith("update:")
-    } == {f"update:{message['id']}": "user"}
+    assert update_records(failed) == {f"update:{picked['id']}": "user"}
     assert {
         item["input"]: (item["obligation"], item["reason"])
         for item in failed["workflows"]
     } == {
-        picked["id"]: (f"update:{message['id']}", "failed"),
-        message["id"]: (f"update:{message['id']}", "failed"),
+        message["id"]: (f"update:{picked['id']}", "failed"),
+        picked["id"]: (f"update:{picked['id']}", "failed"),
     }
 
+    if then == "undo":
+        append_carried_log_record(
+            claimed, {"kind": "undo", "author": "user", "undoes": picked["id"]}
+        )
+        kept = state_json(claimed)
+        assert owed(kept) == []
+        assert update_records(kept) == {f"update:{message['id']}": "user"}
+        assert [item["input"] for item in kept["workflows"]] == [message["id"]]
+        return
+    if then == "recovered":
+        recovered = thread_model.post_reply(
+            claimed,
+            {"parent": asked["id"], "responds": picked["id"]},
+            "Filed it.",
+            settlement=thread_model.ProviderFinal("recovered-turn"),
+        )
+        assert recovered is not None
+        assert (
+            thread_model.post_reply(
+                claimed,
+                {"parent": message["id"], "responds": message["id"]},
+                "Filed it again.",
+                settlement=thread_model.ProviderFinal("older-turn"),
+            )
+            is None
+        )
+        answered = state_json(claimed)
+        assert owed(answered) == []
+        assert answered["workflows"] == []
+        assert update_records(answered) == {f"update:{picked['id']}": None}
+        return
     retry = (
-        say(claimed, asked, "retry") if again == "message" else choose(claimed, "skip")
+        say(claimed, asked, "retry") if then == "message" else choose(claimed, "skip")
     )
     again = state_json(claimed)
     assert [item["input"] for item in owed(again)] == [retry["id"]]
     assert [item["input"] for item in again["workflows"]] == [retry["id"]]
+
+
+def test_a_late_answer_to_a_pick_leaves_the_message_after_it_owed(page_dir):
+    """A turn delivered the user's pick and reserved its answer there. Before it
+    answers, the user changes the pick, sends a message, and takes the change back,
+    which brings the first pick back. The turn's answer covers the pick it was
+    delivered, and the message it never read stays owed."""
+    asked = offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    choose_again = choose(page_dir, "skip")
+    message = say(page_dir, asked, "File it only after I approve the draft.")
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": choose_again["id"]}
+    )
+    assert thread_model.post_reply(
+        page_dir,
+        {"parent": asked["id"], "responds": first["id"]},
+        "Filing it.",
+        settlement=thread_model.ProviderFinal("earlier-turn"),
+    )
+    assert [item["input"] for item in owed(state_json(page_dir))] == [message["id"]]
+
+
+def test_editing_out_an_answered_choice_reopens_nothing(page_dir):
+    """Once one answer settled the user's message and their pick, the agent's edit
+    that takes the choice out of its message leaves both settled."""
+    asked = offer_choice(page_dir)
+    say(page_dir, asked, "ok, can we file an issue requesting this?")
+    choose(page_dir, "file")
+    [answer] = owed(state_json(page_dir))
+    thread_model.post_reply(page_dir, answer["answer"], "Filed it.")
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "message": asked["id"],
+            "text": "File the issue? (Filed.)",
+        },
+    )
+    assert owed(state_json(page_dir)) == []
 
 
 def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(

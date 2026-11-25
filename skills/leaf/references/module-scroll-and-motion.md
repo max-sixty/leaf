@@ -95,9 +95,6 @@ hides what the reader is reading, as folding it does, anchoring can't hold it: r
 where the block the reader reads stands before the change, and scroll its scroller by
 however far it, or what stands in for it, moved, in the same task, as `lf-dial` does.
 
-Leaf keeps the user's place in a member a widget hides and shows again later, where
-the members are views of the page (`module-state.md`, "State only this tab keeps").
-
 A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
 the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
 returns the nodes the list draws into and `changed()` redraws the widget. Before each
@@ -236,22 +233,19 @@ folded element that is itself a Tab stop out of the Tab order, since the fold hi
 only what it holds. Where the reveal replaces one view with another, Leaf places the
 target at once rather than scrolling from the old view's reading position. It reads a
 replaced view from a sibling of the element revealed that is `hidden` once that
-element's `beforematch` listeners have run: Leaf hides the member a `views` widget
-leaves (`module-state.md`, "State only this tab keeps"), and any other widget sets
-`hidden` on the view it leaves in its listener. A widget that keeps the box of
+element's `beforematch` listeners have run: a widget sets `hidden` on the view it
+leaves in its listener (`module-state.md`, "State only this tab keeps"). A widget that
+keeps the box of
 what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-Leaf writes the page's history entries, and a widget writes none: one whose members
-are the page's views says so, and Leaf adds an entry for each switch between them
-(`module-plain-elements.md`, "The page's views"). Leaf keeps where the user was on each
-entry, and Back, Forward and a reload return them there. An entry a press adds says the
-press takes the user somewhere, as a link's does, so its result may scroll away the
-control pressed. Where an entry's fragment still names a place the page doesn't show
-once its view is open, Leaf reveals that place and lands there.
+Leaf writes the page's history entries, and a widget writes none, so a switch between
+the members it shows adds none. Leaf keeps where the user was on each entry, and Back,
+Forward and a reload return them there. Where an entry's fragment names a place the
+page doesn't show, as one in a closed tab, Leaf reveals that place and lands there.
 
 ## Motion
 

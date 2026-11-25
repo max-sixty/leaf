@@ -42,8 +42,7 @@ class `lf-chrome`, and so does a widget in a reply the panel shows. The library'
 [`shadow-tree.js`](../../../browser/runtime/lib/shadow-tree.js) answers whether a node
 stands inside such an element across shadow boundaries. A widget that acts on the
 document around it, as a contents list does, reads it with
-`node.closest("[data-lf-views] > *, main")`: the view member holding the node
-(`views`, `module-authoring.md`), whose holder Leaf marks `data-lf-views`, else the
+`node.closest('[role="tabpanel"], main')`: the tab panel holding the node, else the
 `main` holding it, else null.
 
 ### Naming

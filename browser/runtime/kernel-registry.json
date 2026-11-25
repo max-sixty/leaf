@@ -24,6 +24,7 @@
       "/runtime/lib/motion-timing.js",
       "/runtime/lib/obligation-tally.js",
       "/runtime/lib/once.js",
+      "/runtime/lib/one-shown.js",
       "/runtime/lib/pending-task.js",
       "/runtime/lib/presented.js",
       "/runtime/lib/queued-work.js",
@@ -83,7 +84,7 @@
       "message": true
     },
     "reading-role": { "attribute": "data-lf-reading-role", "message": true },
-    "views": { "attribute": "data-lf-views", "message": true },
+    "parts": { "attribute": "data-lf-parts", "presence": true, "message": false },
     "visual": {
       "attribute": "data-lf-visual",
       "presence": true,

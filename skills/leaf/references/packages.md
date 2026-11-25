@@ -350,7 +350,7 @@ role on the page:
 | `bound`        | `lf-activity`                                                                        |
 | `height`       | `lf-chart`                                                                           |
 | `history`      | `lf-activity`                                                                        |
-| `views`        | `lf-tabs`                                                                            |
+| `parts`        | `lf-parts`                                                                           |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

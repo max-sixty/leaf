@@ -229,7 +229,6 @@ const layers = [
   "widget-descriptors",
   "projection",
   "declared-words",
-  "views",
   "history",
   "current-target",
   "obligations",

@@ -78,38 +78,13 @@ paint"). `tabStore.keys()` lists the keys set, and `tabStore.read(key)` answers
 `{available, value}`, which tells a key never set from a store the browser has switched
 off; `tabStore.where(key)` names the browser's storage entry behind a key.
 
-A widget that shows one member at a time (`views`, `module-authoring.md`, "First
-paint") keeps the open member in the tab too, through these helpers. A member's native
-`hidden` attribute is view state. Read `viewMembers(holder)` for the canonical member
-list, including holders a module creates. Reading members or the opening choice changes
-no DOM. As the widget builds, open the member `openingView(holder)` returns, and show each
-later member with `keepView(holder, member)`, which applies native visibility and
-remembers it for reload. Passing null shows none without forgetting the last member.
-During an exit animation, `keepView(holder, member, leaving)` keeps one outgoing member
-visible too; call it again without that member when the animation ends. Only the
-selected member is saved. Pass `null` as a second argument to get null where neither
-the address nor the tab names a member, and choose then.
-
-Show each member with `keepView` rather than by writing `hidden`, so that Leaf hears of
-a switch before the member the user leaves is hidden, while the page can still say
-where they were in it. Leaf shows a member too, as the browser's find, a fragment or
-travel reveals it and as Back or Forward returns to it. The member gets a `beforematch`
-event then (`module-scroll-and-motion.md`, "Travel and history"). In its listener the
-widget shows the member with `keepView`, as it does for a press, and redraws what marks
-its open member: where Leaf has already shown the member, as it has for one the page's
-own tree holds, the call changes nothing. From `keepView` and those reveals Leaf keeps
-two things for the widget:
-
-- **The address**, where the widget says its members are the page's views
-  (`data-lf-page-views`, `module-plain-elements.md`).
-- **The user's place in each member**, where the members stand in the page's flow,
-  because the widget declares `flow` or is the page's parts, and each member has an
-  id. A member the widget shows opens where the user last read it in this tab. One
-  they never read past its start leaves the page where it stands, unless the page is
-  scrolled past that start, and then it opens at its start, under the headers stuck
-  over it (`module-scroll-and-motion.md`, "Sticky headers"). A member something
-  reveals is placed by whatever revealed it. A member of any other widget is a box in
-  the page, and showing it scrolls nothing.
+A widget that shows one member at a time, as a tab set does, writes
+`hidden="until-found"` on the members it doesn't show, so find-in-page, a fragment and
+Leaf's travel still reach what they hold. Each then fires `beforematch` on the member
+holding it, and the widget's listener shows that member as a press does. Keep the
+member shown in this tab, so a reload opens on it, as the bundled widgets do through the
+library's `one-shown.js`. A switch adds no history entry, and the member opened keeps
+nothing of where the user was in it.
 
 ## Declared widget state
 

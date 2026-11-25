@@ -195,7 +195,7 @@ def attribute_slot_errors(
 
 
 def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A page's parts (`views.parts`) written directly in `main` lay the page out
+    """A page's parts (`parts`) written directly in `main` lay the page out
     themselves, each part's child carrying its own Layout, so the `main` holding them
     carries none. With one, its Layout and the parts' both arrange the page, and the
     page renders with nothing out of reach, so the render check passes it."""
@@ -207,8 +207,7 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     return [
         found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
         for rec in document.lf_elements
-        if rec["parent"] == "main"
-        and registry.get(rec["tag"], {}).get("views", {}).get("parts")
+        if rec["parent"] == "main" and registry.get(rec["tag"], {}).get("parts")
     ]
 
 

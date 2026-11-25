@@ -397,15 +397,7 @@ FACTS: dict[str, dict] = {
             },
         ]
     },
-    "views": {
-        "type": "object",
-        "properties": {
-            "members": {"type": "string", "minLength": 1},
-            "parts": {"const": True},
-        },
-        "required": ["members"],
-        "additionalProperties": False,
-    },
+    "parts": {"const": True},
     "space": {"enum": ["wide", "available"]},
     # A default height in CSS pixels, or `true` for a widget that has none
     # and reserves only what an occurrence's data-height states.

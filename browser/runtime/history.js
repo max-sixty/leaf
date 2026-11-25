@@ -116,13 +116,10 @@
  * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API.
- * Where the entry's fragment names a place in another of the page's views, such as a
- * root tab set's, that view is revealed first (`mountHistory`'s `view`, views.js), and
- * the entry's record then returns the user to where they were in it. Travel takes the
- * traversal after that (`mountHistory`'s `returnToFragment`, anchor-travel.js)
- * where the entry's fragment still names a place the page doesn't show, such as a
- * widget's key whose part the widget no longer draws inside the view just
- * opened: the record was read over a page that has changed, so travel reveals
+ * Travel takes the traversal (`mountHistory`'s `returnToFragment`, anchor-travel.js)
+ * where the entry's fragment names a place the page doesn't show, such as a
+ * widget's key whose part the widget no longer draws, or one in a closed tab: the
+ * record was read over a page that has changed, so travel reveals
  * the place and lands on it. Any other traversal is
  * intercepted to restore its record, or the browser's saved offset
  * for an entry without one. Back and Forward restore that place after the
@@ -136,8 +133,7 @@
  * fragment names an element of the page, and lands it through the browser's own
  * fragment placement rule once travel has cleared and revealed the way; any other fragment
  * keeps native landing. An entry this document writes through `pushEntry` or
- * `replaceEntry`, as travel and a switch between the page's views do, is not a fragment
- * navigation and is never claimed. */
+ * `replaceEntry`, as travel does, is not a fragment navigation and is never claimed. */
 
 import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
 import { setScroll } from "./arrivals.js";
@@ -586,7 +582,7 @@ let nameThread = (url) => url;
 const named = (url) => nameThread(new URL(url ?? location.href, location.href));
 
 /** @param {string | URL | null | undefined} url @param {unknown} state */
-export function pushEntry(url, state = null) {
+function pushEntry(url, state = null) {
   write("pushState", state, named(url));
 }
 
@@ -651,15 +647,6 @@ export function prepareEntry() {
     }
   };
 }
-
-// The view of the page a traversal's entry names (views.js, `entryView`): the handler
-// that reveals it, or nothing where the entry names none or it already shows. A
-// handler places the viewport itself unless it resolves to false, handing placement
-// back to the entry's record (or the browser for an entry without one), as this one
-// does. Travel follows it where the entry's fragment names a place the view doesn't
-// show.
-/** @type {((url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null) | null} */
-let entryView = null;
 
 // The thread view an entry names (thread/address.js): `claim` opens it or puts it away
 // on a traversal, as it reads the entry's record, and resolves to false, since it places
@@ -805,7 +792,6 @@ async function claimAndReturn(url, record, intent, returnsFocus) {
 let mounted = false;
 /** @param {{followFragment: (url: URL) => TraversalHandler | null | undefined | false,
  * returnToFragment: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null | undefined,
- * view: (url: URL, intent: ReturnType<typeof retainUserIntent>) => TraversalHandler | null,
  * thread: {claim: ThreadClaim, open: () => OpenThread | null,
  * focusTarget: (id: string, part: "thread" | "reply") => Element | null,
  * name: (url: URL) => URL}, list: () => RecordList | null,
@@ -813,14 +799,12 @@ let mounted = false;
 export function mountHistory({
   followFragment,
   returnToFragment,
-  view,
   thread,
   list,
   draft,
 }) {
   if (mounted) return;
   mounted = true;
-  entryView = view;
   threadParts = thread;
   nameThread = thread.name;
   threadClaim = thread.claim;
@@ -856,7 +840,6 @@ export function mountHistory({
         event.signal,
       );
       const mayReturn = restoration.intent;
-      const claim = entryView?.(url, mayReturn) ?? null;
       const applied = traversalApplied(event.signal);
       const traverse = async () => {
         // A traversal taken while the page still starts returns once it has presented.
@@ -873,21 +856,13 @@ export function mountHistory({
         for (const box of scrollers) stopGlide(box);
         await stopBrowserScroll(scrollers);
         if (!mayReturn()) return;
-        // The view the entry names is revealed first, so travel reads the place the
-        // fragment names in the page that view leaves. Either one places the viewport
-        // unless it resolves to false.
+        // Travel places the viewport unless it resolves to false.
         /** @type {unknown} */
         let work;
         mayReturn.handoff(() => {
-          work = claim?.();
-        });
-        let placed = Boolean(claim) && (await work) !== false;
-        if (!mayReturn()) return;
-        work = undefined;
-        mayReturn.handoff(() => {
           work = returnToFragment(url, mayReturn)?.();
         });
-        if (work !== undefined) placed = (await work) !== false || placed;
+        const placed = work !== undefined && (await work) !== false;
         if (!mayReturn()) return;
         if (!placed && record?.page && placesPage(record.page))
           restorePlace(record.page, null, mayReturn);

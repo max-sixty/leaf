@@ -111,17 +111,6 @@ interface LeafSampleBridge {
 interface Window {
   /** Runs a fault report while this document is the one the browser keeps (prepaint.js). */
   lfDocumentLifetime: { whenActive(fault: string, report: () => void): void };
-  lfViews: {
-    members(holder: Element, selector?: string): Element[];
-    opening(
-      holder: Element,
-      fallback?: Element | null,
-      selector?: string,
-    ): Element | null | undefined;
-    keep(holder: Element, member: Element | null, leaving?: Element | null): void;
-    /** The runtime's showing of a member something reveals, once it loads (views.js). */
-    reveal?: (holder: Element, member: Element) => void;
-  };
   lfLinks: {
     opensElsewhere(href: string | null): boolean;
     markExternalLink(link: Element): void;

@@ -71,10 +71,6 @@ export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
 export { whenNear, whileInterfaceConnected } from "./presentation.js";
-// The members a widget shows one at a time: Leaf remembers the one shown, names it in
-// the address where the widget's views are the page's, and keeps the user's place in
-// each view of the page's flow (views.js).
-export { keepView, openingView, viewMembers } from "./views.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";

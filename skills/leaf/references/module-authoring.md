@@ -73,9 +73,7 @@ In [module-state.md](module-state.md):
 
 - "The widget controller": `widgetController` reads what Leaf holds for a widget, the
   module's own or another's.
-- "State only this tab keeps": `tabStore` keeps a string for this tab, and
-  `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
-  which Leaf remembers, names in the address and returns the user to their place in.
+- "State only this tab keeps": `tabStore` keeps a string for this tab.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
@@ -296,7 +294,7 @@ back (`module-input.md`, "Focus and layers").
 Leaf also replaces a widget that declares `lfPatch` when a revision changes what its
 module drew from, which it takes to be the element's own attributes. A module that also
 draws from which children it has, or from their attributes, as a tab strip shows each
-tab's `label`, declares `content: members` or `views`. Leaf then also replaces the
+tab's `label`, declares `content: members`. Leaf then also replaces the
 widget when a direct child is added, removed, reordered or given other attributes.
 Without either declaration the module keeps its first drawing of a child the revision
 changed. Leaf compares only each direct child's tag and attributes, and a revision
@@ -357,14 +355,11 @@ readings.
   browser state in the light DOM.
 - Where the markup can't say how tall the drawing will be, declare `height` and add
   the class `lf-rendered` once drawn.
-- A widget that shows one member at a time declares `views: {members: "selector"}`;
-  the browser matches the selector against each direct authored child, including
-  while HTML is still arriving. A selector that depends on descendants, such as
-  `:has()`, can change membership as they arrive; use the child's own start tag for
-  stable first-paint membership. Open and keep its members as `module-state.md`, "State
-  only this tab keeps", describes. A holder whose members share the surrounding page's
-  flow declares `flow`, as its members do, so a member's wide blocks and sidebar take
-  the page's room.
+- A widget that shows one member at a time says in its stylesheet which member stands
+  before its module runs, such as the first with `:not(:defined)`, and opens its members
+  as `module-state.md`, "State only this tab keeps", describes. A holder whose members
+  share the surrounding page's flow declares `flow`, so a member's wide blocks and
+  sidebar take the page's room.
 
 ## Rendering
 

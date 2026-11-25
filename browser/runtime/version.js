@@ -310,8 +310,6 @@ const versionedHeadNode = (node) =>
 const authoredMarkup = (root) => {
   // Prepaint can already have painted the first document. Both source snapshots
   // exclude runtime-owned attributes; their live values stay with their writers.
-  for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`))
-    member.removeAttribute("hidden");
   for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
     for (const element of root.querySelectorAll(`[${name}]`))
       element.removeAttribute(name);
@@ -2089,7 +2087,7 @@ export function createVersionController({
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members = content === "members" || entry.views !== undefined;
+    const members = content === "members";
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -2781,7 +2779,8 @@ export function createVersionController({
     effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
     const present = new Set(readingRegions().map(({ id }) => id));
-    for (const id of places.keys()) if (id !== PAGE && !present.has(id)) places.delete(id);
+    for (const id of places.keys())
+      if (id !== PAGE && !present.has(id)) places.delete(id);
   };
 
   // A place is the reader's when they chose a scroll in its box since it was last
@@ -3339,9 +3338,7 @@ export function createVersionController({
   // the page presents, and after declared deferred arrivals settle. Each landing is
   // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
-  // where it is. The fragment is read before widgets upgrade, since the page's open
-  // view is then named in the URL (views.js, as a root tab set's open panel), and that
-  // is display state, not a destination. A reload or history traversal returns to its
+  // where it is. A reload or history traversal returns to its
   // entry's record instead (history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade

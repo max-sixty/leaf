@@ -3,10 +3,17 @@
 @skills/leaf/SOUL.md
 
 `SOUL.md`, above, says what a person using a Leaf page and an agent writing one
-can count on. The sections from here to "Repository map" are the principles
-Leaf is built by. The rest of the repository's guidance applies the values and
-principles to particular code, so weigh a case no rule covers against them. They
-are the maintainer's direction and change only when the maintainer asks.
+can count on, and its guarantees are the only ones Leaf owes them. The sections
+from here to "Repository map" are the principles Leaf is built by. Both are the
+maintainer's direction and change only when the maintainer asks.
+
+The rest of the repository's guidance, each area's `AGENTS.md` included, says how
+today's code applies them. A rule there describes the current design. It promises
+the user nothing beyond `SOUL.md`, even where it records a call the maintainer
+made for one case. So a change may replace the design with a simpler one that
+still meets the values and principles: it rewrites the rule, and says what a user
+will see differently, with a picture where the difference shows. Weigh a case no
+rule covers against the values and principles.
 
 ## Leaf's role
 
@@ -66,10 +73,11 @@ call its guidance settles, saying which passage settled it. Ask the maintainer o
 where a choice depends on a purpose or intent the code can't tell you:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
-- **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` or an
-  `AGENTS.md` states, such as losing the user's selection or typed words, is a
-  defect to fix. Listing it as a call the maintainer may reverse doesn't make it
-  a call.
+- **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
+  as losing the user's selection or typed words, is a defect to fix. Listing it
+  as a call the maintainer may reverse doesn't make it a call. A cost to
+  something neither `SOUL.md` nor these principles state, such as a look, a first
+  paint or a rule of an area's `AGENTS.md`, is the change's own to weigh and take.
 - **Taking a feature away.** "Regular maintenance" says what a proposal to remove
   one rests on.
 - **Lifting a restriction.** A restriction Leaf imposes, such as a content
@@ -85,6 +93,11 @@ where a choice depends on a purpose or intent the code can't tell you:
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it
 changes, rather than asking about the case in front of you.
+
+Where the maintainer agreed a plan that names a result, such as the count of names
+an interface ends with, work that stops short reports the shortfall first, as a
+miss against the plan, with what stopped it, and proposes the change to any rule
+that did. A list of calls the maintainer may reverse is not that report.
 
 ## Responsiveness
 
@@ -494,6 +507,13 @@ thing every author learns and every later change keeps working. A change meets a
 widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
 need of Leaf", says how to choose where it can't.
 
+A smaller interface is worth a visible difference. Where a name's work is to keep a
+look, a first paint or a behaviour exactly as it was, the name goes, and the change
+shows what a user will see differently. Only a guarantee `SOUL.md` states keeps
+such a name. A shift as a widget first draws breaks none, and neither do the lines
+a widget's author writes in the name's place. Taking such a difference is the
+change's own call, not one to put to the maintainer.
+
 ### Wait for the event that ends the work
 
 Code waits for the event that ends the work, such as a response, a process's exit, a
@@ -563,8 +583,11 @@ makes Leaf harder to develop than it is worth:
   single example; a mechanism that `git log --follow` shows was patched again and
   again (without `--follow`, a file's history stops at its last move). Code in its
   own module, such as a package, a widget or a `leaf-dev` command, costs little
-  beyond its own files; remove it only when it is large and unused. Keep anything
-  users would notice losing, including Leaf's interface guarantees. Taking a feature
+  beyond its own files; remove it only when it is large and unused. Keep what
+  `SOUL.md` guarantees, and each feature: something a user or an author can do with
+  Leaf. How a thing looks, when it first paints and exactly how it moves are not
+  features. A small difference in one of them is a price a removal may pay, and
+  the removal shows it. Taking a feature
   away is the maintainer's call ("The maintainer decides"), so propose the removal
   with what users lose and what it deletes, measured as `/developing-leaf`'s "Measure
   a removal" says. The maintainer builds features ahead of their use, so little use
@@ -654,7 +677,7 @@ For a change that can alter browser startup, compare base and head
 (`/developing-leaf`, "Compare checkout versions"). A change that adds work before
 the page first shows the server's state says what the user gains and why the work
 can't wait. A better look or a more immediate answer to the user is gain enough: the
-maintainer weighs how Leaf looks and responds far above its size. Take it and report
+maintainer weighs how Leaf looks and responds far above the bytes it loads. Take it and report
 the bytes, rather than putting the trade to the maintainer or building machinery to
 save them. Saving bytes that don't load before that point, such as a lazy module's,
 a vendored file's or the install's, doesn't by itself justify a change.

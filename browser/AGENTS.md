@@ -15,7 +15,9 @@ These rules hold for everything Leaf draws: its runtime, its chrome and its bund
 packages. Each section opens with a goal, which
 `../skills/leaf/references/interface-goals.md` gives other authors too, and the specs
 under it are Leaf's own ways of meeting it; weigh a case no spec covers against its goal
-and `../skills/leaf/SOUL.md`. A spec names its check and owner where one exists. How
+and `../skills/leaf/SOUL.md`. A spec records the current design, and a change that
+meets the goal more simply replaces the spec and its check (root `AGENTS.md`'s
+opening). A spec names its check and owner where one exists. How
 the owner meets it, and any exception the user chose for one surface, belong in that owner's header and
 the check's credit, not here. Which specs should also bind other authors is still being
 settled. Leaf targets desktop first, so judge layout at a representative desktop
@@ -744,6 +746,10 @@ question in "The browser answers first" and then here. A change that creates an 
 adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`, whose packages'
 block names what a package answers with the browser's own call instead.
 
+The table serves the runtime's own callers. A row is no reason to export its owner to
+packages: a widget answers with the browser's own call or its own code, and asks Leaf
+only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Leaf").
+
 | Question                                                                                              | Owner                                                                                  |
 | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                         |
@@ -926,9 +932,10 @@ Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "K
 layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
 Use a boolean only when false has one clear meaning; otherwise declare named values.
 
-Add a fact only where some part of Leaf, such as the server, `page check` or the first
-paint, must act on it without running the widget's module, and the module can't keep
-the same rule itself. A rule about one widget's markup that its module can check as it
+Add a fact only where Leaf's server or `page check` must act on it without running the
+widget's module, and the module can't keep the same rule itself. How an element stands
+before its module draws is its package's stylesheet's to say, and a shift as the module
+first draws costs no fact. A rule about one widget's markup that its module can check as it
 draws stays in the module, which reports a breach with an `error` event, even where
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the

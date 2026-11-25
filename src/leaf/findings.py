@@ -1769,10 +1769,16 @@ _TEXT = {
             " which is not a value of its `outcome` field"
         )
     ),
-    "retired-when": _declared(
+    "decides-outcome": _declared(
         lambda v: (
-            f"`retired-when` `{v['outcome']}` is invalid: <{v['owner']}>"
-            " declares no deciding verb (`verbs`) with that outcome"
+            f"verb `{v['verb']}` (`verbs`) decides `{v['outcome']}`, which is not a"
+            " value of its `outcome` field"
+        )
+    ),
+    "decides-member": _declared(
+        lambda v: (
+            f"verb `{v['verb']}` (`verbs`) takes <{v['member']}> off the page, which"
+            " doesn't name this widget in its `owners`"
         )
     ),
     "answering-part": _declared(

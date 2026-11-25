@@ -22,6 +22,7 @@ from leaf.passages import (
 from leaf.registry.contract import (
     decides,
     event_spec,
+    retired_under,
     retirement_slots,
     same_state_definition,
     same_state_operation,
@@ -95,15 +96,15 @@ def enclosing_widgets(rec: dict):
         rec = rec["holder"]
 
 
-def enclosing_slot(rec: dict, registry: dict):
-    """The innermost slot an element stands in and the widget whose decision
-    retires it, or None where it stands in neither. The element itself counts:
-    a slot's own id is the slot's, not the widget's around it."""
+def enclosing_slot(rec: dict, slots: dict):
+    """The innermost slot an element stands in, the widget whose decision retires
+    it, and the outcome that does (`retirement_slots`), or None where it stands in
+    none. The element itself counts: a slot's own id is the slot's, not the
+    widget's around it."""
     for node in (rec, *enclosing_widgets(rec)):
-        entry = registry.get(node["tag"]) or {}
         holder = node["holder"]
-        if entry.get("retired-when") and holder and holder["tag"] in entry["owners"]:
-            return node, holder
+        if holder and (outcome := retired_under(slots, holder["tag"], node["tag"])):
+            return node, holder, outcome
     return None
 
 
@@ -129,13 +130,13 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
                 "retires": {outcome: set() for outcome in declared[rec["tag"]]},
             }
     for wid, rec in parser.holders.items():
-        pair = enclosing_slot(rec, registry) if rec else None
-        if pair is None:
+        found = enclosing_slot(rec, declared) if rec else None
+        if found is None:
             continue
-        slot, holder = pair
+        _, holder, outcome = found
         held = holders.get(holder["attrs"].get("id"))
         if held is not None:
-            held["retires"][registry[slot["tag"]]["retired-when"]].add(wid)
+            held["retires"][outcome].add(wid)
     return list(holders.values())
 
 
@@ -962,8 +963,8 @@ def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its deciding action in force names.
 
     The registry explicitly marks the deciding verb (`decides`), whose `outcome`
-    values a member's `retired-when` and the verb's own `withdraws` name, so
-    nothing here knows a widget or verb by name."""
+    values its `decides` and `withdraws` name, so nothing here knows a widget or verb
+    by name."""
     return {
         widget: e["detail"]["outcome"]
         for (widget, _unit, _verb), (e, spec) in actions.items()

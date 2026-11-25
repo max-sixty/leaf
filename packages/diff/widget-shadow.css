@@ -524,7 +524,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-thread-outlet {
   min-width: 0;
   white-space: normal;
-  font: var(--lf-font-ui);
+  font: var(--lf-font-message);
   contain: inline-size;
 }
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {

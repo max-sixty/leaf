@@ -41,7 +41,7 @@ lf-gloss[data-lf-control-focus-visible] {
   max-width: min(22rem, calc(100vw - 24px));
   margin: var(--lf-gloss-gap) 0;
   padding: 10px 13px 11px;
-  font: var(--lf-font-ui);
+  font: var(--lf-font-message);
   text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;

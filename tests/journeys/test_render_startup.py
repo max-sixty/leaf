@@ -573,7 +573,6 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
             "required": ["id"],
         },
         "content": "empty",
-        "shadow": True,
         "example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once} from '/runtime/lib/once.js';

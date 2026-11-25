@@ -1032,7 +1032,6 @@ def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser,
                             "required": ["id"],
                         },
                         "content": "markup",
-                        "shadow": True,
                     }
                 },
                 layer_widgets={"lf-gripped.js": GRIPPED},

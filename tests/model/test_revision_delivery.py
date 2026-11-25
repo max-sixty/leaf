@@ -724,9 +724,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-label": {
             "inline": True,
         },
-        "lf-feed": {
-            "bound": "end",
-        },
         "table": {
             "description": "A table.",
             "example": "<table></table>",
@@ -739,7 +736,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<aside class="lf-callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
         '<lf-board id="board" data-width="available"></lf-board>'
-        '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'
+        '<lf-feed id="feed" class="selected" data-bound="end"></lf-feed>'
+        '<section id="wide" data-width="wide"></section>'
         '<table id="native"></table>'
         '<pre data-bound="start">log</pre>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'

@@ -1065,6 +1065,9 @@ class TextDocument extends LeafElement {
       if (!this.sourceView) {
         const { pre, code, starts } = listing(next);
         this.starts = starts;
+        // Without a preview, the listing is the box that scrolls in the bound; with
+        // one, each tab is (`build`).
+        if (!view.preview) pre.setAttribute("data-lf-bound", "start");
         setChildren(view.listing, [pre]);
         this.sourceView = { pre, code };
         // The rows meet the `pre` while it shows them, and stop as a fold closes over
@@ -1181,15 +1184,14 @@ class TextDocument extends LeafElement {
     tabs.id = `${this.id}--views`;
     // Its members are this document's data readings, not authored page content.
     keeps(tabs, "data-lf-gen", "1");
-    const bound = this.getAttribute("data-lf-bound") ?? "start";
     const rendered = document.createElement("lf-tab");
     rendered.id = `${this.id}--preview`;
     rendered.setAttribute("label", "Preview");
-    rendered.setAttribute("data-lf-bound", bound);
+    rendered.setAttribute("data-lf-bound", "start");
     const literal = document.createElement("lf-tab");
     literal.id = `${this.id}--source`;
     literal.setAttribute("label", "Source");
-    literal.setAttribute("data-lf-bound", bound);
+    literal.setAttribute("data-lf-bound", "start");
     const drawn =
       preview === "html"
         ? document.createElement("iframe")

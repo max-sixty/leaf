@@ -851,7 +851,6 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
         for key in (
             "verbs",
             "verbatim",
-            "shadow",
             "history",
         )
         if entry.get(key)

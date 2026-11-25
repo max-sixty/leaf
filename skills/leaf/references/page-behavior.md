@@ -60,8 +60,8 @@ so don't make page CSS or scripts depend on them.
 A page script may define custom elements with shadow DOM of their own. Comments can't
 quote the words only such a shadow root shows, and Leaf reads the element's own children
 in its place, so put words the user should quote in the light DOM and slot them, or
-write the element as a widget declaring `shadow` (`module-authoring.md`, "Shadow
-stages and styles").
+have the element say `lf-connect` with its root attached (`module-authoring.md`,
+"Shadow stages and styles").
 
 Reach a widget's methods from the first `lf-page-interface` (`module-authoring.md`,
 "Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its

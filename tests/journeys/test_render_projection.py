@@ -304,7 +304,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     )
     in_force = page.evaluate(
         """async ids => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {widgetController} = await window.__lfCheckApi();
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
             const state = widgetController(widget).read().state;
@@ -1117,9 +1117,7 @@ def test_activity_targets_follow_the_current_document(browser, serve, fresh):
     if fresh:
         frames = page.evaluate("window.activityTargetFrames")
         assert frames
-        assert all(
-            frame["href"] is None for frame in frames
-        )
+        assert all(frame["href"] is None for frame in frames)
 
     # A destination returning is current capability too.
     restored = '<section id="route"><h2>A different route heading</h2></section>'
@@ -1149,9 +1147,7 @@ def test_activity_targets_follow_the_current_document(browser, serve, fresh):
             "window.activityTargetFrames.filter(frame => frame.parsed)"
         )
         assert frames
-        assert all(
-            frame["href"] == "#route" for frame in frames
-        )
+        assert all(frame["href"] == "#route" for frame in frames)
     target.press("Enter")
     expect(page).to_have_url(re.compile(r"#route$"))
     expect(page.locator("#route")).to_be_in_viewport()

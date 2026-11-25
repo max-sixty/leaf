@@ -18,7 +18,9 @@ export function relativeReplays() {
     holdsState(widget) ? [{ widget, read }] : [],
   );
   if (!rendered.length) return [];
+  /** @type {Set<Element>} */
   const replayed = new Set(rendered.map(({ widget }) => widget));
+  /** @type {Record<string, unknown>[]} */
   const found = [];
   const before = shallowSigs(document.body);
   const bodies = rendered.map((s) => JSON.stringify(s.read(s.widget)));

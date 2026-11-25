@@ -227,10 +227,10 @@ def test_a_line_removed_among_the_words_moves_only_what_layout_moved(
     composer, engine, request, serve
 ):
     """A line a key takes away from among the words moves only what layout moved, each
-    part one way. The panel and a card stand on their foot, so the words before the line
-    travel down with the box's top edge, setting out from where they stood, and the
-    words after it stand. The comment box beside its passage stands on its top, so the
-    words after the line go up with its rising foot, in the frame the key lands, as
+    part one way. The panel stands on its foot, so the words before the line travel down
+    with the box's top edge, setting out from where they stood, and the words after it
+    stand. The comment box beside its passage and a card stand on their top, so the
+    words after the line go up with the rising foot, in the frame the key lands, as
     layout puts them. The line Shift+Enter adds first takes its place in one frame, as
     every key that adds words does, so nothing travels (dom/box-motion.js). The property
     test never puts words after the caret, so this one adds and takes away a line with
@@ -292,13 +292,14 @@ def test_a_line_removed_among_the_words_moves_only_what_layout_moved(
             "the removed line moved no words"
         )
         # On a box standing on its foot, the removal's first frame draws every word
-        # where it stood.
+        # where it stood; on one standing on its top, where layout puts it to rest.
+        expected = stood if composer == "panel" else last
         jumped = {
-            part: (stood[part], first[part])
+            part: (expected[part], first[part])
             for part in words
-            if abs(first[part] - stood[part]) > SLACK
+            if abs(first[part] - expected[part]) > SLACK
         }
-        assert composer == "comment" or not jumped, jumped
+        assert not jumped, jumped
 
     write(field, "waits waits while while\nwaits\nwaits waits while while\nwaits")
     page.keyboard.press("ControlOrMeta+Home")

@@ -354,6 +354,34 @@ def floating_page(serve):
     return Built(live_url(url), d, FLOATING_PAGE, {"told": told, "asked": asked})
 
 
+def deck_card(name, question, body=""):
+    return (
+        f'<lf-group id="{name}-ask" label="{question}"><h3>{question}</h3>{body}'
+        f'<lf-options id="{name}-choice">'
+        f'<lf-option id="{name}-yes" label="Yes"><strong>Yes</strong></lf-option>'
+        f'<lf-option id="{name}-no" label="No"><strong>No</strong></lf-option>'
+        "</lf-options></lf-group>"
+    )
+
+
+# A deck that ends the page, a short card before a tall one, so at the page's end Back
+# from the tall card brings up one shorter than the deck stood.
+DECK_PAGE = leaf_page(
+    "Deck at the end",
+    '<h1 id="title">Deck at the end</h1>'
+    + paragraphs(0, 12)
+    + '<lf-deck id="deck">'
+    + deck_card("short", "Keep Redis?")
+    + deck_card("tall", "Ship the beta?", paragraphs(0, 6, prefix="tall"))
+    + "</lf-deck>",
+)
+
+
+def deck_page(serve):
+    """A deck of a short card and a tall one at the page's end."""
+    return Built(live_url(serve(DECK_PAGE)), serve.page_dir, DECK_PAGE)
+
+
 PAGES = {
     "thread": thread_page,
     "map": map_page,
@@ -365,6 +393,7 @@ PAGES = {
     "queue": queue_page,
     "decisions": decisions_page,
     "floating": floating_page,
+    "deck": deck_page,
 }
 
 # ---------------------------------------------------------------------------------
@@ -637,6 +666,21 @@ def open_map(page):
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     expect(page.get_by_role("dialog", name="Page Map", exact=True)).to_be_visible()
+
+
+DECK_OPEN = "() => document.querySelector('lf-deck > [data-lf-deck-open]')?.id"
+DECK_LANDED = "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
+
+
+def put_deck_back(page, built):
+    """The tall card open, Later having brought it up, the page scrolled to its end and
+    the pointer resting on the deck's Back."""
+    page.locator("lf-deck .lf-deck-forward").click()
+    page.wait_for_function(f"() => ({DECK_OPEN})() === 'tall-ask'")
+    page.wait_for_function(DECK_LANDED)
+    page.evaluate("() => scrollTo(0, document.documentElement.scrollHeight)")
+    scroll_settled(page)
+    page.locator("lf-deck .lf-deck-back").hover()
 
 
 def put_map_row(page, built):
@@ -1195,6 +1239,13 @@ PLACES = [
     ),
     Place("pane", "pane", put_pane, Found("#q-30"), {"pane above": "left-body"}),
     Place(
+        "deck-back",
+        "deck",
+        put_deck_back,
+        Found("lf-deck .lf-deck-back"),
+        {"deck back": "short-ask"},
+    ),
+    Place(
         "on-me-row",
         "queue",
         put_on_me_row,
@@ -1616,6 +1667,14 @@ def turn(page, label):
     )
 
 
+def deck_back(page, built, target, place):
+    """Back pressed where the pointer rests brings up the shorter card before it."""
+    box = page.locator("lf-deck .lf-deck-back").bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.wait_for_function(f"() => ({DECK_OPEN})() === {target!r}")
+    page.wait_for_function(DECK_LANDED)
+
+
 def dial_turn(page, built, target, place):
     """Skim, which folds the paragraph read behind its section's gist, then Read."""
     turn(page, "Skim")
@@ -1715,6 +1774,7 @@ CHANGES = [
     Change("ask", "ask above", ask),
     Change("deletions", "lines above", deletions),
     Change("dial-turn", "dial", dial_turn),
+    Change("deck-back", "deck back", deck_back),
     Change("dial-skim", "skim", dial_skim),
     Change("grown-after-glide", "glided", grown_after_glide),
     Change("press-while-pending", "grammar pending", press_while_pending),

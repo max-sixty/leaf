@@ -143,11 +143,12 @@
 }
 /* A message's own controls stand as one group at its head's end, centred on its line:
    an agent's reply its reactions, the user's own words their rewrite, and an open
-   rewrite its Discard and Save, with Copy last. A control is one more child of the
-   group. They appear only for the message under pointer or focus. A reply with no
-   feedback keeps no row below its words. The reaction picker is an overlaid menu below
-   its trigger; opening it never moves this message or the threads after it. At rest
-   only feedback already left earns flow space.
+   rewrite its Discard and Save, and, beside a closed one, Copy link, with Copy last. A
+   control is one more child of the group. They appear only for the message under
+   pointer or focus. A reply with no feedback keeps no row below its words. The
+   reaction picker is an overlaid menu below its trigger; opening it never moves this
+   message or the threads after it. At rest only feedback already left earns flow
+   space.
 
    The group stands in its room (`.lf-msg-control-room`), the head's last item, as wide
    as the group. The room counts in the head's size, so a card sized to its words is
@@ -212,10 +213,18 @@
   }
 }
 /* Under a finger, with no hover to hide it, Copy would stand on every message for
-   good, and a head is too narrow for two controls at the aim floor, so it is left out
-   there, and a finger copies a message's words by selecting them. */
+   good, so it is left out there, and a finger copies a message's words by selecting
+   them. Copy link stays on a reply, since nothing else gives a finger a reply's link:
+   the address names only the thread open (records/thread/address.js). The opening
+   message's link is that thread's, which the address already names, so it is left out
+   there too, and the opening head, which on a card also holds the thread's controls,
+   keeps its name and labels whole at the card's least width. */
 @media (pointer: coarse), (hover: none) {
-  .lf-msg-controls > .lf-msg-copy {
+  .lf-msg-controls > .lf-msg-copy,
+  .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+    > .lf-msg-head
+    .lf-msg-controls
+    > .lf-msg-link {
     display: none;
   }
 }

@@ -30,7 +30,7 @@ import {
   blurFocused,
 } from "../../dom/focus.js";
 import { bringBackSurfaceOf } from "../../readings/off-flow.js";
-import { THREAD, threadPart, wholeThread } from "./selectors.js";
+import { THREAD, drawnThreadId, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../../dom/keyboard/register.js";
 import { TEXT_ENTRY } from "../../dom/keyboard/text-entry.js";
 import { beginReplyAt, dismissReplyAt, replyDraftContext } from "./replies.js";
@@ -172,22 +172,50 @@ const resolutionControl = (thread) =>
 /** @param {Element | null} thread */
 const movingControl = (thread) => (thread ? threadPart(thread, "move") : null);
 
-// The Copy of the message the user is in, by focus or by the caret a click on its words
-// leaves (`userCaret`), else of the thread's latest message.
+// The message the user is in, by focus or by the caret a click on its words leaves
+// (`userCaret`), else the one `otherwise` picks. The messages stand in the whole of
+// the thread (selectors.js, `wholeThread`), apart from controls a view draws on its
+// own lines, as the panel's view draws Resolve on its head.
 /** @param {Element | null} node */
 const messageAt = (node) => closestAcross(node, ".lf-msg");
-/** @param {Element | null} thread */
-function messageCopy(thread) {
+/** @param {Element | null} thread
+ * @param {(whole: Element) => Element | null | undefined} otherwise */
+function messageIn(thread, otherwise) {
   if (!thread) return null;
+  const whole = wholeThread(thread);
   const caret = userCaret()?.element ?? null;
-  const message =
+  return (
     messageAt(focused()) ??
-    (under(caret, thread) ? messageAt(caret) : null) ??
-    [...thread.querySelectorAll(".lf-msg")].at(-1);
-  /** @type {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} */
-  const copy = message?.querySelector(":scope > .lf-msg-head .lf-msg-copy");
-  return copyTrigger(copy);
+    (under(caret, whole) ? messageAt(caret) : null) ??
+    otherwise(whole)
+  );
 }
+// A message's copy control of `kind` (messages.js): `copy` or `link`.
+/** @param {Element | null | undefined} message @param {"copy" | "link"} kind */
+function messageControl(message, kind) {
+  /** @type {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} */
+  const control = message?.querySelector(`:scope > .lf-msg-head .lf-msg-${kind}`);
+  return copyTrigger(control);
+}
+// The Copy of the message the user is in, else of the thread's latest message.
+/** @param {Element | null} thread */
+const messageCopy = (thread) =>
+  messageControl(
+    messageIn(thread, (whole) => [...whole.querySelectorAll(".lf-msg")].at(-1)),
+    "copy",
+  );
+// The Copy link of the message the user is in, else of the thread's opening message,
+// whose link is the thread's.
+/** @param {Element | null} thread */
+const messageLinkCopy = (thread) =>
+  messageControl(
+    messageIn(thread, (whole) =>
+      whole.querySelector(
+        `.lf-msg[data-lf-event="${CSS.escape(drawnThreadId(whole) ?? "")}"]`,
+      ),
+    ),
+    "link",
+  );
 
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
@@ -226,8 +254,10 @@ export const landInThread = (box, route = null) => landIn({ box, route });
  * box, as a resolved card doesn't, it reopens the thread into the box instead. The
  * platform's copy key with nothing selected presses Copy on the message the user is in,
  * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
- * words selected it keeps the browser's copy. Absent a thread, the reference describes
- * the open state users first meet. */
+ * words selected it keeps the browser's copy. `y` presses Copy link on the message the
+ * user is in, else on the thread's opening message, so on the thread it copies the
+ * thread's link. Absent a thread, the reference describes the open state users first
+ * meet. */
 /** @param {() => Element | null} threadHere */
 export function declareThreadKeys(threadHere) {
   pageScope("thread", {
@@ -292,6 +322,13 @@ export function declareThreadKeys(threadHere) {
         title: "copy message as Markdown",
         when: () => Boolean(getSelection()?.isCollapsed),
         control: () => messageCopy(threadHere()),
+      },
+      {
+        id: "message.link",
+        touch: false,
+        keys: ["y"],
+        title: "copy link",
+        control: () => messageLinkCopy(threadHere()),
       },
     ],
   });

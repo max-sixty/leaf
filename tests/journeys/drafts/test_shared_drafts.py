@@ -39,6 +39,8 @@ def test_words_typed_on_a_reload_stand_over_the_send_it_cut_short(
     refuse(sends[0])
     with restarting(page):
         page.reload()
+    # The send took the user out of the box; `c` puts them back in it.
+    page.keyboard.press("c")
     field = _type_on_arrival(page, " words")
     holding(page, says["K words"], 1, "the second reload's write")
 

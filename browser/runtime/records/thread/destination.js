@@ -24,8 +24,9 @@
    primary declined uses the page's nearest drawing of its thread: the outlet a widget
    seats it in (surfaces.js, `surfaceFocusTarget`), whose Resolved disclosure opens for
    a resolved thread; then a page preview. A message
-   part lands on its message there. Where neither shows it, the primary is asked again
-   with `request.last` set, which says
+   part lands on its message there, or on the thread where the message has no row of
+   its own (focus.js, `threadFocusDestination`). Where neither shows it, the primary is
+   asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. These are the placements Leaf forces,
    whatever the user chose: a resolved thread, which no card draws; one whose passage

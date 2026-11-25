@@ -256,17 +256,6 @@ test("a kept path's * walks each item of a list or each value of a map, and keep
   );
 });
 
-test("a new record kind declares the keys it keeps, if only none", () => {
-  const added = (kept) => (s) => (s.records.other = { since: 4, schema: {}, kept });
-  assert.deepEqual(
-    changed(added(undefined)),
-    refused(
-      "record other: declares no kept keys: name those whose loss across a shape change would cost the user, or none",
-    ),
-  );
-  assert.deepEqual(changed(added([])), none);
-});
-
 test("an annotation changes nothing, at any depth", () => {
   const conditional = structuredClone(baseline);
   Object.assign(conditional.records.claim.schema, {

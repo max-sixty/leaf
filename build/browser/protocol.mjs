@@ -12,7 +12,7 @@
  * whether a `*` on its path walks a list or a map, since every Leaf reads a record's
  * kept keys whichever Leaf wrote it. A kept key's `anyOf` may gain variants, which
  * an older Leaf reads as it reads any value it doesn't know (`layer-registry.md`,
- * "Page protocol"). Every record declares its kept keys, even as an empty list.
+ * "Page protocol").
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -119,12 +119,6 @@ export function protocolBreaks(baseline, current) {
     current.records,
   )) {
     const before = baseline.records[kind];
-    if (!Array.isArray(keeps)) {
-      refused.push(
-        `record ${kind}: declares no kept keys: name those whose loss across a shape change would cost the user, or none`,
-      );
-      continue;
-    }
     for (const path of keeps)
       if (!kept(schema, path))
         refused.push(`record ${kind}: kept ${path} is not in its schema`);

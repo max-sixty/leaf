@@ -113,7 +113,6 @@ import {
   holdPlace,
   motion,
   move,
-  phrasing,
   onPress,
   shownWindow,
   tabStore,
@@ -159,10 +158,13 @@ const rank = (heading) =>
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
+/** @param {Element} element */
+const inline = (element) => getComputedStyle(element).display.startsWith("inline");
 // Whether an element is a line of text: one with words of its own, or one whose
-// children all stand in a line of words (`phrasing`), as an image beside a link and an
-// `em` does. A block among its children makes it structure, whose stray inline
-// children, such as a button, fold as blocks.
+// children all stand in a line of words, as the page draws them: an image beside a
+// link and an `em` do, and so does a widget whose stylesheet leaves it inline. A block
+// among its children makes it structure, whose stray inline children, such as a
+// button, fold as blocks.
 /** @param {Element} element */
 const isLine = (element) => {
   if (
@@ -172,7 +174,7 @@ const isLine = (element) => {
   )
     return true;
   const children = [...element.children].filter((child) => !child.matches(STANDS));
-  return children.length > 0 && children.every(phrasing);
+  return children.length > 0 && children.every(inline);
 };
 // The headings in `blocks` that no earlier one among them outranks: the sections a run
 // folds, rather than each of their subsections.

@@ -31,7 +31,8 @@
  * Author notes use the same source coordinate resolver as cross-widget navigation;
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
-import { langForPath, threadSurface } from "/runtime/portable-api.js";
+import { threadSurface } from "/runtime/portable-api.js";
+import { langForPath } from "/runtime/lib/language-paths.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";

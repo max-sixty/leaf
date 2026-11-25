@@ -1,5 +1,5 @@
 /* The page's own code blocks, coloured by syntax-tokens.js, with failures reported
-   to the page. Portable language-paths.js owns a filename's language reading. */
+   to the page. The library's language-paths.js owns a filename's language reading. */
 import { reportPageError } from "./layer-client.js";
 import { marks } from "./kernel-facts.js";
 import { DATA_CONTENT } from "./registry.js";

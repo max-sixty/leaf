@@ -129,7 +129,8 @@ source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into i
 
 ### Code
 
-`langForPath(path)` names the registry `$languages` language a file name means, or
+The library's [`language-paths.js`](../../../browser/runtime/lib/language-paths.js)
+names, by its `langForPath`, the registry `$languages` language a file name means, or
 undefined where the page's table has none. Leaf colours each `pre > code` a widget
 draws as it arrives, whose `language-…` class names a language and that wears the
 reading face, and typesets each formula, a `<code class="language-math">`

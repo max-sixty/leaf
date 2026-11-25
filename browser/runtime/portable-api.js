@@ -24,4 +24,3 @@
 export { threadSurface } from "./thread/surface-handles.js";
 
 export { onUserInput } from "./focus.js";
-export { langForPath } from "./language-paths.js";

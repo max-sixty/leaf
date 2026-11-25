@@ -35,6 +35,8 @@ import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { beginReplyAt, dismissReplyAt, replyDraftContext } from "./replies.js";
 import { copyTrigger } from "../copy-control.js";
+import { closestAcross, under } from "../lib/shadow-tree.js";
+import { userCaret } from "../native-selection.js";
 import { threadList } from "./state.js";
 import {
   focusedThreadTarget,
@@ -171,17 +173,16 @@ const resolutionControl = (thread) =>
 const movingControl = (thread) => (thread ? threadPart(thread, "move") : null);
 
 // The Copy of the message the user is in, by focus or by the caret a click on its words
-// leaves, else of the thread's latest message.
-/** @param {Node | null} node */
-const messageAt = (node) =>
-  (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+// leaves (`userCaret`), else of the thread's latest message.
+/** @param {Element | null} node */
+const messageAt = (node) => closestAcross(node, ".lf-msg");
 /** @param {Element | null} thread */
 function messageCopy(thread) {
   if (!thread) return null;
-  const caret = getSelection()?.anchorNode ?? null;
+  const caret = userCaret()?.element ?? null;
   const message =
     messageAt(focused()) ??
-    (thread.contains(caret) ? messageAt(caret) : null) ??
+    (under(caret, thread) ? messageAt(caret) : null) ??
     [...thread.querySelectorAll(".lf-msg")].at(-1);
   /** @type {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} */
   const copy = message?.querySelector(":scope > .lf-msg-head .lf-msg-copy");

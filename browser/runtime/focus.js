@@ -427,21 +427,6 @@ export const focused = (tree = null) => {
   return tree ? hostIn(at, tree) : at;
 };
 
-// Where the user is, nearest first: the focused node, unless focus rests on the
-// body, then the ends of a selection they drew, its focus before its anchor, a caret a
-// click left included, since a selection names where a reader is as surely as focus
-// does. Each reader takes these by its own rule, as the first that is a place on the
-// page (`currentLocationOrigin`, current-target.js).
-export function currentLocationNodes() {
-  const at = focused();
-  const selection = getSelection();
-  return [
-    at && at !== document.body ? at : null,
-    selection?.focusNode ?? null,
-    selection?.anchorNode ?? null,
-  ].filter((node) => node !== null);
-}
-
 // Holding the user's place across a change to the tree they are in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
 // frame later, on no frame an owner can count; the node keeps its value and selection,

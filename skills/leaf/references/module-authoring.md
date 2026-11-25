@@ -65,7 +65,6 @@ In this file:
 
 In [module-state.md](module-state.md):
 
-- "State only this tab keeps": `tabStore` keeps a string for this tab.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
@@ -150,7 +149,7 @@ says nothing aloud. Off Leaf:
   (`module-scroll-and-motion.md`, "Notices and spoken words") in the page and in the
   open shadow roots of elements that say `lf-connect`, not in a shadow root a page
   script attaches itself.
-- `tabStore` keeps nothing: a read answers null. Focus, scrolling and controls use the
+- Focus, scrolling and controls use the
   document's native behavior, and `langForPath` reads shipped defaults in place of the
   page's composed language map.
 - Leaf stops no motion there for a user who asked for less, so the widget's sheet
@@ -181,7 +180,7 @@ script", lists.
   nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes with `lf-action`, and keep how they look at the
-  widget in `tabStore`.
+  widget in the tab's memory.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Animate with `motion` or in a stylesheet, never with `element.animate`

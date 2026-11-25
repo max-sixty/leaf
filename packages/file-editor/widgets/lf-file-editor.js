@@ -74,7 +74,8 @@
  * history and in-flight receipt.
  */
 import { html, nothing, render } from "/vendor/lit.js";
-import { boundFile, tabStore } from "/runtime/widget-api.js";
+import { boundFile } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rove } from "/runtime/lib/roving.js";
 import { el } from "/runtime/lib/elements.js";
@@ -352,7 +353,7 @@ customElements.define(
       }
       /** @param {OpenFile} of */
       function remember(of) {
-        tabStore.set(
+        tabMemory.set(
           of.recoveryKey,
           of.base && unsettled(of)
             ? JSON.stringify({ base: of.base, text: text(of), sent: of.sent })
@@ -579,7 +580,7 @@ customElements.define(
       // as the file it shows rather than switching within the same task.
       /** @param {OpenFile} of */
       const recover = (of) => {
-        const pending = tabStore.get(of.recoveryKey);
+        const pending = tabMemory.get(of.recoveryKey);
         if (!pending || !of.api.writable) return;
         /** @type {{base: FileSnapshot, text: string, sent: string | null}} */
         const recovered = JSON.parse(pending);

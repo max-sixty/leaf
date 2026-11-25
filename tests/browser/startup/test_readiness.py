@@ -98,26 +98,17 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
         """,
     )
     expect(page.locator("main")).to_be_visible()
-    tab_store = page.evaluate(
-        """async () => {
-          const { tabStore } = await window.__lfWidgetApi();
-          return {
-            read: tabStore.read('refused'),
-            wrote: tabStore.set('refused', '1'),
-            keys: tabStore.keys(),
-            where: tabStore.where('refused'),
-            scope: document.documentElement.dataset.lfPageScope,
-          };
+    # A widget's tab memory keeps nothing there, and says so by forgetting.
+    assert (
+        page.evaluate(
+            """async () => {
+          const { tabMemory } = await import('/runtime/lib/tab-memory.js');
+          tabMemory.set('refused', '1');
+          return tabMemory.get('refused');
         }"""
+        )
+        is None
     )
-    # A served page keeps its browser state under its own scope (`data-lf-page-scope`).
-    scope = tab_store.pop("scope")
-    assert tab_store == {
-        "read": {"available": False, "value": None},
-        "wrote": False,
-        "keys": [],
-        "where": {"store": "session", "key": f"{scope}refused"},
-    }
 
 
 def test_authored_page_paints_but_durable_controls_wait_for_first_replay(

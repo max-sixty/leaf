@@ -35,14 +35,8 @@ import { createActivity } from "./activity-view.js";
  * destination leaves historical text in the same node, without an active link. Tab
  * memory retains the drawn presentation through a fresh document. This never folds
  * events or records a decision. */
-import {
-  tabStore,
-  layerFact,
-  nameOf,
-  go,
-  threads,
-  history,
-} from "/runtime/widget-api.js";
+import { layerFact, nameOf, go, threads, history } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdown.js";
@@ -256,7 +250,7 @@ customElements.define(
         : "Hide activity";
       if (this.#opened && !this.#printing) this.#closedReading = shown;
       const reading = { open: this.#opened, shown, label, news };
-      if (!this.#printing) tabStore.set(this.#storageKey, JSON.stringify(reading));
+      if (!this.#printing) tabMemory.set(this.#storageKey, JSON.stringify(reading));
       return this.#template(reading);
     }
   },

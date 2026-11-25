@@ -1,4 +1,4 @@
-import { tabStore } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
@@ -43,7 +43,7 @@ function rowTime(route) {
 /** @param {HTMLElement} host */
 export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
-  const saved = tabStore.get(storageKey);
+  const saved = tabMemory.get(storageKey);
   /** @type {ActivityReading} */
   const reading = saved
     ? JSON.parse(saved)

@@ -73,7 +73,8 @@
  * the wrap and notes keys as the element's `lfCommands`, the Copy control from the
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
-import { onUserInput, tabStore } from "/runtime/portable-api.js";
+import { onUserInput } from "/runtime/portable-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { scrollerOf } from "/runtime/lib/scroller.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { bodyText } from "/runtime/lib/data-body.js";
@@ -333,7 +334,7 @@ customElements.define(
         pre.dataset.lfCopy = "code";
         pre.lfCopy = () => source;
         const notesKey = `code-notes:${this.id}`;
-        let notesShown = tabStore.get(notesKey) !== "hidden";
+        let notesShown = tabMemory.get(notesKey) !== "hidden";
         const notesToggle =
           notes.length && document.documentElement.hasAttribute("data-lf-interactive")
             ? offerAction("mark", "lf-code-notes-toggle", "Hide notes", {
@@ -362,7 +363,7 @@ customElements.define(
         this.replaceChildren(pre, ...(bar ? [bar] : []));
         this.classList.add("lf-rendered");
         const key = `code-wrap:${this.id}`;
-        const saved = tabStore.get(key);
+        const saved = tabMemory.get(key);
         let wrapped = getComputedStyle(firstLine).whiteSpace !== "pre";
         let horizontal = 0;
         const paintWrap = (/** @type {boolean} */ value) => {
@@ -373,7 +374,7 @@ customElements.define(
         const toggleWrap = () => {
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
-          tabStore.set(key, String(wrapped));
+          tabMemory.set(key, String(wrapped));
           // Wrapped, the block stood at its start, so only an offset it had is put back.
           if (!wrapped && horizontal)
             pre.scrollTo({ left: horizontal, behavior: "instant" });
@@ -400,7 +401,7 @@ customElements.define(
                     touch: /** @type {false} */ (false),
                     run: () => {
                       notesShown = !notesShown;
-                      tabStore.set(notesKey, notesShown ? "shown" : "hidden");
+                      tabMemory.set(notesKey, notesShown ? "shown" : "hidden");
                       paintNotes();
                       this.dispatchEvent(
                         new CustomEvent("lf-layout", { bubbles: true, composed: true }),

@@ -93,7 +93,7 @@
  * to one line naming the chosen option, with every option — the chosen one included —
  * behind a disclosure. Nothing is deleted, so the ids, the anchors on them, and check's
  * id-survival rule are all untouched; what's reclaimed is the height. Open or closed is
- * view state for this user, remembered per browser tab in tabStore like a lf-tabs
+ * view state for this user, remembered per browser tab (lib/tab-memory.js) like a lf-tabs
  * tab: opening a settled group is reading, not editing, so it sends no action and no
  * version carries it. Collapsed options wear hidden="until-found", so find-in-page and
  * the runtime's reveal() (a click on a comment's quote) both open the group rather than

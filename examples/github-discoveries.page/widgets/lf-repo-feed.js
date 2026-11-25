@@ -4,7 +4,8 @@
  * shown waits behind its "new stories" button, so the reader's place stays put.
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
-import { tabStore, go, threads, pageLinks } from "/runtime/widget-api.js";
+import { go, threads, pageLinks } from "/runtime/widget-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered } from "/runtime/lib/controls.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
@@ -77,8 +78,8 @@ class RepoFeed extends LeafElement {
   }
 
   setup() {
-    this.distance = tabStore.get(`${this.id}:distance`) ?? "all";
-    this.topic = tabStore.get(`${this.id}:topic`) ?? "all";
+    this.distance = tabMemory.get(`${this.id}:distance`) ?? "all";
+    this.topic = tabMemory.get(`${this.id}:topic`) ?? "all";
     this.limit = 12;
     this.workState = { busy: false, exhausted: false, error: "" };
     this.loading = false;
@@ -108,7 +109,7 @@ class RepoFeed extends LeafElement {
     this.readAheadPaused = false;
     this.workState.exhausted =
       this.github.loaded && !this.github.hasMore(this.distance);
-    tabStore.set(`${this.id}:${field}`, value);
+    tabMemory.set(`${this.id}:${field}`, value);
     this.limit = 12;
     this.requestUpdate();
     this.performUpdate();

@@ -44,6 +44,7 @@
       "/runtime/lib/shown-box.js",
       "/runtime/lib/syntax-languages.js",
       "/runtime/lib/syntax-tokens.js",
+      "/runtime/lib/tab-memory.js",
       "/runtime/lib/text-alignment.js",
       "/runtime/lib/text-width.js",
       "/runtime/lib/time-axis.js",

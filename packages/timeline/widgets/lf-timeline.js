@@ -26,7 +26,7 @@ import {
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
  * a reply shares. */
 import { render } from "/vendor/lit.js";
-import { tabStore } from "/runtime/portable-api.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -34,7 +34,7 @@ import { sizeObserver } from "/runtime/lib/frame-pass.js";
 /** @param {HTMLElement} host */
 function drawingFor(host) {
   const model = timelineModel(host);
-  const saved = Number(tabStore.get(`timeline:${host.id}`));
+  const saved = Number(tabMemory.get(`timeline:${host.id}`));
   return {
     model,
     current: Math.max(
@@ -255,7 +255,7 @@ class Timeline extends HTMLElement {
     this.#draw();
     const selected = drawing.model.steps[step];
     if (!selected) throw new Error(`Timeline has no step ${step}`);
-    tabStore.set(`timeline:${this.id}`, String(selected.time));
+    tabMemory.set(`timeline:${this.id}`, String(selected.time));
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),

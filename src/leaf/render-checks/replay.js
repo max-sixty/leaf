@@ -2,26 +2,44 @@ import { shallowSigs, validationWidgetStates } from "/runtime/check-api.js";
 import { exceptionText } from "/runtime/lib/exception.js";
 import { at } from "./locate.js";
 
-// The complete renderer must be idempotent. Draw each widget's reading again directly,
-// through its `redraw` (/runtime/lib/leaf-element.js), rather than through its update cycle, which
-// could skip an unchanged value or show a throw as the widget's failure box. Compare
-// both id-bearing structure and body records: text is absent from shallowSigs.
-/** @param {(Element & {redraw?: unknown}) | null | undefined} widget
- * @returns {widget is Element & {redraw: () => void}} */
-const drawsWhole = (widget) => typeof widget?.redraw === "function";
+// The complete renderer must be idempotent: Leaf may set an equal `state` twice, and
+// the setter draws the whole of it (module-plain-elements.md, "`state`"). So set each
+// widget that holds a state a copy equal to it, as Leaf would, and compare both
+// id-bearing structure and body records: text is absent from shallowSigs. A widget
+// whose `state` reads back nothing, as one with a setter alone, is not replayed. A
+// setter's failure, thrown or said as the widget's `error`, is the replay's finding,
+// kept from the page's own report of failures so it is said once.
+/** @param {(Element & {state?: unknown}) | null | undefined} widget
+ * @returns {widget is Element & {state: object}} */
+const holdsState = (widget) =>
+  typeof widget?.state === "object" && widget.state !== null;
 export function relativeReplays() {
   const rendered = validationWidgetStates().flatMap(({ widget, read }) =>
-    drawsWhole(widget) ? [{ widget, read }] : [],
+    holdsState(widget) ? [{ widget, read }] : [],
   );
   if (!rendered.length) return [];
+  const replayed = new Set(rendered.map(({ widget }) => widget));
   const found = [];
   const before = shallowSigs(document.body);
   const bodies = rendered.map((s) => JSON.stringify(s.read(s.widget)));
   for (const { widget } of rendered) {
-    try {
-      widget.redraw();
-    } catch (error) {
+    /** @param {unknown} error */
+    const threw = (error) =>
       found.push({ code: "render-threw", at: at(widget), error: exceptionText(error) });
+    /** @param {Event} event */
+    const said = (event) => {
+      if (event.target !== widget) return;
+      event.stopImmediatePropagation();
+      const failure = /** @type {ErrorEvent} */ (event);
+      threw(failure.error ?? failure.message);
+    };
+    widget.addEventListener("error", said, { capture: true });
+    try {
+      widget.state = Object.freeze({ ...widget.state });
+    } catch (error) {
+      threw(error);
+    } finally {
+      widget.removeEventListener("error", said, { capture: true });
     }
   }
   const now = shallowSigs(document.body);
@@ -34,9 +52,9 @@ export function relativeReplays() {
   };
   for (const id of new Set([...before.keys(), ...now.keys()])) {
     if (before.get(id) === now.get(id)) continue;
-    /** @type {(Element & {redraw?: unknown}) | null} */
+    /** @type {Element | null} */
     let widget = document.getElementById(id);
-    while (widget && !drawsWhole(widget)) widget = widget.parentElement;
+    while (widget && !replayed.has(widget)) widget = widget.parentElement;
     note(widget ? at(widget) : `id=${id}`, id);
   }
   rendered.forEach((s, i) => {

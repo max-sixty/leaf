@@ -524,7 +524,7 @@ test("a draw reads again the keys of what it drew and around it, not of the page
   }
 });
 
-test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {
+test("a setup that throws shows its failure and the element draws nothing, a check's equal state included", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
   const original = console.error;
@@ -549,7 +549,8 @@ test("a setup that throws shows its failure and the element draws nothing, a che
   await settled(element);
   applicationState.setPhase("offline");
   await settled(element);
-  element.redraw();
+  element.state = Object.freeze({});
+  await settled(element);
   console.error = original;
   assert.deepEqual(draws, []);
   assert.match(element.textContent, /failed: cannot build/);
@@ -738,19 +739,6 @@ test("a failure before the render settles the claim with the failure", async () 
   await new Promise((resolve) => setTimeout(resolve, 0));
   console.error = original;
   assert.match(element.textContent, /failed: cannot begin/);
-  assert.ok(!pending(element));
-  element.remove();
-});
-
-test("a check's redraw leaves the update a move queued, and its claim", async () => {
-  applicationState.setPhase("waiting");
-  const { element, draws } = probe(() => phase());
-  document.body.append(element);
-  await settled(element);
-  applicationState.setPhase("offline");
-  element.redraw();
-  await settled(element);
-  assert.deepEqual(draws, ["waiting", "offline", "offline"]);
   assert.ok(!pending(element));
   element.remove();
 });

@@ -103,7 +103,9 @@ this.dispatchEvent(hold);
   `no agent or server is available`, or `null` where Leaf gives no reason; and
   `undoable`, whether `lf-undo` would take back the action in force. A verb with a
   per-part unit holds `undoable` on each of its `units` instead. The setter draws the
-  whole state, and Leaf may set an equal state twice.
+  whole state, and Leaf may set an equal state twice: `page check --render` sets a copy
+  of the state again on each widget whose `state` reads back, and reports a draw that
+  changes the page.
 - **Bound inputs.** Leaf sets each one's property, and the element marks what it drew
   and dispatches `drawn`, as `module-state.md`, "Bound data and projections",
   describes. Leaf sets no property, `state` included, until the widget's state and the
@@ -224,8 +226,6 @@ this.dispatchEvent(hold);
 - **`error`.** An element reports a failure by dispatching an `ErrorEvent` named
   `error` on itself, whose `error` property is the failure. Leaf
   reports it to the agent as a page error naming the widget, which fails `page check`.
-- **`redraw()`.** `page check --render` calls this method on an element that has one,
-  to draw the same state again, and reports a draw that changes the page.
 - **Building.** The element builds once, behind a first-connection guard
   (`module-authoring.md`, "Upgrade").
 - **Startup.** `lf-presentation` and `lf-page-interface` on `document`
@@ -269,8 +269,8 @@ protocol in the library's
 [`leaf-element.js`](../../../browser/runtime/lib/leaf-element.js). Its `render()` draws `this.state`, its Lit properties and the page readings it reads
 synchronously (`module-reading.md`, "Page readings"), and runs again when one of them
 changes, with handlers bound to the widget as in any Lit element. It says `lf-connect`,
-announces each update with `pending-task`, says `lf-commands` after each draw, defines
-`redraw()`, and wraps the events as `record()`, `takeBack()` and `defer()`. Its
+announces each update with `pending-task`, says `lf-commands` after each draw, and
+wraps the events as `record()`, `takeBack()` and `defer()`. Its
 `setup()` is the build behind its first-connection guard. It draws into the element
 itself, so a widget that holds authored children returns from `createRenderRoot()` a
 part it generated beside them, or says `static shadow = true` and slots them. The

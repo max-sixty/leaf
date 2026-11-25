@@ -62,12 +62,6 @@ export function defineVisualFixture({
               }
             : undefined,
         };
-        this.redraw = () => {
-          outerSurface.setAttribute("rx", "28");
-          this.dispatchEvent(
-            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-          );
-        };
       }
     },
   );

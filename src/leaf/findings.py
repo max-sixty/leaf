@@ -833,16 +833,15 @@ _TEXT = {
     "render-threw": _fails(
         _STATE,
         lambda at, v: (
-            f"{at} render() threw when the complete state was rendered a second time:"
-            f" {v['error']}"
+            f"{at} threw when its complete state was set a second time: {v['error']}"
         ),
     ),
     "relative-render": _fails(
         _STATE,
         lambda at, v: (
-            f"{at} render() is relative — rendering the same complete state changed"
-            f" {', '.join(v['changed'])}. Render the supplied values without stepping"
-            " from the DOM."
+            f"{at} draws relative to what it drew — setting the same complete state"
+            f" again changed {', '.join(v['changed'])}. Draw the supplied values"
+            " without stepping from the DOM."
         ),
     ),
     # Geometry, read across the width sweep.

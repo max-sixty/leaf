@@ -2351,7 +2351,7 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     assert root_overflow(page) == 0
 
 
-def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
+def test_a_widget_given_a_width_takes_the_room_on_screen_and_not_on_paper(
     browser, serve, subtests
 ):
     """Who takes the room beside the column, on a screen and on a sheet, on one page."""
@@ -2388,18 +2388,18 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         page.emulate_media(media="screen")
 
     with subtests.test(
-        "a widget that declares width takes the room and the column stays put"
+        "a widget given a width takes the room and the column stays put"
     ):
         # A board's columns are as wide as what they hold, a diff's lines are as long as
-        # its files', and prose is set to a measure, so a page carrying all three used
-        # to be a cramped board or a page widened past its own measure for one exhibit.
-        # `space` declares the capacity a widget needs, and the theme spends the
-        # room the layout measured, so each exhibit grows and the prose does not move.
-        # The board, a surface, takes all the room; the diff, slightly wider than the
-        # column, starts at the prose's edge and stops at the shared cap.
+        # its files', and prose is set to a measure, so a page carrying all three would
+        # be a cramped board or a page widened past its own measure for one exhibit.
+        # The author asks for the room a block needs with `data-width`, and the theme
+        # spends the room the layout measured, so each exhibit grows and the prose does
+        # not move. The board, a surface, takes all the room; the diff, slightly wider
+        # than the column, starts at the prose's edge and stops at the shared cap.
         #
-        # The code block is the half that says the declaration is doing this. It is a
-        # widget too, and declares nothing, so it stays in the column: a rule that
+        # The code block is the half that says the width asked for is doing this. It is
+        # a widget too, and asks for nothing, so it stays in the column: a rule that
         # reached every widget, or one naming lf-board, would pass every other assertion
         # here and fail this one.
         wide = page.evaluate(ROOM_GEOMETRY)
@@ -2421,7 +2421,7 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
             f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
         )
         assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
-            "a widget that declares nothing keeps the column: code block "
+            "a widget that asks for nothing keeps the column: code block "
             f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
         )
         assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
@@ -2725,9 +2725,10 @@ def test_a_drawing_wider_than_its_column_is_laid_out_for_it_or_fades_where_cut(
 def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     """The room a wide widget spends is the document's, and a thread's message is the one
     place a widget of the page's vocabulary renders outside the document. The skill offers
-    a diagram in a reply as the way to explain a fix in the margin, and a diagram is
-    declared wide — so marked as one it would lay itself out to a wide page inside a
-    420px panel, and the explanation would be the half of it the panel could show.
+    a diagram in a reply as the way to explain a fix in the margin, and an author who
+    widens it as on a page would, marked as one, have it lay itself out to a wide page
+    inside a 420px panel, and the explanation would be the half of it the panel could
+    show.
 
     The mark that would do that is the one deliberately left out of the message render
     (`space`, the half of markDeclared the page keeps to itself). Nothing about a
@@ -2754,7 +2755,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "parent": "c-fix",
             "revision": 1,
             "text": "Like this:\n\n"
-            '<lf-diagram id="fallback-flow">\n<pre>\n'
+            '<lf-diagram id="fallback-flow" data-width="available">\n<pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
         },
     )
@@ -3495,7 +3496,6 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(
@@ -3507,7 +3507,6 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             layer_registry={"lf-own-controls": declaration},
             layer_widgets={
                 "lf-own-controls.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 import {once} from '/runtime/lib/once.js';
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`@layer lf-base {
@@ -3519,13 +3518,14 @@ customElements.define('lf-own-controls', class extends HTMLElement {
     if (!once(this)) return;
     const root = this.attachShadow({mode: 'open'});
     root.adoptedStyleSheets = [sheet];
-    shadowStage(this, ['bare', 'own', 'library'].map((name) => {
+    root.append(...['bare', 'own', 'library'].map((name) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = name;
       button.textContent = name;
       return button;
     }));
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """

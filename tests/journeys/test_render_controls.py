@@ -1020,7 +1020,7 @@ def test_sample_editor_focus_preserves_outer_scroll_and_the_caret(
   <template id="practice-source" data-sample>
     <h1>Practice page</h1><button id="entry">Enter practice</button>
         <script type="module">
-          import {focusDestination} from '/runtime/widget-api.js';
+          const {focusDestination} = await window.__lfCheckApi();
           window.placeEditor = () => focusDestination(document.querySelector('#editor'), 'move');
         </script>
   </template>
@@ -2152,7 +2152,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     # The child's panel stands at the foot of its frame, which the host brings clear of
     # its own panel's row at the window's foot, as a landing of Leaf's does.
     second.evaluate(
-        "async sample => (await window.__lfWidgetApi())"
+        "async sample => (await window.__lfCheckApi())"
         ".scrollIntoView(sample, {block: 'end', behavior: 'instant'})"
     )
     write(page_comment(other), "Keep the other sample's draft.")

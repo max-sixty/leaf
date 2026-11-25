@@ -1,11 +1,12 @@
 /* Display wording for an obligation's canonical answer. This is presentation only:
    membership, typed values and completion come from the application publication.
-   A widget family formats answerWords(value, element); prose uses its typed text or token.
-   The element is the widget's authored markup wherever it stands: on the page, or in the
-   message an agent sent it in, which keeps it while no drawing of the message shows it
-   (thread/messages.js, `messageHolding`), so a choice made in a thread reads the same
-   once the thread is put away. */
-import { capitalized, labelWords } from "../lib/words.js";
+   The words are the library's (lib/answer-words.js), read over the widget's authored
+   markup wherever it stands: on the page, or in the message an agent sent it in, which
+   keeps it while no drawing of the message shows it (thread/messages.js,
+   `messageHolding`), so a choice made in a thread reads the same once the thread is put
+   away. */
+import { capitalized } from "../lib/words.js";
+import { answerWords as wordsOf } from "../lib/answer-words.js";
 import { widgetWord } from "../lib/element-word.js";
 import { addressableAt } from "../thread/messages.js";
 import { perVocabulary, tagsDeclaring } from "../registry.js";
@@ -35,15 +36,11 @@ export function obligationWord(item) {
 
 /** Answer text where the source supplies words or a widget formatter; other sources have none.
  * @param {import("../framework/application.js").ObligationRecord} item */
-export function answerWords(item) {
-  if (item.answer === null) return "";
-  if (answeredInWords(item))
-    return item.answer.value.text ?? item.answer.value.token ?? "";
-  if (!hasObligationSource(item, "widget")) return "";
-  const source = addressableAt(item.source.id);
-  const formatter = customElements.get(item.source.tag)?.answerWords;
-  return labelWords(source && formatter ? formatter(item.answer.value, source) : "");
-}
+const answerWords = (item) =>
+  wordsOf(
+    item,
+    hasObligationSource(item, "widget") ? addressableAt(item.source.id) : null,
+  );
 
 /* How a finished obligation ended, in the words a Done row and the floating panel show:
    its answer, after a colon so the two never read as one phrase, or its withdrawal.

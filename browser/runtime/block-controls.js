@@ -29,7 +29,7 @@ import {
 } from "./css-anchors.js";
 import { chromeRoot } from "./chrome.js";
 import { focusDestination } from "./focus.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { keepsHidden, layoutPx } from "./lib/keeps.js";
 import { nextRender } from "./lib/frame-pass.js";
 import { skipped } from "./lib/shadow-tree.js";

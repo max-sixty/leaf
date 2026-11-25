@@ -1,6 +1,7 @@
-/* A block Leaf bounds (`bound`, or data-bound on an occurrence, painted as
-   data-lf-bound) holds its own height and scrolls inside it. The theme bounds the box;
-   this module makes the box a reading region and keeps an `end` bound's place.
+/* A block Leaf bounds (`data-lf-bound`: a page's `data-bound`, as delivery paints it,
+   or the mark a widget's module writes on a box it builds) holds its own height and
+   scrolls inside it. The theme bounds the box; this module makes the box a reading
+   region and keeps an `end` bound's place.
 
    Every bounded block is a registered reading region (`reading-regions.js`), so every
    question that names the box scrolling a node gets the block rather than the page:
@@ -23,14 +24,14 @@
    revision that restores places leaves it following rather than on the line that was
    at its top.
 
-   The box that scrolls is the bounded element, unless its widget's theme moves the
-   bound to a box inside it and names that box with a `--lf-bound-box` selector on
-   the bounded element — a captured document scrolls its listing under a caption
-   that stays put. The first matching box outside nested bounds is the region's body.
+   The box that scrolls is the bounded element, which is the region's body. A widget
+   that scrolls a box under a caption that stays put bounds that box, as a captured
+   document bounds its listing.
 
-   A block is held while it stands in the page, whoever painted its bound: delivery
-   paints a page's, and a revision patched in arrives painted the same way, while
-   `markDeclared` paints a message's markup as the thread renders it. So one watch
+   A block is held while it stands in the page, whoever wrote its bound: delivery
+   paints a page's, and a revision patched in arrives painted the same way,
+   `markDeclared` paints a message's markup as the thread renders it, and a module
+   marks the boxes it builds. So one watch
    (`holdArrivingBounds` on arrivals.js, started at boot) holds what the page opens
    with, every block added since in the document or a declared shadow root, and any
    element whose bound is painted or taken away in place, and lets go of a block that
@@ -38,11 +39,10 @@
    and its own hidden state. What is registered is what stands in the page.
 
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
-   left as it stands until it is drawn (lib/shadow-tree.js, `skipped`). Finding its scroller
-   reads the bounded element's style, and finding its end reads layout, and either
-   question makes the browser style and lay out the hidden subtree first; Chromium has
-   left style elsewhere on the page stale after that forced pass. A block first seen
-   hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
+   left as it stands until it is drawn (lib/shadow-tree.js, `skipped`). Finding its end
+   reads layout, which makes the browser style and lay out the hidden subtree first;
+   Chromium has left style elsewhere on the page stale after that forced pass. Each
+   skipped sync renews the block's
    size observation, whose first delivery comes once the block is drawn and asks again.
    A bound panel can keep the same box while its hidden attribute changes, so that
    change also asks again. A log that grew while hidden then opens on its newest entry.
@@ -63,28 +63,16 @@ const BOUND = marks.bound.attribute;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
 // Each block's hold, for the element's life, and the holds registered now.
-/** @typedef {{bounded: Element, id: string, bound: string | null, box: Element | null, follow: import("./scrolling.js").EndKeeper | null, sync: () => void}} BoundHold */
+/** @typedef {{bounded: Element, id: string, bound: string | null, follow: import("./scrolling.js").EndKeeper | null, sync: () => void}} BoundHold */
 /** @type {WeakMap<Element, BoundHold>} */
 const holds = new WeakMap();
 /** @type {Set<BoundHold>} */
 const registered = new Set();
-/** @type {WeakMap<Element, BoundHold>} */
-const byBox = new WeakMap();
-
-/** @param {Element} bounded */
-function scrollerOf(bounded) {
-  const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
-  if (!selector) return bounded;
-  // A bound nested inside this one owns its own scroller, so the search stops at it.
-  for (const box of bounded.querySelectorAll(selector))
-    if (box.closest(BOUNDED) === bounded) return box;
-  return bounded;
-}
 
 /** @param {Element} box */
 const heldBy = (box) => {
-  const hold = byBox.get(box);
-  return hold?.box === box && registered.has(hold) ? hold : null;
+  const hold = holds.get(box);
+  return hold && registered.has(hold) ? hold : null;
 };
 
 // Whether the box's bounded block follows its end and the user is there.
@@ -102,7 +90,6 @@ function holdBlock(bounded) {
     bounded,
     id: regionId(bounded, "bound", bounded),
     bound: null,
-    box: null,
     follow: null,
     sync: () => sync(false),
   };
@@ -114,20 +101,13 @@ function holdBlock(bounded) {
   };
   const letGo = () => {
     stopFollowing();
-    if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
     stopRegion?.();
     stopRegion = null;
-    hold.box = null;
     registered.delete(hold);
   };
-  /** @param {Element} box */
-  const adopt = (box) => {
-    if (box === hold.box) return;
-    letGo();
-    resize.observe(box);
-    byBox.set(box, hold);
-    hold.box = box;
-    stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: box });
+  const adopt = () => {
+    if (registered.has(hold)) return;
+    stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: bounded });
     registered.add(hold);
   };
   // `observed` when the block's own size observer asks, which cannot take a fresh
@@ -136,24 +116,22 @@ function holdBlock(bounded) {
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
+    adopt();
     if (bounded.hasAttribute("hidden") || skipped(bounded)) {
-      if (!hold.box) adopt(bounded);
       if (!observed) {
         resize.unobserve(bounded);
         resize.observe(bounded);
       }
       return;
     }
-    const box = scrollerOf(bounded);
-    adopt(box);
     if (!bounded.matches(FOLLOWING)) return stopFollowing();
     // What the log holds changed, or its size: the keeper reads it at once.
     if (hold.follow) return hold.follow.check();
     // A box under a `display: none` ancestor has no end to open at, so it opens once
     // drawn, when its size observation next asks.
-    if (!box.checkVisibility()) return;
-    scrollToEnd(box);
-    hold.follow = followEnd(box);
+    if (!bounded.checkVisibility()) return;
+    scrollToEnd(bounded);
+    hold.follow = followEnd(bounded);
   };
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);

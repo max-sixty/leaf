@@ -7,9 +7,9 @@
    `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
    whose tag declares `verbs`, each bound input through the property Leaf sets
    (element-data.js, "Bound values"), Lit's reactive properties for state the widget
-   keeps itself, and any signal-backed reader, such as obligations, reports, work or
-   the time (`clockValue`). Every signal `render()` reads synchronously is
-   tracked by Lit's Preact SignalWatcher, so the element draws again when one moves.
+   keeps itself, and any signal-backed reader, such as the page's obligations or
+   history. Every signal `render()` reads synchronously is tracked by Lit's Preact
+   SignalWatcher, so the element draws again when one moves.
 
    What it says to its host, all of it events a plain element could dispatch:
 
@@ -204,10 +204,12 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       if (event.composedPath()[0] !== this && this.hasUpdated) this.requestUpdate();
     });
     placesFailure(this, (box) => {
-      const root = this.renderRoot ?? this;
-      // A widget showing a shadow stage over its host shows the box as that stage,
-      // which its next stage replaces, as any shadow widget does.
-      if (root === this && this.shadowRoot) return false;
+      // A host showing a shadow root shows only what the root holds, so the box
+      // stands there.
+      const root =
+        (this.renderRoot ?? this) === this
+          ? (this.shadowRoot ?? this)
+          : this.renderRoot;
       // The same failure again leaves the box that already says it.
       if (this.#box?.parentNode === root && this.#box.textContent === box.textContent)
         return true;

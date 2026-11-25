@@ -12,7 +12,6 @@ import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { arrive, beginArrival, mountHistory } from "./runtime/history.js";
-import { entryView } from "./runtime/views.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -164,7 +163,7 @@ import {
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
-import { installMoveSelection } from "./runtime/dom-move.js";
+import { installMoveSelection } from "./runtime/lib/dom-move.js";
 import { holdSelection } from "./runtime/native-selection.js";
 
 // Leaf's selection writer keeps a page selection across `setChildLists`'s moves
@@ -835,7 +834,6 @@ async function boot() {
   mountHistory({
     followFragment: anchorTravel.followFragment,
     returnToFragment: anchorTravel.returnToFragment,
-    view: entryView,
     thread: {
       claim: (url, record, intent) => threadAddress.claim(url, record, intent),
       open: () => openThreadView(),

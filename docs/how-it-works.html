@@ -214,7 +214,7 @@
               the page’s <strong>layer</strong>.
             </p>
             <figure id="arch" class="diagram-figure">
-              <lf-diagram id="agent-browser-architecture" data-height="410" parts="all">
+              <lf-diagram id="agent-browser-architecture" parts="all">
                 <pre>
 flowchart TD
   accTitle: How Leaf composes a page
@@ -804,7 +804,7 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                   needing no answer waits for the next turn.
                 </p>
                 <figure id="turn-end-check" class="diagram-figure">
-                  <lf-diagram id="turn-end-decision" data-height="663" parts="all">
+                  <lf-diagram id="turn-end-decision" parts="all">
                     <pre>
 flowchart TD
   accTitle: Checks before a turn ends
@@ -1287,7 +1287,7 @@ flowchart TD
                 </li>
               </ul>
               <figure id="turn-end-figure" class="diagram-figure">
-                <lf-diagram id="turn-end-sequence" data-height="522" parts="all">
+                <lf-diagram id="turn-end-sequence" parts="all">
                   <pre>
 sequenceDiagram
   accTitle: The turn-end check, from the turn's end to the main thread
@@ -1771,7 +1771,7 @@ sequenceDiagram
               completion.
             </p>
             <figure id="ontology-graph" class="diagram-figure">
-              <lf-diagram id="ontology-records-diagram" data-height="596" parts="all">
+              <lf-diagram id="ontology-records-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: Work records determine attention
@@ -1802,7 +1802,7 @@ flowchart TD
               until something it read changes.
             </p>
             <figure id="derived-data-figure" class="diagram-figure">
-              <lf-diagram id="derived-data-diagram" data-height="560" parts="all">
+              <lf-diagram id="derived-data-diagram" parts="all">
                 <pre>
 flowchart LR
   accTitle: Sources, kept readings and views
@@ -1882,7 +1882,7 @@ flowchart LR
               state.
             </p>
             <figure id="data-flow" class="diagram-figure">
-              <lf-diagram id="page-stores-diagram" data-height="646" parts="all">
+              <lf-diagram id="page-stores-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: Durable inputs become current state
@@ -2072,7 +2072,7 @@ flowchart TD
               their own verbs; Leaf processes those declarations without
               package-specific code.
             </p>
-            <lf-diagram id="layers-flow" data-height="515" parts="all">
+            <lf-diagram id="layers-flow" parts="all">
               <pre>
 flowchart TD
   accTitle: Widget actions update widget state
@@ -2906,7 +2906,7 @@ flowchart TD
               </li>
             </ul>
             <figure id="updates-decision" class="diagram-figure">
-              <lf-diagram id="updates-decision-diagram" data-height="914" parts="all">
+              <lf-diagram id="updates-decision-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: Activity status by first matching condition
@@ -3695,7 +3695,7 @@ EOF</code></pre>
             Workflow tab.
           </p>
           <figure id="forks-map" class="diagram-figure">
-            <lf-diagram id="forks-map-diagram" data-height="866" parts="all">
+            <lf-diagram id="forks-map-diagram" parts="all">
               <pre>
 flowchart TD
   accTitle: Leaf's forks in Claude Code and what each does
@@ -3785,7 +3785,7 @@ flowchart TD
               and that line goes in nowhere.
             </p>
             <figure id="states-figure" class="diagram-figure">
-              <lf-diagram id="states-diagram" data-height="350" parts="all">
+              <lf-diagram id="states-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: What a waiting thread message reads until it is answered
@@ -3896,7 +3896,7 @@ flowchart TD
                 >, tells the main thread when to do this.
               </p>
               <figure id="take-figure" class="diagram-figure">
-                <lf-diagram id="take-sequence" data-height="1198" parts="all">
+                <lf-diagram id="take-sequence" parts="all">
                   <pre>
 sequenceDiagram
   accTitle: The main thread gives a message to a fork, which answers it
@@ -4002,7 +4002,7 @@ sequenceDiagram
               side.
             </p>
             <figure id="follow-ups-figure" class="diagram-figure">
-              <lf-diagram id="follow-up-flow" data-height="369" parts="all">
+              <lf-diagram id="follow-up-flow" parts="all">
                 <pre>
 flowchart TD
   accTitle: Where a further message in a thread goes
@@ -4978,10 +4978,9 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     </td>
                   </tr>
                   <tr>
-                    <td>Select a root page tab</td>
+                    <td>Select a tab</td>
                     <td>
-                      The switch saves the outgoing reading position and adds an entry;
-                      Back / Forward returns between views. Embedded tabs add no entry.
+                      The switch adds no entry; Back and Forward leave the tab as it is.
                     </td>
                   </tr>
                   <tr>
@@ -5075,7 +5074,7 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               one read-only state.
             </p>
             <figure id="browser-flow" class="diagram-figure">
-              <lf-diagram id="browser-flow-diagram" data-height="369" parts="all">
+              <lf-diagram id="browser-flow-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: One state feeds every renderer
@@ -5107,11 +5106,7 @@ flowchart TD
               from the arrival of saved state.
             </p>
             <figure id="runtime-start-sequence" class="diagram-figure">
-              <lf-diagram
-                id="runtime-start-sequence-diagram"
-                data-height="440"
-                parts="all"
-              >
+              <lf-diagram id="runtime-start-sequence-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: Prepare the page before controls arrive
@@ -5144,11 +5139,7 @@ flowchart TD
                 received or started work.
               </p>
               <figure id="loading-stage-table" class="diagram-figure">
-                <lf-diagram
-                  id="loading-stage-table-diagram"
-                  data-height="419"
-                  parts="all"
-                >
+                <lf-diagram id="loading-stage-table-diagram" parts="all">
                   <pre>
 flowchart TD
   accTitle: The interface and saved state load together
@@ -5201,11 +5192,7 @@ flowchart TD
               accepted.
             </p>
             <figure id="runtime-delivery-flow" class="diagram-figure">
-              <lf-diagram
-                id="runtime-delivery-flow-diagram"
-                data-height="512"
-                parts="all"
-              >
+              <lf-diagram id="runtime-delivery-flow-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: A gesture reaches the shared record
@@ -5264,11 +5251,7 @@ flowchart TD
           <section id="browser-freshness">
             <h2>Freshness checks and state reads</h2>
             <figure id="runtime-freshness-flow" class="diagram-figure">
-              <lf-diagram
-                id="runtime-freshness-flow-diagram"
-                data-height="234"
-                parts="all"
-              >
+              <lf-diagram id="runtime-freshness-flow-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: Each changed freshness token triggers a read of what it names
@@ -5335,11 +5318,7 @@ flowchart TD
               the facts.
             </p>
             <figure id="browser-drawing-order" class="diagram-figure">
-              <lf-diagram
-                id="browser-drawing-order-diagram"
-                data-height="326"
-                parts="all"
-              >
+              <lf-diagram id="browser-drawing-order-diagram" parts="all">
                 <pre>
 flowchart TD
   accTitle: Presentation follows the DOM it needs
@@ -5435,11 +5414,7 @@ flowchart TD
                 its corresponding state.
               </p>
               <figure id="runtime-install-paths" class="diagram-figure">
-                <lf-diagram
-                  id="runtime-install-paths-diagram"
-                  data-height="204"
-                  parts="all"
-                >
+                <lf-diagram id="runtime-install-paths-diagram" parts="all">
                   <pre>
 flowchart LR
   accTitle: Executable identity chooses the revision path
@@ -5705,9 +5680,7 @@ flowchart LR
                   <text class="strong" x="180" y="332" text-anchor="middle">
                     Functions
                   </text>
-                  <text class="mono" x="180" y="347" text-anchor="middle">
-                    readObligations
-                  </text>
+                  <text class="mono" x="180" y="347" text-anchor="middle">go</text>
                 </g>
                 <g id="drawing-elements">
                   <rect class="box" x="126" y="362" width="108" height="42" rx="4" />
@@ -6025,7 +5998,7 @@ lf-verdict {
                   <th scope="row">What only Leaf can do or know</th>
                   <td>
                     A function the module imports, such as
-                    <code class="nowrap">readObligations()</code>, which reads what
+                    <code class="nowrap">obligations.read()</code>, which reads what
                     waits on the user or the agent.
                   </td>
                 </tr>

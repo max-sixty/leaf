@@ -1,10 +1,8 @@
 """Added-option presentation and replay tests."""
 
-import base64
 import re
 
 import pytest
-from browser_sources import browser_function
 from interact_support import append_carried_log_record, stamp
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -12,16 +10,9 @@ from render_cases_interaction import (
     OBLIGATION_WITH_CONTEXT_PAGE,
     live_url,
 )
-from render_cases_layout import (
-    button_radius,
-    glyph_action_face,
-    token_colour,
-)
 from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
-    example_media,
-    expect_error_waits_in_menu,
     expect_obligations_answered,
     holding,
     http_error_console,
@@ -39,11 +30,8 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-AIM_RECT = browser_function("aims.js", "aimRect")
 
 
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
@@ -58,28 +46,20 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
         document.querySelector("main").append(group);
     }""")
     text = "A shared answer after the question moves."
-    write(first.locator("#jobs > .lf-another leaf-text"), text)
+    write(first.locator("#jobs > .lf-another textarea"), text)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
-    expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
+    expect(second.locator("#jobs > .lf-another textarea")).to_have_js_property(
         "value", text
     )
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
-    """The user writes on the same line and in the same font as the options.
-
-    The trailing action stays out of an empty row, then submits on the shared margin entry
-    corner rather than borrowing the selection mark's circle. It remains a full-sized
-    pointer target aligned with the field, which keeps pasted line breaks on one line.
-    """
+    """The user writes on the same line and in the same font as the options."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
-    add = form.get_by_role(
-        "button", name="Add and select option", exact=True, include_hidden=True
-    )
 
     # The field reads the option's line as a resolved length, which keeps only layout
     # precision (1/64px), so the line heights agree to that.
@@ -107,103 +87,9 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
 
     card_words = page.locator("#br-steel > strong")
-    card_field = page.locator("#bracket > .lf-another leaf-text")
+    card_field = page.locator("#bracket > .lf-another textarea")
     assert same_face(card_field.evaluate(typography), card_words.evaluate(typography))
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
-
-    expect(add).to_have_text("")
-    expect(add.locator('svg[data-lf-icon="add"]')).to_have_count(1)
-    expect(add).to_be_hidden()
-    expect(add).to_have_attribute("aria-disabled", "true")
-    empty_field_box = field.bounding_box()
-    write(field, "Portrait sketch")
-    expect(add).to_be_visible()
-    expect(add).to_have_attribute("aria-disabled", "false")
-    expect(add).to_have_css("opacity", "1")
-    aim_floor = page.locator("html").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-aim-floor'))"
-    )
-    form_box = form.bounding_box()
-    field_box = field.bounding_box()
-    assert field_box == empty_field_box
-    add_box = add.bounding_box()
-    add_aim = add.evaluate(AIM_RECT)
-    assert add_aim["width"] >= aim_floor
-    assert add_aim["height"] >= aim_floor
-    assert add_box["y"] + add_box["height"] / 2 == pytest.approx(
-        field_box["y"] + field_box["height"] / 2, abs=0.5
-    )
-    assert 0 < form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"] < 8
-    write(field, "First line\nSecond line\nThird line")
-    expect(field).to_have_js_property("value", "First line Second line Third line")
-    pasted_form_box = form.bounding_box()
-    pasted_field_box = field.bounding_box()
-    pasted_add_box = add.bounding_box()
-    assert pasted_field_box["height"] == field_box["height"]
-    assert (
-        0
-        < pasted_form_box["y"]
-        + pasted_form_box["height"]
-        - pasted_add_box["y"]
-        - pasted_add_box["height"]
-        < 8
-    )
-    face = glyph_action_face(add)
-    circle_radius = page.locator("#br-steel .lf-pick").evaluate(
-        "el => getComputedStyle(el, '::before').borderRadius"
-    )
-    assert circle_radius == "50%"
-    assert face["press"] == "rgba(0, 0, 0, 0)"
-    assert face["disc"] == "rgba(0, 0, 0, 0)"
-    assert face["discRadius"] == button_radius(page)
-    assert face["discRadius"] != circle_radius
-    # The mark is the accent itself rather than the ink every injected control takes
-    # from the shared face. Both rules are the theme's, and this one wins by coming
-    # after it; when the face was stated in the adopted sheet instead, it outranked
-    # this rule and drew the mark near black.
-    assert face["glyph"] == token_colour(page, "--lf-accent")
-    assert face["glyph"] != token_colour(page, "--lf-ink")
-    # The disc is clear until the pointer is on it, and it is the whole of what rises:
-    # the press still paints nothing of its own, at the size it holds at rest. The
-    # pointer leaves again so the coarse reading below is of a press at rest too.
-    add.hover()
-    hovered = glyph_action_face(add)
-    assert hovered["press"] == "rgba(0, 0, 0, 0)"
-    assert hovered["disc"] == token_colour(page, "--lf-accent-tint")
-    assert hovered["discWidth"] == face["discWidth"]
-    page.mouse.move(0, 0)
-    page.keyboard.press("Tab")
-    expect(add).to_be_focused()
-
-    page.locator("html").evaluate(
-        "el => el.style.setProperty('--lf-aim-floor', '44px')"
-    )
-    form_box = form.bounding_box()
-    add_aim = add.evaluate(AIM_RECT)
-    assert form_box["height"] >= 44
-    assert add_aim["y"] >= form_box["y"]
-    assert add_aim["y"] + add_aim["height"] <= form_box["y"] + form_box["height"]
-    # A coarse pointer widens what the user may hit, not what the page draws: the press
-    # keeps painting nothing of its own, so the disc stays the size it was rather than
-    # becoming a square as wide as its target.
-    coarse = glyph_action_face(add)
-    assert add_aim["width"] >= 44
-    assert add_aim["height"] >= 44
-    assert coarse["press"] == "rgba(0, 0, 0, 0)"
-    assert coarse["discWidth"] == face["discWidth"]
-
-    # A one-line touch target must stay in its own row rather than covering the
-    # option above it. It shares the text line's centre even with the larger target.
-    write(field, "Portrait sketch")
-    form_box = form.bounding_box()
-    field_box = field.bounding_box()
-    add_box = add.bounding_box()
-    add_aim = add.evaluate(AIM_RECT)
-    assert add_aim["y"] >= form_box["y"]
-    assert add_aim["y"] + add_aim["height"] <= form_box["y"] + form_box["height"]
-    assert add_box["y"] + add_box["height"] / 2 == pytest.approx(
-        field_box["y"] + field_box["height"] / 2, abs=0.5
-    )
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
@@ -232,7 +118,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # Located on the obligation shows its discussion beside it, so c enters the reply
@@ -242,7 +128,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
@@ -263,9 +149,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
     write(field, words)
-    form.get_by_role("button", name="Add and select option", exact=True).click(
-        no_wait_after=True
-    )
+    field.press("Enter", no_wait_after=True)
     holding(page, held, 1, "the added option")
 
     added = page.locator("#jobs > lf-option[data-lf-added]")
@@ -312,9 +196,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
     write(field, words)
-    form.get_by_role("button", name="Add and select option", exact=True).click(
-        no_wait_after=True
-    )
+    field.press("Enter", no_wait_after=True)
     holding(page, held, 1, "the added option")
 
     # The queue holds this second action behind the first, so the pick's own paint, not
@@ -375,76 +257,6 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     expect(added).to_have_attribute("selected", "")
 
 
-def test_a_keyboard_press_on_add_leaves_the_user_in_the_field(browser, serve):
-    """A box that stays to take more, as the add field does, keeps the user in it when
-    they press its send control from the keyboard, as Enter does, rather than on the
-    control, where the next letters would fall on nothing."""
-    page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
-    form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
-    write(field, "Ask the neighbours first")
-    send = form.locator(".lf-compose-submit")
-    send.focus()
-    with sending(page, "the keyboard-pressed add"):
-        page.keyboard.press("Space")
-    expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
-    expect(field).to_be_focused()
-
-
-PASTE_IMAGE = """(textarea, encoded) => {
-  const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-  const transfer = new DataTransfer();
-  transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-  textarea.dispatchEvent(new ClipboardEvent('paste', {
-    bubbles: true,
-    cancelable: true,
-    clipboardData: transfer,
-  }));
-}"""
-
-
-def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
-    """A box that will not take a picture says so, rather than swallowing the paste.
-
-    An option is the text of an option, so this field declines images as the composer
-    declines them while a suggestion stands. What it may not do is decline them in
-    silence: the shelf never appears, the words never change, and nothing is uploaded,
-    so a user who pasted a screenshot sees exactly what a user whose paste worked
-    would see. The empty send in the same box already answers its own nothing out loud;
-    this is the other way a box can go quiet on a gesture."""
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    uploads = []
-    page.on(
-        "request",
-        lambda request: (
-            uploads.append(request.url) if request.url.endswith("/api/media") else None
-        ),
-    )
-    form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
-    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
-    field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
-
-    # The error is about the add field, so it stands over that field until the user's
-    # first key or press there, and then waits in the leaf's menu.
-    cover = form.locator(".lf-compose-error")
-    expect(cover).to_have_text("Images can be added to comments, not options")
-    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_hidden()
-    cover.click()
-    expect(cover).to_be_hidden()
-    expect(field).to_be_focused()
-    expect_error_waits_in_menu(page, "Images can be added to comments, not options")
-    expect(form.locator(".lf-composer-media")).to_be_hidden()
-    expect(form.locator(".lf-composer-media img")).to_have_count(0)
-    assert field.evaluate("box => box.value") == ""
-    assert uploads == [], "a refused paste still uploaded its bytes"
-    assert not [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action"
-    ]
-
-
 def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     """An exact-section thread cannot take an unsent option's field.
 
@@ -453,7 +265,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     d = serve.page_dir
-    first = page.locator("#jobs > .lf-another leaf-text")
+    first = page.locator("#jobs > .lf-another textarea")
     draft = "Keep this answer even if another thread arrives first."
     write(first, draft)
 
@@ -473,9 +285,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     expect(first).to_be_visible()
     expect(first).to_have_js_property("value", draft)
 
-    page.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add and select option", exact=True
-    ).click()
+    first.press("Enter")
     round_trip(page)
     added = page.locator("#jobs > lf-option[data-lf-added]")
     expect(added).to_contain_text(draft)
@@ -515,7 +325,6 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     field = page.locator("#bracket > .lf-another").get_by_role(
         "textbox", name="Another option", exact=True
     )
-    expect(field).to_have_attribute("aria-multiline", "false")
     field.tap()
     page.keyboard.type("Ask the neighbours first")
     page.keyboard.press("Enter")
@@ -523,36 +332,6 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     expect(added).to_have_attribute("selected", "")
     expect(added).to_contain_text("Ask the neighbours first")
     expect(field).to_have_js_property("value", "")
-    # Words with a line break, as a paste brings them, stay on the one line.
-    field.tap()
-    page.keyboard.insert_text("Ask the neighbours\nfirst")
-    expect(field).to_have_js_property("value", "Ask the neighbours first")
-
-
-def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
-    """The add field keeps room at its end for the Add press and the obligation's key, so on a
-    phone the words before that room are few: alert-review's card group at 360px would
-    cut "Another option — add to select" to "Another option — ad…", which loses the
-    verb.
-    The hint says the same in words that fit, and the room it keeps is measured here
-    rather than restated."""
-    example = named_source("alert-review")
-    context = browser.new_context(
-        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, serve(example), context=context)
-    field = page.locator(".lf-another leaf-text").first
-    field.scroll_into_view_if_needed()
-    fit = field.evaluate("""field => {
-      const style = getComputedStyle(field);
-      const room = field.clientWidth - parseFloat(style.paddingInlineStart)
-        - parseFloat(style.paddingInlineEnd)
-        - parseFloat(style.getPropertyValue('--lf-field-end-room'));
-      const pen = document.createElement('canvas').getContext('2d');
-      pen.font = style.font;
-      return {room, words: pen.measureText(field.getAttribute('placeholder')).width};
-    }""")
-    assert fit["words"] <= fit["room"], fit
 
 
 def test_a_closed_group_answers_only_from_its_options(browser, serve):
@@ -588,7 +367,7 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     built; past the textarea an unvisited field holds, it clones the range alone. So
     the user visits the field before the drag."""
     page = open_page(firefox_browser, serve(OBLIGATION_PAGE))
-    field = page.locator("#bracket > .lf-another leaf-text")
+    field = page.locator("#bracket > .lf-another textarea")
     field.focus()
     rendered(page)
     page.evaluate(RELEASE_FOCUS)
@@ -648,15 +427,11 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     field = added.get_by_role("textbox", name="Another option", exact=True)
     expect(field).to_have_attribute("placeholder", "Add another option…")
     write(field, "Insulate the camera battery")
-    add = added.get_by_role("button", name="Add and select option", exact=True)
-    add.focus()
     with sending(page, "the added option"):
         page.keyboard.press("Enter")
-    # Pressing Add is Enter pressed in the field: the user goes on in the field.
+    # Enter adds the option and the user goes on in the field.
     expect(field).to_be_focused()
-    expect(added.locator(".lf-compose-submit")).to_have_attribute(
-        "aria-disabled", "true"
-    )
+    expect(field).to_have_js_property("value", "")
     expect_obligations_answered(page, "0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")

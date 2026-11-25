@@ -2047,7 +2047,7 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
     `:has()` reads walks back from a flagged element through every earlier sibling and
     restyles each one some `:has()` names as its subject.
     Asked of every child of `main`, as by
-    `:where(main > *):has(~ [data-lf-views="parts"])`, it makes each focus move restyle
+    `:where(main > *):has(~ [data-lf-parts])`, it makes each focus move restyle
     every block before the focused one, and far fewer where `main` answers with a style
     query instead (Chromium 158). `.layout-sidebar > aside:has(~ …)` asks it of every
     `aside` in the page's content."""

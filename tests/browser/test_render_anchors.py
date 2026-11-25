@@ -108,22 +108,22 @@ def thread_head(page, thread_id):
     """Open the thread in the panel, once the page reads it, and return the head of
     its view, which names what the thread is about: the quoted words and a label of
     where they stand. The tab chooses the panel for threads, and the thread opens by
-    its route without travel (`threadActions.open`), so reading its head moves and
+    its route without travel (`go`), so reading its head moves and
     reveals nothing on the page, as a row of Threads, which travels to the passage,
     would."""
     page.evaluate(
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
     page.wait_for_function(
-        "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
+        "id => window.__lfThreadsApi.threads.read().threads.some((t) => t.id === id)",
         arg=thread_id,
     )
     choose_threads_in_panel(page)
     page.evaluate(
         """async (id) => {
           const api = window.__lfThreadsApi;
-          const thread = api.readThreads().threads.find((t) => t.id === id);
-          await api.threadActions.open(thread.key, { part: "thread", travel: false });
+          const thread = api.threads.read().threads.find((t) => t.id === id);
+          await api.go(thread, { part: "thread", travel: false });
         }""",
         thread_id,
     )
@@ -149,7 +149,7 @@ def stranded_quotes(page):
     """The quote of each thread the page reads whose passage it finds nowhere, read in
     the panel's view of every thread, which is put away again."""
     ids = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readThreads().threads"
+        "async () => (await window.__lfWidgetApi()).threads.read().threads"
         ".map((thread) => thread.id)"
     )
     stranded = []
@@ -1649,15 +1649,16 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
-          const {dressCode} = await window.__lfWidgetApi();
+          const frame = () => new Promise(requestAnimationFrame);
           const code = document.querySelector('#marked code');
           const mark = code.querySelector('mark');
           const target = code.querySelector('#target');
           const previous = [...code.querySelectorAll('[data-lf-syn]')];
           code.className = 'language-javascript';
-          await dressCode(code);
+          while (code.dataset.lfSyntax !== 'javascript') await frame();
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          await dressCode(code);
+          await frame();
+          await frame();
           return code.querySelector('mark') === mark
             && code.querySelector('#target') === target
             && mark.textContent === 'f load(path):\\n    return "rea'
@@ -1672,16 +1673,17 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
         text = page.evaluate(
             """async () => {
-              const {dressCode} = await window.__lfWidgetApi();
               const code = document.createElement('code');
               code.className = 'language-python';
               code.textContent = 'old = 1';
               document.querySelector('#later').after(
                 Object.assign(document.createElement('pre'), {id: 'rewritten'}));
               document.querySelector('#rewritten').append(code);
-              const first = dressCode(code);
+              await new Promise(requestAnimationFrame);
               code.textContent = 'new = 2';
-              await Promise.all([first, dressCode(code)]);
+              delete code.dataset.lfSyntax;
+              while (code.dataset.lfSyntax !== 'python')
+                await new Promise(requestAnimationFrame);
               return code.textContent;
             }"""
         )
@@ -2116,8 +2118,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, named } = await window.__lfWidgetApi();
-      const { textNodesUnder } = await window.__lfCheckApi();
+      const { says } = await import('/runtime/passages.js');
+      const { quoteFrom, textNodesUnder } = await window.__lfCheckApi();
+      const named = (node) => quoteFrom(textNodesUnder(node, 'named'));
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
@@ -2407,60 +2410,17 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in lines
     )
 
-    # The same host then serves as a widget's shadow stage. Restaging retains a Lit
-    # container and its editor while other nodes leave, and a passage spanning the
-    # stage's children reads the stage as the host's section.
+    # A passage spanning the children of the host's open root reads the root as the
+    # host's section.
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
-          const {html, render} = await window.__lfVendorImport('lit.js');
-          const host = document.querySelector('lf-diff');
-          const container = document.createElement('div');
-          const input = document.createElement('input');
-          input.value = 'draft reply';
-          const paint = text => render(html`<p>${text}</p>${input}`, container);
-          paint('Before restaging');
-          const old = document.createElement('p');
-          old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), container]);
-          input.focus();
-          input.setSelectionRange(2, 5);
-          const next = document.createElement('p');
-          next.textContent = 'new reading';
-          shadowStage(host, [next, container]);
-          paint('After restaging');
-          return {
-            text: [...host.shadowRoot.childNodes]
-              .filter(node => node.localName === 'p')
-              .map(node => node.textContent),
-            comments: [...host.shadowRoot.childNodes]
-              .filter(node => node.nodeType === Node.COMMENT_NODE).length,
-            rendered: container.querySelector('p').textContent,
-            focused: host.shadowRoot.activeElement === input,
-            value: input.value,
-            selection: [input.selectionStart, input.selectionEnd],
-          };
-        }"""
-    )
-    assert result == {
-        "text": ["new reading"],
-        "comments": 0,
-        "rendered": "After restaging",
-        "focused": True,
-        "value": "draft reply",
-        "selection": [2, 5],
-    }
-
-    result = page.evaluate(
-        """async () => {
-          const {shadowStage} = await window.__lfWidgetApi();
           const {anchorForRange} = await window.__lfCheckApi();
           const host = document.querySelector('lf-diff');
           const first = document.createElement('p');
           first.textContent = 'first';
           const last = document.createElement('p');
           last.textContent = 'last';
-          shadowStage(host, [first, last]);
+          host.shadowRoot.replaceChildren(first, last);
           const range = document.createRange();
           range.setStart(first.firstChild, 0);
           range.setEnd(last.firstChild, last.firstChild.length);
@@ -2714,7 +2674,7 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
               const nextHost = document.createElement('div');
               const nextRoot = nextHost.attachShadow({mode: 'open'});
               oldHost.after(nextHost);
-              const {move} = await window.__lfWidgetApi();
+              const {move} = await import('/runtime/lib/dom-move.js');
               const place = removed === 'retained-immediate' ? move : (parent, node) => parent.moveBefore(node, null);
               place(nextRoot, oldRoot.querySelector('dialog'), null);
               place(nextRoot, oldRoot.getElementById('two'), null);
@@ -2789,7 +2749,7 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, subtes
                   const root = host.attachShadow({mode: 'open'});
                   root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
                   document.querySelector('main').append(host);
-                  const {focusDestination} = await window.__lfWidgetApi();
+                  const {focusDestination} = await window.__lfCheckApi();
                   window.heard = [];
                   const one = root.getElementById('one');
                   one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
@@ -3761,7 +3721,7 @@ def clearance_page(browser, serve, rail=True):
             """async offset => {
               const scroller = document.scrollingElement;
               const destination = document.getElementById('destination');
-              const clear = (await window.__lfWidgetApi()).landingInsets(scroller).bottom;
+              const clear = (await window.__lfCheckApi()).landingInsets(scroller).bottom;
               const before = destination.getBoundingClientRect();
               scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
               const after = destination.getBoundingClientRect();
@@ -3799,7 +3759,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     assert covered["bottom"] <= covered["viewport"]
     assert covered["bottom"] > covered["viewport"] - covered["clear"]
     clear_band = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "async () => (await window.__lfCheckApi()).landingInsets("
         "document.scrollingElement).bottom"
     )
     page.keyboard.press("t")
@@ -5055,7 +5015,9 @@ new file mode 120000
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, named } = await window.__lfWidgetApi();
+      const { says } = await import('/runtime/passages.js');
+      const { quoteFrom, textNodesUnder } = await window.__lfCheckApi();
+      const named = (node) => quoteFrom(textNodesUnder(node, 'named'));
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -5219,13 +5181,14 @@ LATE_STAGE = {
         "required": ["id"],
     },
     "content": "markup",
-    "shadow": True,
     "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
 LATE_STAGE_MODULE = """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {
-  stage() { shadowStage(this, [...this.childNodes]); }
+  stage() {
+    (this.shadowRoot ?? this.attachShadow({mode: 'open'})).append(...this.childNodes);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
+  }
 });
 """
 
@@ -5258,6 +5221,12 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
     marked = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String)"
     page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
     page.evaluate("() => document.getElementById('late').stage()")
+    # The first root the page connects asks for the layer's shadow rules, and its words
+    # move once they arrive, so the pointer is aimed after that.
+    page.wait_for_function(
+        "() => document.getElementById('late').shadowRoot"
+        ".querySelector('style[data-lf-gen]')?.textContent"
+    )
     page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
     box = page.evaluate(
         """() => {
@@ -6780,9 +6749,11 @@ def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
 # declared shadow tree as it connects.
 VERBATIM_STAGE = {**LATE_STAGE, "verbatim": True}
 STAGED_ON_CONNECT = """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {
-  connectedCallback() { shadowStage(this, [...this.childNodes]); }
+  connectedCallback() {
+    (this.shadowRoot ?? this.attachShadow({mode: 'open'})).append(...this.childNodes);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
+  }
 });
 """
 

@@ -176,15 +176,10 @@
       ]
     </script>
     <script type="module">
-      import {
-        afterPresentation,
-        connection,
-        generate,
-        readObligations,
-        whileConnected,
-      } from "/runtime/widget-api.js";
+      import { connection, generate, obligations } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
+      import { presented } from "/runtime/lib/presented.js";
 
       document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
@@ -192,26 +187,20 @@
           return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Reading…");
-              try {
-                const response = await connection("example").fetch("/items");
-                keepsText(
-                  output,
-                  `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
-                );
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          keepsText(output, "Reading…");
+          try {
+            const response = await connection("example").fetch("/items");
+            keepsText(
+              output,
+              `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
+            );
+          } catch (error) {
+            keepsText(output, error.message);
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
@@ -221,36 +210,30 @@
           return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Generating…");
-              try {
-                const result = await generate({
-                  input: "Write a five-word headline: A library now opens on Sundays.",
-                  schema: {
-                    type: "object",
-                    properties: { headline: { type: "string" } },
-                    required: ["headline"],
-                    additionalProperties: false,
-                  },
-                });
-                keepsText(output, `${result.value.headline} (${result.model})`);
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          keepsText(output, "Generating…");
+          try {
+            const result = await generate({
+              input: "Write a five-word headline: A library now opens on Sundays.",
+              schema: {
+                type: "object",
+                properties: { headline: { type: "string" } },
+                required: ["headline"],
+                additionalProperties: false,
+              },
+            });
+            keepsText(output, `${result.value.headline} (${result.model})`);
+          } catch (error) {
+            keepsText(output, error.message);
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
+        const item = obligations.read().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
@@ -289,7 +272,7 @@
         if (state.versions.some(({ version }) => version === 2))
           framingScenario.hidden = false;
       };
-      void afterPresentation(revealFraming);
+      void presented().then(revealFraming);
       const frameOpener = document.querySelector("#bg-durable-frame-open");
       frameOpener.addEventListener("click", () => {
         const frame = document.querySelector("#bg-durable-frame");
@@ -1088,7 +1071,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
               </lf-options>
             </lf-group>
-            <lf-board id="bg-board-plan">
+            <lf-board id="bg-board-plan" data-width="available">
               <lf-column id="bg-board-open" label="Undecided">
                 <lf-card
                   id="bg-board-flask-card"
@@ -2013,47 +1996,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p class="bg-feature-elements">lf-margin-entry</p>
               <h2>
                 <strong>Margin entries</strong
-                ><span class="bg-feature-detail"
-                  >: every face, state, and projection</span
-                >
+                ><span class="bg-feature-detail">: one action, two projections</span>
               </h2>
             </hgroup>
             <p id="bg-margin-controls-guide">
-              <strong>One inventory, using the production controls.</strong> A margin
+              <strong>One contributed action, drawn by the runtime.</strong> A margin
               entry is chrome the runtime draws, named <code>lf-margin-entry</code> in
-              code, not an element an author writes. The Rank and behavior samples cover
-              every action, disclosure, status, tone, and ordering rank.
+              code, not an element an author writes. A widget contributes the action,
+              and Leaf draws it at the page edge and in Page Map.
             </p>
             <ul id="bg-margin-controls-steps">
-              <li>
-                Read the Turn and agent workflow samples, which follow one update:
-                “Saved” means the server recorded it, “Queued” that a later turn will
-                handle it, “Delivered” that a turn accepted it, and “On it” or
-                “Replying” that its answer is in progress. “Stopped” and “Gone quiet”
-                show uncertainty without claiming an interruption.
-              </li>
-              <li>
-                Compare thread colors: green marks a thread that needs an answer from
-                you, and other threads are blue. Pickup and work add status words to the
-                existing control; where no control remains, a status face carries the
-                same workflow.
-              </li>
-              <li>
-                Read Face anatomy: the choice of icon or glyph, a count of related
-                readings, and the transient label with its quieter context. User
-                interaction compares rest, hover or focus, an open disclosure, and a
-                selected page reading.
-              </li>
-              <li>
-                Click and <kbd>Tab</kbd> onto the live samples: each gives its real
-                feedback. A control dims only while its action waits for the log to
-                confirm it.
-              </li>
               <li>
                 Find the Projection sample in this exhibit's margin, then open Page Map:
                 the same contributed control appears as a full labeled row.
               </li>
-              <li>Reload: “Working” arrives with a one-time pulse.</li>
               <li>
                 Open a thread and shorten the window: its messages scroll between the
                 header and the reply field, and the scrollbar spans the messages alone.
@@ -2433,10 +2389,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <pre
                 id="bg-javascript-code"
-              ><code class="language-js">const source = referencedElement(card, "for");
-const api = widgetController(source);
+              ><code class="language-js">const source = document.getElementById(card.getAttribute("for"));
 // Read the source widget's current selection.
-const ids = api.read().state.choose.value;</code></pre>
+const ids = source.state.choose.value;</code></pre>
               <p id="bg-annotated-code-guide">
                 The marked return value keeps its annotation while the whole block shows
                 Python syntax colors. Line wrappers and the empty link target stay in
@@ -3589,7 +3544,7 @@ flag or command it touches, such as `--config`.
               nothing until something scrolls it. The code block and the diagram above
               hold everything they have and show no fade.
             </p>
-            <lf-board id="bg-work-board">
+            <lf-board id="bg-work-board" data-width="available">
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work" label="Check the sample route">
                   <strong>Check the sample route</strong> An open to-do on this card

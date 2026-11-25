@@ -90,7 +90,7 @@
    the span the two differ in (`carry`), so a change to the page is searched only around
    it. An anchor asked of a reading again has the answer it had (`findQuote`).
 
-   Shadow trees: only open roots declared through `shadow` join the page reading;
+   Shadow trees: only open roots a widget connects join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
@@ -564,7 +564,7 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // (`inline`). Every other element, a widget included, starts a block of its own,
 // its words parted from those around it (`enter`).
 /** @param {Element} element */
-export const phrasing = (element) =>
+const phrasing = (element) =>
   PHRASING.has(element.localName) || Boolean(registry[element.localName]?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
@@ -667,7 +667,7 @@ export const authored = (root) => {
     !overIn(isElement(n) ? n : elementOver(n), GENERATED, frame);
 };
 // The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (`shadow`) shows the user what its shadow tree holds, and a
+// open shadow root it connects shows the user what its shadow tree holds, and a
 // host's own children stop rendering the moment it has one. A TreeWalker sees none of
 // that — it stops dead at the boundary — so the walk is written out, and it is the same
 // walk in both directions: a host's shadow root stands in for its children, a <slot> in
@@ -1021,7 +1021,7 @@ const isLayoutShell = (box) =>
 // `main` to find one of its children, several times for each keystroke.
 /** @param {Element} main */
 const partsOf = (main) =>
-  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
+  [...main.children].find((child) => child.hasAttribute("data-lf-parts")) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;
@@ -1118,7 +1118,7 @@ function firstPassing(items, test, from = 0) {
 // end's part is the mark they stop at where the range ends at an offset of that part's
 // own root, as a range over a whole part does. Finding them costs a binary search
 // however many parts the page holds. A walk from the range's
-// own root reads whatever that root holds: select-all beside a `shadow` widget
+// own root reads whatever that root holds: select-all beside a widget drawing in its shadow root
 // composes a range over <html>, and the reading has no position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
@@ -1309,9 +1309,9 @@ function linesFrom(segments) {
   return text;
 }
 
-// What an element says, read the way this file reads the page everywhere else. A widget
-// wanting the words in one of its own slots asks for them here rather than through
-// `textContent`, because the two differ: the paint pass writes a hidden line into any text
+// What an element says, read the way this file reads the page everywhere else. An owner
+// wanting an element's words asks for them here rather than through `textContent`,
+// because the two differ: the paint pass writes a hidden line into any text
 // block that carries a comment, including blocks inside a widget, and `textContent` returns
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
 // The lines format takes block boundaries and preserved whitespace from computed
@@ -1394,13 +1394,6 @@ export function drawsWithin(element, visibility = true) {
   }
   return false;
 }
-// The words that name an element: what the author wrote there, less a popover's, such
-// as a gloss's explanation. A widget asks it to name one of its own parts, where `says`
-// would hand back the widget's own declared labels along with the words — a picked
-// row's mark is the page speaking, so it is in the reading a user points at and out of
-// the row's name.
-/** @param {Node} el */
-export const named = (el) => quoteFrom(textNodesUnder(el, "named"));
 
 // A passage as one Range: what selects it, and what tells two passages' bounds apart.
 // Both ends of a Range stand in one tree, so a passage that runs into a shadow tree, as
@@ -2222,7 +2215,7 @@ export function hearPageWords(hear) {
 }
 // A declared shadow stage is part of its document's words — `textNodesUnder` walks into
 // one at its host's place in the string — and no observer crosses the boundary on its
-// own. shadow-stage.js, which is the only door a `shadow` root is built through,
+// own. shadow-stage.js, which is the only door a connected root is adopted through,
 // hands each one here as it fills it, and again each time it adopts it. The first time
 // forgets the reading of the document the root stands in, which was read without it;
 // from then on the watcher reports the root's changes itself. The words it fills with
@@ -2555,7 +2548,7 @@ function indexed(segments, chains, marks = []) {
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen) dynamicWords.add(gen);
   // A segment's cell is the nearest candidate over it that fences. The chain crosses
-  // the shadow boundary (upFrom), and that is what keeps a `shadow` widget fenced.
+  // the shadow boundary (upFrom), and that is what keeps a widget drawing in its shadow root fenced.
   // The parts were remembered off the light DOM before any module ran, so nothing
   // inside a shadow tree is among them; a chain that stopped at the root would put a
   // diff's lines in no cell at all, which reads as ordinary page prose and lets a quote

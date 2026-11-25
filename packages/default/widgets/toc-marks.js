@@ -15,7 +15,7 @@
  * Threads are the open ones, each at the element its anchor names, as a heading's link
  * preview counts them. On Me items are the obligations waiting on the user that the
  * outline's document holds, by the rule every count of a region's obligations reads
- * (`readObligations(region)`), each at the widget that asks it; a question answered in words
+ * (`obligations.read(region)`), each at the widget that asks it; a question answered in words
  * stands nowhere on the page, so it counts here only as its thread. A change counts once
  * in each section its blocks stand in, and a removal in the section it was taken from,
  * by where its gap stands: a paragraph taken from a section's end, whose gap stands
@@ -27,7 +27,6 @@
  * question in a different row from the map's.
  *
  * Each item costs a binary search over the rows, comparing positions in the document. */
-import { elementById } from "/runtime/widget-api.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 
 /** @typedef {{threads: number, onMe: number, changes: number}} SectionMarks */
@@ -39,8 +38,8 @@ import { under } from "/runtime/lib/shadow-tree.js";
  * }} MarkedReadings */
 
 /** Each section's marks, by its heading (the start row's may be null), for those that
- *  hold any: from the page's threads (`readThreads().threads`), the obligations waiting
- *  on the user its document holds (`readObligations(scope).user`), and
+ *  hold any: from the page's threads (`threads.read().threads`), the obligations waiting
+ *  on the user its document holds (`obligations.read(scope).user`), and
  *  the comparison's changes in it (`comparisonChanges(scope)`).
  * @param {Element} scope the document the outline covers
  * @param {readonly MarkedSection[]} sections the outline's rows, the start row first
@@ -91,11 +90,11 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
 
   for (const thread of threads) {
     const section = thread.resolved ? null : thread.anchor?.section;
-    const element = section ? elementById(section) : null;
+    const element = section ? document.getElementById(section) : null;
     if (element && under(element, scope)) count(rowFor(element), "threads");
   }
   for (const item of onMe) {
-    const element = elementById(item.source.id);
+    const element = document.getElementById(item.source.id);
     if (element) count(rowFor(element), "onMe");
   }
   for (const change of changes) {

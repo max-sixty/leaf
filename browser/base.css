@@ -60,13 +60,14 @@
    as a small badge or key chip, declares `white-space: nowrap` locally. Test long
    identifiers and paths, not only ordinary prose.
 
-   A spatial element reads the room past the measure declared by `space`:
+   A block takes room past the measure where its author asks with `data-width`:
 
    - `wide` takes the shared capped width (`--lf-wide`) from the prose's start edge;
    - `available` takes all room the page can give it.
 
    Delivery paints it as `data-lf-space`, and CSS computes room after chrome strips and
-   occupied margins. An element read as lines of text keeps to the reading measure in
+   occupied margins. Without it a widget stands at the width its container gives, and
+   its own stylesheet fits or scrolls what it holds there. An element read as lines of text keeps to the reading measure in
    its own stylesheet (`max-inline-size: var(--lf-measure)`), as text does. A spatial
    element inside a framed box uses that box's room, not the outer page's. Packages
    arrange content inside the allocation. Size the widget's box
@@ -233,12 +234,6 @@
   syntax: "<integer>";
   inherits: false;
   initial-value: 0;
-}
-/* A bounded widget names its inner scroller on its host. Nested bounds choose their
- * own scroller, so the selector does not inherit (package-themes.md). */
-@property --lf-bound-box {
-  syntax: "*";
-  inherits: false;
 }
 /* A box that wears the focus ring for a control inside it, as its face, says so in the
  * rule that rings it: a playground's choice rings its radio and words together, a
@@ -736,14 +731,6 @@ main {
   :where(h6),
   :where(lf-suggestion) {
     max-inline-size: var(--lf-measure);
-  }
-  /* A bounded block scrolls within its stated height. A widget can assign that bound to
-   * an inner reader instead, keeping its own caption outside the scroller. */
-  [data-lf-bound] {
-    max-block-size: var(--lf-bound, 28rem);
-    overflow: auto;
-    --lf-top: 0px;
-    --lf-holds-height: 1;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */

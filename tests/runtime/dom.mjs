@@ -167,6 +167,13 @@ sheets.dataset.lfRuntime = "";
 sheets.dataset.lfSheets = "";
 sheets.textContent = JSON.stringify({ chrome: "", marks: "" });
 document.head.append(sheets);
+// And the layer's rules for shadow trees, which the first stage Leaf adopts fetches
+// (`runtime/shadow.js`). They are empty here too.
+const fetchServed = globalThis.fetch;
+globalThis.fetch = (input, init) =>
+  new URL(String(input), location.href).pathname.endsWith("/shadow.css")
+    ? Promise.resolve(new Response(""))
+    : fetchServed(input, init);
 
 // A test's comparisons go through `assert.mjs`, which writes a node as its opening tag.
 const ASSERT = new URL("./assert.mjs", import.meta.url).href;

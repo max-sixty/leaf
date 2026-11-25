@@ -17,8 +17,6 @@ const publicRuntimeModules = publicRuntimePaths
 const runtimePrimitives = [
   "anchor-coordinate.js",
   "chrome.js",
-  "dom-children.js",
-  "dom-move.js",
   "focus.js",
   "control-selectors.js",
   "inputs.js",
@@ -63,6 +61,7 @@ const browserGlobals = Object.fromEntries(
     "ErrorEvent",
     "Event",
     "EventSource",
+    "EventTarget",
     "FileReader",
     "FocusEvent",
     "HTMLAnchorElement",
@@ -149,6 +148,7 @@ const browserGlobals = Object.fromEntries(
     "setInterval",
     "setTimeout",
     "structuredClone",
+    "visualViewport",
     "window",
   ].map((name) => [name, "readonly"]),
 );
@@ -821,8 +821,9 @@ const scrollEndsRule = {
   },
 };
 
-// A node that already stands somewhere moves through `move(parent, node, before)`
-// (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
+// A node the runtime places that already stands somewhere moves through
+// `move(parent, node, before)` (runtime/lib/dom-move.js), or `setChildren` beside it
+// (lib/dom-children.js), which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
 // Which nodes stand somewhere is not visible in source, so the rule refuses what it can
 // read. `insertBefore` and `moveBefore` are the mover's own calls, refused unless the
@@ -832,7 +833,7 @@ const scrollEndsRule = {
 // a sibling, or whether something contains it): a node that may stand elsewhere already.
 // The option names the files that may still call the platform's movers.
 const MOVE_MESSAGE =
-  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/dom-move.js, dom-children.js; widget-api.js in a package): a plain insertion blurs it and drops its caret.";
+  "Place a node that may already stand somewhere with move(parent, node, before) or setChildren (runtime/lib/dom-move.js, lib/dom-children.js): a plain insertion blurs it and drops its caret.";
 const MADE = new Set([
   "createElement",
   "createElementNS",
@@ -1763,10 +1764,6 @@ export default [
           // row's tree, so entering its shadow tree reaches the row, and a move inside
           // it is no new entry.
           "browser/runtime/thread/replies.js": ["focusin"],
-          // A widget's own subtree, whose controls stand in its tree: whether focus is
-          // within the gloss, and the contents link the user last stood on.
-          "packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
-          "packages/default/widgets/lf-toc.js": ["focusin"],
           // The text field's empty line hands focus that lands on it to the editor it
           // builds, in its own shadow tree.
           "browser/runtime/composing/text-field.js": ["focusin"],
@@ -1838,12 +1835,23 @@ export default [
         "error",
         [
           // The one mover.
-          "browser/runtime/dom-move.js",
+          "browser/runtime/lib/dom-move.js",
           // Its parser-time hook inserts the first drawing before modules run.
           "browser/runtime/prepaint.js",
         ],
       ],
       "architecture/spelled-keys": "error",
+    },
+  },
+  {
+    // The library's walk and focus are package code the packages share: they focus,
+    // reveal and read focus with the browser's own calls, as a package does (the
+    // packages' block below says why).
+    files: ["browser/runtime/lib/row-walk.js", "browser/runtime/lib/focus-on.js"],
+    plugins: { architecture: architecturePlugin },
+    rules: {
+      "architecture/placements": "off",
+      "architecture/current-location-reads": "off",
     },
   },
   {
@@ -2024,8 +2032,15 @@ export default [
     // return Leaf reads as a return, so the native-layers and layer-returns rules are
     // off here too. A package sets a box's scroll offset with the browser's own
     // `scrollTo`, which the runtime hears as it is made (runtime/arrivals.js), under the
-    // scroll-writes rule the layer keeps. Each other rule repeats what it keeps of the
-    // layer's, since a file takes a rule's options from the last block matching it.
+    // scroll-writes rule the layer keeps. A package places a node with the library's
+    // `move` (lib/dom-move.js) or the browser's own `moveBefore`, so the moves rule is
+    // off here too. A package puts the user on an element with the browser's own
+    // `focus()` and reveals one with its own `scrollIntoView`, and hears where focus
+    // goes with `focusin`, `focusout` and `focus` on its own tree: Leaf reads why focus
+    // moved for itself (runtime/focus.js), so the placements and
+    // current-location-listeners rules hold the runtime alone. Each other rule repeats
+    // what it keeps of the layer's, since a file takes a rule's options from the last
+    // block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
       "no-restricted-globals": [
@@ -2045,6 +2060,9 @@ export default [
       "architecture/current-location-reads": "off",
       "architecture/native-layers": "off",
       "architecture/layer-returns": "off",
+      "architecture/moves": "off",
+      "architecture/placements": "off",
+      "architecture/current-location-listeners": "off",
     },
   },
   {

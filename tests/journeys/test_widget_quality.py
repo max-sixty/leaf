@@ -154,19 +154,10 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         wait_until_ready(page)
         expect(page.get_by_role("textbox", name="Title")).to_have_value(title)
         expect(page.locator("lf-playground-output")).to_contain_text(title)
-        # Each of the page's two galleries draws one face per sample, the same samples.
-        drawn = page.locator("lf-margin-entry-gallery").evaluate_all(
-            "galleries => galleries.map(gallery => [gallery.querySelectorAll('.margin-entry-gallery-item').length, gallery.querySelectorAll('.margin-entry-gallery-face').length])"
-        )
-        assert len(drawn) == 2 and drawn[0] == drawn[1], drawn
-        assert drawn[0][0] > 0 and drawn[0][0] == drawn[0][1], drawn
-        assert page.locator(".margin-entry-gallery-item").evaluate_all(
-            "items => items.every(item => item.querySelector('.margin-entry-gallery-copy').getBoundingClientRect().left - item.querySelector('.margin-entry-gallery-face').getBoundingClientRect().right >= 7.5)"
-        ), "the gallery label must follow the actual control's width"
-        ids = page.locator(".margin-entry-gallery-face[id]").evaluate_all(
-            "nodes => nodes.map(node => node.id)"
-        )
-        assert len(ids) == len(set(ids))
+        # Each of the page's two galleries draws its exhibit.
+        assert page.locator("lf-margin-entry-gallery").evaluate_all(
+            "galleries => galleries.map(gallery => gallery.querySelectorAll('.margin-entry-gallery-projection').length)"
+        ) == [1, 1]
 
     try:
         first_and_upgraded(lambda: page.goto(url, wait_until="commit"), "Field note")
@@ -192,35 +183,3 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-
-
-def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browser):
-    """A generated view needs its first box; an equal reserved box is a control."""
-    package = tmp_path / "package"
-    add_test_widget(package, "lf-first-box", upgrade=True)
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-first-box"]["example"] = (
-        '<lf-first-box id="moving"></lf-first-box>'
-        '<lf-first-box id="reserved"></lf-first-box>'
-    )
-    registry_path.write_text(json.dumps(registry))
-    (package / "defaults.css").write_text(
-        "lf-first-box { display: block; } #reserved { block-size: 40px; }"
-    )
-    (package / "widgets/lf-first-box.js").write_text("""\
-import { html } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/lib/leaf-element.js";
-customElements.define("lf-first-box", class extends LeafElement {
-  render() { return html`<div style="block-size:40px">Drawn view</div>`; }
-});
-""")
-    findings = [
-        finding
-        for finding in widget_findings(browser.unwatched, package)
-        if finding.code == "keeps-first-box"
-    ]
-    assert {finding.at for finding in findings} == {"<lf-first-box id=moving>"}
-    assert {finding.values["layout"] for finding in findings} == {"column", "workspace"}
-    assert all(finding.values["first"]["height"] == 0 for finding in findings)
-    assert all(finding.values["now"]["height"] == 40 for finding in findings)

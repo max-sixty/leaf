@@ -38,10 +38,10 @@ pytestmark = pytest.mark.shifts_unsurveyed
 # What waits on the user, as On Me counts it (floating-panel.js, `onUserCount`): the
 # queue's own reading, since a gesture's next step can stand in the marks' place.
 ON_ME = """async () => {
-  const {readQueues} = await window.__lfWidgetApi();
+  const {queues} = await window.__lfWidgetApi();
   window.__lfOnMe = () => {
-    const queues = readQueues();
-    return queues.phase === "ready" ? queues.on_user.length : null;
+    const lists = queues.read();
+    return lists.phase === "ready" ? lists.on_user.length : null;
   };
 }"""
 
@@ -755,8 +755,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     holding(page, held, 1, "the option answer")
     pending = page.evaluate(
         """async () => {
-          const {readObligations} = await window.__lfWidgetApi();
-          const reading = readObligations();
+          const {obligations} = await window.__lfWidgetApi();
+          const reading = obligations.read();
           const item = reading.all.find(q => q.id === 'widget:only');
           return {
             value: item.answer.value,
@@ -784,8 +784,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
 
     reading = page.evaluate(
         """async () => {
-          const {readObligations} = await window.__lfWidgetApi();
-          const item = readObligations().all.find(q => q.id === 'widget:only');
+          const {obligations} = await window.__lfWidgetApi();
+          const item = obligations.read().all.find(q => q.id === 'widget:only');
           return {
             id: item.id,
             source: item.source,
@@ -819,8 +819,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
-          const {obligationActions} = await window.__lfWidgetApi();
-          return obligationActions.open('widget:only');
+          const {go} = await window.__lfWidgetApi();
+          return go({id: 'widget:only'});
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
@@ -854,7 +854,7 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
 
     def open_obligation(id_):
         assert page.evaluate(
-            """async id => (await window.__lfWidgetApi()).obligationActions.open(id)""",
+            """async id => (await window.__lfWidgetApi()).go({id})""",
             id_,
         )
 

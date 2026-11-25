@@ -639,7 +639,7 @@
               author arranges the page and makes local adjustments.
             </p>
             <figure id="styles-capture" class="diagram-figure">
-              <lf-diagram id="styles-theme-capture" data-height="370" parts="all">
+              <lf-diagram id="styles-theme-capture" parts="all">
                 <pre>
 flowchart TD
   accTitle: A page selects its theme as a package
@@ -899,8 +899,8 @@ flowchart TD
                 <figcaption id="cap-kind-column">
                   <strong>A column page</strong>
                   <code>layout-column</code> on <code>main</code>. Text keeps the 720px
-                  column, and a block with a declared width, such as a diagram, extends
-                  past it.
+                  column, and a block given a width with <code>data-width</code>, such
+                  as a diagram, extends past it.
                 </figcaption>
               </figure>
               <figure id="kind-sidebar">
@@ -1752,7 +1752,7 @@ flowchart TD
               the shared record of what the user does.
             </p>
             <figure id="ownership-anatomy" class="diagram-figure">
-              <lf-diagram id="ownership-architecture" data-height="719" parts="all">
+              <lf-diagram id="ownership-architecture" parts="all">
                 <pre>
 flowchart TD
   accTitle: Ownership boundaries in a Leaf page
@@ -1891,7 +1891,7 @@ flowchart TD
               files, without either package knowing the other’s implementation.
             </p>
             <figure id="package-data-diagram" class="diagram-figure">
-              <lf-diagram id="package-data-contract" data-height="285" parts="all">
+              <lf-diagram id="package-data-contract" parts="all">
                 <pre>
 flowchart TD
   accTitle: A typed output connects independent widgets
@@ -2216,7 +2216,7 @@ $ leaf page check PAGE --render</code></pre>
             <h3 id="styles-tiers">The tiers</h3>
             <figure id="cascade-figure" class="diagram-figure">
               <h4 id="cascade-document">The page’s document</h4>
-              <lf-diagram id="cascade-document-order" data-height="635" parts="all">
+              <lf-diagram id="cascade-document-order" parts="all">
                 <pre>
 flowchart TD
   accTitle: CSS precedence in the page document
@@ -2230,7 +2230,7 @@ flowchart TD
 </pre>
               </lf-diagram>
               <h4 id="cascade-shadow">A widget’s shadow tree</h4>
-              <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
+              <lf-diagram id="cascade-shadow-order" parts="all">
                 <pre>
 flowchart TD
   accTitle: CSS precedence inside a widget's shadow tree
@@ -2311,7 +2311,7 @@ flowchart TD
               theme inputs, such as color and type, flow through both.
             </p>
             <figure id="styles-scope" class="diagram-figure">
-              <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
+              <lf-diagram id="styles-nested-boundary" parts="all">
                 <pre>
 flowchart TD
   accTitle: A nested widget keeps its own styling when the outer package names its own structure

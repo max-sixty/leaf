@@ -56,8 +56,8 @@
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
  * generated option joins the walk on replay just like an authored one.
  *
- * In a thread the existing reply box already owns those words, so Enter from a mark
- * continues into that box. Every `multiple` group grows a Done press: each toggle
+ * In a thread the existing reply box already owns those words, and the user reaches it
+ * with Leaf's own keys. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
  * whole, posted as an `answer` action and held as the obligation's closing condition
  * (`awaits.answered`). Answered is paint on the press, never a wider word. A
@@ -93,7 +93,7 @@
  * to one line naming the chosen option, with every option — the chosen one included —
  * behind a disclosure. Nothing is deleted, so the ids, the anchors on them, and check's
  * id-survival rule are all untouched; what's reclaimed is the height. Open or closed is
- * view state for this user, remembered per browser tab in tabStore like a lf-tabs
+ * view state for this user, remembered per browser tab (lib/tab-memory.js) like a lf-tabs
  * tab: opening a settled group is reading, not editing, so it sends no action and no
  * version carries it. Collapsed options wear hidden="until-found", so find-in-page and
  * the runtime's reveal() (a click on a comment's quote) both open the group rather than
@@ -112,32 +112,22 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
-import {
-  aimedAt,
-  nameOf,
-  elementById,
-  threadInput,
-  landInThread,
-  placePreview,
-  rowWalk,
-  named,
-  focusDestination,
-  scrollIntoView,
-} from "/runtime/widget-api.js";
+import { aimedAt, nameOf } from "/runtime/widget-api.js";
+import { authoredWords } from "/runtime/lib/authored-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
+import { rowWalk } from "/runtime/lib/row-walk.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
-// own words, which are all it has. `named` rather than `says`, because a picked option's
-// mark is the page speaking and belongs to what the user can point at — not to the
-// option's name, which is what every caller here wants. A settled title's answer to an
+// own words, which are all it has, less a picked option's mark, which the module writes
+// and which is no part of the option's name (`authoredWords`). A settled title's answer to an
 // option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
-const label = (option) => option.getAttribute("label")?.trim() || named(option);
+const label = (option) => option.getAttribute("label")?.trim() || authoredWords(option);
 
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.
@@ -269,6 +259,11 @@ customElements.define(
       }
     }
 
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#addition.disconnect();
+    }
+
     /** @param {boolean} exhibited */
     #wire(exhibited) {
       // Quoted material is exhibited, not offered: a sample shows what a decision
@@ -362,12 +357,6 @@ customElements.define(
       });
     }
 
-    // A page obligation owns the ordinary add form below its options. An obligation already
-    // inside a thread has no second form; its surrounding thread owns the reply.
-    #reply() {
-      return this.#addition.input ? null : threadInput(this);
-    }
-
     // The one statement a live channel can't derive: the set is whole. Done is a
     // reversible gesture; its pressed state is the answer action in force. It records
     // the user's answer, so it wears the commit face, which the user chose over the
@@ -423,7 +412,6 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
       this.#syncDone();
     }
 
@@ -472,21 +460,6 @@ customElements.define(
         mark.lfCommands = {
           title: SECTION,
           rows: [
-            {
-              id: "option.reply",
-              keys: ["Enter"],
-              title: "reply",
-              when: () => Boolean(this.#reply()),
-              // The box hands the user back to the thread it belongs to, and to
-              // this option where that thread is nowhere to stand — the route
-              // `landInThread` records for exactly that case, and the one Escape
-              // out of a text box reads.
-              run: () => {
-                const reply = this.#reply();
-                if (reply)
-                  landInThread(reply, { target: mark, line: "back to the options" });
-              },
-            },
             ...rowWalk({
               id: "option",
               noun: "Option",
@@ -522,8 +495,8 @@ customElements.define(
           title: "Another option",
           when: () => this.#available("choose"),
           run: () => {
-            focusDestination(input, "move");
-            scrollIntoView(input, { block: "nearest" });
+            input.focus({ preventScroll: true });
+            input.scrollIntoView({ block: "nearest" });
           },
         });
       const done = this.#done;
@@ -553,20 +526,18 @@ customElements.define(
     // name the chrome gives it (`nameOf`), else by its word, and by the id only where no
     // block in the option's message or on the page answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone, and pointing at it
-    // previews the block, as a link into the page does (`placePreview`). It is chrome
+    // previews the block, as Leaf previews any link into the page. It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
     /** @param {Element} option */
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, this);
+      const block = /** @type {Document | ShadowRoot} */ (
+        this.getRootNode()
+      ).getElementById(target);
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
-      ref.lfPreview = () => {
-        const named = elementById(target, this);
-        return named ? placePreview(named) : null;
-      };
       option.append(ref);
     }
 

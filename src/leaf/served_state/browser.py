@@ -6,7 +6,7 @@ from ..activity import turn_runs
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..gesture_words import GestureWords, RevisionReader
-from ..history import history, wants_history
+from ..history import history
 from ..passages import SourceReading
 from ..projection import (
     ThreadMarkupReading,
@@ -162,21 +162,15 @@ def browser_state(
             "published_at": published_at,
             "queues": queues(workflows, items, threads, reading.within),
         }
-    if wants_history(readings[revision] for revision in view_revisions):
-        page_history = {
-            "history": history(
-                events,
-                threads,
-                words,
-                durable.thread.thread_by_name,
-                durable.thread.thread_by_widget,
-            )
-        }
-    else:
-        page_history = {}
     wire = {
         "basis": {"through_seq": through_seq},
-        **page_history,
+        "history": history(
+            events,
+            threads,
+            words,
+            durable.thread.thread_by_name,
+            durable.thread.thread_by_widget,
+        ),
         "views": views,
         "plan": durable.plan(work.records),
         "thread_memberships": {

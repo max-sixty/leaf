@@ -1,6 +1,6 @@
 # Package state and data
 
-Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, work roles, and external or derived data sources.
+Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, and external or derived data sources.
 
 ## Widgets working together
 
@@ -9,11 +9,11 @@ whose authors never met work together on a Leaf page and on a page without Leaf.
 names the other by id in an attribute its declaration says names an element, `for` by
 convention ("References between widgets"), and then:
 
-| To                                               | Use                                                                                                                                                   | `page check` holds                                                |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                        | that the named widget declares one output of that contract        |
-| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                          |
-| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the `refers` attribute names an element; a link is unchecked |
+| To                                               | Use                                                                                                                                              | `page check` holds                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an input (`inputs`) binds by contract ("Widget outputs")                   | that the named widget declares one output of that contract        |
+| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                   | that an authored button names an element                          |
+| take the user to a part of it                    | `go` with the part's key, or a link to `#id:key` ([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)) | that the `refers` attribute names an element; a link is unchecked |
 
 A recorded answer stays its owner's, and only the owner's module records it
 ("User state"). Another widget shows that answer by reading an output the owner holds,
@@ -23,8 +23,8 @@ that one action, and the same two modules work off Leaf, where the owner keeps t
 answer itself. A view whose own place on the page is that answer, as a board card
 stands in the column of a pick, names the owner in a `refers` attribute too, as
 `lf-card` does in `shows`, but its module reads the owner's state and records the
-owner's verb through `widgetController(owner)`
-([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
+owner's verb itself
+([module-state.md, "Recorded state"](module-state.md#recorded-state)).
 
 Packages declare no dependency on each other. A widget that holds a value names a
 contract that its own package or Leaf's `default` package declares in
@@ -256,9 +256,9 @@ obligation's question, its region and its words (`authoring-on-me.md`, "On the p
 so a widget needs no prompt of its own.
 
 The module reads this state as `this.state` and records it with `record()`
-([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
+([module-state.md, "Recorded state"](module-state.md#recorded-state)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
+state"](module-state.md#declared-widget-state)), and reads obligations with `obligations.read()`
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 
@@ -292,49 +292,6 @@ defines. `page check` refuses an id that names no element.
 
 Rules about content, such as a value within its range, belong to the widget and `page
 check --render`.
-
-## Work roles
-
-Leaf owns four work roles and reads a hierarchy of work from them
-([module-reading.md, "Work hierarchies"](module-reading.md#work-hierarchies)). A
-package maps its tags onto them in `$work.widgets`:
-
-- `scope` bounds a hierarchy; a reading stops at a nested scope.
-- `goal` is a piece of work. `state` names the attribute holding its state, which
-  exactly one verb's value record names, and `done` and `stopped` list the
-  values that mean finished and stopped. `stoppedAt` may name an attribute saying
-  when it stopped.
-- `worker` is an agent doing the work, with `state`, the values that mean `running`
-  and `retired`, and optionally `on`, a `refers` attribute naming the goal it works
-  on.
-- `evidence` marks an element that shows observed data.
-
-```json
-{
-  "$work": {
-    "widgets": {
-      "lf-atlas-task": {
-        "role": "goal",
-        "state": "status",
-        "done": ["done"],
-        "stopped": ["blocked"]
-      },
-      "lf-atlas-worker": {
-        "role": "worker",
-        "state": "state",
-        "running": ["working"],
-        "retired": ["done"],
-        "on": "on"
-      }
-    }
-  }
-}
-```
-
-`page init`, `page check` and `package check` hold each entry to its tag's
-declaration, refusing a mistake with a finding that names the tag and key, and `page
-check` refuses a worker whose `on` names anything but a goal. Atlas in
-`examples/command-hub.page/` is the worked example.
 
 ## External or derived data
 

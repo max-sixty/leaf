@@ -24,15 +24,13 @@ import {
   segmentsIn,
   trackQuotes,
 } from "/runtime/passages.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 let generation = 0;
 // A vocabulary no reading has been read against, which forgets every kept piece.
 const freshVocabulary = () =>
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: `reading-pieces-${(generation += 1)}` },
   });
 

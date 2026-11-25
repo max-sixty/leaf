@@ -160,10 +160,9 @@ declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
 internals through its inputs or API; overrides are deliberately page-wide.
 
-Document selectors don't reach into a shadow root. A declared `shadow` root gets
-the composed shared stylesheet when its element says `lf-connect`, or through
-`shadowStage` for an imperative renderer (`module-authoring.md`, "Shadow stages and
-styles"). Use theme inputs for changes across
+Document selectors don't reach into a shadow root. A shadow root gets the composed
+shared stylesheet when its element says `lf-connect` (`module-authoring.md`, "Shadow
+stages and styles"). Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
 
@@ -347,10 +346,7 @@ role on the page:
 | -------------- | ------------------------------------------------------------------------------------ |
 | `reading-role` | `lf-pane`                                                                            |
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
-| `bound`        | `lf-activity`                                                                        |
-| `height`       | `lf-chart`                                                                           |
-| `history`      | `lf-activity`                                                                        |
-| `views`        | `lf-tabs`                                                                            |
+| `parts`        | `lf-parts`                                                                           |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's
@@ -377,19 +373,6 @@ PAGE --render` on a page that selects the package.
 The presentation checks:
 
 - `example`: no worked example shows the tag, so no other check can read it.
-- `keeps-first-box`: the widget's box changed size between first paint, before its
-  module loaded, and presentation, so what follows it moved (`module-authoring.md`,
-  "First paint"). A custom element is inline until a rule gives it a `display`, so give
-  the tag its `display` in `defaults.css`, and reserve there the room of what the module
-  adds, from the theme's tokens (`package-themes.md`, "Theme tokens"): an empty `::before` block on
-  `lf-rating:not(:defined)` with `block-size: var(--lf-line)` holds one row of
-  controls. A drawing the markup can't size declares `height`: a number where the
-  module draws at any height, or `true` to reserve the `data-height` each occurrence
-  states in CSS pixels, with no entry in `attributes`. Where that height follows the
-  data, the widget's `instructions` say how the author works it out. A widget
-  containing others is named only for the change left once its changed children are
-  back at their first sizes. The advice may stand where the size follows content no
-  rule can know, such as words drawn from bound data.
 - `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside
   it, where a widget in normal flow should grow with its content (`page-layout.md`,
   "Bounds and widths"). The check also finds a fixed height while the widget is empty,

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 
 import { findQuote, pageText, spanIn, textNodesUnder } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 const { cases } = JSON.parse(
   readFileSync(new URL("../quote_cases.json", import.meta.url), "utf8"),

@@ -31,28 +31,23 @@
  * Author notes use the same source coordinate resolver as cross-widget navigation;
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
-import {
-  focusDestination,
-  holdFocus,
-  langForPath,
-  move,
-  threadSurface,
-  retainUserIntent,
-  searchField,
-  setChildren,
-  shadowStage,
-  whileConnected,
-  scrollIntoView,
-} from "/runtime/portable-api.js";
+import { threadSurface } from "/runtime/portable-api.js";
+import { langForPath } from "/runtime/lib/language-paths.js";
+import { move } from "/runtime/lib/dom-move.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
-import { failSoft } from "/runtime/lib/failure.js";
+import { failSoft, placesFailure } from "/runtime/lib/failure.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { nextRender, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
+import { focusOn, keepFocus } from "/runtime/lib/focus-on.js";
+import { landAtTop } from "/runtime/lib/scroller.js";
+import { glide } from "/runtime/lib/motion-timing.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -511,7 +506,24 @@ function diffBody(nodes) {
 // what stands in it and retires it (`retireThreadOutlets`). The user writing in one
 // keeps their place natively, and no hold of this file's stands in for theirs.
 /** @param {FileEntry} entry */
-const holdFileFocus = (entry) => holdFocus(entry.node, { key: LINE_KEY });
+const holdFileFocus = (entry) => {
+  const restore = keepFocus(entry.node);
+  if (!restore) return null;
+  let held = document.activeElement;
+  while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
+  const key = held?.closest(`[${LINE_KEY}]`)?.getAttribute(LINE_KEY);
+  const tag = held?.localName;
+  // The line drawn again under the held one's key, on the control like the one the
+  // user was on, as Comment for Comment.
+  const sameLine = () => {
+    if (!key) return null;
+    const marked = [
+      ...entry.node.querySelectorAll(`[${LINE_KEY}="${CSS.escape(key)}"]`),
+    ];
+    return marked.find((node) => node.localName === tag) ?? marked[0] ?? null;
+  };
+  return (/** @type {Element[]} */ ...standIns) => restore(sameLine, ...standIns);
+};
 
 /** @param {FileEntry} entry @param {FilePresentation} view */
 function replaceFileRendering(entry, view) {
@@ -621,10 +633,19 @@ function replaceFileContent(entry, rendered, outlets) {
 
 /** @param {{filterFiles: (value: string | null) => void, foldAll: () => void}} host */
 function diffTools(host) {
-  const search = searchField("lf-diff-tools lf-diff-search", {
+  // The UI library's search field, its label kept for a screen reader alone. One
+  // native stop, which modal traversal finds on the host (`tabIndex`).
+  const search = offer("wa-input", "lf-diff-tools lf-diff-search lf-label-hidden");
+  Object.assign(search, {
+    type: "search",
+    size: "s",
+    withClear: true,
+    tabIndex: 0,
     name: "diff-search",
     label: "Filter diff files",
     placeholder: "Filter files…",
+    autocomplete: "off",
+    spellcheck: false,
   });
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
@@ -948,7 +969,7 @@ function joinChangeRuns(file) {
 function fileError(view, error, surface) {
   const { details, header } = view;
   surface.release(details);
-  const restore = holdFocus(details);
+  const restore = keepFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
   keeps(box, "data-lf-gen", "1");
@@ -960,9 +981,22 @@ function fileError(view, error, surface) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
-    // shadowStage owns the imperative diff; Lit owns no nodes in that stage.
+    // The diff draws in its open root, attached before the first `lf-connect` so Leaf
+    // dresses it then, and Lit owns no nodes there. The root holds Leaf's theme and
+    // one node of the widget's own, whose children are the stage: the files and the
+    // notes no file placed, or a failure, which lasts until the next stage.
     createRenderRoot() {
       return this;
+    }
+    #root = this.attachShadow({ mode: "open" });
+    #stage = Object.assign(document.createElement("div"), {
+      style: "display: contents",
+    });
+    /** @param {Node[]} nodes */
+    #stageNodes(nodes) {
+      if (this.#stage.parentNode !== this.#root) this.#root.append(this.#stage);
+      setChildren(this.#stage, nodes);
+      for (const child of [...this.childNodes]) child.remove();
     }
 
     // The source the last render read, a bound value or an inline patch, and the one
@@ -1021,6 +1055,10 @@ customElements.define(
     }
 
     setup() {
+      placesFailure(this, (box) => {
+        this.#stageNodes([box]);
+        return true;
+      });
       this.singleFile = this.getAttribute("view") === "file";
       this.lfCommands = {
         title: "In a diff review",
@@ -1075,8 +1113,8 @@ customElements.define(
             run: () => {
               const search = this.diffTools?.search;
               if (search) {
-                focusDestination(search, "move");
-                scrollIntoView(search, { block: "nearest" });
+                search.focus({ preventScroll: true });
+                search.scrollIntoView({ block: "nearest" });
               }
             },
           },
@@ -1105,13 +1143,13 @@ customElements.define(
               const search = this.diffTools?.search;
               if (search?.value) {
                 this.clearFilter();
-                focusDestination(search, "return");
+                search.focus({ preventScroll: true });
                 return;
               }
               // The box's container is the patch it filters, so that is where it hands
               // the user back: a blur alone would drop them out of this widget's
               // scope with no ring anywhere, and the file walk would stop answering.
-              focusDestination(this, "return");
+              focusOn(this);
             },
           },
         ],
@@ -1121,24 +1159,31 @@ customElements.define(
       );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, () => {
-        // A page diff's file header pins at `--lf-top`, the top of the page's box that
-        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-        // the module answers it once from the chrome's own mark and paints the answer.
-        this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
-        return () => {
-          this.rendering = (this.rendering ?? 0) + 1;
-          if (this.#showing) this.#shown = undefined;
-          // Leaf retires this surface when it leaves, after this cleanup, and puts
-          // core's views back, so every outlet goes.
-          if (this.threadSeats) {
-            for (const record of this.threadSeats.values()) record.active = false;
-            this.retireThreadOutlets();
-          }
-          this.threadSeats.clear();
-        };
-      });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      // A page diff's file header pins at `--lf-top`, the top of the page's box that
+      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+      // the module answers it once from the chrome's own mark and paints the answer.
+      this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
+    }
+
+    // A move keeps the drawn files and the comment boxes in them.
+    connectedMoveCallback() {}
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.rendering = (this.rendering ?? 0) + 1;
+      if (this.#showing) this.#shown = undefined;
+      // Leaf retires this surface when it leaves, after this cleanup, and puts
+      // core's views back, so every outlet goes.
+      if (this.threadSeats) {
+        for (const record of this.threadSeats.values()) record.active = false;
+        this.retireThreadOutlets();
+      }
+      this.threadSeats.clear();
     }
 
     render() {
@@ -1192,7 +1237,7 @@ customElements.define(
           this.diffTools = null;
           this.filesBody = null;
           this.placeNotes();
-          shadowStage(this, [this.unplacedNotes]);
+          this.#stageNodes([this.unplacedNotes]);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
           return;
@@ -1334,10 +1379,9 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         // The failure box quotes a patch text; a manifest has none to quote. It takes
         // the place of every outlet, which core's composer leaves first. It stands as
-        // the shadow stage, as files do, so it lasts until the next `show` stages
-        // another rendering; an update that leaves the source unchanged keeps it.
+        // the stage, as files do, so it lasts until the next `show` stages another
+        // rendering; an update that leaves the source unchanged keeps it.
         threadSurface(this).release(this);
-        shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         this.markFiles(source);
       }
@@ -1392,7 +1436,7 @@ customElements.define(
     stageFiles() {
       if (!this.filesBody) return;
       this.placeNotes();
-      shadowStage(this, [this.filesBody, this.unplacedNotes]);
+      this.#stageNodes([this.filesBody, this.unplacedNotes]);
     }
 
     // Authored nodes survive source replacement and lazy loading. A closed file
@@ -1761,7 +1805,7 @@ customElements.define(
           ),
         );
       } else if (!opener && fileComment) {
-        const restore = holdFocus(fileComment);
+        const restore = keepFocus(fileComment);
         fileComment.remove();
         restore?.(entry.header);
       }
@@ -1769,7 +1813,7 @@ customElements.define(
         const previous = line.row.firstElementChild;
         if (!previous || (previous.localName === "button") === Boolean(opener))
           continue;
-        const restore = holdFocus(previous);
+        const restore = keepFocus(previous);
         const number = lineNumber(line, Boolean(opener));
         previous.replaceWith(number);
         restore?.(number);
@@ -1970,7 +2014,7 @@ customElements.define(
     // both walks capture the pressing gesture's intent first and land only while it stands.
     /** @param {boolean} back */
     async stepHunk(back) {
-      const mayLand = retainUserIntent();
+      const mayLand = noInputSince();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
       const currentLocation = here
@@ -2001,7 +2045,7 @@ customElements.define(
 
     /** @param {boolean} back */
     async stepFile(back) {
-      const mayLand = retainUserIntent();
+      const mayLand = noInputSince();
       const here = this.hereNode();
       const entries = this.navigationEntries();
       const order = back ? [...entries].reverse() : entries;
@@ -2040,11 +2084,13 @@ customElements.define(
     // order a user tabs through.
     //
     // The landing moves only vertically, including through the shadow host, so neither
-    // the file nor a region around it loses its sideways place.
+    // the file nor a region around it loses its sideways place: the box that scrolls the
+    // row brings it to that box's band (its `scroll-padding`), clear of the row's
+    // `scroll-margin`, gliding, or at once for a user who asked for less motion.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoView(box, { block: "start", behavior: "smooth", sideways: false });
-      focusDestination(node, "move");
+      landAtTop(box, glide());
+      focusOn(node);
     }
 
     entryAroundFocus() {

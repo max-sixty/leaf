@@ -466,7 +466,7 @@ export function createPlayground(host) {
     output,
     interactive,
     pageActions,
-    /** @type {ReturnType<typeof import("/runtime/widget-api.js").copyControl> | null} */
+    /** @type {HTMLElementTagNameMap["wa-copy-button"] | null} */
     copy: null,
     /** @returns {HTMLElement | null} */
     get preview() {

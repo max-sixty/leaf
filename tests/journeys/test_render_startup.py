@@ -313,7 +313,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clockValue} = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfCheckApi();
           const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           window.clockVersion = 0;
@@ -573,12 +573,10 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
             "required": ["id"],
         },
         "content": "empty",
-        "shadow": True,
         "example": '<lf-probe id="probe"></lf-probe>',
     }
-    widget = """import {shadowStage} from '/runtime/widget-api.js';
-import {once} from '/runtime/lib/once.js';
-customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
+    widget = """import {once} from '/runtime/lib/once.js';
+customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';this.attachShadow({mode:'open'}).append(p);this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));}});"""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     held = []
     page.route("**/api/state*", lambda r: held.append(r))

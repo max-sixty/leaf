@@ -573,7 +573,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     template = "() => document.getElementById('tm-held').content.textContent"
     assert page.evaluate(template) == "The first account."
     quoted = (
-        "async () => { const api = await window.__lfWidgetApi();"
+        "async () => { const api = await window.__lfCheckApi();"
         " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
         " return { choose: reading.actions.choose.available,"
         " label: document.getElementById('qt-b').textContent.trim() }; }"
@@ -1032,7 +1032,6 @@ def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser,
                             "required": ["id"],
                         },
                         "content": "markup",
-                        "shadow": True,
                     }
                 },
                 layer_widgets={"lf-gripped.js": GRIPPED},

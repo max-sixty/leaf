@@ -18,7 +18,6 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
 ):
     """Clicks retain the current location; keyboard arrivals show one ring, including carriers."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)
-    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(
@@ -47,7 +46,6 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
             layer_registry={"lf-shadow-focus": declaration},
             layer_widgets={
                 "lf-shadow-focus.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 import {offerAction} from '/runtime/lib/controls.js';
 import {once} from '/runtime/lib/once.js';
 import '/vendor/webawesome.esm.js';
@@ -65,7 +63,8 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
       select.append(option);
     }
     // A widget's own control in its shadow tree, built by role as a widget builds one.
-    shadowStage(this, [offerAction('word', '', 'Shadow button'), select]);
+    this.attachShadow({mode: 'open'}).append(offerAction('word', '', 'Shadow button'), select);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """

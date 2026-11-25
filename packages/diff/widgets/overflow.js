@@ -3,7 +3,7 @@
  * plain-text file, wraps its rows and any other file scrolls them sideways, unless the
  * page author chose one mode for the whole patch (`overflow`).
  */
-import { langForPath } from "/runtime/portable-api.js";
+import { langForPath } from "/runtime/lib/language-paths.js";
 
 /** @param {string} path @param {string | null | undefined} authored */
 export const overflowFor = (path, authored) => {

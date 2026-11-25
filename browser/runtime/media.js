@@ -48,7 +48,7 @@ import {
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./lib/keeps.js";
-import { reducedMotion } from "./motion.js";
+import { reducedMotion } from "./lib/motion.js";
 import { motionTime } from "./lib/motion-timing.js";
 import { says } from "./passages.js";
 import { plainPress } from "./lib/keys.js";
@@ -68,6 +68,9 @@ const MEDIA_SUFFIX = new RegExp(
 /** @param {string} href */
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
+// The address a canonical `/media/...` path loads at on this page. It stays in the
+// package interface because only Leaf holds the page's root and an export's resource
+// map, without which a widget's media from data fails on a published or exported page.
 /** @param {string} href */
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;

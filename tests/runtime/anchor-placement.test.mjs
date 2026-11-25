@@ -20,7 +20,7 @@ import { kept } from "/runtime/kept.js";
 import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js";
 import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 import { random } from "./seeded.mjs";
 
@@ -58,9 +58,7 @@ const stage = (host) => shadowStage(host, [...host.childNodes]);
 
 test("placement stands where a fresh resolution does, after every change", async () => {
   Object.assign(registry, {
-    "lf-staged": {
-      shadow: true,
-    },
+    "lf-staged": {},
     $layer: { generation: "placement-seeded" },
   });
   for (let seed = 1; seed <= 7; seed++) {

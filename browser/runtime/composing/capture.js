@@ -32,7 +32,7 @@ export const selectionAnchor = (sel) => anchorForRange(pageRange(sel));
 // one working the chrome, and it is the question every caller here is really asking.
 //
 // Whether anything is selected is asked of the range the user drew (`pageRange`), not
-// of `isCollapsed`. A drag wholly inside a `shadow` widget comes back from Chrome
+// of `isCollapsed`. A drag wholly inside a widget drawing in its shadow root comes back from Chrome
 // with both ends clamped to the host's one place in the light DOM, so the selection
 // reports itself collapsed while it paints and copies the words: code dragged across in
 // a rendered diff raised no Comment field, and `c` opened a comment on the page with no

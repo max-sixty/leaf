@@ -42,7 +42,7 @@
  * (chrome.css).
  */
 import { chromeRoot } from "./chrome.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { declareSide } from "./current-target.js";
 import { focused, onCurrentLocation } from "./focus.js";
 import { visualAt } from "./anchor-resolution.js";

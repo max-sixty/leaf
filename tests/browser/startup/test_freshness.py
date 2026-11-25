@@ -454,7 +454,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     holding(page, held, 1, "the first state read")
     waiting = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {widgetController} = await window.__lfCheckApi();
           const options = document.querySelector('#options');
           await options.updateComplete;
           const {state} = widgetController(options).read();
@@ -478,7 +478,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clockValue} = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfCheckApi();
           const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           window.probeVersion = 0;

@@ -252,7 +252,6 @@ SHADOW_VISUAL_LAYER = {
             "required": ["id", "parts"],
         },
         "content": "empty",
-        "shadow": True,
         "visual": {"parts": "parts"},
         "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
     }
@@ -385,13 +384,14 @@ flowchart TD
   Gate --> D[load_session_record] &amp; E[apply_rate_limit] &amp; F[write_audit_entry]
 """
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
-# against 720 — and a board beside it held to `wide` by its own `data-width`, so what the
-# assertions turn on is the width each declares rather than that both are widgets.
+# against 720 — given all the room by its `data-width`, and a board beside it held to
+# `wide` by its own, so what the assertions turn on is the width each asks for rather
+# than that both are widgets.
 WIDE_DIAGRAM_PAGE = leaf_page(
     "wide diagram",
     """
 <h1 id="t">Flow</h1>
-<lf-diagram id="flow"><pre>
+<lf-diagram id="flow" data-width="available"><pre>
 graph LR
   R[request] --> C{cookie valid?}
   C -->|yes| S[read session from Redis]
@@ -672,15 +672,16 @@ DRAWING_PLACEMENT = """() => {
              rail: acts.getBoundingClientRect().left,
              small: at('small'), flow: at('flow') };
 }"""
-# Widgets that declare each width beside one that declares none, so what the assertions
-# turn on is the declaration and not the tag: the board takes all the room, the diff the
-# capped width from the prose's edge, and the code block keeps the column.
+# Widgets whose author asks for each width beside one that asks for none, so what the
+# assertions turn on is the width asked for and not the tag: the board takes all the
+# room, the diff the capped width from the prose's edge, and the code block keeps the
+# column.
 WIDE_AND_NARROW_PAGE = leaf_page(
     "room",
     """
 <h1 id="t">Release</h1>
 <p id="prose">The board is as wide as its columns are; this sentence is not.</p>
-<lf-board id="sprint">
+<lf-board id="sprint" data-width="available">
   <lf-column id="col-todo" label="Todo">
     <lf-card id="card-heater" label="Heated perch"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
   </lf-column>
@@ -690,7 +691,7 @@ WIDE_AND_NARROW_PAGE = leaf_page(
   <lf-column id="col-review" label="Review"></lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
-<lf-diff id="wide-patch"><pre>
+<lf-diff id="wide-patch" data-width="wide"><pre>
 diff --git a/feeders/mount.py b/feeders/mount.py
 --- a/feeders/mount.py
 +++ b/feeders/mount.py

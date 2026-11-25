@@ -3,7 +3,7 @@
 // destination, and render() places the entries in the recorded order.
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rankAt } from "/runtime/lib/rank.js";
-import { move } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 
 const ENTRY = "lf-test-entry";
 

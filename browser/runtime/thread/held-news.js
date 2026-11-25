@@ -119,21 +119,7 @@
    the agent's answer to the user's last turn itself shows that answer at once, as the
    floating panel's thread view does (the user's decision, floating-panel.js):
    held, the reply the user waits for stands unseen behind a small notice in their own
-   message's head row.
-
-   `HeldReading` is the same rule for a widget's region whose rows only the log or the
-   clock decides, such as a command's lists of stopped goals and live workers. The first
-   ready reading draws whole. After that, a reading that would change the region's size
-   waits, the region staying as it was, while its growth would be seen, and a control
-   of fixed size the widget already draws says so and shows it.
-
-   No first paint can size such a region, so a widget keeps its rows closed until the
-   reader opens them through that control, as the Atlas plan's Stopped work disclosure
-   does (`examples/command-hub.page/widgets/lf-atlas-plan.js`). The conversation
-   workspace (`examples/corpus.page/widgets/lf-conversation-workspace.js`) is a known
-   exception: it draws its lists at first paint, with "Lists current" as the control.
-   A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
-   it is scrolled, so nothing tells the reader a row is cut off. */
+   message's head row. */
 import { counted } from "../lib/words.js";
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { offerAction } from "../lib/controls.js";
@@ -147,7 +133,6 @@ import { runtime } from "../context.js";
 import { onCurrentLocation, focused } from "../focus.js";
 import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
-import { watchOwner } from "../arrivals.js";
 import { holdUserPlace } from "../user-place.js";
 import { closestAcross } from "../lib/shadow-tree.js";
 import { PRESS } from "../lib/keys.js";
@@ -728,95 +713,6 @@ export class HeldNews {
   dispose() {
     this.#stop();
     holders.delete(this);
-  }
-}
-
-/** One region's reading, held while drawing it would move what the reader sees.
- *  `owner` is the widget, `region()` gives the nodes the reading draws, and `changed()`
- *  draws the widget again.
- *  A reading is a value equal to the one drawn last exactly when it draws at the same
- *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
- *  `reading` where it is the first, where it equals the one drawn last, or where growth
- *  anywhere in the region would move nothing the user sees (geometry.js,
- *  `growthIsSeen`), since a row may change anywhere in it; otherwise the reading drawn
- *  last. What it holds shows when the user opens it (`release` or `show`), or once
- *  that growth would move nothing seen. The wait lasts while `owner` stands: a departure
- *  ends it and a return takes it up again, since a return draws nothing again. Current
- *  activation availability is not a retained presentation: callers refresh it
- *  from its current owner even while the reading holds. */
-/** @template T */
-export class HeldReading {
-  #region;
-  #changed;
-  /** @type {T | null} */
-  #shown = null;
-  #released = false;
-  /** @type {{nodes: readonly Element[], stop: (() => void) | null} | null} */
-  #watch = null;
-
-  /** @param {Element} owner @param {() => readonly Element[]} region @param {() => void} changed */
-  constructor(owner, region, changed) {
-    this.#region = region;
-    this.#changed = changed;
-    // A held watch keeps its nodes while the owner is away, with no stop to call.
-    watchOwner(owner, {
-      connect: () => {
-        if (this.#watch && !this.#watch.stop)
-          this.#watch.stop = whenNone(this.#watch.nodes, growthIsSeen, this.show);
-      },
-      disconnect: () => {
-        this.#watch?.stop?.();
-        if (this.#watch) this.#watch.stop = null;
-      },
-    });
-  }
-
-  /** @param {T} reading @returns {T} */
-  hold(reading) {
-    // Preparation can draw partial authored contributions before the complete log
-    // arrives. That is no baseline for news: the first ready reading stands whole.
-    if (runtime.statePhase !== "ready") {
-      this.#shown = null;
-      this.#stop();
-      return reading;
-    }
-    const nodes = this.#region();
-    if (
-      this.#released ||
-      this.#shown === null ||
-      this.#shown === reading ||
-      !readingIsContinuous() ||
-      !nodes.some((node) => growthIsSeen(node))
-    ) {
-      this.#released = false;
-      this.#shown = reading;
-      this.#stop();
-    } else if (
-      !this.#watch ||
-      this.#watch.nodes.length !== nodes.length ||
-      this.#watch.nodes.some((node, at) => node !== nodes[at])
-    ) {
-      this.#stop();
-      this.#watch = { nodes, stop: whenNone(nodes, growthIsSeen, this.show) };
-    }
-    return this.#shown;
-  }
-
-  // The next reading draws whatever it moves: the user asked, or nobody can see.
-  // `release` leaves the drawing to the caller, which may release several readings
-  // for one paint; `show` draws now.
-  release() {
-    this.#released = true;
-  }
-
-  show = () => {
-    this.release();
-    this.#changed();
-  };
-
-  #stop() {
-    this.#watch?.stop?.();
-    this.#watch = null;
   }
 }
 

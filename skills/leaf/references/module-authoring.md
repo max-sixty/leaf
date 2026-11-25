@@ -58,83 +58,42 @@ the DOM takes the element it acts for as its first argument.
 
 In this file:
 
-- "Connection lifetimes": `whileConnected` holds a connection's listeners and observers.
-- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work,
-  `growthIsSeen` says whether growing now would move what the user sees, and
-  `whileInterfaceConnected` connects a page script to a widget.
-- "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
-  place nodes the module keeps.
-- "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
-  styles.
-- "Scheduling paints": `frameFor` schedules one paint a frame.
+- "Startup and presentation": `whenNear` defers heavy work until the reader comes
+  near.
 - "Contained examples and scoped appearance": `mountSample` mounts a contained Leaf
   page, and `wear` gives an element a scoped appearance.
 
 In [module-state.md](module-state.md):
 
-- "The widget controller": `widgetController` reads what Leaf holds for a widget, the
-  module's own or another's.
-- "State only this tab keeps": `tabStore` keeps a string for this tab, and
-  `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
-  which Leaf remembers, names in the address and returns the user to their place in.
-- "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says`, `named` and `phrasing` read an element's words, and
-  `elementById` finds the element an address names.
-- "Naming": `nameOf`, `titledElement` and `anchorLabel`.
+- "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
-- "Following a reference": `navigateToDatum` takes the user to a part of another
-  widget.
+- "Taking the user somewhere": `go`.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`, `dressCode` and `copyControl`.
 - "Media URLs": `scopedMediaUrl`.
-- "Reading obligations and the On lists": `readObligations`, `readQueues`,
-  `answerWords` and `obligationActions`.
-- "Work hierarchies": `readWork`.
-- "Page history and reports": `readHistory` and `readReports`.
+- "Reading obligations and the On lists": `obligations` and `queues`.
+- "Page history and reports": `history`.
 - "Reading version changes": `comparisonChanges`.
 
 In [module-input.md](module-input.md):
 
-- "Walks": `rowWalk` gives a list of rows its arrow keys.
-- "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
-  redraw, `placeOf` and `onCurrentLocation` read where the user is, and `onPress` and
-  `onPressAway` follow a pointer's press.
-- "Delayed work": `retainUserIntent`.
-- "Pointer presses": `aimedAt` says what a click on a container was for, and
-  `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
-  `leafEditorView` wraps a CodeMirror editor.
+- "Pointer presses": `aimedAt` says what a click on a container was for.
+- "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`, `preserveReadingRegions` and `showReadingSubject`.
-- "Holding the reader's place": `holdPlace` and `HeldReading`.
-- "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
-  `landingInsets` and `shownWindow`.
-- "Motion": `motion` and `backgroundFlash`.
-
 In [module-annotations.md](module-annotations.md):
 
-- "Margin contributions": `registerContribution` and `presentContributionEntry`.
-- "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
-  `threadInput`, `landInThread` and `agentName`.
+- "Margin contributions": `registerContribution`.
+- "Reading and opening Threads from a widget": `threads`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
-
-In [module-previews.md](module-previews.md):
-
-- "Previews": `placePreview`.
-
-In [module-controls.md](module-controls.md):
-
-- "Generated controls": `searchField`.
 
 ### Shared web code
 
@@ -159,17 +118,15 @@ the widget's own module, and gives the element its drawing box. For the widget's
 links the layer's `portable.css`, served beside `/widgets/` (`packages.md`, "Styles and
 composition").
 
-`says()`, `named()` and `motion` are not among the portable functions, so the widget
-does without them, on a Leaf page too:
+On a Leaf page too, the widget:
 
-- In place of `says()` and `named()`, it takes a part's name from an attribute, as
-  `lf-timeline` takes an event's from `label`, and reads a data body with the
+- Takes a part's name from an attribute, as `lf-timeline` takes an event's from
+  `label`, or with the library's `authoredWords`, and reads a data body with the
   library's `data-body.js` or from a bound input (`module-reading.md`, "Reading the
-  page"). It takes no other words from an element the author wrote: on a Leaf page
-  that element can also hold words Leaf wrote, which its `textContent` or a copy of
-  its nodes would carry along.
-- In place of `motion`, it moves a box with a transition in its stylesheet, as
-  `lf-timeline` moves its playhead (`module-scroll-and-motion.md`, "Motion").
+  page").
+- Moves a box with a transition in its stylesheet, as `lf-timeline` moves its
+  playhead, since script motion plays only once a Leaf page has presented
+  (`module-scroll-and-motion.md`, "Motion").
 
 Leaf adds its services through the protocol's properties, events and declarations
 (`module-plain-elements.md`), and a plain host ignores them all: there the widget's
@@ -182,11 +139,11 @@ says nothing aloud. Off Leaf:
   (`module-input.md`, "Command rows").
 - Leaf finds a block's Copy control (`module-reading.md`, "Code") and a quiet word
   (`module-scroll-and-motion.md`, "Notices and spoken words") in the page and in the
-  shadow stages it builds (`shadowStage`), not in a shadow root a page script attaches
-  itself.
-- `tabStore` keeps nothing: a read answers null. Focus, scrolling and controls use the
-  document's native behavior, and `langForPath` reads shipped defaults in place of the
-  page's composed language map.
+  open shadow roots of elements that say `lf-connect`, not in a shadow root a page
+  script attaches itself.
+- Focus, scrolling and controls use the document's native behavior, and the
+  library's `langForPath` reads shipped defaults in place of the page's composed
+  language map.
 - Leaf stops no motion there for a user who asked for less, so the widget's sheet
   declares its motion under `@media (prefers-reduced-motion: no-preference)`.
 
@@ -198,39 +155,35 @@ says nothing aloud. Off Leaf:
 This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
 script", lists.
 
-- Build once, behind a first-connection guard, and hold each connection's listeners,
-  observers and registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
+- Build once, behind a first-connection guard, and end in `disconnectedCallback` what
+  each connection starts beyond the element ("Upgrade", "Connection lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
-- Read the page's words with `says()`, and name a part with `named()`,
-  never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
-  also runs off Leaf imports neither ("A widget that also runs off Leaf").
+- Name a part by the words its author wrote, with the library's `authoredWords`,
+  not with `textContent`, which carries words Leaf and widgets write too
+  (`module-reading.md`, "Reading the page").
 - Build injected controls, and a press that looks like Leaf's controls by its role,
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
   "Words it writes").
-- Keep the widget's visible geometry stable as its state updates ("First paint"), and
-  meet the rest of [interface-goals.md](interface-goals.md).
-- Schedule paints with `frameFor`, observe size through the library's frame pass, and
+- Keep the widget's visible geometry stable as its state updates, and meet the rest of
+  [interface-goals.md](interface-goals.md).
+- Schedule paints and observe size through the library's frame pass, and
   write a value only where it changes ("Scheduling paints", "Writes that change
   nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
   puts it: record what the user makes with `lf-action`, and keep how they look at the
-  widget in `tabStore`.
+  widget in the tab's memory.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
-- Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
-  "Focus and layers").
-- Animate with `motion` or in a stylesheet, never with `element.animate`
-  (`module-scroll-and-motion.md`, "Motion").
+- Animate with the library's `playMotion` or in a stylesheet, never with
+  `element.animate` (`module-scroll-and-motion.md`, "Motion").
 
 ## Upgrade
 
 A custom element builds behind a guard that passes only on its first connection, since
 `connectedCallback` runs again each time a revision or a thread puts the element back.
 The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, and an
-element that imports nothing keeps a flag of its own. Use `disconnectedCallback` only
-for teardown that must happen at once, such as cancelling a grab or removing hoisted
-UI.
+element that imports nothing keeps a flag of its own.
 
 A widget inside an element whose `exhibit` declaration applies (including its optional
 `when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
@@ -247,36 +200,35 @@ where the box goes and what removes it.
 
 ## Connection lifetimes
 
-A revision or a thread can take a widget out of the page and put it back. Behind the
-element's first-connection guard, register `whileConnected(element, start)` once for
-what a connection holds:
+A revision or a thread can take a widget out of the page and put it back. What a
+connection holds beyond the element and the nodes it built, such as a listener on
+`window` or `document`, a registration with Leaf or a timer, starts in
+`connectedCallback` and ends in `disconnectedCallback`. One `AbortController` ends the
+listeners together:
 
 ```js
+#connection = new AbortController();
 connectedCallback() {
-  if (this.built) return;
-  this.built = true;
-  const schedulePaint = frameFor(this, () => this.measure());
-  whileConnected(this, (signal) => {
-    window.addEventListener("resize", schedulePaint, { signal });
-    // What the signal can't end is this connection's cleanup.
-    const sizes = sizeObserver(schedulePaint);
-    sizes.observe(this.body);
-    return () => sizes.disconnect();
-  });
+  if (once(this)) this.build();
+  const { signal } = (this.#connection = new AbortController());
+  window.addEventListener("resize", this.schedulePaint, { signal });
+}
+disconnectedCallback() {
+  this.#connection.abort();
 }
 ```
 
-Leaf calls `start(signal)` now and on each return. When the element leaves, Leaf aborts
-the signal and runs the cleanup `start` returned. If `start` throws, Leaf never calls
-it again. `whileConnected` returns a function that ends the registration for good.
+A listener on the element or on a node it built, and a size observer of them, go with
+the element and need no ending. A `LeafElement` calls `super` in both callbacks.
 
-Moving an element within the page doesn't count as leaving. When a revision replaces a
-widget, the old element's cleanup runs before the new one's `start`, so a registration
-only one element may hold, such as `registerThreadPresentation`, passes to the
-replacement.
+Leaf moves an element with `moveBefore` where the browser has it, which calls the
+element's `connectedMoveCallback` in place of the other two where it defines one. An
+empty one keeps what the connection holds through the move, such as a mounted frame,
+an open card or a scrolled list. Where the browser lacks `moveBefore`, as WebKit does,
+a move leaves and returns.
 
-Have `start` restore what its cleanup removed, and when the element leaves, drop
-unfinished work but keep finished nodes.
+Have `connectedCallback` restore what `disconnectedCallback` removed, and when the
+element leaves, drop unfinished work but keep finished nodes.
 
 ## Revisions
 
@@ -304,7 +256,7 @@ back (`module-input.md`, "Focus and layers").
 Leaf also replaces a widget that declares `lfPatch` when a revision changes what its
 module drew from, which it takes to be the element's own attributes. A module that also
 draws from which children it has, or from their attributes, as a tab strip shows each
-tab's `label`, declares `content: members` or `views`. Leaf then also replaces the
+tab's `label`, declares `content: members`. Leaf then also replaces the
 widget when a direct child is added, removed, reordered or given other attributes.
 Without either declaration the module keeps its first drawing of a child the revision
 changed. Leaf compares only each direct child's tag and attributes, and a revision
@@ -334,24 +286,21 @@ its first measurements there. `lf-page-interface` fires at startup and again whe
 revision is applied in place; UI built from the authored structure rebuilds there and
 passes any asynchronous preparation to `detail.present(promise)`.
 
-A page script reaches a widget's methods only once the widget has upgraded.
-`whileInterfaceConnected(element, {declare, connect})` runs `declare()` once, for what
-the widget accepts once per lifetime, then `connect(signal)` at the first
-`lf-page-interface`, holding presentation until it returns, and again at once on each
-reconnection; the cleanup `connect` returns runs as the element leaves. A playground's
-page script is the worked example (the playground package's author instructions,
-"Stateful previews").
+A page script reaches a widget's methods only once the widget has upgraded, which every
+widget on the page has by the first `lf-page-interface`. A listener for that event
+`{ once: true }` declares what the widget accepts once per lifetime; the page presents
+after its listeners have run. A playground's page script is the worked example (the
+playground package's author instructions, "Stateful previews").
 
-Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`, or until they come near its element through
-`whenNear(element, () => …)`, which returns the step that stops waiting. Hand work that
-starts now but need not delay presentation, such as a slow load whose result moves
-nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wait for
-the page wait for the work each has started; `page check --render` starts what
-`whenNear` holds.
-Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
+Start a heavy renderer that can wait until the user has the page at `lf-presentation`,
+or at once where `body[data-lf-presented]` is already set, and say what it draws with a
+`pending-task` event (`module-plain-elements.md`, "Drawing"): said after presentation,
+it holds the page's readiness rather than its presentation, so checks and tests wait
+for it. Work that starts now but need not delay presentation, such as a slow load whose
+result moves nothing visible, is said the same way once the page has presented. Run one
+that can wait until the reader comes near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting;
+`page check --render` starts what it holds.
 
 ### First paint
 
@@ -361,19 +310,16 @@ readings.
 - Draw a widget's complete view in one place, its `state` setter or its one `render()`.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
   a second initial renderer or transfer generated nodes between renderers.
-- Size the widget in the package theme, including its initial authored drawing.
-  A shadow template uses native slots for authored children, keeping their nodes and
-  browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
-- A widget that shows one member at a time declares `views: {members: "selector"}`;
-  the browser matches the selector against each direct authored child, including
-  while HTML is still arriving. A selector that depends on descendants, such as
-  `:has()`, can change membership as they arrive; use the child's own start tag for
-  stable first-paint membership. Open and keep its members as `module-state.md`, "State
-  only this tab keeps", describes. A holder whose members share the surrounding page's
-  flow declares `flow`, as its members do, so a member's wide blocks and sidebar take
-  the page's room.
+- Size the widget in the package theme, including its initial authored drawing. A
+  custom element is inline until a rule gives it a `display`, so give the tag its
+  `display` there. A shadow template uses native slots for authored children, keeping
+  their nodes and browser state in the light DOM. Where the markup can't say how tall
+  the drawing will be, the page moves once as it draws.
+- A widget that shows one member at a time says in its stylesheet which member stands
+  before its module runs, such as the first with `:not(:defined)`, and opens its members
+  as `module-state.md`, "State only this tab keeps", describes. A holder whose members
+  share the surrounding page's flow declares `flow`, so a member's wide blocks and
+  sidebar take the page's room.
 
 ## Rendering
 
@@ -393,40 +339,41 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Retained nodes
 
-To place nodes the module keeps, use `setChildren(parent, nodes)`, which makes `nodes`
-the parent's only children, moving what is out of order and removing every other child,
-the whitespace between authored elements included, or `move(parent, node, before)` for
-one node. Where nodes move between parents, place every list at once with
-`setChildLists([[parent, nodes], …])`, outer parents first. For a subtree the renderer
-owns entirely, `setRenderedChildren(parent, nodes)` edits only changed text and keeps a
-text selection the user made in it. A `LeafElement` places retained nodes in its
-`render()`, which then returns `nothing`.
+To place nodes the module keeps, use the library's
+[`dom-children.js`](../../../browser/runtime/lib/dom-children.js). Its `setChildren`
+makes a list of nodes a parent's only children, moving what is out of order and
+removing every other child, the whitespace between authored elements included. Where
+nodes move between parents, `setChildLists` places every list at once, outer parents
+first. For a subtree the renderer owns entirely, `setRenderedChildren` edits only
+changed text and keeps a text selection the user made in it. For one node, use the
+browser's `moveBefore`, or the `move` of the library's
+[`dom-move.js`](../../../browser/runtime/lib/dom-move.js), which also keeps the user's
+focus in WebKit. A `LeafElement` places retained nodes in its `render()`, which then
+returns `nothing`.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
-needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
+needs no hold on focus; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
-`placeSelection()` from its `connectedMoveCallback`.
+custom element holding an editor, such as CodeMirror's, writes the editor's selection
+back from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 
-Declare `shadow` where the user should quote and comment on the words a widget's
-shadow root shows; a root attached any other way is opaque to comments.
-
 An element that attaches an open shadow root and says `lf-connect` gets the page's
 shared stylesheet and comment support there (`module-plain-elements.md`,
-"`lf-connect`"), as a `LeafElement` whose class says `static shadow = true` does.
-Attaching the root says where the widget draws, and the tag's `shadow` says the user
-may quote what it draws, so a widget that wants both does both. Use native slots for
+"`lf-connect`"), as a `LeafElement` whose class says `static shadow = true` does: the
+user can quote and comment on the words the root shows. A root attached any other way
+is opaque to comments. The shared stylesheet arrives a moment after the first such
+root connects, so the root's first frame may draw unstyled. Use native slots for
 authored children, and read presentation inputs from the host and those children.
 
-An imperative renderer uses `shadowStage(host, nodes)`, never `attachShadow`; it applies
-the same styles and returns the root. Stage a retained container and render into that
-container. This API clears authored light children and supplies no slots, so read what
-the renderer needs before staging.
-
-On a plain host `shadowStage` stages only the renderer's content; a Leaf page supplies
-its theme, annotation support and page watches from outside the widget.
+Attach the root before the element first says `lf-connect`, as a field of its class
+does, so Leaf dresses it as the element connects: Leaf puts the theme's style node
+first in the root and adds its shared sheets to the root's adopted ones. An imperative
+renderer draws beside that style node, into a retained container of its own, rather
+than replacing the root's children. Where a library it embeds replaces the root's
+adopted sheets, the widget adds back the ones it found there. Off Leaf, nobody answers
+`lf-connect`, and the root holds only what the widget draws.
 
 Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
 sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the
@@ -434,17 +381,14 @@ page's own stylesheet.
 
 ### Scheduling paints
 
-`frameFor(element, paint)` returns a function that schedules one call to `paint` for the
-next render, however often it is called. It does nothing while the element is out of the
-page, and leaving cancels a scheduled paint, so schedule it again from `start`.
-
-Schedule a widget's other rendering work, and observe size, through the library's
+Schedule a widget's rendering work, and observe size, through the library's
 [`frame-pass.js`](../../../browser/runtime/lib/frame-pass.js), in place of
 `requestAnimationFrame` and `new ResizeObserver`. That module holds the one pass per
-frame that every rendering callback on the page runs in, which `frameFor` schedules on,
-and the size observer that goes with it. The page doesn't count as settled until that
-work runs, nor while sizes change, so motion that may run until the user stops it, such
-as playback, calls the browser's `requestAnimationFrame` instead.
+frame that every rendering callback on the page runs in, the size observer that goes
+with it, and `frameFor`, whose function schedules one paint in the next pass however
+often it is called, and paints only while the element stands in the page. The page doesn't count as settled until that work runs, nor while sizes change,
+so motion that may run until the user stops it, such as playback, calls the browser's
+`requestAnimationFrame` instead.
 
 Have a size observer's callback schedule a paint from `frameFor` rather than draw. A
 drawing made inside a size delivery has the browser report a ResizeObserver loop, which

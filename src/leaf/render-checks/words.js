@@ -1,4 +1,4 @@
-import { says } from "/runtime/widget-api.js";
+import { says } from "/runtime/check-api.js";
 import { canvas2D } from "/runtime/lib/canvas.js";
 import {
   colourableAs,

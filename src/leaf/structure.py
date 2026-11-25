@@ -91,25 +91,19 @@ AUTHORED_CLASSES = authored_classes(
     json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
 )
 # The allocations a page occurrence may state, each attribute with the values it takes:
-# a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (`height`), and
-# the page-wide ones. Delivery honours a width, bound or height only where it means
-# something (`authored_on` in the kernel registry's `$marks`), and paints it for the
-# runtime to read.
+# a block's width in the page's flow, whether it bounds its own height, and the
+# page-wide ones. Delivery honours a width or bound only on a block in the page's flow
+# (`$marks` in the kernel registry), and paints it for the runtime to read.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
-    "data-height": re.compile("[1-9][0-9]*"),
     **{attr: tuple(values) for attr, values in PAGE_ALLOCATIONS.items()},
 }
 
 
 def allocation_valid(attr: str, value: str) -> bool:
     """Whether an authored allocation's value is one of the values `attr` takes."""
-    values = AUTHORED_ALLOCATIONS[attr]
-    if isinstance(values, re.Pattern):
-        return values.fullmatch(value) is not None
-    return value in values
+    return value in AUTHORED_ALLOCATIONS[attr]
 
 
 # The script types a browser runs as JavaScript, per the HTML standard: no type, or a
@@ -999,7 +993,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`views.parts`,
+    or on the child of each part of such a `main`'s parts (`parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -1029,7 +1023,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if registry.get(holder.tag, {}).get("views", {}).get("parts")
+            if registry.get(holder.tag, {}).get("parts")
             for part in shown(holder)
             for child in shown(part)
         ]

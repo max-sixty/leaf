@@ -2,7 +2,8 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { startNearWork } from "./presentation.js";
+export { afterPresentation, startNearWork } from "./presentation.js";
+export { clockValue } from "./presence.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
@@ -37,6 +38,9 @@ export {
   userScrollport,
   seenRect,
   growthAfterIsSeen,
+  growthIsSeen,
+  landingInsets,
+  shownWindow,
   stuckBox,
   stackLevel,
   shownParts,
@@ -45,10 +49,13 @@ export { inChrome, uiInside } from "./ui-marks.js";
 export { anchoringIsReady } from "./anchor-resolution.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
+export { presentContributionEntry } from "./contribution-controls.js";
+export { widgetController } from "./widget-controller.js";
 export { NOTICE_MS, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export {
   readingRegions,
+  scrollerFor,
   shownRegionBounds,
   userReadingRegion,
   scrollersOf,
@@ -57,6 +64,7 @@ export {
   readingRegion,
   unconcealedReadingRegions,
   regionScrollBehavior,
+  preserveReadingRegions,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { carriersOf } from "./scroll-containers.js";
@@ -65,6 +73,7 @@ export {
   pageDocument,
   inPage,
   quoteFrom,
+  says,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
   pageText,
@@ -91,9 +100,13 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  focusDestination,
   focused,
   handBack,
+  holdFocus,
   onCurrentLocation,
+  onPressAway,
+  onUserInput,
   releaseFocus,
   ringBox,
   takesLetters,
@@ -113,6 +126,7 @@ export {
   restorePlace,
 } from "./reading-place.js";
 export { replaceEntry } from "./history.js";
+export { retainUserIntent } from "./user-intent.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
@@ -123,7 +137,7 @@ export {
 } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
-export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+export { fitsWhole, alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export {
   browserScrolls,
   holdScroll,
@@ -151,6 +165,7 @@ export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
+export { anchorLabel } from "./thread/messages.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";

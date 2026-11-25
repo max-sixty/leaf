@@ -1,9 +1,20 @@
-/* The rules that dress both sides of a shadow boundary. A widget declaring `shadow`
+/* The rules that dress both sides of a shadow boundary. A widget drawing in its shadow root
  * renders into a tree no document selector reaches (runtime/shadow-stage.js), and the
  * controls, threads and composer a widget seats there are the layer's own. So what they
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
+/* A bounded block scrolls within its stated height, in the document or in a widget's
+ * shadow root, where a module bounds the box it scrolls and keeps its own caption
+ * outside the scroller (`data-lf-bound`, runtime/bounds.js). */
+@media screen {
+  [data-lf-bound] {
+    max-block-size: var(--lf-bound, 28rem);
+    overflow: auto;
+    --lf-top: 0px;
+    --lf-holds-height: 1;
+  }
+}
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
    the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
@@ -80,8 +91,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     margin-right: 0;
   }
 }
-/* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * `shadow` widget's stage (runtime/lib/failure.js). Its face is the sans the
+/* Where a widget upgrade fails, it fails soft into this box, in the document or in a
+ * shadow-root widget's stage (runtime/lib/failure.js). Its face is the sans the
  * theme gives other labels (.lf-tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
@@ -215,7 +226,7 @@ a[data-lf-external]::after,
  * list of the tags and roles that count, so a role a widget reaches for next year is a
  * pressable the day its module names it.
  *
- * In this file, because a widget declaring `shadow` builds its controls in a tree
+ * In this file, because a widget drawing in its shadow root builds its controls in a tree
  * the document's stylesheet does not reach, and a floor that stopped at the light DOM
  * would be a floor the newest kind of widget is the one to fall through. */
 /* Every box's outline stands where the box says its marks stand (base.css, "Where it

@@ -23,7 +23,7 @@ import {
   ref,
   render,
 } from "/runtime/framework.js";
-import { setRenderedChildren } from "../dom-children.js";
+import { setRenderedChildren } from "../lib/dom-children.js";
 import { generatedElement, worksInside } from "../widget-elements.js";
 import { offeredAction } from "../lib/controls.js";
 import {
@@ -82,7 +82,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../lib/keeps.js";
 import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
-import { motion } from "../motion.js";
+import { playMotion } from "../lib/motion.js";
 import { motionTime } from "../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
@@ -732,7 +732,9 @@ export function messageReading(
 // answers for restoration and reduced motion.
 /** @param {Element} node */
 export const arrivalTint = (node) =>
-  motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], motionTime("--lf-motion-flash"));
+  playMotion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], {
+    duration: motionTime("--lf-motion-flash"),
+  });
 
 export class MessageView {
   #commands;
@@ -751,7 +753,7 @@ export class MessageView {
   // edit replaces.
   /** @type {readonly ChildNode[] | null} */
   #dressed = null;
-  /** @type {ReturnType<typeof motion> | null} */
+  /** @type {Animation | null} */
   #arrivalMotion = null;
   /** @type {(() => void) | null} */
   #stopRead = null;

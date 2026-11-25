@@ -21,7 +21,7 @@ import { reportCarried, sameLayer } from "./layer-client.js";
 import { afterOwedFrame } from "./rendering.js";
 import { countTraffic } from "./traffic.js";
 import { holdUserPlace } from "./user-place.js";
-import { observeServerNow, observeWorkingGrace } from "./presence.js";
+import { observeServerNow } from "./presence.js";
 import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
@@ -241,7 +241,6 @@ export function createStateApplication({
       }
       islands.commit();
       observeServerNow(state.now);
-      observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;
       try {
         // Optional interface preparation joins imports and installation, without

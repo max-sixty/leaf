@@ -5,7 +5,7 @@
    that loops over tag names or repeats that traversal is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
-import { installLanguagePaths } from "./language-paths.js";
+import { installLanguagePaths } from "./lib/language-paths.js";
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
 import { kept, version } from "./kept.js";
@@ -124,7 +124,11 @@ export const recordedWidgetSelector = (record) =>
 // declaration under its tag, or a shared `$` declaration, which belongs to the layer
 // rather than to one widget. Each `$` one is frozen on adoption, so a package module
 // reads its cross-widget vocabulary without a registry write path, and a reader called
-// per element copies nothing.
+// per element copies nothing. It stays in the package interface because only Leaf holds
+// the registry it composes from the page's packages, and a widget that composes another
+// package's widgets reads their facts there (root AGENTS.md, "Keep the layer open"), as
+// lf-board reads the `awaits` and `verbs` of the widget a card shows. No property,
+// event or attribute an element states carries another tag's declaration.
 /** @param {string} name */
 export const layerFact = (name) => registry[name];
 

@@ -1,10 +1,9 @@
 /** CodeMirror owns editing, selection, history and conflict presentation.
  * The surrounding widget alone owns file revisions and disk writes.
  */
-import { langForPath, leafEditorView } from "/runtime/widget-api.js";
+import { langForPath } from "/runtime/lib/language-paths.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { syntaxNow } from "/runtime/lib/syntax-tokens.js";
-import * as codemirror from "/vendor/codemirror.esm.js";
 import {
   Annotation,
   ChangeSet,
@@ -49,7 +48,15 @@ import {
 } from "/vendor/extensions.esm.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
-const LeafEditorView = leafEditorView(codemirror);
+// A view of the file in `parent`, its scroller a box whose place Leaf keeps across a
+// revision (`data-lf-scroll`). CodeMirror reveals its caret and takes focus its own
+// way.
+/** @param {EditorState} state @param {Element} parent */
+const viewOf = (state, parent) => {
+  const view = new EditorView({ state, parent });
+  view.scrollDOM.toggleAttribute("data-lf-scroll", true);
+  return view;
+};
 // Put the editor's scroller where a file was left, unless it stands there.
 /** @param {Element} port @param {{top: number, left: number}} at */
 const placeScroll = (port, at) => {
@@ -564,8 +571,8 @@ export function createEditor(
     write(changesBetween(reading().doc.toString(), value), mark);
   };
   let retained = state(text);
-  /** @type {InstanceType<typeof LeafEditorView> | null} */
-  let view = new LeafEditorView({ state: retained, parent });
+  /** @type {EditorView | null} */
+  let view = viewOf(retained, parent);
   let scroll = { top: 0, left: 0 };
   const reading = () => view?.state ?? retained;
   const dispatch = (
@@ -703,13 +710,26 @@ export function createEditor(
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.
     revealCaret,
-    // A move by `moveBefore` collapses the native selection in the view it keeps.
+    // A move by `moveBefore` collapses the native selection in the view it keeps,
+    // which CodeMirror would read back as a caret at the start: write the view's own
+    // selection back while it holds focus. Firefox and WebKit lack
+    // ShadowRoot.getSelection; the document holds theirs.
     placeSelection() {
-      view?.placeSelection();
+      if (!view || view.root.activeElement !== view.contentDOM) return;
+      const { anchor, head } = view.state.selection.main;
+      const from = view.domAtPos(anchor);
+      const to = view.domAtPos(head);
+      (/** @type {ShadowRoot & {getSelection?: () => Selection | null}} */
+      (view.root).getSelection?.() ?? document.getSelection())?.setBaseAndExtent(
+        from.node,
+        from.offset,
+        to.node,
+        to.offset,
+      );
     },
     connect() {
       if (view) return;
-      view = new LeafEditorView({ state: retained, parent });
+      view = viewOf(retained, parent);
       placeScroll(view.scrollDOM, scroll);
       resize?.observe(view.scrollDOM);
     },

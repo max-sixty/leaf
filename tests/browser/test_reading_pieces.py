@@ -22,10 +22,10 @@ SLOT_MOVE = """async ([first, change]) => {
   const entry = new URL(document.querySelector("script[data-lf-entry]").dataset.lfEntry, location.href);
   const P = await import(new URL("runtime/passages.js", entry).href);
   const { registry } = await import(new URL("runtime/registry.js", entry).href);
-  const { shadowStage } = await import(new URL("runtime/shadow-stage.js", entry).href);
+  const { adoptShadowStage } = await import(new URL("runtime/shadow-stage.js", entry).href);
   let generation = 0;
   const fresh = () => {
-    registry["lf-staged"] = { shadow: true };
+    registry["lf-staged"] = {};
     registry.$layer = { ...registry.$layer, generation: `pieces-${(generation += 1)}` };
   };
   const datum = (id, inner) =>
@@ -35,7 +35,9 @@ SLOT_MOVE = """async ([first, change]) => {
   document.querySelector("#outro").before(host);
   const template = document.createElement("template");
   template.innerHTML = datum("ps", `<p id="sp">Staged ${first}</p>`) + datum("pt", "<p><slot></slot></p>");
-  shadowStage(host, [...template.content.childNodes]);
+  const stage = host.attachShadow({ mode: "open" });
+  stage.append(...template.content.childNodes);
+  adoptShadowStage(stage);
   host.innerHTML = "<i>Other</i>";
   for (const root of P.readingParts()) P.pageText(root);
   const sp = host.shadowRoot.getElementById("sp");

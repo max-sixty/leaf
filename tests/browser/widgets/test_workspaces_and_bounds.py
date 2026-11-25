@@ -105,8 +105,8 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
     """A bound inside a document keeps its own reading position but lets the user
     continue down the document once its last line is reached."""
     content = (
-        '<lf-text-document id="reader" source="capture" label="Run log" '
-        'data-bound="start"></lf-text-document>'
+        '<lf-text-document id="reader" source="capture" label="Run log">'
+        "</lf-text-document>"
         if captured
         else '<div id="reader" data-bound="start">'
         + "<p>Run log line</p>" * 100
@@ -445,7 +445,7 @@ def clear_of_the_bottom_chrome(page, selector):
     row, which a page's end clears only by the end padding its Layout keeps."""
     return page.evaluate(
         """async selector => {
-          const {scrollerFor} = await window.__lfWidgetApi();
+          const {scrollerFor} = await window.__lfCheckApi();
           const target = document.querySelector(selector);
           const scroller = scrollerFor(target) ?? document.scrollingElement;
           scroller.scrollTop = scroller.scrollHeight;
@@ -556,7 +556,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     # the box the user sees move.
     carrier = page.evaluate(
         """async () => {
-          const {scrollerFor} = await window.__lfWidgetApi();
+          const {scrollerFor} = await window.__lfCheckApi();
           return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
         }"""
     )
@@ -1119,51 +1119,6 @@ def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
         page.mouse.wheel(-300, 0)
         page.wait_for_function("() => window.lfWheelEnded")
         assert page.evaluate(at_end, "wheeled-log")
-
-
-def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
-    browser, serve
-):
-    """The host names its scrolling box even when a nested bound has a match first.
-    Replacing that box registers its successor and resumes following its end."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Nested bounded listings",
-                '<h1>Logs</h1><div id="outer" data-bound="end">'
-                '<div id="inner" data-bound="start"><div class="listing">'
-                + "<p>Nested entry</p>" * 30
-                + '</div></div><div id="listing" class="listing"></div></div>',
-                head="""<style>
-                  #outer { --lf-bound-box: .listing; max-block-size: none;
-                    overflow: visible; }
-                  #inner, #outer > .listing { max-block-size: 120px; overflow: auto; }
-                </style>""",
-            )
-        ),
-    )
-    regions = """async () => {
-      const { readingRegions } = await window.__lfCheckApi();
-      return Object.fromEntries(readingRegions()
-        .filter(({host}) => ['outer', 'inner'].includes(host.id))
-        .map(({host, body}) => [host.id, body.id]));
-    }"""
-    assert page.evaluate(regions) == {"outer": "listing", "inner": "inner"}
-    page.evaluate(
-        """() => {
-          const box = document.createElement('div');
-          box.id = 'replacement'; box.className = 'listing';
-          box.innerHTML = '<p>Arrived entry</p>'.repeat(60);
-          document.getElementById('listing').replaceWith(box);
-        }"""
-    )
-    page.wait_for_function(
-        """() => { const box = document.getElementById('replacement');
-          return box.scrollHeight > box.clientHeight &&
-            box.scrollHeight - box.scrollTop - box.clientHeight <= 2; }"""
-    )
-    assert page.evaluate(regions) == {"outer": "replacement", "inner": "inner"}
 
 
 def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):

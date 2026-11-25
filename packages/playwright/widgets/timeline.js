@@ -17,8 +17,7 @@
  * milliseconds from the recording's origin.
  */
 import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
-import { frameFor, whileConnected } from "/runtime/widget-api.js";
-import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { layoutPx } from "/runtime/lib/keeps.js";
 import { textWidth as measure } from "/runtime/lib/text-width.js";
 import {
@@ -116,10 +115,7 @@ export class RecordingTimeline {
     this.#options = options;
     this.#observer = sizeObserver(() => this.#resized());
     this.#queueRuler = frameFor(host, () => this.#drawRuler());
-    whileConnected(host, () => {
-      this.#observeScroller();
-      return () => this.#observer.disconnect();
-    });
+    this.#observeScroller();
   }
 
   /** @param {string} selector @returns {HTMLElement | null} */
@@ -137,7 +133,7 @@ export class RecordingTimeline {
 
   // The scroller arrives with the first drawing, which can follow the connection.
   #observeScroller() {
-    if (this.scroller && this.#host.isConnected) this.#observer.observe(this.scroller);
+    if (this.scroller) this.#observer.observe(this.scroller);
   }
 
   /** The visible window, in recording time, for restoring a scope's view. */

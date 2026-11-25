@@ -53,13 +53,11 @@ export function addressableWord(addressable) {
 
 // A widget's word for its kind: the `aria-roledescription` its element carries, which
 // its author writes in markup or the widget that owns it writes as it builds, as a
-// playground does on each preset; else what its module answers from `lfWord()` where
-// `element` is drawn and has the method; else its tag without the `lf-` prefix.
+// playground does on each preset; else its tag without the `lf-` prefix.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
   return (
     element?.getAttribute("aria-roledescription")?.trim() ||
-    element?.lfWord?.() ||
     (tag.startsWith("lf-") ? tag.slice(3) : "")
   );
 }

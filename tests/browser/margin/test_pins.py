@@ -229,7 +229,7 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     toggle = row.locator(".lf-margin-more")
     expect(toggle).to_have_attribute("aria-expanded", "false")
     expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
-    expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
+    expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, suggestion"))
     reading = pin_reading(page, "s")
     # The toggle alone, over no word of the page.
     assert len(reading["entries"]) == 1, reading["entries"]

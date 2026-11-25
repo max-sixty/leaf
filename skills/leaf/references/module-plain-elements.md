@@ -248,8 +248,8 @@ this.dispatchEvent(hold);
   `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
   (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
   `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
-- **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
-  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
+- **The parts a link reaches, its threads and its revisions.** `lfRevealDatum()`,
+  `lfElementsFor()`,
   `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Taking the user somewhere"),
   `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").

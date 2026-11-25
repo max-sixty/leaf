@@ -3894,6 +3894,10 @@ STATES = (
     ),
     # Its threads on the user's turn, tinted and saying so at their ends.
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
+    # Suggestions, each a group named by its word and its old and new words.
+    State(
+        "page-map-suggestions", "release-notes", page_map, region=".lf-page-map-dialog"
+    ),
     State("plan-card", "review-a-plan", card_by_pointer),
     State("control-preview", "review-a-plan", control_preview),
     State("thread-preview", "review-a-plan", thread_preview),

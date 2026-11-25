@@ -377,14 +377,6 @@ interface ShadowRoot {
   ): void;
 }
 
-interface Element {
-  /** The word a widget's module names its kind by where it depends on the element
-   * (`lib/element-word.js`, `widgetWord`); a fixed word is the element's
-   * `aria-roledescription`. */
-  lfWord?(): string;
-  lfSays?(): string;
-}
-
 interface HTMLElement {
   cloneNode(deep?: boolean): HTMLElement;
 }

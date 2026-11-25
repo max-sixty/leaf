@@ -605,7 +605,7 @@ customElements.define(
       const readings = this.#readings();
       const card = this.#open;
       const count = readings
-        ? tallyWords(tally(obligations.read(this).all), "the agent")
+        ? tallyWords(tally(obligations.read(this).all), queues.read().agent)
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
@@ -688,7 +688,7 @@ customElements.define(
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
       if (held.some((item) => item.state !== "done"))
-        return ["Waiting on the agent", "leaf"];
+        return [`Waiting on ${queues.read().agent}`, "leaf"];
       const words = held
         .map((item) => answerWords(item))
         .filter(Boolean)

@@ -441,7 +441,7 @@ customElements.define(
       if (this.#editor) return;
       if (this.#sending) {
         window.dispatchEvent(
-          new CustomEvent("lf-error", {
+          new CustomEvent("lf-announce", {
             detail: "Wait for the current edit to finish saving",
           }),
         );

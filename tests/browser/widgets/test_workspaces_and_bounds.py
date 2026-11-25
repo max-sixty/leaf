@@ -563,27 +563,9 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     assert carrier == "cells", carrier
 
 
-ZONE_PACKAGE = {
-    "lf-zone": {
-        "description": "A project package's differently named pane.",
-        "attributes": {
-            "properties": {"label": {"type": "string"}},
-            "required": ["id", "label"],
-        },
-        "content": "markup",
-        "reading-role": "pane",
-    }
-}
-
-
 NESTED_PANES_PAGE = leaf_page(
     "a pane in a pane's body",
     """<div id="cells">
-  <lf-zone id="outer-zone" label="Zones"><div>
-    <lf-zone id="inner-zone" label="Inner zone"><div>
-      <p>A zone's reading.</p><div style="height: 900px"></div>
-    </div></lf-zone>
-  </div></lf-zone>
   <lf-pane id="outer-pane" label="Panes"><div>
     <lf-pane id="inner-pane" label="Inner pane"><div>
       <p>A pane's reading.</p><div style="height: 900px"></div>
@@ -595,22 +577,20 @@ NESTED_PANES_PAGE = leaf_page(
 )
 
 
-def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
-    """Which panes a full-height workspace scrolls is read from the pane role, whichever
-    package names the tag. A package's pane that is a cell of the body scrolls its own
-    body, and one written inside that pane's body is content there and scrolls with it,
-    exactly as lf-panes nested the same way do. The role arrives with the document, so
-    the workspace holds the same panes while the runtime has not started."""
+def test_a_pane_in_a_panes_body_scrolls_with_it(browser, serve):
+    """A pane that is a cell of a full-height workspace's body scrolls its own body,
+    and one written inside that pane's body is content there and scrolls with it. The
+    role arrives with the document, so the workspace holds the same panes while the
+    runtime has not started."""
     boot = []
     context = browser.new_context(viewport={"width": 1280, "height": 720})
     page = context.new_page()
     page.route("**/leaf.js", lambda route: boot.append(route))
-    url = serve(NESTED_PANES_PAGE, layer_registry=ZONE_PACKAGE)
+    url = serve(NESTED_PANES_PAGE)
 
     def scroll_behaviors():
-        for tag in ("zone", "pane"):
-            pane_scroll_behavior(page, page.locator(f"#outer-{tag}"), "bounded")
-            pane_scroll_behavior(page, page.locator(f"#inner-{tag}"), "flow")
+        pane_scroll_behavior(page, page.locator("#outer-pane"), "bounded")
+        pane_scroll_behavior(page, page.locator("#inner-pane"), "flow")
 
     try:
         with page.expect_request("**/leaf.js"):

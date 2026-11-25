@@ -656,8 +656,8 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
 
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):
     """A rewrite's slots are two words apart on the page and no characters apart in
-    the text, so a thread anchored on one would be quoted as "redblue". The module that
-    names its own kind (`lfWord`) names its own words the same way (`lfSays`)."""
+    the text, so a thread anchored on one would be quoted as "redblue". The chrome says
+    a suggestion's slots apart, old words before new."""
     url = serve(
         leaf_page(
             "rewrite",
@@ -668,7 +668,7 @@ def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve)
     root = panel_comment(serve.page_dir, "Neither.", {"section": "swap"})
     page = open_page(browser, url)
     expect(open_from_threads(page, root).locator(".lf-quote-label")).to_have_text(
-        "§ rewrite · red → blue"
+        "§ suggestion · red → blue"
     )
 
 

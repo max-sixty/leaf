@@ -244,9 +244,6 @@ interface WindowEventMap {
    * where the user has left that stop (`lib/widget-events.js`, `WALK`;
    * `walk-position.js`). */
   "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace | null>;
-  /** A widget's words for something the user did that has not taken, which Leaf keeps
-   * in its Errors list (`errors.js`). */
-  "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -375,14 +372,6 @@ interface ShadowRoot {
     listener: EventListenerOrEventListenerObject | null,
     options?: boolean | EventListenerOptions,
   ): void;
-}
-
-interface Element {
-  /** The word a widget's module names its kind by where it depends on the element
-   * (`lib/element-word.js`, `widgetWord`); a fixed word is the element's
-   * `aria-roledescription`. */
-  lfWord?(): string;
-  lfSays?(): string;
 }
 
 interface HTMLElement {

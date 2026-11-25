@@ -359,8 +359,8 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(page.locator(".lf-composer")).to_contain_text("Should we keep it?")
     drop()
 
-    # A decision with no seat: focus on its action names the rewrite, and the composer
-    # anchors there rather than on the page.
+    # A decision with no seat: focus on its action names the suggestion, and the
+    # composer anchors there rather than on the page.
     rendered(page)
     rewrite_action = suggestion_control(page, "sug-window", "accept")
     rewrite_action.focus()
@@ -368,7 +368,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(page.locator("#sug-window")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("rewrite")
+    expect(page.locator(".lf-composer")).to_contain_text("suggestion")
     drop()
 
     # A link inside a question, open and settled: the same markup, and the same answer.

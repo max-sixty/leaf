@@ -55,7 +55,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
     thread = page.evaluate(
-        """async () => (await window.__lfWidgetApi()).readThreads().threads[0].id"""
+        """async () => (await window.__lfWidgetApi()).threads.read().threads[0].id"""
     )
     open_panel_thread(page, thread)
 

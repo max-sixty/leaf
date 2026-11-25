@@ -59,8 +59,8 @@ import { render } from "/vendor/lit.js";
 import {
   comparisonChanges,
   holdFocus,
-  readObligations,
-  readThreads,
+  obligations,
+  threads,
   named,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -193,8 +193,8 @@ customElements.define(
       this.#drawing.mark(
         main
           ? sectionMarks(main, standing, {
-              threads: readThreads().threads,
-              onMe: readObligations(main).user,
+              threads: threads.read().threads,
+              onMe: obligations.read(main).user,
               changes: comparisonChanges(main),
             })
           : new Map(),

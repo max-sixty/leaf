@@ -176,7 +176,7 @@
       ]
     </script>
     <script type="module">
-      import { connection, generate, readObligations } from "/runtime/widget-api.js";
+      import { connection, generate, obligations } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
       import { presented } from "/runtime/lib/presented.js";
@@ -233,7 +233,7 @@
       });
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
+        const item = obligations.read().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;

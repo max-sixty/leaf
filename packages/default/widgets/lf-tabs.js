@@ -72,7 +72,7 @@
  * Once every one is answered it shows a check, with the answer's own words where the panel
  * holds one obligation. So a queue shows each obligation's state and how far the user has
  * worked through it, and an undo that reopens an obligation puts On Me's symbol back. Which
- * obligations a panel holds is `readObligations(panel)`, read from the admitted obligation
+ * obligations a panel holds is `obligations.read(panel)`, read from the admitted obligation
  * inventory, so a tally of the queue counts the same obligations. A row whose panel's
  * markup asks the user something keeps the line's room either way (`asks`), so an answer
  * moves no row. While the version diff is on, each tab
@@ -85,7 +85,7 @@ import {
   answerWords,
   backgroundFlash,
   comparisonChanges,
-  readObligations,
+  obligations,
   focusDestination,
   scrollIntoView,
 } from "/runtime/widget-api.js";
@@ -413,7 +413,7 @@ export class TabSet extends LeafElement {
     const changed = comparisonChanges(panel).length;
     // A side list's row keeps the answer's room where its panel's markup asks the user
     // something.
-    const held = this.#down ? readObligations(panel) : null;
+    const held = this.#down ? obligations.read(panel) : null;
     const hasAnswer = Boolean(held?.asks);
     const items = held?.asks ? held.all : [];
     // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn items

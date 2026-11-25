@@ -695,3 +695,50 @@ def test_a_plain_element_draws_the_report_in_force_from_its_state(
 
     navigate(page, url)
     expect(worker).to_have_text("working: checking the mount prices")
+
+
+FEED = {
+    "lf-plain-feed": {
+        "description": "What the agent last reported, read from the page's history.",
+        "attributes": {"required": ["id"]},
+        "content": "empty",
+        "history": True,
+    }
+}
+FEED_MODULE = """import { history } from "/runtime/widget-api.js";
+customElements.define("lf-plain-feed", class extends HTMLElement {
+  connectedCallback() {
+    const draw = () => {
+      const report = history.read().events.find((row) => row.kind === "report");
+      const said = report?.excerpt ?? "nothing reported";
+      if (this.textContent !== said) this.textContent = said;
+    };
+    history.addEventListener("change", draw);
+    draw();
+  }
+});"""
+
+
+def test_a_plain_element_follows_a_page_reading_by_its_change(browser, serve):
+    """A page reading says `change` as its value moves, so an element that follows no
+    signal draws each new value: here the newest report in the page's history, as a
+    report arrives behind the open page."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Roster",
+                '<lf-plain-worker id="wren" state="idle"></lf-plain-worker>'
+                '<lf-plain-feed id="feed"></lf-plain-feed>',
+            ),
+            layer_registry={**WORKER, **FEED},
+            layer_widgets={
+                "lf-plain-worker.js": WORKER_MODULE,
+                "lf-plain-feed.js": FEED_MODULE,
+            },
+        )
+    )
+    page = open_page(browser, url)
+    feed = page.locator("#feed")
+    expect(feed).to_have_text("nothing reported")
+    report_working(page, serve.page_dir)
+    expect(feed).to_have_text("checking the mount prices")

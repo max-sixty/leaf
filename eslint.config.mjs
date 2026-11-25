@@ -61,6 +61,7 @@ const browserGlobals = Object.fromEntries(
     "ErrorEvent",
     "Event",
     "EventSource",
+    "EventTarget",
     "FileReader",
     "FocusEvent",
     "HTMLAnchorElement",

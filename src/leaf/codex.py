@@ -1933,7 +1933,7 @@ RECORD_SCHEMA = {
         ),
     ],
 }
-RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
+RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14, kept=("batches/*/page",))
 
 
 def read_record(path: Path) -> DeliveryRecord | None:
@@ -1966,7 +1966,7 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
     history = path.parent / "history"
     history.mkdir(parents=True, exist_ok=True)
     for archived in history.glob("*.json"):
-        retire_if_gone(archived)
+        retire_if_gone(RECORD, archived)
     path.replace(history / path.name)
     return True
 
@@ -1992,7 +1992,7 @@ def retire_gone_task_records() -> None:
         with flocked(directory.with_suffix(".delivery.lock")):
             history = directory / "history"
             for path in (*directory.glob("*.json"), *history.glob("*.json")):
-                retire_if_gone(path)
+                retire_if_gone(RECORD, path)
             for emptied in (history, directory):
                 if emptied.is_dir() and not any(emptied.iterdir()):
                     emptied.rmdir()
@@ -2007,7 +2007,7 @@ def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
         return []
     records = []
     for path in directory.glob("*.json"):
-        if retire_if_gone(path):
+        if retire_if_gone(RECORD, path):
             continue
         record = read_record(path)
         if record is None:

@@ -11,7 +11,7 @@ from typing import TypedDict
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -162,6 +162,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     assert f"`leaf thread reply {ref}` answers it" in owed_note()
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    hooks_run_this_tree("s2")
     assert service_model.claim_page(claimed)
     noted = owed_note()
     assert ref not in noted
@@ -541,6 +542,7 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
     reference = response_reference(page_dir, comment)
     cleanup_model.end_session("coordinator")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     result = CliRunner().invoke(
         cli_model.cli,

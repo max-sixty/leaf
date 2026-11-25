@@ -344,8 +344,8 @@ function follow($: EngineInterface, session: string) {
   void (async () => {
     let line = "";
     let stderr = "";
-    // Whether it ended to be started again under the Leaf the session's delivery
-    // runs now, which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
+    // Whether it ended to be started again from its tree as that tree now stands,
+    // which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
     let renewed = false;
     try {
       for await (const chunk of stream) {

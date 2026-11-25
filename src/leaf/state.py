@@ -276,6 +276,26 @@ def hooks_root(session_id: str) -> Path | None:
     return Path(marked.rpartition("\n")[0])
 
 
+def hooks_run_here(session_id: str) -> bool:
+    """Whether the session's hooks last ran this Leaf (`hooks_root`); no hook having
+    run reads as no."""
+    return hooks_root(session_id) == PLUGIN_ROOT
+
+
+def runs_session(session_id: str) -> bool:
+    """Whether this Leaf may act for the session `session_id`, judged by facts a
+    process has as it starts: it is a copy a harness installed, as the copy a session
+    loaded is, or a checkout the session's hooks run (`hooks_run_here`), as one
+    Claude Code loads in place (`--plugin-dir`) is. Any other checkout, such as one
+    whose `bin/leaf` runs from the session's shell, acts for no session
+    (`harness.session_harness`), before the session's first hook as after it. An
+    installed copy acts for the session even where its hooks last ran another copy,
+    as a script does that runs `leaf` before the first hook of a process that loaded
+    an update; `LoadedCopy.successor` and `vendoring.renew_held` reconcile the
+    copies."""
+    return installed_copy(PLUGIN_ROOT) or hooks_run_here(session_id)
+
+
 class LoadedCopy:
     """The installed copy of Leaf this process loaded, held so that a process that
     outlives the hooks that start it can tell once another copy should run it: a
@@ -460,15 +480,28 @@ class Record(Generic[_RecordValue]):
     takes only a record at this format. A record at another format or with none
     reads as absent, as a missing file does, and the next write replaces it.
     Every write replaces the file whole, so a file that is not JSON no Leaf
-    wrote, and reading it raises, naming the file."""
+    wrote, and reading it raises, naming the file.
 
-    def __init__(self, kind: str, schema: dict, *, since: int):
+    `kept` names the keys every shape of the kind keeps, with the meaning and schema
+    this one gives them, for a Leaf that must read a record another Leaf wrote in
+    another shape (`read_any`). Each is a key, or a path through the record whose `*`
+    stands for each item of a list, as `batches/*/page`. The build refuses a shape
+    that drops one or changes its schema (`build/browser/protocol.mjs`), but lets a
+    kept key's `anyOf` gain variants: a new kind of session lifetime is a variant of
+    `SESSION`'s `lifetime` and a reading in `service.session_lives`, and an older
+    Leaf reads a value it doesn't know as the session still live
+    (`layer-registry.md`, "Page protocol")."""
+
+    def __init__(
+        self, kind: str, schema: dict, *, since: int, kept: tuple[str, ...] = ()
+    ):
         if kind in RECORDS:
             raise ValueError(f"two records declare the kind {kind}")
         RECORDS[kind] = self
         self.kind = kind
         self.schema = schema
         self.since = since
+        self.kept = kept
 
     @property
     def format(self) -> str:
@@ -482,6 +515,23 @@ class Record(Generic[_RecordValue]):
             return None
         del stored["format"]
         return cast(_RecordValue, stored)
+
+    def read_any(self, path: Path) -> dict | None:
+        """The record at `path` whichever Leaf wrote it: whole, less its `format`,
+        where it is of this Leaf's shape, and otherwise the keys every shape of the
+        kind keeps (`kept`); None where there is no record of this kind, or one that
+        lacks a kept key its kind requires."""
+        stored = stored_record(path)
+        if stored is None or (since := self.since_of(stored)) is None:
+            return None
+        if since == self.since:
+            del stored["format"]
+            return stored
+        kept: dict = {}
+        for named in self.kept:
+            if not _keep(stored, named.split("/"), kept, self.schema):
+                return None
+        return kept
 
     def since_of(self, stored: dict) -> int | None:
         """The `since` that `stored`, a record read whole (`stored_record`), names in
@@ -511,11 +561,31 @@ class Record(Generic[_RecordValue]):
         return value
 
 
+def _keep(stored: dict, path: list[str], kept: dict, schema: dict) -> bool:
+    """Copy into `kept` what `path` names in `stored`, and say whether `stored` holds
+    every key on the way that `schema`, its kind's, requires. The build holds every
+    shape to the kept keys (`Record.kept`), so a record that lacks one is from before
+    any shape kept it."""
+    name, *rest = path
+    if name not in stored:
+        return name not in schema.get("required", ())
+    field = schema.get("properties", {}).get(name, {})
+    if not rest:
+        kept[name] = stored[name]
+        return True
+    if rest[0] == "*":
+        items = kept.setdefault(name, [{} for _ in stored[name]])
+        return all(
+            _keep(item, rest[1:], into, field.get("items", {}))
+            for item, into in zip(stored[name], items)
+        )
+    return _keep(stored[name], rest, kept.setdefault(name, {}), field)
+
+
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. A reader of a record another Leaf may have written takes from it only keys
-    every shape of its kind keeps, as `named_pages` and `Record.since_of` do; every
-    other reader goes through `Record.read`."""
+    none. A reader takes a record through `Record.read`, or `Record.read_any` where
+    another Leaf may have written it."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -528,12 +598,9 @@ def stored_record(path: Path) -> dict | None:
 
 
 def named_pages(stored: dict) -> list[Path]:
-    """The page directories a record names, whichever Leaf wrote it.
-
-    Every kind of record that belongs to pages names them at its `page`, or at the
-    `page` of each of its `batches`, in every `format` a Leaf has stamped, so a
-    Leaf can tell that a record's pages are gone without reading its format. A
-    change to a record's shape keeps those keys."""
+    """The page directories a record names (`Record.read_any`): its `page`, or the
+    `page` of each of its `batches`, which each kind of record that belongs to pages
+    keeps."""
     if "page" in stored:
         return [Path(stored["page"])]
     return [
@@ -565,13 +632,13 @@ def page_stands(page: Path) -> bool:
         return True
 
 
-def retire_if_gone(path: Path) -> bool:
-    """Remove the record at `path` once every page it names is gone, whatever its
-    format, and say whether it went. A record at another format may belong to a
-    live session of another installed Leaf while its pages stand, so only gone
-    pages retire one."""
-    stored = stored_record(path)
-    if stored is None or not pages_gone(named_pages(stored)):
+def retire_if_gone(record: Record, path: Path) -> bool:
+    """Remove the record of kind `record` at `path` once every page it names is
+    gone, whatever its format, and say whether it went. A record at another format
+    may belong to a live session of another installed Leaf while its pages stand,
+    so only gone pages retire one."""
+    kept = record.read_any(path)
+    if kept is None or not pages_gone(named_pages(kept)):
         return False
     path.unlink(missing_ok=True)
     return True
@@ -634,8 +701,26 @@ SESSION = Record(
                     {"type": "boolean"},
                 ),
                 "lifetime": described(
-                    "What keeps the session alive (`Harness.lifetime`).",
-                    {"type": "object"},
+                    "What keeps the session alive (`Harness.lifetime`), as "
+                    "`service.session_lives` reads it: nothing yet, the process, a "
+                    "background job's record, the Claude desktop app's record of the "
+                    "session, or a desktop Codex chat's native source "
+                    "(`transcript_path`).",
+                    {
+                        "anyOf": [
+                            {"type": "object", "additionalProperties": False},
+                            *(
+                                object_schema({key: value})
+                                | {"additionalProperties": False}
+                                for key, value in (
+                                    ("pid", {"type": "integer"}),
+                                    ("job", STRING),
+                                    ("app", STRING),
+                                    ("chat", {"const": True}),
+                                )
+                            ),
+                        ]
+                    },
                 ),
             },
             {
@@ -644,14 +729,11 @@ SESSION = Record(
                     "(`chat_exists`).",
                     STRING,
                 ),
-                "launcher": described(
-                    "The developer-selected delivery runtime (`session_runtime`).",
-                    STRING,
-                ),
             },
         ),
     ),
-    since=13,
+    since=56,
+    kept=("generation", "ended", "lifetime", "transcript_path"),
 )
 
 
@@ -660,8 +742,17 @@ def session_lock_path(session_id: str) -> Path:
 
 
 def session_record(session_id: str) -> dict | None:
-    """The session's lifecycle, or None for a session this Leaf has no record of."""
-    return SESSION.read(session_file(session_id, SESSION_SUFFIX))
+    """The session's lifecycle, whichever Leaf wrote it, or None for a session no
+    Leaf has recorded.
+
+    A session moves between Leaves as its harness loads an update, and every Leaf on
+    the machine reads whether a session holds its pages, so the record outlives a
+    change to its shape. A record of another shape reads through the keys every
+    shape keeps (`Record.read_any`), with no turn yet, so the session goes on in its
+    generation: its claims stay live, for its own hooks and for every other Leaf,
+    and the next write rewrites the record in this Leaf's shape."""
+    record = SESSION.read_any(session_file(session_id, SESSION_SUFFIX))
+    return None if record is None else {**new_session(session_id, {}), **record}
 
 
 def write_session(record: dict) -> dict:
@@ -963,7 +1054,7 @@ def end_harness_instance(session_id: str) -> None:
     prompt, and the Claude desktop app stops a session's process to update and
     resumes it when the user opens the session. Each lifetime but a pid names
     such an owner, so its claims keep their generation while that owner lives
-    (`service.lifetime_is_live`); the instance's end closes only turn and hook
+    (`service.session_lives`); the instance's end closes only turn and hook
     observations.
     """
     if not session_id or not _session_paths(session_id):
@@ -976,6 +1067,50 @@ def end_harness_instance(session_id: str) -> None:
             session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
         _end_session(session_id)
+
+
+CLAIM = Record(
+    "claim",
+    described(
+        "The session that receives a page's updates, in the state home's "
+        "`claims/<page key>.json` (`service.claim_path`).",
+        object_schema(
+            {
+                "page": described("The page directory.", STRING),
+                "ts": described("When the claim was published.", TIME),
+                "id": described("The claimant session (`state.SESSION`).", STRING),
+                "generation": described(
+                    "The generation of the session this claim names.", STRING
+                ),
+                "acquisition": described(
+                    "This publication's own identity (`same_claim`).", STRING
+                ),
+                "harness": described("The claimant's `Harness.name`.", STRING),
+                "agent": described("The name the claimant shows.", STRING),
+                "cwd": described("The claimant's working directory.", STRING),
+            },
+            {
+                "messaged_ending": described(
+                    "The turn ending after which input last messaged the session "
+                    "(`note_messaged`).",
+                    STRING,
+                )
+            },
+        ),
+    ),
+    since=13,
+    kept=(
+        "page",
+        "ts",
+        "id",
+        "generation",
+        "acquisition",
+        "harness",
+        "agent",
+        "cwd",
+        "messaged_ending",
+    ),
+)
 
 
 def claims_home() -> Path:
@@ -1001,7 +1136,7 @@ def held_claims(session_id: str) -> list[Path]:
     held = []
     for locator in session_claims(session_id).glob("*.json"):
         payload = locator.parent.parent / locator.name
-        stored = stored_record(payload)
+        stored = CLAIM.read_any(payload)
         if stored is None or stored.get("id") != session_id:
             continue
         if pages_gone(named_pages(stored)):
@@ -1016,7 +1151,7 @@ def standing_claims() -> list[Path]:
     whose page is gone (`retire_claim`), whichever Leaf wrote them."""
     standing = []
     for payload in claims_home().glob("*.json"):
-        stored = stored_record(payload)
+        stored = CLAIM.read_any(payload)
         if stored is not None and pages_gone(named_pages(stored)):
             retire_claim(payload, stored)
         else:
@@ -1034,7 +1169,7 @@ def claims_lock() -> Path:
 def remove_claim(payload: Path) -> None:
     """Remove a page's claim payload and the locator its claimant holds for it."""
     with flocked(claims_lock()):
-        _drop_claim(payload, stored_record(payload))
+        _drop_claim(payload, CLAIM.read_any(payload))
 
 
 def retire_claim(payload: Path, stored: dict) -> None:
@@ -1044,7 +1179,7 @@ def retire_claim(payload: Path, stored: dict) -> None:
     again and claimed between the reading and the removal, so the claim goes only
     if it is still the one that was read under the lock every publication takes."""
     with flocked(claims_lock()):
-        if stored_record(payload) == stored:
+        if CLAIM.read_any(payload) == stored:
             _drop_claim(payload, stored)
 
 

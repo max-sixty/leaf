@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import tinycss2
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool, _retire
+from conftest import LEAF_COMMAND, PagePool, _retire, hooks_run_this_tree
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
@@ -426,6 +426,7 @@ def test_page_state_refuses_a_layer_this_leaf_cannot_serve(claimed):
     source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>"))
     revisions = interact_files.list_revisions(page_dir)
 
+    hooks_run_this_tree("s2")
     result = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(page_dir)],
         capture_output=True,

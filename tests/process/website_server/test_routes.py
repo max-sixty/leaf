@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import replace
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import comment as open_thread
 from interact_support import (
     owed_answers,
@@ -406,6 +407,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     # answered by the host's agent.
     monkeypatch.setenv("LEAF_AGENT", "Claude")
     monkeypatch.setenv("LEAF_SESSION_ID", "authoring-session")
+    hooks_run_this_tree("authoring-session")
     opened = open_thread(published, "--text", "Which plan reads best?")
     assert opened.exit_code == 0, opened.output
     monkeypatch.delenv("LEAF_AGENT")
@@ -528,6 +530,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert forged.value.code == 400
         monkeypatch.setenv("LEAF_AGENT", "Agent")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
+        hooks_run_this_tree("leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",

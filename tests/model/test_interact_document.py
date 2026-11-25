@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     FLOW_PAGE,
     OPTIONS,
@@ -2548,6 +2548,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0, sent.output

@@ -2483,6 +2483,30 @@ def test_a_claim_lacking_a_kept_key_reads_as_absent(claimed):
     assert service_model.held_elsewhere(claimed, None) is None
 
 
+def test_a_kept_path_through_a_null_reads_the_null(tmp_path, monkeypatch):
+    """A kept path passes through a value a shape allows to be null, as a reply or an
+    item that may be null: a record of another shape holding the null reads it as
+    stored, rather than failing to look inside it."""
+    monkeypatch.setattr(cleanup_model, "RECORDS", {})
+    reply = {
+        "type": ["object", "null"],
+        "properties": {"text": {"type": "string"}, "draft": {"type": "string"}},
+        "required": ["text"],
+    }
+    record = cleanup_model.Record(
+        "probe",
+        cleanup_model.object_schema(
+            {"reply": reply, "replies": {"type": "array", "items": reply}}
+        ),
+        since=60,
+        kept=("reply/text", "replies/*/text"),
+    )
+    path = tmp_path / "probe.json"
+    stored = {"reply": None, "replies": [None, {"text": "Kept", "draft": "Dropped"}]}
+    path.write_text(json.dumps({"format": "leaf-probe/51", **stored}))
+    assert record.read_any(path) == {"reply": None, "replies": [None, {"text": "Kept"}]}
+
+
 def test_a_session_goes_on_in_its_generation_when_its_record_changes_shape(
     claimed, capsys
 ):

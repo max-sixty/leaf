@@ -7,13 +7,13 @@
  * from its annotations, and every kind stays; a new kind may join only where it
  * declares `skippable`, since a Leaf that skips it still reads the rest of the log
  * rightly. A `state.Record` changes its schema, apart from its annotations, only by
- * setting its `since` to the current protocol, and never drops a key it keeps
- * (`state.Record.kept`), loosens one from required, requires a key on a kept path
- * that its last shape didn't, or changes a kept key's schema or whether a `*` on its
- * path walks a list or a map, since every Leaf reads a record's kept keys whichever
- * Leaf wrote it, and reads a record lacking one it requires as absent. A kept key's
- * `anyOf` may gain variants, which an older Leaf reads as it reads any value it
- * doesn't know (`layer-registry.md`, "Page protocol").
+ * setting its `since` to the current protocol. Every Leaf reads a record's kept keys
+ * whichever Leaf wrote it (`state.Record.kept`), so a key once kept stays kept, and
+ * along each kept path a new shape holds what a reader of its last shape relied on
+ * (`projection`): each step the last shape holds keeps its type, its key and whether
+ * that key is required, so a key the last shape lacked is optional, and the kept key
+ * keeps its schema, though its `anyOf` may gain variants, which an older Leaf reads
+ * as it reads any value it doesn't know (`layer-registry.md`, "Page protocol").
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -62,35 +62,32 @@ function widens(was, now) {
   );
 }
 
-// `path` (`a/*/b`, `*` for each item of a list or value of a map) followed through a
-// record's schema as far as the schema goes: the schema it reaches, or none where it
-// leaves the schema; whether each key it reached is required; and what each `*` walks.
-function walk(schema, path) {
+// What a reader of the kept path `path` (`a/*/b`, `*` for each item of a list or value
+// of a map) relies on in a record's schema, as far as the schema holds the path: at
+// each step, the type it leaves, the key it takes (`items` or `additionalProperties`
+// for a `*`) and whether that key is required; and the kept key's schema (`leaf`)
+// where the schema holds the whole path. A path ending at a `*` has none, since `a/*`
+// would keep what `a` keeps.
+function projection(schema, path) {
+  const steps = [];
   let node = schema;
-  const required = [];
-  const walks = [];
   for (const step of path.split("/")) {
-    if (step === "*") {
-      const into = node?.type === "array" ? "items" : "additionalProperties";
-      walks.push(into);
-      node = node?.[into];
-    } else {
-      required.push(Boolean(node?.required?.includes(step)));
-      node = node?.properties?.[step];
-    }
-    if (node === undefined) break;
+    const takes =
+      step !== "*" ? step : node.type === "array" ? "items" : "additionalProperties";
+    steps.push({ type: node.type, takes, required: !!node.required?.includes(step) });
+    node = step === "*" ? node[takes] : node.properties?.[step];
+    if (node === undefined) return { steps };
   }
-  return { schema: node, required, walks };
+  return { steps, leaf: path.split("/").at(-1) === "*" ? undefined : node };
 }
 
-// `walk` for a path the schema holds to its end; none for one it leaves, or one that
-// ends at a `*`, since `a/*` would keep what `a` keeps.
-function kept(schema, path) {
-  const reached = walk(schema, path);
-  return reached.schema === undefined || path.split("/").at(-1) === "*"
-    ? undefined
-    : reached;
-}
+// Whether a reader of the shape `now` reads a record of the shape `was` along one kept
+// path as `was`'s reader did: every step `was` holds is the same in `now`, so a key
+// `was` lacks is optional in `now`, and the kept key's schema, where `was` has it, is
+// `was`'s or widens it.
+const holds = (was, now) =>
+  was.steps.every((step, at) => isDeepStrictEqual(step, now.steps[at])) &&
+  (was.leaf === undefined || widens(was.leaf, now.leaf));
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
  * served state, the verb (`verbs`) and the widget declaration schema, which only the
@@ -127,27 +124,15 @@ export function protocolBreaks(baseline, current) {
   )) {
     const before = baseline.records[kind];
     for (const path of keeps) {
-      const now = kept(schema, path);
-      // Each key the last shape lacked or left optional reads as not required there.
-      const was = before && walk(before.schema, path).required;
-      if (!now) refused.push(`record ${kind}: kept ${path} is not in its schema`);
-      else if (was && now.required.some((required, step) => required && !was[step]))
-        refused.push(
-          `record ${kind}: kept ${path} is required where its last shape didn't require it`,
-        );
-    }
-    for (const path of before?.kept ?? []) {
-      const [was, now] = [kept(before.schema, path), kept(schema, path)];
-      if (!keeps.includes(path) || !now)
-        refused.push(`record ${kind}: ${path} is kept, so every shape keeps it`);
-      else if (
-        !widens(was.schema, now.schema) ||
-        !isDeepStrictEqual(was.walks, now.walks)
-      )
+      const now = projection(schema, path);
+      if (now.leaf === undefined)
+        refused.push(`record ${kind}: kept ${path} is not in its schema`);
+      else if (before && !holds(projection(before.schema, path), now))
         refused.push(`record ${kind}: kept ${path} changed its schema`);
-      else if (was.required.some((required, step) => required && !now.required[step]))
-        refused.push(`record ${kind}: kept ${path} is no longer required`);
     }
+    for (const path of before?.kept ?? [])
+      if (!keeps.includes(path))
+        refused.push(`record ${kind}: ${path} is kept, so every shape keeps it`);
     if (since > current.protocol)
       refused.push(
         `record ${kind}: since ${since} is past protocol ${current.protocol}`,

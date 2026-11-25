@@ -42,7 +42,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -563,33 +563,32 @@ class Record(Generic[_RecordValue]):
         return value
 
 
-def _keep(stored: dict, path: list[str], kept: dict, schema: dict) -> bool:
-    """Copy into `kept` what `path` names in `stored`, and say whether `stored` holds
-    every key on the way that `schema`, its kind's, requires. The build holds every
-    shape to the kept keys (`Record.kept`), so a record that lacks one is from before
-    any shape kept it."""
-    name, *rest = path
-    if name not in stored:
-        return name not in schema.get("required", ())
-    field = schema.get("properties", {}).get(name, {})
-    if not rest:
-        kept[name] = stored[name]
-        return True
-    if rest[0] == "*":
-        if isinstance(stored[name], dict):
-            values = kept.setdefault(name, {key: {} for key in stored[name]})
-            return all(
-                _keep(
-                    item, rest[1:], values[key], field.get("additionalProperties", {})
-                )
-                for key, item in stored[name].items()
-            )
-        items = kept.setdefault(name, [{} for _ in stored[name]])
-        return all(
-            _keep(item, rest[1:], into, field.get("items", {}))
-            for item, into in zip(stored[name], items)
-        )
-    return _keep(stored[name], rest, kept.setdefault(name, {}), field)
+def _keep(stored: Any, path: list[str], kept: Any, schema: dict) -> bool:
+    """Copy into `kept` what `path` names in `stored`, a record or a value in one, and
+    say whether `stored` holds every key on the way that `schema`, its kind's,
+    requires. A `*` takes each value of a map or item of a list. A value on the way
+    that isn't an object or a list, such as a null a shape allows there, is copied as
+    it stands. The build holds every shape to the kept keys (`Record.kept`), so a
+    record that lacks one is from before any shape kept it."""
+    step, *rest = path
+    if step == "*":
+        mapped = isinstance(stored, dict)
+        keys = list(stored) if mapped else range(len(stored))
+        field = schema.get("additionalProperties" if mapped else "items", {})
+    elif step in stored:
+        keys, field = [step], schema.get("properties", {}).get(step, {})
+    else:
+        return step not in schema.get("required", ())
+    for key in keys:
+        value = stored[key]
+        if not rest or not isinstance(value, (dict, list)):
+            kept[key] = value
+            continue
+        if (kept.get(key) if isinstance(kept, dict) else kept[key]) is None:
+            kept[key] = [None] * len(value) if isinstance(value, list) else {}
+        if not _keep(value, rest, kept[key], field):
+            return False
+    return True
 
 
 def stored_record(path: Path) -> dict | None:

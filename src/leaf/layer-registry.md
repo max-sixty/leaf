@@ -111,9 +111,11 @@ protocol first where `since` already names it, and the build refuses a shape cha
 the same `since` or a `since` moved anywhere else. Each kind declares the keys every
 shape keeps (`state.Record.kept`), and any Leaf reads those keys whichever Leaf wrote
 the record (`state.Record.read_any`); it treats the rest of a record at another format
-as absent. The build refuses a shape that drops one of those keys, changes its schema,
-stops requiring it or requires one its last shape didn't, though a kept key's `anyOf`
-may gain variants, as a new kind of session lifetime does. Every write replaces a
+as absent. The build refuses a shape that drops one of those keys, or changes along
+its path what a reader of the last shape relied on: a value's type, whether a `*`
+takes a list's items or a map's values, whether a key is required, or the kept key's
+schema. So a key the last shape lacked is optional, and a kept key's `anyOf` may still
+gain variants, as a new kind of session lifetime does. Every write replaces a
 record whole, so an older Leaf's write drops the fields a newer shape added, and a new
 shape adds no field whose loss would change what the record grants or means. A value
 a Leaf doesn't know in a kept key, such as a later Leaf's harness or lifetime kind,

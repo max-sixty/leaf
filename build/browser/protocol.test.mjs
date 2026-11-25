@@ -119,7 +119,7 @@ test("a record changes shape only with its since", () => {
   );
 });
 
-test("a record keeps each kept key through every shape", () => {
+test("a key once kept stays kept, with its schema", () => {
   const kept = structuredClone(baseline);
   kept.records.claim.kept = ["page"];
   const moved = (edit) => (s) => {
@@ -156,44 +156,11 @@ test("a record keeps each kept key through every shape", () => {
       moved((claim) => (claim.schema.required = [])),
       kept,
     ),
-    refused("record claim: kept page is no longer required"),
+    refused("record claim: kept page changed its schema"),
   );
   assert.deepEqual(
     changed((s) => (s.records.claim.kept = ["page", "batches/*/page"]), kept),
     refused("record claim: kept batches/*/page is not in its schema"),
-  );
-  // A Leaf reads a record lacking a kept key it requires as absent, so no shape
-  // requires a kept key that its last shape lacked or left optional.
-  assert.deepEqual(
-    changed(
-      moved((claim) => {
-        claim.schema.properties.cwd = { type: "string" };
-        claim.schema.required.push("cwd");
-        claim.kept.push("cwd");
-      }),
-      kept,
-    ),
-    refused(
-      "record claim: kept cwd is required where its last shape didn't require it",
-    ),
-  );
-  const keptPid = structuredClone(kept);
-  keptPid.records.claim.kept.push("pid");
-  assert.deepEqual(
-    changed(
-      moved((claim) => claim.schema.required.push("pid")),
-      keptPid,
-    ),
-    refused(
-      "record claim: kept pid is required where its last shape didn't require it",
-    ),
-  );
-  assert.deepEqual(
-    changed(
-      moved((claim) => claim.kept.push("pid")),
-      kept,
-    ),
-    none,
   );
 });
 
@@ -234,7 +201,7 @@ test("a kept key's anyOf may gain variants, but keeps each", () => {
   );
 });
 
-test("a kept path's * walks each item of a list or each value of a map, and keeps which", () => {
+test("along a kept path, a shape holds each step its last shape holds", () => {
   const entry = () => ({
     type: "object",
     properties: { page: { type: "string" }, note: { type: "string" } },
@@ -247,15 +214,25 @@ test("a kept path's * walks each item of a list or each value of a map, and keep
       properties: {
         batches: { type: "array", items: entry() },
         drafts: { type: "object", additionalProperties: entry() },
+        listed: { type: "array", items: entry() },
+        reply: { ...entry(), type: ["object", "null"] },
+        size: { type: "integer" },
       },
-      required: ["batches", "drafts"],
+      required: ["batches", "drafts", "listed", "reply", "size"],
     },
     kept: ["batches/*/page", "drafts/*/page"],
   });
-  const moved = (edit) => (s) => {
-    s.records.claim.since = 4;
-    edit(s.records.claim.schema.properties);
-  };
+  // Each case moves the shape on and keeps `adds` beside what it kept.
+  const moved =
+    (edit, ...adds) =>
+    (s) => {
+      s.records.claim.since = 4;
+      edit(s.records.claim.schema.properties, s.records.claim.schema);
+      s.records.claim.kept.push(...adds);
+    };
+  const changedSchema = (path) =>
+    refused(`record claim: kept ${path} changed its schema`);
+  // What no kept path reaches may change.
   assert.deepEqual(
     changed(
       moved((fields) => delete fields.drafts.additionalProperties.properties.note),
@@ -271,8 +248,10 @@ test("a kept path's * walks each item of a list or each value of a map, and keep
       ),
       walked,
     ),
-    refused("record claim: kept drafts/*/page changed its schema"),
+    changedSchema("drafts/*/page"),
   );
+  // A `*` keeps taking a list's items, or a map's values, whether the path is kept
+  // already or newly.
   assert.deepEqual(
     changed(
       moved(
@@ -281,28 +260,73 @@ test("a kept path's * walks each item of a list or each value of a map, and keep
       ),
       walked,
     ),
-    refused("record claim: kept batches/*/page changed its schema"),
+    changedSchema("batches/*/page"),
+  );
+  assert.deepEqual(
+    changed(
+      moved(
+        (fields) => (fields.listed = { type: "object", additionalProperties: entry() }),
+        "listed/*/page",
+      ),
+      walked,
+    ),
+    changedSchema("listed/*/page"),
   );
   // A path names a key: `batches/*` would keep what `batches` keeps.
   assert.deepEqual(
-    changed((s) => s.records.claim.kept.push("batches/*"), walked),
+    changed(
+      moved(() => {}, "batches/*"),
+      walked,
+    ),
     refused("record claim: kept batches/* is not in its schema"),
   );
-  // A new key of each value may be kept where it is optional, under a parent every
-  // shape requires, and is refused only where it is required.
-  const created = (required) => (s) => {
-    s.records.claim.since = 4;
-    const value = s.records.claim.schema.properties.drafts.additionalProperties;
+  // A key the last shape lacked may be kept where it is optional, at any depth, under
+  // whatever the last shape required, and its own keys may be required.
+  const created = (required) => (fields) => {
+    const value = fields.drafts.additionalProperties;
     value.properties.created = { type: "number" };
     if (required) value.required.push("created");
-    s.records.claim.kept.push("drafts/*/created");
   };
-  assert.deepEqual(changed(created(false), walked), none);
+  assert.deepEqual(changed(moved(created(false), "drafts/*/created"), walked), none);
   assert.deepEqual(
-    changed(created(true), walked),
-    refused(
-      "record claim: kept drafts/*/created is required where its last shape didn't require it",
+    changed(moved(created(true), "drafts/*/created"), walked),
+    changedSchema("drafts/*/created"),
+  );
+  const meta = (required) => (fields, schema) => {
+    fields.meta = {
+      type: "object",
+      properties: { created: { type: "number" } },
+      required: ["created"],
+    };
+    if (required) schema.required.push("meta");
+  };
+  assert.deepEqual(changed(moved(meta(false), "meta/created"), walked), none);
+  assert.deepEqual(
+    changed(moved(meta(true), "meta/created"), walked),
+    changedSchema("meta/created"),
+  );
+  // A parent a shape allows to be null holds its path, which reads a null as stored;
+  // one that was a scalar doesn't.
+  assert.deepEqual(
+    changed(
+      moved(() => {}, "reply/page"),
+      walked,
     ),
+    none,
+  );
+  assert.deepEqual(
+    changed(
+      moved(
+        (fields) =>
+          (fields.size = {
+            type: "object",
+            properties: { count: { type: "integer" } },
+          }),
+        "size/count",
+      ),
+      walked,
+    ),
+    changedSchema("size/count"),
   );
 });
 

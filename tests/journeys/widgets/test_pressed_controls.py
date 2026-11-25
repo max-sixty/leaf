@@ -12,8 +12,7 @@ import pytest
 from known_widget_findings import PACKAGES
 from render_harness import Traffic, round_trip
 
-from leaf.layer import checked_layer_inputs, compose_layer
-from leaf.packages import package_layer_inputs
+from leaf.layer import checked_layer_inputs, compose_layer, package_layer_inputs
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     rendered,

@@ -91,7 +91,7 @@
   const framePresented = (/** @type {number} */ requested) =>
     presentedFrame >= requested;
 
-  // The runtime's rendering facts for chrome and geometry (runtime/rendering.js).
+  // The runtime's rendering facts for chrome and geometry (runtime/base/rendering.js).
   // Readers select quiet updates or require every preparation to have landed too.
   const renderingState = () => {
     const read = /** @type {HTMLScriptElement | null} */ (

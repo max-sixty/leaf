@@ -207,7 +207,7 @@ lf-sample:has(> template[data-sample]) {
  * put them there. The frame wears the ring itself only where a ring belongs, after a
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
- * both read the runtime's marks (focus.js, `inputInFrame`). */
+ * both read the runtime's marks (dom/focus.js, `inputInFrame`). */
 .lf-sample-exhibit > .lf-sample-frame {
   --lf-focus-box: .lf-sample-exhibit;
 }

@@ -44,11 +44,8 @@ word for its kind instead, which the library's
 [`element-word.js`](../../../browser/runtime/lib/element-word.js) gives. That word is the element's `aria-roledescription`, which the module that
 builds the element writes along with a role for it, since ARIA ignores the attribute
 on an element with no role, as `lf-playground` makes each preset a `group` it calls
-"preset". Without one, it is what the element answers from an `lfWord()`
-method, for a word that depends on the element, as `lf-suggestion` says "insertion"
-or "rewrite"; else its tag without `lf-`. Where a widget's words alone don't convey
-its structure, as a rewrite's old and new text don't, its `lfSays()` returns the
-words that describe it. A widget's name is its `label` attribute, as an option
+"preset", and the module writes it again where the word depends on the element.
+Without one, it is the tag without `lf-`. A widget's name is its `label` attribute, as an option
 card's, a board card's or a column's is, which names its element on every widget
 that takes it (the registry's `$attributes`), whether or not the widget draws it.
 The page's name is its own `<title>`, which `document.title` doesn't give while the
@@ -115,9 +112,10 @@ to its parts.
 Leaf reads Markdown in one dialect, the library's
 [`markdown.js`](../../../browser/runtime/lib/markdown.js), whose header says how it
 reads a message a person typed and a Markdown file. A widget that renders Markdown on
-the page passes `pageLinks` to the dialect's renderers, so a picture of the page's
-media answers at the page's address and opens in Leaf's viewer, and a link that leaves
-the page opens in a new tab.
+the page passes the library's `pageLinks` to the dialect's renderers, so a link that
+leaves the page opens in a new tab and a picture is a link to its own file, which Leaf's
+image viewer opens. Leaf answers a `/media/…` address at the page's address on every
+link and picture as it arrives, whoever drew it.
 
 A widget whose entry declares `content: markdown` has its data body arrive
 rendered as block Markdown, read as a Markdown file, while the recorded body stays the
@@ -229,8 +227,7 @@ A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while it is open. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer: the
-innermost named group round the widget, an element whose registry entry declares
-`reading-role: group` such as an `lf-group`, or else the widget itself; `prompt.text`
+innermost named group round the widget, an `lf-group`, or else the widget itself; `prompt.text`
 is that group's `label`, else the widget's own name, and `null` for an update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
@@ -257,7 +254,9 @@ its `section`, to the next heading's, and counts each item in the stretch holdin
 first word, comparing positions with `compareDocumentPosition`.
 
 `queues.read()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
+under On Me and On <agent>, and `agent`, what the page calls its agent there, such as
+"Claude", or "the agent" before the server names one. Call the agent that wherever a
+widget names it, so the page calls it one thing. Each row has its obligation's `id`, which names the row as
 it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
 to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
 `agent`, naming its list. The record says where the row stands: the agent has it in

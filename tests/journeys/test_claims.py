@@ -9,7 +9,7 @@ from typing import cast
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import STATED_TIMEOUT, fetch, neighbour_page, record_claim
 
 from leaf import cli as cli_model
@@ -150,6 +150,7 @@ cli_model.cli()
             check=False,
         )
         assert idled.returncode == 0, idled.stderr
+        hooks_run_this_tree("new-owner")
         picked_up = subprocess.run(
             claim_and_wait_command(page),
             shell=True,
@@ -346,6 +347,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     from leaf import harness
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
+    hooks_run_this_tree("candidate")
     try:
         expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:
@@ -357,6 +359,8 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
                 raise ValueError("caller leaves before accepting reuse")
             end_session(prepared.claim["id"])
             if refusal == "new_generation":
+                # The new generation's first hook marks the tree it runs again.
+                hooks_run_this_tree("candidate")
                 harness_3 = harness.session_harness()
                 assert harness_3 is not None
                 ensure_session(prepared.claim["id"], harness_3.lifetime())

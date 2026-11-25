@@ -53,7 +53,7 @@ def _refreshes_restate_no_margin_name(page, population):
     the reading a same-value predicate cannot take, because each leg differs from
     the value before it. Both are records a reader rebuilds from.
 
-    Every row lives in the margin layer, whatever it holds, and `inline-contributions.js`
+    Every row lives in the margin layer, whatever it holds, and `features/inline-contributions.js`
     builds another host in place wherever an offer's target stands in chrome. So
     the watch is rooted at the layer, the Map door, the inline hosts, and the page's
     boxes. The reach is asserted the way the

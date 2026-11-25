@@ -63,7 +63,7 @@ def looked_since(page):
     page.wait_for_function("since => window.__lfAsked.news >= since + 2", arg=since)
 
 
-# The page's shared clock (`TICK_MS` in runtime/state-feed.js), which asks again after a
+# The page's shared clock (`TICK_MS` in runtime/host/state-feed.js), which asks again after a
 # failed read and otherwise only repaints.
 TICK_MS = 2000
 
@@ -651,8 +651,8 @@ window.fetch = (input, init = {}) => {
 @pytest.mark.parametrize(
     ("lost", "fails"),
     [
-        ("runtime/rendering.js", "once"),
-        ("runtime/rendering.js", "every time"),
+        ("runtime/base/rendering.js", "once"),
+        ("runtime/base/rendering.js", "every time"),
         ("theme.css", "once"),
     ],
 )

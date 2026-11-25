@@ -46,10 +46,10 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
         document.querySelector("main").append(group);
     }""")
     text = "A shared answer after the question moves."
-    write(first.locator("#jobs > .lf-another textarea"), text)
+    write(first.locator("#jobs > .lf-another input"), text)
 
     expect(second.locator("#jobs > .lf-another")).to_have_count(1)
-    expect(second.locator("#jobs > .lf-another textarea")).to_have_js_property(
+    expect(second.locator("#jobs > .lf-another input")).to_have_js_property(
         "value", text
     )
 
@@ -87,7 +87,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
 
     card_words = page.locator("#br-steel > strong")
-    card_field = page.locator("#bracket > .lf-another textarea")
+    card_field = page.locator("#bracket > .lf-another input")
     assert same_face(card_field.evaluate(typography), card_words.evaluate(typography))
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
@@ -118,7 +118,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # Located on the obligation shows its discussion beside it, so c enters the reply
@@ -128,7 +128,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("#storage-options > .lf-another textarea")).not_to_be_focused()
+    expect(page.locator("#storage-options > .lf-another input")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
@@ -265,7 +265,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     d = serve.page_dir
-    first = page.locator("#jobs > .lf-another textarea")
+    first = page.locator("#jobs > .lf-another input")
     draft = "Keep this answer even if another thread arrives first."
     write(first, draft)
 
@@ -332,6 +332,11 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     expect(added).to_have_attribute("selected", "")
     expect(added).to_contain_text("Ask the neighbours first")
     expect(field).to_have_js_property("value", "")
+    # A line break pasted into the one-line field becomes a space there, as in any
+    # one-line field.
+    field.tap()
+    page.keyboard.insert_text("Ask the neighbours\nfirst")
+    expect(field).to_have_js_property("value", "Ask the neighbours first")
 
 
 def test_a_closed_group_answers_only_from_its_options(browser, serve):
@@ -367,7 +372,7 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     built; past the textarea an unvisited field holds, it clones the range alone. So
     the user visits the field before the drag."""
     page = open_page(firefox_browser, serve(OBLIGATION_PAGE))
-    field = page.locator("#bracket > .lf-another textarea")
+    field = page.locator("#bracket > .lf-another input")
     field.focus()
     rendered(page)
     page.evaluate(RELEASE_FOCUS)

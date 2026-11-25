@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     FLOW_PAGE,
     OPTIONS,
@@ -1707,48 +1707,6 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     assert missing == [], missing
 
 
-def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
-    """A package can supply a pane under its own name without joining a built-in tag
-    list: the role its registry entry declares is what the grammar reads, and the page
-    arranges both panes in a workspace however it likes."""
-    zone = {
-        "description": "A project package's differently named pane.",
-        "attributes": {
-            "properties": {
-                "label": {"type": "string"},
-            },
-            "required": ["id", "label"],
-        },
-        "content": "markup",
-        "reading-role": "pane",
-    }
-    declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
-    version = page_dir / "index.html"
-    regions = """<header><h2>Plan</h2></header>
-  <div id="regions" style="display: grid; grid-template-columns: 1fr 2fr">
-    <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
-    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
-  </div>
-  <footer><p>Finish</p></footer>"""
-    version.write_text(
-        PAGE.replace("<main>", '<main class="layout-workspace">').replace(
-            PAGE[PAGE.index('<lf-group id="plan-questions"') : PAGE.index("</main>")],
-            regions,
-        )
-    )
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-    # The same grammar reaches the package's pane, as advice.
-    version.write_text(
-        version.read_text().replace(
-            "<p>First</p></lf-zone>", "<p>First</p><p>Split</p></lf-zone>"
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 0
-    (pane,) = found(findings, "pane-body", "<lf-zone>", body=["p", "p"])
-    assert pane.severity == "advice"
-
-
 def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
     """A pane whose children aren't a header, one body and a footer, in that order,
     still passes, and `page check` says what its grid does with each. A message
@@ -2548,6 +2506,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0, sent.output
@@ -3994,7 +3953,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
-    look = (schema_model.BUNDLED_PACKAGES / "reading/defaults.css").read_text()
+    look = (schema_model.BUNDLED_PACKAGES / "reading/theme.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
@@ -4475,11 +4434,10 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     does carry retires that element's losing slot, or empties a widget it leaves
     showing nothing, exactly as the walk given it does."""
     registry = {
-        "lf-old": {
-            "retired-when": "accepted",
-        },
-        "lf-new": {
-            "retired-when": "rejected",
+        "lf-suggestion": {
+            "verbs": {
+                "decide": {"decides": {"accepted": ["lf-old"], "rejected": ["lf-new"]}}
+            },
         },
     }
     document = structure_model.SourceDocument(

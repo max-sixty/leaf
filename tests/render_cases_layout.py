@@ -818,7 +818,7 @@ AIM_POINT = """(el) => {
   return null;
 }"""
 # The promise itself, read where the runtime states it: the aimed box wears `data-lf-aimed`
-# (target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
+# (readings/target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
 # then stands on that same item once the press is made, so the aim's answer before the
 # press and the draft's after it agreeing is the promise being kept.
 AIMED = (
@@ -879,7 +879,7 @@ DRAFT_MARK = """() =>
 # What the arm says about the next press, in the one property that is on screen before
 # the box is read: the cursor of the deepest element at the point, where the aim stands
 # its hand, and whether that element is in a control, which keeps a cursor of its own
-# (page-geometry.js).
+# (panel/page-geometry.js).
 AIM_CURSOR = """async ([x, y]) => {
   const {WORKS} = await window.__lfCheckApi();
   let el = document.elementFromPoint(x, y);

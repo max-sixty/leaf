@@ -362,7 +362,7 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     })""")
     frame = page.locator("#capture-sample iframe").bounding_box()
     # The area takes in the unreadable image above the sample, so the element the
-    # capture draws holds it (`captureRoot`, composing/page-image.js).
+    # capture draws holds it (`captureRoot`, host/page-image.js).
     unreadable = page.locator("#unreadable").bounding_box()
     surface = open_capture_area(page)
     left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
@@ -404,7 +404,7 @@ def test_a_region_capture_draws_a_turned_sample_as_its_reader_sees_it(browser, s
     """A sample turned a quarter shows down what its window holds across, so an area
     over the top half of its frame takes in its window's start half: the foot corner on
     the left and the top corner on the right. The image draws that half, as the sample
-    draws it (composing/page-image.js)."""
+    draws it (host/page-image.js)."""
     page = open_page(browser, serve(TURNED_SAMPLE_PAGE))
     page.evaluate("document.querySelector('#turned-sample').ready")
     frame = page.locator("#turned-sample iframe").bounding_box()

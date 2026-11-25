@@ -1288,7 +1288,7 @@ describe("product-site delivery", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/runtime/state-feed.js"),
+      new Request("https://leaf.page/examples/triage-board/runtime/host/state-feed.js"),
       env,
       executionContext(),
     );
@@ -1333,14 +1333,14 @@ describe("product-site delivery", () => {
 
     const response = await worker.fetch(
       new Request(
-        `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/state-feed.js`,
+        `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/host/state-feed.js`,
       ),
       env,
       executionContext(),
     );
 
     expect(assetFetch.mock.calls[0][0].url).toBe(
-      "https://leaf.page/examples/triage-board/runtime/state-feed.js",
+      "https://leaf.page/examples/triage-board/runtime/host/state-feed.js",
     );
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     expect(response.headers.get("Access-Control-Expose-Headers")).toBe("*");
@@ -1350,7 +1350,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     const preflight = await worker.fetch(
       new Request(
-        `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/state-feed.js`,
+        `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/host/state-feed.js`,
         {
           method: "OPTIONS",
           headers: { Origin: "null", "Access-Control-Request-Headers": "leaf-layer" },

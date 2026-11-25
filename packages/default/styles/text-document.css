@@ -313,7 +313,7 @@ lf-text-document iframe.lf-text-document-preview {
       block-size: auto;
       max-block-size: var(--lf-bound, 28rem);
     }
-    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
+    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all], [hidden]) {
       block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
       overflow: hidden;
     }

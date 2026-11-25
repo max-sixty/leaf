@@ -1608,7 +1608,7 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     ], f"the mark went somewhere else than the decision and its shown boxes: {marks}"
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
     # The decision draws no box, so each box it shows through draws the location ring
-    # round itself (target-paint.js, `paintLocation`).
+    # round itself (readings/target-paint.js, `paintLocation`).
     rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
       const slot = document.querySelector(`#sug-refill > ${tag}`);
       return slot.hasAttribute('data-lf-projected-location')

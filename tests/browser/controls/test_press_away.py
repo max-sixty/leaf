@@ -1,5 +1,5 @@
 """A press away from a surface puts it away: one begun and completed outside it, as the
-platform judges its own light dismissal (focus.js, `onPressAway`). Every surface that
+platform judges its own light dismissal (dom/focus.js, `onPressAway`). Every surface that
 goes on a press elsewhere is held to that one press, so a drag between it and the page
 leaves it standing, a finger's tap away and a mouse's click away both put it away, a
 finger scrolling the page does not, and Escape, its keyboard route, puts it away too."""

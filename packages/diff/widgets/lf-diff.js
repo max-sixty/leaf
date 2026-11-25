@@ -1502,7 +1502,7 @@ customElements.define(
 
     // The widget's thread surface: Leaf asks for one outlet, or null, per target it hands over, and
     // the outlets this placement no longer uses come down once it commits.
-    /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/thread/surfaces.js").OutletContext} context */
+    /** @param {readonly import("/runtime/records/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/records/thread/surfaces.js").OutletContext} context */
     threadOutlets(targets, { onCommit }) {
       this.beginThreadSurface();
       const outlets = targets.map((target) => this.threadOutletFor(target));
@@ -1519,7 +1519,7 @@ customElements.define(
       for (const record of this.threadSeats.values()) record.active = false;
     }
 
-    /** @param {import("/runtime/thread/surfaces.js").OutletTarget} target */
+    /** @param {import("/runtime/records/thread/surfaces.js").OutletTarget} target */
     threadOutletFor({ anchor, placement }) {
       // A thread about the diff as a whole names no datum, and stays in the margin.
       if (!anchor.datum) return null;

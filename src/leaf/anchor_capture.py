@@ -17,6 +17,11 @@ from .structure import SourceDocument
 CONTEXT = kernel_passages()["context"]
 
 
+class Unsaid(ValueError):
+    """The file's reading of the page doesn't hold the quote, which the page may still
+    draw, as a page's script draws words of its own (`render_gate.drawn_anchor`)."""
+
+
 def enclosing_section(owner: list, lo: int, hi: int):
     """The innermost id in this reading that encloses every character of [lo, hi):
     the file's side of the section `selectionAnchor` takes from the nearest id around
@@ -62,7 +67,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
     spans, in order: its letters, a space or an edge between two of them where the quote
     has a space, and nothing or an edge where it has none. An edge is where two inline
     elements meet, and only the page's CSS says whether a word ends there, so either
-    reading of it matches: the file side of `passages.js.scan`. A copy past a fence is
+    reading of it matches: the file side of `readings/passages.js.scan`. A copy past a fence is
     no copy, since the page has words there this text doesn't, but it takes its place
     in order: the next copy starts past it. An empty quote names no passage, as in the
     browser's `findQuote`."""
@@ -92,7 +97,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
 
 def _context(passages, lo: int, hi: int) -> tuple[str, str]:
     """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
-    passage-cell fence: the file side of `passages.js.neighbourhood`, which capture
+    passage-cell fence: the file side of `readings/passages.js.neighbourhood`, which capture
     stores and resolution compares against. The text is collapsed, so the space is
     the only collapse character left to trim; Python's own whitespace is wider."""
     text, fences = passages.text, passages.fences
@@ -104,7 +109,7 @@ def _context(passages, lo: int, hi: int) -> tuple[str, str]:
 def resolve_quote(passages, anchor: dict) -> int | None:
     """Resolve a stored quote by exact context, or a sole surviving occurrence.
 
-    This is the file side of `passages.js.findQuote`: document order never
+    This is the file side of `readings/passages.js.findQuote`: document order never
     disambiguates repeated words, and a passage-cell fence cannot be crossed.
     An observation already detached at capture cannot become exact by losing siblings.
     """
@@ -201,7 +206,7 @@ def capture_anchor(
     if section:
         span = passages.spans.get(section)
         if span is None:
-            raise ValueError(
+            raise Unsaid(
                 f"§ {section} holds no quotable text — a widget's data body is its source, "
                 "not its words. Anchor on the element itself, without a quote."
             )
@@ -209,7 +214,7 @@ def capture_anchor(
     where = "the page" if not section else f"§ {section}"
     hits = occurrences(passages, wanted, lo_bound, hi_bound)
     if not hits:
-        raise ValueError(
+        raise Unsaid(
             f"{where} doesn't say {wanted!r}; quote the words this version shows, "
             "or name the section"
         )

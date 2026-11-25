@@ -15,7 +15,6 @@ from interact_support import (
     check_findings,
     element_declaration,
     fresh_process,
-    model_layer,
     page_packages,
     publish,
     registry_refusal,
@@ -32,7 +31,6 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
@@ -92,7 +90,8 @@ def test_page_registry_composes_declarations_and_implementations_independently(
 def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     """`$decisions` is what the browser reads to know which verb decides a widget and
     which members each outcome takes off the page. Every composition stamps it, so a
-    page declaring a member of its own is served a relation that holds it."""
+    page declaring a member of its own, and restating the widget's decision to take
+    it, is served a relation that holds it."""
     layer = registry_storage.load_registry(page_dir)
     assert layer["$decisions"] == {
         "lf-suggestion": {
@@ -101,42 +100,19 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         }
     }
     member = deepcopy(layer["lf-old"])
-    member["retired-when"] = "reject"
+    suggestion = deepcopy(layer["lf-suggestion"])
+    suggestion["verbs"]["decide"]["decides"]["reject"].append("lf-gone")
     layer_3 = registry_storage.layer_record(page_dir)
     assert layer_3 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
 
     composed = registry_page.compose_page_registry(
-        layer, {"lf-gone": member}, widget_paths
+        layer, {"lf-gone": member, "lf-suggestion": suggestion}, widget_paths
     )
 
     assert composed.registry["$decisions"]["lf-suggestion"]["retires"] == {
         "accept": ["lf-old"],
         "reject": ["lf-new", "lf-gone"],
-    }
-
-
-@pytest.mark.parametrize(
-    "order", [("lf-moved", "lf-struck"), ("lf-struck", "lf-moved")]
-)
-def test_two_layers_each_add_a_member_one_decision_retires(order):
-    """A layer adds a retiring member to a widget another layer declares by declaring
-    the member alone, so two layers that each add one compose in either order and the
-    decision retires both. Named on the owner's verb instead, each layer restated the
-    owner's entry whole, and the later layer's dropped the earlier one's member with
-    no refusal."""
-    outcome = {"lf-moved": "accept", "lf-struck": "reject"}
-    registry = deepcopy(model_layer())
-    for tag in order:
-        member = deepcopy(registry["lf-old"])
-        member["retired-when"] = outcome[tag]
-        registry_layer.merge_layer_declarations(registry, {tag: member})
-    registry_validation.validate_registry(registry, "two layers")
-    registry_layer.stamp_composition(registry)
-
-    assert registry["$decisions"]["lf-suggestion"]["retires"] == {
-        "accept": ["lf-old", "lf-moved"],
-        "reject": ["lf-new", "lf-struck"],
     }
 
 
@@ -346,19 +322,11 @@ def test_one_check_advises_on_each_example_a_page_could_not_hold(page_dir):
                         "refers": {"label": {}},
                     },
                 ),
-                "lf-eps": _faulty(
-                    "lf-eps",
-                    **{
-                        "content": "empty",
-                        "reading-role": "pane",
-                    },
-                ),
                 # What only a module provides, with no module for the tag.
                 "lf-delta": _faulty("lf-delta", upgrade=True),
             },
             [
                 ("undeclared-attributes", "<lf-beta>"),
-                ("requires", "<lf-eps>"),
                 ("needs-module", "<lf-delta>"),
             ],
         ),

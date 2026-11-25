@@ -1,7 +1,7 @@
 /* A button's keys for an element Leaf offers as a button without being one: a span
  * with `role="button"` and `data-lf-offer="button"`, such as a selectable offer
  * (controls.js), whose words must stay selectable, or a margin reading entry
- * (annotation-overlay/margin-projection.js), which turns between a press and a status
+ * (annotations/annotation-overlay/margin-projection.js), which turns between a press and a status
  * in place.
  *
  * The browser gives such a span no keys, so this module gives it a button's: Enter
@@ -23,7 +23,7 @@
  * activate.
  *
  * It loads in any document, so the press works on a page without Leaf, and the
- * dispatcher counts it as native activation (keyboard/text-entry.js). */
+ * dispatcher counts it as native activation (dom/keyboard/text-entry.js). */
 
 export const ROLE_BUTTON_OFFER = '[role="button"][data-lf-offer="button"]:not(button)';
 

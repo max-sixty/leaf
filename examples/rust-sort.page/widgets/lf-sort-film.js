@@ -6,11 +6,14 @@
 // whose `for` names the film marks those lines where it quotes them, so one value lights
 // only the block that holds them.
 
-import { pageLinks } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
-import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
+import {
+  inlineMarkdownFragment,
+  loadMarkdown,
+  pageLinks,
+} from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
   INPUTS,

@@ -874,7 +874,7 @@ FIELD_BOX = """(t) => {
 }"""
 
 # The band a float may stand in, in viewport terms: the window the page shows, from its
-# head to the panel's row (geometry.js, `shownWindow`), inside the gutters.
+# head to the panel's row (dom/geometry.js, `shownWindow`), inside the gutters.
 FLOAT_ROOM = """async () => {
   const shown = (await window.__lfCheckApi()).shownWindow();
   return {top: shown.top, bottom: shown.bottom,

@@ -210,7 +210,7 @@ against the click tree, a declaration key against the guide, a table against its
 registry.
 Leave wording with no machine side to review.
 
-Current location and visible focus are separate (`focus.js` owns their contract):
+Current location and visible focus are separate (`dom/focus.js` owns their contract):
 controls and reading destinations follow the browser's focus visibility, while text
 entry keeps its cue. Test with real clicks and keyboard arrivals, require
 `:focus`, and compare the paint, including when the focused control has no ring. A
@@ -329,7 +329,7 @@ allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
   moves nothing. Fix a DOM writer with `runtime/lib/keeps.js`. The runtime's scroll writes
-  go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
+  go through `setScroll` (`runtime/dom/arrivals.js`), which never writes one that moves
   nothing, and a stop goes through `stopWhereItStands`. A package's `scrollTo` that may
   name the position its box holds asks `scrollMoves` first
   (`runtime/lib/scroll-range.js`). A write
@@ -362,7 +362,7 @@ commits a visible effect after an `await` loses its input; a fixture that must c
 after one captures the commit callback with `lfInputWork.capture` first. A private
 channel between documents, such as a live sample's `MessagePort`, carries input only
 where each end sets the port as `lfDocumentPort` on its bootstrap script element before
-the first message (`bootstrap.js`, `sample.js`).
+the first message (`bootstrap.js`, `host/sample.js`).
 
 `test_widget_quality.py` holds Leaf's own widgets to the report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`).

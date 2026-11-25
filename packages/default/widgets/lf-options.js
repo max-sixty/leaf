@@ -153,7 +153,7 @@ function choiceIds(value) {
   return ids;
 }
 
-/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
 function additions(state) {
   const added = state?.add;
   if (!added) return [];
@@ -166,7 +166,7 @@ function additions(state) {
   });
 }
 
-/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
 function isAnswered(state) {
   const answer = state?.answer;
   return answer && "action" in answer ? Boolean(answer.action) : false;
@@ -431,7 +431,7 @@ customElements.define(
     // numbered commands; the obligation view forwards those same declarations.
     #keys() {
       const marks = this.#marks();
-      /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
+      /** @type {import("/runtime/dom/keyboard/bindings.js").Command[]} */
       const answerRows = [];
       for (const { option, mark } of marks) {
         // The widget declares the number and its local face; the shared keyboard

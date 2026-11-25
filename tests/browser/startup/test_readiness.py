@@ -611,7 +611,7 @@ def reload_in_a_row(page, serve, waits, slow=()):
     waits for its first answer and so before it has put the user back. `waits` runs
     one step in each of those documents while it waits, so there is one reload more
     than steps. `slow` numbers those documents, from 1, whose page interface never
-    settles (presentation.js, `settlePageInterface`), as a widget slow to upgrade holds
+    settles (readings/presentation.js, `settlePageInterface`), as a widget slow to upgrade holds
     it, so their anchoring is not yet ready as they go. Returns once the last reload
     has landed."""
     if slow:
@@ -1007,7 +1007,7 @@ def test_startup_recovery_s_reload_keeps_words_typed_before_leaf_started(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.route("**/registry.json", probe)
     with page.expect_navigation(wait_until="commit"):
         page.goto(url, wait_until="commit")
@@ -1016,7 +1016,7 @@ def test_startup_recovery_s_reload_keeps_words_typed_before_leaf_started(
     with page.expect_navigation(wait_until="commit"):
         held.pop().continue_()
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
     assert len(failed) == 1, failed
@@ -1140,7 +1140,7 @@ def test_a_key_typed_while_a_page_handed_only_values_starts_ends_its_arrival(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.route("**/registry.json", probe)
     page.route("**/api/state*", state)
     page.goto(f"{url}&thread=one", wait_until="commit")
@@ -1156,7 +1156,7 @@ def test_a_key_typed_while_a_page_handed_only_values_starts_ends_its_arrival(
     for route in states:
         route.continue_()
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
     assert len(failed) == 1, failed
@@ -1284,7 +1284,7 @@ def test_startup_recovery_s_reload_carries_on_the_values_a_reload_brought(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.route("**/api/**", answer)
     page.route("**/registry.json", answer)
     with page.expect_navigation(wait_until="commit"):
@@ -1297,7 +1297,7 @@ def test_startup_recovery_s_reload_carries_on_the_values_a_reload_brought(
     with page.expect_navigation(wait_until="commit"):
         held.pop().continue_()
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
@@ -1458,7 +1458,7 @@ def test_a_right_click_on_a_summary_before_leaf_starts_leaves_its_disclosure_car
 
 def scroll_away(page):
     """Scroll the page with the wheel, and wait until the document has heard it: an
-    input of the user's, as its clock counts them (document-inputs.js). A document
+    input of the user's, as its clock counts them (base/document-inputs.js). A document
     that has not painted yet may not hear a wheel at all."""
     page.mouse.move(400, 300)
     page.mouse.wheel(0, 200)
@@ -1812,7 +1812,9 @@ def test_words_typed_through_a_reload_for_a_field_of_the_page_stay_in_it(
             route.continue_()
 
     page.on("request", navigated)
-    needed = "**/runtime/rendering.js" if ending == "cannot-start" else "**/leaf.js"
+    needed = (
+        "**/runtime/base/rendering.js" if ending == "cannot-start" else "**/leaf.js"
+    )
     page.route(needed, hold)
     answer_as_another_runtime(page)
     with page.expect_navigation(wait_until="commit"):
@@ -2103,7 +2105,7 @@ def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
             route.continue_()
 
     page.on("request", navigated)
-    page.route("**/runtime/rendering.js", hold)
+    page.route("**/runtime/base/rendering.js", hold)
     answer_as_another_runtime(page)
     with page.expect_navigation(wait_until="commit"):
         append_carried_log_record(
@@ -2117,7 +2119,7 @@ def test_words_typed_through_a_reload_whose_page_cannot_start_reach_the_reply(
     with page.expect_navigation(wait_until="commit"):
         held.pop().abort("internetdisconnected")
     wait_until_ready(page)
-    page.unroute("**/runtime/rendering.js")
+    page.unroute("**/runtime/base/rendering.js")
     page.unroute("**/api/**")
     page.unroute("**/registry.json")
     page.remove_listener("request", navigated)
@@ -2300,7 +2302,7 @@ def test_a_reload_into_another_runtime_keeps_the_user_where_they_were(
 ):
     """Leaf reloads the tab, not the user, so their place rides across the reload, as
     it does into a revision that needs a fresh document, in the entry's record
-    (history.js) and the reload's handoff (version.js, `handOff`): the thread they had
+    (records/history.js) and the reload's handoff (features/version.js, `handOff`): the thread they had
     open, in the margin card or the floating panel they had it in, its reply box with
     the words they had selected, and a disclosure they opened. The
     handoff is spent on that reload, so an ordinary one after it keeps only what a
@@ -2362,7 +2364,7 @@ def test_words_typed_as_the_server_restarts_go_with_the_reload_unasked(browser, 
     """The restarted server refuses the old tab's draft writes, so the words typed as it
     restarts wait in the tab. The reload Leaf then asks for carries them, with the
     caret, and puts no leave prompt in front of the user, which they would have to
-    answer for a reload they never asked for (drafts.js, `beforeunload`)."""
+    answer for a reload they never asked for (records/drafts.js, `beforeunload`)."""
     page = open_page(browser, serve(leaf_page("Restarted", "<h1>Rehearsal</h1>")))
     # A user who meets the prompt for a reload they never asked for stays, and the
     # tab is left on the server it can no longer read.
@@ -2386,7 +2388,7 @@ def test_a_page_s_own_prompt_the_user_stays_at_leaves_leaf_asking_before_they_le
 ):
     """Leaf's reload asks nothing, but a page's own leave prompt can keep the document,
     as when the user stays there. The next departure is the user's, so Leaf asks before
-    it drops the words the restarted server refused (drafts.js, `beforeunload`)."""
+    it drops the words the restarted server refused (records/drafts.js, `beforeunload`)."""
     page = open_page(browser, serve(leaf_page("Restarted", "<h1>Rehearsal</h1>")))
     prompts = []
     page.on("dialog", lambda dialog: (prompts.append(dialog.type), dialog.dismiss()))
@@ -2420,7 +2422,7 @@ def test_a_reload_into_another_runtime_keeps_the_panel_s_list_open(
 ):
     """The panel's lists are where the user is too: Threads, with the user on the row
     they were on, and On Me come back open across the reload, as the entry's record
-    has them (history.js)."""
+    has them (records/history.js)."""
     url = serve(
         leaf_page(
             "Restarted",
@@ -2478,7 +2480,7 @@ def test_keys_typed_through_the_reload_go_into_the_reply_it_hands_back(
     writing in. Those the new document hears before it has handed the box back wait for
     it and go there, a capital's Shift and a Space included, and the keys after go on
     into it, rather than running the page's single-key commands, one of which resolves
-    the thread (keyboard/bindings.js, `placeHandedBack`; bootstrap.js, `typingBack`).
+    the thread (dom/keyboard/bindings.js, `placeHandedBack`; bootstrap.js, `typingBack`).
     The new document's first state answer is held while the keys are typed, so they
     reach it before the hand-back however fast the machine is."""
     url = serve(
@@ -2565,9 +2567,9 @@ def test_a_key_typed_through_the_reload_acts_where_the_user_is_put_back(
     request, serve, engine
 ):
     """A key the user presses on as the tab reloads acts in the thread view the reload
-    puts them back in, as the entry's record has it (history.js): `r` resolves the
+    puts them back in, as the entry's record has it (records/history.js): `r` resolves the
     thread they were on in the panel, not another, though the new document hears it
-    before it has opened the view (keyboard/bindings.js, `placeHandedBack`), and the
+    before it has opened the view (dom/keyboard/bindings.js, `placeHandedBack`), and the
     panel goes on to the next thread, as a resolve there does."""
     url = serve(
         leaf_page(

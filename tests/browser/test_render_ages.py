@@ -15,7 +15,7 @@ AGES = leaf_page(
     ">20 Nov, 02:10 UTC</lf-age>, and nothing has failed since.</p>",
 )
 
-# What the page's comment capture reads of the selection (native-selection.js,
+# What the page's comment capture reads of the selection (dom/native-selection.js,
 # `pageRange`): the anchor it would quote, or null where the selection is a caret.
 SELECTED = """async () => {
   const { anchorForRange, pageRange } = await window.__lfCheckApi();

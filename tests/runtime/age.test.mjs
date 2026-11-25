@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import "../../browser/runtime/age.js";
-import { ago, clockTime, tickClock } from "../../browser/runtime/presence.js";
+import { ago, clockTime, tickClock } from "../../browser/runtime/state/presence.js";
 
 const NOW = Date.parse("2026-11-24T18:05:00Z");
 const tick = () =>

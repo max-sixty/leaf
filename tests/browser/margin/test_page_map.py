@@ -860,9 +860,9 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     for title, word in (
-        ("rewrite · two → three", "three"),
-        ("rewrite · red → blue", "blue"),
-        ("rewrite · large → small", "small"),
+        ("suggestion · two → three", "three"),
+        ("suggestion · red → blue", "blue"),
+        ("suggestion · large → small", "small"),
     ):
         group = dialog.locator(".lf-page-map-group").filter(has_text=title)
         expect(
@@ -911,7 +911,9 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(3)
     search.fill("red → blue")
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(1)
-    red = dialog.locator(".lf-page-map-group").filter(has_text="rewrite · red → blue")
+    red = dialog.locator(".lf-page-map-group").filter(
+        has_text="suggestion · red → blue"
+    )
     reject = red.get_by_role(
         "button", name="Reject the suggested change: blue", exact=True
     )

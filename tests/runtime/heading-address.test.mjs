@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { headingAddress } from "/runtime/heading-links.js";
+import { headingAddress } from "/runtime/records/heading-links.js";
 
 const addressOf = (markup) => {
   document.body.innerHTML = `<main>${markup}</main>`;

@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     COMMAND_SUBJECTS,
     FLOW_PAGE,
@@ -897,6 +898,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     watcher the panel names — and every publication stay the hub's, untouched
     by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
+    hooks_run_this_tree("hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
     _tasks_version(page_dir, "active")
@@ -915,6 +917,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
@@ -927,6 +930,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     indexed = reply("indexing done")
     assert indexed.exit_code == 0, indexed.output
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    hooks_run_this_tree("worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
@@ -1073,6 +1077,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
 
     opened = comment(page_dir, "--text", "The index is still pending.")
@@ -1173,6 +1178,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
 
     before = events_model.read_events(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    hooks_run_this_tree("worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     foreign = CliRunner().invoke(
         cli_model.cli,
@@ -1230,6 +1236,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
 
     def reply_for(event_id, text):
         result = CliRunner().invoke(
@@ -1548,6 +1555,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     opened = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "U1"},
@@ -1684,6 +1692,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     message = append_carried_log_record(
         page_dir,
         {

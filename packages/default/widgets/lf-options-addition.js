@@ -1,24 +1,28 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
  * draft generation, and the option nodes each `add` in force puts in the group.
  *
- * The field is a one-line textarea of the widget's own in a form: Return adds the
- * option, Shift+Return writes nothing, since an option's words are one line, and the
- * phone's keyboard offers Return as Send. A line break pasted in shows until the option
- * is added, on one line. Leaf keeps its words (`draft`), so they
- * outlive a reload, a revision and the tab, and a refused add gives them back. */
+ * The field is a text `<input>` of the widget's own, alone in its form, since an
+ * option's words are one line: Return submits the form from every keyboard, a phone's
+ * included, whose key says Send, and the browser drops a line break pasted into it, as
+ * it does in any one-line field. Leaf keeps its words (`draft`), so they outlive a
+ * reload, a revision and the tab, and a refused add gives them back.
+ *
+ * Rejected: a textarea, whose words wrap as the option's will, since a phone's Return
+ * writes a line break there unless a press of Leaf's own adds the option. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
-import { draft, pageLinks } from "/runtime/widget-api.js";
+import { draft } from "/runtime/widget-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
+  pageLinks,
 } from "/runtime/lib/markdown.js";
 
 const ANOTHER = "Another option";
 
-/** @typedef {{form: HTMLFormElement, input: HTMLTextAreaElement, bindingBadge: HTMLSpanElement}} OptionEditor */
+/** @typedef {{form: HTMLFormElement, input: HTMLInputElement, bindingBadge: HTMLSpanElement}} OptionEditor */
 
 export class OptionAddition {
   #host;
@@ -85,9 +89,10 @@ export class OptionAddition {
   /** @returns {OptionEditor} */
   #buildForm() {
     const form = offer("form", "lf-another");
-    const input = offer("textarea");
+    const input = offer("input");
+    input.type = "text";
     input.name = "option";
-    input.rows = 1;
+    input.autocomplete = "off";
     input.placeholder = "Add another option…";
     input.enterKeyHint = "send";
     input.setAttribute("aria-label", ANOTHER);
@@ -95,10 +100,12 @@ export class OptionAddition {
     bindingBadge.setAttribute("aria-hidden", "true");
     input.value = this.#draft.read()?.text ?? "";
     form.append(bindingBadge, input);
+    // Return adds the option in the keypress's own task, as Send does in Leaf's boxes;
+    // a keyboard still composing a word leaves it to the form's own submission.
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || event.isComposing) return;
       event.preventDefault();
-      if (!event.shiftKey) form.requestSubmit();
+      form.requestSubmit();
     });
     input.addEventListener("input", () => this.remember(this.#picked()));
     // A press in the field's row beside its words, its digit's column included, is a
@@ -109,8 +116,7 @@ export class OptionAddition {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const raw = input.value;
-      // An option's words are one line, a line break pasted among them included.
-      const text = raw.replace(/\s+/g, " ").trim();
+      const text = raw.trim();
       if (text && this.available()) void this.#submit(text, () => input.value === raw);
     });
     this.#host.append(form);

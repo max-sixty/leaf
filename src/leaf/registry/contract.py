@@ -23,7 +23,7 @@ from .kernel import verb_writers
 
 def same_state_definition(recorded, current) -> bool:
     """Whether two recorded state definitions, or values in them, are one JSON value,
-    as the browser compares them (`registry-contract.js`): `true` is not `1`, which
+    as the browser compares them (`state/registry-contract.js`): `true` is not `1`, which
     Python's `==` takes it for, while `1.0` is `1`, as in JavaScript."""
     if isinstance(recorded, dict) and isinstance(current, dict):
         return recorded.keys() == current.keys() and all(
@@ -484,13 +484,13 @@ def detail_schema(
 
 
 def decides(spec: dict) -> bool:
-    """Whether a verb declares the role that selects retirable members
-    (`retired-when`) or declines the proposal (its `withdraws`). Its required
-    `outcome` carries that choice; the same field name on any other verb is
-    ordinary domain data.
+    """Whether a verb declares the role that selects retirable members (its
+    `decides`, each outcome with the member tags it takes off the page) or declines
+    the proposal (its `withdraws`). Its required `outcome` carries that choice; the
+    same field name on any other verb is ordinary domain data.
     The browser reads the role from `$decisions`
     (`registry.contract.stamp_decisions`)."""
-    return spec.get("decides", False)
+    return bool(spec.get("decides"))
 
 
 def deciding_verbs(entry: dict) -> list[str]:
@@ -543,7 +543,7 @@ def recorded(spec: dict) -> dict | None:
     verb with no record. An admitted event stores this, so a declaration that names
     another property or event keeps every decision recorded before it, and a state
     in `leaf page state` shows it as its construction. The browser's `sameRecord`
-    (`runtime/registry.js`) compares two records the same way."""
+    (`runtime/state/registry.js`) compares two records the same way."""
     record = spec.get("record")
     return record and {
         key: value for key, value in record.items() if key not in RECORD_BINDING
@@ -669,19 +669,31 @@ def event_spec(entry: dict, event: dict) -> dict | None:
 
 
 def retirement_slots(registry: dict) -> dict:
-    """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `retired-when` relates, the member naming the outcome and
-    `owners` the widgets whose decision reaches it. Read out of the merged
-    registry rather than known here, so which widgets a decision settles is a
-    fact about this page's vocabulary and never a list in the code."""
-    slots = {}
-    for tag, entry in registry.items():
-        if not is_element_name(tag) or not entry.get("retired-when"):
-            continue
-        outcome = entry["retired-when"]
-        for owner in entry["owners"]:
-            slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
-    return slots
+    """owner tag → {outcome → the member tags that leave the page under it}, as each
+    owner's deciding verb names them (`decides`). Read out of the merged registry
+    rather than known here, so which widgets a decision settles is a fact about this
+    page's vocabulary and never a list in the code.
+
+    A layer that adds a member to another layer's deciding widget restates the
+    widget's entry whole with the member in its `decides`, so two layers that each
+    add one keep only the later one's. Rejected: each member naming its own outcome
+    (`retired-when`), which let such layers compose in either order; no package added
+    a member to another's decision, and the member's key was one more name every
+    declaration's vocabulary carried."""
+    return {
+        tag: dict(entry["verbs"][verb]["decides"])
+        for tag, entry in registry.items()
+        if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
+    }
+
+
+def retired_under(slots: dict, owner: str, tag: str) -> str | None:
+    """The outcome of an `owner` widget's decision under which a `tag` member standing
+    directly in it leaves the page, or None (`retirement_slots`)."""
+    return next(
+        (outcome for outcome, tags in slots.get(owner, {}).items() if tag in tags),
+        None,
+    )
 
 
 def stamp_states(registry: dict) -> dict:

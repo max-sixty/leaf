@@ -452,9 +452,9 @@ test("a list item records the indent its later lines stand at past its container
 });
 
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
-  const { registry } = await import("/runtime/registry.js");
-  const { preloadWidgets } = await import("/runtime/widget-loader.js");
-  const { formatDeclaredMarkdown } = await import("/runtime/page-markdown.js");
+  const { registry } = await import("/runtime/state/registry.js");
+  const { preloadWidgets } = await import("/runtime/records/widget-loader.js");
+  const { formatDeclaredMarkdown } = await import("/runtime/records/page-markdown.js");
   const { dataBody } = await import("/runtime/lib/data-body.js");
   registry["lf-source-contract"] = {
     content: "markdown",
@@ -488,11 +488,11 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
 });
 
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
-  const { registry } = await import("/runtime/registry.js");
+  const { registry } = await import("/runtime/state/registry.js");
   const { loadDeclaredMarkdown, formatDeclaredMarkdown } =
-    await import("/runtime/page-markdown.js");
-  const { annotationAt } = await import("/runtime/anchor-resolution.js");
-  const { blockAt, elementReading } = await import("/runtime/passages.js");
+    await import("/runtime/records/page-markdown.js");
+  const { annotationAt } = await import("/runtime/readings/anchor-resolution.js");
+  const { blockAt, elementReading } = await import("/runtime/readings/passages.js");
   registry["lf-seat-contract"] = {
     content: "markdown",
   };
@@ -569,4 +569,30 @@ test("a table cell's words and a caret in them stand in its own cell, past the p
       assert.ok(from < offset && offset <= to, `${source}: cell ${index} at ${offset}`);
     }
   }
+});
+
+test("a page's Markdown opens a link out of the page in a new tab and a picture as its own file", async () => {
+  const { loadMarkdown, pageLinks, renderMarkdown } =
+    await import("/runtime/lib/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  const body = document.createElement("div");
+  body.innerHTML = renderMarkdown(
+    "[out](https://elsewhere.example/a) [in](#here) ![Room](/media/room.png) " +
+      "[![Linked](/media/linked.png)](https://elsewhere.example/b)",
+    pageLinks,
+  );
+  const links = [...body.querySelectorAll("a")];
+  const named = (words) => links.find((link) => link.textContent === words);
+  assert.equal(named("out")?.getAttribute("target"), "_blank");
+  assert.equal(named("in")?.hasAttribute("target"), false);
+  const room = body.querySelector('img[alt="Room"]');
+  assert.equal(room?.parentElement?.localName, "a");
+  assert.equal(room?.parentElement?.getAttribute("href"), "/media/room.png");
+  // A picture a link already holds goes where the link goes.
+  const linked = body.querySelector('img[alt="Linked"]');
+  assert.equal(
+    linked?.parentElement?.getAttribute("href"),
+    "https://elsewhere.example/b",
+  );
+  assert.equal(linked?.parentElement?.getAttribute("target"), "_blank");
 });

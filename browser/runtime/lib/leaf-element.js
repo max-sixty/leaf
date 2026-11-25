@@ -6,7 +6,7 @@
    the class says `static shadow = true`, which draws into an open shadow root.
    `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
    whose tag declares `verbs`, each bound input through the property Leaf sets
-   (element-data.js, "Bound values"), Lit's reactive properties for state the widget
+   (host/element-data.js, "Bound values"), Lit's reactive properties for state the widget
    keeps itself, and any signal-backed reader, such as the page's obligations or
    history. Every signal `render()` reads synchronously is tracked by Lit's Preact
    SignalWatcher, so the element draws again when one moves.
@@ -76,7 +76,7 @@ class UpdateBoundary extends LitElement {
   }
 }
 
-/** @typedef {ReturnType<typeof import("../widget-controller.js").widgetState>} WidgetState */
+/** @typedef {ReturnType<typeof import("../host/widget-controller.js").widgetState>} WidgetState */
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** Whether the element draws into an open shadow root of its own. */

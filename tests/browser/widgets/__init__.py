@@ -16,7 +16,7 @@ from leaf import data as data_model
 def expect_walk_says(page, words):
     """Wait for a walk's position, such as "Hunk 2 of 3", to be heard: a step announces
     it whether or not the panel's field shows it, which it does only while the list
-    runs past the window (walk-position.js, `stepTo`)."""
+    runs past the window (records/walk-position.js, `stepTo`)."""
     expect(page.locator(".lf-live")).to_contain_text(words)
 
 

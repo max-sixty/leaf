@@ -74,7 +74,6 @@ In [module-reading.md](module-reading.md):
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
-- "Markdown": `pageLinks`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `obligations` and `queues`.
 - "Page history and reports": `history`.
@@ -376,8 +375,8 @@ adopted sheets, the widget adds back the ones it found there. Off Leaf, nobody a
 `lf-connect`, and the root holds only what the widget draws.
 
 Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
-sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the
-page's own stylesheet.
+sit with the widgets' defaults in `lf-base`, above the page's `base` layer and below
+Layouts, package overrides and the page's other layers and unlayered rules.
 
 ### Scheduling paints
 

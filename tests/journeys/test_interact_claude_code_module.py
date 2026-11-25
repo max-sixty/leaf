@@ -2,6 +2,7 @@ from process.test_interact_claude_code_module import claude_code as claude_code
 
 """Tests scheduled by the measured cost of their boundary."""
 
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -76,5 +77,6 @@ def test_the_band_follows_the_pages_the_session_holds(
     band([(f"Leaf {title} · On Me 1 · Threads 1, 1 new", url)])
     # Another session takes the page, so this one holds none.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
+    hooks_run_this_tree("cc-s2")
     service_model.claim_page(page_dir)
     band([])

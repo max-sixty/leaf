@@ -266,7 +266,7 @@ lf-options:has(> lf-option:where([label])) > lf-option > .lf-pick {
     & > .lf-another:not([hidden]) {
       padding-block: var(--lf-option-pad-block);
     }
-    & > .lf-another > textarea {
+    & > .lf-another > input {
       min-height: var(--lf-card-state-height);
     }
     /* The mark's box is the whole seat the binding badge takes, the mark centred in it,
@@ -633,7 +633,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * subject after the group's `:has()` names an element, one key per selector
      * (browser/AGENTS.md, "What a style rule costs"). Options come first, so the first
      * option is the first cell, though not always the first child: a word for a screen
-     * reader, such as "my change", stands before it (declared-words.js). */
+     * reader, such as "my change", stands before it (records/declared-words.js). */
     & > lf-option:first-of-type {
       border-start-start-radius: calc(var(--lf-r) - 1px);
       border-start-end-radius: calc(
@@ -788,7 +788,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
-  .lf-another > textarea {
+  .lf-another > input {
     --lf-focus-box: .lf-another;
   }
   lf-options:not(:where([data-lf-exhibit]) *)
@@ -830,13 +830,13 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     margin: auto 0;
   }
   /* The field takes the group's answer face before and after it becomes an lf-option,
-   * one line high, as the option it becomes is. */
-  .lf-another > textarea {
+   * one line high, where the UI library's field face stands a control's height. */
+  .lf-another > input {
     flex: 1;
     min-width: 0;
     min-height: 0;
+    height: 1lh;
     padding: 0;
-    field-sizing: content;
     border: 0;
     outline: none;
     background: transparent;
@@ -848,7 +848,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
        option's height. */
     font: inherit;
     margin-block: calc((var(--lf-option-line) - 1lh) / 2);
-    resize: none;
   }
   /* The leading column holds the key badge (from an 8px inset, --lf-key-badge-size wide)
    * and 6px before the words. It is held before the badge appears, so focusing an

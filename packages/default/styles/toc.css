@@ -163,7 +163,7 @@ lf-toc a[data-lf-focus] {
  * stretch of the rule wears the change's colour, as its bar in the margin does
  * (chrome.css), and a mark stands over it. The stretch is a change mark, so hiding
  * annotations (`g H`) hides it, as it hides that bar: the map reads the chrome's root
- * (`data-lf-annotations-hidden`, annotation-layer.js) through `:root:has()`, which
+ * (`data-lf-annotations-hidden`, annotations/annotation-layer.js) through `:root:has()`, which
  * restyles the stretches alone. Out of the words, no mark reads as part of
  * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read

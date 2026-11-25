@@ -60,7 +60,7 @@ OPENERS = (
 
 # The words a reader can comment on that the browser draws, each mapped back to its
 # text node, with runs of space collapsed as rendering collapses them. `quotable` is
-# the set of text nodes in the page's own reading (`pageText`, passages.js), which
+# the set of text nodes in the page's own reading (`pageText`, readings/passages.js), which
 # keeps a tab label or a board's column heading and leaves out Leaf's chrome and the
 # copies its routes echo, such as a contents outline's copy of a heading; hidden text
 # is skipped too.

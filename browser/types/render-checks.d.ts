@@ -1,18 +1,10 @@
 /* Document-side values exchanged with Playwright's render-check driver. */
-export interface FirstBox {
-  element: HTMLElement;
-  width: number;
-  height: number;
-}
 export interface RenderDriver {
   load(route: string): boolean;
   call(request: { name: string; args: unknown[] }): unknown;
   requestFrame(): number;
   framePresented(requested: number): boolean;
   renderingState(): ReturnType<NonNullable<HTMLScriptElement["lfRenderingState"]>>;
-  undrawnHeights(): Map<Element, number>;
-  captureFirstBoxes(): void;
-  firstBoxes(): FirstBox[];
 }
 declare global {
   interface CustomElementConstructor {

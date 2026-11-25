@@ -1911,7 +1911,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     editor.click()
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
-      const {scrollerFor} = await window.__lfWidgetApi();
+      const {scrollerFor} = await window.__lfCheckApi();
       const {readingRegionFor} = await window.__lfCheckApi();
       const reader = document.querySelector('#workspace').reader;
       return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;

@@ -58,8 +58,8 @@ the DOM takes the element it acts for as its first argument.
 
 In this file:
 
-- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work, and
-  `growthIsSeen` says whether growing now would move what the user sees.
+- "Startup and presentation": `whenNear` defers heavy work until the reader comes
+  near.
 - "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
   place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
@@ -74,21 +74,20 @@ In [module-state.md](module-state.md):
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
   `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
   which Leaf remembers, names in the address and returns the user to their place in.
-- "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says`, `named` and `phrasing` read an element's words, and
+- "Reading the page": `says` and `named` read an element's words, and
   `elementById` finds the element an address names.
-- "Naming": `nameOf`, `titledElement` and `anchorLabel`.
+- "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`, `dressCode` and `copyControl`.
+- "Code": `langForPath` and `dressCode`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
   `answerWords` and `obligationActions`.
@@ -100,38 +99,28 @@ In [module-input.md](module-input.md):
 
 - "Walks": `rowWalk` gives a list of rows its arrow keys.
 - "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
-  redraw, `placeOf` and `onCurrentLocation` read where the user is, and `onPress` and
+  redraw, `onCurrentLocation` reads where the user is, and `onPress` and
   `onPressAway` follow a pointer's press.
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
-  `leafEditorView` wraps a CodeMirror editor.
+- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
+  draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`, `preserveReadingRegions` and `showReadingSubject`.
-- "Holding the reader's place": `holdPlace` and `HeldReading`.
-- "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
-  `landingInsets` and `shownWindow`.
+- "Holding the reader's place": `HeldReading`.
+- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
 
-- "Margin contributions": `registerContribution` and `presentContributionEntry`.
-- "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
-  `threadInput`, `landInThread` and `agentName`.
+- "Margin contributions": `registerContribution`.
+- "Reading and opening Threads from a widget": `readThreads`, `threadActions` and
+  `landInThread`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
-
-In [module-previews.md](module-previews.md):
-
-- "Previews": `placePreview`.
-
-In [module-controls.md](module-controls.md):
-
-- "Generated controls": `searchField`.
 
 ### Shared web code
 
@@ -205,8 +194,8 @@ script", lists.
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
   "Words it writes").
-- Keep the widget's visible geometry stable as its state updates ("First paint"), and
-  meet the rest of [interface-goals.md](interface-goals.md).
+- Keep the widget's visible geometry stable as its state updates, and meet the rest of
+  [interface-goals.md](interface-goals.md).
 - Schedule paints and observe size through the library's frame pass, and
   write a value only where it changes ("Scheduling paints", "Writes that change
   nothing").
@@ -334,16 +323,15 @@ widget on the page has by the first `lf-page-interface`. A listener for that eve
 after its listeners have run. A playground's page script is the worked example (the
 playground package's author instructions, "Stateful previews").
 
-Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`, or until they come near its element through
-`whenNear(element, () => …)`, which returns the step that stops waiting. Hand work that
-starts now but need not delay presentation, such as a slow load whose result moves
-nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wait for
-the page wait for the work each has started; `page check --render` starts what
-`whenNear` holds.
-Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
+Start a heavy renderer that can wait until the user has the page at `lf-presentation`,
+or at once where `body[data-lf-presented]` is already set, and say what it draws with a
+`pending-task` event (`module-plain-elements.md`, "Drawing"): said after presentation,
+it holds the page's readiness rather than its presentation, so checks and tests wait
+for it. Work that starts now but need not delay presentation, such as a slow load whose
+result moves nothing visible, is said the same way once the page has presented. Run one
+that can wait until the reader comes near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting;
+`page check --render` starts what it holds.
 
 ### First paint
 
@@ -353,11 +341,11 @@ readings.
 - Draw a widget's complete view in one place, its `state` setter or its one `render()`.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
   a second initial renderer or transfer generated nodes between renderers.
-- Size the widget in the package theme, including its initial authored drawing.
-  A shadow template uses native slots for authored children, keeping their nodes and
-  browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
+- Size the widget in the package theme, including its initial authored drawing. A
+  custom element is inline until a rule gives it a `display`, so give the tag its
+  `display` there. A shadow template uses native slots for authored children, keeping
+  their nodes and browser state in the light DOM. Where the markup can't say how tall
+  the drawing will be, the page moves once as it draws.
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as
@@ -397,8 +385,8 @@ text selection the user made in it. A `LeafElement` places retained nodes in its
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
-`placeSelection()` from its `connectedMoveCallback`.
+custom element holding an editor, such as CodeMirror's, writes the editor's selection
+back from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 

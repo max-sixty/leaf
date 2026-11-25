@@ -54,16 +54,6 @@ thing.
 items each with an `id` unique within the contribution and an optional `activate`,
 which the registration's `activateReading(id)` calls.
 
-A widget that shows margin entries inside its own content, as the feature gallery does,
-draws its own control as an entry with
-`presentContributionEntry(control, entry, {selected, unread, receipt, awaitsUser})`,
-where `unread` draws the dot for agent words the user hasn't read beside the entry's
-count, `receipt` shows whether the agent is working on it, and `awaitsUser` whether it
-waits on the user. `receipt` is `null` or a workflow's
-`{id, subject, state, reason, seen, detail}`. The control shows the agent at work while
-`state` is `"running"`, and an update a turn has taken in while `state` is `"waiting"`
-and `seen` is true.
-
 The returned registration's `hasCurrentLocation()` says whether the user's focus is
 inside any control presenting that contribution, across shadow roots and presentation
 surfaces. Its `contains(node)` answers the same ownership question for an arbitrary
@@ -145,11 +135,7 @@ inside a datum. `prefix` and `suffix`, where the anchor has them, are the text b
 and after the quote, which tell two copies of the same words apart.
 [events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
-`agentName()` returns the page's current agent name, or "the agent" when none is
-supplied. Use it when a package attributes agent activity.
-
-`threadInput(element)` returns the reply editor of the Thread containing that element,
-or `null` outside one. `landInThread(editor, {target, line})` enters an existing reply
+`landInThread(editor, {target, line})` enters an existing reply
 editor and records where Escape returns when the Thread has no own focus destination:
 `target` is the package's return element and `line` is its accessible return label.
 It returns whether it could land. Use `threadActions.open` below when starting from a

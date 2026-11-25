@@ -662,7 +662,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
           const box = document.activeElement.getBoundingClientRect();
           const pick = document.querySelector('#storage-options .lf-pick')
             .getBoundingClientRect();
-          const foot = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
+          const foot = (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom;
           return {top: box.top, pick: pick.top, height: innerHeight - foot};
         }"""
     )
@@ -1342,7 +1342,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
             foot: at('sc-sug').bottom,
             view: document.scrollingElement.clientHeight,
             top: parseFloat(style.scrollPaddingTop),
-            bottom: (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom,
+            bottom: (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom,
           };
         }"""
         before = page.evaluate(measure)

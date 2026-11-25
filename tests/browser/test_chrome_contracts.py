@@ -659,7 +659,7 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);
-      const band = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
+      const band = (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom;
       return [caret.getBoundingClientRect().bottom, innerHeight - band];
     }}""")
     assert caret > band_top, (

@@ -8,7 +8,9 @@ import { createPlayground, same } from "./playground-view.js";
  * recordless action.
  * The instruction opens from its actions in a popover over the page, so reading it
  * moves nothing the user set or pressed, in any Layout; the log never records it. The
- * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
+ * popover's head holds a copy button, the UI library's, in the symbol press's face.
+ * It says its result on its own face, and a page served over plain HTTP under a machine
+ * name, which has no Clipboard API, can't copy from it. Rejected: unfolding
  * the instruction in the pane, which had to grow below the bar in a flowing page and
  * above it at the foot of a held workspace, and still moved the bar wherever a stage
  * at its floor, a resize or a short window left it no room.
@@ -65,7 +67,6 @@ import { createPlayground, same } from "./playground-view.js";
 import { render } from "/vendor/lit.js";
 import {
   aimedAt,
-  copyControl,
   focusDestination,
   holdFocus,
   onCurrentLocation,
@@ -74,6 +75,8 @@ import {
   wear,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
+import { iconElement } from "/runtime/lib/icon-paths.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
@@ -344,16 +347,34 @@ customElements.define(
             this.#draw();
           });
         const { instruction } = initial;
-        // Leaf's copy control in the popover's head. A code block's Copy hides
+        // The copy button in the popover's head. A code block's Copy hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
         // shows the instruction where it was written, with no popover to copy from.
         if (instruction) {
-          const copy = copyControl("lf-playground-copy", {
-            label: "Copy instruction",
-            success: "Instruction copied",
-            error: "Unable to copy instruction",
-            role: "symbol",
+          const copy = offerActionElement(
+            document.createElement("wa-copy-button"),
+            "symbol",
+            "lf-playground-copy",
+            undefined,
+            { action: "copy" },
+          );
+          // The face's symbol, and Leaf's check and cross for the result, in the
+          // button's icon slots.
+          copy.querySelector(":scope > svg")?.setAttribute("slot", "copy-icon");
+          copy.append(
+            Object.assign(iconElement("check", "lf-playground-copy-icon"), {
+              slot: "success-icon",
+            }),
+            Object.assign(iconElement("cross", "lf-playground-copy-icon"), {
+              slot: "error-icon",
+            }),
+          );
+          Object.assign(copy, {
+            copyLabel: "Copy instruction",
+            successLabel: "Instruction copied",
+            errorLabel: "Unable to copy instruction",
+            tooltip: "none",
           });
           copy.addEventListener(
             "click",

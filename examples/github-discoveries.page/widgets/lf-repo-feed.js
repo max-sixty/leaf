@@ -4,7 +4,6 @@
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
-  clockValue,
   tabStore,
   HeldReading,
   threadActions,
@@ -441,19 +440,12 @@ class RepoFeed extends LeafElement {
       .replace(/[^a-z0-9]/gi, "")
       .slice(0, 2)
       .toUpperCase();
-    // The day count on the page's clock: the card redraws as it changes, on the
-    // server's time, as every age Leaf draws does.
-    const days = clockValue((now) =>
-      Math.floor((now - Date.parse(item.at)) / 86400000),
-    );
+    // A week's age in Leaf's words for one, kept current as the tab sits open
+    // (`lf-age`); anything older by its date.
     const when =
-      days < 1
-        ? "Today"
-        : days === 1
-          ? "Yesterday"
-          : days < 7
-            ? `${days}d ago`
-            : date.format(new Date(item.at));
+      Date.now() - Date.parse(item.at) < 7 * 86400000
+        ? html`<lf-age datetime=${item.at}></lf-age>`
+        : html`<time datetime=${item.at}>${date.format(new Date(item.at))}</time>`;
     return html`<article
       class="feed-card"
       data-change=${item.id}
@@ -477,9 +469,7 @@ class RepoFeed extends LeafElement {
             rel="noreferrer"
             >${item.repo}</a
           >
-          <time datetime=${item.at} title=${date.format(new Date(item.at))}
-            >${item.kind === "project" ? `Updated ${when}` : when}</time
-          >
+          <span>${item.kind === "project" ? "Updated " : nothing}${when}</span>
           ${item.kind === "project" ? html`<span class="feed-angle">Project to explore</span>` : nothing}
           <span class="feed-angle">${angle}</span>
         </div>

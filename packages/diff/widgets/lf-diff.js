@@ -38,7 +38,6 @@ import {
   move,
   threadSurface,
   retainUserIntent,
-  searchField,
   setChildren,
   shadowStage,
   scrollIntoView,
@@ -620,10 +619,19 @@ function replaceFileContent(entry, rendered, outlets) {
 
 /** @param {{filterFiles: (value: string | null) => void, foldAll: () => void}} host */
 function diffTools(host) {
-  const search = searchField("lf-diff-tools lf-diff-search", {
+  // The UI library's search field, its label kept for a screen reader alone. One
+  // native stop, which modal traversal finds on the host (`tabIndex`).
+  const search = offer("wa-input", "lf-diff-tools lf-diff-search lf-label-hidden");
+  Object.assign(search, {
+    type: "search",
+    size: "s",
+    withClear: true,
+    tabIndex: 0,
     name: "diff-search",
     label: "Filter diff files",
     placeholder: "Filter files…",
+    autocomplete: "off",
+    spellcheck: false,
   });
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");

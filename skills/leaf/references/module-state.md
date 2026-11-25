@@ -230,14 +230,6 @@ shadow tree too. It words the age as the page does everywhere, "just now", then 
 ago", "2h ago", "2d ago", and keeps it current. Pointing at it says when, in the
 reader's zone and as their browser writes a date: "Sat, Aug 15, 2026, 2:02 PM PT".
 
-`clockValue((now) => …)` states any other condition on the time, such as whether a
-timestamp is older than a limit or which day a date falls in. It is a page reading
-(`module-reading.md`, "Page readings"). `now` is the server's time in milliseconds,
-the clock an age reads, so the answer never disagrees with an age beside it; keep no
-clock of your own. Return the answer rather than the time, as in
-`clockValue((now) => now - Date.parse(collected) > STALE_MS)`: the render that read it
-runs again only when that answer changes.
-
 ## Editing a bound file
 
 `boundFile(binding)` reads and writes a file the agent granted this page with

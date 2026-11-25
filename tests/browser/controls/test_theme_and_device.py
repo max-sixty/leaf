@@ -198,7 +198,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     step = page.evaluate(
         "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
+        " - (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"

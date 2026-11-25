@@ -1,6 +1,7 @@
 /* Keys typed into a field Leaf builds stay with Leaf: the comment box and every other
- * `leaf-text` (composing/text-field.js), and the search boxes, `searchField`'s and the
- * panel's own (control-labels.js, floating-panel.js).
+ * `leaf-text` (composing/text-field.js), and Leaf's own search boxes, `searchField`'s
+ * and the panel's (control-labels.js, floating-panel.js). A package's field is the
+ * package's, and its keys reach the page as any field's do.
  *
  * Page shortcut code skips a key typed into a text field by asking whether the focused
  * element, or the event's target, is an input, a textarea or editable. A `leaf-text`
@@ -18,8 +19,8 @@
  * element but a check by tag or selector never does, and a page that checks nothing
  * hears every key regardless.
  *
- * Dependency-free, since `searchField` builds fields in documents without Leaf too,
- * where nothing reads the keys and they stop at the field all the same. */
+ * Dependency-free, so a field built in a document without Leaf's runtime stops its keys
+ * all the same. */
 
 /** @type {Set<(event: KeyboardEvent) => void>} */
 const readers = new Set();

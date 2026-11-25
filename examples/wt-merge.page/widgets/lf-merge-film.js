@@ -19,12 +19,7 @@
 // A `--seek` command, such as a step button's `commandfor` press, holds the result of
 // the step its button's value names.
 
-import {
-  holdFocus,
-  preserveReadingRegions,
-  scrollIntoView,
-  shownWindow,
-} from "/runtime/widget-api.js";
+import { holdFocus, scrollIntoView } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -309,7 +304,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
             padding: 10,
             crossAxis: true,
           }),
@@ -404,14 +399,7 @@ customElements.define(
     #paint() {
       const narrow = this.stage.clientWidth < 560;
       const painter = narrow ? this.phonePainter : this.desktopPainter;
-      if (painter !== this.painter)
-        void preserveReadingRegions(this, () => {
-          this.#draw(narrow, painter);
-          this.dispatchEvent(
-            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-          );
-        });
-      else this.#draw(narrow, painter);
+      this.#draw(narrow, painter);
     }
 
     #draw(narrow, painter) {

@@ -59,15 +59,14 @@ import { render } from "/vendor/lit.js";
 import {
   comparisonChanges,
   holdFocus,
-  landingInsets,
   readObligations,
   readThreads,
-  scrollerFor,
   named,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
+import { scrollerOf } from "/runtime/lib/scroller.js";
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
@@ -140,8 +139,7 @@ customElements.define(
       const main = this.#drawing.scope();
       const again = this.#connectedBefore;
       this.#connectedBefore = true;
-      const stays =
-        again && main === this.#main && scrollerFor(main) === this.#scroller;
+      const stays = again && main === this.#main && scrollerOf(main) === this.#scroller;
       this.#main = main;
       if (!main) return;
       if (!stays) this.#reconcile();
@@ -223,7 +221,7 @@ customElements.define(
     #watch(signal) {
       this.#main = this.#drawing.scope();
       if (!this.#main) return;
-      this.#scroller = scrollerFor(this.#main);
+      this.#scroller = scrollerOf(this.#main);
       // Root scrolling is reported on Document; nested scrollports report on the
       // element itself. Keep one paint path while using the platform's event target for
       // each kind of scroller.
@@ -573,9 +571,14 @@ customElements.define(
         keeps(this.#lens, "style", "display: none;");
         return;
       }
-      // What the user can read is the scroller's landing band, clear of whatever stands
-      // over its top and the floating panel's row over its bottom.
-      const clear = landingInsets(this.#scroller);
+      // What the user can read is the scroller's landing band, clear of whatever its
+      // `scroll-padding` says stands over its edges. The floating panel's row over the
+      // window's foot is no part of that, so the lens runs under it.
+      const padding = getComputedStyle(this.#scroller);
+      const clear = {
+        top: Number.parseFloat(padding.scrollPaddingTop) || 0,
+        bottom: Number.parseFloat(padding.scrollPaddingBottom) || 0,
+      };
       const visibleStart = this.#scroller.scrollTop + clear.top;
       const visibleEnd =
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;

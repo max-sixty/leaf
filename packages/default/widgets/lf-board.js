@@ -81,7 +81,6 @@ import {
   elementById,
   move,
   motion,
-  scrollerFor,
   focusDestination,
   scrollIntoView,
   layerFact,
@@ -92,6 +91,7 @@ import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { byRank, rankAt } from "/runtime/lib/rank.js";
+import { scrollerOf } from "/runtime/lib/scroller.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -847,7 +847,7 @@ customElements.define(
 
     /** @param {HTMLElement} col */
     #sortable(col) {
-      const scroller = scrollerFor(this);
+      const scroller = scrollerOf(this);
       const group = `board-${this.id}`;
       const sortable = new Sortable(col, {
         disabled: !this.#available(),

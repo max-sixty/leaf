@@ -289,19 +289,17 @@ def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
 
 
 def authored_allocation_errors(parser: SourceDocument) -> list[Finding]:
-    """Authored allocations use the layer's named values: one of the names `allowed`
-    lists, or, where it is None, a whole number of CSS pixels."""
+    """Authored allocations use the layer's named values, the names `allowed` lists."""
     return [
         found_at(
             "allocation-value",
             item,
             attr=item["attr"],
             value=item["value"],
-            allowed=list(values) if isinstance(values, tuple) else None,
+            allowed=list(AUTHORED_ALLOCATIONS[item["attr"]]),
         )
         for item in parser.authoring.authored_allocations
         if not allocation_valid(item["attr"], item["value"])
-        for values in [AUTHORED_ALLOCATIONS[item["attr"]]]
     ]
 
 

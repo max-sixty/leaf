@@ -4,7 +4,7 @@
 # author needs the same age, so Leaf defines an element both write, `lf-age`, which words
 # the age as the page does everywhere and keeps it current; the widget's template draws
 # it with the record's time and imports nothing for it. `module-state.md`, "Time
-# readings", says so, and keeps `clockValue` for other conditions on the time.
+# readings", says so.
 description: widget-ages-drawn-by-leaf
 metadata:
   purpose: A widget that shows how long ago a time was draws Leaf's lf-age element rather than wording the age on a clock of its own.
@@ -28,8 +28,8 @@ assert:
       `datetime` set to the record's `deployedAt`, so Leaf words the age and keeps it
       current. The element may be empty or hold the time as text.
       Fail if the module words any row's age itself or redraws it on a timer: by
-      reading the current time (`Date.now()`, `new Date()` with no argument,
-      `performance.now()` or `clockValue`) to compute the age, by wording it with
+      reading the current time (`Date.now()`, `new Date()` with no argument or
+      `performance.now()`) to compute the age, by wording it with
       `Intl.RelativeTimeFormat` or a helper of its own, or by scheduling redraws
       with `setInterval`, `setTimeout` or `requestAnimationFrame`; or if it defines
       an age element of its own.

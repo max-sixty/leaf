@@ -68,9 +68,9 @@
  * heading or gist it ran under takes its place on the line, so the reader lands on
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
- * around the reader or opening out from them. Leaf's one hold keeps the place
- * (`holdPlace`), since the browser's scroll anchoring can't: Skim hides the block it
- * anchors.
+ * around the reader or opening out from them. The dial keeps the place itself
+ * (`#keepingPlace`), since the browser's scroll anchoring can't: Skim hides the block
+ * it anchors.
  *
  * The dial is a radio group of the three depths, Web Awesome's, the control every
  * choice among a few views takes, as a recording's scopes and an image pair's views
@@ -110,12 +110,9 @@
 import {
   nameOf,
   focusDestination,
-  holdPlace,
   motion,
   move,
-  phrasing,
   onPress,
-  shownWindow,
   tabStore,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -125,6 +122,7 @@ import { nextRender } from "/runtime/lib/frame-pass.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { plainPress } from "/runtime/lib/keys.js";
+import { scrollerOf } from "/runtime/lib/scroller.js";
 import { html, render } from "/vendor/lit.js";
 import "/vendor/webawesome-views.js";
 
@@ -158,10 +156,13 @@ const rank = (heading) =>
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
+/** @param {Element} element */
+const inline = (element) => getComputedStyle(element).display.startsWith("inline");
 // Whether an element is a line of text: one with words of its own, or one whose
-// children all stand in a line of words (`phrasing`), as an image beside a link and an
-// `em` does. A block among its children makes it structure, whose stray inline
-// children, such as a button, fold as blocks.
+// children all stand in a line of words, as the page draws them: an image beside a
+// link and an `em` do, and so does a widget whose stylesheet leaves it inline. A block
+// among its children makes it structure, whose stray inline children, such as a
+// button, fold as blocks.
 /** @param {Element} element */
 const isLine = (element) => {
   if (
@@ -171,7 +172,7 @@ const isLine = (element) => {
   )
     return true;
   const children = [...element.children].filter((child) => !child.matches(STANDS));
-  return children.length > 0 && children.every(phrasing);
+  return children.length > 0 && children.every(inline);
 };
 // The headings in `blocks` that no earlier one among them outranks: the sections a run
 // folds, rather than each of their subsections.
@@ -248,6 +249,15 @@ const barsAt = (blocks, depth, scale) => {
 };
 /** @param {Bar[]} bars */
 const rowsOf = (bars) => bars.reduce((sum, bar) => sum + bar.rows, 0);
+
+// What the window shows, top to bottom: the visual viewport, which pinch zoom and a
+// phone's keyboard shrink, in the coordinates a box's rectangle reads.
+const shownWindow = () => {
+  const view = visualViewport;
+  return view
+    ? { top: view.offsetTop, bottom: view.offsetTop + view.height }
+    : { top: 0, bottom: innerHeight };
+};
 
 // The nodes among `nodes`, in document order down the page, that stand within a
 // window's height of what the window shows, found by halving, so pointing marks the
@@ -935,10 +945,12 @@ customElements.define(
       }
     }
 
-    // Make `change` keep the reader's place: what stands at the reading line, or, where
-    // Skim folds it, the heading or gist its run follows, lands where it stood
-    // (`holdPlace`). Each run's ⋯ stands for that heading or gist too, as leaving Skim
-    // takes it away.
+    // Make `change` keep the reader's place: the block at the reading line, a quarter of
+    // the way down what the window shows, or, where Skim folds it, the heading or gist
+    // its run follows, lands where it stood. Each run's ⋯ stands for that heading or
+    // gist too, as leaving Skim takes it away. Folding hides what the browser's scroll
+    // anchoring would hold, so the dial scrolls the box that carries the block by the
+    // distance it moved.
     /** @param {Element} scope @param {() => void} change */
     #keepingPlace(scope, change) {
       /** @type {Map<Element, Element>} */
@@ -946,12 +958,23 @@ customElements.define(
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? scope);
       for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
-      const hold = holdPlace(scope, (node) => {
-        const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
-        return folded && owner.get(folded);
-      });
+      const window = shownWindow();
+      const line = window.top + (window.bottom - window.top) / 4;
+      let read = null;
+      for (const block of this.#blocks(scope, scope)) {
+        if (!shown(block) || block.getBoundingClientRect().bottom <= line) continue;
+        read = block;
+        break;
+      }
+      const top = read?.getBoundingClientRect().top ?? 0;
       change();
-      hold();
+      if (!read) return;
+      const folded = read.closest(`[${FOLDED}], .lf-dial-more`);
+      const stand = (folded && owner.get(folded)) ?? read;
+      if (!stand.isConnected) return;
+      const by = stand.getBoundingClientRect().top - top;
+      if (Math.abs(by) >= 1)
+        scrollerOf(stand).scrollBy({ top: by, behavior: "instant" });
     }
 
     // Where each block shown near the window stands in it now.

@@ -592,12 +592,3 @@ def shrunk_label_advice(readings) -> list[Finding]:
         [(width, (width, reading)) for width, reading in readings],
         lambda stepped: drawings(*stepped),
     )
-
-
-def drawn_height_advice(page) -> list[Finding]:
-    """Each drawing whose height differs from the box it showed before drawing
-    (`drawnHeights`), as advice read at the desktop viewport, the user's window
-    (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
-    is, has another height at another width, and the one `data-height` that holds it
-    still holds it at one width, so it is read only as the page loaded."""
-    return [Finding.read(height) for height in evaluate_probe(page, "drawnHeights")]

@@ -63,13 +63,11 @@
  * around the questions it is waiting on, chosen by the user. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
-  agentName,
   answerWords,
   focusDestination,
   keepView,
   motion,
   obligationActions,
-  placeOf,
   openingView,
   viewMembers,
   nameOf,
@@ -453,9 +451,8 @@ customElements.define(
       return card ? this.#cards.indexOf(card) : this.#cards.length;
     }
 
-    // What becomes of the user on what the deck puts away: the open card, a control
-    // standing for it such as a suggestion's margin entry or its thread's reply box, the
-    // forward control as the pass ends, or the end frame once a step back in leaves it.
+    // What becomes of the user on what the deck puts away: the open card, the forward
+    // control as the pass ends, or the end frame once a step back in leaves it.
     // One who was there by keyboard arrives at the card that comes up as `m` would, on
     // what waits there, so its own keys answer it, or at the step back in once the pass
     // is over; one who pressed lets go of what is hidden, and Tab goes on from where it
@@ -464,11 +461,8 @@ customElements.define(
     /** @param {HTMLElement[]} leaving */
     #carry(leaving) {
       const here = focusedElement();
-      const place = here && placeOf(here);
       const inside = leaving.some(
-        (each) =>
-          (here !== null && here !== document.body && under(here, each)) ||
-          Boolean(place && under(place, each)),
+        (each) => here !== null && here !== document.body && under(here, each),
       );
       const keyed = inside && here !== null && here.matches(":focus-visible");
       return (/** @type {HTMLElement | null} */ next, wait = 0) => {
@@ -612,7 +606,7 @@ customElements.define(
       const readings = this.#readings();
       const card = this.#open;
       const count = readings
-        ? tallyWords(tally(readObligations(this).all), agentName())
+        ? tallyWords(tally(readObligations(this).all), "the agent")
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
@@ -695,7 +689,7 @@ customElements.define(
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
       if (held.some((item) => item.state !== "done"))
-        return [`Waiting on ${agentName()}`, "leaf"];
+        return ["Waiting on the agent", "leaf"];
       const words = held.map(answerWords).filter(Boolean).join("; ");
       return words ? [words, null] : ["Answered", "leaf"];
     }
@@ -727,9 +721,9 @@ customElements.define(
       const waits = waiting.includes(card);
       // The reading that ends the open card's wait sends it on when the user answered
       // it from the card: every obligation it holds is closed, at least one by an
-      // answer, and the user is in this window and on the card, on a control standing
-      // for it such as a suggestion's margin entry (`placeOf`), or pressed in it and is
-      // on nothing else. A comment leaves an obligation open with the agent, the agent
+      // answer, and the user is in this window and on the card, or pressed in it and is
+      // on nothing else. An answer given from a margin entry or a thread about the card
+      // leaves the card open, for Next to move on. A comment leaves an obligation open with the agent, the agent
       // ending one closes it without an answer, and an answer from another window
       // arrives here while this one lacks focus, so none of them moves the card.
       // A card's obligations leave out withdrawn ones, so every one that isn't open is
@@ -737,10 +731,9 @@ customElements.define(
       const { open, total } = tally(readings(card));
       const closed = total > 0 && open === 0;
       const here = focusedElement();
-      const place = here && placeOf(here);
       const onCard =
         document.hasFocus() &&
-        (Boolean(place && under(place, card)) ||
+        ((here !== null && here !== document.body && under(here, card)) ||
           (this.#pressed === card && (here === null || here === document.body)));
       if (this.#waited && !waits && closed && onCard) {
         this.#go(this.#after(card, readings), "right", { answered: true });

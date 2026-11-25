@@ -2,7 +2,8 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { startNearWork } from "./presentation.js";
+export { afterPresentation, startNearWork } from "./presentation.js";
+export { clockValue } from "./presence.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
@@ -37,6 +38,9 @@ export {
   userScrollport,
   seenRect,
   growthAfterIsSeen,
+  growthIsSeen,
+  landingInsets,
+  shownWindow,
   stuckBox,
   stackLevel,
   shownParts,
@@ -45,10 +49,12 @@ export { inChrome, uiInside } from "./ui-marks.js";
 export { anchoringIsReady } from "./anchor-resolution.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
+export { presentContributionEntry } from "./contribution-controls.js";
 export { NOTICE_MS, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export {
   readingRegions,
+  scrollerFor,
   shownRegionBounds,
   userReadingRegion,
   scrollersOf,
@@ -57,6 +63,7 @@ export {
   readingRegion,
   unconcealedReadingRegions,
   regionScrollBehavior,
+  preserveReadingRegions,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { carriersOf } from "./scroll-containers.js";
@@ -151,6 +158,7 @@ export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
+export { anchorLabel } from "./thread/messages.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";

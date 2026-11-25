@@ -22,10 +22,6 @@ tag in its values:
 
 - `example`: each of the package's tags appears in some worked example, since a tag no
   example shows is one no other check reads.
-- `keeps-first-box`: a widget's presented box matches the box its package CSS holds
-  before upgrade. Its reading is `changedBoxes` in `render-checks/widgets.js`, against
-  the authored boxes captured while the runtime entry is held. Content-derived
-  drawings may change size; the bundled suite records those explicitly.
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside it,
   where a widget in ordinary flow grows with what it holds (`../../../browser/AGENTS.md`,
   "The page holds still under the user's aim"). A box that needs a scroll of its own says so with
@@ -171,8 +167,8 @@ def _blank_image(suffix: str) -> bytes:
 
 def _readings(
     browser, url: str, tags: list[str]
-) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
-    """Changed startup boxes, unshown keys, held scrollers and published outputs."""
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Unshown keys, held scrollers and published outputs."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     page = open_render_page(browser, viewport=RENDER_VIEWPORT)
@@ -183,35 +179,16 @@ def _readings(
     answer_reports(page)
     try:
         observe_output_documents(page)
-        held = []
-
-        def hold_entry(route):
-            if held:
-                route.fallback()
-            else:
-                held.append(route)
-
-        # Keep this route installed until the page closes. Disabling interception
-        # while released modules are fetching can strand their requests.
-        page.route("**/leaf.js", hold_entry)
-        with page.expect_request("**/leaf.js"):
-            page.goto(asked_again(url), wait_until="commit")
-        page.wait_for_function("document.readyState !== 'loading'")
-        page.wait_for_function(
-            "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
-        )
-        page.evaluate("window.__leafRenderDriver.captureFirstBoxes()")
-        held[0].fallback()
+        page.goto(asked_again(url), wait_until="commit")
         wait_until_ready(
             page, served(page, url, "/api/state").json(), fixed_server=True
         )
         wait_for_probe(page, "pageSettled")
         if errors:
             raise UnreadablePage("; ".join(found.said for found in errors))
-        changed = evaluate_probe(page, "changedBoxes")
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         held = evaluate_probe(page, "heldScrollers", tags)
-        return changed, unshown, held, output_values(page)
+        return unshown, held, output_values(page)
     except (PlaywrightTimeout, TimeoutError) as error:
         # The page never answered a wait. The wait's error names what never arrived,
         # and the errors the page reported say why, as in the render gate's
@@ -264,29 +241,17 @@ def _page_findings(
     pages: list[tuple[str, SourceDocument]],
     tags: list[str],
 ) -> list[Finding]:
-    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
-    of examples (`served_examples`)."""
+    """`shows-context-keys` and `grows-with-content` over each page of examples
+    (`served_examples`)."""
     findings = []
     for layout, url, artifact in served_examples(package, pages):
-        changed, unshown, held, outputs = _readings(browser, url, tags)
+        unshown, held, outputs = _readings(browser, url, tags)
         findings += output_findings(
             outputs,
             artifact.registry,
             artifact.implementations,
             artifact.declaration_sources,
         )
-        findings += [
-            _finding(
-                "keeps-first-box",
-                box["tag"],
-                box["id"],
-                layout=layout,
-                first=box["first"],
-                now=box["now"],
-            )
-            for box in changed
-            if box["tag"] in tags
-        ]
         findings += [
             _finding(
                 "shows-context-keys",

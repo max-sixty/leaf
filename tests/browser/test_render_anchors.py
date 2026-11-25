@@ -3761,7 +3761,7 @@ def clearance_page(browser, serve, rail=True):
             """async offset => {
               const scroller = document.scrollingElement;
               const destination = document.getElementById('destination');
-              const clear = (await window.__lfWidgetApi()).landingInsets(scroller).bottom;
+              const clear = (await window.__lfCheckApi()).landingInsets(scroller).bottom;
               const before = destination.getBoundingClientRect();
               scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
               const after = destination.getBoundingClientRect();
@@ -3799,7 +3799,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     assert covered["bottom"] <= covered["viewport"]
     assert covered["bottom"] > covered["viewport"] - covered["clear"]
     clear_band = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "async () => (await window.__lfCheckApi()).landingInsets("
         "document.scrollingElement).bottom"
     )
     page.keyboard.press("t")

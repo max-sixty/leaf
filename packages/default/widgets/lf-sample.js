@@ -23,10 +23,10 @@
  * when that opens. Until then nothing loads, the frame keeps its placeholder height
  * and the status line stays empty, so starting moves nothing; `ready` waits, and
  * Reset starts the child. The browser's Find searches only the children that have
- * started. A frame the reader sees as it mounts starts at once, in the task that
- * shows it to them, the page arriving or a view they opened: the host makes that
- * showing wait for the frame's fit to its child only where it starts in that task.
- * The sample's arrival is its child's,
+ * started. A frame the reader sees as it mounts starts at the browser's first reading
+ * of it, which the page arriving or a view they opened waits for, and the host makes
+ * that showing wait for the frame's fit to its child. The sample's arrival is its
+ * child's,
  * which the host counts; a frame waiting to start counts until the
  * browser's first reading of it has said whether it starts (`whenNear`). The status line
  * keeps its room through loading, ready and failure, so the frame below it stays put; a
@@ -37,12 +37,7 @@
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
-import {
-  growthIsSeen,
-  mountSample,
-  focusDestination,
-  whenNear,
-} from "/runtime/widget-api.js";
+import { mountSample, focusDestination, whenNear } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
@@ -149,15 +144,9 @@ export class Sample extends HTMLElement {
     if (this.#pageView?.view.getAttribute("role") === "dialog" && !this.#modal)
       this.#embed();
     if (!this.#pageView || this.#host || this.#mounting || this.#nearing) return;
-    // A frame the reader sees as it mounts is part of what they are being shown, the
-    // page arriving or a view they opened, such as a thread in the floating panel: it
-    // starts at once, in the task that shows it, so that showing waits for its resize
-    // to its child (sample.js). Any other starts as it nears the window. A window
-    // keeps its height.
-    if (!this.hasAttribute("window") && !this.#modal && growthIsSeen(this.#frame)) {
-      this.#start();
-      return;
-    }
+    // The frame starts as it nears the window, a frame the reader already sees at the
+    // browser's first reading of it, which the page arriving or a view they opened
+    // waits for (`whenNear`).
     this.#nearing = whenNear(this.#frame, () => {
       this.#nearing = null;
       this.#start();

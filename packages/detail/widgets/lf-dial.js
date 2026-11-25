@@ -358,8 +358,10 @@ customElements.define(
     // The depth whose preview stands.
     /** @type {string | null} */
     #pointed = null;
-    // Whether a plain press on the dial is under way.
+    // Whether a plain press on the dial is under way, and what ends it.
     #pressing = false;
+    /** @type {(() => void) | null} */
+    #endPress = null;
     // What puts the sheets away once the press on the dial is over.
     /** @type {(() => void) | null} */
     #lifted = null;
@@ -462,18 +464,24 @@ customElements.define(
       );
       // A plain press on the dial puts Leaf's preview away as it goes down, and its
       // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-      // until the press is over: its release or cancel, and then the click a release
-      // owes, which the browser dispatches in the release's task. A finger's tap reads
-      // no preview again, so its sheets go at once.
+      // until the press is over, and then for the click a release owes, which the
+      // browser dispatches in the release's task. The press is over at its release; at
+      // its cancel or a lost capture, as when a native menu or a touch scroll takes it;
+      // as the window loses focus, which a release off it can leave unsaid; or as the
+      // next press begins. A finger's tap reads no preview again, so its sheets go at
+      // once.
       this.addEventListener(
         "pointerdown",
         (down) => {
+          this.#endPress?.();
           if (!down.isPrimary || !plainPress(down) || down.pointerType === "touch")
             return;
           this.#pressing = true;
           const press = new AbortController();
           const over = () => {
+            if (press.signal.aborted) return;
             press.abort();
+            this.#endPress = null;
             setTimeout(() => {
               this.#pressing = false;
               const away = this.#lifted;
@@ -481,12 +489,14 @@ customElements.define(
               if (away) nextRender(away);
             });
           };
+          this.#endPress = over;
           const options = {
             capture: true,
             signal: AbortSignal.any([signal, press.signal]),
           };
-          addEventListener("pointerup", over, options);
-          addEventListener("pointercancel", over, options);
+          for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
+            addEventListener(type, over, options);
+          addEventListener("blur", over, { signal: options.signal });
         },
         { capture: true, passive: true, signal },
       );

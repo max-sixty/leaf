@@ -215,6 +215,25 @@ def test_pointing_at_a_depth_hangs_each_depth_s_page_under_its_button(
     expect(page.get_by_role("radio", name=re.compile("^Everything"))).to_be_focused()
 
 
+def test_a_press_the_window_never_hears_end_puts_the_sheets_away(browser, serve):
+    """A press held on a depth keeps the sheets up until it ends. One whose release the
+    page never hears, as when the window loses focus with the button down, ends as the
+    window blurs, and the sheets go rather than stand until the next press."""
+    page = open_page(browser, serve(DIAL_PAGE))
+    buttons = page.locator("lf-dial .lf-dial-depth")
+    panel = page.locator(".lf-dial-hang-panel")
+    buttons.filter(has_text="Read").hover()
+    expect(panel).to_have_attribute("data-lf-open", "")
+    buttons.filter(has_text="Everything").hover()
+    page.mouse.down()
+    one_frame(page)
+    one_frame(page)
+    expect(panel).to_have_attribute("data-lf-open", "")
+    page.evaluate("() => window.dispatchEvent(new Event('blur'))")
+    expect(panel).not_to_have_attribute("data-lf-open", "")
+    page.mouse.up()
+
+
 def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
     """A folded `lf-diagram` kept the 170px its package's `min-block-size` reserved, so
     Skim left a blank gap where the drawing was. A block Skim folds takes no room

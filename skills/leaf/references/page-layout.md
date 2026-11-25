@@ -264,7 +264,9 @@ neighbours, such as its age or suggested outcome. Leave out the item's group, wh
 heading shows. Where items fall into kinds the user works through in turn, such as
 merge, close and FYI, give each item its kind as `group` and place each kind's items
 together in the order to take them; adjacent tabs with the same group share one
-heading.
+heading. Where the user would rather take the items one at a time than see the list,
+make the body a pile of cards that shows one at a time and counts what is left, such
+as a deck.
 
 ## Bounds and widths
 

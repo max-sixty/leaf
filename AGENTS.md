@@ -95,11 +95,13 @@ or work around:
 - **An open design.** Where a visual or interaction design is still open after
   these principles, show the candidates side by side and let the maintainer
   select one (`/developing-leaf`, "Explore an open design").
-- **Reading markup another way.** "Read what the page states" says which facts
-  Leaf takes from a page, and an exception to it is his.
-- **Changing Leaf's keys.** Adding or removing a key, or changing which command a
-  key runs or where it runs it, in Leaf's runtime or a bundled package. Leaf's keys
-  work the same on every page, so the maintainer keeps the whole set in view.
+- **Inferring a fact from a page's look or words.** Leaf takes each fact about a
+  page from where the page states it ("Read what the page states"), such as a
+  heading from `<h2>` rather than from large bold text, and an exception is his.
+- **Changing core UX.** Adding, removing or changing how the user works with Leaf on
+  every page, such as a keyboard shortcut, a gesture or what Escape closes, in
+  Leaf's runtime or a bundled package. A user learns these once and relies on them
+  on every page, so the maintainer keeps the whole set in view.
 - **Growing the package interface.** Adding something a package's author must
   newly learn, such as a declaration key, one of Leaf's elements, an event, a
   function or a new rule for using one. Each stays for every author to learn ("Keep
@@ -113,15 +115,16 @@ or work around:
   maintenance"). A fix that keeps the code's existing design, or a change that
   leaves the core simpler, is the change's own to weigh.
 
-Weigh a key, a name or a mechanism first, as "Weigh what a change adds" says: one
-the weighing rejects goes without asking, and only one it keeps waits for the
-maintainer. A change the list holds for him merges only once he has approved it, in
-the session, on a page or on its pull request. A request of his that named that
-very change, such as the key to bind, approves it. Until he approves, its pull
+Weigh a change on the list first, as "Weigh what a change adds" says: one the
+weighing rejects goes without asking, and only one it keeps waits for the maintainer. A
+change the list holds for him merges only once he has approved it, in the session,
+on a page or on its pull request. A request of his that named that very change,
+such as the keyboard shortcut to bind, approves it. Until he approves, its pull
 request stays a draft that names what waits on him. Once he has approved all of
 it, the pull request says what he approved and leaves draft. Build as much of the
 change as makes the question concrete, and land the rest of the work without it
-where the rest stands alone, as a new control can land without its key.
+where the rest stands alone, as a new control can land without its keyboard
+shortcut.
 
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it
@@ -305,8 +308,9 @@ rule covers. A rule whose goal nobody can name is a candidate to cut once
 Place an instruction by who must act on it and by what a session that misses it gets
 wrong. Every session in the repository reads this file, including subagents and the
 runs of Tend, the agent that reviews and maintains the repository from GitHub
-Actions. A session that changes or reviews an area also reads that area's
-`AGENTS.md`. A skill reaches only the sessions that load it, and subagents and
+Actions, so other instructions neither repeat a rule this file states nor point
+their reader to it. A session that changes or reviews an area also reads that
+area's `AGENTS.md`. A skill reaches only the sessions that load it, and subagents and
 Tend's runs often don't load one. So an `AGENTS.md` holds the instructions whose
 omission could let a change break something: goals, invariants that span modules,
 who owns what, the criteria a change or review is judged by, and the checks to run,
@@ -494,8 +498,7 @@ a standard attribute that means the same to every reader. A declaration on Leaf'
 element uses Leaf's attribute, such as `label`, since no standard defines that
 element. Leaf takes no fact from how content looks or what it says, and reads words
 only to quote, anchor and show them. So restyling a page changes no fact Leaf holds,
-and rewording it changes only its words. Leaf reads markup any other way only where
-the maintainer agrees to the exception.
+and rewording it changes only its words.
 
 ### Keep the layer open
 

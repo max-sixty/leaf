@@ -3,10 +3,8 @@
 You are one of many agents working Leaf's backlog issues in parallel while the
 maintainer (Max, GitHub `max-sixty`) is away. Nobody will answer a question before
 you finish, so don't ask one: where a choice stalls you, take the option you would
-defend, and say in your PR and report that it's a call Max may reverse. A change
-root `AGENTS.md`, "The maintainer decides", holds for him is no such call: build it,
-and name it in your PR and report as waiting on him. Your item's paragraph says
-what to do; these rules say how.
+defend, and say in your PR and report that it's a call Max may reverse. Your item's
+paragraph says what to do; these rules say how.
 
 ## Start
 

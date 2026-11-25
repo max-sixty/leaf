@@ -8,9 +8,7 @@ description: Project-specific instructions loaded by tend workflows alongside AG
 ## Landing
 
 Tend uses `merge: yolo`. **Fixing a CI failure's cause** defines when a CI
-repair can land without maintainer approval. A change that root `AGENTS.md`,
-**The maintainer decides**, holds for the maintainer waits for his answer, a CI
-repair included.
+repair can land without maintainer approval.
 
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
 require the control-plane owner's fresh approval.
@@ -188,9 +186,9 @@ request's context, following **Reading a red suite**, and link that pull request
 from the fix's description with the behavior its author intended and why the repair
 changes the test or the behavior.
 
-Merge a pull request that fixes tests, without waiting for maintainer approval
-unless **Landing** holds it for him, once each test it claims to fix failed before
-the change and passes after it (a skipped or deleted test has not passed). For a failure only `test-macos` shows,
+Merge a pull request that fixes tests, without waiting for maintainer approval,
+once each test it claims to fix failed before the change and passes after it
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows,
 **A red `ci` on main is live** says what shows the before and after. Pull requests
 run only the later-tier tests they edit, so run the claimed ones yourself. The merge
 also waits for the pull request's CI to reach a terminal result on the exact head; `monitor-ci`,

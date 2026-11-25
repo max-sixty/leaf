@@ -158,27 +158,31 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     assert not bridge_model.live_sessions()
 
 
-@pytest.mark.parametrize("ended", [False, True], ids=["live", "ended"])
-def test_the_bridge_lets_a_session_go_once_its_record_says_it_ended(ended):
-    """A later Leaf's session, living by a kind of lifetime this Leaf can't check,
-    keeps the bridge while its record says it lives, and lets it go once the record
-    says it ended, so the bridge can retire and free its port."""
-    sessions = bridge_model.bridge_path("sessions")
-    sessions.mkdir(parents=True, exist_ok=True)
-    registration = sessions / "later.json"
+@pytest.mark.parametrize("ending", ["live", "record ends", "session ends"])
+def test_the_bridge_lets_a_session_go_once_it_ends(ending):
+    """A session registered with a kind of lifetime this Leaf can't check, as a later
+    Leaf may register one, keeps the bridge until it ends: until its record says so,
+    or until its end retires its files, record and registration among them. So the
+    bridge can retire and free its port."""
+    registration = state_model.session_file("later", f"{bridge_model.KEY}-1.bridge")
     bridge_model.REGISTRATION.write(registration, {"id": "later", "window": "w-1"})
     lifecycle = state_model.session_file("later", state_model.SESSION_SUFFIX)
-    lifecycle.parent.mkdir(parents=True, exist_ok=True)
-    recorded = state_model.new_session("later", {"window": "w-1"})
-    recorded["ended"] = state_model.now_iso() if ended else None
-    lifecycle.write_text(json.dumps({**recorded, "format": "leaf-session/999"}))
+    if ending == "session ends":
+        started = state_model.new_session("later", {"pid": os.getpid()})
+        state_model.SESSION.write(lifecycle, {**started, "revision": 1})
+        state_model.end_session("later")
+    else:
+        recorded = state_model.new_session("later", {"window": "w-1"})
+        if ending == "record ends":
+            recorded["ended"] = state_model.now_iso()
+        lifecycle.write_text(json.dumps({**recorded, "format": "leaf-session/999"}))
     try:
-        assert bridge_model.live_sessions() is not ended
-        assert registration.exists() is not ended
+        assert bridge_model.live_sessions() is (ending == "live")
+        assert registration.exists() is (ending == "live")
     finally:
         # Ending the session at teardown would rewrite the record here with a
         # lifetime this Leaf's schema doesn't allow, which the suite's check refuses.
-        lifecycle.unlink()
+        lifecycle.unlink(missing_ok=True)
 
 
 def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):
@@ -325,7 +329,7 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
     Once the session ends, the bridge releases its lease."""
     from leaf.leases import take_lease
 
-    bridge_model.bridge_path("sessions").mkdir(parents=True)
+    bridge_model.bridge_path("lock").parent.mkdir(parents=True)
     lock = bridge_model.bridge_path("lock")
     lease = take_lease(lock)
     assert lease is not None
@@ -346,8 +350,7 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
             return False
         if sweeps == 3:
             # The late session ends, so the bridge may retire.
-            for entry in bridge_model.bridge_path("sessions").glob("*.json"):
-                entry.unlink()
+            state_model.end_session("late")
         return sweep()
 
     def release_unserved(held) -> None:
@@ -373,7 +376,7 @@ def test_a_bridge_ends_once_its_sweep_cannot_retire_it(tmp_path, monkeypatch, ca
     home stays removed."""
     from leaf.leases import take_lease
 
-    bridge_model.bridge_path("sessions").mkdir(parents=True)
+    bridge_model.bridge_path("lock").parent.mkdir(parents=True)
     lease = take_lease(bridge_model.bridge_path("lock"))
     assert lease is not None
     bridge_model.ensure("evaluated", {"pid": os.getpid()})

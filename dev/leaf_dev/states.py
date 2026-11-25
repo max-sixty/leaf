@@ -1052,6 +1052,17 @@ def card_next_unread_cluster(page: Page) -> None:
     card_next_unread(page)
 
 
+def card_rewrite_at_foot(page: Page) -> None:
+    """The user's own turn, last in a margin card that scrolls, opened for a rewrite by
+    ↑ from the reply box, so its frame and ring stand in the room below the turns."""
+    own_turn_in_card(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.press("ArrowUp")
+    expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    settle(page)
+
+
 def card_answer_at_cap(page: Page) -> None:
     """A margin card at its cap, the user at its end after their own turn, with an answer
     too long to show arrived: their turn stays in sight above New reply."""
@@ -3966,6 +3977,12 @@ STATES = (
         "ship-card-new-reply",
         "ship-review",
         card_new_reply,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "ship-card-rewrite-at-foot",
+        "ship-review",
+        card_rewrite_at_foot,
         region=".lf-margin-preview",
     ),
     # A window with room for the rail but none beside the ask, so the card stands over

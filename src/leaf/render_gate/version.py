@@ -14,7 +14,6 @@ from leaf.render_checks import (
 from .readings import (
     SWEEP_WIDTHS,
     arrangement_changes,
-    drawn_height_advice,
     open_widgets,
     settle_at,
     shrunk_label_advice,
@@ -116,7 +115,6 @@ def _render_version_attempt(
         open_tags = open_widgets(registry)
         # Read the desktop viewport before the sweep changes it.
         parts.append(evaluate_probe(page, "drawnParts", element_declarations(registry)))
-        advice.extend(drawn_height_advice(page))
         samples.extend(sweep(page, [desktop["width"]], open_tags))
         widths = sweep(page, steps, open_tags)
         samples.extend(widths)

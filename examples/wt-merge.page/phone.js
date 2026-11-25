@@ -2,7 +2,7 @@
 // History runs down two lanes; the refs move with their commits. Worktrees and hooks
 // stay below that history, and a disclosure holds the complete, seekable terminal.
 // Coordinates come from the interpolated world, so a resize preserves playback.
-import { setChildren } from "/runtime/widget-api.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { offer } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 

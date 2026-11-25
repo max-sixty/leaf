@@ -152,7 +152,7 @@ import { seatOf } from "../thread/model.js";
 
 import { livePoint } from "../pointed-place.js";
 import { keeps } from "../lib/keeps.js";
-import { move } from "../dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { inChrome } from "../ui-marks.js";
 

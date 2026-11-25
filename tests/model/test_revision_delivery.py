@@ -704,8 +704,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     """The theme and the workspace Layout read what an element's registry entry
     declares, and a stylesheet cannot read the registry, so the document arrives with
     each declaration painted on the element: the first paint lays out a package's pane
-    before any script runs. An occurrence's own `data-width`,
-    `data-bound` or `data-height` says it for that occurrence. An element naming page
+    before any script runs. An occurrence's own `data-width` or
+    `data-bound` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
     in their shape before they decode. A mark is its tag's, so a selector idiom declares
     none. Markup inside a template is inert, and everything else in the source stays
@@ -727,9 +727,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-feed": {
             "bound": "end",
         },
-        "lf-plot": {
-            "height": 400,
-        },
         "table": {
             "description": "A table.",
             "example": "<table></table>",
@@ -745,7 +742,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'
         '<table id="native"></table>'
         '<pre data-bound="start">log</pre>'
-        '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
         "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
         "</main></body></html>"
@@ -782,8 +778,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("table", "native")] == {}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
-    assert marks[("lf-plot", "plot")] == {"data-lf-height": "400"}
-    assert marks[("lf-plot", "tall")] == {"data-lf-height": "240"}
     assert marks[("lf-pair", "pair")] == {
         "data-lf-media-width": "1200",
         "data-lf-media-height": "800",
@@ -798,8 +792,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         ' data-lf-bound="end"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',
-        ' data-lf-height="400"',
-        ' data-lf-height="240"',
         ' data-lf-media-width="1200" data-lf-media-height="800"',
     ):
         delivered = delivered.replace(mark, "", 1)
@@ -903,36 +895,19 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
 
 def test_an_authored_override_holds_only_where_it_means_something():
     """A room or a bound sizes a block in the page's flow; on `main` or `body` it would
-    size the page itself, a column that stops centring or a page held to one screen. A
-    stated height reserves room for a module's drawing; on a table, which no module
-    marks drawn, it would clip the words for good. Each override is inert there."""
+    size the page itself, a column that stops centring or a page held to one screen.
+    Each override is inert there."""
     source = (
         '<body data-bound="end"><main class="layout-column" data-width="wide" '
         'data-bound="end">'
-        '<lf-chart id="chart" data-height="240"></lf-chart>'
-        '<table id="table" data-height="80" data-width="wide"><tr><td>A</td></tr>'
+        '<table id="table" data-width="wide"><tr><td>A</td></tr>'
         '</table><ul id="feed" data-bound="end"><li>A</li></ul></main></body>'
     )
-    delivered = mark_declared(
-        source,
-        {
-            "lf-chart": {
-                "height": 400,
-            }
-        },
-        {},
-    )
+    delivered = mark_declared(source, {}, {})
     soup = SourceDocument(delivered).tree
-    find_result_15 = soup.find(id="chart")
-    assert find_result_15 is not None
-    assert soup is not None
-    assert find_result_15.attrs["data-lf-height"] == "240"
     find_result_16 = soup.find(id="table")
     assert find_result_16 is not None
     assert find_result_16.attrs["data-lf-space"] == "wide"
-    find_result_17 = soup.find(id="table")
-    assert find_result_17 is not None
-    assert "data-lf-height" not in find_result_17.attrs
     find_result_18 = soup.find(id="feed")
     assert find_result_18 is not None
     assert find_result_18.attrs["data-lf-bound"] == "end"

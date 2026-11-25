@@ -88,7 +88,7 @@ import {
   handBack,
   canPlaceFocus,
 } from "../focus.js";
-import { move } from "../dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { renderedUnder } from "../lib/shadow-tree.js";
 import {
   isHTML,

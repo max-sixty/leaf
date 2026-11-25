@@ -31,17 +31,16 @@
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
+import { pageLinks } from "/runtime/widget-api.js";
 import {
-  whileConnected,
-  setRenderedChildren,
   setChildLists,
   setChildren,
-  focusDestination,
-  afterPresentation,
-  pageLinks,
-} from "/runtime/widget-api.js";
+  setRenderedChildren,
+} from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { presented } from "/runtime/lib/presented.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
 import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
@@ -53,6 +52,7 @@ import {
   syntax,
 } from "/runtime/lib/syntax-tokens.js";
 import { textWidth } from "/runtime/lib/text-width.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 // A Markdown preview of text written in the page, whose rendering sets the box both
@@ -769,8 +769,9 @@ class RunColours {
 }
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
-// a task in the order their updates asked (`show`). Until a document draws, a comment on
-// its data stands on the document (anchor-resolution.js).
+// a task in the order their updates asked (`show`). Each document says, as the page
+// presents, that its draw is under way until the whole queue is drawn. Until a document
+// draws, a comment on its data stands on the document (anchor-resolution.js).
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */
@@ -778,14 +779,15 @@ let drawingAfterPresentation = null;
 /** @param {TextDocument} doc @param {string | null} value @param {number} rendering */
 function drawLater(doc, value, rendering) {
   drawingLater.push({ doc, value, rendering });
-  drawingAfterPresentation ??= afterPresentation(async () => {
+  const drawing = (drawingAfterPresentation ??= presented().then(async () => {
     for (let next; (next = drawingLater.shift());) {
       await new Promise((resolve) => setTimeout(resolve));
       if (next.rendering !== next.doc.rendering) continue;
       await next.doc.show(next.value, true);
     }
     drawingAfterPresentation = null;
-  });
+  }));
+  void presented().then(() => doc.dispatchEvent(new PendingTaskEvent(drawing)));
 }
 
 class TextDocument extends LeafElement {
@@ -932,17 +934,21 @@ class TextDocument extends LeafElement {
 
   setup() {
     this.language = codeLanguage(this);
-    // A departure abandons the rendering in flight and its frame's wait, and the
-    // colour of the runs it drew, which a return draws again as they show.
-    whileConnected(this, () => {
-      this.showLone();
-      return () => {
-        this.rendering = this.rendering + 1;
-        this.finishFrame?.();
-        this.colours?.clear();
-        this.shown.clear();
-      };
-    });
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.showLone();
+  }
+
+  // A departure abandons the rendering in flight and its frame's wait, and the
+  // colour of the runs it drew, which a return draws again as they show.
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.rendering = this.rendering + 1;
+    this.finishFrame?.();
+    this.colours?.clear();
+    this.shown.clear();
   }
 
   // The text, set by whoever hosts the widget: Leaf from the bound source or output
@@ -1022,7 +1028,7 @@ class TextDocument extends LeafElement {
       }
       // A document the page shows draws at once; one it doesn't, as in a closed tab,
       // first draws once the page has presented (`drawLater`), and this update
-      // completes without it: the page counts the draws as an arrival. Drawn in page
+      // completes without it: the draws are under way from then. Drawn in page
       // order, a reload on the last of many tabs would show its document only after all
       // the documents before it. Drawn before presentation, they would hold it back, and
       // Firefox, which styles a closed tab's rows too, would restyle every one of them as
@@ -1203,7 +1209,7 @@ class TextDocument extends LeafElement {
       press.addEventListener("click", () => {
         literal.toggleAttribute("data-lf-all", true);
         box.toggleAttribute("hidden", true);
-        if (this.sourceView) focusDestination(this.sourceView.pre, "return");
+        if (this.sourceView) focusOn(this.sourceView.pre);
       });
       box.append(press);
       literal.append(box);

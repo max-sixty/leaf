@@ -5,8 +5,7 @@
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
    out is the thread it belongs to whichever of them put the user in it. A box standing
-   in no drawn thread has none to hand back to; a widget control that explicitly enters
-   it supplies the caller-owned return target through `landInThread`.
+   in no drawn thread has none to hand back to.
 
    Send leaves the box by that same way out, onto its thread (`landSent`), whichever
    box sent and whichever control sent it: a reply's box in a margin card, a seat or
@@ -22,15 +21,9 @@
    navigation gesture. */
 import { fitsWhole, scrollIntoView } from "../landing-scroll.js";
 import { seenRect } from "../geometry.js";
-import {
-  focusDestination,
-  focused,
-  takesLetters,
-  whenLeft,
-  blurFocused,
-} from "../focus.js";
+import { focusDestination, focused, takesLetters, blurFocused } from "../focus.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
-import { THREAD, threadPart, wholeThread } from "./selectors.js";
+import { threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { beginReplyAt, dismissReplyAt, replyDraftContext } from "./replies.js";
@@ -48,9 +41,7 @@ import {
 
 export { scrollThreadIntoView } from "./reply-landing.js";
 /** @typedef {{target: Element, line: string}} ReturnRoute */
-/** @typedef {{held?: Element | null, box: Element | null, route?: ReturnRoute | null}} ThreadLanding */
-/** @type {WeakMap<Element, ReturnRoute>} */
-const threadReturns = new WeakMap();
+/** @typedef {{box: Element | null}} ThreadLanding */
 
 /** @param {Element | null} node */
 export const threadInput = (node) => threadReplyInput(threadIn(node));
@@ -62,32 +53,19 @@ export const currentLocationThread = () => {
   const box = threadReplyInput(held);
   return held && box ? { held: wholeThread(held), box } : null;
 };
-/** @param {Element | null} box */
-const backFromThread = (box) => (box ? (threadReturns.get(box) ?? null) : null);
-
-// Where a box hands the user back, however they reached it. The climb is
-// `heldThread`'s, the same relation contextual `c` uses when it names a thread. A box
-// standing outside any drawn thread hands back along the route the control that sent
-// the user into it supplied (`landInThread`); a visit reached by Tab still falls
-// through to the page's "let go".
+// Where a box hands the user back, however they reached it: the thread it stands in.
+// The climb is `heldThread`'s, the same relation contextual `c` uses when it names a
+// thread. A box standing outside any drawn thread hands back nowhere, so a visit
+// reached by Tab falls through to the page's "let go".
 /** @param {Element | null} box @returns {ReturnRoute | null} */
 function backFrom(box) {
   const held = threadIn(box);
-  if (held) return { target: wholeThread(held), line: "back to thread" };
-  const route = backFromThread(box);
-  return route?.target?.isConnected ? route : null;
+  return held ? { target: wholeThread(held), line: "back to thread" } : null;
 }
 const backFromBox = () => backFrom(focused());
-// Put the user where a box hands them back: its thread, or the route's target.
+// Put the user where a box hands them back: its thread.
 /** @param {ReturnRoute} back */
-function goBack({ target }) {
-  if (!target.matches(THREAD)) {
-    focusDestination(target, "return");
-    scrollIntoView(target, { block: "nearest" });
-    return;
-  }
-  returnToThread(target);
-}
+const goBack = ({ target }) => returnToThread(target);
 // Whether the box the user is typing in has somewhere to hand them back: the
 // thread it belongs to.
 const boxHandsBack = () => Boolean(backFromBox());
@@ -192,13 +170,8 @@ function messageCopy(thread) {
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
 /** @param {ThreadLanding} destination */
-export function landIn({ held = null, box, route = null }) {
+export function landIn({ box }) {
   if (!box) return false;
-  held ??= threadIn(box);
-  if (route && held && !held.hasAttribute("tabindex")) {
-    threadReturns.set(box, route);
-    whenLeft(box, () => threadReturns.delete(box));
-  }
   // Entering a reply is a focus move, not a navigation step to its thread or passage.
   // Reveal only the writing area: a nearest landing leaves a box already shown where
   // the reader put it (landing-scroll.js, `alreadyShown`), the transcript inside a
@@ -210,8 +183,8 @@ export function landIn({ held = null, box, route = null }) {
   return true;
 }
 
-/** @param {Element} box @param {ReturnRoute | null} route */
-export const landInThread = (box, route = null) => landIn({ box, route });
+/** @param {Element} box */
+export const landInThread = (box) => landIn({ box });
 
 /** Declare a thread's own keys, given the reading of the thread the user is at
  * (destination.js, `threadHere`).
@@ -256,7 +229,7 @@ export function declareThreadKeys(threadHere) {
         run: () => {
           const thread = cardThread();
           const box = threadInput(thread);
-          if (box) landIn({ held: thread, box });
+          if (box) landIn({ box });
           else resolutionControl(thread)?.click();
         },
       },

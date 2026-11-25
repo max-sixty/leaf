@@ -2630,7 +2630,7 @@ def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, se
     reading = page.evaluate(
         """async () => {
           const {seenRect} = await window.__lfCheckApi();
-          const {focusDestination} = await window.__lfWidgetApi();
+          const {focusDestination} = await window.__lfCheckApi();
           document.querySelector('#pop').showPopover();
           const button = document.querySelector('#in-pop');
           const view = document.querySelector('.lf-fp-view').getBoundingClientRect();
@@ -3431,7 +3431,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     tall = "<p>The old schema has three tables, each a year of records.</p>" * 30
     page = floating(browser, serve(OBLIGATION_PAGE.replace(heading, heading + tall)))
     room = """async () => {
-      const shown = (await window.__lfWidgetApi()).shownWindow();
+      const shown = (await window.__lfCheckApi()).shownWindow();
       return {top: shown.top, bottom: shown.bottom};
     }"""
     foot = page.locator(".lf-fp-row").bounding_box()["y"]

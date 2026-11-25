@@ -1224,7 +1224,7 @@ def proxy_gloss(page: Page) -> None:
 
 def option_empty(page: Page) -> None:
     """An option list's empty one-line add field, focused."""
-    field = page.locator(".lf-another leaf-text").first
+    field = page.locator(".lf-another :is(leaf-text, textarea)").first
     field.scroll_into_view_if_needed()
     field.click()
     expect(field).to_be_focused()
@@ -2224,8 +2224,8 @@ def card_reply_error(page: Page) -> None:
 
 
 def option_long(page: Page) -> None:
-    """An option list's added option, typed long enough to wrap beside its Add press."""
-    field = page.locator(".lf-another leaf-text").first
+    """An option list's added option, typed long enough to wrap."""
+    field = page.locator(".lf-another :is(leaf-text, textarea)").first
     field.scroll_into_view_if_needed()
     field.click()
     page.keyboard.insert_text(
@@ -2234,16 +2234,6 @@ def option_long(page: Page) -> None:
         "team channel instead, so the deploy trains stop paging anyone at all while "
         "a real outage still reaches a person within a couple of minutes"
     )
-
-
-def option_add_hover(page: Page) -> None:
-    """A compact alternative's Add face beside its one-line draft, under a resting
-    pointer whose preview names the press and its key."""
-    form = page.locator("#bg-choice > .lf-another")
-    form.locator("leaf-text").click()
-    page.keyboard.insert_text("Keep the current behavior")
-    form.get_by_role("button", name="Add and select option", exact=True).hover()
-    preview_shown(page)
 
 
 def options_in_pane(page: Page) -> None:
@@ -3244,14 +3234,15 @@ def code_reader_feedback(page: Page) -> None:
 
 
 def margin_gallery(page: Page) -> None:
-    """The margin gallery's real controls and labels in a finger-sized column."""
+    """The margin gallery's contributed control at its margin, in a finger-sized
+    column."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
         "Page & layout", exact=True
     ).click()
     settle(page)
     page.locator(
-        "#bg-margin-controls-samples .margin-entry-gallery-group"
-    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
+        "#bg-margin-controls-samples .margin-entry-gallery-projection"
+    ).evaluate("exhibit => exhibit.scrollIntoView({block: 'start'})")
 
 
 def trace_controls(page: Page) -> None:
@@ -4186,12 +4177,6 @@ STATES = (
         window=Window((1200, 900)),
     ),
     State("alert-queue-tally", "alert-review", tally_after_an_answer),
-    State(
-        "option-add-hover",
-        "feature-gallery",
-        option_add_hover,
-        region="#bg-choice",
-    ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),

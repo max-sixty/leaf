@@ -30,12 +30,11 @@
  * name, else the browser's sans-serif. What Leaf adds it reads from outside: the drawing
  * under way as a `pending-task` event and the named boxes as the visual parts this
  * module registers, which only Leaf's Comment reads. */
-import { frameFor, whileConnected } from "/runtime/portable-api.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { bodyText } from "/runtime/lib/data-body.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { once } from "/runtime/lib/once.js";
-import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 
 // Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
 // classic track consume this same padding, retaining 1px around the marks.
@@ -154,23 +153,21 @@ customElements.define(
       // The width arrives off the observer's entries rather than a read of the box, so
       // a page of diagrams is laid out once rather than once for each after another's
       // drawing. A box can't be resized inside the delivery that measured it, so the
-      // drawing waits for the next pass. Each connection observes afresh, so a diagram
-      // taken out before its drawing landed draws when it is put back.
-      stop = whileConnected(this, () => {
-        const watching = sizeObserver((entries) => {
-          const width = Math.floor(entries.at(-1)?.contentRect.width ?? 0);
-          this.#width = width;
-          const drawn = this.#drawn;
-          if (
-            this.#draw &&
-            width !== drawn?.for &&
-            width !== Math.floor(drawn?.width ?? -1)
-          )
-            paint();
-        });
-        watching.observe(this);
-        return () => watching.disconnect();
+      // drawing waits for the next pass. A diagram taken out before its drawing landed
+      // draws when it is put back, which the observer hears as a new width.
+      const watching = sizeObserver((entries) => {
+        const width = Math.floor(entries.at(-1)?.contentRect.width ?? 0);
+        this.#width = width;
+        const drawn = this.#drawn;
+        if (
+          this.#draw &&
+          width !== drawn?.for &&
+          width !== Math.floor(drawn?.width ?? -1)
+        )
+          paint();
       });
+      watching.observe(this);
+      stop = () => watching.disconnect();
       try {
         const [{ parse, render }] = await Promise.all([
           loadRenderer(),

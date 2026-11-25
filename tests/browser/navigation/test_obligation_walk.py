@@ -690,7 +690,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     for source in ("first", "second"):
         assert page.evaluate(
             """async id => (await window.__lfWidgetApi())
-              .obligationActions.open('widget:' + id)""",
+              .go({id: 'widget:' + id})""",
             source,
         )
         expect(page.locator(f"#{source}")).to_be_focused()

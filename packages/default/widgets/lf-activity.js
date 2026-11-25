@@ -15,37 +15,33 @@ import { createActivity } from "./activity-view.js";
  * thread goes by its name in words (`nameOf`).
  *
  * A place is named on the page the user is reading, since that is where the row leads,
- * and as the rest of the chrome names it (`nameOf`), else by its word. A
- * quoted passage is named as Threads names its anchor (`anchorLabel`).
+ * and as the rest of the chrome names it (`nameOf`), else by its word. A comment is
+ * named by the words it quotes, else by the element it is on, a drawing's part, a datum
+ * and a design comment included.
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
  * so the browser owns that travel as it does for lf-toc, and a thread is a button
- * onto `threadActions.open`, which chooses the thread's inline destination or Threads the same
+ * onto `go`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
  *
  * An excerpt is the words its Markdown renders, never the source.
  *
  * History has no authored size. Its fixed disclosure stands from first paint; rows
- * appear only when the reader opens it. Once open, HeldReading keeps visible history
- * behind that same disclosure until the reader asks to see the change or leaves it
- * off screen. Rows retain their event identity and focus while that reading stands.
- * Targets stay live: a held row keeps its historical words and geometry, but its
- * fragment link follows only a destination in the current document. A departed
- * destination leaves historical text in the same node, without an active link.
- * Tab memory retains the drawn presentation through a fresh document. The ready
- * authoritative reading is compared through HeldReading. This never folds events or records a decision. */
+ * appear only when the reader opens it. Once open, each reading draws as it arrives,
+ * a new row joining at the top; while closed, the disclosure counts the rows the
+ * reader hasn't seen. Rows retain their event identity and focus across readings. A
+ * row's fragment link follows only a destination in the current document. A departed
+ * destination leaves historical text in the same node, without an active link. Tab
+ * memory retains the drawn presentation through a fresh document. This never folds
+ * events or records a decision. */
 import {
-  HeldReading,
   tabStore,
-  anchorLabel,
-  elementById,
   layerFact,
   nameOf,
-  threadActions,
+  go,
   readThreads,
   readHistory,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -53,25 +49,21 @@ import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdow
 import { excerptWords } from "/runtime/lib/words.js";
 
 const NAME = 60;
+const PAPER = matchMedia("print");
 
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
 function nameById(id) {
-  const element = id ? elementById(id) : null;
+  const element = id ? document.getElementById(id) : null;
   if (!element) return id || "the page";
   return excerptWords(nameOf(element), NAME) || `the ${addressableWord(element)}`;
 }
 
-// A comment's place: a passage, a drawing's part, a datum, or a design subject as
-// Threads names it; a whole element by where it is.
-/** @param {import("../../../browser/types/contract.js").CompleteUnion<NonNullable<import("../../../browser/types/contract.js").ServedHistoryRow["anchor"]>> | null | undefined} anchor
- * @param {import("../../../browser/types/contract.js").ServedHistoryRow["about"]} about */
-function placeName(anchor, about) {
+// A comment's place: the words it quotes, else the element it is on.
+/** @param {import("../../../browser/types/contract.js").CompleteUnion<NonNullable<import("../../../browser/types/contract.js").ServedHistoryRow["anchor"]>> | null | undefined} anchor */
+function placeName(anchor) {
   // A bare quote is cut inside its marks, so a long one still reads as a quote.
-  if (anchor?.quote && !anchor.datum && about !== "design")
-    return quoted(excerptWords(anchor.quote, NAME));
-  if (anchor?.visual || anchor?.datum || about === "design")
-    return excerptWords(anchorLabel(anchor, about), NAME);
+  if (anchor?.quote) return quoted(excerptWords(anchor.quote, NAME));
   return nameById(anchor?.section ?? null);
 }
 
@@ -134,12 +126,12 @@ function describe(row) {
         return {
           what: `reacted ${reaction(row.token)} on`,
           widget: row.anchor?.section ?? null,
-          label: placeName(row.anchor, row.about),
+          label: placeName(row.anchor),
         };
       if (row.holds) return thread("paused", nameById(row.holds));
       return thread(
         row.drawing && !row.excerpt ? "drew on" : "commented on",
-        placeName(row.anchor, row.about),
+        placeName(row.anchor),
       );
     case "reply":
       return thread(row.token ? `reacted ${reaction(row.token)} in` : "replied in");
@@ -173,27 +165,17 @@ customElements.define(
     #template(reading = undefined) {
       return this.#drawing.render(reading, {
         printing: this.#printing,
-        names: elementById,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
-          if (thread) void threadActions.open(thread.key, { part: "thread" });
+          if (thread) void go(thread, { part: "thread" });
         },
       });
     }
     #opened = false;
-    #reading = new HeldReading(
-      this,
-      () =>
-        [this.#drawing.notice, this.#drawing.list, this.#drawing.empty].filter(
-          (node) => node !== null,
-        ),
-      () => this.requestUpdate(),
-    );
     #printing = false;
+    #connection = new AbortController();
     /** @type {string | null} */
     #closedReading = null;
-    /** @type {string | null} */
-    #restored = null;
     #ready = false;
 
     setup() {
@@ -203,24 +185,32 @@ customElements.define(
       if (!notice) throw new Error("Activity did not draw its disclosure");
       this.#opened = drawing.reading.open;
       this.#closedReading = drawing.restored ? drawing.reading.shown : null;
-      this.#restored = drawing.restored ? drawing.reading.shown : null;
       notice.addEventListener("click", () => {
         if (notice.hasAttribute("data-lf-news")) this.#opened = true;
         else this.#opened = !this.#opened;
-        this.#reading.release();
         this.requestUpdate();
         this.performUpdate();
       });
-      const paper = matchMedia("print");
-      const printing = () => {
-        this.#printing = paper.matches;
-        this.requestUpdate();
-        this.performUpdate();
-      };
-      whileConnected(this, (signal) => {
-        this.#printing = paper.matches;
-        paper.addEventListener("change", printing, { signal });
-      });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      this.#connection = new AbortController();
+      this.#printing = PAPER.matches;
+      PAPER.addEventListener(
+        "change",
+        () => {
+          this.#printing = PAPER.matches;
+          this.requestUpdate();
+          this.performUpdate();
+        },
+        { signal: this.#connection.signal },
+      );
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
     }
 
     render() {
@@ -238,12 +228,6 @@ customElements.define(
     /** @param {readonly import("../../../browser/types/contract.js").ServedHistoryRow[]} history */
     #render(history) {
       if (!this.#ready && !this.#printing) return this.#template(undefined);
-      if (this.#restored !== null) {
-        if (this.#ready) {
-          this.#reading.hold(this.#restored);
-          this.#restored = null;
-        }
-      }
       const current = history.map((served) => ({
         ...describe(served),
         excerpt: served.excerpt
@@ -254,18 +238,14 @@ customElements.define(
         actor: actorOf(served),
         undone: served.undone,
       }));
-      // Hold the complete drawn reading, including an undo or a changed title:
-      // those may wrap too. The reactive reading supplies the authoritative history.
+      // The reading drawn whole, an undo or a changed title included, is what the
+      // closed disclosure compares the next one against.
       for (const row of current) {
         if (row.widget || row.label) row.label ??= nameById(row.widget);
       }
       const wanted = JSON.stringify(current);
       if (this.#closedReading === null) this.#closedReading = wanted;
-      const shown = this.#printing
-        ? wanted
-        : this.#opened
-          ? this.#reading.hold(wanted)
-          : this.#closedReading;
+      const shown = this.#printing || this.#opened ? wanted : this.#closedReading;
       /** @type {import("./activity-view.js").ActivityRow[]} */
       const rows = JSON.parse(shown);
       const news = shown !== wanted;
@@ -273,11 +253,7 @@ customElements.define(
       const arrived = current.filter(({ id }) => !known.has(id)).length;
       const label = !this.#opened
         ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
-        : news
-          ? arrived
-            ? `Show ${arrived} new`
-            : "Activity changed"
-          : "Hide activity";
+        : "Hide activity";
       if (this.#opened && !this.#printing) this.#closedReading = shown;
       const reading = { open: this.#opened, shown, label, news };
       if (!this.#printing) tabStore.set(this.#storageKey, JSON.stringify(reading));

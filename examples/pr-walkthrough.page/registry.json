@@ -121,7 +121,6 @@
         "property": "value"
       }
     },
-    "height": true,
     "instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis."
   }
 }

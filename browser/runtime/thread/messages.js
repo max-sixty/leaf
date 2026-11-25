@@ -23,7 +23,7 @@ import {
   ref,
   render,
 } from "/runtime/framework.js";
-import { setRenderedChildren } from "../dom-children.js";
+import { setRenderedChildren } from "../lib/dom-children.js";
 import { generatedElement, worksInside } from "../widget-elements.js";
 import { offeredAction } from "../lib/controls.js";
 import {

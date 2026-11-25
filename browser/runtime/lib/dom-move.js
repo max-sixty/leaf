@@ -1,7 +1,12 @@
 /* Place `node` under `parent` before `before` (`null` appends), keeping the user
- * in it. Every placement of a node that may already stand somewhere goes through here,
- * Lit's keyed and child-part insertions included; `architecture/moves` (eslint.config.mjs)
- * refuses the platform's own insertions where the source shows such a node.
+ * in it. Every placement of a node that may already stand somewhere goes through here
+ * in the runtime, Lit's keyed and child-part insertions included; `architecture/moves`
+ * (eslint.config.mjs) refuses the runtime the platform's own insertions where the source
+ * shows such a node. A package places with this or with the platform's `moveBefore`.
+ *
+ * Off Leaf it is the platform's move. Leaf installs, at boot, what keeps the user in
+ * a moved node: its focus hold, its selection writer and its key painter
+ * (`installMoveFocus`, `installMoveSelection`, `installMoveKeys`).
  *
  * Within one composed root, `moveBefore` keeps the node's native state where the browser
  * has it: focus, a field's caret, typed text and an iframe's document. A selection with
@@ -16,10 +21,12 @@
  * already placed node is left alone. Text, comments and fragments, which Lit inserts
  * for every new row, hold no one. An iframe still reloads there. The return value
  * matches insertBefore, including when inserting a fragment. */
-import { isElement } from "./lib/shadow-tree.js";
+import { isElement } from "./shadow-tree.js";
 
 // Leaf installs its focus accounting; native placement also works without a runtime.
-/** @typedef {{hold: typeof import("./focus.js").holdFocus, watch: typeof import("./focus.js").watchCurrentLocationIn}} MoveFocus */
+// Its hold puts the user back in an element a placement blurred (focus.js, `holdFocus`),
+// and its watch hears focus in the root a node lands in (`watchCurrentLocationIn`).
+/** @typedef {{hold: (scope: Element) => ((() => unknown) | null), watch: (root: Node) => void}} MoveFocus */
 /** @type {MoveFocus | null} */
 let focusOwner = null;
 /** @param {MoveFocus} owner */
@@ -28,9 +35,10 @@ export const installMoveFocus = (owner) => {
 };
 // Leaf installs its selection writer (native-selection.js) at boot (leaf.js); off
 // Leaf a move leaves a selection inside a moved node reset, as the browser does.
-/** @type {typeof import("./native-selection.js").holdSelection | null} */
+/** @typedef {(placed: Iterable<Node>) => (() => void) | null} SelectionHold */
+/** @type {SelectionHold | null} */
 let selectionOwner = null;
-/** @param {typeof import("./native-selection.js").holdSelection} owner */
+/** @param {SelectionHold} owner */
 export const installMoveSelection = (owner) => {
   selectionOwner = owner;
 };

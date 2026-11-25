@@ -22,7 +22,7 @@ leave alone, such as which panel they opened. State a module keeps in `localStor
 IndexedDB or memory never reaches another device or the agent, and Undo can't take it
 back.
 
-## The widget controller
+## Recorded state
 
 A registry-declared widget draws its state from `state`, the property Leaf sets,
 records a gesture with an `lf-action` event and takes one back with `lf-undo`
@@ -37,31 +37,19 @@ none either; its parent draws it from its own state. Leaf itself draws what the
 declaration alone decides, such as hiding a suggestion's `lf-old` once it is accepted
 (`retired-when`).
 
-`widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read` and `dispatch`. `read()` is a page
-reading (`module-reading.md`, "Page readings"), so a `LeafElement` whose `render()`
-calls it draws again when it changes. Another element's `state`
-property is not a page reading, and nothing tells a widget that read it when Leaf
-sets it again. If the widget's id has changed since upgrade, `read()` reports every
-action unavailable and `dispatch()` returns `null`. `read()` returns an immutable `{authored, state, memberships, thread,
-provenance, actions}`. `authored` is the state the page's markup sets, and `state` that with every
-recorded action applied, including the user's latest gestures before the server admits
-them. `memberships` maps each attribute an `attribute` record marks to the ids of the
-members the widget currently owns. `thread.heldBy` is the id of the open Thread whose
-opening message holds this widget, or `null`. Each entry in `actions` says whether the
-action is `available`, why not in `unavailable` (a phrase such as `no agent or server is
-available`, or `null`), and what Undo can take back; check it before changing anything
-for the action. Before the document has loaded, `authored` and `state` may be missing, and
-Leaf sets no `state` on the element until it holds every declared verb.
+A widget that shows another widget's answer, as a board card stands in the column
+of a pick, reads what that widget draws of its state: the attribute its verb's
+`record` names (`attr`), on the widget itself or on the members it picks. Nothing
+tells the reader when Leaf sets another element's `state`, so it watches that
+attribute with a `MutationObserver` and draws again as it changes. It reads the verb's
+`available` from the other widget's `state`, and changes the answer by dispatching the
+other widget's `lf-action` on that widget, which Leaf records as that widget's own.
 
-`says` names a gesture in the widget's words, such as `Chose “Fast”`. Leaf's
-acknowledgement shows it, and so does Undo in the tab that made the gesture, so post no
-notice of your own for it; another tab, or this one after a reload, names the gesture
-in Leaf's own words. `dispatch({kind: "action", verb, detail, attempt?, says?})` records
-as `lf-action` does, and `dispatch({kind: "undo", target})` undoes the `id` or `attempt`
-it names from the action's Undo candidates. `dispatch` returns `null` when the action
-isn't available, throws for a verb the widget doesn't declare, and otherwise returns
-`{reading, delivery}`; a refusal restores the server's state.
+An `lf-action`'s `detail` is `{verb, detail, says?, attempt?}`. `says` names a gesture
+in the widget's words, such as `Chose “Fast”`. Leaf's acknowledgement shows it, and so
+does Undo in the tab that made the gesture, so post no notice of your own for it;
+another tab, or this one after a reload, names the gesture in Leaf's own words. A
+refusal restores the server's state.
 
 The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with the Undo
 row in the leaf's menu.
@@ -78,38 +66,13 @@ paint"). `tabStore.keys()` lists the keys set, and `tabStore.read(key)` answers
 `{available, value}`, which tells a key never set from a store the browser has switched
 off; `tabStore.where(key)` names the browser's storage entry behind a key.
 
-A widget that shows one member at a time (`views`, `module-authoring.md`, "First
-paint") keeps the open member in the tab too, through these helpers. A member's native
-`hidden` attribute is view state. Read `viewMembers(holder)` for the canonical member
-list, including holders a module creates. Reading members or the opening choice changes
-no DOM. As the widget builds, open the member `openingView(holder)` returns, and show each
-later member with `keepView(holder, member)`, which applies native visibility and
-remembers it for reload. Passing null shows none without forgetting the last member.
-During an exit animation, `keepView(holder, member, leaving)` keeps one outgoing member
-visible too; call it again without that member when the animation ends. Only the
-selected member is saved. Pass `null` as a second argument to get null where neither
-the address nor the tab names a member, and choose then.
-
-Show each member with `keepView` rather than by writing `hidden`, so that Leaf hears of
-a switch before the member the user leaves is hidden, while the page can still say
-where they were in it. Leaf shows a member too, as the browser's find, a fragment or
-travel reveals it and as Back or Forward returns to it. The member gets a `beforematch`
-event then (`module-scroll-and-motion.md`, "Travel and history"). In its listener the
-widget shows the member with `keepView`, as it does for a press, and redraws what marks
-its open member: where Leaf has already shown the member, as it has for one the page's
-own tree holds, the call changes nothing. From `keepView` and those reveals Leaf keeps
-two things for the widget:
-
-- **The address**, where the widget says its members are the page's views
-  (`data-lf-page-views`, `module-plain-elements.md`).
-- **The user's place in each member**, where the members stand in the page's flow,
-  because the widget declares `flow` or is the page's parts, and each member has an
-  id. A member the widget shows opens where the user last read it in this tab. One
-  they never read past its start leaves the page where it stands, unless the page is
-  scrolled past that start, and then it opens at its start, under the headers stuck
-  over it (`module-scroll-and-motion.md`, "Sticky headers"). A member something
-  reveals is placed by whatever revealed it. A member of any other widget is a box in
-  the page, and showing it scrolls nothing.
+A widget that shows one member at a time, as a tab set does, writes
+`hidden="until-found"` on the members it doesn't show, so find-in-page, a fragment and
+Leaf's travel still reach what they hold. Each then fires `beforematch` on the member
+holding it, and the widget's listener shows that member as a press does. Keep the
+member shown in this tab, so a reload opens on it, as the bundled widgets do through the
+library's `one-shown.js`. A switch adds no history entry, and the member opened keeps
+nothing of where the user was in it.
 
 ## Declared widget state
 
@@ -229,14 +192,6 @@ as a page's markup does: `<lf-age datetime=${ts}></lf-age>`. It needs no import,
 shadow tree too. It words the age as the page does everywhere, "just now", then "2m
 ago", "2h ago", "2d ago", and keeps it current. Pointing at it says when, in the
 reader's zone and as their browser writes a date: "Sat, Aug 15, 2026, 2:02 PM PT".
-
-`clockValue((now) => …)` states any other condition on the time, such as whether a
-timestamp is older than a limit or which day a date falls in. It is a page reading
-(`module-reading.md`, "Page readings"). `now` is the server's time in milliseconds,
-the clock an age reads, so the answer never disagrees with an age beside it; keep no
-clock of your own. Return the answer rather than the time, as in
-`clockValue((now) => now - Date.parse(collected) > STALE_MS)`: the render that read it
-runs again only when that answer changes.
 
 ## Editing a bound file
 

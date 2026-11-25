@@ -198,7 +198,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     step = page.evaluate(
         "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
+        " - (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
@@ -440,14 +440,14 @@ and on</mark> {long}</pre>
     assert narrow["hang"] == pytest.approx(6, abs=0.1), narrow
     assert page.evaluate(
         """async () => {
-              const {dressCode} = await window.__lfWidgetApi();
               const pre = document.createElement('pre');
               pre.textContent = 'first line\\nsecond line\\n';
               document.querySelector('#code').after(pre);
               const text = pre.firstChild;
               getSelection().setBaseAndExtent(text, 6, text, 17);
               const before = getSelection().toString();
-              await dressCode(pre);
+              while (!pre.querySelector('[data-lf-pre-line]'))
+                await new Promise(requestAnimationFrame);
               return [before, getSelection().toString(),
                 pre.querySelectorAll('[data-lf-pre-line]').length];
             }"""

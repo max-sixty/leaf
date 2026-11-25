@@ -307,7 +307,7 @@ def reading_keys_walk(page, down, up):
         else page.evaluate(
             "async () => { const s = getComputedStyle(document.scrollingElement); return ("
             " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-            " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
+            " - (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
         )
     )
 
@@ -403,7 +403,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     step = page.evaluate(
         "async () => { const s = getComputedStyle(document.scrollingElement); return ("
         " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-        " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
+        " - (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
     )
     start = round(step * 2)
     page.evaluate("""() => {
@@ -448,7 +448,7 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
             else page.evaluate(
                 "async () => { const s = getComputedStyle(document.scrollingElement); return ("
                 " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-                " - (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
+                " - (await window.__lfCheckApi()).landingInsets(document.scrollingElement).bottom) * 0.6; }"
             )
         )
         page.keyboard.press(down)

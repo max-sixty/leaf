@@ -92,7 +92,7 @@ Inside each member, use ordinary authored markup followed by the real `lf-diff`:
       </dl>
     </details>
     <aside><p>The draft is saved before the thread changes.</p></aside>
-    <lf-diff id="draft-patch" source="draft-patch-data" data-height="360"></lf-diff>
+    <lf-diff id="draft-patch" source="draft-patch-data"></lf-diff>
   </lf-worktree>
 </lf-worktree-diffs>
 ```
@@ -108,12 +108,3 @@ path in the authored details too when the reader needs to comment on it.
 existing source contract. Describe binary changes in the authored body when
 there is no textual patch to inspect. This widget displays snapshots supplied
 by the author; it does not discover directories or run Git in the browser.
-
-## Initial height
-
-An inline patch remains readable as authored source while its widget module loads;
-leave `data-height` off it. The drawing can change its height when the module loads.
-A `source` diff receives its patch through the page's data reading. Reserve its
-measured `data-height` when content below must hold still; `page check --render`
-reports the drawn height. This applies to textual patches and files manifests,
-including `view="file"` readers.

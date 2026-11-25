@@ -324,7 +324,7 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
     rendered(page)
     immediate = page.evaluate(
         """async () => {
-          const {focusDestination} = await window.__lfWidgetApi();
+          const {focusDestination} = await window.__lfCheckApi();
           const {executeCommand} = await window.__lfCheckApi();
           focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');

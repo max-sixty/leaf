@@ -564,7 +564,7 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // (`inline`). Every other element, a widget included, starts a block of its own,
 // its words parted from those around it (`enter`).
 /** @param {Element} element */
-export const phrasing = (element) =>
+const phrasing = (element) =>
   PHRASING.has(element.localName) || Boolean(registry[element.localName]?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
@@ -1021,7 +1021,7 @@ const isLayoutShell = (box) =>
 // `main` to find one of its children, several times for each keystroke.
 /** @param {Element} main */
 const partsOf = (main) =>
-  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
+  [...main.children].find((child) => child.hasAttribute("data-lf-parts")) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;

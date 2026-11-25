@@ -86,9 +86,6 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
     page.keyboard.press("Escape")
-    expect(page.locator("#live-question .lf-another leaf-text")).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
-    )
 
     page.keyboard.press("m")
     mark = page.locator("#live-question .lf-pick").first

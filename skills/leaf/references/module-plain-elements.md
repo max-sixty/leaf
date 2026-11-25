@@ -114,7 +114,7 @@ this.dispatchEvent(hold);
   arrives with those first sets, so the element leaves its `<pre>` in place until then.
 - **`lf-action`.** The element records a gesture by dispatching a `CustomEvent` on
   itself. Its `detail` holds the `verb`, `detail`, `says`
-  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller").
+  and `attempt` (`module-state.md`, "Recorded state").
   The inner `detail` is the action's own, in the shape the verb declares: `{value}`
   for a verb with a `record`, and for any other the fields its `detail` schema names.
   Those fields are the package's to name, so they stay under `detail`, where none can
@@ -149,7 +149,7 @@ this.dispatchEvent(hold);
   own. The `state` Leaf sets is how the element learns the user may not act: Leaf
   neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
-  the action in Leaf's own words (`module-state.md`, "The widget controller"). The
+  the action in Leaf's own words (`module-state.md`, "Recorded state"). The
   tag may also declare the property an output for other widgets to read, and the
   element needs no code for that either (`package-data.md`, "Widget outputs").
 - **A third-party component.** A component from a third-party library keeps its own
@@ -246,23 +246,13 @@ this.dispatchEvent(hold);
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
   with a name makes it a reading region (`module-scroll-and-motion.md`, "Reading
   regions").
-- **The page's views.** An element whose members (`views`) are the page's own views,
-  as the first tab set in `main` is, wears `data-lf-page-views` for as long as it is.
-  Leaf then names the member it shows in the address, by the member's id. A member
-  the element shows itself (`keepView`, `module-state.md`, "State only this tab
-  keeps") is the user's step, as a followed link is: Leaf adds a history entry for it,
-  and the entry the user leaves keeps where they were. A member something reveals
-  renames the entry the user is on, unless that entry's fragment already names a place
-  inside the member, and arriving at an address with no fragment renames its entry too.
-  Back or Forward to an entry whose fragment names a place inside another member
-  reveals that member, and returns the user to where they were on the entry.
 - **Previews, spoken words and a Copy control.** `lfPreview()`, `lf-preview` and
   `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
   (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
   `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
 - **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
   `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
-  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Following a reference"),
+  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Taking the user somewhere"),
   `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").
 - **Words it writes.** Words the element writes into the page are the page's: the user

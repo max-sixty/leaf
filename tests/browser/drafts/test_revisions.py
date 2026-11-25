@@ -237,7 +237,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
     elif kind == "option":
-        editor = page.locator("#options-root > .lf-another leaf-text")
+        editor = page.locator("#options-root > .lf-another textarea")
     else:
         page.locator("#passage").click(click_count=3)
         page.keyboard.press("c")
@@ -619,7 +619,7 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         _seat, editor = open_seat_box(page, "#seat-root")
         revised = original.replace("What should we do?", "What should we do next?")
     else:
-        editor = page.locator("#options-root > .lf-another leaf-text")
+        editor = page.locator("#options-root > .lf-another textarea")
         revised = original.replace("Initial choice", "A revised initial choice")
     write(editor, "An unsent edit keeps its exact selection.")
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")
@@ -759,7 +759,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")
     revised = editing_revision_source("after").replace(
         "window.__rendererLifetime=",
-        "import {afterPresentation} from '/runtime/widget-api.js';afterPresentation(()=>window.__deferredArrivalRan=true);document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst field=customElements.get('leaf-text').prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
+        "window.__lfCheckApi().then(({afterPresentation})=>afterPresentation(()=>window.__deferredArrivalRan=true));document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst field=customElements.get('leaf-text').prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
     )
     stamp_page(serve.page_dir, revised, "Fresh executable with mechanical failure")
     told(page)

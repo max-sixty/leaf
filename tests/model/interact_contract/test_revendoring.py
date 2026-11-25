@@ -167,8 +167,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     task.pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    # The task's goal role reads the verb, so the layer retires the role with it.
-    retired = {"lf-test-task": task, "$work": {"widgets": {"lf-test-task": None}}}
+    retired = {"lf-test-task": task}
     (overlay / "registry.json").write_text(json.dumps(retired))
 
     result = CliRunner().invoke(
@@ -289,8 +288,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     task.pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    # The task's goal role reads the verb, so the layer retires the role with it.
-    retired = {"lf-test-task": task, "$work": {"widgets": {"lf-test-task": None}}}
+    retired = {"lf-test-task": task}
     (overlay / "registry.json").write_text(json.dumps(retired))
     _, refusal = assert_revendor_serializes_writer(
         page_dir,

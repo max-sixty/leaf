@@ -30,8 +30,8 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
 
 - Send whatever the agent must hear through a widget, such as a playground's
   contributor or actions (the playground package's author instructions),
-  `lf-options`, `lf-draft`, or a page widget whose controller records it
-  (`module-state.md`, "The widget controller"). State the script keeps itself, in memory or `localStorage`, never
+  `lf-options`, `lf-draft`, or a page widget that records it
+  (`module-state.md`, "Recorded state"). State the script keeps itself, in memory or `localStorage`, never
   reaches the log.
 - Leaf hears a key after the listeners on the page's elements, so a listener on an
   element, `body` included, that prevents a key pressed with focus inside it keeps the
@@ -63,7 +63,7 @@ in its place, so put words the user should quote in the light DOM and slot them,
 write the element as a widget declaring `shadow` (`module-authoring.md`, "Shadow
 stages and styles").
 
-Reach a widget's methods with `whileInterfaceConnected` (`module-authoring.md`,
+Reach a widget's methods from the first `lf-page-interface` (`module-authoring.md`,
 "Startup and presentation"). The rest of `/runtime/widget-api.js` is there where its
 helpers save work; `module-authoring.md` is for writing widgets. For text that changes
 during an interaction, read `page-layout.md`, "Space for changing text".

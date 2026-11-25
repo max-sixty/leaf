@@ -392,24 +392,6 @@ def _broken_names(at: str, v: dict) -> str:
     )
 
 
-def _drawn_height(at: str, v: dict) -> str:
-    # `box` is the height the element holds now: past `before`, what follows it moved
-    # as it drew; past `drawn`, a stated height larger than the drawing left room.
-    text = (
-        f"{at} was {v['before']}px tall before drawing and its drawing is"
-        f" {v['drawn']}px tall"
-    )
-    if moved := v["box"] - v["before"]:
-        direction = "down" if moved > 0 else "up"
-        text += f", so what follows it moved {direction} {abs(moved)}px as it drew"
-    if (blank := v["box"] - v["drawn"]) > 0:
-        text += f", leaving {blank}px blank under the drawing"
-    return (
-        f'{text}; data-height="{v["drawn"]}" holds the drawing\'s height from'
-        " first paint"
-    )
-
-
 def _scroll_mark(v: dict) -> str:
     """What scrolls a box sideways, for whoever wrote the box: the page's markup names
     its own boxes `class="lf-scroll"`, and a module marks a box it builds
@@ -971,7 +953,6 @@ _TEXT = {
     ),
     "squeezed-table": _squeezed,
     "broken-name": _broken_names,
-    "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
         f" {v['width']}px, the smallest ({v['words']!r}) at {v['drawn']:g}px from"
@@ -1095,11 +1076,7 @@ _TEXT = {
         _LAYS_OUT,
         lambda at, v: (
             f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
-            + (
-                "a whole number of CSS pixels"
-                if v["allowed"] is None
-                else f"one of {', '.join(v['allowed'])}"
-            )
+            f"one of {', '.join(v['allowed'])}"
         ),
     ),
     "unnamed-card": lambda at, v: (
@@ -1114,8 +1091,6 @@ _TEXT = {
             " inside that needs the room",
             "content": "only a block inside body, other than main, takes it, so put"
             " it on the block that needs it",
-            "declared": "only a widget that draws into a box of a stated height"
-            " takes it",
         }[v["holds"]]
     ),
     "css-syntax": _refuses(
@@ -1302,14 +1277,6 @@ _TEXT = {
         _REFERS,
         lambda at, v: (
             f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
-        ),
-    ),
-    "work-assignment": _refuses(
-        _REFERS,
-        lambda at, v: (
-            f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a goal, but '
-            + (f"<{v['target_tag']}>" if v["target_tag"] else "the element it names")
-            + " has no role goal in $work.widgets"
         ),
     ),
     "ambiguous-data-binding": _refuses(
@@ -1517,25 +1484,6 @@ _TEXT = {
             f"$data contract {v['contract']!r} schema reference"
             f" {v['reference']!r} does not resolve within the package; data contracts"
             " must be self-contained"
-        )
-    ),
-    # Its work role, which `$work.widgets` maps the declaration onto.
-    "work-reference": _declared(
-        lambda v: (
-            f"$work worker assignment `{v['attr']}` must be declared in `refers`"
-            ", as {}"
-        )
-    ),
-    "work-state": _declared(
-        lambda v: (
-            f"$work state `{v['attr']}` must be recorded by a verb with unit widget"
-            " and a value record on it"
-        )
-    ),
-    "work-value": _declared(
-        lambda v: (
-            f"$work {v['key']} lists {_json(v['values'])}, which state attribute"
-            f" `{v['attr']}` does not admit"
         )
     ),
     # An element declaration, on its own.
@@ -1947,10 +1895,6 @@ _TEXT = {
         _EXAMPLES, lambda at, v: f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
-    "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
-        f" before upgrade, {_size(v['now'])} once presented"
-    ),
     "shows-context-keys": lambda at, v: (
         f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
         " context keys and no"

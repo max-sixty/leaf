@@ -328,19 +328,16 @@ resubmit them.
 
 A page script that draws what the values decide, such as each alert's firings at the
 chosen threshold, and writes the instruction itself, is complete as below; adapt
-`paint` and `instruction` and keep the rest. `whileInterfaceConnected` reaches the
-playground once it has upgraded, and holds the page's first presentation until the view
-has painted (`references/module-authoring.md`, "Startup and presentation"). `declare`
-runs once per playground lifetime, so slices and the instruction provider are declared
-there; `connect` runs on each connection, so a reconnected playground restores the view
-without declaring its data again. `subscribe` calls `paint` at once and on every
-change; it paints synchronously, and its return value is not awaited. A preview without
-structured data only subscribes; one without its own instruction keeps
-`lf-playground-output`'s markup and has no `declare`.
+`paint` and `instruction` and keep the rest. The playground has upgraded by the first
+`lf-page-interface`, and the page's first presentation waits for that event's listeners
+(`references/module-authoring.md`, "Startup and presentation"), so slices and the
+instruction provider are declared there, once. `subscribe` calls `paint` at once and
+on every change; it paints synchronously, and its return value is not awaited. A
+preview without structured data only subscribes; one without its own instruction keeps
+`lf-playground-output`'s markup and registers no provider.
 
 ```html
 <script type="module">
-  import { whileInterfaceConnected } from "/runtime/widget-api.js";
   import { keepsText } from "/runtime/lib/keeps.js";
 
   const FIRED = { 0.5: 31, 1: 12, 2: 4 };
@@ -357,10 +354,14 @@ structured data only subscribes; one without its own instruction keeps
   const instruction = (values) =>
     `Set payments-5xx-rate to over ${values["5xx-threshold"]}% and show me the config diff.`;
 
-  whileInterfaceConnected(playground, {
-    declare: () => playground.registerInstructionProvider(instruction),
-    connect: () => playground.subscribe(paint),
-  });
+  document.addEventListener(
+    "lf-page-interface",
+    () => {
+      playground.registerInstructionProvider(instruction);
+      playground.subscribe(paint);
+    },
+    { once: true },
+  );
 </script>
 ```
 

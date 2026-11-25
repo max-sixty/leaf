@@ -1460,7 +1460,6 @@ PAGE_ACTIONS_PAGE = leaf_page(
   <lf-playground-output>Keep the tile size.</lf-playground-output>
 </lf-playground></lf-group>
 <script type="module">
-import {whileInterfaceConnected} from "/runtime/widget-api.js";
 import {once} from "/runtime/lib/once.js";
 customElements.define("tile-tool", class extends HTMLElement {
   connectedCallback() {
@@ -1479,14 +1478,12 @@ customElements.define("tile-tool", class extends HTMLElement {
     tools.append(grow, save, reset);
     this.append(tools);
     const playground = this.closest("lf-playground");
-    whileInterfaceConnected(this, {
-      declare: () => {
-        const tile = playground.registerContributor("tile", {size: 2}, tools);
-        playground.registerInstructionProvider(v => `Make tiles ${v.tile.size} units.`);
-        grow.addEventListener("click", () => tile.set({size: tile.get().size + 1}));
-      },
-      connect: () => playground.subscribe(() => {}),
-    });
+    document.addEventListener("lf-page-interface", () => {
+      const tile = playground.registerContributor("tile", {size: 2}, tools);
+      playground.registerInstructionProvider(v => `Make tiles ${v.tile.size} units.`);
+      grow.addEventListener("click", () => tile.set({size: tile.get().size + 1}));
+      playground.subscribe(() => {});
+    }, {once: true});
   }
 });
 </script>

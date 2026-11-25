@@ -23,10 +23,10 @@
  * when that opens. Until then nothing loads, the frame keeps its placeholder height
  * and the status line stays empty, so starting moves nothing; `ready` waits, and
  * Reset starts the child. The browser's Find searches only the children that have
- * started. A frame the reader sees as it mounts starts at once, in the task that
- * shows it to them, the page arriving or a view they opened: the host makes that
- * showing wait for the frame's fit to its child only where it starts in that task.
- * The sample's arrival is its child's,
+ * started. A frame the reader sees as it mounts starts at the browser's first reading
+ * of it, which the page arriving or a view they opened waits for, and the host makes
+ * that showing wait for the frame's fit to its child. The sample's arrival is its
+ * child's,
  * which the host counts; a frame waiting to start counts until the
  * browser's first reading of it has said whether it starts (`whenNear`). The status line
  * keeps its room through loading, ready and failure, so the frame below it stays put; a
@@ -37,17 +37,12 @@
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
-import {
-  growthIsSeen,
-  whileConnected,
-  mountSample,
-  focusDestination,
-  whenNear,
-} from "/runtime/widget-api.js";
+import { mountSample, whenNear } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 
 export class Sample extends HTMLElement {
   /** @typedef {Awaited<ReturnType<typeof mountSample>>} SampleHost */
@@ -124,19 +119,24 @@ export class Sample extends HTMLElement {
   }
 
   connectedCallback() {
-    if (!once(this)) return;
-    if (!this.#build()) return;
-    whileConnected(this, () => {
-      this.#mount();
-      return () => {
-        this.#nearing?.();
-        this.#nearing = null;
-        this.#viewOperation?.abort();
-        const host = this.#host;
-        this.#host = null;
-        host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
-      };
-    });
+    if (once(this)) this.#build();
+    this.#mount();
+  }
+
+  // A move keeps the frame's document, as `moveBefore` does.
+  connectedMoveCallback() {
+    this.#mount();
+  }
+
+  // Removal closes a modal Full view, so the view returns to its embedded posture.
+  disconnectedCallback() {
+    if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
+    this.#nearing?.();
+    this.#nearing = null;
+    this.#viewOperation?.abort();
+    const host = this.#host;
+    this.#host = null;
+    host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
   }
 
   #mount() {
@@ -145,15 +145,9 @@ export class Sample extends HTMLElement {
     if (this.#pageView?.view.getAttribute("role") === "dialog" && !this.#modal)
       this.#embed();
     if (!this.#pageView || this.#host || this.#mounting || this.#nearing) return;
-    // A frame the reader sees as it mounts is part of what they are being shown, the
-    // page arriving or a view they opened, such as a thread in the floating panel: it
-    // starts at once, in the task that shows it, so that showing waits for its resize
-    // to its child (sample.js). Any other starts as it nears the window. A window
-    // keeps its height.
-    if (!this.hasAttribute("window") && !this.#modal && growthIsSeen(this.#frame)) {
-      this.#start();
-      return;
-    }
+    // The frame starts as it nears the window, a frame the reader already sees at the
+    // browser's first reading of it, which the page arriving or a view they opened
+    // waits for (`whenNear`).
     this.#nearing = whenNear(this.#frame, () => {
       this.#nearing = null;
       this.#start();
@@ -206,12 +200,6 @@ export class Sample extends HTMLElement {
     this.#starting.resolve(this.#track(ready));
   }
 
-  // Removal closes a modal Full view at once, so the view returns to its embedded
-  // posture in the same task rather than at the arrival batch.
-  disconnectedCallback() {
-    if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
-  }
-
   #build() {
     /** @type {HTMLTemplateElement | null} */
     const template = this.querySelector(":scope > template[data-sample]");
@@ -228,7 +216,7 @@ export class Sample extends HTMLElement {
     this.#frame.title = this.getAttribute("label") || "Leaf sample";
     this.#frame.addEventListener("lf-sample-return", () => {
       if (this.#modal) this.#return();
-      else focusDestination(this, "return");
+      else focusOn(this);
     });
 
     this.#view.className = "lf-sample-view";
@@ -266,7 +254,7 @@ export class Sample extends HTMLElement {
         this.#paintFull(true);
         this.#view.showModal();
         this.#setWindow(true);
-        focusDestination(this.#full, "move");
+        this.#full.focus({ preventScroll: true });
       }
     });
     actions.append(this.#reset, this.#full, this.#status);
@@ -285,7 +273,7 @@ export class Sample extends HTMLElement {
   // the view stands embedded again.
   #return() {
     this.#embed();
-    focusDestination(this.#full, "return");
+    this.#full.focus({ preventScroll: true });
   }
 
   #embed() {

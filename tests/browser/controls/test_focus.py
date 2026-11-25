@@ -185,7 +185,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     page.locator("#d > summary").focus()
     page.evaluate(
         """async () => {
-          const { holdFocus } = await window.__lfWidgetApi();
+          const { holdFocus } = await window.__lfCheckApi();
           window.__restore = holdFocus(document.querySelector('main'));
         }"""
     )
@@ -198,7 +198,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     assert (
         page.evaluate(
             """async () => {
-          const { holdFocus } = await window.__lfWidgetApi();
+          const { holdFocus } = await window.__lfCheckApi();
           const details = document.querySelector('#d');
           details.remove();
           return holdFocus(details) !== null;
@@ -938,7 +938,8 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
         with subtests.test(native_move=native_move, renderer=renderer):
             page.evaluate(
                 """async ([index, nativeMove, renderer]) => {
-              const {setChildren: orderChildren, move} = await window.__lfWidgetApi();
+              const {setChildren: orderChildren} = await import('/runtime/lib/dom-children.js');
+              const {move} = await import('/runtime/lib/dom-move.js');
               const {render, repeat} = await window.__lfVendorImport('lit.js');
               const rows = document.querySelector(`#rows-${index}`);
               if (!nativeMove) Element.prototype.moveBefore = undefined;

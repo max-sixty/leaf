@@ -1021,7 +1021,7 @@ const isLayoutShell = (box) =>
 // `main` to find one of its children, several times for each keystroke.
 /** @param {Element} main */
 const partsOf = (main) =>
-  [...main.children].find((child) => child.matches('[data-lf-views="parts"]')) ?? null;
+  [...main.children].find((child) => child.hasAttribute("data-lf-parts")) ?? null;
 export const layoutBox = () => {
   const main = document.querySelector("body > main");
   if (!main || isLayoutBox(main)) return main;

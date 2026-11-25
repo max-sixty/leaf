@@ -22,11 +22,13 @@
  *
  * A card with `shows` is the board's view of another widget's answer (`shownAnswer`),
  * such as a proposal's pick in its own section, and the answer stays that widget's. The
- * board draws the card in the column whose `value` the answer names, read from the
- * widget's state in this render, so a pick there, an undo, a refusal and a revision's
- * retraction move the card with no state of the board's own. Dropping it in another
- * column sends the widget's own answer for that column's value, the same command the
- * section's control sends. Where the answer picks members, a column with a `value`
+ * board draws the card in the column whose `value` the answer names, read from what
+ * the widget draws of its state: the recorded attribute on itself, or on the members
+ * its pick marks. The board watches those attributes and draws again as they change,
+ * so a pick there, an undo, a refusal and a revision's retraction move the card with
+ * no state of the board's own. Dropping it in another column records the widget's own
+ * answer for that column's value with an `lf-action` on the widget, the same action
+ * the section's control records. Where the answer picks members, a column with a `value`
  * takes a drop, and offers a button, only when exactly one member carries that value:
  * with none there is no answer to send, and with several a drop wouldn't say which. A
  * card that no other column takes has its grip disabled. A card with `shows` keeps its
@@ -77,16 +79,8 @@
  * of its items. */
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
-import {
-  elementById,
-  move,
-  motion,
-  focusDestination,
-  scrollIntoView,
-  whileConnected,
-  layerFact,
-  widgetController,
-} from "/runtime/widget-api.js";
+import { motion, layerFact } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
@@ -120,6 +114,10 @@ const namedValue = (answer, valueOf) => {
 /** @param {Element} card */
 const showsId = (card) => card.getAttribute("shows") || null;
 
+// The member a widget's answer names by its id, among the widget's own children.
+/** @param {Element} owner @param {string} id */
+const memberOf = (owner, id) => [...owner.children].find((child) => child.id === id);
+
 /** The widget whose answer a card shows, with the verb that writes the answer and
  * that verb's record; `{fault}`, telling the author what to write instead, where the
  * card's `shows` names no answer a board can show; or null for a card that shows none.
@@ -129,7 +127,9 @@ const showsId = (card) => card.getAttribute("shows") || null;
 function shownWidget(card) {
   const id = showsId(card);
   if (id === null) return null;
-  const owner = elementById(id, card);
+  const owner = /** @type {Document | ShadowRoot} */ (
+    card.getRootNode()
+  ).getElementById(id);
   if (!owner)
     return {
       fault:
@@ -148,46 +148,53 @@ function shownWidget(card) {
   return { owner, verb, record };
 }
 
+// The members an answer that picks members can pick: the widget's children with an id.
+/** @param {Element} owner */
+const membersOf = (owner) => [...owner.children].filter((child) => child.id);
+
 /** What to tell the author of a card showing a widget whose answer picks members when
  * none of them carries a `value`, so no pick can put the card in a column; null
- * otherwise, and while the widget's state has not loaded. */
+ * otherwise. */
 /** @param {Element} card @param {Exclude<ReturnType<typeof shownWidget>, null | {fault: string}>} shown */
 function valuelessFault(card, { owner, record }) {
   if (record.kind !== "attribute") return null;
-  const members = widgetController(owner).read().memberships?.[record.attr];
-  if (!members?.length) return null;
-  return members.some((member) => elementById(member, owner)?.hasAttribute(VALUE))
+  const members = membersOf(owner);
+  if (!members.length) return null;
+  return members.some((member) => member.hasAttribute(VALUE))
     ? null
     : `shows="${showsId(card)}" names <${owner.localName}>, none of whose members ` +
         `carries a \`${VALUE}\`, so no pick puts the card in a column; give each ` +
         `member the \`${VALUE}\` of the column its pick belongs in`;
 }
 
-/** The answer a card shows, or null where it shows none: no `shows`, one naming no
- * answer a board can show (`shownWidget`), or a widget whose state has not loaded.
- * Reading it reads that widget's own published state, and changing it sends the
- * widget's own command through its controller, the same command its own control sends.
- * `render()` follows that reading, so the board draws again when the answer changes.
- * The widget's own `state` property holds the same answer, but nothing tells the
- * board when Leaf sets it.
+/** The answer a card shows, or null where it shows none: no `shows`, or one naming
+ * no answer a board can show (`shownWidget`). Reading it reads what the widget draws
+ * of its state, its recorded attribute (`record.attr`) on itself or on the members it
+ * picks, which the board watches (`#watchShown`); changing it records the widget's own
+ * action on the widget, the same action its own control records.
  * `value` is the value the answer names now (null for none), `available` whether the
- * user can change it, `takes(value)` whether the widget can answer `value` (null
- * clears a pick), and `answer(value, says)` sends the widget's command, returning
- * what `dispatch` returns, or null where the widget can't take `value`. */
-/** @param {Element} card */
-function shownAnswer(card) {
+ * user can change it, by the widget's `state` where Leaf has set it and else by
+ * `fallback`, `takes(value)` whether the widget can answer `value` (null clears a
+ * pick), and `answer(value, says)` records the widget's action, or does nothing where
+ * the widget can't take `value`. */
+/** @param {Element} card @param {boolean} [fallback] */
+function shownAnswer(card, fallback = false) {
   const shown = shownWidget(card);
   if (!shown || "fault" in shown) return null;
   const { owner, verb, record } = shown;
-  const controller = widgetController(owner);
-  const reading = controller.read();
-  const state = reading.state?.[verb];
-  if (!state) return null;
+  /** @type {Record<string, {available?: boolean}> | undefined} */
+  const state = /** @type {any} */ (owner).state;
   const valueOf =
     record.kind === "attribute"
       ? (/** @type {string} */ member) =>
-          elementById(member, owner)?.getAttribute(VALUE) ?? null
+          memberOf(owner, member)?.getAttribute(VALUE) ?? null
       : null;
+  const answer =
+    record.kind === "attribute"
+      ? membersOf(owner)
+          .filter((member) => member.hasAttribute(record.attr))
+          .map((member) => member.id)
+      : owner.getAttribute(record.attr);
   const detailFor = (/** @type {string | null} */ value) => {
     if (!valueOf) return value === null ? null : { value };
     if (value === null) return { value: [] };
@@ -196,21 +203,26 @@ function shownAnswer(card) {
     // user picks, so the widget takes no answer for it and the user picks among them
     // in the widget itself. Answering with the first, or with all of them, would
     // record a pick the user never made.
-    const members = (reading.memberships?.[record.attr] ?? []).filter(
-      (member) => valueOf(member) === value,
-    );
+    const members = membersOf(owner)
+      .map((member) => member.id)
+      .filter((member) => valueOf(member) === value);
     return members.length === 1 ? { value: members } : null;
   };
   return Object.freeze({
-    value: namedValue(state.value, valueOf),
-    available: Boolean(reading.actions[verb]?.available),
+    owner,
+    attr: record.attr,
+    value: namedValue(answer, valueOf),
+    available: state ? Boolean(state[verb]?.available) : fallback,
     takes: (/** @type {string | null} */ value) => detailFor(value) !== null,
     /** @param {string | null} value @param {string} [says] */
     answer(value, says) {
       const detail = detailFor(value);
-      return detail
-        ? controller.dispatch({ kind: "action", verb, detail, ...(says && { says }) })
-        : null;
+      if (detail)
+        owner.dispatchEvent(
+          new CustomEvent("lf-action", {
+            detail: { verb, detail, ...(says && { says }) },
+          }),
+        );
     },
   });
 }
@@ -228,6 +240,10 @@ customElements.define(
     #namesObserver = null;
     /** @type {Set<Sortable>} */
     #sortables = new Set();
+    // Whether the board takes drags and moves: not as an exhibit.
+    #live = false;
+    /** @type {(() => void) | undefined} */
+    #stopMotion;
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     // The user's hold through the gesture, settled as the card is put down.
@@ -237,6 +253,9 @@ customElements.define(
     // than at every draw.
     /** @type {WeakMap<Element, string>} */
     #reported = new WeakMap();
+    // What the widgets whose answers cards show draw of those answers (`shownAnswer`).
+    /** @type {MutationObserver | null} */
+    #shownObserver = null;
 
     setup() {
       this.toggleAttribute("data-lf-scroll", true);
@@ -255,18 +274,15 @@ customElements.define(
       // replay), any of which would eventually forget. #names writes an aria-label on
       // the grip, which is not a child-list mutation and cannot feed this pass back
       // into itself.
-      whileConnected(this, () => {
-        for (const col of this.#columns()) this.#sortable(col);
-        this.#observeNames();
-        const stopMotion = this.#observeMotion();
-        return () => {
-          this.#namesObserver?.disconnect();
-          this.#namesObserver = null;
-          stopMotion?.();
-          for (const sortable of this.#sortables) sortable.destroy();
-          this.#sortables.clear();
-        };
-      });
+      this.#live = true;
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#live) return;
+      for (const col of this.#columns()) this.#sortable(col);
+      this.#observeNames();
+      this.#stopMotion = this.#observeMotion();
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -364,6 +380,12 @@ customElements.define(
       if (this.#grabbed) this.#cancel(this.#grabbed);
       this.#superseded = null;
       this.#finishGesture();
+      this.#namesObserver?.disconnect();
+      this.#namesObserver = null;
+      this.#shownObserver?.disconnect();
+      this.#stopMotion?.();
+      for (const sortable of this.#sortables) sortable.destroy();
+      this.#sortables.clear();
     }
 
     #observeMotion() {
@@ -407,7 +429,7 @@ customElements.define(
     /** @param {Element} card */
     #movable(card) {
       if (!showsId(card)) return this.#available();
-      const shown = shownAnswer(card);
+      const shown = shownAnswer(card, this.#available());
       return Boolean(
         shown?.available &&
         [...this.#columns()].some(
@@ -774,8 +796,8 @@ customElements.define(
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
-        focusDestination(grip, "return");
-        scrollIntoView(card, { behavior: "smooth", block: "nearest" });
+        grip.focus({ preventScroll: true });
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
@@ -901,7 +923,7 @@ customElements.define(
           this.#beginGesture();
           // The held card owns the keyboard too, through its existing grip scope.
           const grip = evt.item.querySelector(":scope > .lf-grip");
-          if (grip) focusDestination(grip, "return");
+          if (grip instanceof HTMLElement) grip.focus({ preventScroll: true });
         },
         onEnd: (evt) => {
           // Ahead of the branches below, because the one that returns early sends
@@ -950,10 +972,36 @@ customElements.define(
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
       if (!this.state) return nothing;
+      this.#watchShown();
       this.#reportUnshown();
       this.#arrange(this.#placement());
       this.#paintAvailability();
       return nothing;
+    }
+
+    // Watch the attributes in which each widget a card shows draws its answer, and the
+    // members' values, so a pick there, an undo, a refusal or a revision's retraction
+    // draws the board again. A revision can replace the widget, or a box holding it,
+    // so the board also hears a child list change along the widget's ancestors below
+    // `body`, whose own children are mostly Leaf's chrome, and each draw watches the
+    // widgets the cards name now.
+    #watchShown() {
+      this.#shownObserver ??= new MutationObserver(() => this.requestUpdate());
+      this.#shownObserver.disconnect();
+      for (const card of this.#allCards()) {
+        const shown = shownAnswer(card);
+        if (!shown) continue;
+        this.#shownObserver.observe(shown.owner, {
+          subtree: true,
+          attributeFilter: [shown.attr, VALUE],
+        });
+        for (
+          let at = shown.owner.parentNode;
+          at && at !== document.body;
+          at = at.parentNode
+        )
+          this.#shownObserver.observe(at, { childList: true });
+      }
     }
 
     // Tell the author of each card whose `shows` names no answer the board can show,

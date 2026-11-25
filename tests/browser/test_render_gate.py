@@ -3347,7 +3347,6 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { shadowStage } from "/runtime/widget-api.js";\n'
         'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
@@ -3356,7 +3355,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
         '    this.textContent = "";\n'
         '    const span = document.createElement("span");\n'
         "    span.textContent = text;\n"
-        "    shadowStage(this, [span]);\n"
+        '    this.attachShadow({ mode: "open" }).append(span);\n'
+        '    this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));\n'
         "  }\n"
         "});\n"
     )
@@ -4128,7 +4128,6 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"].pop("verbatim")
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { shadowStage } from "/runtime/widget-api.js";\n'
         'import { once } from "/runtime/lib/once.js";\n'
         'customElements.define("lf-callout", class extends HTMLElement {\n'
         "  connectedCallback() {\n"
@@ -4136,7 +4135,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
         "    const content = document.createElement('span');\n"
         "    content.textContent = this.textContent;\n"
         "    this.textContent = '';\n"
-        "    shadowStage(this, [content]);\n"
+        '    this.attachShadow({ mode: "open" }).append(content);\n'
+        '    this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));\n'
         "  }\n"
         "});\n"
     )

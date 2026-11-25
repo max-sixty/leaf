@@ -40,12 +40,9 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 const { stored } = window.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
-// while where they were writing here belongs to this page. tabStore is the only one on the helper
-// surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
-// collapsed group) — a module reaches its drafts through `draft`, the chrome
-// the user arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for. tab-store.js owns the portable widget store, and views.js keeps
-// which member a widget shows.
+// while where they were writing here belongs to this page. None is on the helper surface:
+// a widget keeps its tab state through the library (lib/tab-memory.js), over the same
+// backing and scope as tab-store.js, and reaches its drafts through `draft`.
 export const writingStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

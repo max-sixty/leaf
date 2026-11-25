@@ -18,7 +18,6 @@ const {
   watchOwner,
   watchArrivalsIn,
   whileConnected,
-  frameFor,
   browserScrolls,
   holdScroll,
   readerScrolls,
@@ -31,7 +30,7 @@ const {
   watchScrolls,
 } = await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
-const { observeQueuedWork } = await import("/runtime/lib/queued-work.js");
+const { frameFor } = await import("/runtime/lib/frame-pass.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals, in
 // the tree the change is made in.
@@ -271,7 +270,7 @@ test("failed setup aborts its listeners and permanently retires the subscription
   owner.remove();
 });
 
-test("owner frames coalesce calls and keep pending work through a same-batch move", async () => {
+test("a frame coalesces calls and keeps its pending paint through a move", async () => {
   const owner = document.createElement("section");
   const holder = document.createElement("div");
   document.body.append(owner, holder);
@@ -290,59 +289,22 @@ test("owner frames coalesce calls and keep pending work through a same-batch mov
   holder.remove();
 });
 
-test("departure cancels queued rendering and reconnection accepts fresh work", async () => {
-  const owner = document.createElement("section");
-  document.body.append(owner);
-  // Only this frame's own job: the runtime queues other work on any mutation, such as
-  // focus.js refreshing its paint.
-  const phases = [];
-  const own = new Set();
-  let scheduling = false;
-  const stop = observeQueuedWork((phase, job) => {
-    if (scheduling && phase === "enqueue") own.add(job);
-    if (own.has(job)) phases.push(phase);
-  });
-  let paints = 0;
-  const frame = frameFor(owner, () => paints++);
-  const schedule = () => {
-    scheduling = true;
-    try {
-      frame();
-    } finally {
-      scheduling = false;
-    }
-  };
-  try {
-    schedule();
-    await mutate(() => owner.remove());
-    assert.deepEqual(phases, ["enqueue", "cancel"]);
-    schedule();
-    assert.deepEqual(phases, ["enqueue", "cancel"]);
-    await mutate(() => document.body.append(owner));
-    await renderFrame();
-    assert.equal(paints, 0);
-    schedule();
-    await renderFrame();
-    assert.equal(paints, 1);
-  } finally {
-    stop();
-    owner.remove();
-  }
-});
-
-test("a frame refuses to paint after removal even before departure delivery", async () => {
+test("a frame paints nothing while its owner is away, and paints once it returns", async () => {
   const owner = document.createElement("section");
   document.body.append(owner);
   let paints = 0;
-  let departed = false;
-  const stop = whileConnected(owner, () => () => (departed = true));
   const schedule = frameFor(owner, () => paints++);
   schedule();
   owner.remove();
-  assert.equal(departed, false);
+  await renderFrame();
+  schedule();
   await renderFrame();
   assert.equal(paints, 0);
-  stop();
+  document.body.append(owner);
+  schedule();
+  await renderFrame();
+  assert.equal(paints, 1);
+  owner.remove();
 });
 
 test("a clock render reports its failure once and recovers on the next reading", async () => {

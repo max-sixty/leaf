@@ -50,6 +50,7 @@ export { anchoringIsReady } from "./anchor-resolution.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { presentContributionEntry } from "./contribution-controls.js";
+export { widgetController } from "./widget-controller.js";
 export { NOTICE_MS, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export {
@@ -98,8 +99,10 @@ export {
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
+  focusDestination,
   focused,
   handBack,
+  holdFocus,
   onCurrentLocation,
   releaseFocus,
   ringBox,
@@ -120,6 +123,7 @@ export {
   restorePlace,
 } from "./reading-place.js";
 export { replaceEntry } from "./history.js";
+export { retainUserIntent } from "./user-intent.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";
@@ -130,7 +134,7 @@ export {
 } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
-export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+export { fitsWhole, alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export {
   browserScrolls,
   holdScroll,

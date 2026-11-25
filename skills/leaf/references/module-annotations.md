@@ -10,13 +10,12 @@ A widget puts its actions and statuses in the page's margin with
 `t` reach them, and inserts nothing into the page's content. `target` is an element, or
 a function returning the one the actions currently sit beside. Set `source` to the
 widget that owns them when the controls have to sit beside an ancestor that outlives
-it. For example, behind the first-connection guard of a widget whose `save()` method
-does the work:
+it. For example, in a widget whose `save()` method does the work:
 
 ```js
-import { registerContribution, whileConnected } from "/runtime/widget-api.js";
+import { registerContribution } from "/runtime/widget-api.js";
 
-whileConnected(this, () => {
+connectedCallback() {
   this.actions = registerContribution({
     key: this.id,
     target: this,
@@ -27,8 +26,10 @@ whileConnected(this, () => {
     }),
     activate: () => this.save(),
   });
-  return () => this.actions.unregister();
-});
+}
+disconnectedCallback() {
+  this.actions.unregister();
+}
 ```
 
 `read()` returns data, never controls: the actions available in the widget's current
@@ -111,8 +112,8 @@ the visual shows.
 
 ### Reading and opening Threads from a widget
 
-`readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a render
-that calls it redraws when it changes. A thread the user just started is there at once;
+`threads.read()` returns the `{phase, threads}` Leaf's Threads list reads, a page
+reading (`module-reading.md`, "Page readings"). A thread the user just started is there at once;
 only `phase === "ready"` means every saved thread is. A Thread's `turns` are the
 messages a drawing of it shows, in order: its opening message and each later message
 that is not a reaction. `nameOf(thread)` returns its name in words
@@ -134,42 +135,18 @@ inside a datum. `prefix` and `suffix`, where the anchor has them, are the text b
 and after the quote, which tell two copies of the same words apart.
 [events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
-`landInThread(editor, {target, line})` enters an existing reply
-editor and records where Escape returns when the Thread has no own focus destination:
-`target` is the package's return element and `line` is its accessible return label.
-It returns whether it could land. Use `threadActions.open` below when starting from a
-Thread key rather than an editor already present.
+To take the user to a Thread, hand it to `go`
+([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 
-`threadActions` acts on Threads through Leaf's own path, showing the result at once:
+`threads` also acts on Threads through Leaf's own path, showing the result at once:
 
 ```js
-threadActions.create({ text, anchor, attempt });
-threadActions.open(thread.key, { part: "thread" });
-threadActions.reply(thread.key, text);
-threadActions.resolve(thread.key);
-threadActions.reopen(thread.key);
-threadActions.setReaction(thread.key, agentMessage.key, token, true);
+threads.create({ text, anchor, attempt });
+threads.reply(thread.key, text);
+threads.resolve(thread.key);
+threads.reopen(thread.key);
+threads.setReaction(thread.key, agentMessage.key, token, true);
 ```
-
-`open(key, {part, focus, travel, message})` takes the user to the Thread wherever a
-margin mark would: the page's primary reader ("Owning the primary conversation
-presentation"), which is the Leaf panel unless a package registers one. `part` is
-`"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
-`message: message.key` for one message; with none it lands as opening a thread does, in
-the reply after a press and on the thread after a key. `travel: false` keeps the page where it is, and
-`focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
-the Thread is gone or the user has done something else. To act on that element
-afterwards, such as selecting the reply text, check it still has focus:
-
-```js
-const editor = await threadActions.open(thread.key, { part: "reply" });
-if (editor?.matches(":focus") && editor.setSelectionRange) {
-  editor.setSelectionRange(0, editor.value.length);
-}
-```
-
-Don't test a `retainUserIntent` predicate taken before the call (`module-input.md`,
-"Delayed work"): the route's own move to the editor turns it false.
 
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the Thread doesn't
 offer the action, and otherwise a promise of the admitted event, or of `null` if the
@@ -184,8 +161,8 @@ describes.
 
 A package that provides the page's main conversation reader, such as a shelf of
 conversations or a feed of turns, registers
-`registerThreadPresentation(owner, {render, reveal})` in `whileConnected`; a page has at
-most one. Leaf then opens threads there instead of in its floating panel, and widgets
+`registerThreadPresentation(owner, {render, reveal})` as it connects and unregisters
+it as it leaves; a page has at most one. Leaf then opens threads there instead of in its floating panel, and widgets
 inside the messages it draws live there.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
@@ -237,8 +214,8 @@ thread, and `sent()` then runs in place of Leaf's landing of the new turn. The r
 stands in a resolved thread too, and a reply there reopens it. The collection
 holds back changes that would move what the user sees behind a notice, which a whole
 conversation stands as a card does, or where its `head` names, and message parts at
-the end of the first part's head, while `readThreads()` stays current for counts. A
-feed of single turns supplies Resolve and Reopen through `threadActions`.
+the end of the first part's head, while `threads.read()` stays current for counts. A
+feed of single turns supplies Resolve and Reopen through `threads`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. If `render` throws or names an outlet
@@ -308,7 +285,7 @@ still hold the comment box the user is typing in, so remove outlets only in `onC
 which runs once this pass's placement takes effect, and keep returned ones in the
 document while redrawing around them. A widget that must remove a node holding outlets
 at another time, such as when its data goes, first calls
-`threadSurface(this).release(node)`, before any `holdFocus`, and the comment box leaves
+`threadSurface(this).release(node)`, before it holds focus, and the comment box leaves
 the widget's outlets under `node` with the user still writing in it. If `threadOutlets`
 throws, Leaf returns the widget's threads to the margin until the next pass.
 
@@ -349,8 +326,8 @@ order, one over its words in each text node they run through, to measure where t
 words are drawn.
 
 The registration throws on other pages, and returns a handle with `read()`, `update()`,
-`unregister()`, `open(node)` and `reveal(key)`; register it in `whileConnected`.
-`read()` returns what `readThreads()` returns. `update()` asks for `render` again and
+`unregister()`, `open(node)` and `reveal(key)`.
+`read()` returns what `threads.read()` returns. `update()` asks for `render` again and
 returns nothing to await, so do what must follow a placement in the `onCommit` its
 `render` is handed, which runs once Leaf has filled the outlets. `open(node)` opens the
 comment box on the visual part or datum that holds `node`, or else on the nearest
@@ -358,7 +335,6 @@ element with an `id`, `node` itself included, and throws where there is none.
 `reveal(key)` takes the user to that Thread, in the outlet that holds it or else in
 Leaf's panel.
 
-Keep outlets keyed by thread, and hold size changes back with `HeldReading`
-(`module-scroll-and-motion.md`, "Holding the reader's place"). An owner that scrolls
+Keep outlets keyed by thread. An owner that scrolls
 inside its own box registers it as a reading region. Whatever the owner doesn't show
 stays in Threads and the On lists of Leaf's panel.

@@ -390,7 +390,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     write(field, "First addition")
-    group.get_by_role("button", name="Add and select option").click()
+    field.press("Enter")
     round_trip(page)
     expect(added).to_have_count(1)
     first_id = added.get_attribute("id")
@@ -419,7 +419,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(0)
 
     write(field, "Second addition")
-    group.get_by_role("button", name="Add and select option").click()
+    field.press("Enter")
     round_trip(page)
     expect(added).to_have_count(1)
     assert added.get_attribute("id") != first_id
@@ -1980,7 +1980,7 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     expect(digit).to_have_attribute("data-lf-binding-badge", "")
     seat = digit.bounding_box()
     page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
-    expect(page.locator("#retry > .lf-another leaf-text")).to_be_focused()
+    expect(page.locator("#retry > .lf-another textarea")).to_be_focused()
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
@@ -2092,7 +2092,7 @@ def test_a_press_in_a_rows_digit_column_is_a_press_on_its_control(
     expect(add).to_have_attribute("data-lf-binding-badge", "")
     seat = add.bounding_box()
     page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
-    expect(page.locator("#when > .lf-another leaf-text")).to_be_focused()
+    expect(page.locator("#when > .lf-another textarea")).to_be_focused()
 
     round_trip(page)
     assert [
@@ -2973,8 +2973,9 @@ def test_an_added_option_renders_its_markdown_and_keeps_its_source(browser, serv
     the words as typed."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     group = page.locator("#jobs")
-    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
-    group.get_by_role("button", name="Add and select option").click()
+    field = group.get_by_role("textbox", name="Another option")
+    write(field, "Keep **both** routes")
+    field.press("Enter")
     added = group.locator(":scope > lf-option[data-lf-added]")
     expect(added.locator("strong")).to_have_text("both")
     round_trip(page)

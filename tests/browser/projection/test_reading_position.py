@@ -439,14 +439,15 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     declarations = json.loads(registry_path.read_text())
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
-        """import { shadowStage } from "/runtime/widget-api.js";
-import { once } from "/runtime/lib/once.js";
+        """import { once } from "/runtime/lib/once.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
-    shadowStage(this, [paragraph]);
+    this.replaceChildren();
+    this.attachShadow({ mode: "open" }).append(paragraph);
+    this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));
   }
 });
 """

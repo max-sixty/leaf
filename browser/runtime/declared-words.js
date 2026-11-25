@@ -34,12 +34,11 @@
    user content. */
 import { isElement } from "./lib/shadow-tree.js";
 
-import { markViews } from "./views.js";
 import { holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
 import { keeps } from "./lib/keeps.js";
-import { move } from "./dom-move.js";
+import { move } from "./lib/dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
@@ -138,19 +137,11 @@ export function paintDeclaredWords(root) {
   return dressCode(root);
 }
 
-// The declarations a stylesheet has to read and cannot. Three of them first: one about
-// the space a widget is given and two about how it participates in content, and none of
-// them is something a selector can derive from the element in hand or look up.
+// The declarations a stylesheet has to read and cannot. Two of them first, both about
+// how a widget participates in content, and neither is something a selector can derive
+// from the element in hand or look up.
 //
-// Which widgets may stand wider than the column is the first. Prose is set to a measure
-// and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
-// and a page carrying one had to be either a cramped board or a page whose every
-// paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (`space`) and the Layout gives it the room:
-// `wide` uses the shared evidence cap, and `available` uses all remaining room.
-// Internal arrangement remains package-owned.
-//
-// Whether the widget is set among the words around it is the second (`inline`).
+// Whether the widget is set among the words around it is the first (`inline`).
 // What reads it is the pair of selectors asking whether a suggestion slot or a variant
 // holds block content, which is HTML's phrasing content inverted: a custom element is
 // in no closed platform set, so any widget in one of those makes it a block — an inline
@@ -160,7 +151,7 @@ export function paintDeclaredWords(root) {
 // one marker now, data-lf-inline, and an inline widget from any layer joins by
 // declaring.
 //
-// Whether the widget quotes what it holds is the third (`exhibit`). An exhibit is
+// Whether the widget quotes what it holds is the second (`exhibit`). An exhibit is
 // a mention, not a use, so every rule saying "this takes input" — the hand, the lift,
 // the joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's: whether this element
@@ -180,11 +171,13 @@ export function paintDeclaredWords(root) {
 // holds in a message are one table, the kernel registry's `$marks`, which this runtime
 // imports from `kernel-facts.js`. A page's document arrives painted from it: delivery
 // writes the marks into the served source (revision_delivery.py, `mark_declared`), so
-// the first paint already gives a board its room and a workspace its panes, before any
-// module or the registry loads, and a revision the page patches in arrives painted the
-// same way. A message is the runtime's to render, so `markDeclared` paints it from
-// `marks` as it renders, with the marks that hold there: every one but the room, which
-// is the document's to hand out, while a message renders in the panel's.
+// the first paint already gives a workspace its panes, before any module or the
+// registry loads, and a revision the page patches in arrives painted the same way. The
+// same table paints the room a block takes past the measure (`space`), which no tag
+// declares and only an occurrence's `data-width` states. A message is the runtime's to
+// render, so `markDeclared` paints it from `marks` as it renders, with the marks that
+// hold there: every one but the room, which is the document's to hand out, while a
+// message renders in the panel's.
 
 /** @param {Scope} root @param {string} selector */
 function* elementsIn(root, selector) {
@@ -209,10 +202,6 @@ export function markDeclared(root) {
       const declared = registry[tag]?.[fact];
       for (const el of elementsIn(root, tag)) {
         const value = holdsFor(el, declared);
-        if (key === "views") {
-          markViews(el);
-          continue;
-        }
         keeps(
           el,
           attribute,

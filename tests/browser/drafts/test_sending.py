@@ -61,8 +61,8 @@ def thread_listed(page, attempt):
     `attempt` opened, pending or admitted."""
     return page.evaluate(
         """async (attempt) => {
-          const {readThreads} = await window.__lfWidgetApi();
-          return readThreads().threads.some((thread) =>
+          const {threads} = await window.__lfWidgetApi();
+          return threads.read().threads.some((thread) =>
             [attempt, `pending:${attempt}`].includes(thread.key));
         }""",
         attempt,

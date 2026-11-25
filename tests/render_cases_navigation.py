@@ -967,7 +967,7 @@ DATA_PROJECTION_PAGE = leaf_page(
 
 DATA_PROJECTION_MODULE = """
 import { nothing } from '/vendor/lit.js';
-import { setChildren } from '/runtime/widget-api.js';
+import { setChildren } from '/runtime/lib/dom-children.js';
 import { LeafElement } from '/runtime/lib/leaf-element.js';
 import { offer } from '/runtime/lib/controls.js';
 import { keeps } from '/runtime/lib/keeps.js';

@@ -396,16 +396,7 @@ FACTS: dict[str, dict] = {
             },
         ]
     },
-    "views": {
-        "type": "object",
-        "properties": {
-            "members": {"type": "string", "minLength": 1},
-            "parts": {"const": True},
-        },
-        "required": ["members"],
-        "additionalProperties": False,
-    },
-    "space": {"enum": ["wide", "available"]},
+    "parts": {"const": True},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,
@@ -579,71 +570,6 @@ LAYER_FACTS = {
             }
         },
         "required": ["tokens"],
-    },
-}
-# The work roles, which Leaf owns and `runtime/work.js` reads: what each role's
-# `$work.widgets` entry holds beside `role`, then which of those it must hold. A goal
-# or worker names its recorded state attribute and the values of it that mean done or
-# stopped, running or retired, and may name the attribute saying when it stopped or
-# which goal it works on; a scope or evidence holds nothing more.
-_WORK_VALUES = {"type": "array", "items": {"type": "string"}}
-_WORK_ROLES = {
-    "scope": ({}, []),
-    "evidence": ({}, []),
-    "goal": (
-        {
-            "state": _ATTRIBUTE_NAME,
-            "done": _WORK_VALUES,
-            "stopped": _WORK_VALUES,
-            "stoppedAt": _ATTRIBUTE_NAME,
-        },
-        ["state", "done", "stopped"],
-    ),
-    "worker": (
-        {
-            "state": _ATTRIBUTE_NAME,
-            "running": _WORK_VALUES,
-            "retired": _WORK_VALUES,
-            "on": _ATTRIBUTE_NAME,
-        },
-        ["state", "running", "retired"],
-    ),
-}
-# The shared layer facts a vocabulary may leave out, each held to its schema where a
-# layer declares it (`registry.validation.check_layer_facts`). A package maps its tags
-# onto the work roles in `$work.widgets`, and `registry.validation.validate_work_roles`
-# holds each entry to its tag's declaration.
-OPTIONAL_LAYER_FACTS = {
-    "$work": {
-        "type": "object",
-        "properties": {
-            "description": _NONEMPTY,
-            "widgets": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {"role": {"enum": list(_WORK_ROLES)}},
-                    "required": ["role"],
-                    # A clause per role, so a refusal names the key its role refused.
-                    "allOf": [
-                        {
-                            "if": {
-                                "properties": {"role": {"const": role}},
-                                "required": ["role"],
-                            },
-                            "then": {
-                                "properties": {"role": True, **keys},
-                                "required": required,
-                                "additionalProperties": False,
-                            },
-                        }
-                        for role, (keys, required) in _WORK_ROLES.items()
-                    ],
-                },
-            },
-        },
-        "required": ["widgets"],
-        "additionalProperties": False,
     },
 }
 # The kernel compiled from ASSETS's modules (`runtime_selection.read_runtime`).

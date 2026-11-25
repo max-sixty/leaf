@@ -16,7 +16,7 @@ import { conversationsAbout, partOver, partTrail } from "/runtime/thread/placeme
 import { addressableLabel } from "/runtime/addressable-names.js";
 import { registry } from "/runtime/registry.js";
 import { applicationState } from "/runtime/semantic-state.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 import { pageText } from "/runtime/passages.js";
 import { servedState, servedThread } from "../served.mjs";
 

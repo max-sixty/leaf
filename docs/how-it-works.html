@@ -4978,10 +4978,9 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     </td>
                   </tr>
                   <tr>
-                    <td>Select a root page tab</td>
+                    <td>Select a tab</td>
                     <td>
-                      The switch saves the outgoing reading position and adds an entry;
-                      Back / Forward returns between views. Embedded tabs add no entry.
+                      The switch adds no entry; Back and Forward leave the tab as it is.
                     </td>
                   </tr>
                   <tr>
@@ -5681,9 +5680,7 @@ flowchart LR
                   <text class="strong" x="180" y="332" text-anchor="middle">
                     Functions
                   </text>
-                  <text class="mono" x="180" y="347" text-anchor="middle">
-                    readObligations
-                  </text>
+                  <text class="mono" x="180" y="347" text-anchor="middle">go</text>
                 </g>
                 <g id="drawing-elements">
                   <rect class="box" x="126" y="362" width="108" height="42" rx="4" />
@@ -6001,7 +5998,7 @@ lf-verdict {
                   <th scope="row">What only Leaf can do or know</th>
                   <td>
                     A function the module imports, such as
-                    <code class="nowrap">readObligations()</code>, which reads what
+                    <code class="nowrap">obligations.read()</code>, which reads what
                     waits on the user or the agent.
                   </td>
                 </tr>

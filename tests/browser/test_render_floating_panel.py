@@ -2630,7 +2630,7 @@ def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, se
     reading = page.evaluate(
         """async () => {
           const {seenRect} = await window.__lfCheckApi();
-          const {focusDestination} = await window.__lfWidgetApi();
+          const {focusDestination} = await window.__lfCheckApi();
           document.querySelector('#pop').showPopover();
           const button = document.querySelector('#in-pop');
           const view = document.querySelector('.lf-fp-view').getBoundingClientRect();
@@ -6510,7 +6510,7 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
     # publishes immediately while this answer's widget is still preparing.
     page.evaluate("""async () => {
       const api = await window.__lfWidgetApi();
-      api.threadActions.create({attempt: crypto.randomUUID(), text: 'Another question.'});
+      api.threads.create({attempt: crypto.randomUUID(), text: 'Another question.'});
     }""")
     page.evaluate("releaseAnswer()")
     told(page)

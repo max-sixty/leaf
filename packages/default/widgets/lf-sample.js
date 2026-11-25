@@ -37,16 +37,12 @@
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
-import {
-  whileConnected,
-  mountSample,
-  focusDestination,
-  whenNear,
-} from "/runtime/widget-api.js";
+import { mountSample, whenNear } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 
 export class Sample extends HTMLElement {
   /** @typedef {Awaited<ReturnType<typeof mountSample>>} SampleHost */
@@ -123,19 +119,24 @@ export class Sample extends HTMLElement {
   }
 
   connectedCallback() {
-    if (!once(this)) return;
-    if (!this.#build()) return;
-    whileConnected(this, () => {
-      this.#mount();
-      return () => {
-        this.#nearing?.();
-        this.#nearing = null;
-        this.#viewOperation?.abort();
-        const host = this.#host;
-        this.#host = null;
-        host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
-      };
-    });
+    if (once(this)) this.#build();
+    this.#mount();
+  }
+
+  // A move keeps the frame's document, as `moveBefore` does.
+  connectedMoveCallback() {
+    this.#mount();
+  }
+
+  // Removal closes a modal Full view, so the view returns to its embedded posture.
+  disconnectedCallback() {
+    if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
+    this.#nearing?.();
+    this.#nearing = null;
+    this.#viewOperation?.abort();
+    const host = this.#host;
+    this.#host = null;
+    host?.destroy().catch((/** @type {unknown} */ error) => this.#failure(error));
   }
 
   #mount() {
@@ -199,12 +200,6 @@ export class Sample extends HTMLElement {
     this.#starting.resolve(this.#track(ready));
   }
 
-  // Removal closes a modal Full view at once, so the view returns to its embedded
-  // posture in the same task rather than at the arrival batch.
-  disconnectedCallback() {
-    if (this.#pageView?.view.getAttribute("role") === "dialog") this.#embed();
-  }
-
   #build() {
     /** @type {HTMLTemplateElement | null} */
     const template = this.querySelector(":scope > template[data-sample]");
@@ -221,7 +216,7 @@ export class Sample extends HTMLElement {
     this.#frame.title = this.getAttribute("label") || "Leaf sample";
     this.#frame.addEventListener("lf-sample-return", () => {
       if (this.#modal) this.#return();
-      else focusDestination(this, "return");
+      else focusOn(this);
     });
 
     this.#view.className = "lf-sample-view";
@@ -259,7 +254,7 @@ export class Sample extends HTMLElement {
         this.#paintFull(true);
         this.#view.showModal();
         this.#setWindow(true);
-        focusDestination(this.#full, "move");
+        this.#full.focus({ preventScroll: true });
       }
     });
     actions.append(this.#reset, this.#full, this.#status);
@@ -278,7 +273,7 @@ export class Sample extends HTMLElement {
   // the view stands embedded again.
   #return() {
     this.#embed();
-    focusDestination(this.#full, "return");
+    this.#full.focus({ preventScroll: true });
   }
 
   #embed() {

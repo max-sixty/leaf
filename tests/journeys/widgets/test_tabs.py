@@ -109,18 +109,12 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
-def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
-    browser, serve
-):
-    """A tab switch is not fragment travel. The strip stays where it is on screen: a view
-    never read opens at its start when the strip is stuck and leaves the shared header
-    alone when it is not, and a view read past its start reopens where the user left it.
-    Pointer and keyboard agree. Back and Forward open their entry's view where the user
-    was on that entry, and a fresh load of the remembered view shows the page's top.
-
-    A view's place is where the user was reading in it, not a pixel offset: a window
-    resized while the view is hidden rewraps everything above that passage, and the view
-    still reopens with the passage where the user left it."""
+def test_root_tabs_switch_views_without_moving_the_strip(browser, serve):
+    """A tab switch is not fragment travel, and adds no history entry. The strip stays
+    where it is on screen: a view opens at its start when the strip is stuck and leaves
+    the shared header alone when it is not. Pointer and keyboard agree. A link or a
+    reveal into a hidden view opens it, and a fresh load opens the view this tab showed
+    last, at the page's top."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(browser, url)
     resized(page, 1280, 720)
@@ -159,107 +153,72 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
         assert geometry["strip"]["top"] == pytest.approx(geometry["inset"], abs=1)
         assert geometry["panel"] == pytest.approx(geometry["strip"]["bottom"], abs=1)
 
+    def entries():
+        return page.evaluate("navigation.entries().length")
+
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
+    arrived = entries()
     # With the header on screen, a switch leaves it there.
     assert switch(summary) == 0
     assert switch(evidence) == 0
-    assert page.url.endswith("#evidence-tab")
-    # Read Evidence past its start; Plan, never read, opens at its start under the
+    # Read Evidence past its start; a view switched to then opens at its start under the
     # stuck strip rather than at the top of the page.
     evidence_read = read_at(450)
     # Even a view shorter than the window keeps enough page below the sticky strip
     # for the browser to land its start without pulling the strip downward.
     assert 0 < switch(summary) < evidence_read
     stuck_at_start("#summary-tab")
-    plan_start = switch(plan)
-    assert 0 < plan_start < evidence_read
+    assert 0 < switch(plan) < evidence_read
     stuck_at_start("#plan-tab")
-    # Evidence reopens where the user left it, and pressing the open tab moves nothing.
-    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
-    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
+    evidence_start = switch(evidence)
+    stuck_at_start("#evidence-tab")
+    # Pressing the open tab moves nothing, and no switch added an entry.
+    assert switch(evidence) == pytest.approx(evidence_start, abs=2)
+    assert entries() == arrived
 
     # The keyboard walk is the same switch, and focus stays in the strip.
     expect(evidence).to_be_focused()
     page.keyboard.press("ArrowLeft")
     expect(plan).to_have_attribute("aria-selected", "true")
     expect(plan).to_be_focused()
-    assert settled() == pytest.approx(plan_start, abs=2)
+    settled()
+    stuck_at_start("#plan-tab")
     page.keyboard.press("ArrowRight")
     expect(evidence).to_have_attribute("aria-selected", "true")
     expect(evidence).to_be_focused()
-    assert settled() == pytest.approx(evidence_read, abs=2)
-
-    # Back and Forward select the entry's view at the offset it was left at.
-    page.go_back()
-    expect(plan).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#plan-tab")
-    assert settled() == pytest.approx(plan_start, abs=2)
-    page.go_forward()
-    expect(evidence).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#evidence-tab")
-    assert settled() == pytest.approx(evidence_read, abs=2)
+    settled()
+    stuck_at_start("#evidence-tab")
 
     # A link into a hidden view still opens it and lands on the target.
     page.evaluate("location.hash = 'plan-rollback'")
     expect(plan).to_have_attribute("aria-selected", "true")
     settled()
     expect(page.locator("#plan-rollback h2")).to_be_in_viewport()
-    # Back to that link's entry from another view switches to the view holding it.
-    switch(evidence)
-    page.go_back()
-    expect(plan).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#plan-rollback")
 
-    # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
-    # user is located on names it, so pressing away and coming Back returns there.
+    # A reveal (a comment anchor, find-in-page) opens another view.
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#evidence-tab'), retainUserIntent());
         }"""
     )
     rendered(page)
     expect(evidence).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#evidence-tab")
-    switch(plan)
-    page.go_back()
-    expect(evidence).to_have_attribute("aria-selected", "true")
 
-    # A fresh load that restores the remembered view opens at the page's top.
-    switch(evidence)
+    # A fresh load opens the view this tab showed last, at the page's top.
     page.goto(url)
     expect(evidence).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#evidence-tab")
     assert settled() == 0
 
-    # The passage read in a hidden view keeps its place through a resize.
-    passage = page.locator("#evidence-sign-in p").first
-    below_landing_edge = """element => element.getBoundingClientRect().top
-        - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
-    passage.evaluate("element => element.scrollIntoView({block: 'start'})")
-    page.evaluate("scrollBy({top: -40, behavior: 'instant'})")
-    settled()
-    left = passage.evaluate(below_landing_edge)
-    assert left == pytest.approx(40, abs=2)
-    switch(plan)
-    resized(page, 520, 720)
-    switch(evidence)
-    assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
 
-
-def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve):
-    """A switch between a page's parts is not fragment travel. The list stays where it is
-    on screen under the page's title: a part never read opens at its start, at the top
-    of the page level with the title, and a part read past its start reopens where the
-    user left it. Pointer and keyboard agree. Back and Forward open their entry's part
-    where the user was on that entry, and a fresh load of the remembered part shows the
-    page's top.
-
-    A part's place is where the user was reading in it, not a pixel offset: a window
-    resized while the part is hidden rewraps everything above that passage, and the part
-    still reopens with the passage where the user left it."""
+def test_parts_switch_without_moving_the_list(browser, serve):
+    """A switch between a page's parts is not fragment travel, and adds no history
+    entry. The list stays where it is on screen under the page's title, and the part
+    opens at its start, at the top of the page level with the title. Pointer and
+    keyboard agree. A link or a reveal into a hidden part opens it, and a fresh load
+    opens the part this tab showed last, at the page's top."""
     url = serve(ROOT_PARTS_PAGE)
     page = open_page(browser, url)
     resized(page, 1280, 720)
@@ -310,24 +269,29 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
         title = page.locator("main > header").bounding_box()["y"]
         assert top == pytest.approx(title, abs=1)
 
+    def entries():
+        return page.evaluate("navigation.entries().length")
+
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
+    arrived = entries()
     # With the title on screen, a switch leaves it there.
     assert switch(summary) == 0
     assert switch(evidence) == 0
-    assert page.url.endswith("#evidence-part")
-    # Read Evidence past its start; Plan, never read, opens at its start, the top of the
-    # page.
-    evidence_read = read_at(450)
-    plan_start = switch(plan)
-    assert plan_start == 0
+    # Read Evidence past its start; a part switched to then opens at its start, the top
+    # of the page.
+    read_at(450)
+    assert switch(plan) == 0
     at_start("#plan-part")
     # Summary fits under the title, so it opens with the title and nothing to scroll.
     assert switch(summary) == 0
     assert page.evaluate("document.scrollingElement.scrollHeight - innerHeight") <= 0
-    # Evidence reopens where the user left it, and pressing the open tab moves nothing.
-    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
-    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
+    assert switch(evidence) == 0
+    at_start("#evidence-part")
+    # Pressing the open tab moves nothing, and no switch added an entry.
+    read_at(450)
+    assert switch(evidence) == pytest.approx(450, abs=2)
+    assert entries() == arrived
 
     # The keyboard walk is the same switch, down the list or across it, and focus stays
     # in the list.
@@ -335,69 +299,33 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     page.keyboard.press("ArrowUp")
     expect(plan).to_have_attribute("aria-selected", "true")
     expect(plan).to_be_focused()
-    assert settled() == pytest.approx(plan_start, abs=2)
+    assert settled() == 0
     page.keyboard.press("ArrowRight")
     expect(evidence).to_have_attribute("aria-selected", "true")
     expect(evidence).to_be_focused()
-    assert settled() == pytest.approx(evidence_read, abs=2)
-
-    # Back and Forward select the entry's part at the offset it was left at.
-    page.go_back()
-    expect(plan).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#plan-part")
-    assert settled() == pytest.approx(plan_start, abs=2)
-    page.go_forward()
-    expect(evidence).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#evidence-part")
-    assert settled() == pytest.approx(evidence_read, abs=2)
+    assert settled() == 0
 
     # A link into a hidden part still opens it and lands on the target.
     page.evaluate("location.hash = 'part-plan-rollback'")
     expect(plan).to_have_attribute("aria-selected", "true")
     settled()
     expect(page.locator("#part-plan-rollback h2")).to_be_in_viewport()
-    # Back to that link's entry from another part switches to the part holding it.
-    switch(evidence)
-    page.go_back()
-    expect(plan).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#part-plan-rollback")
 
-    # A reveal (a comment anchor, find-in-page) opens another part, and the entry the
-    # user is located on names it, so pressing away and coming Back returns there.
+    # A reveal (a comment anchor, find-in-page) opens another part.
     page.evaluate(
         """async () => {
           const {reveal} = await window.__lfCheckApi();
-          const {retainUserIntent} = await window.__lfWidgetApi();
+          const {retainUserIntent} = await window.__lfCheckApi();
           reveal(document.querySelector('#evidence-part'), retainUserIntent());
         }"""
     )
     rendered(page)
     expect(evidence).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#evidence-part")
-    switch(plan)
-    page.go_back()
-    expect(evidence).to_have_attribute("aria-selected", "true")
 
-    # A fresh load that restores the remembered part opens at the page's top.
-    switch(evidence)
+    # A fresh load opens the part this tab showed last, at the page's top.
     page.goto(url)
     expect(evidence).to_have_attribute("aria-selected", "true")
-    assert page.url.endswith("#evidence-part")
     assert settled() == 0
-
-    # The passage read in a hidden part keeps its place through a resize.
-    passage = page.locator("#part-evidence-sign-in p").first
-    below_landing_edge = """element => element.getBoundingClientRect().top
-        - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
-    passage.evaluate("element => element.scrollIntoView({block: 'start'})")
-    page.evaluate("scrollBy({top: -40, behavior: 'instant'})")
-    settled()
-    left = passage.evaluate(below_landing_edge)
-    assert left == pytest.approx(40, abs=2)
-    switch(plan)
-    resized(page, 900, 720)
-    switch(evidence)
-    assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
 
 
 def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):

@@ -161,9 +161,8 @@ contribution. Inherited values cross every widget boundary. Adjust another widge
 internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A shadow root gets the composed
-shared stylesheet when its element says `lf-connect`, or through
-`shadowStage` for an imperative renderer (`module-authoring.md`, "Shadow stages and
-styles"). Use theme inputs for changes across
+shared stylesheet when its element says `lf-connect` (`module-authoring.md`, "Shadow
+stages and styles"). Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
 
@@ -348,7 +347,7 @@ role on the page:
 | `reading-role` | `lf-pane`                                                                            |
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
 | `history`      | `lf-activity`                                                                        |
-| `views`        | `lf-tabs`                                                                            |
+| `parts`        | `lf-parts`                                                                           |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

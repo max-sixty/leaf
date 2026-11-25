@@ -146,117 +146,12 @@ def test_one_check_names_each_missing_layer_fact():
     ]
 
 
-_GOAL = {"role": "goal", "state": "status", "done": ["done"], "stopped": ["blocked"]}
-_WORKER = {
-    "role": "worker",
-    "state": "state",
-    "running": ["working"],
-    "retired": ["done"],
-    "on": "on",
-}
-
-
-@pytest.mark.parametrize(
-    ("tag", "entry", "code", "at", "values"),
-    [
-        (
-            "lf-test-worker",
-            {**{k: v for k, v in _WORKER.items() if k != "on"}, "On": "on"},
-            "layer-facts",
-            "",
-            {
-                "keyword": "additionalProperties",
-                "path": ["$work", "widgets", "lf-test-worker"],
-            },
-        ),
-        (
-            "lf-test-tree",
-            {"role": "readings"},
-            "layer-facts",
-            "",
-            {"keyword": "enum", "path": ["$work", "widgets", "lf-test-tree", "role"]},
-        ),
-        (
-            "lf-test-task",
-            {k: v for k, v in _GOAL.items() if k != "done"},
-            "layer-facts",
-            "",
-            {"keyword": "required", "path": ["$work", "widgets", "lf-test-task"]},
-        ),
-        (
-            "lf-ghost",
-            {"role": "scope"},
-            "unknown-declarations",
-            "",
-            {"key": "$work.widgets", "names": ["lf-ghost"]},
-        ),
-        (
-            "lf-test-task",
-            {**_GOAL, "stoppedAt": "halted-at"},
-            "undeclared-attributes",
-            "<lf-test-task>",
-            {"key": "$work.widgets.lf-test-task.stoppedAt", "names": ["halted-at"]},
-        ),
-        (
-            "lf-test-worker",
-            {**_WORKER, "on": "overruled"},
-            "work-reference",
-            "<lf-test-worker>",
-            {"attr": "overruled"},
-        ),
-        (
-            "lf-test-task",
-            {**_GOAL, "state": "owner"},
-            "work-state",
-            "<lf-test-task>",
-            {"attr": "owner"},
-        ),
-        (
-            "lf-test-task",
-            {**_GOAL, "done": ["finished"]},
-            "work-value",
-            "<lf-test-task>",
-            {"key": "done", "attr": "status", "values": ["finished"]},
-        ),
-    ],
-)
-def test_composition_holds_each_work_role_to_its_tags_declaration(
-    page_dir, tag, entry, code, at, values
-):
-    """`runtime/work.js` reads `$work.widgets` as given, so composition refuses an
-    entry it would misread, naming the tag and the key: one its role doesn't take or
-    needs, a tag the layer doesn't declare, an attribute the tag lacks, an assignment
-    that isn't a reference, a state no single widget value verb records, and a value
-    the state can't take. The work fixture's own map holds."""
-    registry = vocabulary(page_dir)
-    registry_validation.validate_registry(registry, "test registry")
-    registry["$work"]["widgets"][tag] = entry
-
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
-    )
-    assert found([finding], code, at, **values), finding
-
-
-def test_a_work_role_s_state_verb_may_name_the_property_that_holds_it(page_dir):
-    """A role's state is the value record on its attribute, whichever property of the
-    element holds that value in the browser."""
-    registry = vocabulary(page_dir)
-    (spec,) = (
-        spec
-        for spec in registry["lf-test-task"]["verbs"].values()
-        if spec.get("record") == {"kind": "value", "attr": _GOAL["state"]}
-    )
-    spec["record"]["property"] = "status"
-    registry_validation.validate_registry(registry, "test registry")
-
-
-def test_the_command_hub_example_maps_its_tags_onto_work_roles():
-    """The worked example of `$work.widgets` composes over the shipped layer."""
+def test_the_command_hub_example_composes_over_the_shipped_layer():
+    """The command hub's package composes over the shipped layer."""
     registry = registry_validation.incoming_registry(
         [*SHIPPED_PACKAGES, ROOT / "examples" / "command-hub.page"]
     )
-    assert registry["$work"]["widgets"]["lf-atlas-worker"]["role"] == "worker"
+    assert "verbs" in registry["lf-atlas-worker"]
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
@@ -1146,7 +1041,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"space": "wider, in this project"}})
+        json.dumps({"$keys": {"inline": "set among words, in this project"}})
     )
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1159,7 +1054,7 @@ def test_a_project_layer_restates_a_key_doc(page_dir, tmp_path):
     )
     assert result.exit_code == 0, result.output
     keys = registry_storage.load_registry(page_dir)["$keys"]
-    assert keys["space"] == "wider, in this project"
+    assert keys["inline"] == "set among words, in this project"
     assert keys["verbatim"]  # the rest of the shipped members stand
 
 

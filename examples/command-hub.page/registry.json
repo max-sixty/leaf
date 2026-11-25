@@ -79,31 +79,6 @@
       }
     }
   },
-  "$work": {
-    "description": "Atlas work roles read through the public work projection.",
-    "widgets": {
-      "lf-atlas-plan": {
-        "role": "scope"
-      },
-      "lf-atlas-task": {
-        "role": "goal",
-        "state": "status",
-        "done": ["done"],
-        "stopped": ["blocked", "review", "stalled"],
-        "stoppedAt": "stopped-at"
-      },
-      "lf-atlas-worker": {
-        "role": "worker",
-        "state": "state",
-        "running": ["working"],
-        "retired": ["reaped", "done"],
-        "on": "on"
-      },
-      "lf-atlas-tree": {
-        "role": "evidence"
-      }
-    }
-  },
   "lf-atlas-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
     "attributes": {
@@ -207,7 +182,6 @@
         "source": "source",
         "property": "value"
       }
-    },
-    "space": "wide"
+    }
   }
 }

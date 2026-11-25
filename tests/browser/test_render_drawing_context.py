@@ -52,8 +52,8 @@ def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, s
     holding(page, audits, 1, "the optional user-view audit")
     assert (
         page.evaluate("""async () => {
-      const {readQueues} = await window.__lfWidgetApi();
-      return readQueues().on_user.filter(item => item.kind === "message").length;
+      const {queues} = await window.__lfWidgetApi();
+      return queues.read().on_user.filter(item => item.kind === "message").length;
     }""")
         == 1
     )

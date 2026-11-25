@@ -14,7 +14,7 @@ import test from "node:test";
 import { anchorForRange, resolveAnchor } from "/runtime/anchor-resolution.js";
 import { findQuote, pageText, readingPart } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { shadowStage } from "./shadow-stage.mjs";
 
 /** @param {string} lines the datum's rows, as markup */
 const page = (lines, prose = "<p>Words before the data</p>") => {

@@ -54,8 +54,8 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 # keyed by the thread's key, which for a thread this tab started is the attempt that
 # sent it (thread/model.js, `threadKey`), so the page's own reading names its id.
 LIST_ORDER = """async () => {
-  const {readThreads} = await window.__lfWidgetApi();
-  const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
+  const {threads} = await window.__lfWidgetApi();
+  const ids = new Map(threads.read().threads.map((t) => [t.key, t.id]));
   return [...document.querySelectorAll(
     '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving]) .lf-fp-thread')]
     .map((row) => ids.get(row.dataset.lfKey));

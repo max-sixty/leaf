@@ -23,34 +23,24 @@ the author wrote, less a popover's, such as a gloss's explanation. Read a widget
 property instead, which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
-`elementById(address, from)` returns the element an address names, or null. An
-address is an element's id, or a widget's id and a key (`id:key`), which names the part
-the widget has drawn for that key, else the widget. A link's fragment (`#…`) holds
-either form URL-encoded, and `elementById` decodes it; any other address is read as
-written.
-
-Pass the element that holds the address as `from`, as in
-`elementById(this.getAttribute("for"), this)`. An agent's message can repeat ids the
-page holds, so an address written in a message names that message's element first and
-the page's after it. An id neither holds can still name an element Leaf draws, such as
-a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
-which `getElementById` misses, and names nothing inside a member a decision has
-retired (`retired-when`, `package-data.md`).
+Find the element an attribute names by its id with the platform's `getElementById`, on
+the root the widget stands in: `this.getRootNode().getElementById(id)`. That finds the
+first element in the tree with the id, the page's before a reply's where an agent's
+message repeats an id the page holds, and none inside another widget's shadow tree.
 
 Leaf's floating panel, its dialogs and the margin's rows stand inside an element of
 class `lf-chrome`, and so does a widget in a reply the panel shows. The library's
 [`shadow-tree.js`](../../../browser/runtime/lib/shadow-tree.js) answers whether a node
 stands inside such an element across shadow boundaries. A widget that acts on the
 document around it, as a contents list does, reads it with
-`node.closest("[data-lf-views] > *, main")`: the view member holding the node
-(`views`, `module-authoring.md`), whose holder Leaf marks `data-lf-views`, else the
+`node.closest('[role="tabpanel"], main')`: the tab panel holding the node, else the
 `main` holding it, else null.
 
 ### Naming
 
 To name something elsewhere, such as in a feed row, use `nameOf(thing)`, the name Leaf
 gives it in words. It names an element, the page (`document`), a thread from
-`readThreads()` and a row from `readQueues()`, and returns "" where Leaf gives no name.
+`threads.read()` and a row from `queues.read()`, and returns "" where Leaf gives no name.
 An element's name is its title, caption or label; failing those, a paragraph or list
 item is named by its first words, and another element by the nearest named element
 around it. A registered widget with no name gets an empty name: say the
@@ -77,22 +67,37 @@ reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
 `$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
 guidance, so read the fact you need rather than whether an entry exists.
 
-### Following a reference
+### Taking the user somewhere
 
-Reach another widget through an attribute declared in `refers`
-([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself.
+`go(place, options)` takes the user where Leaf's own travel would, and resolves to
+whether they arrived. Where it moves focus or the page, Back returns the user to where
+they were, as after a followed link. `place` is one of:
 
-`navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
-the first element `key` names in the referenced widget: a visual part's id, a projected
-datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
-line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, sets the URL's fragment to the widget's id and the key, and announces
-`success`. Where it moves focus or the page, Back returns the user to where they were,
-as after a followed link. An absent destination keeps the reader's place and history
-and shows `missing` in Leaf's notice seat. Pass
-`focus: false` when the source stays the user's input surface, as a file navigator does
-beside the evidence it selects. A lazy target can implement
+- an element, or with `{key}` the first element `key` names in it: a visual part's id,
+  a projected datum's key, or whatever the element's `lfElementsFor(key)` maps it to
+  (`lf-code` takes line ranges such as `"3-5,8"`). Leaf loads the datum, opens what
+  holds it, reveals and focuses it, sets the URL's fragment to the element's id and the
+  key, and announces `success`. An absent destination keeps the reader's place and
+  history and shows `missing` in Leaf's notice seat. Pass `focus: false` when the
+  source stays the user's input surface, as a file navigator does beside the evidence
+  it selects. Find another widget through an attribute declared in `refers`
+  ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
+  so `page check` holds the id;
+- a thread, or anything with its `key` ("Reading and opening Threads from a widget" in
+  [module-annotations.md](module-annotations.md)), opened where a margin mark would
+  open it: the page's primary reader, which is the Leaf panel unless a package
+  registers one. `part` is `"thread"` for the card, `"reply"` for the reply editor, or
+  `"message"` with `message: message.key` for one message; with none it lands as
+  opening a thread does. `travel: false` keeps the page where it is, and `focus: false`
+  leaves focus alone;
+- an obligation or a row of the On lists, or anything with its `id` ("Reading
+  obligations and the On lists"), where On Me's arrival would land;
+- `{within, dir}`: the next obligation waiting on the user inside the element
+  `within`, or the previous with `dir: -1`, from where the user is, as `m` steps in
+  On Me. A control that does this prevents `mousedown`'s default, so focus stays put
+  and a second press steps on.
+
+A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
 name a datum not yet drawn. Leaf also asks `lfRevealDatum` for the key of a thread on
@@ -104,7 +109,7 @@ rather than selecting or redrawing it again.
 
 A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
-key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
+key names nothing. A widget that answers `go` with a key needs nothing more for links
 to its parts.
 
 ## Content helpers
@@ -125,15 +130,16 @@ source. Adopt the rendered `.lf-markdown-body` and repaint changing prose into i
 ### Code
 
 `langForPath(path)` names the registry `$languages` language a file name means, or
-undefined where the page's table has none. `dressCode(root)` colours
-each `pre > code` in `root` whose `language-…` class names a language and that wears
-the reading face, and typesets each formula, a `<code class="language-math">`
+undefined where the page's table has none. Leaf colours each `pre > code` a widget
+draws as it arrives, whose `language-…` class names a language and that wears the
+reading face, and typesets each formula, a `<code class="language-math">`
 (`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "A page's theme"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
-`<br>`, whose blocks remain uncoloured. A block with its own colouring turns off the
-reading face as other content with its own design does.
+`<br>`, whose blocks remain uncoloured. A block keeps its colouring while its language
+stands, so draw a new `<code>` to show other words. A block with its own colouring
+turns off the reading face as other content with its own design does.
 
 A widget that draws each line of source in a box of its own, as an editor does, marks
 the box `data-lf-pre-line`. Leaf then indents the rows a long line wraps onto two
@@ -170,21 +176,25 @@ symbol and the words its press says.
 
 ## Page readings
 
-Each function here returns a page reading. A `LeafElement`'s `render()` that reads one
-synchronously runs again when the reading changes (`module-plain-elements.md`,
-"`LeafElement`"); a read after an `await` is not followed.
+`obligations`, `queues`, `threads` and `history` are the page's readings. Each one's
+`read()` returns its current value, which a `LeafElement`'s `render()` that reads it
+synchronously follows, drawing again as it moves (`module-plain-elements.md`,
+"`LeafElement`"); a read after an `await` is not followed. Each also dispatches `change`
+after its value moves, so any element follows it with
+`obligations.addEventListener("change", draw)`. `comparisonChanges` below is followed
+the first way only.
 
 ### Reading obligations and the On lists
 
 An obligation is what a widget waits on the user for, what an update the user
 handed over is owed, or a to-do the agent opened; the On lists show each one under its
-next actor. `readObligations()` returns `{phase, all, user, unanswered, byId}`: `all`
+next actor. `obligations.read()` returns `{phase, all, user, unanswered, byId}`: `all`
 holds every obligation whose source is still there, answered and withdrawn ones
 included, `user` the open obligations waiting on the user, `unanswered` every open
 obligation, including those with the agent, and `byId` a `Map` from each one's `id` to
 its record.
 
-`readObligations(region)` returns the three lists holding only what a region of the
+`obligations.read(region)` returns the three lists holding only what a region of the
 page holds, by the rule `lf-tabs` and `lf-tally` count with: the obligations whose
 widget is `region` or stands inside it, shadow trees included, less those withdrawn.
 It adds `asks`, whether the region's markup holds a widget declaring `awaits`, even one
@@ -240,23 +250,16 @@ arrives. Each `source.kind` adds its own facts:
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. No region holds an update.
 
-`answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state").
+To show an answer in the words On Me gives it, the library's `answer-words.js` reads
+a reply's words or a widget's `static answerWords` (`module-state.md`, "Declared widget
+state").
 
 A module that counts items per heading as the reader moves through them, as `lf-toc`
 does, gives each heading the stretch of the page from the element it opens, such as
 its `section`, to the next heading's, and counts each item in the stretch holding its
 first word, comparing positions with `compareDocumentPosition`.
 
-`obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
-it is gone; a row of the On lists opens by its `id`.
-`obligationActions.next({within, dir})` steps to the next obligation waiting on the
-user inside `within`, or the previous with `dir: -1`, as `m` does in On Me, and
-resolves to whether it arrived. A control that calls it prevents `mousedown`'s
-default, so focus stays put and a second press steps on. The user answers an obligation
-through the widget's own command.
-
-`readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
+`queues.read()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
 it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
 to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
@@ -268,40 +271,19 @@ user answers at the same place, such as the agent's answer in a thread about it.
 answered only through its widget or thread. Act on a collection only when its `phase`
 is `ready`.
 
-### Work hierarchies
-
-`readWork(element)` reads the work hierarchy of the scope `element` is or stands in,
-such as its goals and the workers on them, so a widget that counts its children's work
-reads it here rather than from their reports. An element outside every scope reads
-the work on its page, or in its message, that stands in no scope. Leaf owns the work
-roles, and a package maps its tags onto them in `$work.widgets`
-([package-data.md, "Work roles"](package-data.md#work-roles)), which composition
-checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`,
-and `running` and `quiet` workers, each with its authored `element`, and `done` counts
-finished leaves; a goal or worker finds its own row by that `element`. Atlas in
-`examples/command-hub.page/` is the worked example.
-
 ### Page history and reports
 
 A widget that shows the page's history declares `history` and reads
-`readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
+`history.read()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
-widget restoring something from `tabStore` compares it with the history once `phase` is
+widget restoring something from the tab's memory compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads `readReports(this)` as it draws its `state`, in a
-`LeafElement`'s `render()` or a plain element's `state` setter: `{phase, reports}`.
-`phase` turns `ready` once the server's reading has arrived and the state the reports
-describe is drawn. Until then the widget draws no report: a `render()` returns
-`noChange`. Leaf sets the widget's `state` again as `phase` turns `ready`, so it draws
-its reports then. Each report has `id`, `target`, `source`, `action`,
-`detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
-on the same unit and verb, or `settled` by a stamped version. The element form is for
-the widget's own drawing: its `phase` waits on that element's drawing, and Leaf sets
-only that element's `state` again. Pass `{kind: "widget", id}` for another widget's
-reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them. Their
-`phase` is the page's, and only a `LeafElement`'s `render()` follows them: nothing
-sets a plain element's `state` when they move.
+The report in force on a widget an agent reports on is its own `state`: the
+agent-written verb's `value`, with the words a `text` verb carries in its `detail`.
+When it last reported, and what it said before, are `history.read()` rows of `kind`
+`report`, naming the `widget`, with its words as `excerpt` and the time as `ts`. The
+history holds the newest rows only, so a report older than them is not there.
 
 ### Reading version changes
 

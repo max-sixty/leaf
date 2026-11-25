@@ -253,12 +253,12 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
     modules = {}
     for tag in registry:
         stage = (
-            "shadowStage(this, nodes)"
+            "this.attachShadow({mode: 'open'}).append(...nodes); "
+            "this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}))"
             if tag == "lf-motion-shadow"
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
-import {{ shadowStage }} from '/runtime/widget-api.js';
 import {{ once }} from '/runtime/lib/once.js';
 customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
@@ -381,7 +381,6 @@ customElements.define('lf-settled-link', class extends HTMLElement {
 });
 """,
                 "lf-shadow-link.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 import {once} from '/runtime/lib/once.js';
 customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
@@ -395,7 +394,8 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
       link.textContent = 'shadow destination';
       this.shadowRoot.append(link);
     };
-    shadowStage(this, [button]);
+    this.attachShadow({mode: 'open'}).append(button);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """,

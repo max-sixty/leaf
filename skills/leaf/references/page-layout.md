@@ -33,9 +33,10 @@ under it, and Leaf doesn't look for it. So give every element with an `id` a
 `[id] { scroll-margin-top: 4.5rem; }`, so a link or a walk lands its target below the
 header. A `scroll-padding-top` on the page's root has no effect.
 
-On a column page, a board, diagram or diff declares its own width, and any other block,
-such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
-widths"). The block breaks out of the column and the prose stays where it is.
+On a column page, any block that holds more than the column fits, such as a table, a
+diff, a board, a diagram, a trace or a playground, can ask for more width with
+`data-width` ("Bounds and widths"). The block breaks out of the column and the prose
+stays where it is.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
 fills its region. Text, a callout, and widgets read as text such as an option list keep
@@ -282,9 +283,10 @@ It clips at its sides too, with no room there, so a control that starts a line i
 such as a link, a summary or a field, loses that side of its focus ring. Give a bounded
 box that holds such a control `padding-inline: var(--lf-sp-2)`.
 
-`data-width` widens one block, overriding its widget's default. Put it on the block
-itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
-sets its inline margins. An `available` block reaches past the prose by its own start
+`data-width` widens one block; without it, a block keeps the column's width, and a
+widget fits or scrolls what it holds there. Put it on the block itself, such as a
+`table`, `lf-code` or a widget, and write no CSS that copies its widths or sets its
+inline margins. An `available` block reaches past the prose by its own start
 margin, so space it with `margin-block` rather than `margin`. `data-width` works on
 column and sidebar pages:
 
@@ -293,7 +295,7 @@ column and sidebar pages:
   cards. The block starts at the prose's start edge, the left in a left-to-right page,
   and extends toward its end edge to `--lf-wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
-  large drawing or a playground. It takes all the width Leaf's chrome and the margin
+  large drawing, a recorded trace or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.

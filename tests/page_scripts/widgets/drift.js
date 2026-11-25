@@ -2,7 +2,7 @@
  * Its offset is authoritative; deep stages animated words in a shadow root, and
  * bare deliberately omits their element so the page must refuse presentation. */
 import { nothing } from "/vendor/lit.js";
-import { motion, shadowStage } from "/runtime/widget-api.js";
+import { motion } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define(
@@ -15,12 +15,16 @@ customElements.define(
         // `bare` stages the words with no element over them — the page refuses that,
         // and the refusal is what one of the tests below reads.
         if (this.hasAttribute("bare")) {
-          shadowStage(this, [...this.childNodes]);
+          this.attachShadow({ mode: "open" }).append(...this.childNodes);
+          this.dispatchEvent(
+            new Event("lf-connect", { bubbles: true, composed: true }),
+          );
           return;
         }
         const held = document.createElement("div");
         held.append(...this.childNodes);
-        shadowStage(this, [held]);
+        this.attachShadow({ mode: "open" }).append(held);
+        this.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));
         held.animate([{ transform: "translateY(120px)" }, { transform: "none" }], {
           duration: 30000,
         });

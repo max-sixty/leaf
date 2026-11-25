@@ -26,8 +26,8 @@
    outward while the full reference groups the same scopes for reading.
 
    Scopes stand wherever their element does, but this module follows only the trees
-   arrivals.js observes: the document, open shadow trees, and stages (roots a widget
-   connects, `adoptShadowStage`). In a closed tree that isn't a stage, a scope still answers its keys,
+   arrivals.js observes: the document, open shadow trees, and stages (the open roots
+   of elements that say `lf-connect`). In a closed tree that isn't a stage, a scope still answers its keys,
    but `commandsWithin` doesn't find it, and once the tree's host leaves the page a
    button outside it that the scope names keeps showing that command's availability
    until a paint or `paintKeys()` reaches it; a press no longer runs it. Nothing in
@@ -80,7 +80,7 @@ import {
   renderedParent,
 } from "../lib/shadow-tree.js";
 import { repaint } from "../repaint.js";
-import { installMoveKeys } from "../dom-move.js";
+import { installMoveKeys } from "../lib/dom-move.js";
 import { keeps } from "../lib/keeps.js";
 import { stageOf, watchOwner } from "../arrivals.js";
 import { COMMANDS } from "../lib/widget-events.js";

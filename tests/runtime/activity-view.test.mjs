@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { tabStore } from "/runtime/tab-store.js";
+// Leaf keeps the user in a row a reorder moves, as it does on a page.
+import "/runtime/move-focus.js";
+import { tabMemory } from "/runtime/lib/tab-memory.js";
 import {
   ACTIVITY_VIEW,
   createActivity,
@@ -32,7 +34,7 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   const widget = row("widget-row", { widget: destination.id });
   const thread = row("thread-row", { thread: "thread-1" });
   const first = reading([widget, thread]);
-  tabStore.set(ACTIVITY_VIEW + host.id, JSON.stringify(first));
+  tabMemory.set(ACTIVITY_VIEW + host.id, JSON.stringify(first));
   document.body.append(host, destination);
   const drawing = createActivity(host);
   render(drawing.render(), host, { host });
@@ -82,7 +84,7 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
     renderReading({ ...reordered, open: false }, { ...live, printing: true });
     assert.equal(drawing.list.hidden, false);
   } finally {
-    tabStore.set(ACTIVITY_VIEW + host.id, null);
+    tabMemory.set(ACTIVITY_VIEW + host.id, null);
     host.remove();
     destination.remove();
   }

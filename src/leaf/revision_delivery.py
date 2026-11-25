@@ -446,10 +446,6 @@ def mark_declared(
                 )
             else:
                 continue
-            if key == "views":
-                # Only the browser evaluates view selectors, including before modules.
-                marks["data-lf-view-members"] = declared["members"]
-                value = "parts" if declared.get("parts") else ""
             marks[mark["attribute"]] = value
         sizes = [
             size

@@ -108,8 +108,8 @@ import {
   observePreparations,
   renderingState,
 } from "./rendering.js";
-import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
-import { frameFor, watchScrollEnds } from "./arrivals.js";
+import { cancelRender, frameFor, nextRender, sizeObserver } from "./lib/frame-pass.js";
+import { watchScrollEnds } from "./arrivals.js";
 import {
   LIVE_ROOT,
   PAGE_ROOT,
@@ -141,7 +141,7 @@ import {
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusPlace } from "./user-place.js";
-import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
+import { SourcePairs, patchTree, patchRetains } from "./lib/dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -310,8 +310,6 @@ const versionedHeadNode = (node) =>
 const authoredMarkup = (root) => {
   // Prepaint can already have painted the first document. Both source snapshots
   // exclude runtime-owned attributes; their live values stay with their writers.
-  for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`))
-    member.removeAttribute("hidden");
   for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
     for (const element of root.querySelectorAll(`[${name}]`))
       element.removeAttribute(name);
@@ -1760,7 +1758,8 @@ export const gapHolder = ({ at, gap }) =>
   gap === "in" ? at : (at.parentElement ?? at);
 /** The changes the comparison marks (`changeRuns`), in page order; under `owner`, each
  * change with blocks inside it, holding only those, and each one that only took blocks
- * out whose gap stands inside it.
+ * out whose gap stands inside it. It stays in the package interface because only Leaf
+ * holds the comparison, and a removal stands at no element a widget could read.
  * @param {Element | null} [owner]
  * @returns {readonly Change[]} */
 export function comparisonChanges(owner = null) {
@@ -2089,7 +2088,7 @@ export function createVersionController({
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members = content === "members" || entry.views !== undefined;
+    const members = content === "members";
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -2100,7 +2099,7 @@ export function createVersionController({
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
   // id or matching markup alone.
-  /** @param {Document} doc @returns {import("./dom-children.js").RetentionRules} */
+  /** @param {Document} doc @returns {import("./lib/dom-children.js").RetentionRules} */
   function patchRules(doc) {
     const arrivingRoot = layerRoot(doc);
     return {
@@ -2781,7 +2780,8 @@ export function createVersionController({
     effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
     const present = new Set(readingRegions().map(({ id }) => id));
-    for (const id of places.keys()) if (id !== PAGE && !present.has(id)) places.delete(id);
+    for (const id of places.keys())
+      if (id !== PAGE && !present.has(id)) places.delete(id);
   };
 
   // A place is the reader's when they chose a scroll in its box since it was last
@@ -3339,9 +3339,7 @@ export function createVersionController({
   // the page presents, and after declared deferred arrivals settle. Each landing is
   // the browser's own rule (`scrollToFragment`), the target's start at its scroller's
   // landing edge, taken in the geometry of that step, so a target nothing moved stays
-  // where it is. The fragment is read before widgets upgrade, since the page's open
-  // view is then named in the URL (views.js, as a root tab set's open panel), and that
-  // is display state, not a destination. A reload or history traversal returns to its
+  // where it is. A reload or history traversal returns to its
   // entry's record instead (history.js), and input during the arrival ends it. However
   // the page arrived, a URL naming a widget's key asks the widget to draw the key's
   // part (`revealAddressed`) where the page doesn't show it once widgets upgrade

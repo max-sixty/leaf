@@ -93,7 +93,7 @@
  * to one line naming the chosen option, with every option — the chosen one included —
  * behind a disclosure. Nothing is deleted, so the ids, the anchors on them, and check's
  * id-survival rule are all untouched; what's reclaimed is the height. Open or closed is
- * view state for this user, remembered per browser tab in tabStore like a lf-tabs
+ * view state for this user, remembered per browser tab (lib/tab-memory.js) like a lf-tabs
  * tab: opening a settled group is reading, not editing, so it sends no action and no
  * version carries it. Collapsed options wear hidden="until-found", so find-in-page and
  * the runtime's reveal() (a click on a comment's quote) both open the group rather than
@@ -112,21 +112,14 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
-import {
-  aimedAt,
-  nameOf,
-  elementById,
-  rowWalk,
-  named,
-  focusDestination,
-  scrollIntoView,
-} from "/runtime/widget-api.js";
+import { aimedAt, nameOf, named } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
+import { rowWalk } from "/runtime/lib/row-walk.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
 // own words, which are all it has. `named` rather than `says`, because a picked option's
@@ -264,6 +257,11 @@ customElements.define(
         this.#keyed = true;
         this.#keys();
       }
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#addition.disconnect();
     }
 
     /** @param {boolean} exhibited */
@@ -414,7 +412,6 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
       this.#syncDone();
     }
 
@@ -498,8 +495,8 @@ customElements.define(
           title: "Another option",
           when: () => this.#available("choose"),
           run: () => {
-            focusDestination(input, "move");
-            scrollIntoView(input, { block: "nearest" });
+            input.focus({ preventScroll: true });
+            input.scrollIntoView({ block: "nearest" });
           },
         });
       const done = this.#done;
@@ -535,7 +532,9 @@ customElements.define(
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, this);
+      const block = /** @type {Document | ShadowRoot} */ (
+        this.getRootNode()
+      ).getElementById(target);
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;

@@ -70,8 +70,8 @@ of a widget its own name, and require an `id` in the declaration of a widget tha
 one. Where two boxes take one name under one such element, both are regions, but a
 revision that replaces the two returns the user to their place in one of them alone.
 A box in a thread message is a region whose place Leaf keeps only while the box stands.
-Leaf finds the marks in the page, in a stage `shadowStage` builds and in the open
-shadow root of an element that has said `lf-connect` (`module-plain-elements.md`).
+Leaf finds the marks in the page and in the open shadow root of an element that has
+said `lf-connect` (`module-plain-elements.md`).
 
 Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of
@@ -95,44 +95,31 @@ hides what the reader is reading, as folding it does, anchoring can't hold it: r
 where the block the reader reads stands before the change, and scroll its scroller by
 however far it, or what stands in for it, moved, in the same task, as `lf-dial` does.
 
-Leaf keeps the user's place in a member a widget hides and shows again later, where
-the members are views of the page (`module-state.md`, "State only this tab keeps").
-
-A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
-the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
-returns the nodes the list draws into and `changed()` redraws the widget. Before each
-draw, pass `hold()` the reading as a value that is `===` the last one only when nothing
-changed, such as `JSON.stringify` of the rows, and draw what it returns: the new
-reading, or the last one while the region's growth would move what the user sees.
-`changed()` is called once that growth would be out of sight. `show()` lets the new
-reading in and redraws, for a "Show new" control, and `release()` lets the next one in.
+A list fed by the log or the clock, such as a feed of reports, grows as each reading
+arrives. Scroll anchoring keeps still what the reader reads below the growth. To keep
+a list from pushing down the rows it shows, draw it in a box with a height of its own
+that scrolls ("Scrolling", above), or keep the reading drawn until the reader asks for
+the new one, as a feed's "N new" control does.
 
 ### Scrolling to a destination
 
-To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, where
-`target` is an element or a Range. It places the target at `block` in its own reading
-region, the box that scrolls it as the user reads, and every other box that scrolls
-it, inside or around that region, reveals it at the nearest edge, so a start landing in
-a bounded pane aligns it in the pane and moves the page only to show it; `block`
-defaults to `start`. A `smooth` landing glides, and lands at once for a user who asked
-for less motion. Sideways, each box reveals it at the nearest edge. A `nearest`
-landing moves nothing where the target is already shown: the user sees all of it where
-it fits, and as much of it as the window holds where it is longer.
-Pass `sideways: false` to align what the user is reading and keep their place across
-its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`: the item comes in at the nearest edge of each box,
-at once, whatever `block` and `behavior` say. Unlike native `Element.scrollIntoView`,
-it stays inside a live sample. Use it only for a deliberate move; focusing a visible
-control or redrawing keeps the scroll.
+To take the user somewhere, call the browser's own
+`element.scrollIntoView({block, inline, behavior})`. Leaf states the page's landing
+band at the root's top as its `scroll-padding-top`, so a landing clears Leaf's head
+and the headers stuck over the page; the floating panel's row at the window's foot is
+no part of that band, and a landing at the foot can stop under it. A `nearest`
+landing moves nothing where the target is already shown. To bring an item into its own
+strip or list and leave the page where it is, scroll that box alone with `scrollTo` or
+`scrollBy`, below, measured from the item's box and the strip's `scroll-padding`. Use a
+landing only for a deliberate move; focusing a visible control or redrawing keeps the
+scroll.
 
 A widget that keeps something in view as another widget moves, as `lf-code` keeps the
 line a film runs, sets the scroll of the box that scrolls it (`scrollTo`, below)
 unless that box is the page, so the page stays where the reader left it.
 
-A landing keeps the target's `scroll-margin` clear on every side, so a focused
-control's ring shows. To bring in a heading or label with an item where there is room,
-and the item alone where there is not, pass a Range or element holding both as
-`including`, which lands in the target's place where it and its margins fit.
+A landing keeps the target's `scroll-margin` clear on every side, so give a control
+a widget lands on the margin its focus ring needs.
 
 To set a box's scroll position, call the browser's own
 `box.scrollTo({top, left, behavior: "instant"})`. Leaf hears that write as it is made,
@@ -221,10 +208,10 @@ container above it.
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
 covering the page and opens whatever holds the element. A fragment can also name a
 part of a widget by the widget's id and a key
-([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
+([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 A widget that opens the part a
-fragment names reads it with `elementById(hash)`
-([module-reading.md, "Reading the page"](module-reading.md#reading-the-page)).
+fragment names reads the id the fragment encodes from `location.hash` and finds it with
+`getElementById`.
 
 Before Leaf travels to a target, such as a comment's anchor, it reveals the target as
 the browser's find-in-page does: it opens each closed `<details>` holding it, and fires
@@ -236,22 +223,19 @@ folded element that is itself a Tab stop out of the Tab order, since the fold hi
 only what it holds. Where the reveal replaces one view with another, Leaf places the
 target at once rather than scrolling from the old view's reading position. It reads a
 replaced view from a sibling of the element revealed that is `hidden` once that
-element's `beforematch` listeners have run: Leaf hides the member a `views` widget
-leaves (`module-state.md`, "State only this tab keeps"), and any other widget sets
-`hidden` on the view it leaves in its listener. A widget that keeps the box of
+element's `beforematch` listeners have run: a widget sets `hidden` on the view it
+leaves in its listener (`module-state.md`, "State only this tab keeps"). A widget that
+keeps the box of
 what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view
 switch finishes later extends its own `updateComplete`.
 
-Leaf writes the page's history entries, and a widget writes none: one whose members
-are the page's views says so, and Leaf adds an entry for each switch between them
-(`module-plain-elements.md`, "The page's views"). Leaf keeps where the user was on each
-entry, and Back, Forward and a reload return them there. An entry a press adds says the
-press takes the user somewhere, as a link's does, so its result may scroll away the
-control pressed. Where an entry's fragment still names a place the page doesn't show
-once its view is open, Leaf reveals that place and lands there.
+Leaf writes the page's history entries, and a widget writes none, so a switch between
+the members it shows adds none. Leaf keeps where the user was on each entry, and Back,
+Forward and a reload return them there. Where an entry's fragment names a place the
+page doesn't show, as one in a closed tab, Leaf reveals that place and lands there.
 
 ## Motion
 

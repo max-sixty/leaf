@@ -60,10 +60,11 @@ customElements.define('lf-source-view', class extends HTMLElement {
 });
 """,
             "lf-source-stage.js": """
-import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-source-stage', class extends HTMLElement {
   connectedCallback() {
-    if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
+    if (this.shadowRoot) return;
+    this.attachShadow({mode: 'open'}).append(...this.childNodes);
+    this.dispatchEvent(new Event('lf-connect', {bubbles: true, composed: true}));
   }
 });
 """,

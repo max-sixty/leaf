@@ -203,9 +203,12 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     assert page.evaluate(
         """async ({travel, primary}) => {
           const api = await window.__lfWidgetApi();
-          const thread = api.readThreads().threads.find(thread => thread.id === (primary ? 'opening' : 'anchored'));
-          window.returnTripDestination = await api.threadActions.open(thread.key, {part:'reply', travel});
-          return Boolean(returnTripDestination);
+          const thread = api.threads.read().threads.find(thread => thread.id === (primary ? 'opening' : 'anchored'));
+          const arrived = await api.go(thread, {part:'reply', travel});
+          let active = document.activeElement;
+          while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+          window.returnTripDestination = active;
+          return arrived;
         }""",
         {"travel": travel, "primary": primary},
     )

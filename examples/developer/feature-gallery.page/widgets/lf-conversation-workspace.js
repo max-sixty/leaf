@@ -2,19 +2,15 @@
    Local selection and ordering never change the log or decide obligation membership. */
 import { noChange } from "/vendor/lit.js";
 import {
-  HeldReading,
-  obligationActions,
+  go,
   nameOf,
-  readObligations,
-  answerWords,
-  readQueues,
-  readThreads,
+  obligations,
+  queues,
+  threads,
   registerThreadPresentation,
-  setChildren,
-  shadowStage,
-  threadActions,
-  whileConnected,
 } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -22,23 +18,30 @@ import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-conversation-workspace",
   class extends LeafElement {
+    root = this.attachShadow({ mode: "open" });
     setup() {
       this.build();
-      whileConnected(this, () => {
-        this.presentation = registerThreadPresentation(this, {
-          render: (collection, parts) => this.present(collection, parts),
-          // A layout that already draws the part asked for keeps it: Shelf draws every
-          // conversation whole, and Feed every message and the selected one's reply box.
-          reveal: (key, { part }) => {
-            this.selected = key;
-            const drawn =
-              this.mode === "Shelf" ||
-              (this.mode === "Feed" && (part === "message" || part === "reply"));
-            if (!drawn) this.mode = "Conversation";
-          },
-        });
-        return () => this.presentation.unregister();
+    }
+    connectedCallback() {
+      super.connectedCallback();
+      this.presentation = registerThreadPresentation(this, {
+        render: (collection, parts) => this.present(collection, parts),
+        // A layout that already draws the part asked for keeps it: Shelf draws every
+        // conversation whole, and Feed every message and the selected one's reply box.
+        reveal: (key, { part }) => {
+          this.selected = key;
+          const drawn =
+            this.mode === "Shelf" ||
+            (this.mode === "Feed" && (part === "message" || part === "reply"));
+          if (!drawn) this.mode = "Conversation";
+        },
       });
+    }
+    // A move keeps the conversations the workspace presents.
+    connectedMoveCallback() {}
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.presentation.unregister();
     }
     render() {
       this.paintObligations();
@@ -139,8 +142,7 @@ customElements.define(
       create.addEventListener("click", (event) => {
         event.preventDefault();
         const text = this.input.value;
-        this.indexOrder.release();
-        const creation = threadActions.create({ text });
+        const creation = threads.create({ text });
         if (!creation) return;
         this.input.value = "";
         const edit = this.creationEdit;
@@ -152,18 +154,8 @@ customElements.define(
         this.mode = "Conversation";
         void this.presentation.update();
       });
-      this.indexOrder = new HeldReading(
-        this,
-        () => [this.list, ...Object.values(this.queues)],
-        () => {
-          void this.presentation.update();
-        },
-      );
-      this.updateLists = offerAction("word", "", "Lists current");
-      this.updateLists.addEventListener("click", () => this.indexOrder.show());
-      toolbar.append(this.updateLists);
       this.layout.append(toolbar, body, compose);
-      shadowStage(this, [style, this.layout]);
+      this.root.append(style, this.layout);
     }
     outlet(identity) {
       if (!this.outlets.has(identity)) this.outlets.set(identity, offer("div"));
@@ -185,7 +177,7 @@ customElements.define(
           const node = offer("li");
           const button = offerAction("word", "");
           button.addEventListener("click", () => {
-            void threadActions.open(key, { part: "thread" });
+            void go({ key }, { part: "thread" });
           });
           node.append(button);
           row = { node, button };
@@ -240,30 +232,26 @@ customElements.define(
       this.paintObligations();
     }
     indexLayout() {
-      const queues = readQueues();
-      const current = JSON.stringify({
-        threads: readThreads().threads.map((thread) => thread.key),
+      const lists = queues.read();
+      return {
+        threads: threads.read().threads.map((thread) => thread.key),
         ...Object.fromEntries(
           Object.keys(this.queues).map((name) => [
             name,
-            queues[name].map((item) => item.id),
+            lists[name].map((item) => item.id),
           ]),
         ),
-      });
-      const shown = this.indexOrder.hold(current);
-      keepsText(this.updateLists, "Show updated lists");
-      keeps(this.updateLists, "disabled", shown === current ? "" : null);
-      return JSON.parse(shown);
+      };
     }
     paintObligations() {
-      const items = readObligations();
+      const items = obligations.read();
       // An obligation's own answer stands on it; one the agent ended names its end.
       const answered = items.all.filter((item) => item.answered);
       // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question asked in a message.
       const labels = items.all
         .filter((item) => item.source.kind === "widget" && item.answered)
-        .map(answerWords)
+        .map((item) => answerWords(item))
         .filter(Boolean);
       keepsText(
         this.counts,
@@ -273,10 +261,10 @@ customElements.define(
           ...labels,
         ].join(" · "),
       );
-      const queues = readQueues();
+      const lists = queues.read();
       const layout = this.indexLayout();
       for (const [name, list] of Object.entries(this.queues)) {
-        const current = new Map(queues[name].map((item) => [item.id, item]));
+        const current = new Map(lists[name].map((item) => [item.id, item]));
         const rows = layout[name].map((key) => {
           const item = current.get(key);
           const identity = JSON.stringify([name, key]);
@@ -284,7 +272,7 @@ customElements.define(
           if (!row) {
             const node = offer("li");
             const open = offerAction("word", "");
-            open.addEventListener("click", () => void obligationActions.open(key));
+            open.addEventListener("click", () => void go({ id: key }));
             row = { node, open };
             this.queueRows.set(identity, row);
           }

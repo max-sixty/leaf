@@ -48,7 +48,8 @@ def test_a_press_survives_a_frame_return_but_ends_when_its_document_loses_input(
   </template>
 </lf-sample>
 <script type="module">
-  import {focusDestination, onPressAway, onUserInput} from '/runtime/widget-api.js';
+  import {onPressAway, onUserInput} from '/runtime/widget-api.js';
+  import {focusDestination} from '/runtime/focus.js';
   window.completed = 0;
   window.inputBlurs = [];
   window.nativeBlurs = [];

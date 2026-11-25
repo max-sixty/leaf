@@ -77,16 +77,9 @@ export { connection } from "./http-api.js";
 export { draft } from "./drafts.js";
 export { layerFact } from "./registry.js";
 export { backgroundFlash, motion } from "./motion.js";
-// A package's routes past presentation all declare the arrival, so a widget cannot
-// defer without the page knowing: `afterPresentation` waits for presentation and
-// `whenNear` for the reader to near a node, then each runs its callback.
-// `afterPresentation`'s callback may return work the widget has already started, which
-// it counts from its call.
-export {
-  afterPresentation,
-  whenNear,
-  whileInterfaceConnected,
-} from "./presentation.js";
+// `whenNear` waits for the reader to near a node and declares the wait as an arrival,
+// so a widget cannot defer without the page knowing.
+export { whenNear, whileInterfaceConnected } from "./presentation.js";
 export { copyControl } from "./copy-control.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in

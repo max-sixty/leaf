@@ -1588,7 +1588,7 @@ def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {afterPresentation} = await window.__lfWidgetApi();
+            const {afterPresentation} = await window.__lfCheckApi();
             const entry = document.querySelector('script[data-lf-entry]');
             afterPresentation(() => new Promise(resolve => {
                 entry.releaseArrival = () => {

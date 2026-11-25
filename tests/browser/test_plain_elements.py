@@ -2,7 +2,7 @@
 
 `tests/fixtures/packages/verdict` holds `lf-verdict`, whose module imports nothing: Leaf
 sets its `state` and its bound `notes`, hears the `lf-action` a press dispatches, and
-reads each choice as a comment target from its `data-lf-part` mark
+reads each choice as a comment target from its `lfParts`
 (module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
 export. `tests/fixtures/packages/controls` holds two components with no code written
@@ -97,7 +97,7 @@ def decide(value):
 
 
 def choice(page, widget, value):
-    return page.locator(f'#{widget} [data-lf-part="choice:{value}"]')
+    return page.locator(f'#{widget} button[value="{value}"]')
 
 
 def decided(page_dir, value, widget="verdict"):
@@ -161,9 +161,7 @@ def test_a_plain_element_draws_records_and_takes_a_comment(browser, serve):
     expect_obligations_answered(page, "1/1")
 
     hold.click(modifiers=["Alt"])
-    expect(page.locator('[data-lf-mark~="pending"]')).to_have_attribute(
-        "data-lf-part", "choice:hold"
-    )
+    expect(page.locator('[data-lf-mark~="pending"]')).to_have_attribute("value", "hold")
     write(page.locator(".lf-composer leaf-text"), "What would holding cost us?")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)

@@ -138,7 +138,7 @@ import { signal } from "./framework.js";
  * @typedef {{record: DraftRecord, stored: string | null, store: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
  * @typedef {{attempts: string[], copy: Pick<DraftCopy, "record" | "stored" | "store" | "version" | "durable"> | null}} WaitingDraft
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
- * @typedef {import('./composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
+ * @typedef {import('./composing/text-field.js').LeafTextElement | HTMLTextAreaElement | HTMLInputElement} DraftField
  * @typedef {import('./composing/input.js').InputSync} InputSync
  * @typedef {import('./anchor-travel.js').EditorDestination} EditorDestination
  * @typedef {import('./focus.js').Caret} Caret

@@ -17,11 +17,12 @@ leaf thread create <page> --obligation --text "…?"
 Copy a part's id from `leaf page state <page>`, which lists the parts a thread can
 name in each visual as `parts` on the visual's entry in `elements`, each with its `id`
 and `label`. The list appears once `page check --render`, or the page's server after
-you hand the page over, has read the version the page shows, so run the check if the
-visual has no `parts` yet. A visual lists only the parts it had drawn when the check
-read it. A part it finds only when asked, such as a chart's single data point, or
-draws only while a view of it is open, is missing from the list; name such a part as
-the widget's guidance says.
+you hand the page over, has read the version the page shows with the data it holds
+now. So run the check if the visual has no `parts`, as after you save the page or
+update its data. A visual lists only the parts it had drawn when the check read it. A
+part it finds only when asked, such as a chart's single data point, or draws only
+while a view of it is open, is missing from the list; name such a part as the
+widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
 words from the page's HTML that the user can see, within one widget part. The

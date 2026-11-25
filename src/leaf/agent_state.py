@@ -252,8 +252,8 @@ def _apply_document_state(
     drawn: dict[str, list[dict]],
 ) -> None:
     """The version's elements, each visual among them with the `parts` it drew where
-    the page's render reading read this version (`render_reading.drawn_parts`), and
-    the state in force on them."""
+    the page's render reading read this version with the data the page holds now
+    (`render_reading.drawn_parts`), and the state in force on them."""
     parser = document.document
     projection = document.projection
     state["title"] = parser.authoring.title.strip()
@@ -389,9 +389,10 @@ def page_state(
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf page events` is how a decision
     in force gets missed. So this holds the active revision's elements, each visual
-    with the parts it drew where the page's render reading read that revision
-    (`render_reading.drawn_parts`), the projection of the user's current state and
-    the reports in force on the agent channel, authored measurements whose live
+    with the parts it drew where the page's render reading read that revision with
+    the page's current data (`render_reading.drawn_parts`), the projection of the
+    user's current state and the reports in force on the agent channel, authored
+    measurements whose live
     source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, the obligations, the agent's
@@ -484,7 +485,11 @@ def page_state(
             stored_data,
             registry,
             facts,
-            drawn_parts(page_dir, read_artifact(page_dir, active["revision"]).digest),
+            drawn_parts(
+                page_dir,
+                read_artifact(page_dir, active["revision"]).digest,
+                stored_data["version"],
+            ),
         )
         state["reports"] = view["reports"]
         _apply_thread_state(state, reading.thread, registry, facts)

@@ -39,7 +39,7 @@ from leaf.render_gate import handover_pass as handover_pass_model
 from leaf.render_reading import read_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
-from leaf.served_state.reading import source_readings
+from leaf.served_state.context import read_page
 from leaf.validation.source import check_source
 
 FAILURE: dict[str, Any] = {
@@ -116,6 +116,11 @@ def browser_read(
     )
 
 
+def data_version(page_dir: Path) -> str:
+    """The version of the data the page holds now (`data.data_version`)."""
+    return read_page(page_dir, read_events(page_dir)).data["version"]
+
+
 def leave_reading(
     page_dir: Path, findings: list[dict], digest: str | None = None
 ) -> None:
@@ -123,8 +128,8 @@ def leave_reading(
     handover_pass_model.remember_reading(
         page_dir,
         digest or read_digest(page_dir),
+        data_version(page_dir),
         browser_read(findings),
-        source_readings(page_dir)[0],
     )
 
 
@@ -134,13 +139,14 @@ def checking(
     parts: dict[str, list[dict]] | None = None,
 ):
     """`check_page` with the browser's part standing in: a reading of `findings`, and of
-    the `parts` each visual drew, in the live version, or in the version `digest`."""
+    the `parts` each visual drew, in the live version, or in the version `digest`, with
+    the data the page holds."""
     return lambda page_dir, **_options: (
         {},
         (
             digest or read_digest(page_dir),
+            data_version(page_dir),
             browser_read(findings, parts),
-            source_readings(page_dir)[0],
         ),
     )
 
@@ -317,10 +323,7 @@ def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir, unread):
     nothing of the page, so nothing is told or refused for it, as where no browser
     ran."""
     handover_pass_model.remember_reading(
-        page_dir,
-        "sha256:0",
-        SimpleNamespace(findings=lambda: [unread]),
-        source_readings(page_dir)[0],
+        page_dir, "sha256:0", "data", SimpleNamespace(findings=lambda: [unread])
     )
     assert read_reading(page_dir) is None
 
@@ -491,6 +494,12 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
     assert event["revision"] == latest_revision(claimed)
 
 
+def flow_element(page_dir: Path) -> dict:
+    """The diagram `flow` as `page state` lists it among the page's elements."""
+    (element,) = (e for e in state_json(page_dir)["elements"] if e["id"] == "flow")
+    return element
+
+
 def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed, monkeypatch):
     """The reading of a version hands `page state` the parts each visual drew in it,
     on the visual's element, and a later version shows none of them until it is read
@@ -499,26 +508,24 @@ def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed, monke
     assert activate_source(claimed).error is None
     monkeypatch.setattr("leaf.validation.command.check_page", checking([], parts=DRAWN))
     handover_pass_model.read_and_tell(claimed)
-
-    def flow() -> dict:
-        (element,) = (e for e in state_json(claimed)["elements"] if e["id"] == "flow")
-        return element
-
-    assert flow()["parts"] == DRAWN["flow"]
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]
     save(claimed, "a later version")
-    assert "parts" not in flow()
+    assert "parts" not in flow_element(claimed)
 
 
-def test_a_check_a_save_overtook_leaves_the_reading_as_it_was(claimed):
-    """An agent's check that finishes after the agent saved again leaves the page's
-    reading as it was, which may be a later version's, and makes the save no version:
-    the check never read it."""
+def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
+    """A data update makes no new version but can change what a visual draws, so the
+    parts a check drew list only while the page holds the data it read, and the next
+    check lists them again."""
     (claimed / "index.html").write_text(PARTS_PAGE)
-    assert activate_source(claimed).error is None
-    checked, source = read_digest(claimed), source_readings(claimed)[0]
-    write_unread(claimed, "a later version")
+    declare_data_input(claimed, "builds", {"type": "array"})
     handover_pass_model.remember_reading(
-        claimed, checked, browser_read([], DRAWN), source
+        claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
     )
-    assert read_reading(claimed) is None
-    assert read_digest(claimed) == checked
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]
+    data_model.cmd_data_set(claimed, "builds", ["green"])
+    assert "parts" not in flow_element(claimed)
+    handover_pass_model.remember_reading(
+        claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
+    )
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]

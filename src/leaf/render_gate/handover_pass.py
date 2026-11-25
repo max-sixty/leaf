@@ -43,11 +43,10 @@ one reading.
 event (`events.md`) whose handling clause tells failures from advice. A reading is kept
 only once the agent has heard every finding in it: an agent's own `page check --render`
 reports them all, and the server keeps its reading once it has told the agent what was
-new in it. A reading that a save has overtaken since the check froze the source, the
-agent's or the server's, leaves the page's reading as it was, and the server's tells
-nothing, so the next reading tells its findings. Under the `error` event's clause agents
-change the page for advice; this clause keeps failures fixed and has agents mostly leave
-the advice. A failure wakes the
+new in it. A reading whose version a save has replaced since the check froze the source
+tells nothing and leaves the page's reading as it was, so the next reading tells its
+findings. Under the `error` event's clause agents change the page for advice; this
+clause keeps failures fixed and has agents mostly leave the advice. A failure wakes the
 agent: failures are rare on real pages, and those found are real. Advice alone wakes
 nobody and goes with the agent's next delivery (`delivery.deliverable`), since real
 pages often hold only advice, and a wake for it would mostly spend a turn
@@ -98,17 +97,12 @@ DEADLINE_S = 1800
 NICENESS = 10
 
 
-def remember_reading(page_dir: Path, digest: str, checked, source: str) -> None:
-    """Leave what `checked`, a `command.BrowserCheck`, read of the version `digest` as
-    the page's latest reading, where a browser finished it and no file the version is
-    built from has changed since the check took `source`, its source reading
-    (`source_readings`): the agent that ran the check read every finding. A check that
-    a save or a data update overtook leaves the reading as it was, which may be a later
-    version's, and makes no version live."""
+def remember_reading(page_dir: Path, digest: str, data: str, checked) -> None:
+    """Leave what `checked`, a `command.BrowserCheck`, read of the version `digest` with
+    the data version `data` as the page's latest reading, where a browser finished it:
+    the agent that ran the check read every finding."""
     if (found := _finished(checked)) is not None:
-        with PageTransaction(page_dir):
-            if source_readings(page_dir)[0] == source:
-                write_reading(page_dir, digest, *found)
+        write_reading(page_dir, digest, data, *found)
 
 
 def _finished(checked) -> tuple[list[dict], dict[str, list[dict]]] | None:
@@ -170,10 +164,10 @@ def _read_and_tell(page_dir: Path) -> None:
 
     started = time.monotonic()
     _, read = check_page(page_dir, render=True, screens=False)
-    found = _finished(read[1]) if read is not None else None
+    found = _finished(read[2]) if read is not None else None
     told = []
     if read is not None and found is not None:
-        told = _tell(page_dir, read[0], *found)
+        told = _tell(page_dir, read[0], read[1], *found)
     append_interactions(
         page_dir,
         [
@@ -191,13 +185,14 @@ def _read_and_tell(page_dir: Path) -> None:
 def _tell(
     page_dir: Path,
     digest: str,
+    data: str | None,
     found: list[dict],
     parts: dict[str, list[dict]],
 ) -> list[dict]:
-    """Tell the agent the findings `found` of the version `digest` that the page's
-    latest reading didn't hold, and leave them, with the `parts` it read, as its
-    reading, where that version is still live and no reading of it beside this one told
-    first. The findings told."""
+    """Tell the agent the findings `found` of the version `digest`, read with the data
+    version `data`, that the page's latest reading didn't hold, and leave them, with
+    the `parts` it read, as its reading, where that version is still live and no
+    reading of it beside this one told first. The findings told."""
     from leaf.event_contracts import append_admitted
     from leaf.presence import nudge_unwatched
 
@@ -221,7 +216,7 @@ def _tell(
             )
             if requires_agent_attention(event):
                 nudge_unwatched(page)
-        write_reading(page_dir, digest, found, parts)
+        write_reading(page_dir, digest, data, found, parts)
     return told
 
 
@@ -321,4 +316,4 @@ class HandoverPass:
         ).returncode
         if ended == -signal.SIGALRM:
             overran = Finding("reading-overran", values={"seconds": DEADLINE_S})
-            _tell(self.page_dir, digest, [overran.json()], {})
+            _tell(self.page_dir, digest, None, [overran.json()], {})

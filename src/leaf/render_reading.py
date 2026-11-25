@@ -1,9 +1,9 @@
 """The page's render reading: what the latest render check, by `page check --render` or
-the page's server (`render_gate.handover_pass`, which decides when one is kept), read
-of one version with the page's data as it then stood. Beside its findings it keeps what
-each visual drew (`drawn_visuals`): the parts it offered a thread, and whether the page
-puts a thread on a part the visual didn't draw on the whole visual, as it does for a
-visual that draws a part on request or once it can (`drawsAbsentParts` in
+the page's server (`handover_pass`, which decides when one is kept), read of one
+version with the page's data as it then stood. Beside its findings it keeps what each
+visual drew (`drawn_visuals`): the parts it offered a thread, and whether the page puts
+a thread on a part the visual didn't draw on the whole visual, as it does for a visual
+that draws a part on request or once it can (`drawsAbsentParts` in
 `state/visual-parts.js`). `leaf page state` lists the parts, so an agent naming one
 takes its id from what the page drew rather than working it out from a widget's prose.
 `leaf thread create --part` reads both, and refuses a part the page would show nowhere
@@ -39,7 +39,7 @@ READING = Record(
     "render-reading",
     described(
         "The latest render check of a page, by `page check --render` or its server "
-        "(`render_gate.handover_pass`), in the state home's "
+        "(`handover_pass`), in the state home's "
         "`render-readings/<page key>.json`. Disposable: without it, a version is read "
         "again.",
         object_schema(

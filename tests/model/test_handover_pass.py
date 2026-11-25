@@ -28,6 +28,7 @@ from interact_support import (
 
 from leaf import data as data_model
 from leaf import delivery as delivery_model
+from leaf import handover_pass as handover_pass_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -36,7 +37,6 @@ from leaf.authored_checks.source import check_source
 from leaf.event_log import read_events
 from leaf.files import latest_revision
 from leaf.findings import Finding
-from leaf.render_gate import handover_pass as handover_pass_model
 from leaf.render_reading import read_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
@@ -262,9 +262,7 @@ def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     assert pass_page.reads == []
 
 
-def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
-    claimed, monkeypatch
-):
+def test_a_reading_beside_another_of_its_version_tells_nothing_twice(claimed):
     """A server started again mid-reading may read that version a second time, and a
     reading taken at another viewport may find otherwise. The first reading to tell
     tells the version; the other tells nothing."""
@@ -272,12 +270,10 @@ def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
     first = checking([FAILURE])
 
     def beside_another(page_dir, **options):
-        monkeypatch.setattr("leaf.validation.command.check_page", first)
-        handover_pass_model.read_and_tell(page_dir)
+        handover_pass_model.read_and_tell(page_dir, first)
         return checking([ADVICE])(page_dir, **options)
 
-    monkeypatch.setattr("leaf.validation.command.check_page", beside_another)
-    handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, beside_another)
     [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
     assert [f["text"] for f in event["findings"]] == [FAILURE["text"]]
 
@@ -334,15 +330,14 @@ def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir, unread):
 
 
 @pytest.fixture
-def told(claimed, monkeypatch):
+def told(claimed):
     """Save a version and read and tell `findings` of it, as a server's child does
     with each version handed over."""
     versions = iter(range(1, 100))
 
     def read(findings: list[dict]) -> list[dict]:
         save(claimed, f"version {next(versions)}")
-        monkeypatch.setattr("leaf.validation.command.check_page", checking(findings))
-        handover_pass_model.read_and_tell(claimed)
+        handover_pass_model.read_and_tell(claimed, checking(findings))
         return [e for e in events_of(claimed) if e["kind"] == "render"]
 
     return read
@@ -471,9 +466,7 @@ def test_a_save_before_the_check_froze_the_source_is_the_version_told(claimed):
         assert checked.artifact is not None
         return checking([FAILURE], checked.artifact.digest)(page_dir)
 
-    with pytest.MonkeyPatch.context() as patched:
-        patched.setattr("leaf.validation.command.check_page", saved_first)
-        handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, saved_first)
     [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
     assert event["revision"] == latest_revision(claimed)
     reading = read_reading(claimed)
@@ -481,7 +474,7 @@ def test_a_save_before_the_check_froze_the_source_is_the_version_told(claimed):
 
 
 def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
-    claimed, told, monkeypatch
+    claimed, told
 ):
     """Nothing is told of a version nobody sees any more, and none of it is lost."""
     activate_source(claimed)
@@ -491,8 +484,7 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
         save(page_dir, "moved on")
         return checking([FAILURE], stale)(page_dir)
 
-    monkeypatch.setattr("leaf.validation.command.check_page", moved_on)
-    handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, moved_on)
     assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 
     [event] = told([FAILURE])
@@ -505,16 +497,13 @@ def flow_element(page_dir: Path) -> dict:
     return element
 
 
-def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed, monkeypatch):
+def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed):
     """The reading of a version hands `page state` the parts each visual drew in it,
     on the visual's element, and a later version shows none of them until it is read
     in turn: its visuals may draw other parts."""
     (claimed / "index.html").write_text(PARTS_PAGE)
     assert activate_source(claimed).error is None
-    monkeypatch.setattr(
-        "leaf.validation.command.check_page", checking([], visuals=DRAWN)
-    )
-    handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, checking([], visuals=DRAWN))
     assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
     save(claimed, "a later version")
     assert "parts" not in flow_element(claimed)

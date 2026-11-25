@@ -143,7 +143,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
 
 - `<state-home>/render-readings/<page-key>.json` — the page's latest render check
-  (`render_reading.py`), for its server (`render_gate/handover_pass.py`), for the
+  (`render_reading.py`), for its server (`handover_pass.py`), for the
   parts `leaf page state` lists and for the parts `leaf thread create --part` takes. No
   page's fold reads it, and without it a version is read again.
 

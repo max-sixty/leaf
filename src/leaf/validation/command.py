@@ -8,7 +8,7 @@ render gate reads anything), in which browser or why none could, with the render
 gate's margin widths and saved screens even when it reports findings, unless the page
 was not ready for them. `browser` is null where no gate needed one. The agent's render
 check leaves its reading (`render_reading`) for `page state` and for the page's server
-(`render_gate.handover_pass`), which runs the same check without its screens
+(`handover_pass`), which runs the same check without its screens
 (`check_page`) and keeps its own reading.
 """
 
@@ -17,6 +17,7 @@ from pathlib import Path
 from leaf.authored_checks.source import check_source, moved_threads, source_advice
 from leaf.event_log import read_events
 from leaf.files import list_revisions
+from leaf.handover_pass import remember_reading
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_record, selected
@@ -27,8 +28,6 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
     finding it reported, since the agent has read them all."""
     report, read = check_page(page_dir, render)
     if read is not None:
-        from leaf.render_gate.handover_pass import remember_reading
-
         remember_reading(page_dir, *read)
     return report
 

@@ -32,8 +32,6 @@ export { elementNamed as elementById } from "./anchor-resolution.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// What a place on the page previews: its name, first parts, state and conversations.
-export { placePreview } from "./place-preview.js";
 export { navigateToDatum } from "./application.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
@@ -119,4 +117,3 @@ export async function mountSample(frame, options) {
 }
 export { wear } from "./dress.js";
 export { landInThread } from "./application.js";
-export { threadInput } from "./thread/landing.js";

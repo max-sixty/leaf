@@ -121,15 +121,11 @@ In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
-  `threadInput` and `landInThread`.
+- "Reading and opening Threads from a widget": `readThreads`, `threadActions` and
+  `landInThread`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
-
-In [module-previews.md](module-previews.md):
-
-- "Previews": `placePreview`.
 
 ### Shared web code
 

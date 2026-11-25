@@ -18,7 +18,7 @@
  * treeitem role distinguishes row clicks from search and other tree controls.
  */
 import { render } from "/vendor/lit.js";
-import { navigateToDatum, shadowStage, whileConnected } from "/runtime/widget-api.js";
+import { elementById, go, shadowStage } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer } from "/runtime/lib/controls.js";
 import { PRESS, plainPress } from "/runtime/lib/keys.js";
@@ -78,8 +78,30 @@ class FileTreeWidget extends LeafElement {
     return this.#emptyRoot;
   }
 
+  // What each connection starts, and what its end stops.
+  /** @type {((signal: AbortSignal) => void) | null} */
+  #connect = null;
+  /** @type {(() => void) | null} */
+  #disconnect = null;
+  #connection = new AbortController();
+
   setup() {
     void this.#applyFiles;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.#connection = new AbortController();
+    this.#connect?.(this.#connection.signal);
+  }
+
+  // A move keeps the mounted tree and the place the user scrolled it to.
+  connectedMoveCallback() {}
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#connection.abort();
+    this.#disconnect?.();
   }
 
   createTree() {
@@ -154,8 +176,10 @@ class FileTreeWidget extends LeafElement {
       }
       selectOnly(current, item.getPath());
       const file = files.find((entry) => entry.path === item.getPath());
-      if (this.hasAttribute("for") && file?.key)
-        void navigateToDatum(this, "for", file.key, {
+      const target = elementById(this.getAttribute("for"), this);
+      if (target && file?.key)
+        void go(target, {
+          key: file.key,
           focus: false,
           success: `Opened ${file.path}.`,
           missing: `${file.path} is no longer available.`,
@@ -184,7 +208,7 @@ class FileTreeWidget extends LeafElement {
     this.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
     );
-    whileConnected(this, (signal) => {
+    this.#connect = (signal) => {
       mount();
       // Trees scrolls its virtualized list and focuses with preventScroll. The
       // row can still lie outside the page's window, so a row the keyboard reached
@@ -255,15 +279,15 @@ class FileTreeWidget extends LeafElement {
         },
         { signal },
       );
-      return () => {
-        generation++;
-        this.#shown = undefined;
-        stopModel?.();
-        stopModel = null;
-        tree?.unmount();
-        mounted = false;
-      };
-    });
+    };
+    this.#disconnect = () => {
+      generation++;
+      this.#shown = undefined;
+      stopModel?.();
+      stopModel = null;
+      tree?.unmount();
+      mounted = false;
+    };
     return async (
       /** @type {import("../../../browser/types/contract.js").DataFileList | null | undefined} */ value,
     ) => {

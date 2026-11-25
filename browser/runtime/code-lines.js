@@ -21,7 +21,7 @@
 
    The hang an indented line takes is not reserved before the pass, so a wrapped
    indented line moves once as the runtime starts, as lf-code's does (code.css). */
-import { setChildLists } from "./dom-children.js";
+import { setChildLists } from "./lib/dom-children.js";
 import { DATA_BODY, wearsReadingFace } from "./syntax.js";
 
 const LINE = "data-lf-pre-line";

@@ -16,13 +16,14 @@
  * controls change an answer. Where nothing waits, as in Review, and until the page's
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
- * Which card is open is view state for this user, as a tab set's open panel is
- * (`views`): the runtime names the opening card (`openingView`), the module
- * records each card it shows (`keepView`), so a reload comes back to it, and no event
- * carries it. Where neither the address nor the tab names a card, the deck opens on the
- * first that waits once the first reading is in. Inactive cards are
+ * Which card is open is view state for this user, as a tab set's open panel is: the
+ * deck opens on the card holding the place the address names, else the one this tab
+ * showed last, so a reload comes back to it, and no event carries it
+ * (lib/one-shown.js). Where neither names a card, the deck opens on the first that
+ * waits once the first reading is in; until the module runs, the package theme shows
+ * only the first card. Inactive cards are
  * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
- * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
+ * `go({within})`) open the card holding what they reach (`beforematch`); `m`
  * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
  * for the end of the pass. Leaf's Undo travels to the answer it takes back before
  * taking it, which opens its card the same way, so the deck has no Undo of its own.
@@ -64,18 +65,15 @@
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   answerWords,
-  keepView,
+  go,
   motion,
-  obligationActions,
-  openingView,
-  viewMembers,
   nameOf,
   readObligations,
   readQueues,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { openingMember, showMember } from "/runtime/lib/one-shown.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -148,11 +146,13 @@ customElements.define(
     }
 
     setup() {
-      this.#cards = viewMembers(this).map((card) => {
-        if (!(card instanceof HTMLElement))
-          throw new Error("A deck card must be an HTML element");
-        return card;
-      });
+      this.#cards = [...this.children]
+        .filter((child) => !child.matches("script, style, template, [data-lf-gen]"))
+        .map((card) => {
+          if (!(card instanceof HTMLElement))
+            throw new Error("A deck card must be an HTML element");
+          return card;
+        });
       if (!this.#cards.length) return;
       // Where the cards stood once the pass is over: what is left, a way back in, and
       // the record of the pass (`#drawEnd`). Drawn now so the step back in is in the
@@ -196,19 +196,20 @@ customElements.define(
       this.prepend(this.#bar);
       this.append(this.#end);
       this.classList.add("lf-rendered");
-      const selected = openingView(this, null);
-      const opening = this.#cards.find((card) => card === selected);
+      const opening = openingMember(this, this.#cards);
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
       if (this.matches("[data-lf-exhibit] *")) return;
-      whileConnected(this, (signal) => {
-        const options = { signal };
-        this.addEventListener("pointerdown", (event) => this.#press(event), options);
-        this.addEventListener("pointermove", (event) => this.#follow(event), options);
-        this.addEventListener("pointerup", (event) => this.#release(event), options);
-        this.addEventListener("pointercancel", () => this.#settle(), options);
-        return () => this.#settle();
-      });
+      this.addEventListener("pointerdown", (event) => this.#press(event));
+      this.addEventListener("pointermove", (event) => this.#follow(event));
+      this.addEventListener("pointerup", (event) => this.#release(event));
+      this.addEventListener("pointercancel", () => this.#settle());
+    }
+
+    // A drag the deck's departure cut short lets its card go.
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#settle();
     }
 
     // Each card's obligations, or null until the page's first reading is in: what the
@@ -226,7 +227,7 @@ customElements.define(
       // leaves that motion to finish.
       if (card === this.#open) return;
       this.#landing?.();
-      keepView(this, card);
+      showMember(this, this.#cards, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
       }
@@ -335,7 +336,7 @@ customElements.define(
         keeps(card, "data-lf-deck-leaving", side);
         keeps(card, "inert", "");
       }
-      keepView(this, next, moving ? card : null);
+      showMember(this, this.#cards, next, moving ? card : null);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
       }
@@ -372,7 +373,12 @@ customElements.define(
         keeps(leaving, "data-lf-deck-leaving", null);
         keeps(leaving, "inert", null);
         leaving.style.removeProperty("--lf-deck-leave-top");
-        keepView(this, this.#open, leaving === upcoming ? leaving : null);
+        showMember(
+          this,
+          this.#cards,
+          this.#open,
+          leaving === upcoming ? leaving : null,
+        );
       };
       const land = (
         /** @type {HTMLElement | null | undefined} */ upcoming = undefined,
@@ -493,7 +499,7 @@ customElements.define(
       }
       const items = readObligations(card);
       const waiting = items.phase === "ready" ? items.user[0] : undefined;
-      if (waiting) obligationActions.open(waiting.id);
+      if (waiting) go(waiting);
       else focusOn(card);
     }
 

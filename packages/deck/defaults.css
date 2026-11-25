@@ -112,12 +112,18 @@ lf-deck[data-lf-deck-flying] {
       padding-block-end: calc(2 * var(--lf-deck-edge));
     }
 
-    /* The authored opening card already has its face; only the bar arrives later. */
+    /* Until the module runs, the first card stands alone with its face; only the bar
+     * arrives later. The module then opens the card the address or this tab names. */
     :scope:is(lf-deck):not(.lf-rendered) {
       padding-block-start: var(--lf-deck-bar-h);
     }
+    :scope:is(lf-deck):not(.lf-rendered)
+      > :not(script, style, template)
+      ~ :not(script, style, template) {
+      display: none;
+    }
 
-    :scope:is(lf-deck):not(.lf-rendered) > [data-lf-view]:not([hidden]),
+    :scope:is(lf-deck):not(.lf-rendered) > :not(script, style, template),
     :scope:is(lf-deck).lf-rendered > [data-lf-deck-open],
     :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving] {
       display: block;
@@ -140,10 +146,10 @@ lf-deck[data-lf-deck-flying] {
       scroll-margin-block: var(--lf-deck-bar-h) calc(2 * var(--lf-deck-edge));
     }
 
-    :scope:is(lf-deck) > [data-lf-view] > :first-child {
+    :scope:is(lf-deck) > :not(script, style, template, [data-lf-gen]) > :first-child {
       margin-block-start: 0;
     }
-    :scope:is(lf-deck) > [data-lf-view] > :last-child {
+    :scope:is(lf-deck) > :not(script, style, template, [data-lf-gen]) > :last-child {
       margin-block-end: 0;
     }
     :scope:is(lf-deck)[data-lf-deck-behind="1"] > [data-lf-deck-open] {

@@ -110,11 +110,10 @@
 import {
   nameOf,
   motion,
-  move,
   onPress,
   tabStore,
-  whileConnected,
 } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { actionClass } from "/runtime/lib/control-faces.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -344,6 +343,8 @@ customElements.define(
     #opened = new Set();
     /** @type {AbortController | null} */
     #listening = null;
+    // What the dial listens to while it stands in the page.
+    #connection = new AbortController();
     // The page's reading time at each depth, measured once for each presentation of the
     // page.
     /** @type {Sizes | null} */
@@ -442,49 +443,52 @@ customElements.define(
       // so landings arrive below it.
       this.toggleAttribute("data-lf-root-header", true);
       this.#draw();
-      whileConnected(this, (signal) => {
-        // A revision applied in place rebuilds the folds over its new structure.
-        this.ownerDocument.addEventListener(
-          "lf-page-interface",
-          () => {
-            this.#sizes = null;
-            this.#apply(this.#depth, { moving: false });
-          },
-          { signal },
-        );
-        // A plain press on the dial puts Leaf's preview away as it goes down, and its
-        // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-        // until the press is over. A finger's tap reads no preview again, so its sheets
-        // go at once.
-        const stopPress = onPress((down, path) => {
-          if (!path.includes(this) || !plainPress(down) || down.pointerType === "touch")
-            return null;
-          this.#pressing = true;
-          return () => () => {
-            this.#pressing = false;
-            const away = this.#lifted;
-            this.#lifted = null;
-            if (away) nextRender(away);
-          };
-        });
-        signal.addEventListener("abort", stopPress);
-        this.addEventListener(
-          "click",
-          (event) => {
-            if (!plainPress(event)) return;
-            const depth =
-              event.target instanceof Element && event.target.closest(".lf-dial-depth");
-            // The standing depth's button, which turns no radio, folds an unfolded gap.
-            if (depth && depth === this.#radios.get(this.#depth))
-              this.turn(this.#depth);
-            this.#aim(depth || this);
-          },
-          { signal },
-        );
-        const stored = tabStore.get(this.#key);
-        if (stored) this.#apply(stored, { moving: false });
-        return () => this.#restore();
+      this.addEventListener("click", (event) => {
+        if (!plainPress(event)) return;
+        const depth =
+          event.target instanceof Element && event.target.closest(".lf-dial-depth");
+        // The standing depth's button, which turns no radio, folds an unfolded gap.
+        if (depth && depth === this.#radios.get(this.#depth)) this.turn(this.#depth);
+        this.#aim(depth || this);
       });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      const { signal } = (this.#connection = new AbortController());
+      // A revision applied in place rebuilds the folds over its new structure.
+      this.ownerDocument.addEventListener(
+        "lf-page-interface",
+        () => {
+          this.#sizes = null;
+          this.#apply(this.#depth, { moving: false });
+        },
+        { signal },
+      );
+      // A plain press on the dial puts Leaf's preview away as it goes down, and its
+      // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
+      // until the press is over. A finger's tap reads no preview again, so its sheets
+      // go at once.
+      const stopPress = onPress((down, path) => {
+        if (!path.includes(this) || !plainPress(down) || down.pointerType === "touch")
+          return null;
+        this.#pressing = true;
+        return () => () => {
+          this.#pressing = false;
+          const away = this.#lifted;
+          this.#lifted = null;
+          if (away) nextRender(away);
+        };
+      });
+      signal.addEventListener("abort", stopPress);
+      const stored = tabStore.get(this.#key);
+      if (stored) this.#apply(stored, { moving: false });
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+      this.#restore();
     }
 
     // Turn the dial to `name`, keeping the reader's place and moving the page there.

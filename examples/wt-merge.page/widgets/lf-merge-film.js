@@ -19,7 +19,6 @@
 // A `--seek` command, such as a step button's `commandfor` press, holds the result of
 // the step its button's value names.
 
-import { whileConnected } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -61,17 +60,15 @@ customElements.define(
     #inspectorPaint = 0;
 
     connectedCallback() {
-      if (!once(this)) return;
-      this.#build();
-      whileConnected(this, () => {
-        const sizing = sizeObserver(() => this.#paint());
-        sizing.observe(this.stage);
-        this.#paint();
-        return () => {
-          sizing.disconnect();
-          this.#pause();
-        };
-      });
+      if (once(this)) {
+        this.#build();
+        sizeObserver(() => this.#paint()).observe(this.stage);
+      }
+      this.#paint();
+    }
+
+    disconnectedCallback() {
+      this.#pause();
     }
 
     #build() {

@@ -49,13 +49,13 @@ const markView = (marks) =>
     ? nothing
     : html`<span class="lf-toc-mark" aria-hidden="true"></span>`;
 
-// The outline belongs to the document holding it: the view member holding it, such as
-// a tab's panel, or else the `main` holding it. For contents standing beside the page's
+// The outline belongs to the document holding it: the tab panel holding it, or else the
+// `main` holding it. For contents standing beside the page's
 // main, it is that main. Scope follows document ownership, not visibility: closed
 // disclosures still contribute headings that a native fragment link can reveal.
 /** @param {HTMLElement} host */
 const outlineDocument = (host) =>
-  host.closest("[data-lf-views] > *, main") ??
+  host.closest('[role="tabpanel"], main') ??
   host.closest("body")?.querySelector(":scope > main") ??
   null;
 

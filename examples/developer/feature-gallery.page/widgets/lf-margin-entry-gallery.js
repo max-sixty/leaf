@@ -1,20 +1,26 @@
 /* The exhibit and its contributed margin entry share one live Lit view. */
 import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
-import { registerContribution, whileConnected } from "/runtime/widget-api.js";
+import { registerContribution } from "/runtime/widget-api.js";
 import { once } from "/runtime/lib/once.js";
 
 customElements.define(
   "lf-margin-entry-gallery",
   class extends HTMLElement {
+    #result;
+    #projection;
+
     connectedCallback() {
-      if (!once(this)) return;
-      const initial = createView(this);
-      render(initial.render(), this);
-      whileConnected(this, () => {
-        const projection = this.#registerProjection(initial.result);
-        return () => projection.unregister();
-      });
+      if (once(this)) {
+        const initial = createView(this);
+        render(initial.render(), this);
+        this.#result = initial.result;
+      }
+      this.#projection = this.#registerProjection(this.#result);
+    }
+
+    disconnectedCallback() {
+      this.#projection?.unregister();
     }
 
     #registerProjection(result) {

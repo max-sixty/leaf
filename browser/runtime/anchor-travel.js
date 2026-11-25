@@ -5,7 +5,7 @@
  * passage inside one, or a part of a widget, such as a projected datum or a visual
  * part. A thread travels to its anchor's place, a fragment link to its element or to
  * the part a widget's key names, an obligation to its own arrival region, and a
- * module's `navigateToDatum` to the part its reference names. Every route shares three
+ * module's `go` to an element or the part a key names in it (`goToPart`). Every route shares three
  * steps: `revealAddressed` draws the part (`revealAnchor` each part an anchor names),
  * `reveal` opens what holds it and what takes focus, and `clearFor` puts away a surface that would stand
  * over it where it lands (floating-panel.js). Each
@@ -46,11 +46,11 @@
 
 import { selectEnds } from "./native-selection.js";
 import { focusElement, focused } from "./focus.js";
-import { referencedProjection, requireReference } from "./references.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import {
   addressedElements,
   addressedFocus,
+  elementNamed,
   fragmentAddress,
   fragmentTarget,
   resolveAnchor,
@@ -396,7 +396,7 @@ export function createAnchorTravel({
     return fragmentShown(address) ? null : fragmentNavigationStep(url, false, intent);
   }
 
-  // A key's part is asked for first, as `navigateToDatum` asks for it, and a key the
+  // A key's part is asked for first, as `goToPart` asks for it, and a key the
   // widget draws nothing for lands on the widget.
   /** @param {URL} url @param {boolean} focus @param {ReturnType<typeof retainUserIntent>} [intent] */
   function fragmentNavigationStep(url, focus, intent) {
@@ -428,18 +428,20 @@ export function createAnchorTravel({
     };
   }
 
-  /** @param {Element} owner @param {string} attribute @param {string} key @param {{success?: string, missing?: string, focus?: boolean}} [options] */
-  async function navigateToDatum(
-    owner,
-    attribute,
-    key,
-    { success = "", missing = "", focus = true } = {},
+  // A module's travel to `target`, or to the part `key` names in it, as a link to
+  // `#<id>:<key>` takes the user there (widget-api.js, `go`). The target is looked up
+  // again by its id at each step, since a revision can replace it while its part loads.
+  /** @param {Element} target @param {{key?: string | null, success?: string, missing?: string, focus?: boolean}} [options] */
+  async function goToPart(
+    target,
+    { key = null, success = "", missing = "", focus = true } = {},
   ) {
     const mayArrive = retainTravel();
-    requireReference(owner, attribute);
-    if (typeof key !== "string" || !key)
-      throw new TypeError("navigateToDatum key must be a non-empty string");
-    let source = referencedProjection(owner, attribute);
+    if (key !== null && (typeof key !== "string" || !key))
+      throw new TypeError("go: a key must be a non-empty string");
+    const current = () =>
+      target.isConnected ? target : target.id ? elementNamed(target.id) : null;
+    let source = current();
     if (!source) {
       if (missing) notice(missing);
       return false;
@@ -451,15 +453,18 @@ export function createAnchorTravel({
 
     // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
     // make the key reachable before interpreting DOM presence.
-    const hydration = revealAddressed(source, key);
+    const hydration = key === null ? null : revealAddressed(source, key);
     if (hydration?.then) await hydration;
     if (!mayArrive()) return false;
-    source = referencedProjection(owner, attribute);
+    source = current();
     if (!source) {
       if (missing) notice(missing);
       return false;
     }
-    const destination = addressedElements(source, key)[0] ?? null;
+    /** @param {Element} source */
+    const partOf = (source) =>
+      key === null ? source : (addressedElements(source, key)[0] ?? null);
+    const destination = partOf(source);
 
     if (!destination) {
       // An absent address is no destination: keep the departure and its history,
@@ -470,12 +475,12 @@ export function createAnchorTravel({
     departure.plan(destination);
     const arrived = await arrive(
       () => {
-        const source = referencedProjection(owner, attribute);
-        const where = source && addressedElements(source, key)[0];
+        const source = current();
+        const where = source && partOf(source);
         return (
           where && {
             where,
-            focus: focus ? addressedFocus(source, key) : null,
+            focus: !focus ? null : key === null ? where : addressedFocus(source, key),
             scroll: [
               {
                 at: where,
@@ -768,7 +773,7 @@ export function createAnchorTravel({
     restoreSelection,
     followFragment,
     returnToFragment,
-    navigateToDatum,
+    goToPart,
     scrollToElement,
     scrollToPassage,
     scrollToRange,

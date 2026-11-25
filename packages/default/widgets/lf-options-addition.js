@@ -1,13 +1,8 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
  * draft generation, and the option nodes each `add` in force puts in the group. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
-import {
-  draft,
-  move,
-  whileConnected,
-  wireInput,
-  pageLinks,
-} from "/runtime/widget-api.js";
+import { draft, wireInput, pageLinks } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
 import { offer } from "/runtime/lib/controls.js";
 import {
   inlineMarkdownFragment,
@@ -30,6 +25,8 @@ export class OptionAddition {
   #inForce = new Set();
   /** @type {Comment | null} */
   #end = null;
+  /** @type {(() => void) | null} */
+  #unwatch = null;
 
   /** @param {import("/runtime/lib/leaf-element.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
@@ -47,18 +44,22 @@ export class OptionAddition {
     return this.#offered;
   }
 
+  // The group's connection: the field follows its draft while the group stands.
   connect() {
     if (!this.#offered) return;
-    if (this.#ui) return;
-    const ui = (this.#ui = this.#buildForm());
-    whileConnected(this.#host, () =>
-      this.#draft.watch((value) => ui.sync.load(value ?? ""), {
-        input: ui.input,
-        box: () => ui.sync.composition().frame,
-        // Resume writing (`g i`) comes back to the field, which stands in the group.
-        resume: () => ({ where: ui.input, input: () => ui.input }),
-      }),
-    );
+    const ui = (this.#ui ??= this.#buildForm());
+    this.disconnect();
+    this.#unwatch = this.#draft.watch((value) => ui.sync.load(value ?? ""), {
+      input: ui.input,
+      box: () => ui.sync.composition().frame,
+      // Resume writing (`g i`) comes back to the field, which stands in the group.
+      resume: () => ({ where: ui.input, input: () => ui.input }),
+    });
+  }
+
+  disconnect() {
+    this.#unwatch?.();
+    this.#unwatch = null;
   }
 
   get input() {

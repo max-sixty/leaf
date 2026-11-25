@@ -67,7 +67,7 @@ import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
 import { el } from "../lib/elements.js";
 import { offer } from "../lib/controls.js";
 import { signal } from "/runtime/framework.js";
-import { move } from "../dom-move.js";
+import { move } from "../lib/dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { tick } from "../version-signal.js";

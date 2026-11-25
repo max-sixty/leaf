@@ -83,12 +83,11 @@ import {
   repeat,
 } from "/vendor/lit.js";
 import {
-  move,
   onUserInput,
   scopedMediaUrl,
-  setChildren,
-  whileConnected,
 } from "/runtime/widget-api.js";
+import { move } from "/runtime/lib/dom-move.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
@@ -559,6 +558,11 @@ export class Trace extends LeafElement {
     this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
   };
 
+  // Whether `setup` built the recording, and what it listens to while it stands in
+  // the page.
+  #built = false;
+  #connection = new AbortController();
+
   setup() {
     this.#build();
     const timeline = this.#nodes.timelineHost;
@@ -644,20 +648,26 @@ export class Trace extends LeafElement {
         new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
     }
-    whileConnected(this, (signal) => {
-      document.addEventListener("visibilitychange", this.#visibility, { signal });
-      const stopInput = onUserInput(this.#reviewGesture);
-      const resizer = sizeObserver(this.#resize);
-      resizer.observe(this.#nodes.viewport);
-      // A returning recording draws the picture its departure closed.
-      if (this.#trace) this.#draw();
-      return () => {
-        this.pause(false);
-        stopInput();
-        resizer.disconnect();
-        this.#closePicture();
-      };
-    });
+    sizeObserver(this.#resize).observe(this.#nodes.viewport);
+    this.#built = true;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this.#built) return;
+    const { signal } = (this.#connection = new AbortController());
+    document.addEventListener("visibilitychange", this.#visibility, { signal });
+    signal.addEventListener("abort", onUserInput(this.#reviewGesture));
+    // A returning recording draws the picture its departure closed.
+    if (this.#trace) this.#draw();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#connection.abort();
+    if (!this.#built) return;
+    this.pause(false);
+    this.#closePicture();
   }
 
   render() {

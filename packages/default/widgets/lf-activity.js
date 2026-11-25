@@ -21,7 +21,7 @@ import { createActivity } from "./activity-view.js";
  *
  * The thing is the row's way there: a widget or section is an ordinary fragment link,
  * so the browser owns that travel as it does for lf-toc, and a thread is a button
- * onto `threadActions.open`, which chooses the thread's inline destination or Threads the same
+ * onto `go`, which chooses the thread's inline destination or Threads the same
  * way a mark and t/T do. Links and buttons are the keyboard route: each is a Tab stop
  * and a go-to target.
  *
@@ -40,10 +40,9 @@ import {
   elementById,
   layerFact,
   nameOf,
-  threadActions,
+  go,
   readThreads,
   readHistory,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -51,6 +50,7 @@ import { loadMarkdown, markdownReady, markdownWords } from "/runtime/lib/markdow
 import { excerptWords } from "/runtime/lib/words.js";
 
 const NAME = 60;
+const PAPER = matchMedia("print");
 
 // Where something happened, as the chrome names it, else its word.
 /** @param {string | null | undefined} id */
@@ -169,12 +169,13 @@ customElements.define(
         names: elementById,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
-          if (thread) void threadActions.open(thread.key, { part: "thread" });
+          if (thread) void go(thread, { part: "thread" });
         },
       });
     }
     #opened = false;
     #printing = false;
+    #connection = new AbortController();
     /** @type {string | null} */
     #closedReading = null;
     #ready = false;
@@ -192,16 +193,26 @@ customElements.define(
         this.requestUpdate();
         this.performUpdate();
       });
-      const paper = matchMedia("print");
-      const printing = () => {
-        this.#printing = paper.matches;
-        this.requestUpdate();
-        this.performUpdate();
-      };
-      whileConnected(this, (signal) => {
-        this.#printing = paper.matches;
-        paper.addEventListener("change", printing, { signal });
-      });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      this.#connection = new AbortController();
+      this.#printing = PAPER.matches;
+      PAPER.addEventListener(
+        "change",
+        () => {
+          this.#printing = PAPER.matches;
+          this.requestUpdate();
+          this.performUpdate();
+        },
+        { signal: this.#connection.signal },
+      );
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
     }
 
     render() {

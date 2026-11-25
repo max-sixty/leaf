@@ -8,7 +8,7 @@ import {
   setChildLists,
   setChildren,
   setRenderedChildren,
-} from "/runtime/dom-children.js";
+} from "/runtime/lib/dom-children.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 import { placesFailure, showFailure } from "/runtime/lib/failure.js";

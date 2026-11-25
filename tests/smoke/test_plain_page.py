@@ -555,9 +555,7 @@ try {{
         )
         expect(search).to_be_focused()
         expect(search).to_have_value("second")
-        assert page.evaluate(
-            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
-        )
+        assert page.evaluate("!window.lfRootState && !window.lfDocumentLifetime")
 
 
 def test_a_host_builds_named_controls_without_leaf(browser):
@@ -593,6 +591,4 @@ finally {{ window.hostReady = true; }}
         button.focus()
         page.keyboard.press("Tab")
         expect(search).to_be_focused()
-        assert page.evaluate(
-            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
-        )
+        assert page.evaluate("!window.lfRootState && !window.lfDocumentLifetime")

@@ -288,12 +288,12 @@ export const whenWidgetsPresented = (widgets) =>
  */
 export const whenApplicationRegionsPresented = (regions, current) =>
   presentation.whenCurrentRegionsPresented(regions, current);
-/** @param {readonly string[]} regions */
-export const applicationRegionsPresented = (regions) =>
-  presentation.currentRegionsPresented(regions);
 /** @param {readonly string[]} widgets */
 export const projectionRegionsPresented = (widgets) =>
-  applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
+  presentation.currentRegionsPresented([
+    "projection:chrome",
+    ...widgets.flatMap(widgetRegions),
+  ]);
 export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
 /** @param {(reason: unknown, title: string) => unknown} report */

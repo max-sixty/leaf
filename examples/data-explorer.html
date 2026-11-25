@@ -99,7 +99,7 @@
       }
     </style>
     <script type="module">
-      import { setChildren, whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { setChildren } from "/runtime/lib/dom-children.js";
       import { offer, offerAction } from "/runtime/lib/controls.js";
       import { once } from "/runtime/lib/once.js";
       import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -159,10 +159,15 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileInterfaceConnected(this, {
-              declare: () => this.#initialize(),
-              connect: () => this.#playground.subscribe(() => this.#render()),
-            });
+            // The playground takes a contributor once the page's widgets have upgraded.
+            document.addEventListener(
+              "lf-page-interface",
+              () => {
+                this.#initialize();
+                this.#playground.subscribe(() => this.#render());
+              },
+              { once: true },
+            );
           }
 
           #build() {

@@ -1,5 +1,4 @@
-import { frameFor, whileConnected } from "/runtime/widget-api.js";
-import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { keeps } from "/runtime/lib/keeps.js";
 
 // Illustrative source timings and alternatives, not recordings. The optional
@@ -102,12 +101,8 @@ function mount() {
       host.renderFrame(host.currentTime);
     });
     fits.set(host, fit);
-    whileConnected(host, () => {
-      const sizes = sizeObserver(fit);
-      sizes.observe(host);
-      fit();
-      return () => sizes.disconnect();
-    });
+    sizeObserver(fit).observe(host);
+    fit();
   }
 }
 mount();

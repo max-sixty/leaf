@@ -5,8 +5,8 @@
  */
 import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
-  whileConnected,
   tabStore,
+  go,
   threadActions,
   readThreads,
   pageLinks,
@@ -96,21 +96,17 @@ class RepoFeed extends LeafElement {
     this.#loadMarkdown();
     this.filtered = [];
     this.openedSources = new Set();
-    whileConnected(this, (signal) => {
-      this.observer = new IntersectionObserver(
-        (entries) => {
-          if (
-            entries.some((entry) => entry.isIntersecting && entry.target.isConnected) &&
-            this.canAdvance &&
-            !this.readAheadPaused
-          )
-            this.more();
-        },
-        { rootMargin: "350px" },
-      );
-      this.signal = signal;
-      return () => this.observer.disconnect();
-    });
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries.some((entry) => entry.isIntersecting && entry.target.isConnected) &&
+          this.canAdvance &&
+          !this.readAheadPaused
+        )
+          this.more();
+      },
+      { rootMargin: "350px" },
+    );
   }
 
   choose(field, value) {
@@ -229,14 +225,14 @@ class RepoFeed extends LeafElement {
         !thread.resolved,
     );
     if (existing) {
-      void threadActions.open(existing.key, { part: "reply" });
+      void go(existing, { part: "reply" });
       return;
     }
     const created = threadActions.create({
       text: `How does “${item.title}” in ${item.repo} connect to my work?\n\n${item.url}`,
       anchor: { section: this.id, datum: item.id },
     });
-    if (created) void threadActions.open(created.key, { part: "thread" });
+    if (created) void go(created, { part: "thread" });
   }
 
   render() {

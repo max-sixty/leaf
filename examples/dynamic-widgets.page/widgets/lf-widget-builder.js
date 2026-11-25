@@ -1,7 +1,7 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
 import { nothing } from "/vendor/lit.js";
-import { generate, tabStore, whileConnected } from "/runtime/widget-api.js";
+import { generate, tabStore } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keepsText } from "/runtime/lib/keeps.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
@@ -51,174 +51,178 @@ customElements.define(
     render() {
       return nothing;
     }
+    #connection = new AbortController();
     setup() {
+      const field = this.querySelector("#widget-request");
+      field.value = tabStore.get("dynamic-widgets:request") ?? field.value;
+    }
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+    }
+    connectedCallback() {
+      super.connectedCallback();
       const host = this;
+      if (host.matches("[data-lf-exhibit] *")) return;
       const field = host.querySelector("#widget-request");
       const button = host.querySelector("#widget-generate");
       const overall = host.querySelector("#widget-status");
-      field.value = tabStore.get("dynamic-widgets:request") ?? field.value;
-
-      if (!host.matches("[data-lf-exhibit] *"))
-        whileConnected(host, (signal) => {
-          let busy = false;
-          const lanes = Object.entries(approaches).map(([name, approach]) => {
-            const region = host.querySelector(`[data-approach="${name}"]`);
-            const get = (part) => region.querySelector(`[data-part="${part}"]`);
-            const status = get("status"),
-              clock = get("clock"),
-              errorBox = get("error");
-            const preview = get("preview"),
-              empty = get("empty"),
-              code = get("code"),
-              request = get("request");
-            holdDocument(get("instructions"), approach.instructions);
-            holdDocument(request, "No generation yet.");
-            let view = null,
-              ticker;
-            const showError = (error) => {
-              errorBox.toggleAttribute("hidden", false);
-              keepsText(errorBox, error.message);
-            };
-            const draw = async (value) => {
-              const staged = approach.stage(preview, value, (error) => {
-                if (signal.aborted || view !== staged) return;
-                view = null;
-                staged.dispose();
-                empty.toggleAttribute("hidden", false);
-                keepsText(status, "Widget error.");
-                keepsText(overall, "A preview encountered an error.");
-                showError(error);
-              });
-              view = staged;
-              await staged.ready;
-              if (signal.aborted) return;
-              staged.frame.removeAttribute("data-staging");
-              staged.frame.inert = false;
-              staged.frame.removeAttribute("aria-hidden");
-              empty.toggleAttribute("hidden", true);
-            };
-            const metrics = (result) => {
-              const time = result.timing;
-              keepsText(
-                status,
-                `${result.value.limitation ? "Limited result" : "Preview ready"} in ${(time.totalMs / 1000).toFixed(1)} s`,
-              );
-              keepsText(
-                get("metrics"),
-                `${result.usage.outputTokens ?? "Unknown"} output tokens · ${(time.generationMs / 1000).toFixed(1)} s generation · ${(time.renderMs / 1000).toFixed(1)} s rendering · ${result.model}`,
-              );
-            };
-            const run = async (input) => {
-              view?.dispose();
-              view = null;
-              empty.toggleAttribute("hidden", false);
-              errorBox.toggleAttribute("hidden", true);
-              holdDocument(request, input);
-              for (const part of ["code", "css", "js"]) {
-                const listing = get(part);
-                if (!listing) continue;
-                keepsText(listing, "No output yet.");
-                delete listing.dataset.lfSyntax;
-              }
-              if (get("compiled")) keepsText(get("compiled"), "No source yet.");
-              keepsText(get("metrics"), "");
-              const started = performance.now();
-              keepsText(status, "Generating…");
-              keepsText(clock, "0.0 s");
-              ticker = setInterval(() => {
-                keepsText(
-                  clock,
-                  `${((performance.now() - started) / 1000).toFixed(1)} s`,
-                );
-              }, 100);
-              try {
-                const result = await generate({
-                  input,
-                  instructions: approach.instructions,
-                  schema: approach.schema,
-                });
-                if (signal.aborted) return;
-                const generated = performance.now();
-                keepsText(status, "Rendering…");
-                const record = {
-                  ...result,
-                  timing: {
-                    generationMs: generated - started,
-                    renderMs: 0,
-                    totalMs: 0,
-                  },
-                };
-                keepsText(
-                  code,
-                  name === "html"
-                    ? result.value.html
-                    : JSON.stringify(result.value, null, 2),
-                );
-                for (const part of ["css", "js"])
-                  if (get(part)) keepsText(get(part), result.value[part]);
-                if (get("compiled"))
-                  keepsText(get("compiled"), catalog.compile(result.value));
-                // Leaf colours a listing again as its words change, once the mark of its
-                // last colouring is gone.
-                for (const part of ["code", "css", "js", "compiled"])
-                  if (get(part)) delete get(part).dataset.lfSyntax;
-                await draw(result.value);
-                if (signal.aborted) return;
-                record.timing.renderMs = performance.now() - generated;
-                record.timing.totalMs = performance.now() - started;
-                metrics(record);
-              } catch (error) {
-                if (!signal.aborted) {
-                  keepsText(
-                    status,
-                    `Failed after ${((performance.now() - started) / 1000).toFixed(1)} s`,
-                  );
-                  const failed = view;
-                  view = null;
-                  failed?.dispose();
-                  empty.toggleAttribute("hidden", false);
-                  showError(error);
-                }
-              } finally {
-                clearInterval(ticker);
-                if (!signal.aborted) keepsText(clock, "");
-              }
-            };
-            return {
-              run,
-              dispose() {
-                clearInterval(ticker);
-                view?.dispose();
-                view = null;
+      const { signal } = (this.#connection = new AbortController());
+      let busy = false;
+      const lanes = Object.entries(approaches).map(([name, approach]) => {
+        const region = host.querySelector(`[data-approach="${name}"]`);
+        const get = (part) => region.querySelector(`[data-part="${part}"]`);
+        const status = get("status"),
+          clock = get("clock"),
+          errorBox = get("error");
+        const preview = get("preview"),
+          empty = get("empty"),
+          code = get("code"),
+          request = get("request");
+        holdDocument(get("instructions"), approach.instructions);
+        holdDocument(request, "No generation yet.");
+        let view = null,
+          ticker;
+        const showError = (error) => {
+          errorBox.toggleAttribute("hidden", false);
+          keepsText(errorBox, error.message);
+        };
+        const draw = async (value) => {
+          const staged = approach.stage(preview, value, (error) => {
+            if (signal.aborted || view !== staged) return;
+            view = null;
+            staged.dispose();
+            empty.toggleAttribute("hidden", false);
+            keepsText(status, "Widget error.");
+            keepsText(overall, "A preview encountered an error.");
+            showError(error);
+          });
+          view = staged;
+          await staged.ready;
+          if (signal.aborted) return;
+          staged.frame.removeAttribute("data-staging");
+          staged.frame.inert = false;
+          staged.frame.removeAttribute("aria-hidden");
+          empty.toggleAttribute("hidden", true);
+        };
+        const metrics = (result) => {
+          const time = result.timing;
+          keepsText(
+            status,
+            `${result.value.limitation ? "Limited result" : "Preview ready"} in ${(time.totalMs / 1000).toFixed(1)} s`,
+          );
+          keepsText(
+            get("metrics"),
+            `${result.usage.outputTokens ?? "Unknown"} output tokens · ${(time.generationMs / 1000).toFixed(1)} s generation · ${(time.renderMs / 1000).toFixed(1)} s rendering · ${result.model}`,
+          );
+        };
+        const run = async (input) => {
+          view?.dispose();
+          view = null;
+          empty.toggleAttribute("hidden", false);
+          errorBox.toggleAttribute("hidden", true);
+          holdDocument(request, input);
+          for (const part of ["code", "css", "js"]) {
+            const listing = get(part);
+            if (!listing) continue;
+            keepsText(listing, "No output yet.");
+            delete listing.dataset.lfSyntax;
+          }
+          if (get("compiled")) keepsText(get("compiled"), "No source yet.");
+          keepsText(get("metrics"), "");
+          const started = performance.now();
+          keepsText(status, "Generating…");
+          keepsText(clock, "0.0 s");
+          ticker = setInterval(() => {
+            keepsText(clock, `${((performance.now() - started) / 1000).toFixed(1)} s`);
+          }, 100);
+          try {
+            const result = await generate({
+              input,
+              instructions: approach.instructions,
+              schema: approach.schema,
+            });
+            if (signal.aborted) return;
+            const generated = performance.now();
+            keepsText(status, "Rendering…");
+            const record = {
+              ...result,
+              timing: {
+                generationMs: generated - started,
+                renderMs: 0,
+                totalMs: 0,
               },
             };
-          });
-          field.addEventListener(
-            "input",
-            () => tabStore.set("dynamic-widgets:request", field.value),
-            { signal },
-          );
-          host.querySelector("form").addEventListener(
-            "submit",
-            async (event) => {
-              event.preventDefault();
-              if (busy || !field.value.trim()) return;
-              busy = true;
-              button.disabled = true;
-              const input = field.value.trim();
-              keepsText(overall, "Comparing the same request…");
-              try {
-                await Promise.all(lanes.map((lane) => lane.run(input)));
-                if (!signal.aborted) keepsText(overall, "Comparison finished.");
-              } finally {
-                busy = false;
-                if (!signal.aborted) button.disabled = false;
-              }
-            },
-            { signal },
-          );
-          return () => lanes.forEach((lane) => lane.dispose());
-        });
+            keepsText(
+              code,
+              name === "html"
+                ? result.value.html
+                : JSON.stringify(result.value, null, 2),
+            );
+            for (const part of ["css", "js"])
+              if (get(part)) keepsText(get(part), result.value[part]);
+            if (get("compiled"))
+              keepsText(get("compiled"), catalog.compile(result.value));
+            // Leaf colours a listing again as its words change, once the mark of its
+            // last colouring is gone.
+            for (const part of ["code", "css", "js", "compiled"])
+              if (get(part)) delete get(part).dataset.lfSyntax;
+            await draw(result.value);
+            if (signal.aborted) return;
+            record.timing.renderMs = performance.now() - generated;
+            record.timing.totalMs = performance.now() - started;
+            metrics(record);
+          } catch (error) {
+            if (!signal.aborted) {
+              keepsText(
+                status,
+                `Failed after ${((performance.now() - started) / 1000).toFixed(1)} s`,
+              );
+              const failed = view;
+              view = null;
+              failed?.dispose();
+              empty.toggleAttribute("hidden", false);
+              showError(error);
+            }
+          } finally {
+            clearInterval(ticker);
+            if (!signal.aborted) keepsText(clock, "");
+          }
+        };
+        return {
+          run,
+          dispose() {
+            clearInterval(ticker);
+            view?.dispose();
+            view = null;
+          },
+        };
+      });
+      field.addEventListener(
+        "input",
+        () => tabStore.set("dynamic-widgets:request", field.value),
+        { signal },
+      );
+      host.querySelector("form").addEventListener(
+        "submit",
+        async (event) => {
+          event.preventDefault();
+          if (busy || !field.value.trim()) return;
+          busy = true;
+          button.disabled = true;
+          const input = field.value.trim();
+          keepsText(overall, "Comparing the same request…");
+          try {
+            await Promise.all(lanes.map((lane) => lane.run(input)));
+            if (!signal.aborted) keepsText(overall, "Comparison finished.");
+          } finally {
+            busy = false;
+            if (!signal.aborted) button.disabled = false;
+          }
+        },
+        { signal },
+      );
+      signal.addEventListener("abort", () => lanes.forEach((lane) => lane.dispose()));
     }
   },
 );

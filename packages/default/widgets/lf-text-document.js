@@ -31,13 +31,12 @@
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
+import { pageLinks } from "/runtime/widget-api.js";
 import {
-  whileConnected,
-  setRenderedChildren,
   setChildLists,
   setChildren,
-  pageLinks,
-} from "/runtime/widget-api.js";
+  setRenderedChildren,
+} from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
@@ -935,17 +934,21 @@ class TextDocument extends LeafElement {
 
   setup() {
     this.language = codeLanguage(this);
-    // A departure abandons the rendering in flight and its frame's wait, and the
-    // colour of the runs it drew, which a return draws again as they show.
-    whileConnected(this, () => {
-      this.showLone();
-      return () => {
-        this.rendering = this.rendering + 1;
-        this.finishFrame?.();
-        this.colours?.clear();
-        this.shown.clear();
-      };
-    });
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.showLone();
+  }
+
+  // A departure abandons the rendering in flight and its frame's wait, and the
+  // colour of the runs it drew, which a return draws again as they show.
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.rendering = this.rendering + 1;
+    this.finishFrame?.();
+    this.colours?.clear();
+    this.shown.clear();
   }
 
   // The text, set by whoever hosts the widget: Leaf from the bound source or output

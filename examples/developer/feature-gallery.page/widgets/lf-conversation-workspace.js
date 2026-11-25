@@ -2,18 +2,17 @@
    Local selection and ordering never change the log or decide obligation membership. */
 import { noChange } from "/vendor/lit.js";
 import {
-  obligationActions,
+  go,
   nameOf,
   readObligations,
   answerWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
-  setChildren,
   shadowStage,
   threadActions,
-  whileConnected,
 } from "/runtime/widget-api.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
@@ -23,21 +22,27 @@ customElements.define(
   class extends LeafElement {
     setup() {
       this.build();
-      whileConnected(this, () => {
-        this.presentation = registerThreadPresentation(this, {
-          render: (collection, parts) => this.present(collection, parts),
-          // A layout that already draws the part asked for keeps it: Shelf draws every
-          // conversation whole, and Feed every message and the selected one's reply box.
-          reveal: (key, { part }) => {
-            this.selected = key;
-            const drawn =
-              this.mode === "Shelf" ||
-              (this.mode === "Feed" && (part === "message" || part === "reply"));
-            if (!drawn) this.mode = "Conversation";
-          },
-        });
-        return () => this.presentation.unregister();
+    }
+    connectedCallback() {
+      super.connectedCallback();
+      this.presentation = registerThreadPresentation(this, {
+        render: (collection, parts) => this.present(collection, parts),
+        // A layout that already draws the part asked for keeps it: Shelf draws every
+        // conversation whole, and Feed every message and the selected one's reply box.
+        reveal: (key, { part }) => {
+          this.selected = key;
+          const drawn =
+            this.mode === "Shelf" ||
+            (this.mode === "Feed" && (part === "message" || part === "reply"));
+          if (!drawn) this.mode = "Conversation";
+        },
       });
+    }
+    // A move keeps the conversations the workspace presents.
+    connectedMoveCallback() {}
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.presentation.unregister();
     }
     render() {
       this.paintObligations();
@@ -173,7 +178,7 @@ customElements.define(
           const node = offer("li");
           const button = offerAction("word", "");
           button.addEventListener("click", () => {
-            void threadActions.open(key, { part: "thread" });
+            void go({ key }, { part: "thread" });
           });
           node.append(button);
           row = { node, button };
@@ -268,7 +273,7 @@ customElements.define(
           if (!row) {
             const node = offer("li");
             const open = offerAction("word", "");
-            open.addEventListener("click", () => void obligationActions.open(key));
+            open.addEventListener("click", () => void go({ id: key }));
             row = { node, open };
             this.queueRows.set(identity, row);
           }

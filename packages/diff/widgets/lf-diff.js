@@ -33,12 +33,11 @@
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   langForPath,
-  move,
   threadSurface,
-  setChildren,
   shadowStage,
-  whileConnected,
 } from "/runtime/portable-api.js";
+import { move } from "/runtime/lib/dom-move.js";
+import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -1144,24 +1143,31 @@ customElements.define(
       );
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      whileConnected(this, () => {
-        // A page diff's file header pins at `--lf-top`, the top of the page's box that
-        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-        // the module answers it once from the chrome's own mark and paints the answer.
-        this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
-        return () => {
-          this.rendering = (this.rendering ?? 0) + 1;
-          if (this.#showing) this.#shown = undefined;
-          // Leaf retires this surface when it leaves, after this cleanup, and puts
-          // core's views back, so every outlet goes.
-          if (this.threadSeats) {
-            for (const record of this.threadSeats.values()) record.active = false;
-            this.retireThreadOutlets();
-          }
-          this.threadSeats.clear();
-        };
-      });
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      // A page diff's file header pins at `--lf-top`, the top of the page's box that
+      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+      // the module answers it once from the chrome's own mark and paints the answer.
+      this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
+    }
+
+    // A move keeps the drawn files and the comment boxes in them.
+    connectedMoveCallback() {}
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.rendering = (this.rendering ?? 0) + 1;
+      if (this.#showing) this.#shown = undefined;
+      // Leaf retires this surface when it leaves, after this cleanup, and puts
+      // core's views back, so every outlet goes.
+      if (this.threadSeats) {
+        for (const record of this.threadSeats.values()) record.active = false;
+        this.retireThreadOutlets();
+      }
+      this.threadSeats.clear();
     }
 
     render() {

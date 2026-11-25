@@ -229,7 +229,7 @@ def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_pa
     page.keyboard.press("ArrowLeft")
     page.evaluate(
         """async () => {
-          const { setChildren } = await import('/runtime/widget-api.js');
+          const { setChildren } = await import('/runtime/lib/dom-children.js');
           const section = document.querySelector('#editing');
           const editor = section.querySelector('lf-file-editor');
           const empty = document.createElement('span');

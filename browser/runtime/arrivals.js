@@ -37,9 +37,9 @@
    one element may hold passes from one to the other. A connection also ends the
    batch, so an element removed before it and put back after it leaves and returns.
    The runtime's own subscriptions (data, projections, widget controllers) and the
-   host of declared elements (element-integration.js) hold it directly.
-   Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
-   scheduled paints, which `widget-api.js` exports in its place.
+   host of declared elements (element-integration.js) hold it directly, and its plain
+   elements, such as a composer's field, through `whileConnected`. A widget holds what
+   it starts for a connection in its own `connectedCallback` and `disconnectedCallback`.
 
    Present means in the document, the page's body and the chrome after it alike, or in
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
@@ -77,7 +77,7 @@
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
 import { isElement, renderedParent, shadowHost, under } from "./lib/shadow-tree.js";
-import { cancelRender, nextFrame, nextRender } from "./lib/frame-pass.js";
+import { nextFrame } from "./lib/frame-pass.js";
 import { scrollMoves } from "./lib/scroll-range.js";
 import {
   COMMANDS,
@@ -191,27 +191,6 @@ export function whileConnected(owner, start) {
       disconnect();
     },
   });
-}
-
-/** One coalesced nextRender callback while the owner stands. A departure cancels
- * pending work; the callback also checks connection before the arrival batch runs.
- * A return permits fresh scheduling, without replaying the cancelled callback. */
-/** @param {Element} owner @param {() => void} run */
-export function frameFor(owner, run) {
-  let frame = 0;
-  watchOwner(owner, {
-    disconnect() {
-      cancelRender(frame);
-      frame = 0;
-    },
-  });
-  return () => {
-    if (frame || !owner.isConnected) return;
-    frame = nextRender(() => {
-      frame = 0;
-      if (owner.isConnected) run();
-    });
-  };
 }
 
 export function liveStages() {

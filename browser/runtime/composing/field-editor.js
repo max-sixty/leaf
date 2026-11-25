@@ -1547,8 +1547,9 @@ function fieldEditor(
       return actAt(underline ? state.doc.lineAt(underline[0]).to : line.to);
     const prefix = containers.map(carried).join("");
     if (heading && from === to && from > parts.words) {
+      // A heading's closing `#`s stay with it.
       const close = underline ? state.doc.lineAt(underline[0]) : line;
-      const end = underline ? close.from - 1 : line.to;
+      const end = underline ? close.from - 1 : Math.max(from, parts.end);
       const rest = state.sliceDoc(from, end);
       const words = rest.slice(indentation(rest));
       const opens = close.to - (end - from) + 1;
@@ -1979,9 +1980,14 @@ function fieldEditor(
       const below = [];
       /** @type {string[]} */
       const ends = [];
-      for (const { token, from: a, to: b } of placed) {
+      for (const { token, from: a, to } of placed) {
         if (!(LEAF.test(token.type) || CONTAINER.test(token.type)) || a >= text.length)
           continue;
+        // A list or quote ends at its last line that holds anything, though the parser
+        // gives it the blank lines after.
+        let b = to;
+        while (b <= text.length && b > a + 1 && !text.lineAt(b - 1).text.trim())
+          b = text.lineAt(b - 1).from;
         const kind = `${token.type} ${token.level} ${place(Math.min(b, text.length))}`;
         if (b <= first) above.push(`${kind} ${a}`);
         else if (b > last + 1 && a > last) below.push(`${kind} ${place(a)}`);
@@ -2010,14 +2016,19 @@ function fieldEditor(
     if (was.below.length || was.ends.length) return false;
     const before = shownCharacters(state.doc.toString(), inMessage);
     const after = shownCharacters(source, inMessage);
-    const own = counted(typed);
+    // The characters of source text and those it shows, as `©` for `&copy;`.
+    /** @param {string} text */
+    const spelled = (text) => {
+      const counts = counted(text);
+      for (const [ch, n] of counted(markdownWords(text, inMessage)))
+        counts.set(ch, Math.max(n, counts.get(ch) ?? 0));
+      return counts;
+    };
+    const own = spelled(typed);
     for (const [ch, n] of after)
       if (n - (before.get(ch) ?? 0) > (own.get(ch) ?? 0)) return false;
     if (typed) return true;
-    // What the source taken shows, as `©` for `&copy;`, goes with it.
-    const gone = counted(taken);
-    for (const [ch, n] of counted(markdownWords(taken, inMessage)))
-      gone.set(ch, Math.max(n, gone.get(ch) ?? 0));
+    const gone = spelled(taken);
     const added = counted(put);
     for (const [ch, n] of before)
       if (

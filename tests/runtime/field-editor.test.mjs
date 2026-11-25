@@ -594,6 +594,7 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ],
     ["the innermost marker first", "> - item", 4, "⌫", "> item"],
     ["a task's box", "- [ ] task", 6, "⌫", "- task"],
+    ["an item's above a paragraph", "- B\n\nC", 2, "⌫", "B\n\nC"],
     ["a paragraph in a quote joins the one before", "> a\n>\n> b", 8, "⌫", "> ab"],
     ["a blank line the field draws goes first", "a\n\n\n\nb", 5, "⌫", "a\n\n\nb"],
     ["a new item goes whole", "- second\n- ", 11, "⌫", "- second"],
@@ -756,6 +757,13 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
     ["Return inside an entity", "Fish &amp; chips", 7, "⏎", "Fish &amp;\\\n chips"],
     ["Return among a task's markers", "- [ ] task", 3, "⏎", "- \n- [ ] task"],
     ["Return before a heading's closing marks", "# Hello #", 7, "⏎", "# Hello #\n"],
+    [
+      "Return among the words of a heading that closes",
+      "# Hello #",
+      4,
+      "⏎",
+      "# He #\nllo",
+    ],
     ["Return before marks the words show", "foo_bar_", 3, "⏎", "foo\\\n\\_bar_"],
     [
       "not where the heading's words would read as a table's header",
@@ -825,6 +833,10 @@ test("keys at the edge of a line's shown words act on its block, not its markup"
   assert.equal(
     (await draftField("A  \n", 4, false)).paste("word\n---"),
     "A  \n\nword\n---",
+  );
+  assert.equal(
+    (await draftField("A\\\n", 3, false)).paste("B\n&copy;"),
+    "A\\\nB\n&copy;",
   );
   assert.equal(
     (await draftField("- first\\\n  Next", 8, false)).paste("one\n- two"),

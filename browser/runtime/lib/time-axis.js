@@ -186,7 +186,8 @@ function axisTicks(from, to, duration, pxPerMs) {
       tick.flip &&
       before?.label &&
       !before.flip &&
-      (tick.time - before.time) * pxPerMs < labelRoom(before.label) + labelRoom(tick.label)
+      (tick.time - before.time) * pxPerMs <
+        labelRoom(before.label) + labelRoom(tick.label)
     )
       before.label = null;
     before = tick;

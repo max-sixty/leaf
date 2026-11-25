@@ -47,7 +47,8 @@
      in On Claude (records/thread/messages.js), is underlined at rest as a link is.
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
-     the list stands on (`aria-current`) wears the accent's stripe and tint. A step
+     the list stands on (`aria-current`) wears the accent's stripe and tint, or the
+     user's where it is the user's location (`aria-current="location"`). A step
      still ahead of it (`data-lf-ahead`) stands in the muted ink, and the row of the
      thread whose passage the pointer is on (`.lf-mark-hover`) in that passage's
      wash. A row that is its group's band (`data-lf-band`), as Done and Resolved are,

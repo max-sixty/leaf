@@ -1494,14 +1494,9 @@
     justify-self: end;
     position: relative;
   }
-  /* The version the page shows is where the user is, so its row and Showing take the
-     user's ink over the row face's accent (controls.css), which a widget's current row
-     keeps. Compare stays a quiet press, a word (controls.css), whose words Showing's
-     end on: its 10px padding and 1px border in. */
-  .lf-fp-version > .lf-row[aria-current]:not([aria-current="false"]) {
-    border-inline-start-color: var(--lf-here);
-    background-color: color-mix(in srgb, var(--lf-here) 12%, transparent);
-  }
+  /* Showing says which version the page shows, in the user's ink its row wears as the
+     user's location (controls.css); Compare stays a quiet press, a word (controls.css),
+     whose words Showing's end on: its 10px padding and 1px border in. */
   .lf-fp-showing {
     padding-inline: 11px;
     color: var(--lf-here);

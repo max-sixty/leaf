@@ -2772,7 +2772,7 @@ export function createFloatingPanel({
       data-lf-key=${key ?? nothing}
       .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
-      aria-current=${current ? "true" : nothing}
+      aria-current=${current ? "location" : nothing}
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
       ?data-lf-opens=${opens}

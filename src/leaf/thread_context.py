@@ -14,6 +14,7 @@ from leaf.events import (
     retractions,
     spoken_turns,
     taken_back,
+    unlined,
 )
 from leaf.passages import enclosing_ids, holds_html, message_markup
 from leaf.registry.kernel import kinds_declaring
@@ -613,10 +614,8 @@ def batch_threads(
 
     `whole` carries every message and gesture, for a reader that can't page
     through the rest, as a fork can't (`forks.line_prompt`). `beside_line` says that
-    a follower lists line forks for the session the batch goes to (`forks.lane_up`),
+    a follower lists line forks for the session the batch goes to (`leases.lane_up`),
     each with a fork beside it that summarizes its thread (`summary_fork`)."""
-    from leaf.forks import unlined
-
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
@@ -668,7 +667,7 @@ def batch_threads(
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         # A thread whose newest message in the batch came to a round that awaited a
-        # line (`forks.unlined`) is one a fork beside that round's line fork
+        # line (`events.unlined`) is one a fork beside that round's line fork
         # summarizes, so the hint is the fork's, and the session isn't asked to
         # spend a step on it too.
         newest = [event for event in batch if t in memberships[event["id"]]][-1]

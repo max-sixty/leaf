@@ -21,7 +21,7 @@ from functools import cache, cached_property, lru_cache
 from pathlib import Path
 
 from .files import file_stamp
-from .locations import first_overlap, located
+from .locations import first_overlap, located, paths_same
 from .machine import package_store
 from .page_memory import Stamped, memo, once
 from .refusals import Refused
@@ -119,6 +119,15 @@ def layer_inputs(
     """The kernel, bundled default, and explicitly selected packages, in order, a
     path selection resolving against `base` or else the working directory."""
     return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected, base or Path.cwd())]
+
+
+def package_layer_inputs(package: Path) -> list[Path]:
+    """The layer a page selecting this package alone composes: the mandatory layer,
+    then this package, once."""
+    inputs = layer_inputs()
+    if not any(paths_same(package, root) for root in inputs):
+        inputs.append(package)
+    return inputs
 
 
 def checked_inputs(inputs: list[Path]) -> list[Path]:

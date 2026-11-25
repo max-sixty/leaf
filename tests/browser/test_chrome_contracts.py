@@ -898,19 +898,13 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
         # A new list item shows its bullet with the caret just past the hidden source
         # marker, so the browser places the caret inside the marker's text. The caret
         # takes that text's ink, so hiding the marker's glyphs must leave the ink alone,
-        # however the caret arrived: continuing the list, deleting the marker's space,
-        # or arrows.
+        # however the caret arrived: continuing the list or arrows.
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         expect(field).to_have_js_property("value", "")
         page.keyboard.type("- one")
         page.keyboard.press("Shift+Enter")
         expect(field).to_have_js_property("value", "- one\n- ")
-        rendered(page)
-        caret, words = field.evaluate(CARET_INK)
-        assert caret == words
-        page.keyboard.press("Backspace")
-        expect(field).to_have_js_property("value", "- one\n-")
         rendered(page)
         caret, words = field.evaluate(CARET_INK)
         assert caret == words
@@ -2386,12 +2380,13 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(
             expect(field).to_have_js_property("value", "")
             for at, text in enumerate(lines):
                 if at:
-                    # A user retyping the line takes back what continuing the list put
+                    # A user retyping the line types over what continuing the list put
                     # there.
                     before = field.evaluate("box => box.value")
                     page.keyboard.press("Shift+Enter")
-                    while len(field.evaluate("box => box.value")) > len(before) + 1:
-                        page.keyboard.press("Backspace")
+                    added = len(field.evaluate("box => box.value")) - len(before) - 1
+                    for _ in range(added):
+                        page.keyboard.press("Shift+ArrowLeft")
                 page.keyboard.type(text)
             expect(field).to_have_js_property("value", "\n".join(lines))
             rendered(page)

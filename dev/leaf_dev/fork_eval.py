@@ -18,7 +18,7 @@ turn for a fresh session id and claims the page as that session
 hook --fork` as the hooks module does (`leaf.carrier`): a turn's end, or the report
 the pages follower lists for a round that awaits a line, whose answer is the fork to
 make, and then that fork's answer. For a line or summary fork, a process of the arm's
-holds the session's forks lane (`forks.take_lane`) while the user's waiting messages
+holds the session's forks lane (`leases.take_lane`) while the user's waiting messages
 are admitted, as the event endpoint admits them, and until the answer is taken, as the
 pages follower holds it, and reports the round the follower would list (`forks.look`,
 `LOOK`). A turn-end case's Leaf line
@@ -180,7 +180,7 @@ PRICES = {
 # Holds the session's forks lane until stdin closes.
 LANE = """
 import sys
-from leaf.forks import take_lane
+from leaf.leases import take_lane
 lane = take_lane(sys.argv[1])
 print("held", flush=True)
 sys.stdin.read()

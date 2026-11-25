@@ -341,7 +341,7 @@ def cmd_pages(payload: dict) -> None:
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    The follower is the session's forks lane (`forks.take_lane`) while it runs, and
+    The follower is the session's forks lane (`leases.take_lane`) while it runs, and
     lists the line forks while it holds it. Between presence reads it waits on each
     page's subscription (`file_changes.page_changes`) and on the lane's name, so it
     looks again as a message is admitted or as a later follower takes the lane. It
@@ -377,9 +377,8 @@ def cmd_pages(payload: dict) -> None:
     from .completions import listed as completions_listed
     from .completions import watch
     from .file_changes import FileChanges, page_changes, wait
-    from .forks import lane_path, take_lane
     from .interaction_log import record_follower
-    from .leases import release_lease
+    from .leases import lane_path, release_lease, take_lane
     from .page_memory import memory_of
     from .presence import PRESENCE_CACHE_S, live_leaves
 

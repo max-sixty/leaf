@@ -44,7 +44,7 @@ FOLLOWER = {"session_id": "s1"}
 @pytest.fixture
 def lane(claimed):
     """Session s1's forks lane, held as its pages follower holds it."""
-    held = forks_model.take_lane("s1")
+    held = leases_model.take_lane("s1")
     yield held
     if not held.closed:
         leases_model.release_lease(held)
@@ -661,7 +661,7 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
             return True
         if asked:
             raise Stopped
-        assert forks_model.lane_up("s1")
+        assert leases_model.lane_up("s1")
         heard, generation = file_changes_model.page_changes(claimed.resolve())
         assert heard in [changes for changes, _generation in marks]
         # Notifications of the fixture's own writes may still arrive.
@@ -676,7 +676,7 @@ def test_the_pages_follower_lists_a_line_fork_for_each_round_newer_than_itself(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
         hooks_model.cmd_pages(FOLLOWER)
-    assert not forks_model.lane_up("s1")
+    assert not leases_model.lane_up("s1")
     assert older["id"] in [round_["thread"] for round_ in listed(claimed)]
     shown = [json.loads(line)["do"] for line in capsys.readouterr().out.splitlines()]
     new = asked[0]["id"]
@@ -732,7 +732,7 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     with pytest.raises(SystemExit) as ended:
         hooks_model.cmd_pages(FOLLOWER)
     assert ended.value.code == os.EX_TEMPFAIL
-    assert not forks_model.lane_up("s1")
+    assert not leases_model.lane_up("s1")
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert listed["do"] == []
 

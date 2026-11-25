@@ -34,10 +34,10 @@ from render_harness import (
 )
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -18,6 +18,7 @@ from render_harness import (
     told,
 )
 
+from browser.margin import CARD_AT_REST
 from browser.threads import append_agent_reply, open_panel_thread, summarize_thread
 from leaf.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
@@ -224,6 +225,10 @@ def test_back_returns_to_the_card_a_later_open_in_panel_left(
     expect(card).to_have_attribute("data-lf-thread", first)
     page.keyboard.press("t")
     expect(card).to_have_attribute("data-lf-thread", second)
+    # The card glides from the first passage's seat to the second's after the scroll
+    # that brings it lands; a click issued mid-glide can land on the page beside it.
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
     cards.get_by_role("button", name="Open in panel", exact=True).click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{second}"]')).to_be_visible()
     expect(cards).to_be_hidden()
@@ -265,6 +270,10 @@ def test_a_rewrite_written_in_a_card_back_returned_to_reopens_there(
     expect(card).to_have_attribute("data-lf-thread", first)
     page.keyboard.press("t")
     expect(card).to_have_attribute("data-lf-thread", second)
+    # The card glides from the first passage's seat to the second's after the scroll
+    # that brings it lands; a click issued mid-glide can land on the page beside it.
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
     cards.get_by_role("button", name="Open in panel", exact=True).click()
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{second}"]')).to_be_visible()
     page.wait_for_function("navigation.transition === null")

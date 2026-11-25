@@ -1131,3 +1131,21 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
     user.get_by_role("radio", name="Before", exact=True).click()
     wait_until_ready(user)
     assert image_view(before) == pytest.approx(inspected, abs=1)
+
+
+def test_trace_reveal_of_a_part_it_lacks_draws_playback_stopped(browser, serve):
+    """Travel to a part the recording doesn't hold stops playback, and the Play
+    control says so, so its next press starts playback rather than stopping it."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    user = context.new_page()
+    user.goto(serve(named_source("playwright-trace-gallery")))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace").first
+    widget.get_by_role("button", name="Start", exact=True).click()
+    rendered(user)
+    widget.get_by_role("button", name="Play", exact=True).click()
+    play = widget.locator(".lf-trace-play")
+    expect(play).to_have_attribute("data-lf-playing", "")
+    widget.evaluate("widget => widget.lfParts.reveal('trace-0000-action-missing')")
+    expect(play).not_to_have_attribute("data-lf-playing", "")
+    expect(play).to_have_attribute("aria-label", "Play")

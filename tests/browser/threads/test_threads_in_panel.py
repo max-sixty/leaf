@@ -20,9 +20,9 @@ from render_harness import (
 )
 
 from browser.navigation.test_reading_place import ITEMS_LAYER, ITEMS_WIDGETS
-from browser.threads import PANEL_REPLY, choose_threads_in_panel, open_panel_thread
+from browser.threads import PANEL_REPLY, open_panel_thread
 from leaf.render_checks import wait_until_ready
-from leaf_dev.browser import PANEL, PANEL_THREAD, panel_view
+from leaf_dev.browser import PANEL, PANEL_THREAD, choose_threads_in_panel, panel_view
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

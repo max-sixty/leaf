@@ -17,7 +17,7 @@
       "required": ["generation", "fingerprint"]
     },
     "reading": {
-      "description": "The token of the page's own facts this answer read (`served_state.reading`), which the `reading` a news answer names is compared with. No other page moves it.",
+      "description": "The token of the page's own facts this answer read (`page_inputs.join_reading`), which the `reading` a news answer names is compared with. No other page moves it.",
       "type": "string"
     },
     "release": {

@@ -20,6 +20,7 @@ from .files import (
     revision_path,
     version_descriptors,
 )
+from .page_inputs import join_reading
 from .passages import SourceReading
 from .presence import presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry, served_layer
@@ -34,7 +35,6 @@ from .revision_artifact import (
 )
 from .runtime_selection import executing
 from .served_state.context import PageRead
-from .served_state.reading import join_reading
 from .service import PageTransaction
 from .state import now_iso
 from .structure import SourceDocument

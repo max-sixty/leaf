@@ -269,7 +269,7 @@
     code,
     samp,
     kbd {
-      background: var(--lf-code-bg);
+      background: var(--lf-chip);
       border-radius: var(--lf-code-inline-r);
       padding: var(--lf-code-inline-pad);
       font-size: var(--lf-code-inline-size);
@@ -280,7 +280,7 @@
        surfaces.css, whose rule outranks these), so a shortcut the page names looks like
        the one Leaf shows. */
     kbd {
-      border: 1px solid var(--lf-border);
+      border: 1px solid var(--lf-rule);
       background: var(--lf-chip);
     }
     /* A code block is sized by how many characters it takes across, which is why its size
@@ -293,16 +293,19 @@
     /* A pre and an hr take the room a draft edited in place gives a fence's and a
        rule's source lines (`.lf-msg-body hr` below says why). */
     pre {
-      color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
-      background: var(--lf-pre-bg);
-      border: 1px solid var(--lf-code-border);
+      color-scheme: var(
+        --lf-code-scheme,
+        inherit
+      ); /* tokens.css, at --lf-code-scheme */
+      background: var(--lf-card);
+      border: 1px solid var(--lf-rule);
       border-radius: var(--lf-r);
       padding: var(--lf-code-line) var(--lf-pre-inset)
         calc(var(--lf-code-line) - var(--lf-text-scroll-clearance));
       font-size: var(--lf-code-size);
       line-height: var(--lf-code-line);
       font-family: var(--lf-mono);
-      color: var(--lf-code-ink);
+      color: var(--lf-ink);
       font-variant-ligatures: none;
     }
     pre > :is(code, samp, kbd) {
@@ -416,7 +419,7 @@
       font-size: var(--lf-t-working-label);
       color: var(--lf-muted);
       font-weight: 600;
-      border-bottom-color: var(--lf-border);
+      border-bottom-color: var(--lf-rule);
     }
     th[scope="row"] {
       font-weight: 600;
@@ -498,7 +501,7 @@
     img:where(:not(.lf-media-frame img, [data-lf-frame] img)) {
       border-radius: var(--lf-r);
       box-shadow:
-        0 0 0 1px var(--lf-ring, var(--lf-border)),
+        0 0 0 1px var(--lf-ring, var(--lf-rule)),
         var(--lf-raise-1);
     }
     @media (forced-colors: active) {
@@ -882,7 +885,7 @@ leaf-text.lf-fab-input,
   font-size: var(--lf-code-size);
   line-height: var(--lf-code-line);
   font-variant-ligatures: none;
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   overflow-x: auto;
 }
 :where([data-lf-content="data"]:not([data-lf-verbatim]):not(.lf-rendered)) > pre {

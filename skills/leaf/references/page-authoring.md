@@ -219,8 +219,8 @@ Restyle the whole page through the theme's tokens on `:root` rather than rules o
 `body`, so Leaf's widgets, threads and panel follow the page. Three colours carry a
 palette: `--lf-paper` for the ground, `--lf-ink` for text and `--lf-accent` for
 links. Leaf steps the neutral colours of every surface from the first two,
-and the page's own rules read them too: `--lf-card`, `--lf-field`, `--lf-muted`,
-`--lf-rule` and `--lf-border`. The faces are `--lf-serif` for prose, `--lf-sans` for
+and the page's own rules read them too: `--lf-card`, `--lf-field`, `--lf-chip`,
+`--lf-muted` and `--lf-rule`. The faces are `--lf-serif` for prose, `--lf-sans` for
 labels and controls and `--lf-mono` for code, and `--lf-r` sets every corner
 (`package-themes.md`, "Theme tokens", lists every token). A palette made for one
 scheme also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take

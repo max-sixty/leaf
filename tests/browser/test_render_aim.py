@@ -3857,7 +3857,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
-  .authored-contour { outline:1px dashed var(--lf-ink-2); }
+  .authored-contour { outline:1px dashed var(--lf-ink); }
   </style>""",
             )
         ),

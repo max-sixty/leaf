@@ -147,7 +147,7 @@
   --lf-margin-entry: max(26px, var(--lf-aim-floor));
 }
 .lf-margin-receipt {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   font-weight: 600;
 }
 .lf-margin-receipt[data-lf-margin-receipt="negative"] {

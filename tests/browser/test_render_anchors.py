@@ -2134,8 +2134,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const leafFontSize = getComputedStyle(reference).fontSize;
       const leafLineHeight = getComputedStyle(reference).lineHeight;
       const leafBackground = getComputedStyle(reference).backgroundColor;
-      const backgroundChannels = leafBackground.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const pageBackground = getComputedStyle(document.body).backgroundColor;
+      reference.style.background = 'var(--lf-card)';
+      const cardBackground = getComputedStyle(reference).backgroundColor;
       reference.remove();
       return {
         segmentCount: segments.length,
@@ -2157,7 +2158,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         leafFontSize,
         leafLineHeight,
         leafBackground,
-        backgroundIsWhite: backgroundChannels.every(channel => channel === 255),
+        backgroundIsTheCard: leafBackground === cardBackground,
         backgroundIsSeparateFromPage: leafBackground !== pageBackground,
       };
     }""")
@@ -2175,7 +2176,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["fontSize"] == reading["leafFontSize"] == "13.5px", reading
     assert reading["lineHeight"] == reading["leafLineHeight"] == "20px", reading
     assert reading["background"] == reading["leafBackground"], reading
-    assert reading["backgroundIsWhite"], reading
+    assert reading["backgroundIsTheCard"], reading
     assert reading["backgroundIsSeparateFromPage"], reading
 
     py = by_path["gateway/limits.py"]
@@ -2370,26 +2371,17 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
             stands = math.dist(paints[kind]["mark"], paints[kind]["row"])
             assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
 
-    # A theme or page sets the code inputs apart from the scheme (package-themes.md,
+    # A theme or page sets code's scheme apart from the page's (package-themes.md,
     # "Theme tokens"), as dark code on a light page does. The rows take their lightness
-    # from the code canvas rather than the scheme, so they stand a step from it and the
-    # code on them reads as it does on the canvas.
-    dark_code = {
-        "--lf-pre-bg": "#1b1b1a",
-        "--lf-code-ink": "#e8e7e3",
-        "--lf-syn-comment": "#cac2b3",
-        "--lf-syn-keyword": "#efafa0",
-        "--lf-syn-string": "#9dc4dd",
-        "--lf-syn-number": "#a8c4e2",
-        "--lf-syn-name": "#cdb2e8",
-        "--lf-syn-type": "#e6bc88",
-    }
+    # from the code canvas rather than the page's scheme, so they stand a step from it
+    # and the code on them reads as it does on the canvas.
+    dark_code = {"--lf-code-scheme": "dark"}
     restyle = """tokens => Object.entries(tokens).forEach(([name, value]) =>
       value ? document.documentElement.style.setProperty(name, value)
         : document.documentElement.style.removeProperty(name))"""
     page.evaluate(restyle, dark_code)
     paints = page.evaluate(read_paints)
-    assert paints["canvas"][0] < 0.3, "the dark code tokens never reached the canvas"
+    assert paints["canvas"][0] < 0.3, "code's dark scheme never reached the canvas"
     for kind in ("added", "removed"):
         step = paints[kind]["row"][0] - paints["canvas"][0]
         assert abs(step) < 0.1, f"a {kind} row {step:+.3f} in lightness from dark code"

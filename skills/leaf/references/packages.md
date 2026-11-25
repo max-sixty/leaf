@@ -103,7 +103,7 @@ adding a widget does not change its theme styling.
 | `chrome.css`        | Leaf's chrome, above its own rules | —                                     | —                   |
 
 A widget can seat a thread in its shadow tree, as a diff does a line's, so a declared
-shadow tree takes `defaults.css` within `@scope (.lf-thread-transcript)`, in `lf-shadow`
+shadow tree takes `defaults.css` scoped to a thread's transcript, in `lf-shadow`
 after its `widget-shadow.css`, as it follows that sheet in the document: a message's
 markup wears the same look there as in the document, and the widget's own elements take
 none of it.
@@ -171,7 +171,7 @@ Custom properties come in four kinds:
 | Kind                 | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Theme tokens         | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "A page's theme"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
-| Facts about a box    | The box that allocates space sets them for what it holds, and a rule inside reads them: `--lf-full-height` and `--lf-density`, as `package-themes.md`, "A theme change", describes, and a Layout's facts below. Leaf also writes values it measures, such as `--lf-root-headers` and anchor geometry. Read those; don't set them.                                                                                                                                        |
+| Facts about a box    | The box that allocates space sets them for what it holds, and a rule inside reads them: `--lf-full-height` and `--lf-density`, as `package-themes.md`, "A theme change", describes, and a Layout's facts below. Leaf also writes values it measures, such as anchor geometry. Read those; don't set them.                                                                                                                                                                |
 | Declarations to Leaf | A rule sets them on its own box for Leaf to read, such as `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                 |
 | Vendor bridges       | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
 
@@ -192,16 +192,16 @@ The page's body is the size container `lf-shell`, whose width a rule asks with
 | `--lf-track-spine: 1`  | a track it narrowed for the one element in it, which declares `spine` | that element may show its words over the body                            |
 | `--lf-track-room`      | a sidebar, and the parent of a track, in a window 480px tall or more  | the height a track that sticks may take                                  |
 
-Leaf's interface sets its words in a closed set of fonts derived from those tokens,
-each a whole value for the `font` shorthand, declared together in
-`browser/styles/tokens.css` beside what each one sets. A widget's own words, such as
-its controls, statuses, counts, labels and readouts, and the sentences it holds, such
-as a card's, name the font for their kind (`font: var(--lf-font-small)`,
-`font: var(--lf-font-widget)`) rather than a size, line height or family of their own. They then match Leaf's at
-every density and under every theme, and a page doesn't collect faces a pixel or a
-weight apart from the ones Leaf already draws. The fonts for one line of words, such as
-`--lf-font-ui`, `--lf-font-compact` and `--lf-font-small`, share one line height, the
-number `--lf-ui-lh`, which a box multiplies by the font's size to keep room for a line.
+Leaf's interface sets its words in two fonts derived from those tokens, each a whole
+value for the `font` shorthand: `--lf-font-ui`, the interface's own, and
+`--lf-font-small`, for whatever qualifies a line. A widget's own words, such as its
+controls, statuses, counts, labels and readouts, and the sentences it holds, such as a
+card's, name one of the two (`font: var(--lf-font-small)`) rather than a size, line
+height or family of their own, and set beside it only a weight of 400, 500 or 600 and
+the mono family (`font-family: var(--lf-mono)`). They then match Leaf's at every
+density and under every theme, and a page doesn't collect faces a pixel apart from the
+ones Leaf already draws. Both fonts share one line height, 1.45 of the font's size,
+which a box multiplies by that size to keep room for a line.
 
 Every custom property Leaf declares starts with `--lf-`, so none meets a name a page
 or its framework coins. A page, theme or package may rely on those these references

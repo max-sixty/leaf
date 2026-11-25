@@ -117,11 +117,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--lf-key-badge-size);
   height: var(--lf-key-badge-size);
   padding: 0 4px;
-  border: 1px solid var(--lf-border);
-  border-radius: var(--lf-r-s);
+  border: 1px solid var(--lf-rule);
+  border-radius: calc(var(--lf-r) / 2);
   background: var(--lf-chip);
-  color: var(--lf-ink-2);
-  font: var(--lf-font-code);
+  color: var(--lf-ink);
+  font: var(--lf-font-small);
+  font-family: var(--lf-mono);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -670,7 +671,7 @@ a[data-lf-external]::after,
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(
     :not([aria-disabled="true"], :disabled)
   ) {
-  box-shadow: var(--lf-offer-hover-shadow);
+  box-shadow: inset 0 0 0 100px var(--lf-offer-hover);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: not-allowed;
@@ -864,7 +865,7 @@ summary {
 [data-lf-thread-surface] > .lf-resolved-threads > .lf-page-thread {
   padding: var(--lf-thread-frame);
   border-radius: var(--lf-r-l);
-  box-shadow: inset 0 0 0 1px var(--lf-border);
+  box-shadow: inset 0 0 0 1px var(--lf-rule);
   background: var(--lf-ground);
 }
 /* A forced palette drops shadows, so there the frame is an outline on the card's edge. */
@@ -997,7 +998,7 @@ summary {
   --lf-msg-rest-ground: transparent;
   --lf-msg-ground: color-mix(
     in srgb,
-    var(--lf-hi-tint) calc(var(--lf-msg-arrival) * 100%),
+    var(--lf-warn-tint) calc(var(--lf-msg-arrival) * 100%),
     var(--lf-msg-rest-ground)
   );
   background-color: var(--lf-msg-ground);
@@ -1157,7 +1158,7 @@ summary {
   padding: 8px var(--lf-thread-text-inset);
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   border-radius: var(--lf-r);
-  background: var(--lf-settled-tint);
+  background: var(--lf-chip);
 }
 /* Open, the region takes in the messages the summary folds: the fill stands under
    them, and each stands on the tint as its own ground, so a head stuck at a card's top
@@ -1180,19 +1181,20 @@ summary {
   );
   inset-inline-end: anchor(var(--lf-fold-head) end);
   border-radius: var(--lf-r);
-  background: var(--lf-settled-tint);
+  background: var(--lf-chip);
   pointer-events: none;
 }
 .lf-thread-transcript > .lf-msg[data-lf-summarized] {
-  --lf-ground: var(--lf-settled-tint);
-  --lf-msg-rest-ground: var(--lf-settled-tint);
+  --lf-ground: var(--lf-chip);
+  --lf-msg-rest-ground: var(--lf-chip);
 }
 /* The press at the summary's head stands in a message time's quiet face, which it
    takes as words among others do (controls.css, the inline face). */
 .lf-summary-header {
   display: flex;
   color: var(--lf-muted);
-  font: var(--lf-font-status);
+  font: var(--lf-font-small);
+  font-weight: 500;
 }
 /* The name the agent gave the range, leading its words. */
 .lf-summary-label {
@@ -1200,7 +1202,7 @@ summary {
   font-weight: 600;
 }
 .lf-summary-text {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   font: var(--lf-font-ui);
   overflow-wrap: anywhere;
   user-select: text;
@@ -1465,7 +1467,8 @@ summary {
    (`NEWS_ROOM`, held-news.js; `data-lf-room`, controls.css), so a count that grows
    keeps to that room. */
 button.lf-thread-news {
-  font: var(--lf-font-heading);
+  font: var(--lf-font-small);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .lf-thread-news > span {
@@ -1493,7 +1496,7 @@ button.lf-thread-news {
    clips its words rather than hiding their overflow, since a box that hides it
    scrolls, and focus scrolled its words up out of the head's line. */
 .lf-msg-head span.lf-msg-leaves {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
 }
 .lf-msg-head button.lf-msg-leaves {
   overflow: clip;
@@ -1520,7 +1523,8 @@ button.lf-thread-news {
   margin: 0;
   padding-inline: var(--lf-thread-text-inset) 8px;
   color: var(--lf-muted);
-  font: var(--lf-font-status);
+  font: var(--lf-font-small);
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 .lf-thread-quote-head:not([hidden]) {
@@ -1534,7 +1538,7 @@ button.lf-thread-news {
   margin: 0;
   padding-block: 2px;
   padding-inline: calc(var(--lf-thread-text-inset) - 1px) 8px;
-  border-inline-start: 1px solid var(--lf-border);
+  border-inline-start: 1px solid var(--lf-rule);
   min-width: 0;
   color: var(--lf-muted);
   font: var(--lf-font-compact);

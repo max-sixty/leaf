@@ -31,7 +31,7 @@ const C = {
   card: "var(--lf-card)",
   field: "var(--lf-field)",
   ink: "var(--lf-ink)",
-  ink2: "var(--lf-ink-2)",
+  ink2: "var(--lf-ink)",
   muted: "var(--lf-muted)",
   rule: "var(--lf-rule)",
   faint: "color-mix(in srgb, var(--lf-muted) 42%, var(--lf-card))",

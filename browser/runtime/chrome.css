@@ -295,13 +295,13 @@ html[data-lf-draw-mode] {
     .lf-dot[data-lf-tone="working"],
     [data-lf-tone="working"] > svg[data-lf-icon="leaf"]
   ) {
-    color: var(--lf-work);
+    color: var(--lf-accent);
   }
   :is(
     .lf-dot[data-lf-tone="listening"],
     [data-lf-tone="listening"] > svg[data-lf-icon="leaf"]
   ) {
-    color: var(--lf-turn);
+    color: var(--lf-here);
   }
   :is(.lf-dot[data-lf-tone="away"], [data-lf-tone="away"] > svg[data-lf-icon="leaf"]) {
     color: var(--lf-warn);
@@ -398,7 +398,7 @@ html[data-lf-draw-mode] {
     margin: 0;
     --lf-ground: var(--lf-card);
     background: var(--lf-ground);
-    border: 1px solid var(--lf-border);
+    border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r-l);
     box-shadow: var(--lf-raise-3);
     padding: 14px 18px;
@@ -514,7 +514,7 @@ html[data-lf-draw-mode] {
   }
   .lf-media-viewer .pswp__img {
     border-radius: 0;
-    outline: 1px solid var(--lf-border);
+    outline: 1px solid var(--lf-rule);
     box-shadow: var(--lf-raise-2);
   }
   .lf-media-viewer .pswp {
@@ -750,7 +750,8 @@ html[data-lf-draw-mode] {
   }
   .lf-dialog-title {
     flex: 1;
-    font: var(--lf-font-title);
+    font: var(--lf-font-ui);
+    font-weight: 600;
   }
   /* Close's ✕, rather than its box, ends where the dialog's words end, as in the
      floating panel's head (controls.css, `--lf-symbol-inset`). */
@@ -794,7 +795,7 @@ html[data-lf-draw-mode] {
     margin: 0 auto;
     --lf-sheet-inset: 14px;
     padding: var(--lf-sheet-inset);
-    border: 1px solid var(--lf-border);
+    border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r-l);
     --lf-ground: var(--lf-paper);
     background: var(--lf-ground);
@@ -875,10 +876,11 @@ html[data-lf-draw-mode] {
   .lf-copyable-text pre {
     margin-block: 0 10px;
     padding: 8px;
-    border: 1px solid var(--lf-border);
+    border: 1px solid var(--lf-rule);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font: var(--lf-font-code);
+    font: var(--lf-font-small);
+    font-family: var(--lf-mono);
   }
   .lf-copyable-text pre::after {
     content: none;
@@ -999,7 +1001,7 @@ html[data-lf-draw-mode] {
      block. Where the agent is at work, in the work's colour its margin entry wears while
      it works: it comes and goes with the work, whose start the margin entry's pulse
      acknowledges. What changed since the comparison's base, in the change's (tokens.css,
-     at `--lf-change`). Where both stand beside one block, the work's covers the
+     at `--lf-muted`). Where both stand beside one block, the work's covers the
      change's. */
   :is(.lf-at-work-bar, .lf-change-bar) {
     position: absolute;
@@ -1007,10 +1009,10 @@ html[data-lf-draw-mode] {
     border-radius: 1.5px;
   }
   .lf-at-work-bar {
-    background: var(--lf-work);
+    background: var(--lf-accent);
   }
   .lf-change-bar {
-    background: var(--lf-change);
+    background: var(--lf-muted);
   }
   /* A change's mark is an annotation, so hiding annotations (`g H`, annotation-layer.js)
      hides its bar too. */
@@ -1049,29 +1051,29 @@ html[data-lf-draw-mode] {
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 9px 12px 12px;
-    border: 1px solid var(--lf-border);
+    border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r);
     background: var(--lf-card);
     color: var(--lf-ink);
     box-shadow: var(--lf-raise-2);
-    font: var(--lf-font-widget);
+    font: var(--lf-font-ui);
     pointer-events: auto;
     & p {
       margin: 0;
     }
     & del {
       margin-inline-end: 0.28em;
-      background: var(--lf-del-tint);
+      background: var(--lf-danger-tint);
       color: var(--lf-danger-ink);
     }
     & ins {
-      background: var(--lf-add-tint);
+      background: var(--lf-ok-tint);
       text-decoration: none;
     }
   }
   .lf-change-card-head {
     font: var(--lf-font-small);
-    color: var(--lf-ink-2);
+    color: var(--lf-ink);
   }
   .lf-change-card-block[data-lf-kind="heading"] {
     font-weight: 600;
@@ -1151,7 +1153,7 @@ html[data-lf-draw-mode] {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 1px 6px;
-    border-radius: var(--lf-r-s);
+    border-radius: calc(var(--lf-r) / 2);
     font: var(--lf-font-small);
     background: var(--lf-accent);
     color: var(--lf-paper);
@@ -1401,7 +1403,8 @@ html[data-lf-draw-mode] {
   .lf-place-code {
     display: block;
     white-space: pre;
-    font: var(--lf-font-code);
+    font: var(--lf-font-small);
+    font-family: var(--lf-mono);
   }
   .lf-place-figure {
     display: flex;

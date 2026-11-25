@@ -901,13 +901,13 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         assert faces == [faces[0]] * len(faces), faces
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
         assert faces[0]["background"] == token_colour(page, "--lf-paper"), faces[0]
-        assert faces[0]["border"] == ["1px", token_colour(page, "--lf-border")]
+        assert faces[0]["border"] == ["1px", token_colour(page, "--lf-rule")]
         # The glyphs keep what they say on the rail: Accept's tone, a thread's blue.
         assert inks == [
-            token_colour(page, "--lf-ink-2"),
+            token_colour(page, "--lf-ink"),
             token_colour(page, "--lf-ok-ink"),
             token_colour(page, "--lf-accent"),
-            token_colour(page, "--lf-ink-2"),
+            token_colour(page, "--lf-ink"),
         ], inks
         status.hover()
         assert status.evaluate(read_face) == {**faces[0], "ink": inks[0]}

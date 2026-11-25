@@ -9,10 +9,9 @@
    `--lf-font-message`; none of it takes the page's prose face. Rejected: its own 13px and
    12px, which put its qualifiers half a pixel larger than the headings and statuses
    it shares with the other lists. Three inks: the ink, the muted (`--lf-muted`, tokens.css)
-   for what qualifies a line, as every list's does, and the
-   accent for what is on the user, with the empty field's words a step dimmer
-   (`--lf-quiet`, tokens.css), as every empty box's are. The user chose a dim status, so
-   it stays the dimmest words in the panel. Every row is one line. */
+   for what qualifies a line, as every list's does, and for the empty field's words, as
+   every empty box's are, and the accent for what is on the user. The user chose a dim
+   status, and no words in the panel are dimmer than it. Every row is one line. */
 @scope (.lf-chrome) {
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
@@ -333,7 +332,7 @@
     gap: 4px;
     padding: 3px 4px;
     margin-inline-end: var(--lf-clear);
-    border-radius: var(--lf-chip-r);
+    border-radius: calc(var(--lf-r) / 2);
     background: color-mix(in srgb, var(--lf-accent) 10%, transparent);
     color: var(--lf-ink);
     font: var(--lf-font-small);
@@ -630,7 +629,7 @@
     outline: none;
   }
   /* The empty field's words read dimmer than anything written in it, in every empty
-     box's face (`--lf-quiet`, text-field.js): the agent's status, whose turn a thread is,
+     box's face (`--lf-muted`, text-field.js): the agent's status, whose turn a thread is,
      and, once the caret is in, the field's word. A passing notice is news, so it reads
      a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
@@ -656,7 +655,7 @@
      (floating-panel.js, `panelTemplate`), wear the ink every empty box's words do
      (theme, `--quiet`), where the editor says them. */
   .lf-fp-words {
-    color: var(--lf-quiet);
+    color: var(--lf-muted);
   }
   /* The textarea the user writes in there until the editor stands stands over those
      words (bootstrap.js, `standRow`) and draws its words as the editor does, in the
@@ -683,7 +682,7 @@
      such as a Resolve's Next thread, keeps that face whatever ink the words before it
      wear, in Leaf's italic whatever voice theirs is. */
   .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
-    color: var(--lf-quiet);
+    color: var(--lf-muted);
     font-style: italic;
   }
   .lf-fp-field
@@ -732,8 +731,10 @@
     .lf-floating-panel[data-lf-tone="working"]:not([data-lf-asks])
       .lf-fp-field
       leaf-text[data-lf-says="status"]::part(placeholder) {
-      /* The quiet face is ink at 62% (`--lf-quiet`, tokens.css). */
-      --lf-sheen-rest: 0.62;
+      /* The status rests in the muted ink, which stands where ink at 64% does on the
+         light paper and where ink at 75% does on the dark, so the sheen rests between
+         the two. */
+      --lf-sheen-rest: 0.69;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
@@ -750,16 +751,16 @@
      the empty field's quiet face whatever ink the status wears: the user's own choices
      ask nothing of them. */
   .lf-fp-field leaf-text[data-lf-says="status"] .lf-fp-standing {
-    color: var(--lf-quiet);
+    color: var(--lf-muted);
   }
   .lf-floating-panel[data-lf-asks] {
     --lf-fp-asks: var(--lf-ink);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="working"] {
-    --lf-fp-asks: var(--lf-work);
+    --lf-fp-asks: var(--lf-accent);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="listening"] {
-    --lf-fp-asks: var(--lf-turn-ink);
+    --lf-fp-asks: var(--lf-ok-ink);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="away"] {
     --lf-fp-asks: var(--lf-warn-ink);
@@ -1513,7 +1514,8 @@
     max-height: 8lh;
     overflow-y: auto;
     color: var(--lf-ink);
-    font: var(--lf-font-code);
+    font: var(--lf-font-small);
+    font-family: var(--lf-mono);
     white-space: pre-wrap;
   }
   /* The errors the user has met (floating-panel.js, `errorsList`): each says what
@@ -1784,11 +1786,12 @@
      chosen, as a chosen option's ok chip stands on the card's (options.css). */
   .lf-fp-choice-tag {
     display: inline-block;
-    padding: var(--lf-chip-pad);
-    border-radius: var(--lf-chip-r);
+    padding: 0 var(--lf-sp-2);
+    border-radius: calc(var(--lf-r) / 2);
     background: var(--lf-ok-tint);
     color: var(--lf-ok-ink);
-    font: var(--lf-font-chip);
+    font: var(--lf-font-small);
+    line-height: var(--lf-chip-lh);
     white-space: nowrap;
   }
   .lf-fp-answer[aria-pressed="true"] .lf-fp-choice-tag {
@@ -1885,7 +1888,7 @@
     place-items: center;
     width: 16px;
     height: 1lh;
-    color: var(--lf-quiet);
+    color: var(--lf-muted);
   }
   .lf-fp-plan-step:is([data-lf-state="waiting"], [data-lf-state="blocked"])
     > .lf-fp-plan-mark::before {
@@ -1899,7 +1902,7 @@
     border-radius: 50%;
   }
   .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-mark {
-    color: var(--lf-settled-ink);
+    color: var(--lf-ink);
   }
   .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-title,
   .lf-fp-plan-step[data-lf-state="dropped"] > .lf-fp-plan-title {
@@ -1912,7 +1915,7 @@
     color: var(--lf-danger-ink);
   }
   .lf-fp-plan-step[data-lf-state="running"] > .lf-fp-plan-mark {
-    color: var(--lf-work);
+    color: var(--lf-accent);
   }
   .lf-fp-plan-step[data-lf-state="running"] > .lf-fp-plan-title {
     font-weight: 600;

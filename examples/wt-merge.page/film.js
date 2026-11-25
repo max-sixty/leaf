@@ -31,7 +31,7 @@ const ROLES = {
   rule: "--lf-rule",
   ink: "--lf-ink",
   muted: "--lf-muted",
-  faint: "--lf-border",
+  faint: "--lf-rule",
   main: "--lf-accent",
   feat: "--lf-warn",
   squash: "--lf-series-4",
@@ -40,10 +40,10 @@ const ROLES = {
   warn: "--lf-warn-ink",
 };
 const TERM_ROLES = {
-  bg: "--lf-pre-bg",
-  rule: "--lf-code-border",
-  ink: "--lf-code-ink",
-  muted: "--lf-code-muted",
+  bg: "--lf-card",
+  rule: "--lf-rule",
+  ink: "--lf-ink",
+  muted: "--lf-muted",
   ok: "--lf-ok",
   bad: "--lf-danger",
 };

@@ -11,14 +11,15 @@
   align-items: center;
   gap: 0.5rem 1rem;
   padding: var(--lf-file-editor-head-pad) 1rem;
-  border-bottom: 1px solid var(--lf-border);
+  border-bottom: 1px solid var(--lf-rule);
 }
 :host(lf-file-editor) .lf-file-editor-name {
   flex: 1;
   min-width: 0;
   overflow: auto;
   white-space: nowrap;
-  font: var(--lf-font-title);
+  font: var(--lf-font-ui);
+  font-weight: 600;
 }
 :host(lf-file-editor) .lf-file-editor-status {
   flex: 0 0 10rem;
@@ -105,7 +106,7 @@
   padding: 0.75rem 1rem 1rem;
   --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
-  border-top: 1px solid var(--lf-border);
+  border-top: 1px solid var(--lf-rule);
 }
 :host(lf-file-editor) .lf-file-editor-compared[hidden] {
   display: none;

@@ -42,7 +42,7 @@ export function backgroundFlash(el) {
   const ms = motionTime("--lf-motion-flash");
   /** @param {Element} box */
   const tint = (box) =>
-    playMotion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], {
+    playMotion(box, [{ backgroundColor: "var(--lf-warn-tint)", offset: 0 }], {
       duration: ms,
     });
   const own = tint(el);

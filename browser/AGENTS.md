@@ -365,10 +365,12 @@ directly as in a terminal").
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
-- **A mark's colour says one thing, the same on every surface.** A mark reads the
-  token for what it tells the user (`styles/tokens.css`, at `--lf-turn`), never a hue, so
-  the user's turn, a thread, the agent's work, what is unread, what changed and what
-  is settled each look alike in the margin, the contents and the panel. Every surface
+- **A mark's colour says one thing, the same on every surface.** A mark's colour says
+  whose it is, and each party has one token (`styles/tokens.css`, at `--lf-here`): the
+  user's colour for the user's turn and where they are, the accent for a thread, the
+  agent's work and what is unread, the muted ink for what changed and the ink for what
+  is settled. A mark reads its party's token, never a hue of its own, so each looks
+  alike in the margin, the contents and the panel. Every surface
   paints a thread's `unread` and `attention` from one value, so the leaf's dot,
   Threads, the panel, a margin entry and the Page Map change together, and marking read
   never moves the user.

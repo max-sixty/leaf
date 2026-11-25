@@ -4,7 +4,7 @@
    resolves in the code's face on the <pre> and a note inherits that width, not its own
    face's `ch`. The rendered lines own the block's containment. */
 lf-code {
-  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
+  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-card */
   contain: inline-size;
   /* Its code block wears markup's reading face (`reading.css`) whatever look the page
      takes, since the block's frame and type are the widget's own. */
@@ -40,8 +40,8 @@ lf-code.lf-rendered > pre {
   --lf-code-ch: 1ch;
   background-image: linear-gradient(
     to right,
-    var(--lf-code-chrome) calc(var(--lf-code-gutter) - 1px),
-    var(--lf-code-border) calc(var(--lf-code-gutter) - 1px) var(--lf-code-gutter),
+    var(--lf-paper) calc(var(--lf-code-gutter) - 1px),
+    var(--lf-rule) calc(var(--lf-code-gutter) - 1px) var(--lf-code-gutter),
     transparent var(--lf-code-gutter)
   );
   background-attachment: local;
@@ -72,10 +72,10 @@ lf-code :is(.lf-code-line, .lf-code-elided)::before {
   margin-right: var(--lf-code-gap);
   padding-right: 10px;
   box-sizing: border-box;
-  border-right: 1px solid var(--lf-code-border);
-  background: var(--lf-code-chrome);
+  border-right: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
   text-align: right;
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
 }
 lf-code .lf-code-line::before {
@@ -93,7 +93,7 @@ lf-code .lf-code-elided {
   display: flex;
   align-items: baseline;
   padding: 0 var(--lf-code-inset-inline) 0 0;
-  color: var(--lf-code-muted);
+  color: var(--lf-muted);
   user-select: none;
 }
 lf-code .lf-code-elided::before {
@@ -122,7 +122,7 @@ lf-code .lf-code-elided > lf-note::before {
   content: "— ";
 }
 lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi] {
-  background: var(--lf-hi-tint);
+  background: var(--lf-warn-tint);
 }
 lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
   border-right-color: var(--lf-warn);
@@ -179,7 +179,7 @@ lf-code > pre > lf-note {
   margin-inline-start: var(--lf-code-note-indent);
   padding: 13px calc(var(--lf-code-inset-inline) + 12px) 17px
     calc(var(--lf-code-note-at) + 12px);
-  color: var(--lf-code-ink);
+  color: var(--lf-ink);
   font: var(--lf-font-small);
   white-space: normal;
   --lf-block-frame: 1;
@@ -191,9 +191,9 @@ lf-code > pre > lf-note::before {
   position: absolute;
   z-index: -1;
   inset: 5px var(--lf-code-inset-inline) 9px var(--lf-code-note-at);
-  border: 1px solid var(--lf-code-border);
+  border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
-  background: var(--lf-code-chrome);
+  background: var(--lf-paper);
 }
 lf-code > pre > lf-note::after {
   content: "";
@@ -202,9 +202,9 @@ lf-code > pre > lf-note::after {
   inset-inline-start: calc(var(--lf-code-note-at) + 0.5 * var(--lf-code-ch) - 4px);
   inline-size: 8px;
   block-size: 8px;
-  border-inline-start: 1px solid var(--lf-code-border);
-  border-block-start: 1px solid var(--lf-code-border);
-  background: var(--lf-code-chrome);
+  border-inline-start: 1px solid var(--lf-rule);
+  border-block-start: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
   transform: rotate(45deg);
 }
 /* Inline code in a note keeps the code canvas's ground and ink, which stand apart from
@@ -212,8 +212,8 @@ lf-code > pre > lf-note::after {
    inline code, a fifth smaller than its words, is too small at the note's size. */
 lf-code > pre > lf-note code,
 lf-code > lf-note code {
-  background: var(--lf-pre-bg);
-  color: var(--lf-code-ink);
+  background: var(--lf-card);
+  color: var(--lf-ink);
 }
 /* A block with notes draws its notes mark and Copy on one toolbar (integration.css,
    `.lf-mark-bar`) in the seat a lone Copy takes, inside the block's top-right corner,
@@ -251,8 +251,8 @@ lf-code[data-lf-notes="hidden"] .lf-code-line:has(+ lf-note)::before {
 @scope (html[data-lf-interactive] lf-code) {
   :scope:is(lf-code):not(.lf-rendered) {
     & > pre {
-      background: var(--lf-pre-bg);
-      border: 1px solid var(--lf-code-border);
+      background: var(--lf-card);
+      border: 1px solid var(--lf-rule);
       border-radius: var(--lf-r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline)
         var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));

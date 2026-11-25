@@ -39,7 +39,7 @@
     .margin-entry-gallery-projection-result {
       grid-column: 2;
       margin: 0;
-      color: var(--lf-ink-2);
+      color: var(--lf-ink);
       font: 450 var(--lf-t-5)/1.45 var(--lf-sans);
     }
 

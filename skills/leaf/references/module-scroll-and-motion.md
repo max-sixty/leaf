@@ -263,13 +263,13 @@ is presented and for that user.
 
 A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
 than choosing a number, and a retained frame returning from an editor to its reading
-takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
+takes the same time (`package-themes.md`, "Theme tokens"). The
 library's [`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js) reads a
 token's time in milliseconds.
 
 A brief tint that marks a change, as Leaf marks a newly arrived message, starts from
-`var(--lf-hi-tint)` and fades to the element's own background over
-`--lf-motion-flash`: `playMotion(element, [{ backgroundColor: "var(--lf-hi-tint)",
+`var(--lf-warn-tint)` and fades to the element's own background over
+`--lf-motion-flash`: `playMotion(element, [{ backgroundColor: "var(--lf-warn-tint)",
 offset: 0 }], { duration })`.
 
 ## Notices and spoken words

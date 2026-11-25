@@ -43,7 +43,8 @@ lf-part::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
-  font: var(--lf-font-label);
+  font: var(--lf-font-small);
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -58,7 +59,7 @@ lf-tabs > lf-tab {
   display: none;
   gap: 2px;
   --lf-tabstrip-flow: row;
-  border-bottom: 1px solid var(--lf-border);
+  border-bottom: 1px solid var(--lf-rule);
 }
 /* The aim floor is the padding, which a side list's column cannot squeeze out from under
  * a row's summary as it could a min-height. Of what stands between the floor and the
@@ -78,11 +79,11 @@ lf-tabs > lf-tab {
   cursor: pointer;
 }
 .lf-tabstrip .lf-tab-btn:hover {
-  color: var(--lf-ink-2);
+  color: var(--lf-ink);
   box-shadow: none;
 }
 .lf-tabstrip .lf-tab-btn:not([aria-selected="true"]):hover > .lf-tab-name {
-  box-shadow: var(--lf-offer-hover-shadow);
+  box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--lf-ink) 7%, transparent);
 }
 /* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
  * remain separate marks on one compact face. The containing tab keeps its larger aim
@@ -135,9 +136,9 @@ lf-tabs > lf-tab {
 @media (prefers-reduced-motion: no-preference) {
   .lf-tabstrip[data-lf-selection-travel] > .lf-tab-selection {
     transition:
-      left var(--lf-motion-mark) ease,
-      top var(--lf-motion-mark) ease,
-      width var(--lf-motion-mark) ease;
+      left var(--lf-motion-disclosure) ease,
+      top var(--lf-motion-disclosure) ease,
+      width var(--lf-motion-disclosure) ease;
   }
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] {
@@ -161,7 +162,7 @@ lf-tabs > lf-tab {
   }
   .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
     background: var(--lf-card);
-    box-shadow: inset 0 0 0 1px var(--lf-border);
+    box-shadow: inset 0 0 0 1px var(--lf-rule);
   }
 }
 /* Keep selection visible independently of the focus outline, including when focus has
@@ -201,7 +202,7 @@ lf-tabs > lf-tab {
     /* :where keeps the frame face below the generic edge trim's specificity. */
     :where(lf-tabs) {
       margin: var(--lf-sp-4) 0 32px;
-      border: 1px solid var(--lf-border);
+      border: 1px solid var(--lf-rule);
       border-radius: var(--lf-r);
       --lf-ground: var(--lf-card);
       background: var(--lf-ground);
@@ -238,7 +239,7 @@ lf-tabs > lf-tab {
       --lf-tabstrip-pad: 8px;
       box-sizing: border-box;
       min-block-size: var(--lf-tabstrip-h);
-      border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
+      border-radius: calc(var(--lf-r) - 1px) calc(var(--lf-r) - 1px) 0 0;
       --lf-tabstrip-bg: var(--lf-card);
       background: var(--lf-tabstrip-bg);
       flex-wrap: nowrap;
@@ -314,8 +315,8 @@ lf-tabs > lf-tab {
      * parts ask, which is why the stacking is written on them and not on the set.
      *
      * Summary and outcome each add one line to a horizontal strip, as tall as a line of
-     * the font it is set in: the summary's `--lf-font-compact` and the outcome's
-     * `--lf-font-heading` (tokens.css), each its size times the fonts' shared leading.
+     * the font it is set in: the summary's `--lf-font-ui` and the outcome's
+     * `--lf-font-small`, each its size times the fonts' shared leading of 1.45.
      * With the row's own height they make a tab's (`--lf-tab-row-h`). The same authored
      * declarations reserve those lines before upgrade, so the panel starts in its final
      * position. In a column, summaries can wrap to keep their context.
@@ -335,10 +336,10 @@ lf-tabs > lf-tab {
       );
     }
     lf-tabs[list="side"]:has(> lf-tab[summary]) {
-      --lf-tab-context-h: calc(var(--lf-t-working-label) * var(--lf-ui-lh));
+      --lf-tab-context-h: calc(var(--lf-t-5) * 1.45);
     }
     lf-tabs[list="side"]:has(> lf-tab [data-lf-awaits]) {
-      --lf-tab-outcome-h: calc(var(--lf-t-6) * var(--lf-ui-lh));
+      --lf-tab-outcome-h: calc(var(--lf-t-6) * 1.45);
     }
     lf-tabs[list="side"] {
       container-type: inline-size;
@@ -362,9 +363,9 @@ lf-tabs > lf-tab {
         grid-row: 1 / -1;
         align-self: stretch;
         background: var(--lf-field);
-        border-inline-end: 1px solid var(--lf-border);
-        border-start-start-radius: var(--lf-r-in);
-        border-end-start-radius: var(--lf-r-in);
+        border-inline-end: 1px solid var(--lf-rule);
+        border-start-start-radius: calc(var(--lf-r) - 1px);
+        border-end-start-radius: calc(var(--lf-r) - 1px);
       }
       lf-tabs[list="side"] > .lf-tabstrip {
         background: none;
@@ -479,13 +480,14 @@ lf-tabs > lf-tab {
       justify-self: stretch;
       display: flex;
       gap: 0.3em;
-      font: var(--lf-font-heading);
-      color: var(--lf-ink-2);
+      font: var(--lf-font-small);
+      font-weight: 600;
+      color: var(--lf-ink);
     }
     [data-lf-down] > .lf-tabstrip .lf-tab-answer::before {
       content: "✓" / "";
       flex: none;
-      color: var(--lf-settled-ink);
+      color: var(--lf-ink);
     }
     [data-lf-down] > .lf-tabstrip .lf-tab-answer[data-lf-obligations="open"] {
       font: var(--lf-font-small);
@@ -510,7 +512,7 @@ lf-tabs > lf-tab {
       grid-column: 1 / -1;
       grid-row: 2;
       padding: 0 5px;
-      font: var(--lf-font-compact);
+      font: var(--lf-font-ui);
       color: var(--lf-muted);
     }
     /* Each run of rows sharing a group, or sharing none, is a box of its own
@@ -525,7 +527,7 @@ lf-tabs > lf-tab {
     lf-tabs[list="side"] > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
       margin-block-start: 2px;
       padding-block-start: 2px;
-      border-block-start: 1px solid var(--lf-border);
+      border-block-start: 1px solid var(--lf-rule);
     }
     lf-tabs[list="side"] > .lf-tabstrip .lf-tab-group {
       padding: 4px 12px 2px;
@@ -558,8 +560,8 @@ lf-tabs > lf-tab {
         scroll-padding-inline: var(--lf-tabstrip-press);
         padding: 8px var(--lf-tabstrip-pad) 0;
         border-inline-end: 0;
-        border-bottom: 1px solid var(--lf-border);
-        border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
+        border-bottom: 1px solid var(--lf-rule);
+        border-radius: calc(var(--lf-r) - 1px) calc(var(--lf-r) - 1px) 0 0;
       }
       lf-tabs[list="side"]::before,
       lf-tabs[list="side"] > .lf-tabstrip {
@@ -579,7 +581,7 @@ lf-tabs > lf-tab {
         padding-block-start: 0;
         border-block-start: 0;
         padding-inline-start: 4px;
-        border-inline-start: 1px solid var(--lf-border);
+        border-inline-start: 1px solid var(--lf-rule);
       }
       /* The label sticks at the row's start while its run scrolls under it, and the run's
        * end pushes it out as the next run's label comes in, so the open item's group
@@ -830,7 +832,7 @@ lf-tabs > lf-tab {
         inline-size: var(--lf-parts-list);
         box-sizing: border-box;
         align-self: start;
-        block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
+        block-size: calc(var(--lf-view-height) - anchor-size(height, 0px));
         min-block-size: 0;
         --lf-tabstrip-flow: column;
         gap: 0;
@@ -878,7 +880,7 @@ lf-tabs > lf-tab {
           padding: 8px var(--lf-tabstrip-pad) 0;
           overflow-x: auto;
           overflow-y: hidden;
-          border-bottom: 1px solid var(--lf-border);
+          border-bottom: 1px solid var(--lf-rule);
         }
         :scope:is(lf-parts)
           > .lf-tabstrip

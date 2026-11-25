@@ -536,7 +536,7 @@ customElements.define(
         this.#returnMotion = playMotion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          { duration: motionTime("--lf-motion-return") },
+          { duration: motionTime("--lf-motion-fold") },
         );
       // Words the box already says are no loss, so only changed ones are kept for ⌘Z
       // to take back.

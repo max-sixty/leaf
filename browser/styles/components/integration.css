@@ -102,7 +102,7 @@
   position: fixed;
 }
 /* A document code block's Copy stands in chrome, outside the block, so it takes the
-   code's scheme itself (tokens.css, at --lf-pre-bg); a widget's Copy inherits its
+   code's scheme itself (tokens.css, at --lf-code-scheme); a widget's Copy inherits its
    widget's. */
 .lf-block-controls .lf-code-copy {
   color-scheme: var(--lf-code-scheme, inherit);

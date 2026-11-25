@@ -78,14 +78,14 @@ handoff and save it.
         margin: 0;
       }
       .route-frames figcaption {
-        color: var(--lf-ink-2);
+        color: var(--lf-ink);
         font-size: var(--lf-t-6, 0.85em);
         margin-top: var(--lf-sp-1);
       }
       .route-frames img {
         display: block;
         width: 100%;
-        border: 1px solid var(--lf-border);
+        border: 1px solid var(--lf-rule);
         border-radius: var(--r-m, 6px);
       }
       @media (max-width: 720px) {

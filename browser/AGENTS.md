@@ -15,9 +15,9 @@ These rules hold for everything Leaf draws: its runtime, its chrome and its bund
 packages. Each section opens with a goal, which
 `../skills/leaf/references/interface-goals.md` gives other authors too, and the specs
 under it are Leaf's own ways of meeting it; weigh a case no spec covers against its goal
-and `../skills/leaf/SOUL.md`. A spec records the current design, and a change that
-meets the goal more simply replaces the spec and its check (root `AGENTS.md`'s
-opening). A spec names its check and owner where one exists. How
+and `../skills/leaf/SOUL.md`. A spec is guidance toward its goal, weighed
+as root `AGENTS.md`'s opening says: a change that meets the goal more simply rewrites
+the spec and its check. A spec names its check and owner where one exists. How
 the owner meets it, and any exception the user chose for one surface, belong in that owner's header and
 the check's credit, not here. Which specs should also bind other authors is still being
 settled. Leaf targets desktop first, so judge layout at a representative desktop
@@ -931,9 +931,8 @@ Use a boolean only when false has one clear meaning; otherwise declare named val
 
 Add a fact only where Leaf's server or `page check` must act on it without running the
 widget's module, and the module can't keep the same rule itself. How an element stands
-before its module draws is its package's stylesheet's to say, and a shift as the module
-first draws costs no fact. A rule about one widget's markup that its module can check as it
-draws stays in the module, which reports a breach with an `error` event, even where
+before its module draws is its package's stylesheet's to say. A rule about one
+widget's markup that its module can check as it draws stays in the module, which reports a breach with an `error` event, even where
 static validation could observe the same breach. The author then hears of the breach
 from `page check --render`, and in a thread message only after the user opens the
 thread. Keep a rule static where a breach would otherwise reach the log or a stored

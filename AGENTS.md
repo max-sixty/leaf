@@ -2,18 +2,17 @@
 
 @skills/leaf/SOUL.md
 
-`SOUL.md`, above, says what a person using a Leaf page and an agent writing one
-can count on, and its guarantees are the only ones Leaf owes them. The sections
-from here to "Repository map" are the principles Leaf is built by. Both are the
-maintainer's direction and change only when the maintainer asks.
+`SOUL.md`, above, holds Leaf's immovable principles: what a person using a Leaf
+page and an agent writing one can count on. The sections from here to "Repository
+map" are the principles Leaf is built by. Both are the maintainer's direction, and
+their words change only when the maintainer asks.
 
-The rest of the repository's guidance, each area's `AGENTS.md` included, says how
-today's code applies them. A rule there describes the current design. It promises
-the user nothing beyond `SOUL.md`, even where it records a call the maintainer
-made for one case. So a change may replace the design with a simpler one that
-still meets the values and principles: it rewrites the rule, and says what a user
-will see differently, with a picture where the difference shows. Weigh a case no
-rule covers against the values and principles.
+Every instruction besides `SOUL.md`, in this file and in each area's `AGENTS.md`, is
+guidance, and guidance is weighed against other guidance. Where a rule pulls against
+another, or against a simpler design that serves `SOUL.md` as well, weigh what each
+gives the user and what it costs later changes, and take the better. A change that
+departs from a rule rewrites the rule, and says what a user will see differently,
+with a picture where the difference shows. Weigh a case no rule covers the same way.
 
 ## Leaf's role
 
@@ -75,9 +74,9 @@ where a choice depends on a purpose or intent the code can't tell you:
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
 - **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
   as losing the user's selection or typed words, is a defect to fix. Listing it
-  as a call the maintainer may reverse doesn't make it a call. A cost to
-  something neither `SOUL.md` nor these principles state, such as a look, a first
-  paint or a rule of an area's `AGENTS.md`, is the change's own to weigh and take.
+  as a call the maintainer may reverse doesn't make it a call. A cost to what
+  guidance asks, such as a look or a rule of an area's `AGENTS.md`, is the change's
+  own to weigh and take.
 - **Taking a feature away.** "Regular maintenance" says what a proposal to remove
   one rests on.
 - **Lifting a restriction.** A restriction Leaf imposes, such as a content
@@ -291,8 +290,8 @@ A contract one module owns goes in that module's header, and a helper's contract
 its docstring. A contract several modules share goes in the protocol reference for
 that boundary, which says what each side relies on, not how one side provides it. A
 header also states the product decisions its module embodies, each with its reason,
-whether the user made it, and any alternative a later change might reach for, with
-why that alternative fails. A change that reverses a decision rewrites its statement
+whether the user made it, and what an alternative cost when it was tried, for a later
+change to weigh again. A change that reverses a decision rewrites its statement
 and says so in its commit.
 
 Text in the tree, comments, tests and eval cases included, says what holds now
@@ -502,12 +501,12 @@ thing every author learns and every later change keeps working. A change meets a
 widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
 need of Leaf", says how to choose where it can't.
 
-A smaller interface is worth a visible difference. Where a name's work is to keep a
-look, a first paint or a behaviour exactly as it was, the name goes, and the change
-shows what a user will see differently. Only a guarantee `SOUL.md` states keeps
-such a name. A shift as a widget first draws breaks none, and neither do the lines
-a widget's author writes in the name's place. Taking such a difference is the
-change's own call, not one to put to the maintainer.
+A smaller interface is worth a small visible difference. Where a name's work is to
+keep a look, a first paint or a behaviour exactly as it was, the name goes, and the
+change shows what a user will see differently. A promise the user is owed on every
+widget is Leaf's to keep from outside, for an element that imports nothing, so a name
+stays for a guarantee `SOUL.md` states only while Leaf can't keep it that way. A shift
+as a widget first draws on a loading page breaks no guarantee.
 
 ### Wait for the event that ends the work
 
@@ -579,10 +578,11 @@ makes Leaf harder to develop than it is worth:
   again (without `--follow`, a file's history stops at its last move). Code in its
   own module, such as a package, a widget or a `leaf-dev` command, costs little
   beyond its own files; remove it only when it is large and unused. Keep what
-  `SOUL.md` guarantees, and each feature: something a user or an author can do with
-  Leaf. How a thing looks, when it first paints and exactly how it moves are not
-  features. A small difference in one of them is a price a removal may pay, and
-  the removal shows it. Taking a feature
+  `SOUL.md` guarantees, and each feature: something a user can do on a page, or a
+  page or widget an author can build, by whatever route. A name of the package
+  interface is not one. Nor is how a thing looks, when it first paints or exactly how
+  it moves: a small difference in one of them is a price a removal may pay, and the
+  removal shows it. Taking a feature
   away is the maintainer's call ("The maintainer decides"), so propose the removal
   with what users lose and what it deletes, measured as `/developing-leaf`'s "Measure
   a removal" says. The maintainer builds features ahead of their use, so little use

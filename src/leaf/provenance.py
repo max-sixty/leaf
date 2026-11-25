@@ -131,7 +131,13 @@ def saved_after(
         }
         said = {message["id"]: message for message in thread["msgs"]}
         for turn in thread["turns"]:
-            if turn["author"] == "agent" or "undoes" in turn:
+            # The history holds the user's actions only to settle turns
+            # (`build_threads`), and an action is no message.
+            if (
+                turn["author"] == "agent"
+                or "undoes" in turn
+                or turn["kind"] == "action"
+            ):
                 continue
             message = turn.get("message", turn["id"])
             end = min(

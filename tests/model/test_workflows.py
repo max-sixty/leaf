@@ -46,6 +46,7 @@ from leaf import standing as standing_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.event_meaning import AdmissionReadings
+from leaf.findings import Rejected
 from leaf.registry import storage as registry_storage
 from leaf.served_state import work as work_served_model
 from leaf.thread_context import ThreadStructure
@@ -1042,20 +1043,85 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "text": "Wait, do not deploy yet.",
         },
     )
-    before = [item["input"] for item in owed(state_json(page_dir))]
-    assert before == [chose["id"], newer["id"]]
-
-    replied = thread_model.post_reply(
-        page_dir, {"parent": asked["id"], "responds": chose["id"]}, "East noted."
+    [answer] = owed(state_json(page_dir))
+    assert (answer["input"], answer["answer"]) == (
+        newer["id"],
+        {"kind": "reply", "parent": newer["id"], "responds": newer["id"]},
     )
-    assert replied["responds"] == chose["id"]
-    after = state_json(page_dir)
-    assert [item["input"] for item in owed(after)] == [newer["id"]]
-    assert owed(after)[0]["answer"] == {
-        "kind": "reply",
-        "parent": newer["id"],
-        "responds": newer["id"],
+
+    # The thread's one answer is the newer message's, so a reply to the pick alone,
+    # which may not have read that message, is refused and leaves it owed.
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(
+            page_dir, {"parent": asked["id"], "responds": chose["id"]}, "East noted."
+        )
+    assert refused.value.findings[0].code == "superseded-reply"
+    assert [item["input"] for item in owed(state_json(page_dir))] == [newer["id"]]
+
+
+@pytest.mark.parametrize(
+    "pick_first", [False, True], ids=["reply-then-pick", "pick-then-reply"]
+)
+def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
+    """The user's message and their pick on a widget sent in the same thread are one
+    batch, like two messages in a row: the delivery asks for one answer, to the newer,
+    and that answer settles both, so the agent has no second reply to write."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    asked = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "File the issue?\n\n" + '<lf-options id="file-issue">'
+            '<lf-option id="file" label="File it"><strong>File it</strong></lf-option>'
+            '<lf-option id="skip" label="Leave it"><strong>Leave it</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+
+    def pick():
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "file-issue",
+                "action": "choose",
+                "detail": {"value": ["file"]},
+            },
+        )
+
+    def reply():
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": asked["id"],
+                "text": "ok, can we file an issue requesting this?",
+            },
+        )
+
+    older, newer = (pick(), reply()) if pick_first else (reply(), pick())
+    state = state_json(page_dir)
+    [answer] = owed(state)
+    assert answer["input"] == newer["id"]
+    assert {item["input"]: item["obligation"] for item in state["workflows"]} == {
+        older["id"]: f"update:{newer['id']}",
+        newer["id"]: f"update:{newer['id']}",
     }
+    envelope = freeze_events(page_dir, [older, newer])
+    assert [
+        (event["id"], "answer" in event) for event in envelope["batches"][0]["events"]
+    ] == [(older["id"], False), (newer["id"], True)]
+
+    thread_model.post_reply(page_dir, answer["answer"], "Filed it.")
+    after = state_json(page_dir)
+    assert owed(after) == []
+    assert after["workflows"] == []
 
 
 def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(

@@ -65,8 +65,8 @@ Events keep their stored fields and log order, and add:
   answer is written, `leaf page close` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,
   "Long-running work"). Events with no `answer` owe nothing: a page action outside
-  any obligation, a pick still waiting for the user's Done, or a message followed by a
-  newer one in its thread (your reply to the newer one covers both).
+  any obligation, a pick still waiting for the user's Done, or a message or pick
+  followed by a newer one in its thread (your reply to the newer one covers both).
 - `handling`: ids of clauses in the batch's `handling` object, in reading order. The
   object holds each clause's text once, and the ids mean nothing outside the batch.
   Follow every clause the event names.

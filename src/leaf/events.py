@@ -218,9 +218,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
-    ``turns`` holds every turn said in the thread, the ones since taken back
-    included, and each undo that took one back, in log order, as what settles a
-    batch of them (`settled_through`); only the server reads it.
+    ``turns`` holds, in log order, every turn said in the thread, the ones since
+    taken back included, each undo that took one back, and each of the user's actions
+    that an agent's reply in the thread names as `responds`. `settled_through` reads
+    it to settle batches of turns; only the server reads it.
 
     Whether a thread stands closed is read at every place in the log
     (`_ClosureHistory`): the latest closing or reopening still in force decides it.
@@ -271,6 +272,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     # the message is taken back; and what has been taken back so far.
     rewrites: dict[str, list[str]] = {}
     undone: set[str] = set()
+    # The actions so far, the user's answers an agent's reply may name as `responds`.
+    actions: dict[str, dict] = {}
 
     def moved(changes: Iterable[Change | None], put: list, out: list) -> None:
         # What a winner moving takes out of force, and the closing of the thread its
@@ -297,6 +300,16 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         if home is not None and in_history(e, message_kinds):
             home["turns"].append(e)
             said_in[e["id"]] = home
+            # An action this reply names, the user's answer on a widget sent in this
+            # thread, goes into the history at the action's own place. The reply then
+            # settles the turns said before the action, as a reply to the newest turn
+            # does (`settlements`).
+            named = actions.get(e.get("responds")) if e["author"] == "agent" else None
+            if named is not None and named["id"] not in said_in:
+                insort(home["turns"], named, key=lambda turn: turn.get("seq", inf))
+                said_in[named["id"]] = home
+        if e["kind"] == "action":
+            actions[e["id"]] = e
         # Whether each thread stands closed, at this place (``closures``): what the
         # event puts in force and what it takes out of it.
         kind = e["kind"]
@@ -688,7 +701,9 @@ def settlements(thread: dict) -> list[Settlement]:
     """Each of the agent's turns that settled turns of the user's, in log order. An
     answer whose `responds` names the newest turn of the batch standing when it was
     written settles that whole batch; one naming an older turn of it settles that
-    turn alone, and the batch stands. The walk replays the thread's history
+    turn alone, and the batch stands. An action of the user's that an answer names
+    stands in the batch as a turn does (`build_threads`, ``turns``), so an answer to
+    a pick made after the user's message settles the message too. The walk replays the thread's history
     (`build_threads`, ``turns``), so a turn taken back before the answer, with its
     rewrites, is no part of its batch, and one taken back after it leaves the batch
     settled. A failure receipt names its input as an answer does, so it settles here

@@ -152,7 +152,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         else:
             expect(page.locator("#goal > .lf-quiet")).to_have_count(0)
         captured = line.evaluate("""async el => {
-          const {says} = await window.__lfWidgetApi();
+          const {says} = await import('/runtime/passages.js');
           const {anchorForRange, resolveAnchor} = await window.__lfCheckApi();
           const range = document.createRange(); range.selectNodeContents(el);
           const anchor = anchorForRange(range);

@@ -1,6 +1,6 @@
 // Arrival is not a gesture. Restored design-mode, widget, and
-// reading-position state appears at rest. `motion` plays nothing before
-// `data-lf-presented`, and theme transitions use the same presentation stamp.
+// reading-position state appears at rest. `playMotion` (lib/motion.js) plays nothing
+// before `data-lf-presented`, and theme transitions use the same presentation stamp.
 //
 // After presentation, changes that remove a visible unit use a short fold. The semantic
 // state is true at the start of the fold, while the old pixels collapse so the eye can
@@ -15,88 +15,19 @@
 // measure once around that composition and show one FLIP from the current layout to the
 // final layout. A widget whose drag moves its own nodes defers its correction.
 
-import { pagePresented } from "./page-paint.js";
 import { motionTime } from "./lib/motion-timing.js";
+import { playMotion } from "./lib/motion.js";
 
-// The theme's reduced-motion guard covers CSS animation and transitions; motion
-// driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
-// this instead.
+// Smooth scrolls driven from JS follow the user's motion preference, as the theme's
+// reduced-motion guard covers CSS animation and transitions; Web-Animations moves go
+// through the library's `playMotion` (lib/motion.js), which answers it for every caller.
 const preference = matchMedia("(prefers-reduced-motion: reduce)");
-/** @type {Set<Animation>} */
-const active = new Set();
-export const reducedMotion = () => preference.matches;
 export const scrollBehavior = () => (preference.matches ? "instant" : "smooth");
 /** @param {(reduced: boolean) => void} listener */
 export function onMotionPreferenceChange(listener) {
   const changed = (/** @type {MediaQueryListEvent} */ event) => listener(event.matches);
   preference.addEventListener("change", changed);
   return () => preference.removeEventListener("change", changed);
-}
-preference.addEventListener("change", (event) => {
-  // Preference changes apply to motion already under the user as well as the next
-  // gesture. Finishing reaches each caller's ordinary cleanup path; cancelling here
-  // would reject `finished` and strand folds whose end state is installed there.
-  if (event.matches) for (const played of [...active]) played.finish();
-});
-
-// Whether motion plays now, which `playMotion` asks before every animation. First replay
-// happens behind the presentation boundary. Its state should be the first frame the
-// user sees, not a motion from authored state they never saw; it collapses exactly as
-// reduced motion does. This one shared check reaches folds and FLIP alike without a
-// widget learning whether the page has been presented. A caller that must choose
-// before it animates, such as one keeping an old view drawn only while it fades, asks
-// this too.
-export const motionPlays = () => !reducedMotion() && pagePresented();
-
-// Web-Animations motion goes through here, so a user who asked for stillness is
-// answered in one place rather than by each widget remembering the check: null under
-// reduce, and a caller treats "no animation" and "animation finished" as the same
-// state. Every motion this module plays shares one held-end-frame contract. A duration
-// a caller passes in is still a number this module has no reason for; see browser/AGENTS.md's
-// "Motion is brief and keeps the user oriented". `motion` is the packages' door, and its signature is part of what an
-// installed package calls, so it stays as pages know it.
-/** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes @param {number} ms @param {string | null} [pseudoElement] */
-export const motion = (el, keyframes, ms, pseudoElement = null) =>
-  playMotion(el, keyframes, { duration: ms, pseudoElement });
-
-// The same door with the runtime's own surfaces' further timing: the one ease unless
-// the caller names its surface's curve (`easing`, read with lib/motion-timing.js's
-// `motionEasing`), and a `delay` that holds the first frame until the motion starts, so
-// a part fading in after another fades out stays unseen meanwhile. That is the backward
-// half of the fill, which no undelayed motion reaches.
-/** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
- * @param {{duration: number, easing?: string, delay?: number, pseudoElement?: string | null}} options */
-export function playMotion(
-  el,
-  keyframes,
-  { duration, easing = "ease", delay = 0, pseudoElement = null },
-) {
-  if (!motionPlays()) return null;
-  const played = el.animate(keyframes, {
-    duration,
-    delay,
-    pseudoElement,
-    easing,
-    fill: "both",
-  });
-  active.add(played);
-  // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
-  // that frame true in DOM/CSS, then release the effect. The extra microtask is the
-  // ordering: our reaction was registered first, so cancelling in it would expose the
-  // unanimated box before the caller removed, hid or restated it. A presentation offset
-  // such as a FLIP needs no cleanup because its underlying placement already is its last
-  // frame; it still leaves no filled animation behind.
-  // Cancellation is already the release, and the rejection arm consumes it so an
-  // interrupted move reports no unhandled promise.
-  played.finished.then(
-    () =>
-      queueMicrotask(() => {
-        active.delete(played);
-        played.cancel();
-      }),
-    () => active.delete(played),
-  );
-  return played;
 }
 
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
@@ -111,7 +42,9 @@ export function backgroundFlash(el) {
   const ms = motionTime("--lf-motion-flash");
   /** @param {Element} box */
   const tint = (box) =>
-    motion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
+    playMotion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], {
+      duration: ms,
+    });
   const own = tint(el);
   if (!own) return own;
   const grounds = [...el.querySelectorAll("*")]
@@ -171,10 +104,10 @@ export function foldBlock(el, allocation = null) {
       opacity: 0,
     },
   ];
-  const played = motion(
+  const played = playMotion(
     el,
     frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"),
-    motionTime("--lf-motion-fold"),
+    { duration: motionTime("--lf-motion-fold") },
   );
   if (!played || native) return played;
   if (getComputedStyle(el).display === "none") {

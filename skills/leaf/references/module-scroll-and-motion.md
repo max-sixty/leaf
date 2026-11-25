@@ -239,10 +239,12 @@ page doesn't show, as one in a closed tab, Leaf reveals that place and lands the
 
 ## Motion
 
-Animate with `motion(element, keyframes, ms, pseudoElement?)`; a disclosure can animate
-its `::details-content` without a wrapper. `motion` returns `null` for a user who asked
-for less motion, and before `body[data-lf-presented]`; treat that as a finished
-animation. Where a module must branch on the preference itself, as for the `behavior`
+Animate with the `playMotion` of the library's
+[`motion.js`](../../../browser/runtime/lib/motion.js), which takes an element, its
+keyframes and `{duration}`; a disclosure can animate its `::details-content` without a
+wrapper, through `pseudoElement`. It plays nothing for a user who asked for less
+motion, and nothing before `body[data-lf-presented]`, and returns `null` then; treat
+that as a finished animation. Where a module must branch on the preference itself, as for the `behavior`
 of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
@@ -260,9 +262,10 @@ takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). Th
 library's [`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js) reads a
 token's time in milliseconds.
 
-`backgroundFlash(element)` gives an element a brief yellow tint that fades to its
-own background, and tints each box inside it that paints a background of its own too.
-It lasts as long as Leaf's own arrival tint, as on a newly arrived message.
+A brief tint that marks a change, as Leaf marks a newly arrived message, starts from
+`var(--lf-hi-tint)` and fades to the element's own background over
+`--lf-motion-flash`: `playMotion(element, [{ backgroundColor: "var(--lf-hi-tint)",
+offset: 0 }], { duration })`.
 
 ## Notices and spoken words
 

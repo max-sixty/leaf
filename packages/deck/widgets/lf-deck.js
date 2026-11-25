@@ -63,7 +63,8 @@
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
-import { go, motion, nameOf, obligations, queues } from "/runtime/widget-api.js";
+import { go, nameOf, obligations, queues } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
 import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
@@ -262,15 +263,15 @@ customElements.define(
       const leaves = card !== null && !back;
       const leave =
         leaves &&
-        motion(
+        playMotion(
           card,
           [
             { transform: from, easing: LEAVE },
             { transform: `translateX(${toward * 40}%) rotate(${toward * 3}deg)` },
           ],
-          LEAVE_MS,
+          { duration: LEAVE_MS },
         );
-      const enter = motion(
+      const enter = playMotion(
         arriving,
         [
           {
@@ -281,41 +282,41 @@ customElements.define(
           },
           { transform: "none" },
         ],
-        ARRIVE_MS,
+        { duration: ARRIVE_MS },
       );
       const running = [
         leave,
         leaves &&
-          motion(
+          playMotion(
             card,
             [
               { opacity: 1 },
               { opacity: 0, offset: FADE_MS / LEAVE_MS },
               { opacity: 0 },
             ],
-            LEAVE_MS,
+            { duration: LEAVE_MS },
           ),
         enter,
         back &&
-          motion(
+          playMotion(
             arriving,
             [
               { opacity: 0 },
               { opacity: 1, offset: FADE_MS / ARRIVE_MS },
               { opacity: 1 },
             ],
-            ARRIVE_MS,
+            { duration: ARRIVE_MS },
           ),
         back &&
           card &&
-          motion(
+          playMotion(
             card,
             [
               { opacity: 1 },
               { opacity: 0, offset: FADE_MS / ARRIVE_MS },
               { opacity: 0 },
             ],
-            ARRIVE_MS,
+            { duration: ARRIVE_MS },
           ),
       ].filter(
         /** @returns {animation is Animation} */ (animation) => Boolean(animation),
@@ -346,10 +347,10 @@ customElements.define(
       if (running.length) {
         const after = parseFloat(getComputedStyle(this).height);
         if (Math.abs(after - before) > 1) {
-          const resize = motion(
+          const resize = playMotion(
             this,
             [{ height: `${before}px`, easing: ARRIVE }, { height: `${after}px` }],
-            ARRIVE_MS,
+            { duration: ARRIVE_MS },
           );
           if (resize) running.push(resize);
         }

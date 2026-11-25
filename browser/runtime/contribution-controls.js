@@ -12,7 +12,7 @@ import { elementDirective, offerActionElement } from "./lib/controls.js";
 import { keeps, inlineStyle } from "./lib/keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
-import { reducedMotion } from "./motion.js";
+import { reducedMotion } from "./lib/motion.js";
 import { motionTime } from "./lib/motion-timing.js";
 import { projectCommandScope, statedScope } from "./keyboard/scopes.js";
 import {

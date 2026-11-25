@@ -56,7 +56,8 @@ import { sectionMarks } from "./toc-marks.js";
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
 import { render } from "/vendor/lit.js";
-import { comparisonChanges, obligations, threads, named } from "/runtime/widget-api.js";
+import { comparisonChanges, obligations, threads } from "/runtime/widget-api.js";
+import { authoredWords } from "/runtime/lib/authored-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { frameFor, sizeObserver } from "/runtime/lib/frame-pass.js";
 import { atLayoutPrecision, keeps, layoutPx } from "/runtime/lib/keeps.js";
@@ -75,7 +76,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, { label: named }));
+      return (this.#drawingOwner ??= drawToc(this, { label: authoredWords }));
     }
     get #nav() {
       return this.#drawing.nav;

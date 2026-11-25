@@ -40,13 +40,11 @@ export { go, placePageThreads, registerThreadPresentation } from "./application.
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export { named, says } from "./passages.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { draft } from "./drafts.js";
 export { layerFact } from "./registry.js";
-export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
 export { whenNear } from "./presentation.js";

@@ -78,7 +78,8 @@
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
 import { html, render, nothing } from "/vendor/lit.js";
-import { aimedAt, nameOf, motion, draft, pageLinks } from "/runtime/widget-api.js";
+import { aimedAt, nameOf, draft, pageLinks } from "/runtime/widget-api.js";
+import { playMotion } from "/runtime/lib/motion.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offered, offeredAction, offer } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -160,7 +161,7 @@ customElements.define(
     #live = false;
     /** @type {(() => void) | null} */
     #disconnect = null;
-    /** @type {ReturnType<typeof motion> | null} */
+    /** @type {Animation | null} */
     #returnMotion = null;
     /** @type {number | null} */
     #cancelSize = null;
@@ -532,10 +533,10 @@ customElements.define(
       // Hold the old allocation before any control repaint can read layout and
       // clamp a reader at the document foot. Native auto follows the restored body.
       if (before !== null)
-        this.#returnMotion = motion(
+        this.#returnMotion = playMotion(
           this,
           [{ blockSize: `${before}px` }, { blockSize: "calc-size(auto, size)" }],
-          motionTime("--lf-motion-return"),
+          { duration: motionTime("--lf-motion-return") },
         );
       // Words the box already says are no loss, so only changed ones are kept for ⌘Z
       // to take back.

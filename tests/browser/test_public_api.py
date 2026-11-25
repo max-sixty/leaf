@@ -38,7 +38,7 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         assert "setRuntimeRootStyle" in problem["message"]
     with subtests.test("formatted words"):
         readings = page.evaluate("""async () => {
-          const {says} = await import('/runtime/widget-api.js');
+          const {says} = await import('/runtime/passages.js');
           return lfUnwatched(() => {
             const cases = {
               divs: '<div>Step one</div><div>Step two</div>',

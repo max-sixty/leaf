@@ -73,6 +73,7 @@ export {
   pageDocument,
   inPage,
   quoteFrom,
+  says,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
   pageText,

@@ -485,7 +485,8 @@ from two. The entry points form the top layer at the runtime's top level, since 
 packages and the server load them by served path. The library (`lib/`) keeps its
 served path and belongs to the bottom layer. `layers` in
 `../.config/dependency-cruiser.mjs` lists the layers and says what to do when an
-import points up.
+import points up. The framework's facade, `records/framework.js`, is the one exception:
+every layer may import it, and the check doesn't see the routes through it.
 
 ### The library of shared web code
 

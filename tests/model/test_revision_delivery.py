@@ -703,8 +703,8 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
 def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     """The theme and the workspace Layout read what an element's registry entry
     declares, and a stylesheet cannot read the registry, so the document arrives with
-    each declaration painted on the element: the first paint lays out a board's room and
-    a package's pane before any script runs. An occurrence's own `data-width`,
+    each declaration painted on the element: the first paint lays out a package's pane
+    before any script runs. An occurrence's own `data-width`,
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
     in their shape before they decode. A mark is its tag's, so a selector idiom declares
@@ -720,9 +720,6 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     registry = {
         "lf-zone": {
             "reading-role": "pane",
-        },
-        "lf-board": {
-            "space": "wide",
         },
         "lf-label": {
             "inline": True,

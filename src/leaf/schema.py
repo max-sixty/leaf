@@ -406,7 +406,6 @@ FACTS: dict[str, dict] = {
         "required": ["members"],
         "additionalProperties": False,
     },
-    "space": {"enum": ["wide", "available"]},
     # A default height in CSS pixels, or `true` for a widget that has none
     # and reserves only what an occurrence's data-height states.
     "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},

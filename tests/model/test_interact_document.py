@@ -1338,7 +1338,7 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
     registry.parent.mkdir(exist_ok=True)
     invalid = {
         "run-plan": {
-            "space": "own",
+            "inline": "own",
         }
     }
     registry.write_text(json.dumps(invalid))

@@ -84,8 +84,7 @@ In [module-reading.md](module-reading.md):
 - "Markdown": `pageLinks`.
 - "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
-- "Reading obligations and the On lists": `readObligations`, `readQueues` and
-  `answerWords`.
+- "Reading obligations and the On lists": `readObligations` and `readQueues`.
 - "Page history and reports": `readHistory`.
 - "Reading version changes": `comparisonChanges`.
 

@@ -82,13 +82,13 @@
 import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   nameOf,
-  answerWords,
   backgroundFlash,
   comparisonChanges,
   readObligations,
   focusDestination,
   scrollIntoView,
 } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";

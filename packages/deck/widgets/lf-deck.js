@@ -34,7 +34,7 @@
  * saying how many still wait, with the same step back in as words, since a symbol
  * alone at the end of the pass went unnoticed. Under that line it lists each card that
  * asks something: its question, linked to the card, beside what became of it, the
- * answer in the runtime's words (`answerWords`) or who it still waits on. The cards are
+ * answer in the words On Me gives it (lib/answer-words.js) or who it still waits on. The cards are
  * put away by then, and without the list the record of the pass hid behind Back, one
  * card at a time. A row links to where its question is answered, so it opens the card
  * holding it as any fragment link does (`beforematch`), by pointer, finger or Enter,
@@ -64,7 +64,6 @@
  * around the questions it is waiting on, chosen by the user. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
-  answerWords,
   focusDestination,
   go,
   motion,
@@ -73,6 +72,7 @@ import {
   readQueues,
   scrollIntoView,
 } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { openingMember, showMember } from "/runtime/lib/one-shown.js";
@@ -695,7 +695,10 @@ customElements.define(
       if (waitsOn(held)) return ["Still waiting", "leaf"];
       if (held.some((item) => item.state !== "done"))
         return ["Waiting on the agent", "leaf"];
-      const words = held.map(answerWords).filter(Boolean).join("; ");
+      const words = held
+        .map((item) => answerWords(item))
+        .filter(Boolean)
+        .join("; ");
       return words ? [words, null] : ["Answered", "leaf"];
     }
 

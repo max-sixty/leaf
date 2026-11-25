@@ -40,7 +40,6 @@ export { onCurrentLocation, onPress, onPressAway } from "./focus.js";
 // of them reads, with whether the region's markup asks the user something.
 export { readObligations } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
-export { answerWords } from "./obligations/answer.js";
 export { readQueues } from "./queue-api.js";
 export {
   go,

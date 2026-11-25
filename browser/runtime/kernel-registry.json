@@ -6,6 +6,7 @@
       "/runtime/widget-api.js",
       "/runtime/portable-api.js",
       "/vendor/floating-ui.esm.js",
+      "/runtime/lib/answer-words.js",
       "/runtime/lib/canvas.js",
       "/runtime/lib/control-faces.js",
       "/runtime/lib/controls.js",

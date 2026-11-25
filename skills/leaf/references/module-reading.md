@@ -255,8 +255,9 @@ arrives. Each `source.kind` adds its own facts:
   `answer.event`, answered it. Of several messages the user sent in a row, only the
   newest has one. No region holds an update.
 
-`answerWords(obligation)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state").
+To show an answer in the words On Me gives it, the library's `answer-words.js` reads
+a reply's words or a widget's `static answerWords` (`module-state.md`, "Declared widget
+state").
 
 A module that counts items per heading as the reader moves through them, as `lf-toc`
 does, gives each heading the stretch of the page from the element it opens, such as

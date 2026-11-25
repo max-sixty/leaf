@@ -67,6 +67,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -141,16 +142,18 @@ def untold(before: dict | None, findings: list[dict]) -> list[dict]:
     ]
 
 
-def read_and_tell(page_dir: Path) -> None:
+def read_and_tell(page_dir: Path, check: Callable) -> None:
     """Read the page's live version, where no reading has read it, and tell its agent
     what it hasn't heard, in a `render` event on that version, unless a save has since
     moved the page past it: the next reading tells them. A diagnostic records what a
-    reading cost."""
+    reading cost. `check` is `validation.command.check_page`, which reads the page as
+    `page check --render` does; its caller passes it in, since the check sits above
+    the page's server that runs this pass."""
     if _unread(page_dir):
-        _read_and_tell(page_dir)
+        _read_and_tell(page_dir, check)
 
 
-def cmd_read(page_dir: Path) -> None:
+def cmd_read(page_dir: Path, check: Callable) -> None:
     """`leaf page _read`, the process a server starts for each reading
     (`HandoverPass._read`): it reads at `NICENESS`, and its own alarm ends it at
     `DEADLINE_S`. Both settings last as long as the process, so only this process makes
@@ -158,15 +161,14 @@ def cmd_read(page_dir: Path) -> None:
     `DEADLINE_S` later."""
     signal.alarm(DEADLINE_S)
     os.nice(NICENESS)
-    read_and_tell(page_dir)
+    read_and_tell(page_dir, check)
 
 
-def _read_and_tell(page_dir: Path) -> None:
+def _read_and_tell(page_dir: Path, check: Callable) -> None:
     from leaf.interaction_log import append_interactions
-    from leaf.validation.command import check_page
 
     started = time.monotonic()
-    _, read = check_page(page_dir, render=True, screens=False)
+    _, read = check(page_dir, render=True, screens=False)
     found = _finished(read[2]) if read is not None else None
     told = []
     if read is not None and found is not None:

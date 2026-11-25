@@ -251,7 +251,7 @@ class _Unread:
     it crashed, Leaf's own preview server stopped answering, or the gate's probe
     failed: the finding is about the run, not the page, so the check counts the gate
     as not run (`render_gate.command.BrowserCheck`), keeps no reading of the version
-    (`render_gate.handover_pass`), and a message it held posts, as on a host with no
+    (`handover_pass`), and a message it held posts, as on a host with no
     browser. It is advice in every record, beside the result."""
 
     words: Callable[[str, dict], str]

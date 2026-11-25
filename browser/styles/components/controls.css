@@ -114,7 +114,7 @@
     :hover,
     [data-lf-focus]
   ) {
-  background: color-mix(in srgb, var(--lf-ink) 20%, var(--lf-card));
+  background: color-mix(in srgb, var(--lf-ink) 17%, var(--lf-card));
 }
 /* A reaction says its word through its preview (runtime/annotations/preview.js), which a finger
    reads by holding the choice, so the press owns the gesture: it neither scrolls nor

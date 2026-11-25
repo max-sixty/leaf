@@ -10,9 +10,9 @@ from render_harness import LONG_PAGE
 
 from leaf import cli as cli_model
 from leaf import event_log as log_model
+from leaf import handover_pass as handover_pass_model
 from leaf import state as state_model
 from leaf.files import latest_revision
-from leaf.render_gate import handover_pass as handover_pass_model
 
 
 def test_a_turn_hands_a_failing_version_over_and_hears_about_it(

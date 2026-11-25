@@ -81,7 +81,7 @@ def test_a_press_survives_a_frame_return_but_ends_when_its_document_loses_input(
     # Losing the child document's input is a real departure, even while the parent
     # document stays active. Its held press must not complete when release arrives.
     child.evaluate("""async () => {
-      const {onPressAway, onUserInput} = await import('/runtime/focus.js');
+      const {onPressAway, onUserInput} = await import('/runtime/dom/focus.js');
       window.completed = 0;
       window.inputBlurs = [];
       onPressAway(() => true, () => completed++);

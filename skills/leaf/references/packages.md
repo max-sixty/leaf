@@ -341,11 +341,10 @@ pattern either, since `page check` requires its value to name an element the pag
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Fact           | Shipped example                                                                      |
-| -------------- | ------------------------------------------------------------------------------------ |
-| `reading-role` | `lf-pane`                                                                            |
-| `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
-| `parts`        | `lf-parts`                                                                           |
+| Fact     | Shipped example                                                                      |
+| -------- | ------------------------------------------------------------------------------------ |
+| `visual` | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
+| `parts`  | `lf-parts`                                                                           |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

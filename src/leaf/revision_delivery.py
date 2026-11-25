@@ -430,7 +430,9 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = holds_for(attrs, declaration.get(key))
+            declared = holds_for(attrs, declaration.get(key)) or mark.get(
+                "tags", {}
+            ).get(element.tag)
             authored = mark.get("authored")
             inert = authored and authored_inert(
                 key, declaration, attrs, content=content

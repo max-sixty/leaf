@@ -226,8 +226,7 @@ A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while it is open. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer: the
-innermost named group round the widget, an element whose registry entry declares
-`reading-role: group` such as an `lf-group`, or else the widget itself; `prompt.text`
+innermost named group round the widget, an `lf-group`, or else the widget itself; `prompt.text`
 is that group's `label`, else the widget's own name, and `null` for an update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:

@@ -70,6 +70,7 @@ import {
 } from "./workflow.js";
 import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet } from "../declared-words.js";
+import { marks } from "../kernel-facts.js";
 import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById, says } from "../passages.js";
@@ -393,15 +394,15 @@ const keptElements = new Map();
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does. The innermost named group round a widget that asks,
-// an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
-// in Python), is its question, so it goes whole with it rather than leaving the
+// Leaf's own group (`$marks`, `reading-role`; `obligations.widget_groups` in Python),
+// is its question, so it goes whole with it rather than leaving the
 // question's words with nothing to answer them. Any other group leaves what it holds,
 // less its widgets, as a figure keeps its caption when its chart goes.
 /** The innermost named group holding `element`, or null.
  * @param {Element} element @returns {Element | null} */
 function groupRound(element) {
   for (let at = element.parentElement; at; at = at.parentElement)
-    if (declarationFor(at)?.["reading-role"] === "group") return at;
+    if (marks["reading-role"].tags?.[at.localName] === "group") return at;
   return null;
 }
 /** @param {DocumentFragment} message */
@@ -415,7 +416,10 @@ function heldElsewhere(message) {
   for (const element of copy.content.querySelectorAll("*")) {
     const declaration = declarationFor(element);
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declaration?.inline || declaration?.["reading-role"] === "group")
+    else if (
+      declaration?.inline ||
+      marks["reading-role"].tags?.[element.localName] === "group"
+    )
       element.replaceWith(...element.childNodes);
     else element.remove();
   }

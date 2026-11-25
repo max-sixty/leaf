@@ -33,10 +33,10 @@
    moved up or down as far as a free seat lies, which slides a crowded column's chips
    rows past their targets. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
-import { bindingEnabled, cycledRow, hasRows, spell } from "./bindings.js";
+import { bindingEnabled, cycledRow, hasRows, spell } from "../keyboard/bindings.js";
 import { html, render } from "/runtime/framework.js";
-import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
-import { saying } from "./control-keys.js";
+import { keySequenceModel, keySequenceTemplate } from "../keyboard/key-sequence.js";
+import { saying } from "../keyboard/control-keys.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { layoutWindow } from "../geometry.js";
@@ -589,7 +589,7 @@ export function createHintSession({
   const seats = chipSeats(layer);
   // The row that takes the member the walk stands on (`walkRows`), whose key a heard
   // member says.
-  /** @type {import("./bindings.js").Command[]} */
+  /** @type {import("../keyboard/bindings.js").Command[]} */
   let choosing = [];
 
   const members = () => mapped;
@@ -716,7 +716,7 @@ export function createHintSession({
     repaint();
   }
 
-  /** @param {import("./bindings.js").Step} direction */
+  /** @param {import("../keyboard/bindings.js").Step} direction */
   function walk(direction) {
     const targets = hinted();
     if (!hasRows(targets)) return;
@@ -745,7 +745,7 @@ export function createHintSession({
   // The walk's own rows, so both vocabularies offer Tab, Shift+Tab and Enter as one
   // declaration: each caller names them under `id`, says what taking a member does in
   // `choose`, and decides `when` the walk is offered.
-  /** @param {{id: string, when?: () => boolean, choose: {description?: string, title: string}}} options @returns {import("./bindings.js").Command[]} */
+  /** @param {{id: string, when?: () => boolean, choose: {description?: string, title: string}}} options @returns {import("../keyboard/bindings.js").Command[]} */
   function walkRows({ id, when = () => members().length > 0, choose }) {
     choosing = [
       {

@@ -4627,7 +4627,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
 
 def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, serve):
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
-    (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
+    (key-badges/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
     chrome at the foot shared its column, such a chip would stand still mid-page
     through a scroll and jump once it settled."""

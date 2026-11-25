@@ -3223,7 +3223,7 @@ def tab_onto(target):
 
     Shift+Tab steps off the target only where the user can see it: a key pressed while
     focus stands where the user can't see it lets go of that focus first
-    (keyboard/controller.js). A script's focus doesn't scroll a target the window
+    (page-keys/controller.js). A script's focus doesn't scroll a target the window
     already holds, which may stand under the floating panel's row at the window's foot,
     so the helper then brings the target clear of the panel with Leaf's own landing
     (landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves

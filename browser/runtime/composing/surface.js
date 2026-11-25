@@ -1338,7 +1338,7 @@ export function createResponseSurface({
       // A painted owner may contain working controls or editing regions. Their
       // native click keeps its meaning even when an annotation covers the owner. So does
       // a click a widget took, which it says by preventing the click's default
-      // (module-input.md, "Pointer presses"), as keyboard/controller.js reads a key:
+      // (module-input.md, "Pointer presses"), as page-keys/controller.js reads a key:
       // a press on an option card picks the option and opens no thread on its question.
       if (ev.defaultPrevented || closestAcross(target, WORKS)) return;
       // The record rather than this event's own coordinates, for the reason the record is
@@ -1397,7 +1397,7 @@ export function createResponseSurface({
   // The element and threads where focus puts the user. Focus they have scrolled out of
   // sight puts them nowhere in the page, so `c` writes where they are reading rather than
   // taking them back to it: a walk's stop scrolled away from took the page back 1949 px
-  // at the median, and they backed out of 4 presses in 7 (keyboard/controller.js lets go
+  // at the median, and they backed out of 4 presses in 7 (page-keys/controller.js lets go
   // of it on any key).
   function focusedPlace() {
     const at = focused();

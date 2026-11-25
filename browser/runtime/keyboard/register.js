@@ -242,7 +242,7 @@ export const BACK_OUT = {
     return step ? descriptionOf(step) : undefined;
   },
   when: () => Boolean(rung()),
-  // A step may wait for the page's listeners, as letting go of a control does (page.js).
+  // A step may wait for the page's listeners, as letting go of a control does (page-keys/page.js).
   waits: () => Boolean(rung()?.waits),
   run: () => rung()?.out(),
 };

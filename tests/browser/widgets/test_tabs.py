@@ -1346,7 +1346,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.wait_for_function(shown, arg=["framed", 1])
     # Walking to the tab already open brings it back after a scroll took most of it
     # away. A sliver stays in the strip: with none, the tab is out of sight, so the key
-    # lets go of it and acts from what the user reads (keyboard/controller.js).
+    # lets go of it and acts from what the user reads (page-keys/controller.js).
     page.evaluate("""() => {
       const strip = document.querySelector('#framed > .lf-tabstrip');
       const tab = strip.querySelector('[aria-selected="true"]');

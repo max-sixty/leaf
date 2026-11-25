@@ -236,7 +236,7 @@ import {
   neutralSteps,
 } from "./keyboard/key-sequence.js";
 import { pageControls } from "./page-controls.js";
-import { findCommands } from "./keyboard/command-reference.js";
+import { findCommands } from "./page-keys/command-reference.js";
 import { readPlace } from "./history.js";
 import {
   NO_OPEN_THREADS,
@@ -351,7 +351,7 @@ import {
   passErrors,
   seeErrors,
 } from "./errors.js";
-import { stanceWords, statusContextReading } from "./keyboard/status-context.js";
+import { stanceWords, statusContextReading } from "./page-keys/status-context.js";
 import { passingWords, readField } from "./field-readings.js";
 import { motionPlays, playMotion } from "./motion.js";
 import { motionEasing, motionTime } from "./lib/motion-timing.js";
@@ -494,7 +494,7 @@ const GROUPS = Object.freeze([
   { name: "annotate", label: "Annotations" },
 ]);
 // The On view's tabs, in their strip's order (`onTabs`), which ← and → turn (`turnTab`),
-// and the Go-to door to each list (keyboard/go-to-sequence.js), which its tab names.
+// and the Go-to door to each list (page-keys/go-to-sequence.js), which its tab names.
 /** @type {readonly ("menu" | "you" | "agent" | "threads")[]} */
 const ON_TABS = Object.freeze(["menu", "you", "agent", "threads"]);
 const ON_DOORS = Object.freeze({
@@ -3956,7 +3956,7 @@ export function createFloatingPanel({
   /** @param {string} tab */
   const tabLabel = (tab) => onList(tab === "agent" ? agentName() : "me");
   // The stop the `m` walk stands on while the field says its position
-  // (keyboard/status-context.js): its row in On Me wears the ring a focused row
+  // (page-keys/status-context.js): its row in On Me wears the ring a focused row
   // wears, and the list brings it into view as the walk reaches it (`landWalked`), so
   // the list follows the walk rather than standing where it was.
   const walkedStop = () => {
@@ -5353,7 +5353,7 @@ export function createFloatingPanel({
   // The way out of the stance the user is in, as the field's end offers it while the
   // stance stands, on the page and in a thread (field-readings.js, `still`): Close, a
   // press that ends the stance at once, as the ✕ beside its name does
-  // (keyboard/touch-controls.js), with `esc`, the key that leaves it. It stands only
+  // (page-keys/touch-controls.js), with `esc`, the key that leaves it. It stands only
   // while Escape takes the stance off now, as the dispatcher reads it
   // (`escapeInvocation`): its step is the stance's exit, or one titled as that exit, the
   // ladder's step for the stance. Where something stands over the stance, such as a
@@ -5562,7 +5562,7 @@ export function createFloatingPanel({
   // there enters its first row. Only from a row or the view, so the arrows on an On
   // card's own controls, or in a thread's messages, keep their meaning there. With
   // nothing open the panel declares no Escape of its own: the page's foot of the ladder
-  // takes the user from the chrome back onto the page (keyboard/page.js), and a step
+  // takes the user from the chrome back onto the page (page-keys/page.js), and a step
   // declared over the whole panel would claim Escape on its every control, where the
   // Go-to sequence refuses to arm.
   const inList = () => {
@@ -5847,7 +5847,7 @@ export function createFloatingPanel({
   }
   // Focus that lands where the panel alone would hide it, once its landing has taken it
   // as far as its regions scroll, leaves the user unable to see where they are, and the
-  // next key would let go of it (keyboard/controller.js, `letsGo`): a Tab onto an
+  // next key would let go of it (page-keys/controller.js, `letsGo`): a Tab onto an
   // action at the foot of a workspace that fills the window, an arrow onto a tab low in
   // a stuck side list, or a press on a label whose control stands there. The page keeps
   // no band at the window's foot for the row, as the user chose, so the panel gives way
@@ -5884,7 +5884,7 @@ export function createFloatingPanel({
   });
 
   // The doors to the panel's views and to Versions, as Go-to's named destinations
-  // (keyboard/go-to-sequence.js) and version travel (`g V`, version.js) press them:
+  // (page-keys/go-to-sequence.js) and version travel (`g V`, version.js) press them:
   // each opens what it names, or puts it away where it already stands, so the press
   // that opened it closes it. The On Me and On <agent> doors turn the On view to their
   // list where it shows another tab (`openOnList`), and the Threads door to Threads.

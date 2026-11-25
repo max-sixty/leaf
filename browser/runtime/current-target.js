@@ -47,7 +47,7 @@
    that, at what they see, from the block they read (reading-place.js,
    `pageReadingBlock`), or a stop on screen ahead of it (`stepFrom`). Only what they saw as
    they let go leaves them beside it: a key pressed after scrolling away lets go of focus
-   they no longer see (keyboard/controller.js), and scrolling back to it doesn't put
+   they no longer see (page-keys/controller.js), and scrolling back to it doesn't put
    them there again. Neither is on a stop. Stepping into Leaf's
    panel from either keeps it, the panel holding no other page place. So a walk, Escape
    and the walk again returns to the stop the user left, and a second press goes on from

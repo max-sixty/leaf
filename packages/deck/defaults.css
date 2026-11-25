@@ -66,9 +66,6 @@ lf-deck[data-lf-deck-flying] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  /* Standing taller than its lines, as where it fills the height the deck holds, it
-     keeps them at its top. */
-  align-content: start;
   justify-content: space-between;
   gap: var(--lf-sp-2) var(--lf-sp-3);
   padding: var(--lf-sp-3) var(--lf-sp-4);
@@ -144,14 +141,14 @@ lf-deck[data-lf-deck-flying] {
     }
 
     /* The deck holds the tallest height it has stood at (lf-deck.js, `#hold`), and the
-       open card or the end frame fills it, so a shorter card's frame takes in the room
-       rather than leaving it empty below. */
+       open card fills it, so a shorter card's frame takes in the room rather than
+       leaving it empty below. The end frame keeps its own height, since a frame drawn
+       round empty room reads as a place to drop something. */
     :scope:is(lf-deck).lf-rendered {
       display: flex;
       flex-direction: column;
     }
-    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open],
-    :scope:is(lf-deck).lf-rendered > .lf-deck-end {
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-open] {
       flex-grow: 1;
     }
 

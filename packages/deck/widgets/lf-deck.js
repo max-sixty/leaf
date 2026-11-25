@@ -56,8 +56,9 @@
  * up after an answer takes no press until it has settled. Cards move as a stack: the
  * open one flies off the side it was sent, the one behind rises into place, and Back
  * brings a card in over the open one from the left (`#go`). The deck stands as tall as
- * the tallest it has stood this pass, and the open card or the end frame fills it, so
- * the page below slides down and is never pulled up (`#hold`). A deck whose height
+ * the tallest it has stood this pass, and the open card fills it, so the page below
+ * slides down and is never pulled up (`#hold`); the end frame keeps its own height
+ * inside it, since a frame round empty room reads as a place to drop something. A deck whose height
  * followed each card pulled the page down with it at the page's end, where the browser
  * has no scroll left to give back, so the bar moved under the pointer and each card `m`
  * reached landed at its own height; a deck that kept its height while the card in it

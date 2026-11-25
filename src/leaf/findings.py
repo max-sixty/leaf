@@ -1272,6 +1272,15 @@ _TEXT = {
             " <div> or <section>"
         )
     ),
+    "workspace-bodies": lambda at, v: (
+        f"{_line(at, v)}: a workspace has one body beside its header and footer, and"
+        f" this one has {len(v['bodies'])} ({', '.join(v['bodies'])}). While the"
+        " workspace fills the window, the bodies it lays out split its height evenly,"
+        " and a short one leaves blank space under its lines. To add"
+        " material beside the regions' work, make the body a tab set with"
+        ' `flow="page"` whose first tab holds the regions, and give the material a tab'
+        ' of its own (page-layout.md, "A workspace")'
+    ),
     "needs-id": _refuses(
         _DECIDES,
         lambda at, v: f"{_line(at, v)}: a matching {v['role']} instance requires an id",

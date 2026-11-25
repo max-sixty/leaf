@@ -991,25 +991,34 @@
     > :not(header, footer, [data-lf-reading-role="pane"]) {
     --lf-reading-region: layout;
   }
-  /* A page's grid of panes is one frame split into regions meeting at a hairline: the
+  /* A page's grid of panes is a box in a workspace that holds only panes the page
+   * wrote, such as the body or a page tab's one block (tabs.css), other than a pane's
+   * body, which is content. It is one frame split into regions meeting at a hairline: the
    * grid draws the frame with a 1px gap, and each pane trades its own border for a 1px
    * ring outside its box, so neighbours' rings fill the gap as one line and an empty
    * cell shows the page's ground. A pane a body widget generates
    * (`data-lf-generated`) is that widget's region, so neither is drawn for it. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
-    > :not(header, footer):has(
+    :not([data-lf-reading-role="pane"] > *):has(
       > [data-lf-reading-role="pane"]:not([data-lf-generated])
+    ):not(
+      :has(
+        > :not(
+          [data-lf-reading-role="pane"]:not([data-lf-generated]),
+          script,
+          style,
+          template
+        )
+      )
     ) {
     gap: 1px;
     border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r);
-  }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
-    > :not(header, footer)
-    > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
-    border: 0;
-    border-radius: 0;
-    box-shadow: 0 0 0 1px var(--lf-rule);
+    > [data-lf-reading-role="pane"] {
+      border: 0;
+      border-radius: 0;
+      box-shadow: 0 0 0 1px var(--lf-rule);
+    }
   }
   /* Where the window is too small to be the screen, the workspace flows and the page
    * scrolls, and the header sticks at the window's top, so the page's status and its
@@ -1064,14 +1073,28 @@
       min-block-size: 0;
       margin-block: 0;
     }
-    /* Only a page's grid of panes shares the body's height among its rows and gives its
-     * panes a definite height; a body widget lays out its own tracks. */
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
-      > :not(header, footer):has(
-        > [data-lf-reading-role="pane"]:not([data-lf-generated])
-      ) {
-      grid-auto-rows: minmax(0, 1fr);
-      --lf-full-height: 1;
+    /* A page's grid of panes (above) told the height it has to fill, as the body is and
+     * as a page tab's one block or a question group's answer (below) is, shares that
+     * height among its rows and gives its panes a definite height. A body widget lays
+     * out its own tracks. */
+    @container style(--lf-full-height: 1) {
+      :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+        :not([data-lf-reading-role="pane"] > *):has(
+          > [data-lf-reading-role="pane"]:not([data-lf-generated])
+        ):not(
+          :has(
+            > :not(
+              [data-lf-reading-role="pane"]:not([data-lf-generated]),
+              script,
+              style,
+              template
+            )
+          )
+        ) {
+        grid-auto-rows: minmax(0, 1fr);
+        min-block-size: 0;
+        --lf-full-height: 1;
+      }
     }
     /* The body passes the window's height to its panes; one that is not a pane scrolls
      * as a whole. Each box that scrolls here stops sticking boxes at its own top

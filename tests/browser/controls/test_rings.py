@@ -1177,6 +1177,40 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
 
 
+def test_the_ring_reading_passes_over_a_reach_inside_the_control_that_paints_nothing(
+    browser, serve
+):
+    """A box inside a control can take the hits over its ring and paint nothing there,
+    as the reach an option's mark lays back over its row's inset ring does. Hit testing
+    names a pseudo-element by its host, whose styles can't say what the pseudo-element
+    paints, so the screenshot answers: the clear reach covers nothing, and the same
+    reach painted is reported."""
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    page.evaluate("""() => {
+      const sheet = document.createElement('style');
+      document.head.append(sheet);
+      sheet.textContent = `
+        #ring-control {
+          position: relative; padding: 12px 24px;
+          outline: var(--lf-focus-ring);
+          outline-offset: calc(-1 * var(--lf-focus-ring-w));
+        }
+        #ring-reach { position: absolute; left: 12px; top: 0; bottom: 0; width: 4px; }
+        #ring-reach::after {
+          content: ''; position: absolute; inset-block: 0; inset-inline: -12px 100%;
+        }
+        #ring-reach.lf-painted::after { background: red; }`;
+      const control = document.getElementById('ring-control');
+      control.append(Object.assign(document.createElement('span'), { id: 'ring-reach' }));
+      control.focus();
+    }""")
+    clear = current_location_ring(page)
+    assert clear and clear["covers"] == [], clear
+
+    page.locator("#ring-reach").evaluate("reach => reach.classList.add('lf-painted')")
+    assert any("left edge" in c for c in current_location_ring(page)["covers"])
+
+
 def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, serve):
     """A marker's quiet target trace cannot paint over the current obligation's ring."""
     page = open_page(

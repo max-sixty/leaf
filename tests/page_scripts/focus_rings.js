@@ -515,6 +515,11 @@
           if (holds(el, over)) {
             if (!lifted(over)) break;
             if (!paints(over, x, y)) continue;
+            // A hit on a pseudo-element names its host, whose styles don't say what the
+            // pseudo-element paints there, as with the transparent reach an option's
+            // mark lays over its row's ring. So the screenshot confirms the cover, as
+            // it does a neighbour's (below).
+            coverPoints.push({ index: covers.length, point: [x, y] });
             covers.push(
               `its ${side} edge is under ` +
                 named(over) +

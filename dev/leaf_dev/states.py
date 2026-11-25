@@ -1571,6 +1571,26 @@ def option_row_by_keyboard(page: Page) -> None:
     )
 
 
+def settled_option_row_by_keyboard(page: Page) -> None:
+    """An opened settled decision with the keyboard on the row it didn't pick, whose
+    mark wears its own focus ring, above the picked row, with the group's digits
+    showing."""
+    settled = page.locator("#comparison-policy > .lf-settled")
+    settled.scroll_into_view_if_needed()
+    box = settled.bounding_box()
+    assert box is not None
+    # The row ends a workspace that fills the window, so the floating panel's row
+    # stands over its middle; the user presses its words, at its start.
+    settled.click(position={"x": 8, "y": box["height"] / 2})
+    keyboard_modality(page)
+    page.locator("#comparison-policy-current > .lf-pick").focus()
+    expect(
+        page.locator(
+            "#comparison-policy-current > .lf-key-badge[data-lf-binding-badge]"
+        )
+    ).to_have_count(1)
+
+
 def go_to_on_me(page: Page) -> None:
     """Open On Me by Go to On Me (`g` then `M`), the route every runtime shares, as
     `go_to_threads` opens Threads."""
@@ -3512,6 +3532,12 @@ STATES = (
         "ship-review",
         option_row_by_keyboard,
         region="#off-workaround-decision",
+    ),
+    State(
+        "settled-option-row-keyboard",
+        "current-proposed-comparison",
+        settled_option_row_by_keyboard,
+        region="#comparison-policy",
     ),
     State(
         "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"

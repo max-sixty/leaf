@@ -1040,24 +1040,32 @@ lf-options:not(:has(> lf-option:where([label]))) > lf-option > .lf-key-badge {
  * mark; on the add field it puts the user in the field, as a press on the field's own
  * padding does. The digit takes no pointer (surfaces.css, `.lf-binding-seat`), and
  * without the reach the press would land on the row or the add form, neither of them a
- * control. The mark stands the row's height, its box drawn at the centre as at rest, so
- * its reach covers the column from the row's top to its foot, and a press above or
- * beside the digit on a row of several lines is the mark's too; the field's reach stands
- * against the add form, from its start edge to the field. Only while the digit shows:
- * each reach is a positioned box, which Chromium's hit test visits on every call
- * (surfaces.css), and at rest a drag that starts in the column selects the row's words. */
+ * control. The mark's reach stands the mark's height, and at least the digit's, centred
+ * as both are. In a live group, where the row wears the mark's ring (above), the mark
+ * stands the row's height, its box drawn at the centre as at rest, so its reach covers
+ * the column from the row's top to its foot, and a press above or beside the digit on a
+ * row of several lines is the mark's too. An opened settled group's mark wears its own
+ * ring, which follows the mark's box, so there the box stays the 11px glyph and the
+ * reach the digit's height. A box the row's height would stretch that ring past the row
+ * and under the next one. The field's reach stands against the add form, from its start
+ * edge to the field. Only while the digit shows: each reach is a positioned box, which
+ * Chromium's hit test visits on every call (surfaces.css), and at rest a drag that
+ * starts in the column selects the row's words. */
 lf-options:not(:has(> lf-option:where([label])))
+  > lf-option
+  > .lf-key-badge[data-lf-binding-badge]
+  ~ .lf-pick::after {
+  content: "";
+  position: absolute;
+  inset-block: min(0px, (100% - var(--lf-key-badge-size)) / 2);
+  inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
+}
+lf-options:not([settled]):not(:has(> lf-option:where([label])))
   > lf-option
   > .lf-key-badge[data-lf-binding-badge]
   ~ .lf-pick {
   height: auto;
   margin: 0;
-  &::after {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    inset-inline: calc(-1 * var(--lf-key-badge-col)) 100%;
-  }
 }
 lf-options:not(:has(> lf-option:where([label])))
   > .lf-another

@@ -368,9 +368,9 @@ customElements.define(
     // it turned to again (`#aim`) after the press or key that put Leaf's preview away.
     // So they go a frame later, or for a press once it is over, and stay up through a
     // turn without a flicker.
-    #ended = (/** @type {Event} */ event) => {
-      if (/** @type {CustomEvent} */ (event).detail.declared !== this.#declared) return;
-      const declared = this.#declared;
+    /** @param {object} declared */
+    #ended(declared) {
+      if (declared !== this.#declared) return;
       const away = () => {
         if (this.#declared === declared) this.#unpoint();
       };
@@ -379,7 +379,7 @@ customElements.define(
         if (this.#pressing) this.#lifted = away;
         else away();
       });
-    };
+    }
     // The panel the sheets hang in, under the dial, open while its preview stands.
     /** @type {HTMLElement | null} */
     #hang = null;
@@ -415,7 +415,6 @@ customElements.define(
         depth.setAttribute("appearance", "button");
         depth.append(offer("span", "lf-dial-time"));
         /** @type {any} */ (depth).lfPreview = () => this.#read(name);
-        depth.addEventListener("lf-preview-ended", this.#ended);
         this.#radios.set(name, depth);
         group.append(depth);
       }
@@ -435,7 +434,6 @@ customElements.define(
       // as each depth's does, and keeps them.
       /** @type {any} */ (this).lfPreview = () =>
         this.#pointed ? this.#read(this.#pointed) : null;
-      this.addEventListener("lf-preview-ended", this.#ended);
       // The dial sticks at the window's top while the reader scrolls the page under it,
       // so landings arrive below it.
       this.toggleAttribute("data-lf-root-header", true);
@@ -549,10 +547,13 @@ customElements.define(
         );
     }
 
-    // Read what pointing at a depth shows, as Leaf's preview of it does.
+    // Read what pointing at a depth shows, as Leaf's preview of it does, which ends
+    // through the reading's `ended`.
     /** @param {string} name */
     #read(name) {
-      return (this.#declared = this.#preview(name));
+      /** @type {object} */
+      const declared = { ...this.#preview(name), ended: () => this.#ended(declared) };
+      return (this.#declared = declared);
     }
 
     // Take back what pointing at a depth showed, as its preview goes.

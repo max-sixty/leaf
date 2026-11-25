@@ -239,8 +239,8 @@ this.dispatchEvent(hold);
   regions"). `data-lf-bound` on a box has Leaf bound it and keep the reader's place
   in it, following its end where it says `end` (`module-scroll-and-motion.md`,
   "Scrolling").
-- **Previews, spoken words and a Copy control.** `lfPreview()`, `lf-preview` and
-  `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
+- **Previews, spoken words and a Copy control.** `lfPreview()` and `lf-preview`
+  (`module-previews.md`), `lf-announce` and `data-lf-quiet`
   (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
   `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
 - **The parts a link reaches, its threads and its revisions.** `lfRevealDatum()`,

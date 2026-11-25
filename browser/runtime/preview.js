@@ -50,12 +50,11 @@
      away stays away, whatever the element declares, until they aim again. When its
      preview goes, whatever puts it away, the pointer or focus leaving, the press
      after a finger's hold, Escape or another target's taking its place, though not
-     while a focus reading is only suspended out of sight, the element hears
-     `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
-     `detail.declared` is what its `lfPreview` returned for the reading that ended, the
-     last it returned while that preview stood, a new object for each reading, so a mark it drew for that reading, as a
-     chart's ring on its point, comes off then, and one it drew for a reading it has
-     declared since stays. It returns null where it adds nothing,
+     while a focus reading is only suspended out of sight, Leaf calls the `ended` of
+     what its `lfPreview` returned for the reading that ended, the last it returned
+     while that preview stood, so a mark it drew for that reading, as a chart's ring on
+     its point, comes off then, and one it drew for a reading it has declared since
+     stays. It returns null where it adds nothing,
      so the search goes on outward, and false where nothing shows and nothing around it
      may. A widget declares it with no import, as it declares `lfCommands` and
      `lfCopy()`, so off Leaf it reads nothing. What a declaration throws is reported and shows nothing.
@@ -337,7 +336,7 @@ import {
   renderedUnder,
   under,
 } from "./lib/shadow-tree.js";
-import { PREVIEW, PREVIEW_ENDED } from "./lib/widget-events.js";
+import { PREVIEW } from "./lib/widget-events.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./lib/keeps.js";
 import { nextRender, sizeObserver } from "./lib/frame-pass.js";
 import { paintCloseRequests } from "./keyboard/close-requests.js";
@@ -368,7 +367,7 @@ import { anchorBox } from "./css-anchors.js";
  * @typedef {readonly (readonly string[])[]} Presses
  * @typedef {Words | null | undefined | false} Line
  * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean}} Preview
+ * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean, unseen?: boolean, ended?: () => void}} Preview
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
@@ -1053,7 +1052,7 @@ let hold = null;
 // subject has gone. Focus's is suspended instead, since focus stays and has an end of
 // its own: it stays the page's reading (`shown`), its preview closed (`away`), until
 // its subject shows again or focus moves on, which is then the first its element hears
-// of it (`PREVIEW_ENDED`), so a chart keeps its ring on a focused point scrolled away.
+// of it (its reading's `ended`), so a chart keeps its ring on a focused point scrolled away.
 // It keeps its watch on the element it stands by (`follow`), so a scroll of a box
 // holding that element, a resize or a new presentation decides it again (`decide`),
 // and the platform says when its element comes into view by a layout that moves it
@@ -1876,15 +1875,18 @@ function hide() {
   stepMoved();
   ended(record);
 }
-// The element whose preview `record` read hears that it ended (`PREVIEW_ENDED`), with
-// what it declared for that reading, as a chart that drew a mark for the point it read
-// takes the mark off. A range's owner knows its own.
+// The reading `record` showed hears that it ended, through the `ended` its element
+// declared with it, as a chart that drew a mark for the point it read takes the mark
+// off. A range's owner knows its own. What `ended` throws is reported as a
+// declaration's throw is.
 /** @param {Shown} record */
 function ended(record) {
-  if (isElement(record.target))
-    record.target.dispatchEvent(
-      new CustomEvent(PREVIEW_ENDED, { detail: { declared: record.reading.declared } }),
-    );
+  if (!isElement(record.target)) return;
+  try {
+    record.reading.declared?.ended?.();
+  } catch (error) {
+    reportError(error);
+  }
 }
 
 // The pointer's target changed: start its dwell, or show it at once while warm or where

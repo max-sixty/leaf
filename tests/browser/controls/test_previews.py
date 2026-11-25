@@ -2306,8 +2306,8 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
 ):
     """Escape puts a focus preview away, and an element declaring its preview again,
     as a chart redrawing with the same point does, brings nothing back; nor does a
-    grip whose words come back once its card is put down. The element hears that its
-    preview ended (`lf-preview-ended`). A widget placing focus as a move after a
+    grip whose words come back once its card is put down. The reading hears that it
+    ended (its `ended`). A widget placing focus as a move after a
     microtask shows it, since the cause is the placement's, and the user stepping
     back with the keyboard shows it again."""
     page = open_page(
@@ -2325,8 +2325,8 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
         """() => {
           window.lf = {point: 1, held: false, ended: 0};
           const chart = document.getElementById('chart');
-          chart.lfPreview = () => ({name: `Point ${window.lf.point}`});
-          chart.addEventListener('lf-preview-ended', () => { window.lf.ended += 1; });
+          chart.lfPreview = () => ({name: `Point ${window.lf.point}`,
+            ended: () => { window.lf.ended += 1; }});
           document.getElementById('grip').lfPreview = () =>
             !window.lf.held && {name: 'Drag to move'};
         }"""
@@ -3265,10 +3265,9 @@ SHARED_ROW_LOG = """() => {
     el.lfPreview = () => {
       window.lfLog.push(`read ${id}`);
       return {name: `Reads ${id}`, at: id === 'three' ? undefined : row,
-        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : []};
+        detail: id === 'two' ? ['Two', 'Three', 'Four', 'Five', 'Six'] : [],
+        ended: () => window.lfLog.push(`ended Reads ${id}`)};
     };
-    el.addEventListener('lf-preview-ended', (event) =>
-      window.lfLog.push(`ended ${event.detail.declared.name}`));
   }
   document.getElementById('lf-preview').addEventListener('beforetoggle', (event) => {
     if (event.newState === 'closed') window.lfLog.push('closed');
@@ -4065,10 +4064,9 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
     held = page.locator("#held")
     held.evaluate(
         """el => {
-          el.lfPreview = () => ({name: 'Read report',
-            detail: ['Details for the held control']});
           el.ended = 0;
-          el.addEventListener('lf-preview-ended', () => (el.ended += 1));
+          el.lfPreview = () => ({name: 'Read report',
+            detail: ['Details for the held control'], ended: () => (el.ended += 1)});
         }"""
     )
     step = page.locator("#step")

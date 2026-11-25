@@ -2135,10 +2135,10 @@ def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
         "data-lf-control-focus-visible", ""
     )
     rendered(page)
-    accent = tuple(
-        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    ring_ink = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-here"))
     )
-    edges = mark_edges(page, "wh-day", accent)
+    edges = mark_edges(page, "wh-day", ring_ink)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 

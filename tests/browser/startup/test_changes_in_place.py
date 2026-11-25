@@ -151,20 +151,31 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
     page.keyboard.press("g")
     page.keyboard.press("Shift+H")
     expect(beta).not_to_have_css("background-color", clear)
-    # A changed block the agent is at work on shows both bars, the change's nearer it.
+    # Both bars stand in one lane outside the marks round their block, so no ring or
+    # bracket of the user's touches one; on a changed block the agent is at work on, the
+    # work's bar covers the change's.
     _start(d, _comment_on(d, "b", BETA[1], revision=3)["id"], "Rewriting Beta")
     expect(page.locator(".lf-at-work-bar")).to_have_count(1)
-    lanes = page.evaluate(
+    lane = page.evaluate(
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const [block, change, work] = [
             box('#b'), box('.lf-change-bar[data-lf-for="b"]'), box('.lf-at-work-bar'),
           ];
-          return change.right <= block.left && work.right <= change.left
-            && change.top < block.bottom && change.bottom > block.top;
+          const room = parseFloat(getComputedStyle(document.getElementById('b'))
+            .getPropertyValue('--lf-band-room'));
+          const [first, second] = ['.lf-change-bar[data-lf-for="b"]', '.lf-at-work-bar']
+            .map((s) => document.querySelector(s));
+          return {
+            shared: Math.abs(work.left - change.left) < 0.5,
+            clear: change.right < block.left - room,
+            covers: first.parentNode === second.parentNode
+              && !!(first.compareDocumentPosition(second)
+                & Node.DOCUMENT_POSITION_FOLLOWING),
+          };
         }"""
     )
-    assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
+    assert lane == {"shared": True, "clear": True, "covers": True}, lane
 
 
 def test_versions_counts_the_changes_since_each_older_version(browser, serve):

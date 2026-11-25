@@ -1006,7 +1006,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-here"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),

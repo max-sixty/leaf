@@ -18,12 +18,16 @@
    the floating panel's status. The bar leaves once the work is answered or stalls.
 
    The version comparison (version.js, `comparisonChanges`) names the changes since its
-   base, each a hunk of the block diff, and this owner draws each changed block as a green
-   bar beside it, nearer the block than the work's, so a block being reworked that has
-   already changed shows both. A change that only took blocks out has no block to stand
-   beside, and its bar is the same bar at zero blocks' length: a short one in the gap the
-   blocks left, which the user asked for so that nothing breaks where a
-   change's new side reaches zero. A change's mark is an annotation, so hiding
+   base, each a hunk of the block diff, and this owner draws each changed block as a bar
+   in the change's muted ink beside it. Both kinds of bar stand in one lane, clear of the
+   ring and brackets Leaf draws round the block and round the boxes about it
+   (`barLeft`), so none of the user's marks there touches a bar; where the agent works on a block that has already changed, its bar
+   covers the change's until the work ends, and the Change entry still names the
+   change. The user chose the lane over bars nearer the block, which ran into the user's
+   marks and read as one thick line beside them. A change that only took blocks out has
+   no block to stand beside, and its bar is the same bar at zero blocks' length: a short
+   one in the gap the blocks left, which the user asked for so that nothing breaks where
+   a change's new side reaches zero. A change's mark is an annotation, so hiding
    annotations (`g H`) hides its bar. The bar marks the block, not its words: its change's
    Change entry opens which words went and came. The user chose the bar
    over a wash of the block's own background, which hid whatever the block shades
@@ -34,8 +38,12 @@
    describes its own.
 
    The change the user points at with its Change entry, under the pointer or focus
-   (margin-projection.js, `refreshHighlight`), stands in one outline round all its blocks
-   or its gap (`outlineChange`), which says how far the change reaches before the press.
+   (margin-projection.js, `refreshHighlight`), wears the trace a comment's entry draws
+   round its passage (`[data-lf-traced]`, surfaces.css), in brackets round all its
+   blocks, or round its gap and clear of the words either side (`outlineChange`), which
+   says how far the change reaches before the press. The user chose the trace over an
+   outline of its own, a whole rounded ring further out, so both kinds of entry point
+   at what they concern in one face.
    The open change's card (version.js, `changeRedline`) stands over the change, the
    width of its blocks, and reads the change in order: what it took out struck, the words
    a block that kept its id lost and gained, and a new block as inserted. It covers what
@@ -78,7 +86,8 @@ import { offerAction } from "./lib/controls.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { onCurrentLocation } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { inkedBox, scrollContainer } from "./geometry.js";
+import { inkedBox, markedBox, scrollContainer } from "./geometry.js";
+import { markRoom } from "./mark-room.js";
 import { union } from "./rect.js";
 import { scrollBehavior } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -91,19 +100,19 @@ import { pageRung } from "./keyboard/register.js";
  * @typedef {import("./target-paint-geometry.js").Placement} Placement
  * @typedef {{left: number, top: number, right: number, bottom: number}} Box */
 
-// The bar's width, and each kind's gap from the target's start edge, in CSS pixels.
+// The bar's width, and how far every bar stands clear of the marks Leaf draws round its
+// target, in CSS pixels: one lane for both kinds, so no ring or bracket touches a bar.
 const BAR = 3;
+const CLEAR = 6;
 const KINDS = /** @type {const} */ ({
-  change: { gap: 4, className: "lf-change-bar" },
-  work: { gap: 10, className: "lf-at-work-bar" },
+  change: "lf-change-bar",
+  work: "lf-at-work-bar",
 });
 /** @typedef {keyof typeof KINDS} Kind */
 // A gap's bar is as tall as the gap it stands in, within these bounds, so it shows
 // between blocks set close and stays a mark between blocks set far apart.
 const GAP_BAR = { min: 8, max: 20 };
-// How far the outline stands round a change's blocks, clear of their bars, and how far
-// the card's words stand in from its edge. A gap's outline stands round the gap alone.
-const OUTLINE = { x: 12, y: 6 };
+// How far the card's words stand in from its edge.
 const CARD_INSET = 13;
 
 /** What the chrome mounts: the stands the bars stand in. */
@@ -129,21 +138,24 @@ export function outlineChange(change) {
 // its marker; or `rect`, its placement's reading, where no part of it shows.
 /** @param {Element} target @param {Box} rect @returns {Box} */
 const inked = (target, rect) => inkedBox(target) ?? rect;
-// Where a bar stands: `gap` from the start edge of what the target draws, which is its
-// right in right-to-left text, and a table's edge for a cell, so the bar stands in the
-// margin rather than in the cell before it. A target with no room before it, such as a
-// site header standing at the window's edge beside `main`, keeps its bar inside the
-// window, over its own edge.
-/** @param {Element} target @param {Box} rect @param {number} gap */
-function barLeft(target, rect, gap) {
-  const ink = inked(target, rect);
-  const edge = target.closest("table")?.getBoundingClientRect() ?? ink;
+// Where a bar stands: `CLEAR` outside the marks round what the target draws and round
+// each box about it whose marks reach the lane (mark-room.js, `markRoom`), on its start
+// edge, which is its right in right-to-left text, and outside its table's marks for a
+// cell, so the bar stands in the margin rather than in the cell before it. A target
+// with no room before it, such as a site header standing at the window's edge beside
+// `main`, keeps its bar inside the window, over its own edge.
+/** @param {Element} target @param {Box} rect */
+function barLeft(target, rect) {
+  const box = inked(target, rect);
+  const room = markRoom(target, box, CLEAR + BAR);
+  const table = target.closest("table");
+  const edge = (table && markedBox(table)) ?? { left: Infinity, right: -Infinity };
   return target.matches(":dir(rtl)")
     ? Math.min(
-        Math.max(ink.right, edge.right) + gap,
+        Math.max(box.right + room.right, edge.right) + CLEAR,
         document.documentElement.clientWidth - BAR,
       )
-    : Math.max(Math.min(ink.left, edge.left) - gap - BAR, 0);
+    : Math.max(Math.min(box.left - room.left, edge.left) - CLEAR - BAR, 0);
 }
 // The gap a change that only took blocks out stands in: from the element it stands by to
 // the nearest box across the gap, the next shown sibling, else its parent's own edge
@@ -223,6 +235,13 @@ function extentOf(change, rect) {
   return union(change.blocks.flatMap((block) => inkedBox(block) ?? [])) ?? rect;
 }
 
+// Where a change's trace stands: on the marks its blocks draw round themselves
+// (geometry.js, `markedBox`), as each block's own trace would, or round its gap.
+/** @param {Change} change @param {Box} rect @returns {Box} */
+const tracedExtent = (change, rect) =>
+  (change.blocks.length && union(change.blocks.flatMap((b) => markedBox(b) ?? []))) ||
+  extentOf(change, rect);
+
 // The open change's card: a head saying what the change did between which versions,
 // then one line a block.
 /** @param {Change} change */
@@ -259,6 +278,7 @@ export function createMarginBars(inventory) {
   /** @type {Map<Change, HTMLElement>} */
   const gaps = new Map();
   const outline = el("span", "lf-change-outline");
+  keeps(outline, "data-lf-traced", "");
   const ring = el("span", "lf-change-outline lf-change-ring");
   /** @type {{change: Change, node: HTMLElement} | null} */
   let card = null;
@@ -277,7 +297,7 @@ export function createMarginBars(inventory) {
         node,
         target,
         rect: (/** @type {Placement} */ { rect }) => {
-          const left = barLeft(target, rect, KINDS[kind].gap);
+          const left = barLeft(target, rect);
           return { left, right: left + BAR, top: rect.top, bottom: rect.bottom };
         },
       }));
@@ -288,7 +308,7 @@ export function createMarginBars(inventory) {
         const { top, bottom } = gapOf(change, rect);
         const tall = Math.min(Math.max(bottom - top, GAP_BAR.min), GAP_BAR.max);
         const middle = (top + bottom) / 2;
-        const left = barLeft(change.at, rect, KINDS.change.gap);
+        const left = barLeft(change.at, rect);
         return {
           left,
           right: left + BAR,
@@ -298,28 +318,18 @@ export function createMarginBars(inventory) {
       },
     }));
     // The ring gives way to its change's card, as the outline does (margin-projection.js).
-    /** @type {[Change | null, HTMLElement][]} */
+    /** @type {[Change | null, HTMLElement, typeof extentOf][]} */
     const rounds = [
-      [pointed, outline],
-      [ringed === card?.change ? null : ringed, ring],
+      [pointed, outline, tracedExtent],
+      [ringed === card?.change ? null : ringed, ring, extentOf],
     ];
-    const round = rounds.flatMap(([reach, node]) =>
+    const round = rounds.flatMap(([reach, node, extent]) =>
       reach
         ? [
             {
               node,
               target: reach.at,
-              rect: (/** @type {Placement} */ { rect }) => {
-                const box = extentOf(reach, rect);
-                // A gap's outline keeps to the gap, clear of the words on either side.
-                const y = reach.blocks.length ? OUTLINE.y : 0;
-                return {
-                  left: box.left - OUTLINE.x,
-                  right: box.right + OUTLINE.x,
-                  top: box.top - y,
-                  bottom: box.bottom + y,
-                };
-              },
+              rect: (/** @type {Placement} */ { rect }) => extent(reach, rect),
             },
           ]
         : [],
@@ -340,7 +350,9 @@ export function createMarginBars(inventory) {
           },
         ]
       : [];
-    return [...barsOf("work"), ...barsOf("change"), ...gapBars, ...round, ...over];
+    // Later items paint over earlier ones: the work's bar over the change's in their
+    // shared lane, and the card over every bar.
+    return [...barsOf("change"), ...gapBars, ...barsOf("work"), ...round, ...over];
   }
 
   function place() {
@@ -391,7 +403,7 @@ export function createMarginBars(inventory) {
       }
     for (const target of places)
       if (!targets.has(target)) {
-        const node = el("span", KINDS[kind].className);
+        const node = el("span", KINDS[kind]);
         keeps(node, "data-lf-for", target.id || null);
         targets.set(target, node);
         changed = true;
@@ -456,6 +468,7 @@ export function createMarginBars(inventory) {
   });
   effect(() => {
     pointed = outlined.value;
+    keeps(outline, "data-lf-gap", pointed && !pointed.blocks.length ? "" : null);
     redraw();
   });
   effect(() => {

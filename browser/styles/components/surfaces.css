@@ -323,7 +323,7 @@ a[data-lf-external]::after,
 :where([data-lf-mark]),
 :where([data-lf-projected-location]) {
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
-    var(--lf-band-ink, var(--lf-accent));
+    var(--lf-band-ink, var(--lf-here));
   outline-offset: var(--lf-band-gap);
 }
 :where([data-lf-aimed]),
@@ -332,7 +332,7 @@ a[data-lf-external]::after,
 :where([data-lf-mark]:not([data-lf-mark="focus"])),
 :where([data-lf-projected-location]) {
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
-    var(--lf-band-ink, var(--lf-accent)) !important;
+    var(--lf-band-ink, var(--lf-here)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
 /* A box beside a list marker (`[data-lf-beside-marker]`, geometry.js, `markerReach`)
@@ -363,8 +363,8 @@ a[data-lf-external]::after,
   );
   outline-style: none !important;
   border-image: linear-gradient(
-      var(--lf-band-ink, var(--lf-accent)),
-      var(--lf-band-ink, var(--lf-accent))
+      var(--lf-band-ink, var(--lf-here)),
+      var(--lf-band-ink, var(--lf-here))
     )
     1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
     calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
@@ -378,9 +378,9 @@ a[data-lf-external]::after,
   --lf-band-ink: var(--lf-mark-contour-ink);
   --lf-band-w: 1px;
 }
-/* Any other mark on the box keeps the accent over those two: the aim, a comment's
-   mark, the proxy or location ring, or the focus ring the box wears, its own or a
-   control's in it. */
+/* Any other mark on the box keeps the user's ink (`--lf-here`) over those two: the
+   aim, a comment's mark, the proxy or location ring, or the focus ring the box wears,
+   its own or a control's in it. */
 :where(
   [data-lf-traced]:is(
     [data-lf-aimed],
@@ -401,7 +401,7 @@ a[data-lf-external]::after,
     [data-lf-control-focus-visible]
   )
 ) {
-  --lf-band-ink: var(--lf-accent);
+  --lf-band-ink: var(--lf-here);
   --lf-band-w: var(--lf-focus-ring-w);
 }
 /* A forced palette draws marks in its highlight, as it does the focus ring
@@ -421,7 +421,7 @@ a[data-lf-external]::after,
    the marker and spreads half the reach wider, and the brackets' clip cuts what the
    wider spread adds above and below (`--lf-band-over`). */
 :where([data-lf-aimed]) {
-  --lf-aim-veil: color-mix(in srgb, var(--lf-accent) 4%, transparent);
+  --lf-aim-veil: color-mix(in srgb, var(--lf-here) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
     var(--lf-aim-veil-shift) 0 0
@@ -548,7 +548,7 @@ a[data-lf-external]::after,
     [data-lf-mark],
     [data-lf-projected-location]
   ) {
-  --lf-shape-ink: var(--lf-band-ink, var(--lf-accent));
+  --lf-shape-ink: var(--lf-band-ink, var(--lf-here));
   --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
   outline-style: none !important;
   clip-path: none;

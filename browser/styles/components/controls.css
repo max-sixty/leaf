@@ -99,8 +99,8 @@
   border-color: var(--lf-border);
   background: var(--lf-chip);
 }
-/* A reaction the user added wears the accent, so it reads as theirs even alone in the
-   closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
+/* A reaction the user added wears the accent, a chosen item's ink, so it reads as
+   chosen even alone in the closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"] {
   color: var(--lf-accent);
   border-color: var(--lf-accent);
@@ -1384,11 +1384,12 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-accent);
   color: var(--lf-entry-ink, var(--lf-ink));
 }
-/* A selected page reading and its compact Page Map projection share one accent. Reuse
-   the entry's existing contour: category still owns its weight, and focus can
+/* The entry of the reading the user stands in and its compact Page Map projection
+   share the user's ink (`--lf-here`), as the location ring round that reading does.
+   Reuse the entry's existing contour: category still owns its weight, and focus can
    add the one outer ring that says where input will land. */
 .lf-margin-face[data-lf-target-selected] {
-  border-color: var(--lf-accent);
+  border-color: var(--lf-here);
 }
 .lf-margin-face[aria-disabled="true"] {
   cursor: default;

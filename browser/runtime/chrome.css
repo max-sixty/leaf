@@ -994,10 +994,12 @@ html[data-lf-draw-mode] {
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
-  /* The margin's bars (margin-bars.js). Where the agent is at work, in the work's
-     colour its margin entry wears while it works: it comes and goes with the work, whose
-     start the margin entry's pulse acknowledges. What changed since the comparison's
-     base, in the change's (tokens.css, at `--lf-turn`). */
+  /* The margin's bars (margin-bars.js), in one lane outside the marks round their
+     block. Where the agent is at work, in the work's colour its margin entry wears while
+     it works: it comes and goes with the work, whose start the margin entry's pulse
+     acknowledges. What changed since the comparison's base, in the change's (tokens.css,
+     at `--lf-change`). Where both stand beside one block, the work's covers the
+     change's. */
   :is(.lf-at-work-bar, .lf-change-bar) {
     position: absolute;
     pointer-events: none;
@@ -1014,17 +1016,22 @@ html[data-lf-draw-mode] {
   :scope[data-lf-annotations-hidden] .lf-change-bar {
     background: transparent;
   }
-  /* The change a Change entry points at, outlined round all its blocks, in the quiet
-     contour a margin control draws round what it concerns (`[data-lf-traced]`,
-     surfaces.css). */
+  /* The change a Change entry points at, a box over the marks round all its blocks
+     that wears, inside its edge, the trace a margin control draws round what it
+     concerns (`[data-lf-traced]`, surfaces.css), so the brackets stand where each
+     block's own would. A gap's trace stands on the gap's edge, clear of the words on
+     either side. */
   .lf-change-outline {
     position: absolute;
     pointer-events: none;
     box-sizing: border-box;
-    border-radius: var(--lf-r);
-    outline: var(--lf-focus-ring-w) solid var(--lf-target-trace-ink);
-    /* The gap whose stand-in holds focus, ringed as a focused block is. */
+    --lf-ring-at: var(--lf-focus-ring-inset);
+    &[data-lf-gap] {
+      --lf-ring-at: 0px;
+    }
+    /* The gap whose stand-in holds focus, in the focus ring on the gap's edge. */
     &.lf-change-ring {
+      --lf-ring-at: 0px;
       outline: var(--lf-focus-ring);
     }
   }

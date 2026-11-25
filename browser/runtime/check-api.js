@@ -37,6 +37,9 @@ export {
   userScrollport,
   seenRect,
   growthAfterIsSeen,
+  growthIsSeen,
+  landingInsets,
+  shownWindow,
   stuckBox,
   stackLevel,
   shownParts,
@@ -49,6 +52,7 @@ export { NOTICE_MS, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export {
   readingRegions,
+  scrollerFor,
   shownRegionBounds,
   userReadingRegion,
   scrollersOf,

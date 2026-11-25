@@ -32,7 +32,6 @@ export { searchField } from "./control-labels.js";
 export { focusDestination, holdFocus, onUserInput } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
 export { scrollIntoView } from "./landing-scroll.js";
-export { scrollersOf } from "./scroll-containers.js";
 export { move } from "./dom-move.js";
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { langForPath } from "./language-paths.js";

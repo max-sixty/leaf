@@ -83,7 +83,6 @@ import {
   repeat,
 } from "/vendor/lit.js";
 import {
-  alreadyShown,
   focusDestination,
   holdFocus,
   move,
@@ -1444,10 +1443,10 @@ export class Trace extends LeafElement {
       if (row) scrollIntoView(row, { block: "nearest", behavior: "smooth" });
       return;
     }
-    // The moment's picture comes to the middle of the window where the user does not
-    // already see it whole, as a pane or the floating panel can keep it from them.
-    if (this.#pictureId && !alreadyShown(this.#nodes.viewport))
-      scrollIntoView(this.#nodes.stage, { block: "center", behavior: "smooth" });
+    // The moment's picture comes in at the nearest edge where the user does not
+    // already see it whole, and nothing moves where they do.
+    if (this.#pictureId)
+      scrollIntoView(this.#nodes.stage, { block: "nearest", behavior: "smooth" });
   }
 
   #stream() {

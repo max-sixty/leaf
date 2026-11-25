@@ -59,8 +59,7 @@ the DOM takes the element it acts for as its first argument.
 In this file:
 
 - "Connection lifetimes": `whileConnected` holds a connection's listeners and observers.
-- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work,
-  `growthIsSeen` says whether growing now would move what the user sees, and
+- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work, and
   `whileInterfaceConnected` connects a page script to a widget.
 - "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
   place nodes the module keeps.
@@ -113,10 +112,8 @@ In [module-input.md](module-input.md):
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`.
-- "Holding the reader's place": `holdPlace` and `HeldReading`.
-- "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
-  `landingInsets` and `shownWindow`.
+- "Holding the reader's place": `HeldReading`.
+- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
@@ -349,9 +346,6 @@ starts now but need not delay presentation, such as a slow load whose result mov
 nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wait for
 the page wait for the work each has started; `page check --render` starts what
 `whenNear` holds.
-Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
 
 ### First paint
 

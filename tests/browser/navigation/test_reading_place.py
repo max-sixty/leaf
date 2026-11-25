@@ -1989,8 +1989,8 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
 
     with subtests.test(case="what the window shows"):
         reading = page.evaluate("""async () => {
-          const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
-          const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
+          const {alreadyShown, fitsWhole, landingBand, shownWindow} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
           const partly = (node) => {
             const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
             scrollBy({top, behavior: 'instant'});

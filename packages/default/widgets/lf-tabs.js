@@ -99,7 +99,6 @@ import {
   readObligations,
   focusDestination,
   scrollIntoView,
-  landingInsets,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
@@ -687,8 +686,11 @@ export class TabSet extends LeafElement {
     if (!run) return;
     const label = run.querySelector(":scope > .lf-tab-group");
     if (label && getComputedStyle(strip).flexDirection === "row") {
-      const inset = landingInsets(strip);
-      const room = strip.clientWidth - inset.left - inset.right;
+      const inset = getComputedStyle(strip);
+      const room =
+        strip.clientWidth -
+        (Number.parseFloat(inset.scrollPaddingLeft) || 0) -
+        (Number.parseFloat(inset.scrollPaddingRight) || 0);
       const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;

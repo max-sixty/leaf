@@ -68,7 +68,7 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     details = inspector.bounding_box()
     assert details["y"] >= 0
     reading_bottom = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).shownWindow().bottom"
+        "async () => (await window.__lfCheckApi()).shownWindow().bottom"
     )
     assert details["y"] + details["height"] <= reading_bottom
     assert inspect_next.bounding_box()["y"] >= 0

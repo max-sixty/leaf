@@ -55,8 +55,8 @@ rule draws at once is drawn.
   replaces, with motion the eye can follow. A scroll the gesture makes carries the
   pressed control only to bring it whole into a scroller that showed part of it, or
   where the gesture says it takes the user somewhere. Without a gesture, as when news
-  arrives or a widget finishes loading, a box may grow or shrink into free room, but
-  reading content and controls stay put. The exception is a thread card narrower than
+  arrives, a box may grow or shrink into free room, but reading content and controls
+  stay put. The exception is a thread card narrower than
   the measure, which the user chose to let widen once, from its start, when a long message
   arrives, carrying its controls (`data-lf-widens`; `annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
@@ -140,8 +140,7 @@ rule draws at once is drawn.
   whose newest entry the reader follows, and then declares `--lf-holds-height: 1`. Checks: the widget
   quality checks `keeps-first-box` and `grows-with-content`
   (`src/leaf/render_gate/widget_quality.py`).
-- **Room is held only for what will be drawn**, such as a widget's upgraded controls, and
-  generated interface appears in its final position. A state that may never come, such
+- **Room is held only for what will be drawn.** A state that may never come, such
   as a failed save, shows in a slot already on screen, as a message's head carries its
   delivery status, and the user's gesture makes the room it needs. Feedback may repaint
   a control or change its label, but never its size: `data-lf-room` (`controls.css`)

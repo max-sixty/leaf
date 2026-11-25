@@ -614,7 +614,7 @@ def batch_threads(
 
     `whole` carries every message and gesture, for a reader that can't page
     through the rest, as a fork can't (`forks.line_prompt`). `beside_line` says that
-    a follower lists line forks for the session the batch goes to (`forks.lane_up`),
+    a follower lists line forks for the session the batch goes to (`leases.lane_up`),
     each with a fork beside it that summarizes its thread (`summary_fork`)."""
     names = thread_names(events)
     structure = thread_structure(events)

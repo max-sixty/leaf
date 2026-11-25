@@ -126,6 +126,14 @@ class WorkReading:
         on it is owed."""
         return self._handover.records
 
+    @property
+    def plan_ids(self) -> set[str]:
+        """The ids a plan step may name: the obligations and the updates, which `plan`
+        resolves, its `records` being `updates` as `activity` stands them."""
+        return {
+            item["id"] for item in [*self.all_obligations["all"], *self.updates["all"]]
+        }
+
     def plan(self, records: list[dict]) -> dict | None:
         """The plan in force, its steps reading the page's `records`: this reading's
         obligations and the to-dos, standing as `activity` reads them."""

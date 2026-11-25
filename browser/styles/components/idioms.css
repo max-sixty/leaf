@@ -52,7 +52,7 @@
     box-sizing: border-box;
     max-width: 100%;
     overflow-wrap: break-word;
-    border-radius: var(--lf-chip-r);
+    border-radius: var(--lf-r-s);
     background: var(--lf-chip);
     color: var(--lf-ink-2);
     vertical-align: middle;
@@ -124,7 +124,7 @@
   }
   section.lf-panel > :is(h2, h3):first-child {
     margin: 0 0 10px;
-    font: var(--lf-font-label);
+    font: var(--lf-font-heading);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--lf-muted);

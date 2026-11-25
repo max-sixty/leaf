@@ -333,7 +333,7 @@
     gap: 4px;
     padding: 3px 4px;
     margin-inline-end: var(--lf-clear);
-    border-radius: var(--lf-chip-r);
+    border-radius: var(--lf-r-s);
     background: color-mix(in srgb, var(--lf-accent) 10%, transparent);
     color: var(--lf-ink);
     font: var(--lf-font-small);
@@ -756,10 +756,10 @@
     --lf-fp-asks: var(--lf-ink);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="working"] {
-    --lf-fp-asks: var(--lf-work);
+    --lf-fp-asks: var(--lf-accent);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="listening"] {
-    --lf-fp-asks: var(--lf-turn-ink);
+    --lf-fp-asks: var(--lf-ok-ink);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="away"] {
     --lf-fp-asks: var(--lf-warn-ink);
@@ -900,11 +900,11 @@
   .lf-fp-leaf > .lf-badges > .lf-fp-news-dot {
     display: none;
   }
-  /* Its count is of what is On me, so it wears the user's turn (tokens.css,
-     `--lf-badge-fill`). */
+  /* Its count is of what is On me, so it wears the user's green (tokens.css, "Leaf's
+     own marks"): the green's ink as its ground, with the paper's words on it. */
   .lf-fp-leaf > .lf-badges > .lf-fp-badge {
-    background: var(--lf-badge-fill);
-    color: var(--lf-badge-ink);
+    background: var(--lf-ok-ink);
+    color: var(--lf-paper);
   }
   .lf-fp-leaf > .lf-badges > .lf-fp-news-dot[data-lf-shown],
   .lf-fp-leaf > .lf-badges > .lf-fp-badge[data-lf-shown] {
@@ -1499,7 +1499,7 @@
      whose words Showing's end on: its 10px padding and 1px border in. */
   .lf-fp-showing {
     padding-inline: 11px;
-    color: var(--lf-here);
+    color: var(--lf-ok);
     font: var(--lf-font-small);
     pointer-events: none;
   }
@@ -1785,7 +1785,7 @@
   .lf-fp-choice-tag {
     display: inline-block;
     padding: var(--lf-chip-pad);
-    border-radius: var(--lf-chip-r);
+    border-radius: var(--lf-r-s);
     background: var(--lf-ok-tint);
     color: var(--lf-ok-ink);
     font: var(--lf-font-chip);
@@ -1899,7 +1899,7 @@
     border-radius: 50%;
   }
   .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-mark {
-    color: var(--lf-settled-ink);
+    color: var(--lf-ink);
   }
   .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-title,
   .lf-fp-plan-step[data-lf-state="dropped"] > .lf-fp-plan-title {
@@ -1912,7 +1912,7 @@
     color: var(--lf-danger-ink);
   }
   .lf-fp-plan-step[data-lf-state="running"] > .lf-fp-plan-mark {
-    color: var(--lf-work);
+    color: var(--lf-accent);
   }
   .lf-fp-plan-step[data-lf-state="running"] > .lf-fp-plan-title {
     font-weight: 600;

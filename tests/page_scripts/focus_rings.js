@@ -41,7 +41,7 @@
   // a caller measures is the whole of the band; nought where the box paints no such thing.
   //
   // The ring's ink arrives resolved twice because the layer spells it twice: a plain
-  // `var(--lf-here)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
+  // `var(--lf-ok)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
   // `color(srgb r g b / a)`. The mix is matched on its triple alone, so how much of the
   // ink a rule laid down is not part of the question.
   function shadowBand(cs, ringInk, mixed) {
@@ -77,10 +77,10 @@
   // being read. The same span in <body> answers the same.
   function ringSwatch() {
     const swatch = document.createElement("span");
-    swatch.style.cssText = "outline: 1px solid var(--lf-here)";
+    swatch.style.cssText = "outline: 1px solid var(--lf-ok)";
     document.head.append(swatch);
     const ringInk = getComputedStyle(swatch).outlineColor;
-    swatch.style.outlineColor = "color-mix(in srgb, var(--lf-here) 100%, transparent)";
+    swatch.style.outlineColor = "color-mix(in srgb, var(--lf-ok) 100%, transparent)";
     const mixed =
       getComputedStyle(swatch).outlineColor.match(
         /color\(srgb ([\d.]+ [\d.]+ [\d.]+)/,
@@ -142,7 +142,7 @@
     // at. Its own comment carries what makes a shadow that band rather than a lift.
     const hereShadow = (cs) => shadowBand(cs, ringInk, mixed);
     // Whether this box paints the layer's ring: `--lf-focus-ring` is
-    // `var(--lf-focus-ring-w) solid var(--lf-here)`, so style, width and colour are all what
+    // `var(--lf-focus-ring-w) solid var(--lf-ok)`, so style, width and colour are all what
     // the element computes them to.
     //
     // Or the same band cast as a shadow, which is the same ring to the user and so the

@@ -245,8 +245,8 @@
     code,
     samp,
     kbd {
-      background: var(--lf-code-bg);
-      border-radius: var(--lf-code-inline-r);
+      background: var(--lf-chip);
+      border-radius: var(--lf-r-s);
       padding: var(--lf-code-inline-pad);
       font-size: var(--lf-code-inline-size);
       font-family: var(--lf-mono);

@@ -1134,8 +1134,10 @@ focus ring, which it draws in the room the transcript kept below its turns as
 padding. In Playwright Firefox 159.0 (build 1572), a 100px grid scroller with
 8px of end padding holding a 150px item reports a `scrollHeight` of 158, and
 170 with a 20px sticky item added; Chromium 159.0.8154.6 (build 1255) and WebKit
-27.2 (build 2388) report 178. No Mozilla bug found matches (searched
-2026-11-24), and Leaf has left it unreported.
+27.2 (build 2388) report 178. A playground's controls pane is such a grid too,
+and loses its 16px of end padding the same way when a sticky widget, such as
+`lf-dial`, stands directly in it, which no page does yet. No Mozilla bug found
+matches (searched 2026-11-24), and Leaf has left it unreported.
 
 So the transcript keeps that room as a row its `::after` holds after the last
 turn, which every engine counts (`annotation-chrome.css`), as it keeps the room

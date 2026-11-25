@@ -199,8 +199,9 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
 def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     browser, serve, height
 ):
-    """Scrolling moves turns under the actions while both stay put, and the reply row
-    stays outside the scrollport."""
+    """Scrolling moves turns under the actions while both stay put, the reply row stays
+    outside the scrollport, and at the transcript's end its last turn stops above the
+    row."""
     page, preview, transcript = open_long_thread(browser, serve, height)
     header = preview.locator(".lf-margin-thread-controls")
     row = preview.locator(".lf-thread-reply")
@@ -214,17 +215,6 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
         "list => parseFloat(getComputedStyle(list).scrollPaddingTop)"
     )
     assert header.bounding_box()["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
-    # The scrollport extends under the reply by its bottom padding so a rewrite's
-    # outside focus ring stays visible; the scrolling turns stop above the row.
-    ring_room = transcript.evaluate(
-        "list => parseFloat(getComputedStyle(list).paddingBottom)"
-    )
-    assert row.bounding_box()["y"] >= (
-        transcript.bounding_box()["y"]
-        + transcript.bounding_box()["height"]
-        - ring_room
-        - 0.5
-    )
 
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     page.keyboard.press("Tab")
@@ -236,6 +226,20 @@ def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
         if ring["sample"] and ".lf-compose-field" in ring["rule"]
     ]
     assert ring["cuts"] == []
+    # The scrollport reaches under the reply row by the room a rewrite's ring takes
+    # below the last turn, so the turns stop above the row.
+    transcript.evaluate(
+        """list => {
+          const end = list.scrollHeight - list.clientHeight;
+          if (list.scrollTop < end) list.scrollTop = end;
+        }"""
+    )
+    rendered(page)
+    last = transcript.locator(":scope > .lf-msg").last.bounding_box()
+    assert last["y"] + last["height"] <= row.bounding_box()["y"] + 0.5, (
+        last,
+        row.bounding_box(),
+    )
 
 
 def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):

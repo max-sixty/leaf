@@ -769,6 +769,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether the user is inside a scope, across shadow trees and slots                                     | `dom/focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `records/history.js` `readPlace`, `returnPlace`                                        |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `records/thread/address.js` `createThreadAddress`                                      |
+| The link that opens a message's thread on that message                                                | `records/thread/address.js` `messageLink`                                              |
 | Which member a widget shows of several, its name in the address, and the user's place in each         | `records/views.js` `keepView`, `entryView`                                             |
 | Where the user's caret stands, and its element, through open shadow trees                             | `dom/native-selection.js` `userCaret`                                                  |
 | The page place focus or the caret identifies, or none                                                 | `records/current-target.js` `currentLocationOrigin`                                    |

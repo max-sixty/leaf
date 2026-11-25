@@ -1614,6 +1614,55 @@ def test_a_thread_url_with_a_fragment_lands_there_with_the_thread_open(browser, 
     expect(page.locator("#target")).to_be_in_viewport()
 
 
+def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve):
+    """A message's Copy link copies the page's address naming that message, without
+    the fragment the address held, and the link opens the thread on the message; `y`
+    on the thread, where no message has focus, copies the thread's own link."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "At the last paragraph.",
+        },
+    )["id"]
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, thread_url(url, root, "p59"), context=context)
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{reply}"]')
+    message.hover()
+    message.locator(".lf-msg-link").click()
+    expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
+    copied = page.evaluate("navigator.clipboard.readText()")
+    # The address as the page holds it, naming the reply in place of the thread.
+    link, here = urlsplit(copied), urlsplit(page.url)
+    assert here.fragment == "p59"
+    assert (link.path, dict(parse_qsl(link.query)), link.fragment) == (
+        here.path,
+        {**dict(parse_qsl(here.query)), "thread": reply},
+        "",
+    )
+    thread.focus()
+    page.keyboard.press("y")
+    page.wait_for_function(
+        "copied => navigator.clipboard.readText().then((now) => now !== copied)",
+        arg=copied,
+    )
+    assert page.evaluate("navigator.clipboard.readText()") == copied.replace(
+        reply, root
+    )
+
+    followed = open_page(browser, copied, context=context)
+    expect(
+        followed.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
+    ).to_be_focused()
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engine):
     """An entry's `?thread=` names the thread view standing open on it, renamed as views

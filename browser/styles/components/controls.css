@@ -143,7 +143,7 @@
 }
 /* A message's own controls stand as one group at its head's end, centred on its line:
    an agent's reply its reactions, the user's own words their rewrite, and an open
-   rewrite its Discard and Save, with Copy last. A control is one more child of the
+   rewrite its Discard and Save, and, beside a closed one, Copy link, with Copy last. A control is one more child of the
    group. They appear only for the message under pointer or focus. A reply with no
    feedback keeps no row below its words. The reaction picker is an overlaid menu below
    its trigger; opening it never moves this message or the threads after it. At rest
@@ -211,11 +211,14 @@
     min-inline-size: auto;
   }
 }
-/* Under a finger, with no hover to hide it, Copy would stand on every message for
-   good, and a head is too narrow for two controls at the aim floor, so it is left out
-   there, and a finger copies a message's words by selecting them. */
+/* Under a finger, with no hover to hide them, Copy and Copy link would stand on every
+   message for good, and a head is too narrow for more than one control at the aim
+   floor, so they are left out there: a finger copies a message's words by selecting
+   them, and a thread's link from the address, which names the thread open
+   (records/thread/address.js). */
 @media (pointer: coarse), (hover: none) {
-  .lf-msg-controls > .lf-msg-copy {
+  .lf-msg-controls > .lf-msg-copy,
+  .lf-msg-controls > .lf-msg-link {
     display: none;
   }
 }

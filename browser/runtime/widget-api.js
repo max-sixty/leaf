@@ -63,8 +63,9 @@ export { whenNear } from "./presentation.js";
 export { readHistory } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
 
-// Render a declared template or a generated document as an isolated live Leaf page.
-// The returned host owns readiness, the frame's height, Reset and disposal
+// Render a declared template or a generated document as an isolated live Leaf page,
+// which only Leaf's server can allocate (SOUL.md, "Make the work concrete and
+// playable"). The returned host owns readiness, the frame's height, Reset and disposal
 // (live-samples.md). A block's frame the reader sees as it mounts is drawing under way
 // (lib/pending-task.js), read here in the caller's stack: the page's presentation
 // waits for it, or the gesture whose rendering showed the frame owns its fit. The host

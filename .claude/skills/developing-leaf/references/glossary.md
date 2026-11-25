@@ -123,7 +123,7 @@ For an authored occurrence say *Leaf element*, never *instance* alone.
 | **Component** | A reusable implementation building block, such as a widget’s legend or an internal control. Use *widget* for the complete page feature and *element* for its authored HTML |
 | **Compound owner** | A Leaf element whose body holds declared direct members |
 | **Compound member** | A Leaf element whose declaration names the owner types that may hold it directly (`owners`) |
-| **Structural element** | A Leaf element with a declared role in reading structure (`reading-role`) |
+| **Structural element** | A Leaf element with a role in reading structure, `lf-pane` or `lf-group` |
 | **Addressable element** | An authored element with an id that a user can target |
 
 An element declaration keeps independent properties in separate keys, which the

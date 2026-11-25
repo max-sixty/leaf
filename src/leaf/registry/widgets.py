@@ -221,23 +221,6 @@ def _validate_widget_structure(
     attributes = entry["attributes"]
     properties = attributes.get("properties", {})
     required = set(attributes.get("required", []))
-    layout = entry.get("reading-role")
-    if layout:
-        if entry.get("content") != "markup":
-            raise registry_error(
-                "requires",
-                path,
-                tag,
-                key="reading-role",
-                needs="content",
-                value="markup",
-            )
-        if "id" not in required:
-            raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
-        if "label" not in required or not _typed(properties, "label", "string"):
-            raise registry_error(
-                "reading-role-attr", path, tag, role=layout, attr="label"
-            )
     # `leaf data set` validates a source's value against its contract, so an input
     # that can bind a source names a contract this vocabulary declares. An input that
     # only reads another widget's output matches that output by the contract's name,

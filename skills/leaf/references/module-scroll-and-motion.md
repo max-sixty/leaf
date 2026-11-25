@@ -13,10 +13,10 @@ and widths").
 
 ### Reading regions
 
-A pane widget declares `reading-role: pane` and `content: markup`, and holds one
-body element, with an optional native `header` before it and `footer` after. Whether a
-pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
-module's, and either way the module marks the body as a reading region, below.
+A pane is Leaf's `lf-pane`, which holds one body element, with an optional native
+`header` before it and `footer` after. Whether a pane's body scrolls is the workspace
+Layout's decision (`layouts.css`), not the module's, and either way the pane marks the
+body as a reading region, below.
 
 While the workspace fills the window, the Layout sets `--lf-full-height: 1` on `main` and
 on a grid of panes, telling their children they have a definite height to fill. A

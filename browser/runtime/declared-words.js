@@ -164,7 +164,8 @@ export function paintDeclaredWords(root) {
 // Two more complete the set: `bound`, a block that holds its own height and scrolls
 // inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
 // keeps an `end` bound on its newest entry), and `reading-role`, the structure the
-// theme and the workspace Layout lay out, so every package's pane takes the same rules.
+// theme and the workspace Layout lay out, which the kernel names for Leaf's own pane
+// and group (`tags`) and a module writes on a pane it builds.
 //
 // An attribute, because the theme cannot read the registry. Which declarations are marks, the attribute
 // each is painted as, the attribute an occurrence overrides it with, and whether it
@@ -197,9 +198,10 @@ export function markDeclared(root) {
     const fact = /** @type {keyof import("../types/contract.js").WidgetDeclaration} */ (
       key
     );
-    const tags = tagsDeclaring((entry) => entry[fact]);
+    const named = mark.tags ?? {};
+    const tags = [...tagsDeclaring((entry) => entry[fact]), ...Object.keys(named)];
     for (const tag of tags) {
-      const declared = registry[tag]?.[fact];
+      const declared = registry[tag]?.[fact] ?? named[tag];
       for (const el of elementsIn(root, tag)) {
         const value = holdsFor(el, declared);
         keeps(

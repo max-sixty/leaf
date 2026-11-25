@@ -107,7 +107,7 @@
  * acts: pressing one only aims at the sheets again. Pointing marks the page only within
  * a window's height of what the window shows, so a reader who scrolls far while
  * pointing finds the rest unmarked; that keeps pointing the same cost on any page. */
-import { nameOf, motion, onPress } from "/runtime/widget-api.js";
+import { nameOf, motion } from "/runtime/widget-api.js";
 import { tabMemory } from "/runtime/lib/tab-memory.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -463,20 +463,34 @@ customElements.define(
       );
       // A plain press on the dial puts Leaf's preview away as it goes down, and its
       // click turns the dial or aims at the sheets again (`#aim`), so the sheets wait
-      // until the press is over. A finger's tap reads no preview again, so its sheets
-      // go at once.
-      const stopPress = onPress((down, path) => {
-        if (!path.includes(this) || !plainPress(down) || down.pointerType === "touch")
-          return null;
-        this.#pressing = true;
-        return () => () => {
-          this.#pressing = false;
-          const away = this.#lifted;
-          this.#lifted = null;
-          if (away) nextRender(away);
-        };
-      });
-      signal.addEventListener("abort", stopPress);
+      // until the press is over: its release or cancel, and then the click a release
+      // owes, which the browser dispatches in the release's task. A finger's tap reads
+      // no preview again, so its sheets go at once.
+      this.addEventListener(
+        "pointerdown",
+        (down) => {
+          if (!down.isPrimary || !plainPress(down) || down.pointerType === "touch")
+            return;
+          this.#pressing = true;
+          const press = new AbortController();
+          const over = () => {
+            press.abort();
+            setTimeout(() => {
+              this.#pressing = false;
+              const away = this.#lifted;
+              this.#lifted = null;
+              if (away) nextRender(away);
+            });
+          };
+          const options = {
+            capture: true,
+            signal: AbortSignal.any([signal, press.signal]),
+          };
+          addEventListener("pointerup", over, options);
+          addEventListener("pointercancel", over, options);
+        },
+        { capture: true, passive: true, signal },
+      );
       const stored = tabMemory.get(this.#key);
       if (stored) this.#apply(stored, { moving: false });
     }

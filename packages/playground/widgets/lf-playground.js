@@ -65,7 +65,7 @@ import { createPlayground, same } from "./playground-view.js";
  * from, which would leave every page to restate when the press withdraws the choice;
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
-import { aimedAt, onPress, says, wear } from "/runtime/widget-api.js";
+import { aimedAt, says, wear } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { iconElement } from "/runtime/lib/icon-paths.js";
@@ -187,7 +187,11 @@ customElements.define(
       super.connectedCallback();
       if (!this.#ready) return;
       const { signal } = (this.#connection = new AbortController());
-      const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
+      this.addEventListener(
+        "pointerdown",
+        (start) => this.#holdRangePreview(start, signal),
+        { capture: true, passive: true, signal },
+      );
       // The narrow layout places shared controls above the stage. Their actual
       // height is also the landing inset for its content and any sticky toolbar. A
       // quoted playground draws only its authored markup, with neither.
@@ -229,10 +233,7 @@ customElements.define(
       this.#draw();
       // An edit left unrecorded across a disconnection records once input pauses.
       if (this.#unsent.size) this.#recordLater();
-      signal.addEventListener("abort", () => {
-        observer.disconnect();
-        stopPress();
-      });
+      signal.addEventListener("abort", () => observer.disconnect());
     }
 
     disconnectedCallback() {
@@ -434,7 +435,7 @@ customElements.define(
     // The canonical press owns this closure until its compatibility events finish.
     /** @param {PointerEvent} start @param {AbortSignal} connected */
     #holdRangePreview(start, connected) {
-      if (start.button !== 0) return;
+      if (!start.isPrimary || start.button !== 0) return;
       const target = start.composedPath()[0];
       if (!(target instanceof Element)) return;
       const range = target.closest('input[type="range"]');
@@ -491,11 +492,18 @@ customElements.define(
           },
         );
       }
-      return (/** @type {Event} */ _end, /** @type {boolean} */ completed) => {
-        if (completed) restore(document.activeElement);
-        else close();
-        return close;
-      };
+      // A release puts the user back in the preview and the hold lasts until the click
+      // it owes is past, which the browser dispatches in the release's task; a cancel
+      // ends it at once.
+      addEventListener(
+        "pointerup",
+        () => {
+          restore(document.activeElement);
+          setTimeout(close);
+        },
+        { capture: true, signal },
+      );
+      addEventListener("pointercancel", close, { capture: true, signal });
     }
 
     // Whether the user is in the preview, where a candidate can draw on the element

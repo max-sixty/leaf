@@ -30,9 +30,6 @@ export * from "./portable-api.js";
 // `nameOf(thing)`: the name Leaf gives an element, the page, a thread or an On list
 // row, in words.
 export { nameOf } from "./names.js";
-// Following the primary pointer's press (`onPress`), and hearing a press that lands
-// away from a surface (`onPressAway`).
-export { onPress, onPressAway } from "./focus.js";
 // The page readings, each a value to `read()` and a `change` to hear: the obligations,
 // or those a region holds, the On lists, the threads, which it also writes, and the
 // page's history (readings.js).

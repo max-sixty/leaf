@@ -82,10 +82,7 @@ import {
   render,
   repeat,
 } from "/vendor/lit.js";
-import {
-  onUserInput,
-  scopedMediaUrl,
-} from "/runtime/widget-api.js";
+import { scopedMediaUrl } from "/runtime/widget-api.js";
 import { move } from "/runtime/lib/dom-move.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -657,7 +654,12 @@ export class Trace extends LeafElement {
     if (!this.#built) return;
     const { signal } = (this.#connection = new AbortController());
     document.addEventListener("visibilitychange", this.#visibility, { signal });
-    signal.addEventListener("abort", onUserInput(this.#reviewGesture));
+    for (const type of ["pointerdown", "wheel", "keydown"])
+      addEventListener(type, this.#reviewGesture, {
+        capture: true,
+        passive: true,
+        signal,
+      });
     // A returning recording draws the picture its departure closed.
     if (this.#trace) this.#draw();
   }

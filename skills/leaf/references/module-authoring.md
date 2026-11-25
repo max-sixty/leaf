@@ -83,9 +83,7 @@ In [module-reading.md](module-reading.md):
 
 In [module-input.md](module-input.md):
 
-- "Focus and layers": `onPress` and `onPressAway` follow a pointer's press.
-- "Pointer presses": `aimedAt` says what a click on a container was for, and
-  `onUserInput` hears each input before Leaf handles it.
+- "Pointer presses": `aimedAt` says what a click on a container was for.
 - "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):

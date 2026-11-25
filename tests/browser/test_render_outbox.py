@@ -912,7 +912,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {widgetController} = await window.__lfCheckApi();
           const board = document.querySelector('#sprint');
           const controller = widgetController(board);
           const attempt = 'one-attempt-two-actions';
@@ -1461,7 +1461,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfWidgetApi().then(({widgetController}) => {
+            """() => { void window.__lfCheckApi().then(({widgetController}) => {
               const widget = document.querySelector('#sprint');
               const detail = {unit: 'card-baffle', value: 'col-todo', rank: 's'};
               document.getElementById(detail.value).append(document.getElementById(detail.unit));
@@ -1562,7 +1562,7 @@ customElements.define("lf-outer-board", class extends LeafElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfWidgetApi().then(({widgetController}) => {
+            """() => { void window.__lfCheckApi().then(({widgetController}) => {
               const widget = document.querySelector('#outer');
               const detail = {unit: 'outer-card', value: 'outer-done', rank: '0i'};
               document.getElementById(detail.value).append(document.getElementById(detail.unit));
@@ -1571,7 +1571,7 @@ customElements.define("lf-outer-board", class extends LeafElement {
         )
     holding(page, held, 1, "the outer-board move")
     page.evaluate(
-        """() => { void window.__lfWidgetApi().then(({widgetController}) => {
+        """() => { void window.__lfCheckApi().then(({widgetController}) => {
           const widget = document.querySelector('#inner');
           const detail = {unit: 'inner-card', value: 'inner-done', rank: '0i'};
           document.getElementById(detail.value).append(document.getElementById(detail.unit));

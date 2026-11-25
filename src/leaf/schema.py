@@ -397,16 +397,7 @@ FACTS: dict[str, dict] = {
             },
         ]
     },
-    "views": {
-        "type": "object",
-        "properties": {
-            "members": {"type": "string", "minLength": 1},
-            "parts": {"const": True},
-        },
-        "required": ["members"],
-        "additionalProperties": False,
-    },
-    "space": {"enum": ["wide", "available"]},
+    "parts": {"const": True},
     "bound": {"enum": ["start", "end"]},
     "spine": {"const": True},
     "flow": _conditional({"const": True}),

@@ -23,8 +23,8 @@ that one action, and the same two modules work off Leaf, where the owner keeps t
 answer itself. A view whose own place on the page is that answer, as a board card
 stands in the column of a pick, names the owner in a `refers` attribute too, as
 `lf-card` does in `shows`, but its module reads the owner's state and records the
-owner's verb through `widgetController(owner)`
-([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
+owner's verb itself
+([module-state.md, "Recorded state"](module-state.md#recorded-state)).
 
 Packages declare no dependency on each other. A widget that holds a value names a
 contract that its own package or Leaf's `default` package declares in
@@ -256,9 +256,9 @@ obligation's question, its region and its words (`authoring-on-me.md`, "On the p
 so a widget needs no prompt of its own.
 
 The module reads this state as `this.state` and records it with `record()`
-([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
+([module-state.md, "Recorded state"](module-state.md#recorded-state)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
+state"](module-state.md#declared-widget-state)), and reads obligations with `obligations.read()`
 ([module-reading.md, "Reading obligations and the
 On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 

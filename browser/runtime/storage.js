@@ -41,11 +41,9 @@ const { stored } = window.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while where they were writing here belongs to this page. tabStore is the only one on the helper
-// surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
-// collapsed group) — a module reaches its drafts through `draft`, the chrome
+// surface, because only widgets keep state in the tab (lf-options' collapsed group) — a module reaches its drafts through `draft`, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for. tab-store.js owns the portable widget store, and views.js keeps
-// which member a widget shows.
+// nobody asked for. tab-store.js owns the portable widget store.
 export const writingStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

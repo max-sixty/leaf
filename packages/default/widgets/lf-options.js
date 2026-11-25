@@ -112,21 +112,14 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
-import {
-  aimedAt,
-  nameOf,
-  elementById,
-  rowWalk,
-  named,
-  focusDestination,
-  scrollIntoView,
-} from "/runtime/widget-api.js";
+import { aimedAt, nameOf, named } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
 import { markdownWords } from "/runtime/lib/markdown.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
+import { rowWalk } from "/runtime/lib/row-walk.js";
 
 // What an option is called, in either form: a card's `label`, and a compact option's
 // own words, which are all it has. `named` rather than `says`, because a picked option's
@@ -419,7 +412,6 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
       this.#syncDone();
     }
 
@@ -503,8 +495,8 @@ customElements.define(
           title: "Another option",
           when: () => this.#available("choose"),
           run: () => {
-            focusDestination(input, "move");
-            scrollIntoView(input, { block: "nearest" });
+            input.focus({ preventScroll: true });
+            input.scrollIntoView({ block: "nearest" });
           },
         });
       const done = this.#done;
@@ -540,7 +532,9 @@ customElements.define(
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;
-      const block = elementById(target, this);
+      const block = /** @type {Document | ShadowRoot} */ (
+        this.getRootNode()
+      ).getElementById(target);
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;

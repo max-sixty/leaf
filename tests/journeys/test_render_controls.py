@@ -1020,7 +1020,7 @@ def test_sample_editor_focus_preserves_outer_scroll_and_the_caret(
   <template id="practice-source" data-sample>
     <h1>Practice page</h1><button id="entry">Enter practice</button>
         <script type="module">
-          import {focusDestination} from '/runtime/widget-api.js';
+          import {focusDestination} from '/runtime/focus.js';
           window.placeEditor = () => focusDestination(document.querySelector('#editor'), 'move');
         </script>
   </template>

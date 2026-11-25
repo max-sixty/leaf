@@ -562,6 +562,10 @@ function createApplication(dependencies) {
     return registerPageConsumer(owner, render, threadSurfaceCommands);
   };
 
+  // `placePageThreads` and `registerThreadPresentation` stay in the package interface
+  // because only Leaf holds the threads' placement and the page's primary reader, which
+  // a package takes over through them in place of Leaf's margin and floating panel.
+  //
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
   // runtime alone is handed): a reader the page's package registers
@@ -694,12 +698,15 @@ function createApplication(dependencies) {
     }
     return dependencies.goToObligation(item);
   };
-  // A package's one travel (widget-api.js, `go`), told apart by what it is handed: an
+  // A package's one travel (widget-api.js, `go`). It stays in the package interface
+  // because only Leaf holds the arrival it shares with its own keys: the history entry
+  // Back returns along, the reveal of what holds the place, the On Me walk's position
+  // and the thread's destination. It is told apart by what it is handed: an
   // element, or the part a key names in it, as a link to `#<id>:<key>` reaches it; a
   // step of the On Me walk within a region, from where the user is, as an `lf-tally`
-  // steps; a thread by its `key`, as `readThreads` gives it, opened where a margin
-  // mark would open it; and an obligation by its `id`, as `readObligations` and the
-  // rows of `readQueues` give it, where On Me's arrival would land.
+  // steps; a thread by its `key`, as `threads.read()` gives it, opened where a margin
+  // mark would open it; and an obligation by its `id`, as `obligations.read()` and the
+  // rows of `queues.read()` give it, where On Me's arrival would land (readings.js).
   /** @typedef {{within: Element, dir?: number}} Step
    * @typedef {{key: string}} ThreadRow
    * @typedef {{id: string}} ObligationRow
@@ -749,7 +756,6 @@ function createApplication(dependencies) {
     queueActions,
     go,
     startFeed: feed.startFeed,
-    wireInput: dependencies.wireInput,
   };
   return mounted;
 }
@@ -791,5 +797,3 @@ export const threadActions = Object.freeze({
       ...args
     ) => app().threadActions.setReaction(...args),
 });
-/** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
-export const wireInput = (...args) => app().wireInput(...args);

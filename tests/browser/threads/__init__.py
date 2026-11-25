@@ -52,8 +52,8 @@ def thread_row(page, key):
     tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
     key, resolved = page.evaluate(
         """async (id) => {
-          const {readThreads} = await window.__lfWidgetApi();
-          const thread = readThreads().threads.find((t) => t.id === id || t.key === id);
+          const {threads} = await window.__lfWidgetApi();
+          const thread = threads.read().threads.find((t) => t.id === id || t.key === id);
           return [thread?.key ?? id, Boolean(thread?.resolved)];
         }""",
         key,
@@ -82,13 +82,13 @@ def open_panel_thread(page, thread_id):
     # the trip being over doesn't mean the page holds it yet.
     page.evaluate(
         """async () => {
-          window.__lfReadThreads = (await window.__lfWidgetApi()).readThreads;
+          window.__lfThreads = (await window.__lfWidgetApi()).threads;
         }"""
     )
     try:
         found = page.wait_for_function(
             """(id) => {
-              const thread = window.__lfReadThreads().threads.find((t) => t.id === id);
+              const thread = window.__lfThreads.read().threads.find((t) => t.id === id);
               return thread
                 ? [thread.key, Boolean(thread.resolved), Boolean(thread.anchor)]
                 : null;

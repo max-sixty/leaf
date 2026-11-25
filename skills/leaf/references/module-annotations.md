@@ -112,8 +112,8 @@ the visual shows.
 
 ### Reading and opening Threads from a widget
 
-`readThreads()` returns the `{phase, threads}` Leaf's Threads list reads, and a render
-that calls it redraws when it changes. A thread the user just started is there at once;
+`threads.read()` returns the `{phase, threads}` Leaf's Threads list reads, a page
+reading (`module-reading.md`, "Page readings"). A thread the user just started is there at once;
 only `phase === "ready"` means every saved thread is. A Thread's `turns` are the
 messages a drawing of it shows, in order: its opening message and each later message
 that is not a reaction. `nameOf(thread)` returns its name in words
@@ -138,14 +138,14 @@ and after the quote, which tell two copies of the same words apart.
 To take the user to a Thread, hand it to `go`
 ([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 
-`threadActions` acts on Threads through Leaf's own path, showing the result at once:
+`threads` also acts on Threads through Leaf's own path, showing the result at once:
 
 ```js
-threadActions.create({ text, anchor, attempt });
-threadActions.reply(thread.key, text);
-threadActions.resolve(thread.key);
-threadActions.reopen(thread.key);
-threadActions.setReaction(thread.key, agentMessage.key, token, true);
+threads.create({ text, anchor, attempt });
+threads.reply(thread.key, text);
+threads.resolve(thread.key);
+threads.reopen(thread.key);
+threads.setReaction(thread.key, agentMessage.key, token, true);
 ```
 
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the Thread doesn't
@@ -214,8 +214,8 @@ thread, and `sent()` then runs in place of Leaf's landing of the new turn. The r
 stands in a resolved thread too, and a reply there reopens it. The collection
 holds back changes that would move what the user sees behind a notice, which a whole
 conversation stands as a card does, or where its `head` names, and message parts at
-the end of the first part's head, while `readThreads()` stays current for counts. A
-feed of single turns supplies Resolve and Reopen through `threadActions`.
+the end of the first part's head, while `threads.read()` stays current for counts. A
+feed of single turns supplies Resolve and Reopen through `threads`.
 
 Await the handle's `update()` after a local layout change, or `update({release: true})`
 to show held news for a deliberate change of view. If `render` throws or names an outlet
@@ -285,7 +285,7 @@ still hold the comment box the user is typing in, so remove outlets only in `onC
 which runs once this pass's placement takes effect, and keep returned ones in the
 document while redrawing around them. A widget that must remove a node holding outlets
 at another time, such as when its data goes, first calls
-`threadSurface(this).release(node)`, before any `holdFocus`, and the comment box leaves
+`threadSurface(this).release(node)`, before it holds focus, and the comment box leaves
 the widget's outlets under `node` with the user still writing in it. If `threadOutlets`
 throws, Leaf returns the widget's threads to the margin until the next pass.
 
@@ -327,7 +327,7 @@ words are drawn.
 
 The registration throws on other pages, and returns a handle with `read()`, `update()`,
 `unregister()`, `open(node)` and `reveal(key)`.
-`read()` returns what `readThreads()` returns. `update()` asks for `render` again and
+`read()` returns what `threads.read()` returns. `update()` asks for `render` again and
 returns nothing to await, so do what must follow a placement in the `onCommit` its
 `render` is handed, which runs once Leaf has filled the outlets. `open(node)` opens the
 comment box on the visual part or datum that holds `node`, or else on the nearest

@@ -65,20 +65,13 @@ import { createPlayground, same } from "./playground-view.js";
  * from, which would leave every page to restate when the press withdraws the choice;
  * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
-import {
-  aimedAt,
-  focusDestination,
-  holdFocus,
-  onCurrentLocation,
-  onPress,
-  says,
-  wear,
-} from "/runtime/widget-api.js";
+import { aimedAt, onPress, says, wear } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import { iconElement } from "/runtime/lib/icon-paths.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
+import { keepFocus } from "/runtime/lib/focus-on.js";
 import "./lf-playground-output.js";
 
 /** @typedef {null | string | number | boolean | readonly JSONSnapshot[] | {readonly [name: string]: JSONSnapshot}} JSONSnapshot */
@@ -297,7 +290,7 @@ customElements.define(
     }
 
     #build() {
-      const restore = holdFocus(this);
+      const restore = keepFocus(this);
       this.#renderedView = createPlayground(this);
       const initial = this.#view;
       this.#fields = initial.fields;
@@ -322,7 +315,7 @@ customElements.define(
           if (!pick) return;
           if (aimedAt(event, pick.box) !== pick.box) return;
           event.preventDefault();
-          focusDestination(pick.radio, "press");
+          pick.radio.focus({ preventScroll: true });
           pick.radio.click();
         });
         // A gesture records the settings when it ends (the header says why). These
@@ -463,16 +456,28 @@ customElements.define(
           close();
           return;
         }
-        focusDestination(currentLocation, "return");
+        /** @type {HTMLElement} */ (currentLocation).focus({ preventScroll: true });
         const sample = currentLocation.closest("lf-sample");
         if (sample && currentLocation.localName === "iframe")
           void sample.restoreCurrentLocation()?.catch(() => {});
       };
-      const stop = onCurrentLocation((at, cause) => {
-        if (cause === "step") close();
-        else if (at !== currentLocation) restore(at);
-      });
-      signal.addEventListener("abort", stop, { once: true });
+      // Tab takes the user on from the range, which ends the hold; any other move of
+      // focus away from the preview is the drag's, and goes back.
+      window.addEventListener(
+        "keydown",
+        (event) => {
+          if (event.key === "Tab") close();
+        },
+        { capture: true, signal },
+      );
+      document.addEventListener(
+        "focusin",
+        (event) => {
+          const at = event.composedPath()[0] ?? null;
+          if (at !== currentLocation) restore(at);
+        },
+        { capture: true, signal },
+      );
       if (currentLocation.localName === "iframe") {
         // The parent window activates before the range receives element focus.
         window.addEventListener("focus", () => restore(null), { signal });

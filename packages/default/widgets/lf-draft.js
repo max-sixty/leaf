@@ -83,9 +83,6 @@ import {
   nameOf,
   motion,
   draft,
-  focusDestination,
-  scrollIntoView,
-  onCurrentLocation,
   onPressAway,
   pageLinks,
 } from "/runtime/widget-api.js";
@@ -96,6 +93,7 @@ import { nextRender } from "/runtime/lib/frame-pass.js";
 import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
 import { noInputSince } from "/runtime/lib/input-since.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -245,21 +243,19 @@ customElements.define(
       // so an open box holding them has nothing left to hold, and closing it lets replay
       // paint whatever the log ends up saying.
       this.#live = true;
+      // Typing lasts while the caret does: a box the user has left shows Save and
+      // Discard, so it never reads as saved while it still holds their words.
+      this.addEventListener("focusout", (event) => {
+        if (this.#states.has("typing") && event.target === this.#editor)
+          this.#keepTools();
+      });
     }
 
     connectedCallback() {
       super.connectedCallback();
       if (!this.#live) return;
       const stopDraft = this.#watchDraft();
-      // Typing lasts while the caret does: a box the user has left shows Save and
-      // Discard, so it never reads as saved while it still holds their words.
-      const stopLocation = onCurrentLocation((node) => {
-        if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
-      });
-      this.#disconnect = () => {
-        stopDraft?.();
-        stopLocation();
-      };
+      this.#disconnect = () => stopDraft?.();
       // An editor a refused save reopened while the draft was out of the page says
       // its keys as the draft returns.
       this.#editor?.dispatchEvent(
@@ -499,8 +495,8 @@ customElements.define(
       // resumed edit opens with different words at those offsets.
       if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
       if (arrive) {
-        focusDestination(editor, "move");
-        if (at === undefined) scrollIntoView(editor, { block: "nearest" });
+        editor.focus({ preventScroll: true });
+        if (at === undefined) editor.scrollIntoView({ block: "nearest" });
       }
     }
 
@@ -536,14 +532,14 @@ customElements.define(
       this.#failed = false;
       this.#paintTools();
       if (stood) {
-        if (this.#sending) focusDestination(this, "return");
+        if (this.#sending) focusOn(this);
         else
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
             const edit = this.#control("edit");
             if (this.isConnected && !this.#editor && mayReturn() && edit)
-              focusDestination(edit, "return");
+              edit.focus({ preventScroll: true });
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection

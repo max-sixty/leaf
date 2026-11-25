@@ -1167,7 +1167,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
     holding(page, held, 1, "the held choice")
-    on_me = """async () => (await window.__lfWidgetApi()).readQueues().on_user
+    on_me = """async () => (await window.__lfWidgetApi()).queues.read().on_user
       .map((row) => [row.id, row.also])"""
     assert sorted(page.evaluate(on_me)) == [
         ["widget:ship", []],

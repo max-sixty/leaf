@@ -17,7 +17,7 @@
    * rules key on the root's `data-lf-layout` (revision_delivery.py), since the body is
    * styled before the parser reaches `main`. The column and sidebar page are
    * documents: they set the text measure (`--lf-measure`, read by base.css) and
-   * allocate each block's declared room (`data-lf-space`), whose rules name the
+   * allocate the room each block's author asks for (`data-lf-space`), whose rules name the
    * document Layouts in one list (Breakouts, below). A workspace does neither: its grid
    * sizes its regions.
    */
@@ -44,7 +44,7 @@
   /*
    * The box a Layout arranges is `main`, or a child of a `main` that carries no Layout
    * of its own, or the child of a part of such a `main`, a member of the child that holds
-   * the page's parts (`data-lf-views="parts"`), as each part holds its own. The box's
+   * the page's parts (`data-lf-parts`), as each part holds its own. The box's
    * parent is the shell the Layout places it in: `body`, `main` or the part. The box says so
    * (`--lf-layout-box`), and the runtime finds the shown one by that (runtime/passages.js,
    * `layoutBox`) rather than by reading a Layout class. It is the style container a
@@ -61,9 +61,9 @@
     syntax: "*";
     inherits: false;
   }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column,
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar,
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-column,
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-sidebar,
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace {
     --lf-layout-box: 1;
     --lf-block-frame: trim;
     container-name: lf-content-frame;
@@ -72,13 +72,13 @@
       > :is(.layout-column, .layout-sidebar, .layout-workspace)
     ),
   main
-    > [data-lf-views="parts"]
+    > [data-lf-parts]
     > :has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
     container-type: inline-size;
     --lf-layout-shell: 1;
   }
   /* A page of parts: a `main` that carries no Layout and holds the page's parts
-   * (`data-lf-views="parts"`, lf-parts.js), each a member whose child is the box its own
+   * (`data-lf-parts`, lf-parts.js), each a member whose child is the box its own
    * Layout arranges (above). Live, a column down the left holds what the page writes
    * before the parts, its title, and under it the parts' list (its `tablist`); the open
    * part takes the rest of the width from the top of the page. Title and list both stand
@@ -116,7 +116,7 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
-        > [data-lf-views="parts"]
+        > [data-lf-parts]
       ) {
       --lf-parts-list: 15rem;
       --lf-holds-parts: 1;
@@ -128,7 +128,7 @@
       min-block-size: calc(100dvh - var(--lf-head-room));
     }
     @container style(--lf-holds-parts: 1) {
-      :where(main > *):not([data-lf-views="parts"]) {
+      :where(main > *):not([data-lf-parts]) {
         grid-column: 1;
         grid-row: 1;
         anchor-name: --lf-parts-title;
@@ -149,13 +149,13 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views="parts"] {
+      > [data-lf-parts] {
       display: contents;
     }
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views="parts"]
+      > [data-lf-parts]
       > [role="tablist"] {
       grid-column: 1;
       grid-row: 2;
@@ -163,7 +163,7 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views="parts"]
+      > [data-lf-parts]
       > :not([role="tablist"]) {
       grid-column: 2;
       grid-row: 1 / -1;
@@ -171,7 +171,7 @@
     html[data-lf-interactive]
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views="parts"]
+      > [data-lf-parts]
       > :not([role="tablist"], [hidden]) {
       align-self: stretch;
     }
@@ -181,14 +181,14 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
+        > [data-lf-parts]
         > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
         contain: size;
       }
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
+        > [data-lf-parts]
         > :not([role="tablist"], [hidden])
         > .layout-workspace {
         block-size: 100%;
@@ -198,14 +198,14 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
-          > [data-lf-views="parts"]
+          > [data-lf-parts]
         ) {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: none;
         min-block-size: 0;
       }
       @container style(--lf-holds-parts: 1) {
-        :where(main > *):not([data-lf-views="parts"]) {
+        :where(main > *):not([data-lf-parts]) {
           grid-column: 1;
           grid-row: auto;
         }
@@ -213,19 +213,19 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
+        > [data-lf-parts]
         > [role="tablist"],
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
+        > [data-lf-parts]
         > :not([role="tablist"]) {
         grid-column: 1;
         grid-row: auto;
       }
       /* The title scrolls away; the list sticks over the part (the package theme). */
       @container style(--lf-holds-parts: 1) {
-        :where(main > *):not([data-lf-views="parts"]) {
+        :where(main > *):not([data-lf-parts]) {
           position: static;
           inline-size: auto;
           max-block-size: none;
@@ -236,7 +236,7 @@
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
+        > [data-lf-parts]
         > :not([role="tablist"], [hidden]) {
         align-self: start;
       }
@@ -246,14 +246,14 @@
         html[data-lf-interactive]
           body
           > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-          > [data-lf-views="parts"]
+          > [data-lf-parts]
           > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
           contain: none;
         }
         html[data-lf-interactive]
           body
           > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-          > [data-lf-views="parts"]
+          > [data-lf-parts]
           > :not([role="tablist"], [hidden])
           > .layout-workspace {
           block-size: var(--lf-view-height);
@@ -292,7 +292,7 @@
    * margin entries moved up with it. Restoring them would take a rule for each kind of
    * block that can open a section.
    *
-   * The room past the gutter on each side of the column is what a block declaring a
+   * The room past the gutter on each side of the column is what a block asking for a
    * wider space breaks into (Breakouts, below). Only the Layout's box
    * (`--lf-layout-box`, above) has room: it stands in a size container as wide as its
    * shell, so it resolves the shell's width (`--lf-shell-width`) and states each side's
@@ -383,7 +383,7 @@
   :is(
     main,
     main:not(.layout-column, .layout-sidebar, .layout-workspace) > *,
-    main > [data-lf-views="parts"] > * > *
+    main > [data-lf-parts] > * > *
   ).layout-column {
     --lf-shell-width: 100cqi;
     --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--lf-col-pad));
@@ -933,7 +933,7 @@
    * painted by delivery; a widget-generated one also carries `data-lf-generated`. The
    * workspace takes the whole window, with minimal gutter, gap and header, since every
    * pixel of frame comes from the panes. Type is the theme's (`.density-working`). */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace {
     --lf-workspace-gutter: 12px;
     padding-inline: var(--lf-workspace-gutter);
     padding-block: var(--lf-sp-2) var(--lf-page-pad-end);
@@ -957,8 +957,7 @@
   }
   /* The header is one row: the title with the page's status beside it, wrapping only
    * where the row runs out. A lede belongs in a pane. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
-    > header {
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace > header {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -966,14 +965,12 @@
     padding-block: 0 var(--lf-sp-2);
     --lf-block-frame: 1;
   }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
-    > header
-    > * {
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace > header > * {
     margin-block: 0;
   }
   /* A body that is not itself a pane is a reading region of the Layout's own
    * (reading-regions.js, `syncLayoutRegion`). */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
     > :not(header, footer, [data-lf-reading-role="pane"]) {
     --lf-reading-region: layout;
   }
@@ -982,7 +979,7 @@
    * ring outside its box, so neighbours' rings fill the gap as one line and an empty
    * cell shows the page's ground. A pane a body widget generates
    * (`data-lf-generated`) is that widget's region, so neither is drawn for it. */
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
     > :not(header, footer):has(
       > [data-lf-reading-role="pane"]:not([data-lf-generated])
     ) {
@@ -990,7 +987,7 @@
     border: 1px solid var(--lf-rule);
     border-radius: var(--lf-r);
   }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+  :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
     > :not(header, footer)
     > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
@@ -1009,12 +1006,11 @@
    * a tab set in the body names for its own strip. The body is a stacking context of
    * its own, so nothing it lifts paints over the header. */
   @media screen and ((width < 720px) or (height < 480px)) {
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace {
       --lf-workspace-top: var(--lf-top);
       padding-block-start: 0;
     }
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
-      > header {
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace > header {
       position: sticky;
       --lf-head-inset: 0px;
       top: var(--lf-top);
@@ -1025,14 +1021,14 @@
         calc(-1 * var(--lf-workspace-gutter)) 0 var(--lf-paper),
         var(--lf-workspace-gutter) 0 var(--lf-paper);
     }
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
       > :not(header) {
       --lf-top: calc(var(--lf-workspace-top) + var(--lf-layout-head-h, 0px));
       isolation: isolate;
     }
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace {
       --lf-full-height: 1;
       display: flex;
       flex-direction: column;
@@ -1040,11 +1036,11 @@
       padding-block-end: 0;
       box-sizing: border-box;
     }
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
       > :is(header, footer) {
       flex: none;
     }
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
       > :not(header, footer) {
       flex: 1 1 0;
       min-block-size: 0;
@@ -1052,7 +1048,7 @@
     }
     /* Only a page's grid of panes shares the body's height among its rows and gives its
      * panes a definite height; a body widget lays out its own tracks. */
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
       > :not(header, footer):has(
         > [data-lf-reading-role="pane"]:not([data-lf-generated])
       ) {
@@ -1068,7 +1064,7 @@
      * ring round a question filling the workspace does; the run along its foot falls
      * below the window, which the body meets. Inside it, a mark ran over its first
      * words and under the panes it holds, which paint over their holder's outline. */
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+    :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;
@@ -1136,7 +1132,7 @@
      * a box that also scrolls. */
     @container style(--lf-holds-height: 1) {
       :is(
-          :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
+          :is(main, main > *, main > [data-lf-parts] > * > *).layout-workspace
             > :not(header, footer, [data-lf-reading-role="pane"]),
           [data-lf-reading-role="pane"] > :not(header, footer)
         )

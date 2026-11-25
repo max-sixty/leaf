@@ -65,50 +65,39 @@ In this file:
 
 In [module-state.md](module-state.md):
 
-- "The widget controller": `widgetController` reads what Leaf holds for a widget, the
-  module's own or another's.
-- "State only this tab keeps": `tabStore` keeps a string for this tab, and
-  `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
-  which Leaf remembers, names in the address and returns the user to their place in.
+- "State only this tab keeps": `tabStore` keeps a string for this tab.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
 
 In [module-reading.md](module-reading.md):
 
-- "Reading the page": `says` and `named` read an element's words, and
-  `elementById` finds the element an address names.
+- "Reading the page": `says` and `named` read an element's words.
 - "Naming": `nameOf`.
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
 - "Markdown": `pageLinks`.
 - "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
-- "Reading obligations and the On lists": `readObligations`, `readQueues` and
-  `answerWords`.
-- "Page history and reports": `readHistory`.
+- "Reading obligations and the On lists": `obligations` and `queues`.
+- "Page history and reports": `history`.
 - "Reading version changes": `comparisonChanges`.
 
 In [module-input.md](module-input.md):
 
-- "Walks": `rowWalk` gives a list of rows its arrow keys.
-- "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
-  redraw, `onCurrentLocation` reads where the user is, and `onPress` and
-  `onPressAway` follow a pointer's press.
+- "Focus and layers": `onPress` and `onPressAway` follow a pointer's press.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
-  draft.
+- "Text entry and drafts": `draft` keeps a text box's draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads` and `threadActions`.
+- "Reading and opening Threads from a widget": `threads`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
@@ -195,8 +184,6 @@ script", lists.
   widget in `tabStore`.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
-- Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
-  "Focus and layers").
 - Animate with `motion` or in a stylesheet, never with `element.animate`
   (`module-scroll-and-motion.md`, "Motion").
 
@@ -278,7 +265,7 @@ back (`module-input.md`, "Focus and layers").
 Leaf also replaces a widget that declares `lfPatch` when a revision changes what its
 module drew from, which it takes to be the element's own attributes. A module that also
 draws from which children it has, or from their attributes, as a tab strip shows each
-tab's `label`, declares `content: members` or `views`. Leaf then also replaces the
+tab's `label`, declares `content: members`. Leaf then also replaces the
 widget when a direct child is added, removed, reordered or given other attributes.
 Without either declaration the module keeps its first drawing of a child the revision
 changed. Leaf compares only each direct child's tag and attributes, and a revision
@@ -337,14 +324,11 @@ readings.
   `display` there. A shadow template uses native slots for authored children, keeping
   their nodes and browser state in the light DOM. Where the markup can't say how tall
   the drawing will be, the page moves once as it draws.
-- A widget that shows one member at a time declares `views: {members: "selector"}`;
-  the browser matches the selector against each direct authored child, including
-  while HTML is still arriving. A selector that depends on descendants, such as
-  `:has()`, can change membership as they arrive; use the child's own start tag for
-  stable first-paint membership. Open and keep its members as `module-state.md`, "State
-  only this tab keeps", describes. A holder whose members share the surrounding page's
-  flow declares `flow`, as its members do, so a member's wide blocks and sidebar take
-  the page's room.
+- A widget that shows one member at a time says in its stylesheet which member stands
+  before its module runs, such as the first with `:not(:defined)`, and opens its members
+  as `module-state.md`, "State only this tab keeps", describes. A holder whose members
+  share the surrounding page's flow declares `flow`, so a member's wide blocks and
+  sidebar take the page's room.
 
 ## Rendering
 
@@ -377,7 +361,7 @@ focus in WebKit. A `LeafElement` places retained nodes in its `render()`, which 
 returns `nothing`.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
-needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
+needs no hold on focus; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
 custom element holding an editor, such as CodeMirror's, writes the editor's selection
 back from its `connectedMoveCallback`.

@@ -638,7 +638,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     def questions():
         return page.evaluate(
             """async () => (await window.__lfWidgetApi())
-              .readObligations().all.filter((item) => item.source.kind === "widget")"""
+              .obligations.read().all.filter((item) => item.source.kind === "widget")"""
         )
 
     initial = questions()
@@ -716,7 +716,7 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
 
     def answer():
         return page.evaluate(
-            """async () => (await window.__lfWidgetApi()).readObligations().all
+            """async () => (await window.__lfWidgetApi()).obligations.read().all
               .find((item) => item.id === "widget:routes").answer?.value ?? null"""
         )
 

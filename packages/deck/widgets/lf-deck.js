@@ -1,7 +1,7 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
  * through unread conversations. Each authored child is a card, the named group of a
  * question or a decision widget the user answers there with its own controls. A card waits while it
- * holds an obligation open on the user (`readObligations(card)`, read from the server's
+ * holds an obligation open on the user (`obligations.read(card)`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
  * for it, such as a suggestion's margin entry, the card flies right and the next waiting
@@ -16,11 +16,12 @@
  * controls change an answer. Where nothing waits, as in Review, and until the page's
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
- * Which card is open is view state for this user, as a tab set's open panel is
- * (`views`): the runtime names the opening card (`openingView`), the module
- * records each card it shows (`keepView`), so a reload comes back to it, and no event
- * carries it. Where neither the address nor the tab names a card, the deck opens on the
- * first that waits once the first reading is in. Inactive cards are
+ * Which card is open is view state for this user, as a tab set's open panel is: the
+ * deck opens on the card holding the place the address names, else the one this tab
+ * showed last, so a reload comes back to it, and no event carries it
+ * (lib/one-shown.js). Where neither names a card, the deck opens on the first that
+ * waits once the first reading is in; until the module runs, the package theme shows
+ * only the first card. Inactive cards are
  * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
  * `go({within})`) open the card holding what they reach (`beforematch`); `m`
  * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
@@ -33,7 +34,7 @@
  * saying how many still wait, with the same step back in as words, since a symbol
  * alone at the end of the pass went unnoticed. Under that line it lists each card that
  * asks something: its question, linked to the card, beside what became of it, the
- * answer in the runtime's words (`answerWords`) or who it still waits on. The cards are
+ * answer in the words On Me gives it (lib/answer-words.js) or who it still waits on. The cards are
  * put away by then, and without the list the record of the pass hid behind Back, one
  * card at a time. A row links to where its question is answered, so it opens the card
  * holding it as any fragment link does (`beforematch`), by pointer, finger or Enter,
@@ -62,25 +63,16 @@
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user. */
 import { html, nothing, render, repeat } from "/vendor/lit.js";
-import {
-  answerWords,
-  focusDestination,
-  keepView,
-  go,
-  motion,
-  openingView,
-  viewMembers,
-  nameOf,
-  readObligations,
-  readQueues,
-  scrollIntoView,
-} from "/runtime/widget-api.js";
+import { go, motion, nameOf, obligations, queues } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import { openingMember, showMember } from "/runtime/lib/one-shown.js";
 import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
 // to leave, and the next to come up; and how long a card that came up takes no press.
@@ -107,7 +99,7 @@ const focusedElement = () => {
   return at;
 };
 
-/** @typedef {ReturnType<typeof readObligations>["all"]} DeckHeld */
+/** @typedef {ReturnType<typeof obligations.read>["all"]} DeckHeld */
 /** @typedef {(card: HTMLElement) => DeckHeld} DeckReadings */
 
 customElements.define(
@@ -148,11 +140,13 @@ customElements.define(
     }
 
     setup() {
-      this.#cards = viewMembers(this).map((card) => {
-        if (!(card instanceof HTMLElement))
-          throw new Error("A deck card must be an HTML element");
-        return card;
-      });
+      this.#cards = [...this.children]
+        .filter((child) => !child.matches("script, style, template, [data-lf-gen]"))
+        .map((card) => {
+          if (!(card instanceof HTMLElement))
+            throw new Error("A deck card must be an HTML element");
+          return card;
+        });
       if (!this.#cards.length) return;
       // Where the cards stood once the pass is over: what is left, a way back in, and
       // the record of the pass (`#drawEnd`). Drawn now so the step back in is in the
@@ -196,8 +190,7 @@ customElements.define(
       this.prepend(this.#bar);
       this.append(this.#end);
       this.classList.add("lf-rendered");
-      const selected = openingView(this, null);
-      const opening = this.#cards.find((card) => card === selected);
+      const opening = openingMember(this, this.#cards);
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
       if (this.matches("[data-lf-exhibit] *")) return;
@@ -217,8 +210,8 @@ customElements.define(
     // card holds by the one rule every count of a region reads.
     /** @returns {DeckReadings | null} */
     #readings() {
-      if (readObligations().phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => readObligations(card).all;
+      if (obligations.read().phase !== "ready") return null;
+      return (/** @type {HTMLElement} */ card) => obligations.read(card).all;
     }
 
     // Show one card, or none once the pass is over, without motion.
@@ -228,7 +221,7 @@ customElements.define(
       // leaves that motion to finish.
       if (card === this.#open) return;
       this.#landing?.();
-      keepView(this, card);
+      showMember(this, this.#cards, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
       }
@@ -337,7 +330,7 @@ customElements.define(
         keeps(card, "data-lf-deck-leaving", side);
         keeps(card, "inert", "");
       }
-      keepView(this, next, moving ? card : null);
+      showMember(this, this.#cards, next, moving ? card : null);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
       }
@@ -374,7 +367,12 @@ customElements.define(
         keeps(leaving, "data-lf-deck-leaving", null);
         keeps(leaving, "inert", null);
         leaving.style.removeProperty("--lf-deck-leave-top");
-        keepView(this, this.#open, leaving === upcoming ? leaving : null);
+        showMember(
+          this,
+          this.#cards,
+          this.#open,
+          leaving === upcoming ? leaving : null,
+        );
       };
       const land = (
         /** @type {HTMLElement | null | undefined} */ upcoming = undefined,
@@ -391,14 +389,13 @@ customElements.define(
       // Where the deck began above the window, it comes back from its top at once.
       // Elsewhere the card is brought in nearest once its motion ends, since until then
       // the deck keeps the height of the card that went and the page may not reach far
-      // enough. A nearest landing counts what the panel covers as unseen
-      // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
-      // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
-      // edges in view.
+      // enough. A card ending past the window comes up to its foot where it fits and to
+      // its top where it doesn't, its `scroll-margin-block` keeping the bar and edges in
+      // view; the floating panel's row may still stand over its foot.
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
         if (above || !next || this.#open !== next) return;
-        scrollIntoView(next, { block: "nearest", behavior: "smooth" });
+        next.scrollIntoView({ block: "nearest", behavior: "smooth" });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
@@ -424,7 +421,7 @@ customElements.define(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
       carry(next, answered ? SETTLE_MS : 0);
-      if (above) scrollIntoView(this, { block: "start", behavior: "smooth" });
+      if (above) this.scrollIntoView({ block: "start", behavior: "smooth" });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or
@@ -492,12 +489,12 @@ customElements.define(
     #arrive(card) {
       if (!card) {
         this.#end.toggleAttribute("hidden", false);
-        return void focusDestination(this.#again, "move");
+        return void this.#again.focus({ preventScroll: true });
       }
-      const items = readObligations(card);
+      const items = obligations.read(card);
       const waiting = items.phase === "ready" ? items.user[0] : undefined;
       if (waiting) go(waiting);
-      else focusDestination(card, "move");
+      else focusOn(card);
     }
 
     #stepBack() {
@@ -606,7 +603,7 @@ customElements.define(
       const readings = this.#readings();
       const card = this.#open;
       const count = readings
-        ? tallyWords(tally(readObligations(this).all), "the agent")
+        ? tallyWords(tally(obligations.read(this).all), "the agent")
         : "";
       // A card's mark: open, waiting on the user, open with the agent, or answered.
       const mark = (/** @type {HTMLElement} */ each) => {
@@ -640,10 +637,10 @@ customElements.define(
         ? this.#cards.filter((each) => waitsOn(readings(each))).length
         : 0;
       const asked = readings ? this.#cards.filter((each) => readings(each).length) : [];
-      const queues = readQueues();
+      const lists = queues.read();
       const listed = new Map(
-        queues.phase === "ready"
-          ? [...queues.on_user, ...queues.on_agent, ...queues.done].map((item) => [
+        lists.phase === "ready"
+          ? [...lists.on_user, ...lists.on_agent, ...lists.done].map((item) => [
               item.id,
               item,
             ])
@@ -690,7 +687,10 @@ customElements.define(
       if (waitsOn(held)) return ["Still waiting", "leaf"];
       if (held.some((item) => item.state !== "done"))
         return ["Waiting on the agent", "leaf"];
-      const words = held.map(answerWords).filter(Boolean).join("; ");
+      const words = held
+        .map((item) => answerWords(item))
+        .filter(Boolean)
+        .join("; ");
       return words ? [words, null] : ["Answered", "leaf"];
     }
 

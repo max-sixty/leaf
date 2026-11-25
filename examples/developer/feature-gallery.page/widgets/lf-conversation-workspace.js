@@ -4,13 +4,12 @@ import { noChange } from "/vendor/lit.js";
 import {
   go,
   nameOf,
-  readObligations,
-  answerWords,
-  readQueues,
-  readThreads,
+  obligations,
+  queues,
+  threads,
   registerThreadPresentation,
-  threadActions,
 } from "/runtime/widget-api.js";
+import { answerWords } from "/runtime/lib/answer-words.js";
 import { setChildren } from "/runtime/lib/dom-children.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -143,7 +142,7 @@ customElements.define(
       create.addEventListener("click", (event) => {
         event.preventDefault();
         const text = this.input.value;
-        const creation = threadActions.create({ text });
+        const creation = threads.create({ text });
         if (!creation) return;
         this.input.value = "";
         const edit = this.creationEdit;
@@ -233,26 +232,26 @@ customElements.define(
       this.paintObligations();
     }
     indexLayout() {
-      const queues = readQueues();
+      const lists = queues.read();
       return {
-        threads: readThreads().threads.map((thread) => thread.key),
+        threads: threads.read().threads.map((thread) => thread.key),
         ...Object.fromEntries(
           Object.keys(this.queues).map((name) => [
             name,
-            queues[name].map((item) => item.id),
+            lists[name].map((item) => item.id),
           ]),
         ),
       };
     }
     paintObligations() {
-      const items = readObligations();
+      const items = obligations.read();
       // An obligation's own answer stands on it; one the agent ended names its end.
       const answered = items.all.filter((item) => item.answered);
       // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question asked in a message.
       const labels = items.all
         .filter((item) => item.source.kind === "widget" && item.answered)
-        .map(answerWords)
+        .map((item) => answerWords(item))
         .filter(Boolean);
       keepsText(
         this.counts,
@@ -262,10 +261,10 @@ customElements.define(
           ...labels,
         ].join(" · "),
       );
-      const queues = readQueues();
+      const lists = queues.read();
       const layout = this.indexLayout();
       for (const [name, list] of Object.entries(this.queues)) {
-        const current = new Map(queues[name].map((item) => [item.id, item]));
+        const current = new Map(lists[name].map((item) => [item.id, item]));
         const rows = layout[name].map((key) => {
           const item = current.get(key);
           const identity = JSON.stringify([name, key]);

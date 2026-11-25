@@ -81,8 +81,7 @@
   },
   "lf-test-roster": {
     "description": "A view of multiple workers, their durable remits, and their current activity.",
-    "content": "members",
-    "space": "wide"
+    "content": "members"
   },
   "lf-test-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
@@ -186,7 +185,6 @@
         "property": "value"
       }
     },
-    "owners": ["lf-test-worker"],
-    "space": "wide"
+    "owners": ["lf-test-worker"]
   }
 }

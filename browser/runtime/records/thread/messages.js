@@ -372,7 +372,7 @@ export function draftPreview(drafts, about = null) {
 // agent makes to a message holding HTML, which is rare. An edit redraws its
 // message's island whole, so a value typed into a field in it, an open disclosure
 // or focus there is lost: a rare path, which redraws rather than carrying a
-// mechanism of its own (SOUL.md, "Keep the foundation small and extensible"). For
+// mechanism of its own (SOUL.md, "Keep Leaf's code plain"). For
 // the same reason a thread gesture names no wording: one a tab makes before an
 // edit reaches it is read in the wording in force when it lands
 // (`thread_context.message_wording`).

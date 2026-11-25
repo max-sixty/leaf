@@ -158,6 +158,29 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     assert not bridge_model.live_sessions()
 
 
+@pytest.mark.parametrize("ended", [False, True], ids=["live", "ended"])
+def test_the_bridge_lets_a_session_go_once_its_record_says_it_ended(ended):
+    """A later Leaf's session, living by a kind of lifetime this Leaf can't check,
+    keeps the bridge while its record says it lives, and lets it go once the record
+    says it ended, so the bridge can retire and free its port."""
+    sessions = bridge_model.bridge_path("sessions")
+    sessions.mkdir(parents=True, exist_ok=True)
+    registration = sessions / "later.json"
+    bridge_model.REGISTRATION.write(registration, {"id": "later", "window": "w-1"})
+    lifecycle = state_model.session_file("later", state_model.SESSION_SUFFIX)
+    lifecycle.parent.mkdir(parents=True, exist_ok=True)
+    recorded = state_model.new_session("later", {"window": "w-1"})
+    recorded["ended"] = state_model.now_iso() if ended else None
+    lifecycle.write_text(json.dumps({**recorded, "format": "leaf-session/999"}))
+    try:
+        assert bridge_model.live_sessions() is not ended
+        assert registration.exists() is not ended
+    finally:
+        # Ending the session at teardown would rewrite the record here with a
+        # lifetime this Leaf's schema doesn't allow, which the suite's check refuses.
+        lifecycle.unlink()
+
+
 def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):
     """Claude Code installs each plugin update as a new copy, and a running session
     keeps the copy it loaded, so a bridge keyed by its copy would start again with

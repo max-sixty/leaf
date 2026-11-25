@@ -492,7 +492,7 @@ class Record(Generic[_RecordValue]):
     carries the kept keys into this shape. The build refuses a shape that drops a
     kept key or changes its schema (`build/browser/protocol.mjs`), but lets a kept
     key's `anyOf` gain variants: a new kind of session lifetime is a variant of
-    `SESSION`'s `lifetime` and a reading in `service.lifetime_is_live`, and an older
+    `SESSION`'s `lifetime` and a reading in `service.session_lives`, and an older
     Leaf reads a value it doesn't know as the session still live
     (`layer-registry.md`, "Page protocol")."""
 
@@ -712,7 +712,7 @@ SESSION = Record(
                 ),
                 "lifetime": described(
                     "What keeps the session alive (`Harness.lifetime`), as "
-                    "`service.lifetime_is_live` reads it: nothing yet, the process, a "
+                    "`service.session_lives` reads it: nothing yet, the process, a "
                     "background job's record, the Claude desktop app's record of the "
                     "session, or a desktop Codex chat's native source "
                     "(`transcript_path`).",
@@ -1064,7 +1064,7 @@ def end_harness_instance(session_id: str) -> None:
     prompt, and the Claude desktop app stops a session's process to update and
     resumes it when the user opens the session. Each lifetime but a pid names
     such an owner, so its claims keep their generation while that owner lives
-    (`service.lifetime_is_live`); the instance's end closes only turn and hook
+    (`service.session_lives`); the instance's end closes only turn and hook
     observations.
     """
     if not session_id or not _session_paths(session_id):

@@ -882,14 +882,22 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
     // A box the user stands on rather than in, as a walk's stop at a kept comment
-    // leaves them (features/anchor-travel.js, `onFrame`), takes Enter into its words, with the
-    // caret after them, as `c` there does.
+    // leaves them (features/anchor-travel.js, `onFrame`), takes `c` or Enter into its
+    // words, with the caret after them. It wears `c` as a key chip on its corner
+    // (`bindingBadge`), since its words cover the placeholder that says `c` in an empty
+    // box, and without the chip a box the user stands on looks like one they write in
+    // but for the caret. Rejected: the key after the words, where the caret will stand,
+    // which has no room where the last line runs to the box's end, as a one-line
+    // comment's does in a wide window; and the key in the panel's walk status, away from
+    // the box the user is reading.
     keys(visualField, "On a text box", [
       {
         id: "text.enter",
         touch: false,
-        keys: ["Enter"],
+        keys: ["c", "Enter"],
         title: "write",
+        control: visualField,
+        bindingBadge: null,
         when: () => focused() === visualField,
         run: () => {
           const end = ta.value.length;

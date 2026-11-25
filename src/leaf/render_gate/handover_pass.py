@@ -100,9 +100,12 @@ NICENESS = 10
 def remember_reading(page_dir: Path, digest: str, data: str, checked) -> None:
     """Leave what `checked`, a `command.BrowserCheck`, read of the version `digest` with
     the data version `data` as the page's latest reading, where a browser finished it:
-    the agent that ran the check read every finding."""
+    the agent that ran the check read every finding. It writes inside the page's
+    transaction, so a server's reading that `_tell` is weighing under it can't replace
+    this one unseen."""
     if (found := _finished(checked)) is not None:
-        write_reading(page_dir, digest, data, *found)
+        with PageTransaction(page_dir):
+            write_reading(page_dir, digest, data, *found)
 
 
 def _finished(checked) -> tuple[list[dict], dict[str, list[dict]]] | None:

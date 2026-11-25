@@ -82,13 +82,6 @@ keeps a `scrollbar-gutter` across states.
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
 page's, which is the document's own (`document.scrollingElement`).
 
-When a change hides or shows regions, such as switching tabs, run it through
-`preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
-regions shown once `change`'s promise resolves. A region that shows one subject of
-several at a time, as a trace's saved tree shows one checkpoint, replaces its body's
-contents inside `showReadingSubject(body, subject, render)`, and the user returns to
-their place in each subject.
-
 ### Holding the reader's place
 
 When a widget redraws or resizes content where the user is reading, the browser's

@@ -1,4 +1,3 @@
-import { titledElement } from "/runtime/widget-api.js";
 import { keeps } from "/runtime/lib/keeps.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
 /* The contents view draws its frame and outline from the complete document, less the
@@ -260,8 +259,33 @@ export function drawToc(host, headingReading) {
   };
 }
 
+// The element a heading opens: its hgroup, and the section or article that starts
+// with the heading or that hgroup, words or any other element before it opening the
+// section instead. A heading anywhere else, a widget's included, opens only itself.
+/** @param {Element} heading */
+function titledElement(heading) {
+  let titled = heading;
+  const group = heading.parentElement;
+  if (
+    group?.localName === "hgroup" &&
+    group.querySelector(":scope > :is(h1, h2, h3, h4, h5, h6)") === heading
+  )
+    titled = group;
+  const section = titled.parentElement;
+  if (section?.matches("section, article") && opensWith(section, titled))
+    titled = section;
+  return titled;
+}
+/** @param {Element} container @param {Element} child */
+function opensWith(container, child) {
+  for (const node of container.childNodes)
+    if (node instanceof Element) return node === child;
+    else if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return false;
+  return false;
+}
+
 // A section's destination: the outermost element its author identified above the
-// heading, up to the element the heading titles (`titledElement`) and short of the
+// heading, up to the element the heading opens (`titledElement`) and short of the
 // document the outline covers, so the public fragment names the section or question the
 // heading opens rather than its label; else the hgroup that owns its heading, so an
 // eyebrow and title share one address and measured box, for h1 as for every level;

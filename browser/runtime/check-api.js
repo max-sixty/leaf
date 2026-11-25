@@ -58,6 +58,7 @@ export {
   readingRegion,
   unconcealedReadingRegions,
   regionScrollBehavior,
+  preserveReadingRegions,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { carriersOf } from "./scroll-containers.js";
@@ -152,6 +153,7 @@ export { reachScrollers, releaseReachStop } from "./reach.js";
 export { reveal, dragHeld } from "./widget-elements.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
+export { anchorLabel } from "./thread/messages.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { bringBackSurfaceOf } from "./off-flow.js";

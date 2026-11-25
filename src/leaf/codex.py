@@ -37,8 +37,8 @@ complete envelope as a JSON block (`json_block`), or its pointer where Codex wou
 show it whole, and records the turn in a `HookOffer`. `leaf delivery ack` in that turn
 accepts it (`codex_state.confirm_codex_pointer`). A hook never re-offers input or takes one
 another transport holds. The Stop hook offers nothing while an App Server adapter
-runs (`Harness.later_turn_takes_input`): the turn ends on its own answer, and the
-adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
+runs (`codex_adapter.later_turn_takes_input`): the turn ends on its own answer, and
+the adapter starts a turn of its own for what arrived as it ended. Elsewhere, as with the
 queue adapter, whose turn would open on a pointer Codex shows as the user's own
 message, or a task that waits with `leaf wait`, Stop offers the input into the turn it
 continues, even a resumed turn that ran no tool. Once Stop or Interrupt closes the turn, or the turn no longer reads

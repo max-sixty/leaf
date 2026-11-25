@@ -8,10 +8,10 @@ That reply comes when the agent's work does, which can be minutes, so Leaf also
 asks for a title as soon as it can reach the harness's model:
 
 - a page server, as the user's comment or reply in the untitled thread is admitted
-  (`name_admitted_thread`), through the generator the claimant's harness supplies
-  (`Harness.title_generator`), which is the harness's widget inference
-  (`inference`): for Claude Code a completion on Haiku through the claimant
-  session's own model client, which Leaf's hooks module makes (`completions`), an
+  (`name_admitted_thread`), through the claimant harness's widget inference
+  (`inference.harness_generator`): for Claude Code a completion on Haiku through
+  the claimant session's own model client, which Leaf's hooks module makes
+  (`completions`), an
   App Server of its own for Codex, whichever transport carries the task's turns,
   and a `pi --print` run on the model the user configured for Pi;
 - the website's host, as the Worker dispatches the user's update in the untitled

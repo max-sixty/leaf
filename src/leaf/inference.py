@@ -2,7 +2,8 @@
 
 Codex uses an ephemeral App Server thread, Claude Code a completion on the claimant
 session's own model client, which Leaf's hooks module makes (`completions`), and Pi
-a print run with nothing the user installed. None loads tools or the agent's
+a print run with nothing the user installed; each harness declares which
+(`Harness.inference`, read by `harness_generator`). None loads tools or the agent's
 conversation. Claude Code puts its identity block before the system prompt, and the
 session's other plugins can hook the completion. The host fixes the model; callers
 supply input, instructions and a required JSON Schema. Results contain value, model,
@@ -32,7 +33,7 @@ from .codex import (
     app_server_request,
     private_app_server,
 )
-from .harness import IDENTITY_VARIABLES
+from .harness import IDENTITY_VARIABLES, Harness
 from .json_block import json_block
 from .registry.schema import json_validator
 
@@ -41,6 +42,18 @@ TIMEOUT = 60
 
 class RateLimited(RuntimeError):
     """The provider refused the request for rate limits (HTTP 429)."""
+
+
+def harness_generator(harness: Harness) -> Callable[..., dict] | None:
+    """Structured inference through `harness`'s login, by the transport it declares
+    (`Harness.inference`), or None where it declares none."""
+    if harness.inference == "completion":
+        return claude_code_generator(harness.session)
+    if harness.inference == "app-server":
+        return codex_generate
+    if harness.inference == "print":
+        return pi_generate
+    return None
 
 
 # Disable tools, plugins, hooks and project instructions. With tools, a title

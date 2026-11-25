@@ -931,7 +931,7 @@ def claim(page_dir: Path, manual_delivery: bool) -> dict:
     Delivery is ready before ownership moves. A watch another session runs on PAGE
     stops watching it. --manual-delivery leaves delivery to your explicit leaf wait.
     """
-    from leaf.service import cmd_claim
+    from leaf.hosting import cmd_claim
 
     return cmd_claim(page_dir, manual_delivery=manual_delivery)
 

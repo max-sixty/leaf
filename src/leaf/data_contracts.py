@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .events import thread_structure
 from .files import latest_revision
 from .findings import Finding, element_at
 from .json_block import json_value
@@ -19,7 +20,6 @@ from .registry.schema import (
 from .revision_artifact import read_revision, revision_history
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
-from .thread_context import thread_structure
 
 
 class DataError(Refused):

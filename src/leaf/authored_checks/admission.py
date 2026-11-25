@@ -11,7 +11,7 @@ from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.event_log import logged_ids
-from leaf.events import build_threads
+from leaf.events import build_threads, thread_structure
 from leaf.findings import Finding, Rejected, note
 from leaf.markup_checks.instances import (
     invoker_errors,
@@ -33,7 +33,7 @@ from leaf.revision_artifact import (
 )
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument
-from leaf.thread_context import thread_ids, thread_names, thread_structure
+from leaf.thread_context import thread_ids, thread_names
 
 from ..refusals import Refused
 
@@ -316,7 +316,7 @@ def message_markup_findings(
     allocated yet. `thread_id` is the thread the message joins, where known, and
     `replacing` the message an edit rewrites: its markup leaves the page as this
     takes its place, and an id any of its wordings held is its own to keep
-    (`thread_context.thread_structure`). Each stage reads only a fragment the stages
+    (`events.thread_structure`). Each stage reads only a fragment the stages
     before it accept, so the gate gives the findings of the first stage that refuses
     the fragment, or where none does, what every stage advises.
     """

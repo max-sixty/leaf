@@ -7,10 +7,12 @@ from typing import NamedTuple
 
 from leaf.events import (
     InForce,
+    ThreadStructure,
     event_coordinate,
     report_settlements,
     retractions,
     taken_back,
+    thread_structure,
 )
 from leaf.passages import (
     EMPTY,
@@ -32,12 +34,7 @@ from leaf.registry.kernel import verb_writers
 from leaf.registry.schema import schema_error
 from leaf.schema import agent_name
 from leaf.structure import SourceDocument
-from leaf.thread_context import (
-    ThreadStructure,
-    thread_names,
-    thread_structure,
-    thread_widgets,
-)
+from leaf.thread_context import thread_names, thread_widgets
 
 
 def _reports(projection) -> list[dict]:

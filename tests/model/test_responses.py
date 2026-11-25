@@ -49,8 +49,8 @@ from leaf import state as cleanup_model
 from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
+from leaf.events import logged_fragment
 from leaf.refusals import Refused
-from leaf.thread_context import logged_fragment
 
 
 class ResponseOptions(TypedDict, total=False):

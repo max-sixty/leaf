@@ -46,10 +46,10 @@ from leaf import standing as standing_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.event_meaning import AdmissionReadings
+from leaf.events import ThreadStructure
 from leaf.findings import Rejected
 from leaf.registry import storage as registry_storage
 from leaf.served_state import work as work_served_model
-from leaf.thread_context import ThreadStructure
 from leaf.workflows import attention_reading
 
 
@@ -1059,16 +1059,11 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     assert [item["input"] for item in owed(state_json(page_dir))] == [newer["id"]]
 
 
-@pytest.mark.parametrize(
-    "pick_first", [False, True], ids=["reply-then-pick", "pick-then-reply"]
-)
-def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
-    """The user's message and their pick on a widget sent in the same thread are one
-    batch, like two messages in a row: the delivery asks for one answer, to the newer,
-    and that answer settles both, so the agent has no second reply to write."""
+def offer_choice(page_dir) -> dict:
+    """The agent's comment opening a thread with a choice for the user to pick."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    asked = append_carried_log_record(
+    return append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1081,31 +1076,44 @@ def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
         },
     )
 
-    def pick():
-        return append_command(
-            page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "file-issue",
-                "action": "choose",
-                "detail": {"value": ["file"]},
-            },
-        )
 
-    def reply():
-        return append_carried_log_record(
-            page_dir,
-            {
-                "kind": "reply",
-                "author": "user",
-                "parent": asked["id"],
-                "text": "ok, can we file an issue requesting this?",
-            },
-        )
+def choose(page_dir, option: str) -> dict:
+    """The user's pick of `option` on the choice `offer_choice` sent."""
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "file-issue",
+            "action": "choose",
+            "detail": {"value": [option]},
+        },
+    )
 
-    older, newer = (pick(), reply()) if pick_first else (reply(), pick())
+
+def say(page_dir, asked: dict, text: str) -> dict:
+    """The user's reply in the thread `asked` opened."""
+    return append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": text},
+    )
+
+
+@pytest.mark.parametrize(
+    "pick_first", [False, True], ids=["reply-then-pick", "pick-then-reply"]
+)
+def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
+    """The user's message and their pick on a widget sent in the same thread are one
+    batch, like two messages in a row: the delivery asks for one answer, to the newer,
+    and that answer settles both, so the agent has no second reply to write."""
+    asked = offer_choice(page_dir)
+    if pick_first:
+        older = choose(page_dir, "file")
+        newer = say(page_dir, asked, "ok, can we file an issue requesting this?")
+    else:
+        older = say(page_dir, asked, "ok, can we file an issue requesting this?")
+        newer = choose(page_dir, "file")
     state = state_json(page_dir)
     [answer] = owed(state)
     assert answer["input"] == newer["id"]
@@ -1122,6 +1130,90 @@ def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
     after = state_json(page_dir)
     assert owed(after) == []
     assert after["workflows"] == []
+
+    # A turn that reserved the older input's address before the newer arrived
+    # commits its final message there; the answer settled that input too, so the
+    # final yields rather than answering twice.
+    stale = {
+        "parent": asked["id"] if pick_first else older["id"],
+        "responds": older["id"],
+    }
+    assert (
+        thread_model.post_reply(
+            page_dir,
+            stale,
+            "Filing it.",
+            settlement=thread_model.ProviderFinal("older-turn"),
+        )
+        is None
+    )
+    assert events_model.read_events(page_dir)[-1]["text"] == "Filed it."
+
+
+def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
+    page_dir,
+):
+    """The user changes their pick, the agent answers the new one, and the user takes
+    it back: the pick it replaced is the user's decision again, which the agent has
+    not answered."""
+    asked = offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    second = choose(page_dir, "skip")
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == second["id"]
+    thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")
+    assert owed(state_json(page_dir)) == []
+
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]}
+    )
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == first["id"]
+    assert answer["answer"]["parent"] == asked["id"]
+
+
+@pytest.mark.parametrize("again", ["message", "pick"])
+def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, again):
+    """A harness that gives up on a delivery holding the user's pick and their
+    message after it writes one failure, at the thread's one answer, and hands both
+    back on that record, leaving nothing on the agent. The user's next input there, a
+    message or another pick, is a new request, which the agent owes, and the failure
+    stops waiting on the user."""
+    asked = offer_choice(claimed)
+    picked = choose(claimed, "file")
+    message = say(claimed, asked, "ok, can we file an issue requesting this?")
+    for event in (picked, message):
+        thread_model.fail_answer(
+            claimed,
+            event["id"],
+            "delivery_unconfirmed",
+            "Send it again if I still need an answer.",
+            attempt=f"unconfirmed-{event['id']}",
+            identity={"session": "s1"},
+            only_if_unclaimed=False,
+            claimed_session="s1",
+        )
+    failed = state_json(claimed)
+    assert owed(failed) == []
+    assert {
+        record["id"]: record["next_actor"]
+        for record in failed["obligations"]
+        if record["id"].startswith("update:")
+    } == {f"update:{message['id']}": "user"}
+    assert {
+        item["input"]: (item["obligation"], item["reason"])
+        for item in failed["workflows"]
+    } == {
+        picked["id"]: (f"update:{message['id']}", "failed"),
+        message["id"]: (f"update:{message['id']}", "failed"),
+    }
+
+    retry = (
+        say(claimed, asked, "retry") if again == "message" else choose(claimed, "skip")
+    )
+    again = state_json(claimed)
+    assert [item["input"] for item in owed(again)] == [retry["id"]]
+    assert [item["input"] for item in again["workflows"]] == [retry["id"]]
 
 
 def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(

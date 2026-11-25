@@ -68,6 +68,7 @@ from leaf.events import (
     report_settled_at,
     taken_back,
     unanswered_agent_turn,
+    widget_messages,
 )
 from leaf.gesture_words import element_name
 from leaf.page_memory import Slot
@@ -87,7 +88,6 @@ from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
 from leaf.standing import ended, is_open, on
-from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
     from leaf.todos import TodoReading

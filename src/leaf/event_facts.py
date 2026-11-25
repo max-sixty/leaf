@@ -39,7 +39,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from .events import message_reading, rewritten
+from .events import message_reading, rewritten, thread_structure
 from .gesture_words import GestureWords, revisions_on_disk
 from .read_state import content_version
 from .registry.kernel import verb_writers
@@ -47,7 +47,6 @@ from .revision_artifact import active_enclosing
 from .thread_context import (
     thread_memberships,
     thread_names,
-    thread_structure,
     thread_widgets,
     unsent_at_messages,
 )

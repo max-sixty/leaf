@@ -56,13 +56,14 @@ from leaf.authored_checks.admission import (
     revision_publication,
 )
 from leaf.authored_checks.declarations import declaration_advice
+from leaf.events import logged_fragment
 from leaf.findings import Finding, Rejected
 from leaf.markup_checks.instances import question_errors, reference_errors
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.registry.validation import incoming_registry
 from leaf.structure import SourceDocument
-from leaf.thread_context import logged_fragment, thread_digest
+from leaf.thread_context import thread_digest
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -1419,7 +1420,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     widget's ids, so the edit goes in and Leaf tells the agent where that answer now
     shows. An id any wording held stays the message's own, so no other message
     takes it and inherits the user's answer."""
-    from leaf.thread_context import thread_structure
+    from leaf.events import thread_structure
 
     published(page_dir)
 

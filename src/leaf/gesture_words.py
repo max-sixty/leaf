@@ -31,7 +31,14 @@ from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
 
-from .events import InForce, event_document
+from .events import (
+    InForce,
+    ThreadStructure,
+    event_document,
+    logged_fragment,
+    message_wording,
+    thread_structure,
+)
 from .passages import SourceReading, collapse, created_words, enclosing_of
 from .projection import (
     attribute_marks,
@@ -44,12 +51,6 @@ from .registry.contract import (
     is_element_name,
 )
 from .revision_artifact import read_revision
-from .thread_context import (
-    ThreadStructure,
-    logged_fragment,
-    message_wording,
-    thread_structure,
-)
 
 HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
 SECTIONS = frozenset({"section", "article"})

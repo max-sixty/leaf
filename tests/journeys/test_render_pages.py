@@ -36,12 +36,12 @@ from leaf import event_log as events_model
 from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
+from leaf.events import logged_fragment
 from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
-from leaf.thread_context import logged_fragment
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import read_event_lines

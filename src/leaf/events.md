@@ -290,8 +290,10 @@ A user reply always hands the thread back to the agent.
 An agent reply records the delivery event it answers as `responds`, including an
 answer whose update was settled during the turn; a proactive `leaf thread reply`
 carries none, and leaves an answer its thread owes owed. Settlement consumes this
-exact id rather than log order, so answering older work cannot erase newer user
-input. A `--done` answer to an update the agent's earlier answer already settled
+exact id rather than log order: an answer settles the input it names and every input
+still waiting before it in the thread, the user's messages and their actions on
+widgets sent there alike (`events.settle`), so answering older work cannot erase newer
+user input. A `--done` answer to an update the agent's earlier answer already settled
 with a to-do still open carries no `responds`, and the command names that to-do
 for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
 thread, and brings back none of the questions the resolve ended; reactions and
@@ -359,7 +361,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   user's, or an agent's, including a predecessor session's; a reaction or a bare
   drawing has no text to revise. An agent's edit may rewrite the message's HTML too,
   and every reading of its elements takes the latest wording
-  (`thread_context.thread_structure`). A user's action on a widget in it stays keyed
+  (`events.thread_structure`). A user's action on a widget in it stays keyed
   to the widget's id, so it applies to whatever markup the edit leaves under that id,
   and to nothing once the id is gone; no other message or revision may take an id
   any wording of the message held. Readings show the latest text on the original

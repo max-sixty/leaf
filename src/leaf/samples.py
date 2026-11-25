@@ -22,6 +22,7 @@ from threading import Lock
 
 from .data import write_data
 from .event_log import start_log
+from .events import thread_structure
 from .page_memory import PageMemory, memory_of
 from .registry.storage import LAYER
 from .revision_artifact import Disposable, RevisionArtifact
@@ -30,7 +31,6 @@ from .runtime_selection import executing
 from .sample_content import initial_sample_events
 from .schema import LAYER_FILE
 from .structure import SourceDocument
-from .thread_context import thread_structure
 
 
 @dataclass

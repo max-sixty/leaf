@@ -46,11 +46,10 @@ from leaf import structure as structure_model
 from leaf.anchor_capture import Drawing, drawn_part
 from leaf.data import read_data
 from leaf.delivery import current_responses
-from leaf.events import build_threads
+from leaf.events import build_threads, logged_fragment
 from leaf.render_gate import browser as browser_model
 from leaf.revision_artifact import read_artifact, read_revision
 from leaf.revisioning import activate_source
-from leaf.thread_context import logged_fragment
 
 
 def undelivered(page_dir, input_id: str) -> str:

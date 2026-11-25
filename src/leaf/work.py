@@ -2,11 +2,12 @@
 
 from pathlib import Path
 
+from .events import thread_structure
 from .files import latest_revision
 from .findings import Finding
 from .projection import PageReading
 from .revision_artifact import read_revision
-from .thread_context import id_subject, thread_names, thread_structure, thread_widgets
+from .thread_context import id_subject, thread_names, thread_widgets
 
 
 def widget_seat_error(page: PageReading, widget: str) -> Finding | None:

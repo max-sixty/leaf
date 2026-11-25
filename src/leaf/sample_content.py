@@ -20,6 +20,7 @@ from .data_contracts import data_document_errors, initial_data_document_readings
 from .event_contracts import admitted_event, command_error
 from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
+from .events import logged_fragment, thread_structure
 from .findings import Finding, Rejected
 from .page_view import InitialPageView
 from .projection import generated_children, logged_words
@@ -27,12 +28,7 @@ from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant
 from .state import now_iso
 from .structure import SourceDocument
-from .thread_context import (
-    logged_fragment,
-    sample_events,
-    thread_names,
-    thread_structure,
-)
+from .thread_context import sample_events, thread_names
 
 
 def _non_json_number(value: str):

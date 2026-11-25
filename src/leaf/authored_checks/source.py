@@ -11,6 +11,7 @@ from leaf.data_contracts import (
     measurement_lag,
 )
 from leaf.event_log import logged_ids
+from leaf.events import thread_structure
 from leaf.findings import Finding, Rejected
 from leaf.markup_checks.instances import (
     inert_allocation_advice,
@@ -41,12 +42,7 @@ from leaf.revision_artifact import (
 from leaf.sample_content import initial_sample_events
 from leaf.server import other_serving_leaf
 from leaf.structure import SourceDocument
-from leaf.thread_context import (
-    placed_thread,
-    thread_ids,
-    thread_names,
-    thread_structure,
-)
+from leaf.thread_context import placed_thread, thread_ids, thread_names
 
 from .source_history import (
     EMPTY_READING,

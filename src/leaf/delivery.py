@@ -548,10 +548,11 @@ def batch_data(
     for its transport: the address of a thread reply, and the `handling` that follows
     from it. `whole` carries each thread whole (`thread_context.batch_threads`)."""
     from .event_facts import EventFacts
+    from .events import thread_structure
     from .leases import lane_up
     from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
-    from .thread_context import batch_threads, thread_names, thread_structure
+    from .thread_context import batch_threads, thread_names
 
     events = transaction.events
     reader = EventFacts(page_dir, events, _registry(page_dir))

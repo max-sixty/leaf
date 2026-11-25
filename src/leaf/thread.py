@@ -30,7 +30,9 @@ from leaf.events import (
     active_summaries,
     build_threads,
     is_answer,
+    settle,
     taken_back,
+    thread_structure,
 )
 from leaf.files import (
     latest_revision,
@@ -47,7 +49,7 @@ from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
-from leaf.thread_context import thread_message, thread_names, thread_structure
+from leaf.thread_context import thread_message, thread_names
 from leaf.todos import TodoReading
 
 
@@ -557,6 +559,20 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     return asked
 
 
+def settling_answer(page_dir: Path, events: list[dict], responds: str) -> dict | None:
+    """The agent's answer that settled the input `responds` names, by naming it or an
+    input after it in its thread (`events.settle`), where the input waits no more;
+    else None. A failure receipt is no answer."""
+    for thread in build_threads(events, active_enclosing(page_dir)).values():
+        settled = settle(thread)
+        if any(turn["id"] == responds for turn in settled.waiting):
+            return None
+        for each in reversed(settled.settlements):
+            if any(turn["id"] == responds for turn in each.turns):
+                return each.answer if is_answer(each.answer) else None
+    return None
+
+
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
     """Agent answers to this exact input (`events.is_answer`)."""
     return [
@@ -577,9 +593,10 @@ class ProviderFinal:
     reserved (`reserve_delivery_reply`), or its opening, posted there as progress.
 
     It keeps that address after the user settled the update, but yields to an answer
-    another writer already gave it (a failure receipt is no answer), so a turn's
-    answer committed after its reservation lapsed never answers twice; and it writes
-    nothing once another delivery holds the address."""
+    another writer already gave it, to the update or to a newer input in its thread
+    (`settling_answer`; a failure receipt is no answer), so a turn's answer
+    committed after its reservation lapsed never answers twice; and it writes nothing
+    once another delivery holds the address."""
 
     reservation: str
 
@@ -856,7 +873,7 @@ def _resolve_obligation(
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and successful_replies(events, responds)
+        and settling_answer(page_dir, events, responds)
     ):
         return None
     responses = current_responses(page_dir, events)
@@ -1402,7 +1419,7 @@ def cmd_edit(
 
     The message event is immutable: the edit points back to it, so the log retains
     every wording while readings take the latest, its HTML included
-    (`thread_context.thread_structure`). HTML in the new words meets the gates a new
+    (`events.thread_structure`). HTML in the new words meets the gates a new
     message's does, under the revision the user is looking at, which the edit names
     as such a message does. Where the message
     holds a widget the user has acted on, the edit goes in and Leaf says what becomes

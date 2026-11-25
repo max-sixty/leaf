@@ -7,7 +7,7 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
-from leaf.events import event_document
+from leaf.events import event_document, thread_structure
 from leaf.obligations import answer_verbs, answering_action, replayed_attrs
 from leaf.projection import (
     page_reading,
@@ -20,7 +20,6 @@ from leaf.registry.contract import (
     state_definition,
     withdrawing_outcome,
 )
-from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:

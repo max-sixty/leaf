@@ -80,7 +80,7 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
     assert bar.get_attribute("data-lf-placement") == placement
     window = page.evaluate(
         """async () => {
-          const {top, bottom} = (await window.__lfWidgetApi())
+          const {top, bottom} = (await window.__lfCheckApi())
             .shownWindow({gap: 8});
           return {top, bottom, scroll: scrollY};
         }"""

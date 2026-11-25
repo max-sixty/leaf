@@ -569,12 +569,12 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{searchField}} = await import("/runtime/portable-api.js");
   const {{offer, nameAction}} = await import("/runtime/lib/controls.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
-  const search = searchField("host-search", {{name: "files", label: "Find files"}});
+  const search = offer("wa-input", "host-search");
+  Object.assign(search, {{type: "search", name: "files", label: "Find files"}});
   document.querySelector("main").append(button, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}
 finally {{ window.hostReady = true; }}

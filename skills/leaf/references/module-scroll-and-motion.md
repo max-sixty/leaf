@@ -79,8 +79,9 @@ a comment on its contents, so a body sized to show everything it holds, as a
 screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where it
 keeps a `scrollbar-gutter` across states.
 
-`scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's, which is the document's own (`document.scrollingElement`).
+The box that scrolls an element is the nearest box around it whose vertical overflow
+scrolls, or the page's, the document's own (`document.scrollingElement`);
+[`/runtime/lib/scroller.js`](../../../browser/runtime/lib/scroller.js) finds it.
 
 ### Holding the reader's place
 
@@ -91,15 +92,8 @@ as `setRenderedChildren` does for a subtree the module renders whole
 ([module-authoring.md](module-authoring.md), "Retained nodes"), since a node that replaces
 the one anchoring holds loses the place. Where a change
 hides what the reader is reading, as folding it does, anchoring can't hold it: read
-`const hold = holdPlace(column, standIn)` before the change and call `hold()` after
-it, in the same task. Leaf reads the words at the reading line, a quarter of the way
-down the window, in the middle of `column`, the box the change is made in, and
-`hold()` puts them back where they stood. Where the change hid, removed or rewrote
-them, `hold()` calls `standIn(node)` and puts the node it returns in their place, as
-a section's gist takes the place of a paragraph folded behind it. `node` is the
-element that held the words, which may stand deep inside the block the change hid:
-look outward from it for that block, as `node.closest` does. For words a widget drew
-in its shadow tree, `node` is that widget. The change itself scrolls nothing.
+where the block the reader reads stands before the change, and scroll its scroller by
+however far it, or what stands in for it, moved, in the same task, as `lf-dial` does.
 
 Leaf keeps the user's place in a member a widget hides and shows again later, where
 the members are views of the page (`module-state.md`, "State only this tab keeps").
@@ -123,8 +117,7 @@ a bounded pane aligns it in the pane and moves the page only to show it; `block`
 defaults to `start`. A `smooth` landing glides, and lands at once for a user who asked
 for less motion. Sideways, each box reveals it at the nearest edge. A `nearest`
 landing moves nothing where the target is already shown: the user sees all of it where
-it fits, and as much of it as the window holds where it is longer, which
-`alreadyShown(target)` answers for a widget deciding whether to land something else.
+it fits, and as much of it as the window holds where it is longer.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
 it is, pass that box as `within`: the item comes in at the nearest edge of each box,
@@ -132,12 +125,9 @@ at once, whatever `block` and `behavior` say. Unlike native `Element.scrollIntoV
 it stays inside a live sample. Use it only for a deliberate move; focusing a visible
 control or redrawing keeps the scroll.
 
-`scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
-to the page's `document.scrollingElement`. A widget that keeps something in view as
-another widget moves, as `lf-code` keeps the line a film runs, sets the scroll of the
-first (`scrollTo`, below) unless it is the page, so the page stays where the reader
-left it. It and `onUserInput` ([module-input.md](module-input.md)), which says when
-the reader's hand is in that box, are also available from `portable-api.js`.
+A widget that keeps something in view as another widget moves, as `lf-code` keeps the
+line a film runs, sets the scroll of the box that scrolls it (`scrollTo`, below)
+unless that box is the page, so the page stays where the reader left it.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. To bring in a heading or label with an item where there is room,
@@ -153,15 +143,6 @@ the browser's scroll events. A write of the position a box already holds stops a
 the browser is driving there, so a module that may write one, as it restores an offset
 or keeps one box beside another, first asks whether the write would move the box
 (`/runtime/lib/scroll-range.js`).
-
-`landingInsets(scroller)` is how far a landing keeps from each edge of a
-scroller: its `scroll-padding`, and on the document the band Leaf states for its
-chrome, which holds while the user writes in a floating box.
-`shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
-fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
-only chrome standing across those columns takes room. It reads the visual viewport,
-which pinch zoom and a phone's keyboard shrink, or with `viewport: "layout"` the layout
-viewport.
 
 ### Sticky headers
 

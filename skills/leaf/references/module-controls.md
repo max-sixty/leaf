@@ -42,11 +42,10 @@ that rearranges a widget's contents without resizing it, dispatch an `lf-layout`
 on the element (`module-plain-elements.md`, "`lf-layout`"); a widget that measures
 what it holds listens for the event and reads again.
 
-`searchField(className, {name, label, placeholder})` builds a search or filter field
-with Leaf's frame, label, editor and Clear button; the widget owns the query and
-results, and can put a match count in its `end` slot.
-
-On a plain host, load `/vendor/webawesome.esm.js` to upgrade a search field's editor.
+A search or filter field is the UI library's `wa-input` with `type = "search"`, built
+with `offer` and given a `label`; `with-clear` gives it a Clear button, and a match
+count goes in its `end` slot. On a plain host, load `/vendor/webawesome.esm.js` to
+upgrade it. Keys typed into it reach the page's own key listeners, as any field's do.
 
 ## Faces for a widget's parts
 

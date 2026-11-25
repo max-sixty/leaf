@@ -59,9 +59,8 @@ the DOM takes the element it acts for as its first argument.
 In this file:
 
 - "Connection lifetimes": `whileConnected` holds a connection's listeners and observers.
-- "Startup and presentation": `whenNear` defers heavy work until the reader comes near,
-  `growthIsSeen` says whether growing now would move what the user sees, and
-  `whileInterfaceConnected` connects a page script to a widget.
+- "Startup and presentation": `whenNear` defers heavy work until the reader comes
+  near, and `whileInterfaceConnected` connects a page script to a widget.
 - "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
   place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
@@ -90,7 +89,7 @@ In [module-reading.md](module-reading.md):
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`, `dressCode` and `copyControl`.
+- "Code": `langForPath` and `dressCode`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues`,
   `answerWords` and `obligationActions`.
@@ -107,20 +106,18 @@ In [module-input.md](module-input.md):
 - "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
-  `leafEditorView` wraps a CodeMirror editor.
+- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
+  draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`.
-- "Holding the reader's place": `holdPlace` and `HeldReading`.
-- "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
-  `landingInsets` and `shownWindow`.
+- "Holding the reader's place": `HeldReading`.
+- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
 
-- "Margin contributions": `registerContribution` and `presentContributionEntry`.
+- "Margin contributions": `registerContribution`.
 - "Reading and opening Threads from a widget": `readThreads`, `threadActions`,
   `threadInput` and `landInThread`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
@@ -130,10 +127,6 @@ In [module-annotations.md](module-annotations.md):
 In [module-previews.md](module-previews.md):
 
 - "Previews": `placePreview`.
-
-In [module-controls.md](module-controls.md):
-
-- "Generated controls": `searchField`.
 
 ### Shared web code
 
@@ -350,9 +343,6 @@ result moves nothing visible, is said the same way once the page has presented. 
 that can wait until the reader comes near its element through
 `whenNear(element, () => …)`, which returns the step that stops waiting;
 `page check --render` starts what it holds.
-Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
 
 ### First paint
 
@@ -406,8 +396,8 @@ text selection the user made in it. A `LeafElement` places retained nodes in its
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
-`placeSelection()` from its `connectedMoveCallback`.
+custom element holding an editor, such as CodeMirror's, writes the editor's selection
+back from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 

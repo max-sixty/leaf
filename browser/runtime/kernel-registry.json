@@ -32,6 +32,7 @@
       "/runtime/lib/role-button-press.js",
       "/runtime/lib/roving.js",
       "/runtime/lib/scroll-range.js",
+      "/runtime/lib/scroller.js",
       "/runtime/lib/shadow-tree.js",
       "/runtime/lib/shown-box.js",
       "/runtime/lib/syntax-languages.js",

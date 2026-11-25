@@ -35,13 +35,6 @@ export { nameOf } from "./names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
 export { navigateToDatum } from "./application.js";
-// `growthIsSeen(element)`: whether the element changing size now would move what the
-// user sees, as scroll anchoring and the chrome leave it.
-export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
-export { alreadyShown } from "./landing-scroll.js";
-// Holding what the reader reads across one change the browser's scroll anchoring
-// can't keep still, such as one hiding what it anchors.
-export { holdPlace } from "./user-place.js";
 // Hearing each move of the user's current location with its cause
 // (`onCurrentLocation`), following the primary pointer's press (`onPress`), and hearing
 // a press that lands away from a surface (`onPressAway`).
@@ -65,11 +58,9 @@ export { readThreads } from "./thread/state.js";
 export { HeldReading } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { rowWalk } from "./walk-position.js";
-export { presentContributionEntry } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export { pageLinks } from "./page-markdown.js";
 export { scopedMediaUrl } from "./media.js";
-export { scrollerFor } from "./reading-regions.js";
 export { named, says } from "./passages.js";
 export { boundFile } from "./file-api.js";
 export { generate } from "./llm-api.js";
@@ -80,7 +71,6 @@ export { backgroundFlash, motion } from "./motion.js";
 // `whenNear` waits for the reader to near a node and declares the wait as an arrival,
 // so a widget cannot defer without the page knowing.
 export { whenNear, whileInterfaceConnected } from "./presentation.js";
-export { copyControl } from "./copy-control.js";
 // The members a widget shows one at a time: Leaf remembers the one shown, names it in
 // the address where the widget's views are the page's, and keeps the user's place in
 // each view of the page's flow (views.js).
@@ -88,11 +78,6 @@ export { keepView, openingView, viewMembers } from "./views.js";
 export { dressCode } from "./code-dressing.js";
 export { readHistory, readReports } from "./reports.js";
 export { aimedAt } from "./widget-elements.js";
-
-// The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
-// the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once
-// the page has presented.
-export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, the frame's height, Reset and disposal

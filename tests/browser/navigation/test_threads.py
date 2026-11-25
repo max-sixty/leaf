@@ -733,7 +733,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     # The panel's band at the window's foot, which it states to Leaf's landings.
     foot = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "async () => (await window.__lfCheckApi()).landingInsets("
         "document.scrollingElement).bottom"
     )
     page.wait_for_function(

@@ -160,7 +160,7 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page.evaluate(
         """async () => {
           const {presentContributionEntry} =
-            await window.__lfWidgetApi();
+            await window.__lfCheckApi();
           presentContributionEntry(document.getElementById('inline'),
             {key: 'inline', icon: 'dot', label: 'Read inline name'});
         }"""

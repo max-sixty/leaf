@@ -149,6 +149,7 @@ const browserGlobals = Object.fromEntries(
     "setInterval",
     "setTimeout",
     "structuredClone",
+    "visualViewport",
     "window",
   ].map((name) => [name, "readonly"]),
 );

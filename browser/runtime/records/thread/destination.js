@@ -6,7 +6,7 @@
    route that names no reader follows the choice: `t` and Shift+t, a press on a
    passage's mark, a row of the panel's lists, the next thread a Resolve there moves on
    to, a link naming the thread, Page Map, and a return to the thread, as taking back a
-   settlement does (annotations/undo.js). The user chose the two places and the two presses that
+   settlement does (records/undo.js). The user chose the two places and the two presses that
    switch between them, with cards the default, and adopted a review's rules for the
    rest: the placements Leaf forces (below) never change the choice; a route that
    moves the page into the panel still brings the thread's passage into view (below);

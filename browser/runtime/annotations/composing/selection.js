@@ -27,13 +27,15 @@ import { responseAction } from "../../dom/widget-elements.js";
 import { el } from "../../lib/elements.js";
 import { offerAction } from "../../lib/controls.js";
 import { COMMENT_HINT } from "../../base/voice.js";
-import { anchorKey } from "../../base/anchor-coordinate.js";
 import { keeps, keepsHidden } from "../../lib/keeps.js";
 
 import {
   clearDraft,
   commentContext,
+  composerCtx,
+  composerPayload,
   draftContexts,
+  isComposerDraft,
   loadDraft,
   noticeDraftKept,
   saveDraft,
@@ -71,7 +73,6 @@ import { elementById } from "../../readings/passages.js";
 
 import { notice } from "../../transport/notifications.js";
 import { sentDrawing } from "./drawing-record.js";
-import { DRAFT_FORMAT } from "../../state/kernel-facts.js";
 import { commitPoint } from "../../readings/pointed-place.js";
 import { textField } from "./text-field.js";
 import { raiseError } from "../../transport/errors.js";
@@ -168,8 +169,7 @@ composer.append(composerQuote);
 fabBar.prepend(composer);
 
 /** @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["anchor"]>} Anchor
- * @typedef {{format: typeof DRAFT_FORMAT, anchor: Anchor | null, revision: number | null, suggest: boolean,
- * about: "design" | null, drawing: import("./drawing-record.js").DraftDrawing | null, touched: number}} ComposerDraft
+ * @typedef {import("../../records/drafts.js").ComposerDraft} ComposerDraft
  * @typedef {ComposerDraft & {text: string}} ComposerRecord
  * @typedef {ReturnType<ReturnType<typeof import("../annotation-overlay/composing/floating-response.js").createFloatingResponsePlacement>["frame"]>} ComposerFrame
  * @typedef {Object} ComposerOptions
@@ -213,36 +213,6 @@ function wordsOf(element) {
   return words?.quote?.trim() ? words : null;
 }
 export let composerOpen = false;
-
-// DRAFT_FORMAT identifies this owner's complete current persisted payload, which
-// Threads' Drafts also reads for what a passage's draft is about.
-/** @param {object | null | undefined} payload @returns {payload is ComposerDraft} */
-export function isComposerDraft(payload) {
-  return payload != null && "format" in payload && payload.format === DRAFT_FORMAT;
-}
-// The key a passage's draft is kept under (`createSelectionComposer` says why), and the
-// record it holds beside the words, touched now.
-/** @param {Anchor | null} anchor */
-const composerCtx = (anchor) => commentContext(anchorKey(anchor));
-/** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
-const composerPayload = (fields) => ({
-  format: DRAFT_FORMAT,
-  ...fields,
-  touched: Date.now(),
-});
-// The draft a comment the log holds on a passage was written in, as this composer keeps
-// it, which taking the comment back puts its words back in (annotations/undo.js).
-/** @param {{anchor: Anchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("./drawing-record.js").DraftDrawing | undefined}} comment */
-export const commentDraft = (comment) => ({
-  ctx: composerCtx(comment.anchor),
-  payload: composerPayload({
-    anchor: comment.anchor,
-    revision: comment.revision ?? null,
-    suggest: Boolean(comment.suggestion),
-    about: comment.about ?? null,
-    drawing: comment.drawing ?? null,
-  }),
-});
 
 /** @param {ComposerOptions} options */
 export function createSelectionComposer({

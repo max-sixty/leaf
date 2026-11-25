@@ -145,7 +145,7 @@ is removed by whichever Leaf of its shape next lists it (`state.retire_if_gone`)
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
 
 - `<state-home>/render-readings/<page-key>.json` — the page's latest render check
-  (`render_reading.py`), for its server (`render_gate/handover_pass.py`) and for the
+  (`render_reading.py`), for its server (`handover_pass.py`) and for the
   parts `leaf page state` lists. No page's fold reads it, and without it a version is
   read again.
 

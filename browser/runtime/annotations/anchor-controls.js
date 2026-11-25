@@ -76,7 +76,7 @@ const missingReference = (id) => `§ ${id} isn't in the version shown`;
 /** @param {{
  * commentOnTarget: ReturnType<typeof import("./composing/surface.js").createResponseSurface>["commentOnTarget"],
  * openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"],
- * withdrawReaction: ReturnType<typeof import("./undo.js").createUndo>["withdraw"],
+ * withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"],
  * labelAnchor: typeof import("../records/thread/messages.js").anchorLabel,
  * invalidateThread: () => unknown, invalidatePageGeometry: () => unknown,
  * placement: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "hearPlaced" | "placedAt">,

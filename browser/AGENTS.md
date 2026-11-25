@@ -218,7 +218,7 @@ reading.
   server's state, and delivery says why in the notice seat. A refused send returns the
   words to their box (`standGesture` in `records/drafts.js`), an undone message or rewrite
   returns them to the draft they were written in (`giveBackWords`), and a gesture that
-  moved the user, such as resolving a thread, leaves them at its place again (`annotations/undo.js`
+  moved the user, such as resolving a thread, leaves them at its place again (`records/undo.js`
   owns where undo leaves the user).
 
 ### Controls are few and quiet

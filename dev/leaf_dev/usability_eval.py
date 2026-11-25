@@ -433,7 +433,7 @@ def build_cutover_hidden(run: Run, page: Path) -> None:
 
 
 def reads_on_its_own(run: Run) -> bool:
-    """Whether this arm's page server runs the render pass (`render_gate.handover_pass`),
+    """Whether this arm's page server runs the render pass (`handover_pass`),
     which a base from before it doesn't."""
     kernel = json.loads(
         (run.payload / "browser/runtime/kernel-registry.json").read_text()

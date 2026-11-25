@@ -64,7 +64,6 @@ BINDINGS = Record(
         ),
     ),
     since=50,
-    kept=("bindings",),
 )
 
 MAX_FILE_BYTES = 256 * 1024
@@ -93,9 +92,8 @@ def _access(page_dir: Path):
 
 
 def _grants(page_dir: Path) -> dict[str, str]:
-    """The grants as `files.json` records them, whichever Leaf wrote it, so the
-    next grant keeps those another Leaf recorded."""
-    record = BINDINGS.read_any(page_dir / FILE_BINDINGS_FILE)
+    """The grants as `files.json` records them."""
+    record = BINDINGS.read(page_dir / FILE_BINDINGS_FILE)
     return record["bindings"] if record else {}
 
 
@@ -237,7 +235,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         path = canonical_path(file.expanduser(), strict=True)
     except OSError as error:
         raise FileBindingError(str(error)) from error
-    if path == (page_dir / FILE_BINDINGS_FILE).resolve():
+    if path == BINDINGS.file(page_dir / FILE_BINDINGS_FILE).resolve():
         raise FileBindingError("A page cannot edit its own file access grants.")
     with page_locked(page_dir):
         try:

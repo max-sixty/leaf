@@ -87,7 +87,7 @@ def _read(page_dir: Path, path: Path) -> dict:
 
 def _write(path: Path, stored: dict) -> None:
     """Atomic secret storage with 0600 even if a previous file had wider access."""
-    replace_bytes([(path, CONNECTIONS.encode(stored), False)])
+    replace_bytes([(CONNECTIONS.file(path), CONNECTIONS.encode(stored), False)])
 
 
 def _name(name: str) -> None:

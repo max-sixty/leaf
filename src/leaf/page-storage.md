@@ -8,8 +8,10 @@ owns it, whose header holds the rest of its contract.
 
 Each JSON record below is a `state.Record`, declared once beside its owning module,
 whose functions are its only writers. Its `format` versions it
-([layer-registry.md](layer-registry.md), "Page protocol"). A state-home record whose
-pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
+([layer-registry.md](layer-registry.md), "Page protocol"), and each shape is kept under
+the name below with its `since` before the suffix, as `drafts@51.json`, so a Leaf of
+one shape never reads or replaces another's. A state-home record whose pages are gone
+is removed by whichever Leaf of its shape next lists it (`state.retire_if_gone`).
 
 - `index.html` — the author's mutable document. The server validates it before
   activation and never serves it directly. An invalid save creates no revision, leaves

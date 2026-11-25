@@ -7,11 +7,7 @@
  * from its annotations, and every kind stays; a new kind may join only where it
  * declares `skippable`, since a Leaf that skips it still reads the rest of the log
  * rightly. A `state.Record` changes its schema, apart from its annotations, only by
- * setting its `since` to the current protocol, and never drops a key it keeps
- * (`state.Record.kept`), loosens one from required, or changes its schema, since
- * every Leaf reads a record's kept keys whichever Leaf wrote it. A kept key's
- * `anyOf` may gain variants, which an older Leaf reads as it reads any value it
- * doesn't know (`layer-registry.md`, "Page protocol").
+ * setting its `since` to the current protocol.
  *
  * Equality, rather than a field-by-field comparison of what each side accepts, costs
  * a bump or a `since` move for an added optional field; Leaf spends no code on
@@ -49,33 +45,6 @@ function bare(schema) {
 }
 const same = (a, b) => isDeepStrictEqual(bare(a), bare(b));
 
-// Whether `now` is `was`, or `was` with variants added to its `anyOf`.
-function widens(was, now) {
-  if (!was.anyOf || !now.anyOf) return same(was, now);
-  const { anyOf: before, ...rest } = was;
-  const { anyOf: after, ...restNow } = now;
-  return (
-    same(rest, restNow) &&
-    before.every((variant) => after.some((other) => same(variant, other)))
-  );
-}
-
-// The schema at `path` (`a/*/b`, `*` for each item of a list) in a record's schema, and
-// whether each key on the way is required; none where the path leaves the schema.
-function kept(schema, path) {
-  let node = schema;
-  const required = [];
-  for (const step of path.split("/")) {
-    if (step === "*") node = node?.items;
-    else {
-      required.push(Boolean(node?.required?.includes(step)));
-      node = node?.properties?.[step];
-    }
-    if (node === undefined) return undefined;
-  }
-  return { schema: node, required };
-}
-
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
  * served state, the verb (`verbs`) and the widget declaration schema, which only the
  * generated types read. */
@@ -106,22 +75,8 @@ export function protocolBreaks(baseline, current) {
     if (!isDeepStrictEqual(baseline.events.ownership, current.events.ownership))
       refused.push("$events.ownership: changed");
   }
-  for (const [kind, { since, schema, kept: keeps = [] }] of Object.entries(
-    current.records,
-  )) {
+  for (const [kind, { since, schema }] of Object.entries(current.records)) {
     const before = baseline.records[kind];
-    for (const path of keeps)
-      if (!kept(schema, path))
-        refused.push(`record ${kind}: kept ${path} is not in its schema`);
-    for (const path of before?.kept ?? []) {
-      const [was, now] = [kept(before.schema, path), kept(schema, path)];
-      if (!keeps.includes(path) || !now)
-        refused.push(`record ${kind}: ${path} is kept, so every shape keeps it`);
-      else if (!widens(was.schema, now.schema))
-        refused.push(`record ${kind}: kept ${path} changed its schema`);
-      else if (was.required.some((required, step) => required && !now.required[step]))
-        refused.push(`record ${kind}: kept ${path} is no longer required`);
-    }
     if (since > current.protocol)
       refused.push(
         `record ${kind}: since ${since} is past protocol ${current.protocol}`,

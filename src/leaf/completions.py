@@ -112,7 +112,7 @@ def ask(session_id: str, request: dict, *, timeout: float) -> dict:
             time.sleep(POLL_S)
     finally:
         with flocked(_lock_path(session_id)):
-            path.unlink(missing_ok=True)
+            COMPLETION.remove(path)
 
 
 def watch(session_id: str) -> "FileChanges":
@@ -121,7 +121,7 @@ def watch(session_id: str) -> "FileChanges":
     # Here, so the step that hands a reply over (`replied`) never imports it.
     from .file_changes import FileChanges
 
-    pattern = _path(session_id, "*")
+    pattern = COMPLETION.file(_path(session_id, "*"))
     # Resolved, as notifications name it.
     directory = pattern.parent.resolve()
     return FileChanges(
@@ -138,7 +138,7 @@ def pending(session_id: str) -> list[dict]:
     now = time.time()
     found = []
     pattern = _path(session_id, "*")
-    for path in sorted(pattern.parent.glob(pattern.name)):
+    for path in sorted(COMPLETION.glob(pattern.parent, pattern.name)):
         asked = COMPLETION.read(path)
         if asked is not None and "reply" not in asked and asked["deadline"] > now:
             found.append(

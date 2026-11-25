@@ -127,7 +127,7 @@ import psutil
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
-from leaf.data import source_file
+from leaf.data import PUBLICATION, source_file
 from leaf.render_checks import OUTSTANDING, wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -1475,7 +1475,7 @@ def agent_data(tab: Tab) -> float:
     source = tab.target["source"]
     return tab.bench.written(
         "data", "set", tab.bench.directory, source, "--file", tab.target["value"],
-        file=source_file(tab.bench.served.directory, source),
+        file=PUBLICATION.file(source_file(tab.bench.served.directory, source)),
     )  # fmt: skip
 
 

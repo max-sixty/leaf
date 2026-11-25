@@ -162,7 +162,7 @@ def _change[T](
                 DRAFTS.write(path, stored)
                 return stored, result
             if held is None:
-                path.unlink(missing_ok=True)
+                DRAFTS.remove(path)
             else:
                 DRAFTS.write(path, held)
     raise RuntimeError("the page's host holds another drafts store")

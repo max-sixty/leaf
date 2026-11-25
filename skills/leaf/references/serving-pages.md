@@ -92,6 +92,14 @@ While another live session holds the page, Leaf refuses to serve or write it, an
 session that holds the page. A page a newer Leaf initialized is refused
 as well; the refusal says how to load a newer Leaf.
 
+An update that changes how Leaf keeps one of its records, such as unsent drafts, a
+page's file grants or the sign-in key, leaves the earlier Leaf's file where it was and
+starts a new one, so what that record held is gone from the page under the update.
+`leaf page check` names a page's leftover records and `leaf page list` the machine's;
+remove them once no session runs the earlier Leaf. Where they include claims, your
+pages no longer reach you: take each again with `leaf server start`. A drafts file
+holds the user's unsent words, so tell the user where it is rather than reading it.
+
 An update can change what a widget accepts or how it draws, and a page's own widgets
 may call an API the update changed. `leaf page check` reports both, the second with
 `--render`; fix the source as for any other failure.

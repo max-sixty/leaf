@@ -40,6 +40,8 @@ from .schema import ANSWER_INSTRUCTION
 from .server import read_service, running_server
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
+    CLAIM,
+    SESSION,
     SESSION_SUFFIX,
     CopyReplaced,
     LoadedCopy,
@@ -192,7 +194,7 @@ class Watch:
         # The lines Leaf queued for the session's next step, some of which wake it
         # (`clerk.waking`); no page's reading stamps them.
         self.told = (
-            session_file(self.session_id, QUEUED.kind).resolve()
+            QUEUED.file(session_file(self.session_id, QUEUED.kind)).resolve()
             if self.session_id
             else None
         )
@@ -235,7 +237,8 @@ class Watch:
         if not self.session_id:
             return set()
         return {
-            self.claims.parent / locator.name for locator in self.claims.glob("*.json")
+            CLAIM.file(self.claims.parent / locator.name)
+            for locator in CLAIM.glob(self.claims)
         }
 
     def reading(self, discovery: set[Path] | None = None) -> tuple:
@@ -261,7 +264,11 @@ class Watch:
                 target for page in pages for target in outside_inputs(page)
             }
             if self.session_id:
-                targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+                targets.add(
+                    SESSION.file(
+                        session_file(self.session_id, SESSION_SUFFIX)
+                    ).resolve()
+                )
             if self.told:
                 targets.add(self.told)
             targets.update(path.resolve() for path in self.lease_paths)

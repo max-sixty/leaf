@@ -157,8 +157,8 @@ QUEUE_TIMEOUT = 20
 ADAPTER = Record(
     "codex-adapter",
     described(
-        "A Codex task's running delivery adapter, written into the lease it holds "
-        "at the state home's `sessions/<digest>.adapter` (`running_adapter`).",
+        "A Codex task's running delivery adapter, beside the lease it holds at "
+        "the state home's `sessions/<digest>.adapter` (`running_adapter`).",
         object_schema(
             {
                 "app_server": described(
@@ -170,7 +170,6 @@ ADAPTER = Record(
         ),
     ),
     since=56,
-    kept=("app_server",),
 )
 
 
@@ -495,8 +494,8 @@ class TaskConnection:
         unresolved = set()
         directory = codex.delivery_dir(self.thread_id)
         for path in (
-            *directory.glob("*.json"),
-            *(directory / "history").glob("*.json"),
+            *codex.RECORD.glob(directory),
+            *codex.RECORD.glob(directory / "history"),
         ):
             record = codex.read_record(path)
             if not isinstance(record, codex.ReceiptOutcome):
@@ -973,12 +972,10 @@ def run_adapter(
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
-        # The lease record names this adapter's transport, so a later `leaf page claim`
-        # in the task verifies any requested endpoint against the one it joins.
+        # The lease's record names this adapter's transport, so a later `leaf page
+        # claim` in the task verifies any requested endpoint against the one it joins.
         resources.callback(release_lease, lease)
-        lease.truncate(0)
-        lease.write(ADAPTER.encode({"app_server": app_server}))
-        lease.flush()
+        ADAPTER.write(adapter_lease_path(harness.session), {"app_server": app_server})
         watch = Watch(harness)
         if not watch.acquire():
             raise Refused(
@@ -1179,7 +1176,7 @@ def running_adapter(session_id: str) -> dict | None:
     it; that reads as no adapter."""
     if not adapter_is_live(session_id):
         return None
-    return ADAPTER.read_any(adapter_lease_path(session_id))
+    return ADAPTER.read(adapter_lease_path(session_id))
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

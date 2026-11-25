@@ -46,6 +46,7 @@ from .machine import caller_exited
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
+    SERVICE,
     exit_serving,
     exit_serving_on_signals,
     host_key,
@@ -703,7 +704,7 @@ def cmd_serve(
                         or not same_claim(page_claim(page_dir), prepared_claim)
                     ):
                         if previous_service is None:
-                            (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+                            SERVICE.remove(page_dir / SERVICE_FILE)
                         else:
                             write_service(page_dir, previous_service)
                     raise
@@ -1016,24 +1017,27 @@ def cmd_stop(
                     return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
-            # Whether a server runs is the lease's to say: one an older Leaf started
-            # over a record this version cannot read holds it without a readable
-            # record to show it by. A private preparation holds the lease too, but
-            # has no service record and has not become a running service.
+            others = SERVICE.others(page_dir / SERVICE_FILE)
+            # Whether a server runs is the lease's to say: one a Leaf of another
+            # `SERVICE` shape started holds it with no record of this shape to show
+            # it by. A private preparation holds the lease too, but has no service
+            # record and has not become a running service.
             stopped = (
                 stopped
                 or running_server(page_dir) is not None
                 or (
                     service is None
-                    and (page_dir / SERVICE_FILE).exists()
+                    and bool(others)
                     and lock_is_held(page_dir / SERVER_LOCK)
                 )
             )
             if service is None:
-                # A record this version cannot read names no service it could
-                # disable. Discarding it is what stops a server an older Leaf
-                # started over it, which exits once its record is gone.
-                (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+                # A record of another shape names no service this Leaf could
+                # disable. Removing it is what stops a server that Leaf started,
+                # which exits once its record is gone, and a stop ends what the
+                # record is for (`layer-registry.md`, "Page protocol").
+                for other in others:
+                    other.unlink(missing_ok=True)
             elif first:
                 disabled = service.copy()
                 disabled.pop("restart", None)

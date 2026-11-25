@@ -119,11 +119,13 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("session evidence")
     claims = service_model.claim_path(page_dir).parent
-    (claims / "malformed.json").write_text("{")
-    (claims / "wrong-shape.json").write_text("[]")
+    service_model.CLAIM.file(claims / "malformed.json").write_text("{")
+    service_model.CLAIM.file(claims / "wrong-shape.json").write_text("[]")
     missing_page = tmp_path / "missing-page"
-    missing_claim = {"id": "ended-session", "page": str(missing_page)}
-    missing_path = service_model.claim_path(missing_page)
+    missing_claim = service_model.CLAIM.stored(
+        {"id": "ended-session", "page": str(missing_page)}
+    )
+    missing_path = service_model.CLAIM.file(service_model.claim_path(missing_page))
     cleanup_model.write_json(missing_path, missing_claim)
     foreign = page_dir.parent / "foreign-page"
     foreign.mkdir()

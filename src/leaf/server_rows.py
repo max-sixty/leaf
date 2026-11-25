@@ -86,7 +86,7 @@ class RowPublisher:
             reading == self.reading
             and live == self.live
             and not due
-            and self.path.is_file()
+            and ROW.file(self.path).is_file()
         ):
             return
         # Only an idle harness record with no watcher can mean an interrupted turn
@@ -99,7 +99,7 @@ class RowPublisher:
         self.transition = (
             datetime.fromisoformat(deadline).timestamp() if deadline else None
         )
-        if row != self.row or not self.path.is_file():
+        if row != self.row or not ROW.file(self.path).is_file():
             ROW.write(
                 self.path,
                 {

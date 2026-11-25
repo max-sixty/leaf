@@ -259,7 +259,9 @@ def test_failed_delivery_preserves_the_existing_preview(
     with original.starting() as url:
         pass
     claim = page_claim(page_dir)
-    published = json.loads((page_dir / "service.json").read_text())
+    published = json.loads(
+        server_model.SERVICE.file(page_dir / "service.json").read_text()
+    )
 
     def refuse(_harness):
         assert page_claim(page_dir) == claim
@@ -276,7 +278,10 @@ def test_failed_delivery_preserves_the_existing_preview(
                 cmd_serve(page_dir, harness=session_harness(), acquire=True)
         assert page_claim(page_dir) == claim
         assert not original.ended
-        assert json.loads((page_dir / "service.json").read_text()) == published
+        assert (
+            json.loads(server_model.SERVICE.file(page_dir / "service.json").read_text())
+            == published
+        )
         assert (current := running_server(page_dir)) is not None
         assert current["url"] == url
         assert fetch(url)[0] == 200
@@ -300,9 +305,11 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
     cmd_stop(page_dir)
     # Keep the original watcher/claim, with its server down. Its next revival is
     # independent of a failed takeover's private preparation.
-    record = json.loads((page_dir / "service.json").read_text())
+    record = json.loads(
+        server_model.SERVICE.file(page_dir / "service.json").read_text()
+    )
     record["enabled"] = True
-    (page_dir / "service.json").write_text(json.dumps(record))
+    server_model.SERVICE.file(page_dir / "service.json").write_text(json.dumps(record))
     if refusal == "layer":
         from interact_support import vendored_at_another_protocol
 
@@ -384,9 +391,11 @@ def test_service_publication_failure_keeps_previous_preview_claim(
         pass
     previous = page_claim(page_dir)
     hosting.cmd_stop(page_dir)
-    published = json.loads((page_dir / "service.json").read_text())
+    published = json.loads(
+        server_model.SERVICE.file(page_dir / "service.json").read_text()
+    )
     published["enabled"] = True
-    write_json(page_dir / "service.json", published)
+    write_json(server_model.SERVICE.file(page_dir / "service.json"), published)
     harness_2 = session_harness()
     assert harness_2 is not None
     intent = prepare_claim(harness_2, page_dir)
@@ -412,7 +421,10 @@ def test_service_publication_failure_keeps_previous_preview_claim(
         assert page_claim(page_dir) == previous
         assert not original.ended
         assert not leases_model.lock_is_held(page_dir / "server.lock")
-        assert json.loads((page_dir / "service.json").read_text()) == published
+        assert (
+            json.loads(server_model.SERVICE.file(page_dir / "service.json").read_text())
+            == published
+        )
     finally:
         monkeypatch.undo()
         hosting.cmd_stop(page_dir)

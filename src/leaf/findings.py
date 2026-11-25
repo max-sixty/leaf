@@ -2362,6 +2362,21 @@ _TEXT = {
         f" restart it with `leaf server stop {v['page']}` then"
         f" `leaf server start {v['page']}`"
     ),
+    # `page check`'s advice on a page holding records a Leaf of another version
+    # wrote, which this one never reads (`state.leftover_records`).
+    "other-version-records": lambda at, v: (
+        f"{v['page']} keeps records another Leaf version wrote, which this one"
+        " doesn't read: "
+        + "; ".join(
+            f"{group['files']} ({group['format']}, {group['count']}, last written"
+            f" {group['written']})"
+            for group in v["records"]
+        )
+        + ". Remove them once no Leaf of that version serves the page; where one"
+        " holds the user's unsent drafts, tell the user where it is rather than"
+        " reading it, and remove it when they say. `leaf page list` names the"
+        " machine's"
+    ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
         "the URL reaches only this machine; re-serve with --host NAME for a user"

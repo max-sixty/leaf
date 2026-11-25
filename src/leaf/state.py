@@ -34,6 +34,7 @@ import functools
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import sys
@@ -472,76 +473,50 @@ class Record(Generic[_RecordValue]):
     a test writes against its schema instead (`tests/conftest.py`).
 
     Every installed Leaf on the machine shares the state home, any of them may serve
-    a page, and the worktrees writing them are each on their own commit. So a record
-    carries `format`, `leaf-<kind>/<since>`, where `since` is the page protocol at
-    which this kind's shape last changed, so a bump for anything else leaves the
-    record readable (`layer-registry.md`, "Page protocol", says when `since`
-    moves, which the browser build checks against every kind in `RECORDS`). `read`
-    takes only a record at this format. A record at another format or with none
-    reads as absent, as a missing file does, and the next write replaces it.
-    Every write replaces the file whole, so a file that is not JSON no Leaf
-    wrote, and reading it raises, naming the file.
+    a page, and the worktrees writing them are each on their own commit. So each
+    shape of a kind has files of its own: a record a reader names `drafts.json` is
+    stored at `drafts@51.json` (`file`), where 51 is this kind's `since`, the page
+    protocol at which its shape last changed, so a bump for anything else leaves the
+    record where it was (`layer-registry.md`, "Page protocol", says when `since`
+    moves, which the browser build checks against every kind in `RECORDS`). A Leaf
+    reads, replaces and removes only the files of its own shapes, and finds a record
+    at another shape as it finds none, without touching it; the record carries its
+    `format`, `leaf-<kind>/<since>`, for whoever finds the file. No Leaf reads
+    another shape's record, not even the keys two shapes share: carrying a record
+    across shapes would bind every later shape to an earlier one's keys and their
+    meanings, which the build could check only for the keys. What other shapes'
+    files remain beside one is `others`'s to say, and the agent's to remove
+    (`leftover_records`). The layer record keeps one file, and two removals take
+    every shape (`layer-registry.md`, "Page protocol"). Every write replaces the
+    file whole, so a file that is not JSON no Leaf wrote, and reading it raises,
+    naming the file."""
 
-    `kept` names the keys every shape of the kind keeps, with the meaning and schema
-    this one gives them, for a Leaf that must read a record another Leaf wrote in
-    another shape (`read_any`). Each is a key, or a path through the record whose `*`
-    stands for each item of a list, as `batches/*/page`. The build refuses a shape
-    that drops one or changes its schema (`build/browser/protocol.mjs`), but lets a
-    kept key's `anyOf` gain variants: a new kind of session lifetime is a variant of
-    `SESSION`'s `lifetime` and a reading in `service.session_lives`, and an older
-    Leaf reads a value it doesn't know as the session still live
-    (`layer-registry.md`, "Page protocol")."""
-
-    def __init__(
-        self, kind: str, schema: dict, *, since: int, kept: tuple[str, ...] = ()
-    ):
+    def __init__(self, kind: str, schema: dict, *, since: int):
         if kind in RECORDS:
             raise ValueError(f"two records declare the kind {kind}")
         RECORDS[kind] = self
         self.kind = kind
         self.schema = schema
         self.since = since
-        self.kept = kept
 
     @property
     def format(self) -> str:
         return f"leaf-{self.kind}/{self.since}"
 
+    def file(self, path: Path) -> Path:
+        """The file holding the record that `path` names at this shape: `path` with
+        `@<since>` before its suffix. Every operation on a record's file, a removal,
+        a watch or a stamp as well as a read or a write, names it so."""
+        return path.with_name(f"{path.stem}@{self.since}{path.suffix}")
+
     def read(self, path: Path) -> _RecordValue | None:
-        """The record at `path`, less its `format`, or None where this Leaf reads
-        none there."""
-        stored = stored_record(path)
-        if stored is None or self.since_of(stored) != self.since:
+        """The record at `path`, less its `format`, or None where there is none of
+        this shape."""
+        stored = stored_record(self.file(path))
+        if stored is None:
             return None
         del stored["format"]
         return cast(_RecordValue, stored)
-
-    def read_any(self, path: Path) -> dict | None:
-        """The record at `path` whichever Leaf wrote it: whole, less its `format`,
-        where it is of this Leaf's shape, and otherwise the keys every shape of the
-        kind keeps (`kept`); None where there is no record of this kind, or one that
-        lacks a kept key its kind requires."""
-        stored = stored_record(path)
-        if stored is None or (since := self.since_of(stored)) is None:
-            return None
-        if since == self.since:
-            del stored["format"]
-            return stored
-        kept: dict = {}
-        for named in self.kept:
-            if not _keep(stored, named.split("/"), kept, self.schema):
-                return None
-        return kept
-
-    def since_of(self, stored: dict) -> int | None:
-        """The `since` that `stored`, a record read whole (`stored_record`), names in
-        its `format` where it is of this kind, or None where it is of none. Every
-        shape keeps `format`, so a reader tells by this which Leaf's shape it holds
-        before it reads anything else."""
-        kind, _, since = str(stored.get("format", "")).rpartition("/")
-        if kind != f"leaf-{self.kind}" or not since.isdecimal():
-            return None
-        return int(since)
 
     def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
@@ -551,41 +526,103 @@ class Record(Generic[_RecordValue]):
 
     def encode(self, value: _RecordValue) -> bytes:
         """The bytes `write` writes, for a writer that replaces several files at
-        once or writes through a lease it holds."""
+        once (`file` names each)."""
         return json_bytes(self.stored(value))
 
     def write(self, path: Path, value: _RecordValue) -> _RecordValue:
         """Atomically replace the record at `path`, preserving a regular target's
         mode, and return `value` as `read` will."""
-        replace_bytes([(path, self.encode(value), not path.is_symlink())])
+        target = self.file(path)
+        replace_bytes([(target, self.encode(value), not target.is_symlink())])
         return value
 
+    def remove(self, path: Path) -> None:
+        """Remove the record at `path`, where there is one of this shape."""
+        self.file(path).unlink(missing_ok=True)
 
-def _keep(stored: dict, path: list[str], kept: dict, schema: dict) -> bool:
-    """Copy into `kept` what `path` names in `stored`, and say whether `stored` holds
-    every key on the way that `schema`, its kind's, requires. The build holds every
-    shape to the kept keys (`Record.kept`), so a record that lacks one is from before
-    any shape kept it."""
-    name, *rest = path
-    if name not in stored:
-        return name not in schema.get("required", ())
-    field = schema.get("properties", {}).get(name, {})
-    if not rest:
-        kept[name] = stored[name]
-        return True
-    if rest[0] == "*":
-        items = kept.setdefault(name, [{} for _ in stored[name]])
-        return all(
-            _keep(item, rest[1:], into, field.get("items", {}))
-            for item, into in zip(stored[name], items)
-        )
-    return _keep(stored[name], rest, kept.setdefault(name, {}), field)
+    def glob(self, directory: Path, pattern: str = "*.json") -> list[Path]:
+        """The path a reader names each record of this shape by, among those in
+        `directory` whose names match `pattern`."""
+        return [
+            path.with_name(record_name(path.name))
+            for path in directory.glob(self.file(directory / pattern).name)
+        ]
+
+    def others(self, path: Path) -> list[Path]:
+        """The files holding the record that `path` names at other shapes than this
+        one, which this Leaf never reads, replaces or removes."""
+        return [
+            other
+            for other in sorted(path.parent.glob(f"{path.stem}@*{path.suffix}"))
+            if SHAPED.fullmatch(other.name) and other != self.file(path)
+        ]
+
+
+# The name of a record's file (`Record.file`): the name a reader gives it, with
+# `@<since>` before its suffix.
+SHAPED = re.compile(r"(?P<stem>[^@/]+)@(?P<since>[0-9]+)(?P<suffix>(?:\.[^.@/]*)?)")
+
+
+def record_name(name: str) -> str:
+    """The name a reader gives the record whose file is named `name`
+    (`Record.file`), or `name` where it names no record's file. The readings that
+    classify a page directory's files by name read each file under this name, so a
+    record of any shape counts as its kind does."""
+    shaped = SHAPED.fullmatch(name)
+    return name if shaped is None else shaped["stem"] + shaped["suffix"]
+
+
+def leftover_records(directories: list[Path]) -> list[dict]:
+    """The records in `directories` of a kind this Leaf declares, at another shape
+    than this Leaf's, which this Leaf never reads, replaces or removes: one entry for
+    each set of files that differ only in a key, such as the page key in `claims/`,
+    with their files as a pattern, the `format` they carry, how many there are and
+    when the newest was written. Leaf takes each file's `format` and nothing else
+    from it, so the words of another shape's drafts stay unread. A kind this Leaf
+    doesn't declare, as a later Leaf's new one, isn't named, since nothing here can
+    tell its own files from another shape's."""
+    import importlib
+    import pkgutil
+
+    import leaf
+
+    # Every kind, declared as its module loads.
+    for module in pkgutil.walk_packages(leaf.__path__, "leaf."):
+        if not module.name.endswith(".__main__"):
+            importlib.import_module(module.name)
+    groups: dict[tuple[Path, str, str], list[Path]] = {}
+    for directory in directories:
+        for path in directory.glob("*@*"):
+            if not SHAPED.fullmatch(path.name) or not path.is_file():
+                continue
+            try:
+                form = str((stored_record(path) or {}).get("format", ""))
+            except ValueError:
+                continue
+            kind, _, since = form.rpartition("/")
+            record = RECORDS.get(kind.removeprefix("leaf-"))
+            if record is None or str(record.since) == since:
+                continue
+            keyless = re.sub(r"[0-9a-f]{16,}", "*", path.name)
+            groups.setdefault((directory, keyless, form), []).append(path)
+    return [
+        {
+            "files": str(directory / keyless),
+            "format": form,
+            "count": len(paths),
+            "written": datetime.fromtimestamp(
+                max(path.stat().st_mtime for path in paths)
+            )
+            .astimezone()
+            .isoformat(timespec="seconds"),
+        }
+        for (directory, keyless, form), paths in sorted(groups.items())
+    ]
 
 
 def stored_record(path: Path) -> dict | None:
-    """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. A reader takes a record through `Record.read`, or `Record.read_any` where
-    another Leaf may have written it."""
+    """The JSON object at `path`, or None where there is none. A reader takes a
+    record through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -598,9 +635,8 @@ def stored_record(path: Path) -> dict | None:
 
 
 def named_pages(stored: dict) -> list[Path]:
-    """The page directories a record names (`Record.read_any`): its `page`, or the
-    `page` of each of its `batches`, which each kind of record that belongs to pages
-    keeps."""
+    """The page directories a record names: its `page`, or the `page` of each of
+    its `batches`."""
     if "page" in stored:
         return [Path(stored["page"])]
     return [
@@ -611,13 +647,13 @@ def named_pages(stored: dict) -> list[Path]:
 def pages_gone(pages: list[Path]) -> bool:
     """Whether a record names pages and every one is gone.
 
-    Nothing can answer a record once its pages are gone, whichever Leaf wrote it.
-    Pages are usually deleted from outside Leaf, with a worktree or a scratch
-    directory, so no Leaf process sees the moment; whoever next enumerates the
-    record's directory retires it. A page this process can't stat, as behind a
-    folder it may not read, stands; one whose path is missing is gone, though a
-    volume unmounted under it would bring it back, since nothing tells the two
-    apart. Its session takes the page again with `leaf server start`."""
+    Nothing can answer a record once its pages are gone. Pages are usually deleted
+    from outside Leaf, with a worktree or a scratch directory, so no Leaf process
+    sees the moment; whoever next enumerates the record's directory retires it. A
+    page this process can't stat, as behind a folder it may not read, stands; one
+    whose path is missing is gone, though a volume unmounted under it would bring it
+    back, since nothing tells the two apart. Its session takes the page again with
+    `leaf server start`."""
     return bool(pages) and not any(page_stands(page) for page in pages)
 
 
@@ -634,13 +670,11 @@ def page_stands(page: Path) -> bool:
 
 def retire_if_gone(record: Record, path: Path) -> bool:
     """Remove the record of kind `record` at `path` once every page it names is
-    gone, whatever its format, and say whether it went. A record at another format
-    may belong to a live session of another installed Leaf while its pages stand,
-    so only gone pages retire one."""
-    kept = record.read_any(path)
-    if kept is None or not pages_gone(named_pages(kept)):
+    gone, and say whether it went."""
+    stored = record.read(path)
+    if stored is None or not pages_gone(named_pages(stored)):
         return False
-    path.unlink(missing_ok=True)
+    record.remove(path)
     return True
 
 
@@ -733,7 +767,6 @@ SESSION = Record(
         ),
     ),
     since=56,
-    kept=("generation", "ended", "lifetime", "transcript_path"),
 )
 
 
@@ -742,17 +775,9 @@ def session_lock_path(session_id: str) -> Path:
 
 
 def session_record(session_id: str) -> dict | None:
-    """The session's lifecycle, whichever Leaf wrote it, or None for a session no
-    Leaf has recorded.
-
-    A session moves between Leaves as its harness loads an update, and every Leaf on
-    the machine reads whether a session holds its pages, so the record outlives a
-    change to its shape. A record of another shape reads through the keys every
-    shape keeps (`Record.read_any`), with no turn yet, so the session goes on in its
-    generation: its claims stay live, for its own hooks and for every other Leaf,
-    and the next write rewrites the record in this Leaf's shape."""
-    record = SESSION.read_any(session_file(session_id, SESSION_SUFFIX))
-    return None if record is None else {**new_session(session_id, {}), **record}
+    """The session's lifecycle, or None for a session this Leaf has no record of,
+    as for one a Leaf of another `SESSION` shape recorded."""
+    return SESSION.read(session_file(session_id, SESSION_SUFFIX))
 
 
 def write_session(record: dict) -> dict:
@@ -1003,9 +1028,10 @@ def _end_session(session_id: str) -> None:
 
 def _session_paths(session_id: str) -> list[Path]:
     """Every file and directory in the state home's `sessions/` that belongs to the
-    session (`session_file`)."""
-    pattern = session_file(session_id, "*")
-    return list(pattern.parent.glob(pattern.name))
+    session (`session_file`), its records of every shape among them
+    (`Record.file`)."""
+    stem = session_file(session_id, "").stem
+    return list(sessions_home().glob(f"{stem}[.@]*"))
 
 
 def _retire(session_id: str) -> None:
@@ -1013,7 +1039,9 @@ def _retire(session_id: str) -> None:
 
     While a claim names the session, the records that claim reads stay: its page
     shows the session's turn from the lifecycle; only the observations that end
-    with it go. Once none does, every unlocked file goes. A wait lease stays while
+    with it go. Once none does, every unlocked file goes, whichever Leaf wrote it:
+    a session's files serve only that session, so its end retires its records of
+    every shape. A wait lease stays while
     its watch is still running:
     a lease taker checks the name it locked (`leases.take_lease`), so none starts on
     a file removed under it, and a taker of the session lock held here does the same
@@ -1099,17 +1127,6 @@ CLAIM = Record(
         ),
     ),
     since=13,
-    kept=(
-        "page",
-        "ts",
-        "id",
-        "generation",
-        "acquisition",
-        "harness",
-        "agent",
-        "cwd",
-        "messaged_ending",
-    ),
 )
 
 
@@ -1134,9 +1151,9 @@ def held_claims(session_id: str) -> list[Path]:
     session stays: it may be one `service.publish_claim` has prepared and not yet
     committed."""
     held = []
-    for locator in session_claims(session_id).glob("*.json"):
+    for locator in CLAIM.glob(session_claims(session_id)):
         payload = locator.parent.parent / locator.name
-        stored = CLAIM.read_any(payload)
+        stored = CLAIM.read(payload)
         if stored is None or stored.get("id") != session_id:
             continue
         if pages_gone(named_pages(stored)):
@@ -1147,11 +1164,11 @@ def held_claims(session_id: str) -> list[Path]:
 
 
 def standing_claims() -> list[Path]:
-    """Every claim payload on this machine whose page still stands, retiring those
-    whose page is gone (`retire_claim`), whichever Leaf wrote them."""
+    """Every claim payload of this shape on this machine whose page still stands,
+    retiring those whose page is gone (`retire_claim`)."""
     standing = []
-    for payload in claims_home().glob("*.json"):
-        stored = CLAIM.read_any(payload)
+    for payload in CLAIM.glob(claims_home()):
+        stored = CLAIM.read(payload)
         if stored is not None and pages_gone(named_pages(stored)):
             retire_claim(payload, stored)
         else:
@@ -1169,7 +1186,7 @@ def claims_lock() -> Path:
 def remove_claim(payload: Path) -> None:
     """Remove a page's claim payload and the locator its claimant holds for it."""
     with flocked(claims_lock()):
-        _drop_claim(payload, CLAIM.read_any(payload))
+        _drop_claim(payload, CLAIM.read(payload))
 
 
 def retire_claim(payload: Path, stored: dict) -> None:
@@ -1179,14 +1196,14 @@ def retire_claim(payload: Path, stored: dict) -> None:
     again and claimed between the reading and the removal, so the claim goes only
     if it is still the one that was read under the lock every publication takes."""
     with flocked(claims_lock()):
-        if CLAIM.read_any(payload) == stored:
+        if CLAIM.read(payload) == stored:
             _drop_claim(payload, stored)
 
 
 def _drop_claim(payload: Path, stored: dict | None) -> None:
-    payload.unlink(missing_ok=True)
+    CLAIM.remove(payload)
     if stored is not None:
-        drop_locator(stored["id"], payload.name)
+        drop_locator(stored["id"], CLAIM.file(payload).name)
 
 
 def drop_locator(session_id: str, name: str) -> None:

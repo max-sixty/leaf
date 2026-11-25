@@ -64,7 +64,7 @@ def test_a_store_keeps_its_identity_until_its_file_is_replaced(tmp_path):
     assert first["version"] == 0
     assert _write(tmp_path, [], "a1")["store"] == first["store"]
     assert drafts_model.read_drafts(tmp_path)["store"] == first["store"]
-    (tmp_path / "drafts.json").unlink()
+    drafts_model.DRAFTS.remove(tmp_path / "drafts.json")
     replaced = drafts_model.read_drafts(tmp_path)
     assert replaced["store"] != first["store"]
     assert replaced["drafts"] == {}

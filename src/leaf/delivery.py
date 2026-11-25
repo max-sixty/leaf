@@ -452,7 +452,6 @@ DELIVERY = Record(
         ),
     ),
     since=52,
-    kept=("batches/*/page",),
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
@@ -491,13 +490,13 @@ def delivery_path(delivery_id: str) -> Path:
 
 
 def retire_gone_deliveries() -> None:
-    """Remove envelopes whose pages are all gone, whichever Leaf froze them.
+    """Remove envelopes of this shape whose pages are all gone.
 
     Envelopes are read one id at a time, so the only enumeration of them is here.
     Each page server runs it once as it starts (`hosting.cmd_serve`), away from
     any delivery an agent or a hook waits on: the read grows with every envelope
     the machine has kept."""
-    for path in (state_home() / "deliveries").glob("*.json"):
+    for path in DELIVERY.glob(state_home() / "deliveries"):
         retire_if_gone(DELIVERY, path)
 
 
@@ -823,7 +822,7 @@ def freeze_delivery(
         acknowledge=acknowledge(delivery_id) if acknowledge else None,
         correction=correction,
     )
-    if supplied and path.exists():
+    if supplied and DELIVERY.file(path).exists():
         if DELIVERY.read(path) != payload:
             raise DeliveryIdConflict(
                 f"delivery {delivery_id!r} already exists with other data"
@@ -848,7 +847,7 @@ def read_delivery(delivery_id: str) -> dict:
     except ValueError as error:
         raise Refused(str(error)) from error
     payload = stored_delivery(delivery_id)
-    if payload is None and path.exists():
+    if payload is None and DELIVERY.others(path):
         raise Refused(
             f"delivery {delivery_id!r} was written by another Leaf, in a form this "
             f"one does not read ({DELIVERY.format!r}). The updates it carried that "

@@ -26,7 +26,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
-from leaf.state import turn_open
+from leaf.state import record_name, turn_open
 from leaf.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -860,7 +860,8 @@ def ignore(directory, names):
     return {
         n
         for n in names
-        if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
+        if n in ("runtime", "vendor", "widgets", "instructions")
+        or record_name(n) == "service.json"
         or n.endswith((".lock", ".js", ".css"))
     }
 

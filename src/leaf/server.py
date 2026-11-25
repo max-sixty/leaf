@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .detached import starting_detached
-from .files import read_json
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
 from .schema import (
@@ -23,7 +22,7 @@ from .schema import (
     SERVER_LOCK,
     SERVICE_FILE,
 )
-from .service import PageTransaction, claim_is_active, page_claim
+from .service import PREVIEW, PageTransaction, claim_is_active, page_claim
 from .state import (
     PLUGIN_ROOT,
     STRING,
@@ -92,18 +91,6 @@ ACCESS: Record[AccessRecord] = Record(
         "The key every page this machine serves is read with (`host_key`), in the "
         "state home's `access.json`.",
         object_schema({"token": STRING}),
-    ),
-    since=13,
-)
-# The page receives it whole, so its shape is the served state's `preview`.
-PREVIEW = Record(
-    "preview",
-    described(
-        "What a developer preview shows in browser chrome, as `leaf-dev preview` "
-        "writes it to the page directory's `preview.json`.",
-        read_json(Path(__file__).with_name("served_state") / "state.schema.json")[
-            "$defs"
-        ]["Reading"]["properties"]["preview"],
     ),
     since=13,
 )
@@ -463,7 +450,7 @@ def host_key() -> str:
             if (access := ACCESS.read(path)) is None:
                 access = ACCESS.write(path, {"token": secrets.token_urlsafe(16)})
     # Whoever made the file, only the user reads the key.
-    hold_mode(path, 0o600)
+    hold_mode(ACCESS.file(path), 0o600)
     return access["token"]
 
 

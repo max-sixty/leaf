@@ -993,8 +993,9 @@ def native_codex_chat(tmp_path):
     return create
 
 
-def _page_record(path):
-    """The `state.Record` a page file's name declares."""
+def _page_records() -> dict:
+    """The `state.Record` each page record's file name declares."""
+    from leaf.drafts import DRAFTS
     from leaf.user_views import USER_VIEWS
 
     return {
@@ -1002,7 +1003,20 @@ def _page_record(path):
         schema_model.SERVICE_FILE: server_model.SERVICE,
         schema_model.PREVIEW_FILE: server_model.PREVIEW,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
-    }[path.name]
+        schema_model.DRAFTS_FILE: DRAFTS,
+    }
+
+
+def _page_record(path):
+    """The `state.Record` a page file's name declares."""
+    return _page_records()[path.name]
+
+
+def stored_file(path):
+    """The file holding what the page file `path` names: a page record's own
+    (`state.Record.file`), or `path` itself for a file that is no record."""
+    record = _page_records().get(path.name)
+    return path if record is None else record.file(path)
 
 
 def acknowledged_through(page_dir):
@@ -1792,8 +1806,10 @@ def _each_test_composes_its_own_layers(monkeypatch):
 
 def retire_bridge(lock):
     """End the bridge holding `lock` once it has published its address."""
+    from leaf.bridge import ADDRESS
+
     record = wait_for(
-        lambda: files_model.read_json(lock.with_suffix(".json")),
+        lambda: files_model.read_json(ADDRESS.file(lock.with_suffix(".json"))),
         bool,
         failure="a started bridge never published its address",
     )
@@ -1817,11 +1833,10 @@ def retire_test_services(tmp_path, isolated_session):
         leases_model.release_lease(HELD_LEASES.pop())
     sessions = [
         record["id"]
-        for path in (isolated_session / "sessions").glob(
-            f"*.{cleanup_model.SESSION_SUFFIX}"
+        for path in cleanup_model.SESSION.glob(
+            isolated_session / "sessions", f"*.{cleanup_model.SESSION_SUFFIX}"
         )
-        if isinstance(record := files_model.read_json(path), dict)
-        and isinstance(record.get("id"), str)
+        if (record := cleanup_model.SESSION.read(path)) is not None
     ]
 
     def answer_completions():
@@ -2970,9 +2985,12 @@ def app_server_fixture(app_server_messages):
 
 
 def codex_records(session_id: str) -> list[tuple[Path, dict]]:
+    """Each of the task's live delivery records, by the path its readers name it
+    (`codex.RECORD`), whose stem is its delivery id."""
     directory = codex_state_model.delivery_dir(session_id)
     return [
-        (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
+        (path, files_model.read_json(codex_model.RECORD.file(path)))
+        for path in sorted(codex_model.RECORD.glob(directory))
     ]
 
 
@@ -3106,10 +3124,10 @@ def adapter_lease(session_id, app_server):
     """Hold `session_id`'s adapter lease as a running adapter does, naming the App
     Server it starts turns over, or None for one that queues them
     (`codex_adapter.run_adapter`)."""
-    lease = leases_model.take_lease(leases_model.adapter_lease_path(session_id))
+    path = leases_model.adapter_lease_path(session_id)
+    lease = leases_model.take_lease(path)
     assert lease
-    lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
-    lease.flush()
+    codex_adapter_model.ADAPTER.write(path, {"app_server": app_server})
     return lease
 
 

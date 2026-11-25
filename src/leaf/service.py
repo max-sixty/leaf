@@ -100,20 +100,21 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     what this publishes (`state.retire_claim`).
     """
     path = claim_path(page_dir)
-    locator = session_claims(claim["id"]) / path.name
+    name = CLAIM.file(path).name
+    locator = session_claims(claim["id"]) / name
     with flocked(claims_lock()):
         locator.parent.mkdir(parents=True, exist_ok=True)
-        previous = CLAIM.read_any(path)
+        previous = CLAIM.read(path)
         staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
         try:
-            staged.symlink_to(Path("..") / path.name)
+            staged.symlink_to(Path("..") / name)
             os.replace(staged, locator)
             fsync_parents([locator])
         finally:
             staged.unlink(missing_ok=True)
         CLAIM.write(path, claim)
         if previous is not None and previous["id"] != claim["id"]:
-            drop_locator(previous["id"], path.name)
+            drop_locator(previous["id"], name)
 
 
 def claim_reading(claim: dict | None) -> dict | None:
@@ -140,14 +141,13 @@ def claim_reading(claim: dict | None) -> dict | None:
 
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one whose session or lifetime ended."""
-    return claim_reading(CLAIM.read_any(claim_path(page_dir)))
+    return claim_reading(CLAIM.read(claim_path(page_dir)))
 
 
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: its session's generation, not
-    ended, with a lifetime that still lives (`session_lives`), whichever Leaf
-    recorded the session (`state.session_record`). Cold hooks and the CLI both call
-    it."""
+    ended, with a lifetime that still lives (`session_lives`). Cold hooks and the
+    CLI both call it."""
     if not claim:
         return False
     record = session_record(claim["id"])
@@ -167,10 +167,11 @@ def session_lives(lifetime: dict, record: dict | None) -> bool:
     beside the session's `id`.
 
     A lifetime that names nothing yet has no owner, so nothing lives by it. A kind
-    this Leaf doesn't know, as a later Leaf's may, reads as live until the record
-    says the session ended, since this Leaf can't check it (`layer-registry.md`,
-    "Page protocol"). So a harness that states its lifetime a new way adds its form
-    to the session record's `lifetime` and its reading here."""
+    this Leaf doesn't know reads as live until the record says the session ended,
+    since this Leaf can't check it: the sandbox bridge's registrations don't declare
+    their lifetime's keys, so a later Leaf's kind reaches an older bridge that shares
+    their shape. So a harness that states its lifetime a new way adds its form to the
+    session record's `lifetime` and its reading here."""
     if record is not None and record["ended"] is not None:
         return False
     if "job" in lifetime:
@@ -240,9 +241,9 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
 
 def held_elsewhere(page_dir: Path, harness: Harness | None) -> dict | None:
     """The claim by which a session other than `harness`'s holds `page_dir`, or None
-    where none does: read whichever Leaf wrote it, it names another session that
-    still lives (`claim_is_active`), whatever harness it names."""
-    claim = CLAIM.read_any(claim_path(page_dir))
+    where none does: it names another session that still lives
+    (`claim_is_active`), whatever harness it names."""
+    claim = CLAIM.read(claim_path(page_dir))
     if claimant_matches(claim, harness) or not claim_is_active(claim):
         return None
     return claim
@@ -287,10 +288,11 @@ def claim_records(session_id: str | None = None) -> list:
     paths = held_claims(session_id) if session_id else standing_claims()
     claims = []
     for path in paths:
-        claim = claim_reading(CLAIM.read_any(path))
+        claim = claim_reading(CLAIM.read(path))
         if (
             claim is not None
-            and claim_path(Path(claim["page"])) == path.resolve()
+            and CLAIM.file(claim_path(Path(claim["page"])))
+            == CLAIM.file(path).resolve()
             and (session_id is None or claim["id"] == session_id)
             and page_stands(Path(claim["page"]))
         ):
@@ -439,7 +441,7 @@ class PageTransaction:
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
         went out for."""
-        claim = CLAIM.read_any(claim_path(self.page_dir))
+        claim = CLAIM.read(claim_path(self.page_dir))
         assert claim is not None
         publish_claim(self.page_dir, {**claim, "messaged_ending": ending})
 
@@ -843,6 +845,18 @@ _TURN = {
     "session": described("The claimant session the harness observed.", STRING),
     "turn": described("The turn it observed.", STRING),
 }
+# The page receives it whole, so its shape is the served state's `preview`.
+PREVIEW = Record(
+    "preview",
+    described(
+        "What a developer preview shows in browser chrome, as `leaf-dev preview` "
+        "writes it to the page directory's `preview.json`.",
+        read_json(Path(__file__).with_name("served_state") / "state.schema.json")[
+            "$defs"
+        ]["Reading"]["properties"]["preview"],
+    ),
+    since=13,
+)
 STREAM = Record(
     "stream",
     described(

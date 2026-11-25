@@ -9,7 +9,7 @@
  * @typedef {{x: number, y: number, width: number, height: number}} SampleCrop
  * @typedef {{
  * "restore-current-location": {detail: NoDetail, result: boolean},
- * image: {detail: SampleCrop, result: import("../annotations/composing/page-image.js").PageImage},
+ * image: {detail: SampleCrop, result: import("../host/page-image.js").PageImage},
  * window: {detail: {window: boolean}, result: SampleSize},
  * thread: {detail: {id: string, surface?: "page" | "panel"}, result: boolean},
  * "near-work": {detail: NoDetail, result: null}

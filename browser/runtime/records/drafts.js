@@ -90,7 +90,7 @@
    An editor's Discard and Escape throw its changed words away (`discardDraft`), as a
    message rewrite and an `lf-draft` edit do: the draft settles in every tab, as Cancel
    settles it, and the words go to the page's undo, which keeps them as a gesture ⌘Z
-   takes back (annotations/undo.js, `keepDiscard`) and gives them back here (`giveBackWords`).
+   takes back (records/undo.js, `keepDiscard`) and gives them back here (`giveBackWords`).
 
    Settlement is generation-specific. `activeDraftRecord` filters settled records and
    the generation this document is sending. The server never hands this document a
@@ -120,6 +120,8 @@ import { PENDING } from "../state/thread/identity.js";
 import { writingStore } from "../state/storage.js";
 import { tabStore } from "../state/tab-store.js";
 import { randomId } from "../base/ids.js";
+import { anchorKey } from "../base/anchor-coordinate.js";
+import { DRAFT_FORMAT } from "../state/kernel-facts.js";
 import { focusDestination, readCaret, focused } from "../dom/focus.js";
 import { readAttachedMedia, writeAttachedMedia } from "./media.js";
 import { nameIn, namedIn } from "./carry.js";
@@ -602,7 +604,7 @@ function heardWrite(ctx, sent, { written, store, version, record }) {
 // when their box is gone, into the page's draft (`moveToPage`).
 // - `page`: the page's own comment, the floating panel's field (`PAGE_DRAFT`);
 // - `comment`: a comment on a passage or element, under its anchor's key
-//   (annotations/composing/selection.js, `anchorKey`), its record holding the anchor;
+//   (`composerCtx`), its record holding the anchor (`ComposerDraft`);
 // - `reply`: a thread's reply box, under the thread's key (`threadKey`, a first
 //   message's attempt until the log names the thread);
 // - `rewrite`: a rewrite of a message, under that message's id (thread/message-edit.js).
@@ -620,6 +622,40 @@ export const commentContext = (key) => PREFIX.comment + key;
 export const replyContext = (key) => PREFIX.reply + key;
 /** @param {string} id */
 export const rewriteContext = (id) => PREFIX.rewrite + id;
+
+// A passage comment's draft, as the selection composer (annotations/composing/selection.js)
+// keeps it. `composerCtx` is the key the draft is kept under, which
+// `createSelectionComposer` explains, and `composerPayload` is the record kept beside the
+// words, touched now. DRAFT_FORMAT identifies the record's complete current shape, which
+// Threads' Drafts also reads for what a passage's draft is about.
+/** @typedef {NonNullable<import("../../types/contract.js").EventMap["comment"]["anchor"]>} CommentAnchor
+ * @typedef {{format: typeof DRAFT_FORMAT, anchor: CommentAnchor | null, revision: number | null, suggest: boolean,
+ * about: "design" | null, drawing: import("../annotations/composing/drawing-record.js").DraftDrawing | null, touched: number}} ComposerDraft */
+/** @param {CommentAnchor | null} anchor */
+export const composerCtx = (anchor) => commentContext(anchorKey(anchor));
+/** @param {Omit<ComposerDraft, "format" | "touched">} fields @returns {ComposerDraft} */
+export const composerPayload = (fields) => ({
+  format: DRAFT_FORMAT,
+  ...fields,
+  touched: Date.now(),
+});
+/** @param {object | null | undefined} payload @returns {payload is ComposerDraft} */
+export function isComposerDraft(payload) {
+  return payload != null && "format" in payload && payload.format === DRAFT_FORMAT;
+}
+// The draft a comment the log holds on a passage was written in, as the composer keeps
+// it, which taking the comment back puts its words back in (records/undo.js).
+/** @param {{anchor: CommentAnchor, revision?: number | undefined, suggestion?: boolean | undefined, about?: "design" | undefined, drawing?: import("../annotations/composing/drawing-record.js").DraftDrawing | undefined}} comment */
+export const commentDraft = (comment) => ({
+  ctx: composerCtx(comment.anchor),
+  payload: composerPayload({
+    anchor: comment.anchor,
+    revision: comment.revision ?? null,
+    suggest: Boolean(comment.suggestion),
+    about: comment.about ?? null,
+    drawing: comment.drawing ?? null,
+  }),
+});
 
 // Which message draft `ctx` is, with the key or id it is under; null for any other.
 /** @param {string} ctx @returns {{part: DraftPart, name: string} | {part: "page", name: null} | null} */
@@ -778,7 +814,7 @@ function transferDraft(from, to, text) {
   tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return place;
 }
-// Who keeps the words a box's Discard or Escape throws away: the page's undo (annotations/undo.js,
+// Who keeps the words a box's Discard or Escape throws away: the page's undo (records/undo.js,
 // `keepDiscard`), set as the application mounts.
 /** @typedef {{ctx: string, text: string, payload: DraftPayload | undefined, at: Element | null}} Discarded */
 /** @type {((discarded: Discarded) => void) | null} */
@@ -1121,7 +1157,7 @@ const atEnd = (ctx) => {
   return [end, end];
 };
 // Words an undo took back from the log, given back to the draft they were written in
-// (annotations/undo.js, `withdraw`), so taking a message back puts it to draft rather than
+// (records/undo.js, `withdraw`), so taking a message back puts it to draft rather than
 // discarding it. They come first, then the words of the box `under` them, the reply box
 // of a thread that went with them, then any words the draft holds now, which the user
 // wrote after them. A draft holding something of its own keeps its own `payload`, such

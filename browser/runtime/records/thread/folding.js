@@ -5,7 +5,7 @@
    The log refusing the gesture takes the way back to the thread here, while the user
    has not acted since, once the page presents the refusal, so the route to the thread
    reads it open again and opens it where every route opens it, by the user's choice of
-   where threads open (annotations/undo.js, `returnToThread`). annotations/undo.js notes the settlement for ⌘Z
+   where threads open (records/undo.js, `returnToThread`). records/undo.js notes the settlement for ⌘Z
    and the notice's Undo (`retainGesture`).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
@@ -13,7 +13,7 @@
    offers the press that matters most next (`nextStep`). After a Resolve that is the
    next open thread, `t`'s press, while one stands open; after a Reopen, or a Resolve
    that left none open, it is ⌘Z's Undo, while ⌘Z would take the settlement back
-   (annotations/undo.js, `offerUndo`). The user chose Next thread over Undo there; ⌘Z and the
+   (records/undo.js, `offerUndo`). The user chose Next thread over Undo there; ⌘Z and the
    menu's Undo still take the Resolve back. The notice goes when the log refuses the
    settlement or it is taken back, so its press never acts for a settlement that no
    longer stands. It names the thread by its name, as ⌘Z does and every surface that
@@ -36,7 +36,7 @@ import { quotedWords } from "../../lib/words.js";
 import { threadName } from "./messages.js";
 import { anyOpenThread, threadNamed } from "./state.js";
 
-// What the notice calls the thread, cut as annotations/undo.js cuts the names its notices quote,
+// What the notice calls the thread, cut as records/undo.js cuts the names its notices quote,
 // so a long name leaves the press beside it in view.
 const NAMED = 48;
 
@@ -62,7 +62,7 @@ const nextStep = (resolving, undo) =>
  * prepareLanding?: (() => Landing | null) | null,
  * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
- * undo: Pick<ReturnType<typeof import("../../annotations/undo.js").createUndo>, "offerUndo" | "retainGesture" | "returnToThread">,
+ * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "offerUndo" | "retainGesture" | "returnToThread">,
  * }} dependencies */
 export async function settleThread({
   parent,

@@ -114,7 +114,7 @@ export function reveal(el, mayReveal) {
 // everything that has to wait for the hand asks here: `dragHeld` is whether any stands.
 // The hand holds back what would replace or take back the nodes under it, a new
 // revision and an undo (`unaccountedGesture`, annotations/composing/engagement.js, and the undo of
-// an action still in the ledger, annotations/undo.js's `travelling`). What the element draws
+// an action still in the ledger, records/undo.js's `travelling`). What the element draws
 // meanwhile is its own to hold (`lf-defer`, which `LeafElement.defer()` says), and
 // every other widget goes on drawing. An element that holds only its own drawing, as
 // while an editor stands in place of its words, says no `lf-hold`: what a revision

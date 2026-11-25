@@ -298,7 +298,7 @@ def expect_focus_in(page, locator):
     page.wait_for_function(FOCUS_IN, arg=locator.element_handle())
 
 
-# The ways back from a settlement (annotations/undo.js header; folding.js): ⌘Z right after its
+# The ways back from a settlement (records/undo.js header; folding.js): ⌘Z right after its
 # landing; ⌘Z where its place is in view after the user did something else; the
 # notice's Undo; the log refusing it; and ⌘Z where the user has left its place.
 # "away" runs last on a shared page, since it leaves the page scrolled and a disclosure
@@ -561,7 +561,7 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
 ):
     """A settlement takes the user's view of its thread away, and every way back gives
     that view back on the surface the user had it on: ⌘Z pressed on it, beside it or
-    away from it, the notice's Undo and the log's refusal (annotations/undo.js, folding.js). Each
+    away from it, the notice's Undo and the log's refusal (records/undo.js, folding.js). Each
     way back opens the thread by the route every opening takes, so a card, the panel
     the user chose for threads, a seat and a package's reader each come back as the
     route draws the thread once the withdrawal stands."""

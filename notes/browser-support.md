@@ -773,7 +773,7 @@ in `tests/browser/widgets/test_diffs.py`.
 
 ### Area capture rendering
 
-`browser/runtime/annotations/composing/page-image.js` reconstructs the DOM with SnapDOM.
+`browser/runtime/host/page-image.js` reconstructs the DOM with SnapDOM.
 Accepted differences include text wrapping, native form controls and a live
 sample editor's missing placeholder text. Other cross-origin frames keep
 placeholders. SnapDOM's reported missing images produce an attachment notice,

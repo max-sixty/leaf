@@ -31,7 +31,7 @@
    rewrite again, which finds them, or Resume writing does. Back lands on the message's
    Edit control rather than the reply box, whose caret would raise a phone's keyboard.
    So an accidental Escape or Discard loses nothing for good: ⌘Z puts the discarded
-   words back in the rewrite's draft and opens its message on them (annotations/undo.js,
+   words back in the rewrite's draft and opens its message on them (records/undo.js,
    `takeDiscard`). Where the close leaves the user decides when ⌘Z reaches it (below).
    On the message's Edit control ⌘Z is Leaf's, and the discard's notice shows its Undo
    at once. The thread's reply box keeps ⌘Z for its own words, so from there ⌘Z
@@ -97,7 +97,7 @@
    deletes the message (events.md, "Messages"), which then reads Deleted in its place
    (messages.js): a box emptied of words says so before the press, its field reading
    Delete message and its Save turning to Delete, so no dialog asks again: ⌘Z takes a
-   saved rewrite back, a deletion as any other (annotations/undo.js).
+   saved rewrite back, a deletion as any other (records/undo.js).
    Rejected: refusing an empty rewrite, which left a Save that drew as live and did
    nothing, so the user typed a placeholder such as "[removed]" over their words (the
    user's decision); and deleting by withdrawing the message (`undo`),
@@ -434,7 +434,7 @@ export class MessageEditor {
       return Boolean(control);
     };
     // Closing as Escape and Discard do, throwing away what changed, which ⌘Z brings
-    // back (annotations/undo.js, `keepDiscard`), and returning the user to where the rewrite was
+    // back (records/undo.js, `keepDiscard`), and returning the user to where the rewrite was
     // opened (the header): up ↑'s rung, or onto the message's Edit control.
     const close = () => {
       const says = unchanged() ? "Stopped editing" : null;

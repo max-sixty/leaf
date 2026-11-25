@@ -1034,9 +1034,7 @@ def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
     expect(preview).to_be_hidden()
     # A caret before the character that leads the age's words, which draws nothing,
     # stands before the age's first figure, which the user sees.
-    age.evaluate(
-        "(age) => getSelection().collapse(age.shadowRoot.firstElementChild.firstChild, 0)"
-    )
+    age.evaluate("(age) => getSelection().collapse(age.shadowRoot.firstChild, 0)")
     page.keyboard.press("Shift+K")
     # A preview put away keeps its words, so only its showing says it was read again.
     expect(preview).to_be_visible()

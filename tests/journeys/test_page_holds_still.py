@@ -1809,6 +1809,10 @@ def held(still, message):
 ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
 
 REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
+REVISION_LANDING_AGE = (
+    "the revision's landing moves an age clicked in a message 151px up, as it moves "
+    "the message's words"
+)
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
 DELETIONS = "the diff's Comment moves 100px down as five deletions join above it"
@@ -1828,6 +1832,8 @@ MOVES_ON_MAIN = {
     "diff-reading-deletions-firefox": DIFF_READING,
     "message-revision-above-chromium": REVISION_LANDING,
     "message-revision-above-firefox": REVISION_LANDING,
+    "message-age-revision-above-chromium": REVISION_LANDING_AGE,
+    "message-age-revision-above-firefox": REVISION_LANDING_AGE,
     "reading-page-revision-on-screen-chromium": ON_SCREEN,
     "reading-page-revision-on-screen-firefox": ON_SCREEN,
     "smooth-reply-above-firefox": (

@@ -30,19 +30,17 @@
    - It follows the clock with one effect of its own and writes one text node. A
      `LeafElement` would make each age a stage Leaf dresses and watches
      (shadow-stage.js), which a list of ages pays once for each.
-   - That text stands in a span in the shadow root, not straight in the root, so
-     each letter of the age has an element holding it. Leaf finds what holds a
-     letter by the text's `parentElement`, as a hold keeping the line a user clicked
-     on and a measure of what they see do (scroll-containers.js, `holderOf`;
-     geometry.js, `seenRect`), and that is null for a text straight in a shadow
-     root.
+   - That text stands straight in the shadow root. Leaf finds the element holding a
+     letter there through the root's host (lib/shadow-tree.js, `holdingElement`), as
+     it does for any widget's top-level text, so a span round the words would add an
+     element to every age and change nothing.
    - It stays inline, and never breaks across two lines. A zero-width no-break
      space (U+FEFF) leads the words, in the same text: Firefox selects nothing on a
      double-click of the first word of a shadow tree that stands flush against its
-     host's start, and a comment made from that has no passage. The span doesn't
-     cure that. The character stands in the words' own text, so a caret either side
-     of it stands before the age's first figure, the letter a measure of the caret
-     reads (native-selection.js, `userCaret`); the character has no width to
+     host's start, and a comment made from that has no passage. A span round the
+     words doesn't cure that. The character stands in the words' own text, so a caret
+     either side of it stands before the age's first figure, the letter a measure of
+     the caret reads (native-selection.js, `userCaret`); the character has no width to
      measure. JavaScript counts that character as white space, so a reading of the
      age's text that trims it, as a test's text match does, reads the words alone; a
      copy that takes in an age carries the character. Three other cures fail: a word
@@ -73,9 +71,7 @@ customElements.define(
       super();
       const root = this.attachShadow({ mode: "open" });
       root.adoptedStyleSheets = [unbroken];
-      const drawn = document.createElement("span");
-      drawn.append(this.#words);
-      root.append(drawn);
+      root.append(this.#words);
     }
 
     /** @param {string} _name @param {string | null} _was @param {string | null} moment */

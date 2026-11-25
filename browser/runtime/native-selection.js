@@ -2,7 +2,7 @@
  * capture, view restoration and control activation share the same composed range;
  * none reads Chromium's retargeted light-DOM endpoints as the selected words. */
 import { pageShadowRoots } from "./shadow.js";
-import { isElement, isText, upFrom } from "./lib/shadow-tree.js";
+import { holdingElement, isElement, isText } from "./lib/shadow-tree.js";
 
 // The range the user actually drew. Chrome keeps the legacy Range in the light DOM: a
 // drag wholly inside a widget's shadow tree comes back with `commonAncestorContainer` at
@@ -80,7 +80,7 @@ export function userCaret() {
       return {
         node,
         offset,
-        element: isElement(node) ? node : upFrom(node),
+        element: holdingElement(node),
         letter: letterAt(node, offset),
       };
     shadowRoots.push(root);

@@ -77,6 +77,7 @@ import {
   clippedPlace,
   inFront,
   layoutWindow,
+  placeHolder,
   seenRect,
   showsContents,
   shownWindow,
@@ -87,7 +88,6 @@ import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling
 import {
   carriersOf,
   edgeAt,
-  holderOf,
   returnTo,
   scrollersOf,
   seenAhead,
@@ -249,7 +249,7 @@ export function readingAt(column) {
     reading.setStart(text, at);
     reading.setEnd(text, at + 1);
   }
-  const holder = reading && holderOf(reading);
+  const holder = reading && placeHolder(reading);
   return holder && !inChrome(holder) && !stuckBox(holder) ? reading : null;
 }
 
@@ -257,7 +257,7 @@ export function readingAt(column) {
 // moved anything.
 /** @param {Element | Range} held @param {number} top */
 function returnPlace(held, top) {
-  const boxes = [...scrollersOf(holderOf(held))].map((box) => ({
+  const boxes = [...scrollersOf(placeHolder(held))].map((box) => ({
     box,
     was: box.scrollTop,
   }));
@@ -291,7 +291,7 @@ const keepsWords = (node) => {
 // anything.
 /** @param {Element | Range | null | undefined} node */
 export function holdPlaceOf(node) {
-  const holder = node && holderOf(node);
+  const holder = node && placeHolder(node);
   if (!node || !holder) return () => false;
   const kept = keepsWords(node);
   const top = edgeAt(node, "top");
@@ -316,7 +316,7 @@ export function holdPlaceOf(node) {
  * @param {(node: Element) => Element | null | undefined} [standIn] */
 export function holdPlace(column, standIn) {
   const reading = readingAt(column);
-  const holder = reading && holderOf(reading);
+  const holder = reading && placeHolder(reading);
   if (!reading || !holder) return () => false;
   const kept = keepsWords(reading);
   const read = edgeAt(reading, "top");
@@ -433,7 +433,7 @@ export const standingAt = (node) =>
 const caretPlace = (node) => {
   const caret = caretWords(node)?.letter;
   if (!caret) return null;
-  const holder = holderOf(caret);
+  const holder = placeHolder(caret);
   if (!holder || !seenRect(caret, new Map())) return null;
   const [scroller] = scrollersOf(holder);
   return scroller && !stuckBox(holder, scroller) ? caret : null;
@@ -483,7 +483,7 @@ export function holdUserPlace() {
     if (acted) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
-      const holder = holderOf(place);
+      const holder = placeHolder(place);
       const carriers = [...carriersOf(holder)];
       if (carriers.some((box) => browserScrolls(box) || chosenSince(box, choices)))
         return;

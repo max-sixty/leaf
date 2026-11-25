@@ -65,7 +65,7 @@ def validate_widget_state_relations(
             # A creates verb owns id-and-words members, not independent widget
             # owners. Capabilities read from the authored owner inventory cannot
             # be supplied by these members. Presentation-only upgrades are allowed.
-            owner_keys = ("verbs", "awaits", "history", "inputs")
+            owner_keys = ("verbs", "awaits", "inputs")
             owned = [key for key in owner_keys if child.get(key)]
             if isinstance(child.get("visual"), dict):
                 owned.append("visual")

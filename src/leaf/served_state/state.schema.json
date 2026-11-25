@@ -852,7 +852,7 @@
           "additionalProperties": false
         },
         "history": {
-          "description": "The newest rows, newest first, sent only to a page holding a widget that declares `history`.",
+          "description": "The newest rows, newest first.",
           "type": "array",
           "items": { "$ref": "#/$defs/HistoryRow" }
         },

@@ -346,7 +346,6 @@ role on the page:
 | -------------- | ------------------------------------------------------------------------------------ |
 | `reading-role` | `lf-pane`                                                                            |
 | `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
-| `history`      | `lf-activity`                                                                        |
 | `parts`        | `lf-parts`                                                                           |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module

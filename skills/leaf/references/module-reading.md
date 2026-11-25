@@ -274,7 +274,7 @@ is `ready`.
 
 ### Page history and reports
 
-A widget that shows the page's history declares `history` and reads
+A widget that shows the page's history reads
 `history.read()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
 widget restoring something from the tab's memory compares it with the history once `phase` is

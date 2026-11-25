@@ -155,7 +155,6 @@
     "description": "A newest-first feed of the page\u2019s comments, actions, reports, and published revisions.",
     "attributes": { "required": ["id"] },
     "content": "empty",
-    "history": true,
     "instructions": "Write it empty with a stable id.",
     "example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },

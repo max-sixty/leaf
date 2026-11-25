@@ -85,7 +85,6 @@
   },
   "lf-test-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
-    "history": true,
     "attributes": {
       "properties": {
         "state": {

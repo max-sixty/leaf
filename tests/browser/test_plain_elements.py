@@ -703,7 +703,6 @@ FEED = {
         "description": "What the agent last reported, read from the page's history.",
         "attributes": {"required": ["id"]},
         "content": "empty",
-        "history": True,
     }
 }
 FEED_MODULE = """import { history } from "/runtime/widget-api.js";

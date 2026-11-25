@@ -1,7 +1,7 @@
 /* An anonymous report consumer keeps clock and report identity tests independent
  * of the Atlas example's composition. The report in force is the worker's `state`;
- * when it last reported is its newest report in the page's history, which its
- * `history` has the server send, else the note of the version that asserted its state. A
+ * when it last reported is its newest report in the page's history, else the note of
+ * the version that asserted its state. A
  * worker claiming work it hasn't reported on for a quarter of an hour is quiet. */
 import { html, noChange } from "/vendor/lit.js";
 import { history } from "/runtime/widget-api.js";

@@ -4,8 +4,7 @@
    events, newest first, each already carrying its thread, whether it was undone, and
    a gesture's words as its own document had them, and the application's `phase`, so a
    widget never replaces a reading it retained with the empty one a page shows before
-   it is `ready`. The server sends the events only to a page holding a widget that
-   declares `history`; elsewhere they are empty. A worker's report is a row of kind
+   it is `ready`. A worker's report is a row of kind
    `report`, naming its widget, with its words as `excerpt`; the report in force on a
    widget is its `state`. A LeafElement reads the history in render(), so Lit follows
    both its first reading and later publications. */

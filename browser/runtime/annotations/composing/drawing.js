@@ -28,8 +28,9 @@
  * removal does at once.
  *
  * The controller owns pointer capture, stroke sampling, mode state and stroke undo.
- * A claimed stroke emits `lf-inspect` on its target before reading coordinates, so a
- * moving visual can freeze the evidence the drawing names.
+ * It claims a stroke's press at the document, so a moving visual that freezes on a
+ * press it hears at the window, as module-input.md says, has frozen before the stroke
+ * reads its coordinates.
  * SVG replay, anchor placement, composers, reactions, and page geometry enter through
  * explicit capabilities, and the drafts are the one record of the strokes already drawn.
  * As each stroke lifts or is taken back, the controller also reads the page's words the
@@ -440,11 +441,6 @@ export function createDrawingController({
     claimed.keep(event, true);
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();
-    // The drawing owner has claimed inspection. Let a moving visual freeze
-    // its current evidence before reading the stroke's coordinate frame.
-    target?.element.dispatchEvent(
-      new Event("lf-inspect", { bubbles: true, composed: true }),
-    );
     const held = target && heldDrawing(target.anchor);
     const reference = held ? held.frame : target?.frameReference;
     const source = target && resolveDrawingFrame(target.element, reference);

@@ -358,10 +358,8 @@ A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, listens on the window in the capture phase, passively, for the presses,
 keys, wheels and touches that stop it, so it hears each before any handler in the page.
 Act only on events whose path holds the surface, and end the listeners as the surface
-leaves.
-
-Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
-element drawn on; a moving visual listens for it and freezes what it shows.
+leaves. A press that starts a drawing stroke reaches such a listener too, so the
+surface has stopped before the stroke reads its coordinates.
 
 ## Text entry and drafts
 

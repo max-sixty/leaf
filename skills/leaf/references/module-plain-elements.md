@@ -230,7 +230,6 @@ this.dispatchEvent(hold);
   (`module-authoring.md`, "Upgrade").
 - **Startup.** `lf-presentation` and `lf-page-interface` on `document`
   (`module-authoring.md`, "Startup and presentation").
-- **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
 - **On Me and comment targets.** The class's `static answerWords` words its answer
   (`module-state.md`, "Declared widget state"), and the element's `lfParts` states its
   comment targets (`module-annotations.md`, "Visual parts").

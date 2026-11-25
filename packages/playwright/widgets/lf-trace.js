@@ -726,7 +726,6 @@ export class Trace extends LeafElement {
           new CustomEvent("lf-commands", { bubbles: true, composed: true }),
         ),
     });
-    this.addEventListener("lf-inspect", (event) => this.#inspect(event));
     this.lfParts = {
       read: () => this.#inventory,
       label: (/** @type {string} */ id) => this.#targets.get(id)?.label ?? null,
@@ -766,7 +765,6 @@ export class Trace extends LeafElement {
     const path = event.composedPath();
     if (path.includes(this.#nodes.metadata)) this.pause();
     else if (
-      event.type === "lf-inspect" ||
       path.includes(this.#nodes.viewport) ||
       path.includes(this.#nodes.imageTools)
     )

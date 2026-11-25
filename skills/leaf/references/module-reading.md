@@ -257,7 +257,9 @@ its `section`, to the next heading's, and counts each item in the stretch holdin
 first word, comparing positions with `compareDocumentPosition`.
 
 `queues.read()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On Me and On <agent>. Each row has its obligation's `id`, which names the row as
+under On Me and On <agent>, and `agent`, what the page calls its agent there, such as
+"Claude", or "the agent" before the server names one. Call the agent that wherever a
+widget names it, so the page calls it one thing. Each row has its obligation's `id`, which names the row as
 it moves between lists; a `kind`, which is its obligation's `source.kind`, `todo` for a
 to-do of the agent's; the obligation itself as `obligation`; and an `owner`, `user` or
 `agent`, naming its list. The record says where the row stands: the agent has it in

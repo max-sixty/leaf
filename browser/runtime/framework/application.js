@@ -1268,6 +1268,9 @@ export function createSemanticApplication({ presentation } = {}) {
       });
     const queues = {
       phase,
+      // What the page calls its agent, as On <agent> names its list: the name the
+      // server's reading gives, or "the agent" before a reading names one.
+      agent: state?.agent || "the agent",
       on_user: contextual(selectedQueues.on_user),
       on_agent: contextual(selectedQueues.on_agent),
       done: contextual(selectedQueues.done),

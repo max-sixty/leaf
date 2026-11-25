@@ -207,7 +207,18 @@ VERB_SCHEMA = {
         "attention": {"const": True},
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
-        "decides": {"const": True},
+        # The deciding verb (`$verbs`): each value of its `outcome` that takes
+        # members off the page, with their tags.
+        "decides": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "array",
+                "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+                "uniqueItems": True,
+            },
+        },
         # The deciding verb's outcome that declines the proposal (`$verbs`).
         "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
@@ -364,7 +375,6 @@ _AUTHORING = {
 FACTS: dict[str, dict] = {
     "verbs": VERBS_SCHEMA,
     "awaits": AWAITS_SCHEMA,
-    "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "exhibit": _conditional({"const": True}),
     "owners": _TAGS,
     "refers": REFERENCE_SCHEMA,
@@ -443,9 +453,6 @@ DECLARATION_SCHEMA = {
         **FACTS,
     },
     "required": ["description", "attributes"],
-    # A fact read through others needs them declared too: a member that leaves under
-    # its owner's decision reads its owners.
-    "dependentRequired": {"retired-when": ["owners"]},
     "additionalProperties": False,
 }
 # Every key `$keys` documents: each a declaration may hold but its `description`.

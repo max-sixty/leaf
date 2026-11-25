@@ -4,7 +4,7 @@ import { offeredAction } from "/runtime/lib/controls.js";
 
 /**
  * @param {HTMLElement} host
- * @param {{ready?: boolean, done?: boolean, widest?: string, words?: string, onUser?: number | boolean}} [state]
+ * @param {{ready?: boolean, done?: boolean, generic?: string, named?: string, words?: string, onUser?: number | boolean}} [state]
  * @param {(() => void) | null} [onNext]
  */
 export function render(
@@ -12,7 +12,8 @@ export function render(
   {
     ready = false,
     done = false,
-    widest = "00 left to answer · 00 on the agent",
+    generic = "00 left to answer · 00 on the agent",
+    named = generic,
     words = "",
     onUser = false,
   } = {},
@@ -20,7 +21,8 @@ export function render(
 ) {
   return html`<span class="lf-tally-face" data-lf-gen="1" ?data-lf-ready=${ready}>
     <span class="lf-tally-count lf-chip" data-lf-tone=${done ? "ok" : nothing}>
-      <span class="lf-tally-room" aria-hidden="true">${widest}</span>
+      <span class="lf-tally-room" aria-hidden="true">${generic}</span>
+      <span class="lf-tally-room" aria-hidden="true">${named}</span>
       <span class="lf-tally-words">${words}</span>
     </span>
     ${

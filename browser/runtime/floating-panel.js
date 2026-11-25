@@ -373,7 +373,8 @@ import {
   currentLocationIn,
 } from "./focus.js";
 import { rove } from "./lib/roving.js";
-import { rowWalk, walkWords } from "./walk-position.js";
+import { walkWords } from "./walk-position.js";
+import { rowWalk } from "./lib/row-walk.js";
 import { capitalized, counted, excerptWords } from "./lib/words.js";
 import { coarsePointer } from "./pointer.js";
 import { afterScript, afterSettling, holdRendering } from "./rendering.js";
@@ -5620,7 +5621,7 @@ export function createFloatingPanel({
       rows: listRows,
       // A list names its rows' places to a screen reader itself; the walk shows no
       // position over it.
-      position: () => null,
+      place: false,
       landed: (row) => rove(listRows(), row),
     }).map((row) => ({ ...row, when: inList })),
     {

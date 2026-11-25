@@ -113,9 +113,10 @@ under the element's `verbs`. Leaf validates each event, works out the current
 state, hands it to the module, and shows it to the agent under `state` in `leaf page
 state`.
 
-A verb declaring `decides: true` selects which of its widget's members retire. It
-folds by widget and requires a string-enum `outcome` field. A member's
-`retired-when` and the verb's own `withdraws` name those outcomes. An `outcome`
+A verb declaring `decides` selects which of its widget's members retire: each
+outcome that takes members off the page, with their tags, as
+`"decides": {"accept": ["lf-old"]}`. It folds by widget and requires a string-enum
+`outcome` field, whose values `decides` and the verb's own `withdraws` name. An `outcome`
 field on any other verb is ordinary domain data; whether an action answers an
 obligation is separately declared by `awaits`.
 

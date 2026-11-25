@@ -139,7 +139,7 @@ import { readingPlace } from "../resolved-target.js";
 import { keeps, keepsHidden } from "../lib/keeps.js";
 
 import { cycledRow, nativePress } from "../keyboard/bindings.js";
-import { rowWalk } from "../walk-position.js";
+import { rowWalk } from "../lib/row-walk.js";
 
 import { readingRegionFor } from "../reading-regions.js";
 

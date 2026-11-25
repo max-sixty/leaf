@@ -354,7 +354,7 @@ directly as in a terminal").
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
 - **A mark's colour says one thing, the same on every surface.** A mark reads the
-  token for what it tells the user (`styles/tokens.css`, at `--lf-turn`), never a hue, so
+  role for whose mark it is (`styles/tokens.css`, "Leaf's own marks"), never a hue, so
   the user's turn, a thread, the agent's work, what is unread, what changed and what
   is settled each look alike in the margin, the contents and the panel. Every surface
   paints a thread's `unread` and `attention` from one value, so the leaf's dot,
@@ -769,6 +769,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether the user is inside a scope, across shadow trees and slots                                     | `dom/focus.js` `currentLocationIn` (_lint_)                                            |
 | The user's working place, read before something borrows it and handed back after                      | `records/history.js` `readPlace`, `returnPlace`                                        |
 | Which thread view an entry of session history shows, the `?thread=` its URL names                     | `records/thread/address.js` `createThreadAddress`                                      |
+| The link that opens a message's thread on that message                                                | `records/thread/address.js` `messageLink`                                              |
 | Which member a widget shows of several, its name in the address, and the user's place in each         | `records/views.js` `keepView`, `entryView`                                             |
 | Where the user's caret stands, and its element, through open shadow trees                             | `dom/native-selection.js` `userCaret`                                                  |
 | The page place focus or the caret identifies, or none                                                 | `records/current-target.js` `currentLocationOrigin`                                    |

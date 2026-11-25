@@ -92,6 +92,7 @@ import { motion } from "../../dom/motion.js";
 import { motionTime } from "../../lib/motion-timing.js";
 import { agentName, pageClaimed } from "../../state/semantic-state.js";
 import { copyControl } from "../../transport/copy-control.js";
+import { messageLink } from "./address.js";
 
 // A message's words, drawn into the element the binding stands on and reconciled as a
 // revision reconciles authored markup (dom/dom-children.js, `setRenderedChildren`): an
@@ -717,6 +718,9 @@ export function messageReading(
     // The message as its Copy control copies it: its Markdown as written, any HTML in
     // it included. A reaction has none.
     markdown: kind === "reaction" ? null : (message.text ?? ""),
+    // Whether a link can name the message (`#linkControl`): one the log holds, which
+    // a streaming reply and one this tab is still sending aren't.
+    linkable: message.addressable !== false && !message.pending,
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -751,6 +755,8 @@ export class MessageView {
   #reaction = null;
   /** @type {ReturnType<typeof copyControl> | null} */
   #copy = null;
+  /** @type {ReturnType<typeof copyControl> | null} */
+  #link = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
   // The island this view last dressed (`prepareAuthoredMessage`'s `nodes`), which an
@@ -903,7 +909,8 @@ export class MessageView {
       : nothing;
     // The message's own controls, one group at its head's end (controls.css): the user's
     // own words offer their rewrite, or, open, its Discard and Save; an agent's reply
-    // its reactions; and every message with words its Copy, last.
+    // its reactions; every message the log holds its Copy link; and every message with
+    // words its Copy, last.
     const rewrite = editor
       ? editor.actions
       : model.editable
@@ -916,6 +923,7 @@ export class MessageView {
           ></button>`
         : nothing;
     const react = this.#reaction && model.reactions ? this.#reaction.trigger : nothing;
+    const link = model.linkable && !editor ? this.#linkControl() : nothing;
     const copy =
       model.markdown && !editor ? this.#copyControl(model.markdown) : nothing;
     const receipt = model.workflowWord
@@ -968,7 +976,7 @@ export class MessageView {
           }
         </span>
         ${headerControls}<span class="lf-msg-control-room"
-          ><span class="lf-msg-controls">${rewrite}${react}${copy}</span></span
+          ><span class="lf-msg-controls">${rewrite}${react}${link}${copy}</span></span
         >
       </div>
     `;
@@ -1099,6 +1107,34 @@ export class MessageView {
     }
     if (this.#copy.value !== markdown) this.#copy.value = markdown;
     return this.#copy;
+  }
+
+  // Copy link stands before Copy and copies the link that opens the message's thread
+  // on it (address.js, `messageLink`), the opening message's link being the thread's.
+  // The link is read at the press, since the page's address changes while it shows.
+  // Like Copy it is no Tab stop; `y` in the thread presses it (landing.js,
+  // `message.link`).
+  #linkControl() {
+    if (!this.#link) {
+      const link = copyControl("lf-msg-control lf-msg-link", {
+        role: "symbol",
+        action: "copy-link",
+        label: "Copy link to message",
+        success: "Link copied",
+        error: "Unable to copy link",
+      });
+      link.tabIndex = -1;
+      link.addEventListener(
+        "click",
+        () => {
+          const model = this.#model;
+          if (model) link.value = messageLink(model.id);
+        },
+        { capture: true },
+      );
+      this.#link = link;
+    }
+    return this.#link;
   }
 
   /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */

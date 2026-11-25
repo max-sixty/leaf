@@ -37,7 +37,9 @@ the `id` of its opening comment, in the record the command prints.
 Link directly to a thread by adding `thread=<message-id>` to the page URL's query
 parameters, preserving any existing access parameters: `?thread=<message-id>`, or
 `&thread=<message-id>` when a query is already present. The link takes the user to
-the thread's usual card or reader, including a page-level thread with no anchor. With
+the thread's usual card or reader, including a page-level thread with no anchor, and
+a reply's id lands them on that reply. A message's Copy link copies such a link, so
+one the user pastes names a message by its id. With
 an `#element-id` as well, the page lands on that element and the thread opens without
 taking the user there. Input during startup cancels the automatic opening. The page
 keeps `thread=` in its own address while a thread stands open, so a link the user

@@ -202,7 +202,7 @@ html[data-lf-draw-mode] {
      whole window wears the dim around it. */
   .lf-region-selection {
     position: absolute;
-    outline: 1px solid var(--lf-here);
+    outline: 1px solid var(--lf-ok);
     box-shadow: 0 0 0 100vmax var(--lf-region-dim);
   }
   .lf-region-capture:has(> .lf-region-selection[hidden]) {
@@ -296,13 +296,13 @@ html[data-lf-draw-mode] {
     .lf-dot[data-lf-tone="working"],
     [data-lf-tone="working"] > svg[data-lf-icon="leaf"]
   ) {
-    color: var(--lf-work);
+    color: var(--lf-accent);
   }
   :is(
     .lf-dot[data-lf-tone="listening"],
     [data-lf-tone="listening"] > svg[data-lf-icon="leaf"]
   ) {
-    color: var(--lf-turn);
+    color: var(--lf-ok);
   }
   :is(.lf-dot[data-lf-tone="away"], [data-lf-tone="away"] > svg[data-lf-icon="leaf"]) {
     color: var(--lf-warn);
@@ -365,7 +365,7 @@ html[data-lf-draw-mode] {
   /* Unsent ink is the user's, so it takes their ink, as a draft comment's wash does. */
   .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending, .lf-drawing-parked)
     path {
-    stroke: var(--lf-here);
+    stroke: var(--lf-ok);
   }
   /* Unsent ink whose composer is put away, or whose element a revision took away, stays
      on the page dimmed, apart from the drawing the open composer carries. The user
@@ -930,8 +930,8 @@ html[data-lf-draw-mode] {
   }
   /* The steps the user has pressed so far take the user's ink. */
   .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
-    border-color: var(--lf-here);
-    background: var(--lf-here);
+    border-color: var(--lf-ok);
+    background: var(--lf-ok);
     color: var(--lf-card);
   }
 
@@ -1000,8 +1000,8 @@ html[data-lf-draw-mode] {
   /* The margin's bars (features/margin-bars.js), in one lane outside the marks round their
      block. Where the agent is at work, in the work's colour its margin entry wears while
      it works: it comes and goes with the work, whose start the margin entry's pulse
-     acknowledges. What changed since the comparison's base, in the change's (tokens.css,
-     at `--lf-change`). Where both stand beside one block, the work's covers the
+     acknowledges. What changed since the comparison's base, in the muted ink (tokens.css,
+     "Leaf's own marks"). Where both stand beside one block, the work's covers the
      change's. */
   :is(.lf-at-work-bar, .lf-change-bar) {
     position: absolute;
@@ -1009,10 +1009,10 @@ html[data-lf-draw-mode] {
     border-radius: 1.5px;
   }
   .lf-at-work-bar {
-    background: var(--lf-work);
+    background: var(--lf-accent);
   }
   .lf-change-bar {
-    background: var(--lf-change);
+    background: var(--lf-muted);
   }
   /* A change's mark is an annotation, so hiding annotations (`g H`, annotations/annotation-layer.js)
      hides its bar too. */
@@ -1063,11 +1063,11 @@ html[data-lf-draw-mode] {
     }
     & del {
       margin-inline-end: 0.28em;
-      background: var(--lf-del-tint);
+      background: var(--lf-danger-tint);
       color: var(--lf-danger-ink);
     }
     & ins {
-      background: var(--lf-add-tint);
+      background: var(--lf-ok-tint);
       text-decoration: none;
     }
   }
@@ -1089,8 +1089,8 @@ html[data-lf-draw-mode] {
     position: absolute;
     box-sizing: border-box;
     pointer-events: none;
-    background: color-mix(in srgb, var(--lf-here) 17%, transparent);
-    box-shadow: inset 0 -2px color-mix(in srgb, var(--lf-here) 72%, transparent);
+    background: color-mix(in srgb, var(--lf-ok) 17%, transparent);
+    box-shadow: inset 0 -2px color-mix(in srgb, var(--lf-ok) 72%, transparent);
   }
   /* As wide as "99 of 99", so the field keeps its width as the count changes, and
      `--lf-clear` before the first step, so a hovered step's face doesn't touch it. */
@@ -1156,7 +1156,7 @@ html[data-lf-draw-mode] {
     padding: 1px 6px;
     border-radius: var(--lf-r-s);
     font: var(--lf-font-small);
-    background: var(--lf-here);
+    background: var(--lf-ok);
     color: var(--lf-paper);
   }
   .lf-inspect.lf-shown {
@@ -1251,12 +1251,12 @@ html[data-lf-draw-mode] {
     max-block-size: var(--lf-preview-room, none);
     overflow: clip;
     padding: var(--lf-tip-pad);
-    border-radius: var(--lf-tip-r);
-    background: var(--lf-tip-bg);
-    color: var(--lf-tip-ink);
+    border-radius: var(--lf-r);
+    background: var(--lf-card);
+    color: var(--lf-ink);
     box-shadow:
-      0 0 0 1px var(--lf-tip-ring),
-      var(--lf-tip-lift);
+      0 0 0 1px var(--lf-border),
+      var(--lf-raise-2);
     font: var(--lf-font-tip);
     text-align: start;
     white-space: normal;
@@ -1317,12 +1317,12 @@ html[data-lf-draw-mode] {
   .lf-preview-detail {
     display: block;
     margin-block-start: 2px;
-    color: color-mix(in srgb, var(--lf-tip-ink) 76%, transparent);
+    color: color-mix(in srgb, var(--lf-ink) 76%, transparent);
   }
   /* A thread's line in the user's turn takes the turn's colour ("Visual treatment
      carries meaning"; records/thread/messages.js, `threadPreview`), in its tooltip face. */
   .lf-preview-detail [data-lf-turn="user"] {
-    color: var(--lf-tip-turn-ink);
+    color: var(--lf-ok-ink);
   }
   /* The last line a preview held to its room keeps says there is more, by a line
      clamp's own ellipsis, which never wraps a line nor makes one: in the block the room
@@ -1349,8 +1349,8 @@ html[data-lf-draw-mode] {
     inset-block-end: 0;
     padding: var(--lf-tip-pad);
     padding-block-start: 0;
-    background: var(--lf-tip-bg);
-    color: color-mix(in srgb, var(--lf-tip-ink) 76%, transparent);
+    background: var(--lf-card);
+    color: color-mix(in srgb, var(--lf-ink) 76%, transparent);
   }
   /* A place's preview (annotations/place-preview.js), what a link into the page opens, in the
      excerpt room: under the place's name, its first parts as the page reads them, each a

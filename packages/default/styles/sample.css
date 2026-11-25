@@ -107,7 +107,7 @@ lf-sample:not([interactive], :has(> template[data-sample]))::before {
   content: "quoted";
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
-  font: var(--lf-font-label);
+  font: var(--lf-font-heading);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -211,7 +211,7 @@ lf-sample:has(> template[data-sample]) {
   --lf-focus-box: .lf-sample-exhibit;
 }
 .lf-sample-exhibit[data-lf-control-focus] {
-  border-left-color: var(--lf-here);
+  border-left-color: var(--lf-ok);
 }
 @media (forced-colors: active) {
   .lf-sample-exhibit[data-lf-control-focus] {

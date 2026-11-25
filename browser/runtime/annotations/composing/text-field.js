@@ -294,7 +294,7 @@ sheet.replaceSync(`
   .lf-md-mark { color: var(--lf-muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
-    background: var(--lf-code-bg); border-radius: var(--lf-code-inline-r);
+    background: var(--lf-chip); border-radius: var(--lf-r-s);
     padding: var(--lf-code-inline-pad); box-decoration-break: slice; }
   .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--lf-accent); text-decoration: underline var(--lf-link-underline);

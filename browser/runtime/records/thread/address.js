@@ -41,19 +41,42 @@
    thread away first.
 
    A URL naming a thread on arrival (`arrive`) travels to it as a thread link does, with
-   focus. Where the browser restored the page's place, as on a reload, the arrival is a
-   return, which moves the page no further than the browser put it, as a fragment's
-   return doesn't (features/version.js, `aimArrival`): the thread opens where the page stands,
-   with the user in it, so the next `t` goes on from it. Where the URL also names an
+   focus, and where it names one of the thread's replies, lands on that reply rather
+   than where opening the thread lands. Where the browser restored the page's place,
+   as on a reload, the arrival is a return, which moves the page no further than the
+   browser put it, as a fragment's return doesn't (features/version.js, `aimArrival`):
+   the thread opens where the page stands, with the user in it, so the next `t` goes
+   on from it. Where the URL also names an
    element, which places the page, the thread opens beside it without focus. So a widget
    that names the view it opens in the fragment, as a tab set names the panel the
    thread's passage stands in, leaves an address a reload or a copied link still reaches
-   the thread by. */
+   the thread by.
+
+   A message's Copy link (messages.js) copies `messageLink`: the page's address naming
+   the message, with no fragment, since a fragment left from an earlier step in the page
+   would land the reader there and open the thread beside it. Like a section's link
+   (records/heading-links.js), it keeps the address's other parameters, so it reaches
+   the page wherever the address it was copied from does. Rejected: the share address
+   (panel/page-about.js), whose key grants access to every page on the machine, which
+   the menu's row says and a link handed around shouldn't carry unannounced. */
 import { effect, untracked } from "/vendor/signals-core.js";
 import { replaceEntry } from "../history.js";
 import { raiseError } from "../../transport/errors.js";
 import { fragmentTarget } from "../../readings/anchor-resolution.js";
 import { threadNamed } from "./state.js";
+
+// The query parameter that names the thread an entry shows.
+const PARAMETER = "thread";
+
+// The link to the message `id` (the header): this page's address naming it, without
+// a fragment.
+/** @param {string} id */
+export function messageLink(id) {
+  const url = new URL(location.href);
+  url.searchParams.set(PARAMETER, id);
+  url.hash = "";
+  return url.href;
+}
 
 /** @typedef {{id: string, reader: "primary" | "card"}} OpenThread */
 
@@ -65,7 +88,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   // The thread an entry's URL names, by its id, or null.
   /** @param {URL} url */
   const named = (url) => {
-    const name = url.searchParams.get("thread");
+    const name = url.searchParams.get(PARAMETER);
     return name ? (threadNamed(name)?.id ?? name) : null;
   };
 
@@ -76,8 +99,8 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
     const open = untracked(shown)?.id ?? null;
     if (named(url) === open) return url;
     const renamed = new URL(url);
-    if (open) renamed.searchParams.set("thread", open);
-    else renamed.searchParams.delete("thread");
+    if (open) renamed.searchParams.set(PARAMETER, open);
+    else renamed.searchParams.delete(PARAMETER);
     return renamed;
   }
   // Each change of the thread that stands open renames the entry the user is on.
@@ -136,17 +159,20 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   /** @param {URL} url @param {import("../../dom/user-intent.js").UserIntent} intent
    * @param {{restored: boolean}} options */
   function arrive(url, intent, { restored }) {
-    const id = url.searchParams.get("thread");
+    const id = url.searchParams.get(PARAMETER);
     if (!id) return null;
     const beside = !restored && Boolean(fragmentTarget(url.hash));
     return async () => {
       if (!intent()) return null;
-      if (!threadNamed(id)) {
+      const thread = threadNamed(id);
+      if (!thread) {
         raiseError(`Thread ${id} is unavailable`);
         return null;
       }
+      const reply =
+        id !== thread.root.id && thread.msgs.some((message) => message.id === id);
       return openPageThread(id, {
-        part: "thread",
+        part: reply ? "message" : "thread",
         focus: !beside,
         travel: !restored && !beside,
         ...(restored && { scroll: false }),

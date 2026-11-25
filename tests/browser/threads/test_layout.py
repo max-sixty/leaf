@@ -143,11 +143,11 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     shown = """message => { const controls = message.querySelector('.lf-msg-controls');
       return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
         ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
-    assert first.evaluate(shown) == ["1", "1", "1"]
+    assert set(first.evaluate(shown)) == {"1"}
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
     assert first.evaluate("m => m.contains(document.activeElement)")
-    assert first.evaluate(shown) == ["0", "0", "0"]
+    assert set(first.evaluate(shown)) == {"0"}
     # The hovered reply's Copy shows over its head row's cell in the actions' track.
     assert reply.locator(".lf-msg-copy").evaluate(
         """copy => { const box = copy.getBoundingClientRect();

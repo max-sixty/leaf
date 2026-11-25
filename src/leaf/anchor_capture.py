@@ -1,10 +1,12 @@
-"""Capture authored anchor requests against the file-side passage reading."""
+"""Capture authored anchor requests against the file-side passage reading, and check a
+visual part an agent names against what the page drew of its visual."""
 
 import bisect
 import functools
 import itertools
 from typing import NamedTuple
 
+from .findings import Finding
 from .passages import COLLAPSE_CHARS, collapse, page_passages
 from .registry.contract import visual_parts
 from .registry.kernel import kernel_passages
@@ -154,6 +156,9 @@ def capture_anchor(
     the reader's terms — quote more of the surrounding text, or name the section. Only a
     refusal about a CLI-only input, such as `--part`, names its flag.
 
+    A `part` passes here where its visual's declaration admits the id; whether the page
+    draws it is `drawn_part`'s to say, since only a drawing of the page knows.
+
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words. `additions` supplies the declared
@@ -250,3 +255,54 @@ def capture_anchor(
         **({"prefix": prefix} if prefix else {}),
         **({"suffix": suffix} if suffix else {}),
     }
+
+
+class Drawing(NamedTuple):
+    """What one drawing of a version read of each visual, by the visual's id, as the
+    render reading keeps it (`render_reading.READING`, `visuals`); None where no
+    browser could draw the page. `when` names the drawing in a message's words, such
+    as "when the page was last checked"."""
+
+    visuals: dict[str, dict] | None
+    when: str
+
+
+def drawn_part(section: str, part: str, drawing: Drawing) -> Finding | None:
+    """What `drawing` says of a thread on `part` in the visual `section`, whose
+    declaration admits the id (`capture_anchor`), as the browser resolves its anchor
+    (`resolveAnchor`): the note to give beside the thread, or None.
+
+    - The visual drew the part: None.
+    - It didn't, and the page puts the thread on the whole visual until the visual
+      draws the part (`whole`): a note naming the parts it drew, or None where it
+      lists no parts, as a chart lists none of the points it finds by id when asked,
+      since there is no list to offer.
+    - It didn't, and the page would show the thread nowhere: a ValueError naming the
+      parts it drew and the way to put the thread on the whole visual, which every
+      visual takes, so the agent can always post.
+    - No drawing read the visual: a note saying the part went unchecked."""
+    visual = (drawing.visuals or {}).get(section)
+    if visual is None:
+        return Finding("unchecked-part", values={"section": section, "part": part})
+    drew = [drawn["id"] for drawn in visual["parts"]]
+    if part in drew or (visual["whole"] and not drew):
+        return None
+    if visual["whole"]:
+        return Finding(
+            "part-on-whole",
+            values={
+                "section": section,
+                "part": part,
+                "when": drawing.when,
+                "drew": drew,
+            },
+        )
+    named = (
+        f"it drew {', '.join(drew)}. Name one of those, or leave"
+        if drew
+        else "it drew no part at all. Leave"
+    )
+    raise ValueError(
+        f"§ {section} drew no part {part!r} {drawing.when}; {named} out --part to put "
+        "the thread on the whole visual"
+    )

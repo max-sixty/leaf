@@ -109,9 +109,10 @@ leaves it readable. A new kind starts at the current protocol without a bump, si
 earlier Leaf reads it. A shape change sets `since` to the current protocol, bumping the
 protocol first where `since` already names it, and the build refuses a shape change at
 the same `since` or a `since` moved anywhere else. A reader treats a record at another
-format as absent. The layer record's `since` is always the current protocol, so a layer
-record at another format is another Leaf's page, read as above, and the build lets its
-shape change only with a bump.
+format as absent, except through the keys every shape of its kind keeps, which a shape
+change keeps (`state.stored_record` names their readers). The layer record's `since` is
+always the current protocol, so a layer record at another format is another Leaf's
+page, read as above, and the build lets its shape change only with a bump.
 
 ## Composition stamps
 

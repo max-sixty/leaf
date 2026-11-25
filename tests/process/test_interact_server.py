@@ -4595,7 +4595,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
     @contextmanager
     def starting_detached(arguments, **options):
         calls.append(arguments)
-        yield {"url": "http://127.0.0.1:41234/?t=test", "claim": None}
+        yield {"url": "http://127.0.0.1:41234/?t=test", "claim": None, "fresh": True}
 
     monkeypatch.setattr(hosting_model, "starting_detached", starting_detached)
 

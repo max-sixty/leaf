@@ -534,7 +534,7 @@ class Record(Generic[_RecordValue]):
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
     none. A reader of a record another Leaf may have written takes from it only keys
-    every shape of its kind keeps, as `named_pages`, `session_lifecycle` and
+    every shape of its kind keeps, as `named_pages`, `session_record` and
     `Record.since_of` do; every other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
@@ -676,26 +676,29 @@ def session_lock_path(session_id: str) -> Path:
 
 
 def session_record(session_id: str) -> dict | None:
-    """The session's lifecycle, or None for a session this Leaf has no record of."""
-    return SESSION.read(session_file(session_id, SESSION_SUFFIX))
+    """The session's lifecycle, whichever Leaf wrote it, or None for a session no
+    Leaf has recorded.
 
-
-def session_lifecycle(session_id: str) -> dict | None:
-    """Whether and by what the session lives, whichever Leaf wrote its record: the
-    record's `generation`, `ended`, `lifetime` and `transcript_path`, or None where
-    no Leaf has recorded the session.
-
-    Every shape of the session record keeps these keys with the meanings `SESSION`
-    gives them, as records keep `page` (`named_pages`), so a Leaf can tell whether
-    a session another Leaf recorded still holds its pages (`service.held_elsewhere`).
-    A change to the record's shape keeps them."""
-    stored = stored_record(session_file(session_id, SESSION_SUFFIX))
+    A session moves between Leaves as its harness loads an update, and every Leaf on
+    the machine reads whether a session holds its pages, so the record outlives a
+    change to its shape (`Record`). Every shape keeps `generation`, `ended`,
+    `lifetime` and `transcript_path` with the meanings `SESSION` gives them, as
+    records keep `page` (`named_pages`). This reads a record of another shape
+    through those keys, with no turn yet, so the session goes on in its
+    generation: its claims stay live, for its own hooks and for every other Leaf,
+    and the next write rewrites the record in this Leaf's shape. A change to the
+    record's shape keeps those keys."""
+    path = session_file(session_id, SESSION_SUFFIX)
+    if (record := SESSION.read(path)) is not None:
+        return record
+    stored = stored_record(path)
     if stored is None or SESSION.since_of(stored) is None:
         return None
-    return {
-        key: stored.get(key)
-        for key in ("generation", "ended", "lifetime", "transcript_path")
-    }
+    carried = new_session(session_id, stored["lifetime"])
+    carried.update(generation=stored["generation"], ended=stored["ended"])
+    if "transcript_path" in stored:
+        carried["transcript_path"] = stored["transcript_path"]
+    return carried
 
 
 def write_session(record: dict) -> dict:

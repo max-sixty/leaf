@@ -654,6 +654,8 @@ def cmd_serve(
                 if not claimed:
                     # A serve that takes no claim starts a server for no session.
                     refuse_held(page_dir, harness)
+                    if handshake is None:
+                        note_serving_for_no_session(page_dir, harness)
                 access = page_access(page_dir, host)
                 token = host_key()
                 endpoint = page_endpoint(page_dir, token)
@@ -713,7 +715,11 @@ def cmd_serve(
 
             if handshake is not None:
                 announced = handshake.announce(
-                    {"url": url, "claim": prepared_claim if acquire else None},
+                    {
+                        "url": url,
+                        "claim": prepared_claim if acquire else None,
+                        "fresh": httpd is not None,
+                    },
                     commit=commit,
                 )
             else:
@@ -753,6 +759,8 @@ class PageStart:
     url: str
     claim: dict | None
     page: Path
+    # Whether this start bound the server, rather than reusing one already serving.
+    fresh: bool
 
 
 @contextlib.contextmanager
@@ -787,7 +795,7 @@ def _starting_server(
         what=f"the server for {page_dir}",
         deadline=deadline,
     ) as ready:
-        yield PageStart(ready["url"], ready["claim"], page_dir)
+        yield PageStart(ready["url"], ready["claim"], page_dir, ready["fresh"])
 
 
 def start_server(
@@ -842,7 +850,6 @@ def claim_and_start(
     if claim is None and not persistent and harness is not None:
         claim = prepare_claim(harness, page_dir)
         delivery = harness.preparing_delivery()
-    note_serving_for_no_session(page_dir, harness)
     with delivery:
         try:
             with _starting_server(
@@ -859,12 +866,15 @@ def claim_and_start(
             if claim is not None:
                 cmd_stop(page_dir, owner=claim)
             raise
+    if ready.fresh:
+        note_serving_for_no_session(page_dir, harness)
 
 
 def note_serving_for_no_session(page_dir: Path, harness: Harness | None) -> None:
-    """Say so where a serve for no session runs in a session this Leaf doesn't act
-    for (`harness.unserved_session`), since the agent would read the serve as its
-    session's."""
+    """Say so where this Leaf has just bound a server for no session in a session it
+    doesn't act for (`harness.unserved_session`), since the agent would read the
+    serve as its session's. A start that reuses a server, or is refused, serves
+    nothing of this Leaf's, so it says nothing."""
     if harness is None and (session := unserved_session()):
         note(
             Finding(

@@ -114,7 +114,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
 
     def recorded_start(page, **kwargs):
         starts.append(kwargs)
-        return hosting_model.PageStart("http://127.0.0.1:1/", None, page)
+        return hosting_model.PageStart("http://127.0.0.1:1/", None, page, True)
 
     monkeypatch.setattr(hosting_model, "start_server", recorded_start)
     if stopped == "during the lease wait":

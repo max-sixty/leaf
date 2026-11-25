@@ -330,7 +330,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
         raise StartRefused("the port is taken")
 
     def start_that_dies(*_args, **_kwargs):
-        return hosting_model.PageStart("http://127.0.0.1:1/", None, page_dir)
+        return hosting_model.PageStart("http://127.0.0.1:1/", None, page_dir, True)
 
     monkeypatch.setattr(
         hosting_model,
@@ -1493,6 +1493,30 @@ def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
     )
     assert reply.exit_code == 0, reply.output
     assert owed_answers(page_dir) == []
+
+
+def test_a_wait_for_no_session_leaves_a_session_another_leaf_recorded_its_input(
+    claimed, monkeypatch, capsys
+):
+    """A session whose lifecycle another Leaf recorded in another shape, as one an
+    older installed copy runs, still holds its page here, so a wait acting for no
+    session, as a terminal's or a checkout's, takes none of the user's input to it:
+    the wait says who holds the page and delivers nothing."""
+    lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    stored = json.loads(lifecycle.read_text())
+    stored["format"] = "leaf-session/13"
+    lifecycle.write_text(json.dumps(stored))
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "for the session"}
+    )
+    cursor = acknowledged_through(claimed)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+
+    assert session_model.cmd_wait(claimed) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "session s1 holds it, and this Leaf acts for no session" in captured.err
+    assert acknowledged_through(claimed) == cursor
 
 
 def test_a_named_wait_observes_ownership_without_taking_it(claimed, capsys):

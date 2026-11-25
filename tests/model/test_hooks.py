@@ -2363,7 +2363,6 @@ def test_a_page_whose_session_another_leaf_recorded_is_held_while_it_lives(
     if ended:
         stored["ended"] = cleanup_model.now_iso()
     lifecycle.write_text(json.dumps(stored))
-    assert cleanup_model.session_record("s1") is None
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
 
     assert service_model.held_elsewhere(claimed, None) is not ended
@@ -2381,6 +2380,32 @@ def test_a_page_whose_session_another_leaf_recorded_is_held_while_it_lives(
     claim = service_model.page_claim(claimed)
     assert claim is not None and claim["id"] == "s2"
     assert not service_model.held_elsewhere(claimed, harness_model.session_harness())
+
+
+def test_a_session_goes_on_in_its_generation_when_its_record_changes_shape(
+    claimed, capsys
+):
+    """An update that changes the lifecycle record's shape leaves the session in its
+    generation: this Leaf reads the record another Leaf wrote through the keys every
+    shape keeps, so the session's claim stays live, and its next prompt rewrites the
+    record in this Leaf's shape with the same generation and lifetime."""
+    lifecycle = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    stored = json.loads(lifecycle.read_text())
+    stored["format"] = "leaf-session/13"
+    lifecycle.write_text(json.dumps(stored))
+    assert service_model.claim_is_active(service_model.page_claim(claimed))
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    capsys.readouterr()
+    rewritten = json.loads(lifecycle.read_text())
+    assert rewritten["format"] == cleanup_model.SESSION.format
+    assert (rewritten["generation"], rewritten["lifetime"]) == (
+        stored["generation"],
+        stored["lifetime"],
+    )
+    assert service_model.claim_is_active(service_model.page_claim(claimed))
 
 
 @pytest.mark.parametrize("ahead", [-1, 0, 1], ids=["behind", "at", "ahead"])

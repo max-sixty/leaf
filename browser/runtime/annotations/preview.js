@@ -312,7 +312,7 @@
    four times in one sweep along a chart at the window's top; and keeping its top
    corner for a new aim, which held a three-line reading above a point to the one line
    between that corner and the point. */
-import { html, nothing, render } from "/runtime/records/framework.js";
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   carryChromeStyles,
   closeNativeLayer,

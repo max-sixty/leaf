@@ -30,7 +30,7 @@
    property the attribute set restyled every element of the page each time the layer
    changed, and a rule reading it through a descendant combinator made Firefox visit
    every element: 2 to 3 s of Firefox's main thread on a page of 1.5 million. */
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { tabStore } from "../state/tab-store.js";
 import { chromeRoot } from "../base/chrome.js";
 import { notice } from "../transport/notifications.js";

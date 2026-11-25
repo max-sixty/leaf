@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect } from "/runtime/records/framework.js";
+import { effect } from "/vendor/signals-core.js";
 import { ThreadView } from "/runtime/records/thread/thread-card.js";
 import { commandDeclarationsWithin } from "/runtime/dom/keyboard/scopes.js";
 

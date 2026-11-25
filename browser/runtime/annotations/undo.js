@@ -130,7 +130,7 @@ import { runtime } from "../state/context.js";
 import { pageCommand } from "../dom/keyboard/register.js";
 import { savedReadingSettled } from "../dom/keyboard/bindings.js";
 import { reactionPlace } from "./reactions.js";
-import { PENDING } from "../records/thread/identity.js";
+import { PENDING } from "../state/thread/identity.js";
 import { threadIdNamed, threadNamed } from "../records/thread/state.js";
 import { addressableLabel } from "../readings/addressable-names.js";
 import { addressableWord } from "../lib/element-word.js";
@@ -160,17 +160,17 @@ import {
 } from "../records/drafts.js";
 import { aimTargetAt } from "../readings/anchor-resolution.js";
 import { commentDraft } from "./composing/selection.js";
-import { threadKey } from "../records/thread/model.js";
+import { threadKey } from "../state/thread/model.js";
 import { inChrome } from "../base/ui-marks.js";
 import { randomId } from "../base/ids.js";
 import { focused } from "../dom/focus.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 
 /** @template E
  * @typedef {E extends unknown ? Pick<E, Extract<keyof E, "id" | "kind" | "attempt" | "token" | "anchor" | "parent" | "message" | "text" | "widget" | "ts" | "drawing" | "suggestion" | "about" | "revision" | "base">> : never} GestureFields
  */
 /** The fields a withdrawal reads, shared by an admitted event and a locally drawn gesture.
- * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("../records/thread/state.js").allThreads>[number]["root"] | import("../records/pending/dispatch.js").UndoCandidate | import("../records/framework/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
+ * @typedef {import("../../types/contract.js").CompleteUnion<GestureFields<ReturnType<typeof import("../records/thread/state.js").allThreads>[number]["root"] | import("../records/pending/dispatch.js").UndoCandidate | import("../base/snapshot.js").Immutable<import("../../types/domain.js").Event | import("../../types/domain.js").Message>>>} UndoEvent
  * @typedef {typeof runtime.undo[number]} UndoEntry
  * @typedef {Omit<import("../records/drafts.js").Discarded, "at"> & {kind: "discard", attempt: string, ts: string,
  * before: {seq: number, attempts: ReadonlySet<string>}, message: string | null, widget: string | null}} Discard
@@ -405,7 +405,7 @@ export function createUndo({
   // The user's newest gesture while it is an action still in the ledger, which the list
   // doesn't hold yet. It goes by its pending id, the name the page draws it under until
   // a reading logs it and the ledger renames once the log answers
-  // (records/pending/model.js, `nameAdmitted`), as the widget's own Undo names it. None while
+  // (state/pending/model.js, `nameAdmitted`), as the widget's own Undo names it. None while
   // a drag is held, since the widget draws nothing until the drag ends.
   const travelling = () => {
     if (dragHeld()) return null;

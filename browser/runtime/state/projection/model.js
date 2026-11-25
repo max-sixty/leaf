@@ -6,7 +6,7 @@
    state, or delivery state. Authored snapshots have the same shape captured by
    records/projection/authored.js: a map from widget id to `{state, specs}`. */
 
-import { keptEach } from "../../state/kept.js";
+import { keptEach } from "../kept.js";
 import { byRank } from "../../lib/rank.js";
 
 /** @typedef {import("../../../types/domain.js").ProjectionEntry} ProjectionEntry */
@@ -276,7 +276,7 @@ function foldWidget(authored, entries) {
    can make an empty recorded value an answer, but cannot invent custom state after
    undo removes its action. Python's projection.obligation_value owns the same reading;
    the shared obligation-value cases exercise both runtimes. */
-/** @param {import("../framework/snapshot.js").Immutable<Pick<import("../../../types/domain.js").AuthoredWidget, "state" | "specs">>} widget
+/** @param {import("../../base/snapshot.js").Immutable<Pick<import("../../../types/domain.js").AuthoredWidget, "state" | "specs">>} widget
  * @param {string} verb @param {boolean} answered */
 export function obligationValue(widget, verb, answered) {
   const state = widget.state[verb];

@@ -17,7 +17,7 @@ import { orderChildren } from "../../dom/dom-children.js";
 import { move } from "../../dom/dom-move.js";
 import { growthIsSeen } from "../../dom/geometry.js";
 import { HeldNews, newsNotice } from "./held-news.js";
-import { turns } from "./model.js";
+import { turns } from "../../state/thread/model.js";
 
 /* A selected primary reader joins the required thread presentation. Packages nominate
    complete conversations or retained fragments; core owns their generated roots,
@@ -30,7 +30,7 @@ import { turns } from "./model.js";
    whether it draws the words it is about. Its optional `drawn()` runs after its DOM is
    placed, before asynchronous widget preparation completes, and the thread then reads
    the box its nomination says scrolls it (`ThreadView.settled`). A message part is one
-   of its thread's turns (model.js, `turns`), the messages a card draws: its root, even
+   of its thread's turns (state/thread/model.js, `turns`), the messages a card draws: its root, even
    a reaction, and its spoken messages. A reader whose message parts stand aside from
    the conversation (`messagesAside`), as Leaf's panel draws On Me's cards, holds a
    message's widgets there only while no other drawing shows it (messages.js, `HOLDS`).

@@ -12,7 +12,7 @@ import { el } from "../lib/elements.js";
 import { WEBSITE_DELIVERY, runtime, runtimeResource } from "../state/context.js";
 import { chromeRoot } from "../base/chrome.js";
 import { announce, gesture } from "../transport/notifications.js";
-import { effect, signal, untracked } from "/runtime/records/framework.js";
+import { effect, signal, untracked } from "/vendor/signals-core.js";
 import { agentName, readPart } from "../state/semantic-state.js";
 import { UPGRADE } from "../readings/presentation.js";
 import { onUserCount, readQueues } from "../state/queue-api.js";

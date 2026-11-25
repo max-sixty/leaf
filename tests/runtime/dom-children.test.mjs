@@ -12,7 +12,7 @@ import {
 import { under } from "/runtime/lib/shadow-tree.js";
 import { shadowStage } from "/runtime/dom/shadow-stage.js";
 import { placesFailure, showFailure } from "/runtime/lib/failure.js";
-import { createRef, html, ref, render } from "/runtime/records/framework.js";
+import { createRef, html, ref, render } from "/vendor/lit.js";
 
 test("failure replacement releases directives and supports native and template recovery", () => {
   const host = document.createElement("test-widget");

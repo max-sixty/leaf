@@ -21,7 +21,7 @@ import { authoredRank } from "../../lib/rank.js";
    semantic input.
 
    `authoredStates` holds the one typed initial condition per owner. Provenance
-   origins compare those same typed values through `records/projection/model.js`; a body's
+   origins compare those same typed values through `state/projection/model.js`; a body's
    Markdown source is never reconstructed from its rendered words.
 
    The complete initial value, by record kind:

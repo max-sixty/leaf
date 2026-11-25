@@ -21,12 +21,7 @@ import { sameAnchor } from "../base/anchor-coordinate.js";
 import { sectionLabel } from "../readings/addressable-names.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";
 import { shelve, unshelve } from "../features/details-shelf.js";
-import {
-  html,
-  nothing,
-  render as renderTemplate,
-  repeat,
-} from "/runtime/records/framework.js";
+import { html, nothing, render as renderTemplate, repeat } from "/vendor/lit.js";
 import {
   fragmentTarget,
   annotationAt,
@@ -60,7 +55,7 @@ import {
 import { offer, offeredAction } from "../lib/controls.js";
 import { keeps, keepsText } from "../lib/keeps.js";
 import { retainUserIntent } from "../dom/user-intent.js";
-import { bareReaction } from "../records/thread/model.js";
+import { bareReaction } from "../state/thread/model.js";
 import { raiseError } from "../transport/errors.js";
 import { inChrome } from "../base/ui-marks.js";
 

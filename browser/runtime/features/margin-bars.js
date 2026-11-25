@@ -68,7 +68,7 @@
    round the marker the browser draws in its list's inset, and a table cell's bar
    stands at its table's edge rather than in the cell before it. Layout, resize and a
    change in the target's size place it again. */
-import { effect, signal } from "/runtime/records/framework.js";
+import { effect, signal } from "/vendor/signals-core.js";
 import {
   CHANGE_CARD,
   changeRedline,

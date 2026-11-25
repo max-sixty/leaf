@@ -15,7 +15,7 @@
 
    A widget is offered two kinds of target, and no other thread on it: a datum it
    projects, and the widget itself, which is a thread anchored to its element and
-   nothing inside it (model.js, `seatOf`). A quote or a visual part of the widget stays
+   nothing inside it (state/thread/model.js, `seatOf`). A quote or a visual part of the widget stays
    the margin's, since it points into the widget's words rather than standing in the
    place the widget offers. The comment box seated in an outlet whose `lfHold` names a
    label offers a second send under that label, whose comment holds the widget
@@ -42,11 +42,11 @@ import { registry } from "../../state/registry.js";
 import { watchArrivals } from "../../dom/arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
-import { discussed, seatOf, seatRoot } from "./model.js";
+import { discussed, seatOf, seatRoot } from "../../state/thread/model.js";
 import { threadFocusDestination } from "./focus.js";
 import { under, closestAcross } from "../../lib/shadow-tree.js";
 import { declareSide } from "../current-target.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { tick } from "../../state/version-signal.js";
 
 import { registrations, setRegistration, updateSurface } from "./surface-handles.js";

@@ -9,7 +9,8 @@ import { searchField } from "../../dom/widget-elements.js";
 import { el } from "../../lib/elements.js";
 import { offerAction } from "../../lib/controls.js";
 import { LAYOUT } from "../../lib/widget-events.js";
-import { html, nothing, render, signal } from "/runtime/records/framework.js";
+import { html, nothing, render } from "/vendor/lit.js";
+import { signal } from "/vendor/signals-core.js";
 
 import {
   contextAround,

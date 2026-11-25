@@ -81,18 +81,8 @@ import {
   neutralSteps,
 } from "../../dom/keyboard/key-sequence.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import {
-  LitElement,
-  html,
-  render,
-  SignalWatcher,
-  signal,
-  computed,
-  nothing,
-  guard,
-  ref,
-  untracked,
-} from "/runtime/records/framework.js";
+import { LitElement, html, render, nothing, guard, ref } from "/vendor/lit.js";
+import { SignalWatcher, signal, computed, untracked } from "/vendor/signals-core.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../../records/thread/reply-landing.js";
 import {

@@ -56,7 +56,7 @@
    around it, and a reader of a hosted copy, who has no private page until they act
    (transport/layer-client.js), neither records nor is told. */
 import { LIVE_ROOT, runtime } from "../state/context.js";
-import { effect, signal } from "/runtime/records/framework.js";
+import { effect, signal } from "/vendor/signals-core.js";
 import {
   onReadingInterrupted,
   readingIsContinuous,

@@ -7,9 +7,9 @@
  * Public widget values are copied at their package boundary.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { hasObligationSource } from "../obligations/source.js";
-import { VERB_WRITERS } from "../../state/kernel-facts.js";
-import { createApplicationPublisher, share, shareFold } from "./snapshot.js";
+import { hasObligationSource } from "./obligations/source.js";
+import { VERB_WRITERS } from "./kernel-facts.js";
+import { createApplicationPublisher, share, shareFold } from "../base/snapshot.js";
 import {
   coordinateOf,
   foldProjection,
@@ -18,15 +18,15 @@ import {
   obligationValue,
   isProjectionEntry,
   stateCoordinate,
-} from "../projection/model.js";
-import { stampedState, sameStateDefinition } from "../../state/registry-contract.js";
+} from "./projection/model.js";
+import { stampedState, sameStateDefinition } from "./registry-contract.js";
 import {
   discussed,
   foldThreads,
   readThreadRecords,
   threadNames,
   threadsBySection,
-} from "../thread/model.js";
+} from "./thread/model.js";
 import {
   threadForAttempt,
   editForAttempt,
@@ -36,19 +36,19 @@ import {
   namesEvent,
   namesPending,
   turnMessage,
-} from "../pending/model.js";
-import { PENDING } from "../thread/identity.js";
-import { kept, keptEach } from "../../state/kept.js";
+} from "./pending/model.js";
+import { PENDING } from "./thread/identity.js";
+import { kept, keptEach } from "./kept.js";
 
 /** @import {
  *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
  *   ActionSpec, PendingProjection, ProjectionEntry, ContentVersion
- * } from "../../../types/domain.js" */
+ * } from "../../types/domain.js" */
 /** @import {
  *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedView,
  *   ServedWorkflow
- * } from "../../../types/contract.js" */
-/** @import { Immutable } from "./snapshot.js" */
+ * } from "../../types/contract.js" */
+/** @import { Immutable } from "../base/snapshot.js" */
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
@@ -186,7 +186,7 @@ function advance(entry, signal, admitted = null) {
  * @typedef {ServedState & {
  *   active: NonNullable<ServedState["active"]>;
  *   browser: NonNullable<ServedState["browser"]>;
- *   data: {version: string, sources: Record<string, import("../../host/data.js").SourceReading>};
+ *   data: {version: string, sources: Record<string, import("../host/data.js").SourceReading>};
  * }} AuthoritativeState
  */
 /** A server view with its basis, the transport identity, left off.
@@ -222,7 +222,7 @@ function advance(entry, signal, admitted = null) {
  * obligation record before publication (`CurrentQueueItem`), which says where the item
  * stands: whether the agent has it in hand, and how a done one ended.
  *
- * @typedef {import("../../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
+ * @typedef {import("../../types/contract.js").CompleteUnion<ServedQueueRow>} QueueItem
  * @typedef {QueueItem & {obligation: ObligationRecord}} CurrentQueueItem
  */
 
@@ -248,7 +248,7 @@ function advance(entry, signal, admitted = null) {
  *     }
  *   > & {
  *     $reactions?: { tokens: Record<string, { glyph: string; settles?: boolean }> };
- *     $states: import("../../state/registry-contract.js").StampedRegistry["$states"];
+ *     $states: import("./registry-contract.js").StampedRegistry["$states"];
  *   };
  *   authored: AuthoredMap;
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
@@ -322,7 +322,7 @@ function normalizedProjection(projections) {
  * @param {PageView["document"]["projection"] | undefined} pageProjection
  * @param {PageView["thread"]["projection"] | undefined} threadProjection
  * @param {readonly Event[]} events
- * @returns {import("../../../types/domain.js").Coverage[]}
+ * @returns {import("../../types/domain.js").Coverage[]}
  */
 function logCoverage(pageProjection, threadProjection, events) {
   if (!pageProjection || !threadProjection) return [];
@@ -349,7 +349,7 @@ const NO_OBLIGATIONS = {
   user: /** @type {ObligationRecord[]} */ ([]),
   unanswered: /** @type {ObligationRecord[]} */ ([]),
 };
-/** @type {import("../../../types/domain.js").ClassifiedEntry[]} */
+/** @type {import("../../types/domain.js").ClassifiedEntry[]} */
 const NO_WITHDRAWALS = [];
 
 /* The admitted inventory owns membership and widget completion. Widget values come from
@@ -360,8 +360,8 @@ const NO_WITHDRAWALS = [];
 // publication that moves one widget makes that widget's record again and no other.
 const widgetObligation = keptEach(
   /** @param {Extract<ObligationRecord, {source: {kind: "widget"}}>} item
-   * @param {import("../projection/model.js").FoldedWidget} widget @param {string} verb
-   * @param {readonly import("../../../types/domain.js").ClassifiedEntry[]} withdrawals
+   * @param {import("./projection/model.js").FoldedWidget} widget @param {string} verb
+   * @param {readonly import("../../types/domain.js").ClassifiedEntry[]} withdrawals
    * @param {boolean} answerWithdrawn @returns {ObligationRecord} */
   (item, widget, verb, withdrawals, answerWithdrawn) => {
     const completed = item.answered && !answerWithdrawn;
@@ -380,7 +380,7 @@ const widgetObligation = keptEach(
 
 /**
  * @param {PageView["obligations"] | undefined} obligations
- * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
+ * @param {ReturnType<typeof import("./projection/model.js").foldWidgetStates>} widgets
  * @param {SemanticDocument["descriptors"]} descriptors
  * @param {ReturnType<typeof foldProjection>["pendingWithdrawals"]} pendingWithdrawals
  * @returns {ObligationLists}
@@ -491,7 +491,7 @@ const threadsOf = (threads, ...gestures) => foldThreads(threads ?? [], gestures)
  * supply additional members to their creator without becoming widget owners. */
 /**
  * @param {SemanticDocument["descriptors"]} descriptors
- * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
+ * @param {ReturnType<typeof import("./projection/model.js").foldWidgetStates>} widgets
  * @param {ReturnType<typeof foldProjection>["desired"]} desired
  */
 function currentWidgetRelations(descriptors, widgets, desired) {
@@ -890,7 +890,7 @@ export function createSemanticApplication({ presentation } = {}) {
   // The fold, and each step of it that reads the whole page, run again only where an
   // argument it is given changed (`state/kept.js`). A step left alone hands back what it made
   // last time, which the publisher has shared before and so need not compare again
-  // (snapshot.js, `shareFold`): a publication about one thing costs what it changed,
+  // (base/snapshot.js, `shareFold`): a publication about one thing costs what it changed,
   // and one that moves no argument of the fold, such as a widget's output, folds
   // nothing. Each step sits at module scope, so it reads only what it is given.
   const viewOf = kept(shownView);
@@ -932,7 +932,7 @@ export function createSemanticApplication({ presentation } = {}) {
     hostAvailable: true,
     data: {
       version: /** @type {string | null} */ (null),
-      /** @type {Record<string, import("../../host/data.js").SourceReading>} */
+      /** @type {Record<string, import("../host/data.js").SourceReading>} */
       sources: {},
     },
     effective: derive(

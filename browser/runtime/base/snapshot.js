@@ -28,11 +28,7 @@
  * sharing already decides member by member which ones it kept, and handing readers
  * the members it didn't keep would let each reader work in proportion to the change.
  */
-import {
-  computed,
-  signal,
-  untracked as signalUntracked,
-} from "/vendor/signals-core.js";
+import { computed, signal, untracked } from "/vendor/signals-core.js";
 
 /**
  * @template T
@@ -62,8 +58,6 @@ import {
  *   subscribe(listener: (value: T, round?: object) => unknown): () => void;
  * }} SnapshotReading
  */
-
-export { signalUntracked as untracked };
 
 // Publications take ownership of mutable producer values; previously secured
 // subtrees retain identity and need no further traversal.
@@ -360,7 +354,7 @@ export function createApplicationPublisher(initial) {
       let derived;
       const selected = computed(() => {
         const value = from ? from.read() : /** @type {F} */ (root.value);
-        return signalUntracked(() => {
+        return untracked(() => {
           const next = derive(value);
           if (next !== derived) prior = immutable(share(prior, (derived = next)));
           return prior;
@@ -372,7 +366,7 @@ export function createApplicationPublisher(initial) {
         read: () => selected.value,
         /** @param {(value: Immutable<T>) => void} listener */
         subscribe: (listener) =>
-          selected.subscribe((value) => signalUntracked(() => listener(value))),
+          selected.subscribe((value) => untracked(() => listener(value))),
       });
       return reading;
     },

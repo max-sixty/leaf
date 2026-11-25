@@ -52,7 +52,7 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 
 # The panel's Threads view, in the order its rows stand: each thread by its id. A row is
 # keyed by the thread's key, which for a thread this tab started is the attempt that
-# sent it (records/thread/model.js, `threadKey`), so the page's own reading names its id.
+# sent it (state/thread/model.js, `threadKey`), so the page's own reading names its id.
 LIST_ORDER = """async () => {
   const {readThreads} = await window.__lfWidgetApi();
   const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));

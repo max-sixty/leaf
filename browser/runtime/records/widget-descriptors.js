@@ -13,14 +13,14 @@
    descriptor, beside the element and gone with it. A message's markup is bound when
    each wording is prepared, before the thread mounts it, so a module connecting
    there finds its widget at once. */
-import { untracked } from "/runtime/records/framework.js";
+import { untracked } from "/vendor/signals-core.js";
 import { runtime } from "../state/context.js";
 import { declaredElements, exhibits } from "../state/registry.js";
 import { isElementName } from "../state/registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { readPart } from "../state/semantic-state.js";
 
-/** @typedef {import("./framework/application.js").WidgetDescriptor} WidgetDescriptor */
+/** @typedef {import("../state/semantic-application.js").WidgetDescriptor} WidgetDescriptor */
 /** @type {WeakMap<Element, WidgetDescriptor>} */
 const byElement = new WeakMap();
 const adoptedDescriptors = readPart((root) => root.document.descriptors);

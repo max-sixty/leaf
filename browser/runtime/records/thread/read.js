@@ -33,13 +33,13 @@
    the same exact-message arrival. Ordinary `u` remains
    paired with `d` in whichever reading region the user is in. */
 import { nextRender, sizeObserver } from "../../lib/frame-pass.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { layoutWindow, presented, seenRect, watchRoom } from "../../dom/geometry.js";
 import { intersect, hasArea } from "../../dom/rect.js";
 import { recordInteraction } from "../../transport/interaction-log.js";
 import { sessionIsActive } from "../../transport/layer-client.js";
 import { whenDocumentPresented } from "../../state/semantic-state.js";
-import { moved } from "./model.js";
+import { moved } from "../../state/thread/model.js";
 import { readThreads } from "./state.js";
 import { renderedParent } from "../../lib/shadow-tree.js";
 

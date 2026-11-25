@@ -43,7 +43,7 @@
    the code that raised it, however the page has moved on since (panel/floating-panel.js,
    `errorReport`).
    The tab's trace records it among the gestures that led to it (interaction-log.js). */
-import { signal, untracked } from "/runtime/records/framework.js";
+import { signal, untracked } from "/vendor/signals-core.js";
 import { runtime } from "../state/context.js";
 import { recordInteraction } from "./interaction-log.js";
 import { announce, gesture } from "./notifications.js";

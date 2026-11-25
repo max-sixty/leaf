@@ -213,15 +213,8 @@ import {
   reportPageError,
 } from "../transport/layer-client.js";
 import { projectDocument, readApplication, readPart } from "../state/semantic-state.js";
-import {
-  AsyncDirective,
-  batch,
-  directive,
-  effect,
-  nothing,
-  signal,
-  untracked,
-} from "/runtime/records/framework.js";
+import { AsyncDirective, directive, nothing } from "/vendor/lit.js";
+import { batch, effect, signal, untracked } from "/vendor/signals-core.js";
 
 import {
   ADDRESSABLE,
@@ -236,7 +229,7 @@ import {
   rememberAuthoredParents,
   stageAuthoredStates,
 } from "../records/projection/authored.js";
-import { foldWidgetStates, obligationValue } from "../records/projection/model.js";
+import { foldWidgetStates, obligationValue } from "../state/projection/model.js";
 import { runtimeRootState } from "../state/root-state.js";
 import {
   bindWidgetDescriptors,

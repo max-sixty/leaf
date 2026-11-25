@@ -51,7 +51,7 @@
 import { el } from "../lib/elements.js";
 import { elementDirective } from "../lib/controls.js";
 import { keeps } from "../lib/keeps.js";
-import { effect, signal, untracked } from "/runtime/records/framework.js";
+import { effect, signal, untracked } from "/vendor/signals-core.js";
 import { ANNOUNCE } from "../lib/widget-events.js";
 import { leafSays, wordsText } from "../base/voice.js";
 import { onUserInput } from "../dom/focus.js";

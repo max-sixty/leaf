@@ -42,7 +42,7 @@ import { scrollerFor } from "../../readings/reading-regions.js";
 import { scrollersOf } from "../../readings/scroll-containers.js";
 import { whereGlidesLand } from "../../dom/scrolling.js";
 import { decisionFor, registry, tagsDeclaring } from "../../state/registry.js";
-import { hasObligationSource } from "./source.js";
+import { hasObligationSource } from "../../state/obligations/source.js";
 import { obligationEntry } from "./model.js";
 import { focused } from "../../dom/focus.js";
 import {
@@ -65,7 +65,7 @@ import { obligationPlace, readObligations } from "./place.js";
 import { inChrome } from "../../base/ui-marks.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
-/** @typedef {import("../framework/application.js").ObligationRecord} Obligation */
+/** @typedef {import("../../state/semantic-application.js").ObligationRecord} Obligation */
 /** @typedef {import("./answer.js").AnswerableObligation} AnswerableObligation */
 /** @typedef {ReturnType<typeof obligationPlace>} ObligationNodes */
 /** @param {{prepareNavigationStep: ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],

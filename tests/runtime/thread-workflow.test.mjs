@@ -12,11 +12,8 @@ import {
   deleted,
   foldThreads,
   readThreadRecords,
-} from "../../browser/runtime/records/thread/model.js";
-import {
-  isTurnEvent,
-  turnMessage,
-} from "../../browser/runtime/records/pending/model.js";
+} from "../../browser/runtime/state/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/state/pending/model.js";
 import { threadReading } from "../../browser/runtime/records/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 

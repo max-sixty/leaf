@@ -121,7 +121,7 @@ import { TEXT_FIELD } from "../../dom/control-selectors.js";
 import { caretAtKey, focusDestination } from "../../dom/focus.js";
 import { seenRect } from "../../dom/geometry.js";
 import { revealEditor } from "./reply-landing.js";
-import { PENDING } from "./identity.js";
+import { PENDING } from "../../state/thread/identity.js";
 import { keys } from "../../dom/keyboard/scopes.js";
 import { announce, notice } from "../../transport/notifications.js";
 import { afterScript } from "../../base/rendering.js";
@@ -129,7 +129,7 @@ import { sizeObserver } from "../../lib/frame-pass.js";
 import { retainUserIntent } from "../../dom/user-intent.js";
 import { offer, offerAction } from "../../lib/controls.js";
 import { raiseError } from "../../transport/errors.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 
 /** @typedef {import("./messages.js").MessageView} MessageView */
 /** @typedef {NonNullable<Parameters<ReturnType<typeof import("./actions.js").createThreadActions>["edit"]>[3]>} EditOptions */

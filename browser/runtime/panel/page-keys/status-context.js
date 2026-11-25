@@ -10,7 +10,7 @@
  * register. A walk's reading
  * also names the stop it stands on (`target`, its owner's key), so a list that shows
  * the walk's items, as On Me does, can mark the one the walk is at. */
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { setNoticeContext } from "../../transport/notifications.js";
 import { walkPosition } from "../../records/walk-position.js";
 import { word } from "../../dom/keyboard/bindings.js";

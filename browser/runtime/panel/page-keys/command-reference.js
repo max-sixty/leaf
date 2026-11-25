@@ -47,7 +47,7 @@ import {
   dismissPopoversOutside,
 } from "../../dom/keyboard/layer-stack.js";
 import { scrollIntoView } from "../../readings/landing-scroll.js";
-import { html, nothing, render, repeat } from "/runtime/records/framework.js";
+import { html, nothing, render, repeat } from "/vendor/lit.js";
 
 import {
   bindings,

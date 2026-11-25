@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { nameAction, offerAction, offeredAction } from "/runtime/lib/controls.js";
-import { html, render } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
 
 const symbolOf = (control) =>
   [...control.querySelectorAll(":scope > svg")].map((svg) => svg.dataset.lfIcon);

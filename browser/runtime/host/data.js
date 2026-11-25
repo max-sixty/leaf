@@ -34,7 +34,8 @@
    (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
    fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
-import { computed, share, signal, untracked } from "/runtime/records/framework.js";
+import { computed, signal, untracked } from "/vendor/signals-core.js";
+import { share } from "../base/snapshot.js";
 import { runtime } from "../state/context.js";
 import {
   applicationState,

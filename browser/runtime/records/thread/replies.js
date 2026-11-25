@@ -61,12 +61,12 @@ import {
   onCurrentLocation,
   onPressAway,
 } from "../../dom/focus.js";
-import { threadKey } from "./model.js";
+import { threadKey } from "../../state/thread/model.js";
 import { retainUserIntent, restrictUserIntent } from "../../dom/user-intent.js";
 import { THREAD, SAY_ROW, threadPart } from "./selectors.js";
 import { el } from "../../lib/elements.js";
 import { offer } from "../../lib/controls.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { move } from "../../dom/dom-move.js";
 import { chromeRoot, chromeForeground } from "../../base/chrome.js";
 import { TEXT_FIELD } from "../../dom/control-selectors.js";

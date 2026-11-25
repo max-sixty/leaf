@@ -3,7 +3,8 @@
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
 import { closestAcross, renderedUnder } from "../lib/shadow-tree.js";
-import { html, render, untracked } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
+import { untracked } from "/vendor/signals-core.js";
 import { iconTemplate } from "../lib/icons.js";
 import { progressFace, workflowWord } from "../records/thread/workflow.js";
 import { agentSays, linesOf, saidBy, voiced } from "../base/voice.js";
@@ -210,7 +211,7 @@ const publishedWorkflows = readPart((root) => root.effective.workflows);
 // The published workflows the kept claims were last checked against.
 /** @type {ReturnType<typeof publishedWorkflows> | null} */
 let claimsChecked = null;
-/** @param {import("../records/framework/application.js").Workflow} receipt */
+/** @param {import("../state/semantic-application.js").Workflow} receipt */
 const claimOf = (receipt) =>
   JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
 function dropSettledClaims() {
@@ -238,7 +239,7 @@ function agentWorkflowDescription(control) {
   return reading;
 }
 
-/** @param {Element} control @param {import("../records/framework/application.js").Workflow | null | undefined} receipt */
+/** @param {Element} control @param {import("../state/semantic-application.js").Workflow | null | undefined} receipt */
 function syncAgentArrival(control, receipt) {
   dropSettledClaims();
   if (!receipt || progressFace(receipt) !== "working") {
@@ -320,7 +321,7 @@ function syncAgentDescriptionBase(control, description, title) {
   paintAgentDescription(control);
 }
 
-/** @param {Element} control @param {import("../records/framework/application.js").Workflow | null | undefined} receipt */
+/** @param {Element} control @param {import("../state/semantic-application.js").Workflow | null | undefined} receipt */
 function syncContributionAgentWorkflow(control, receipt) {
   const paintedStage = progressFace(receipt);
   syncAgentArrival(control, receipt);
@@ -462,7 +463,7 @@ export const contributionHost = elementDirective(
 // it directly, or pass `receipt` and `awaitsUser` to `presentContributionEntry` where
 // they draw the entry in the same pass; templates bind
 // `${contributionReceipts(receipt, awaitsUser)}`.
-/** @param {Element} control @param {import("../records/framework/application.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
+/** @param {Element} control @param {import("../state/semantic-application.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
 export function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
   syncContributionTurn(control, awaitsUser);
@@ -479,7 +480,7 @@ export const contributionReceipts = elementDirective(
 // where the options carry it, and otherwise left as the seat last painted it.
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
  * @param {HostOptions & {preview?: import("../annotations/preview.js").Read | null, unread?: boolean,
- * receipt?: import("../records/framework/application.js").Workflow | null, awaitsUser?: boolean}} [options] */
+ * receipt?: import("../state/semantic-application.js").Workflow | null, awaitsUser?: boolean}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))

@@ -42,7 +42,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { defineOwn } from "/runtime/records/framework.js";
+import { defineOwn } from "../base/snapshot.js";
 import { exceptionText } from "../lib/exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";

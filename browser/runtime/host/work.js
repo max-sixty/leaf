@@ -5,7 +5,7 @@
  * and stopped-work meaning independently of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "../state/registry.js";
 import { readPart } from "../state/semantic-state.js";
-import { hasObligationSource } from "../records/obligations/source.js";
+import { hasObligationSource } from "../state/obligations/source.js";
 import { obligationsByRegion } from "../records/obligations/place.js";
 import { authoredScope, elementById } from "../readings/passages.js";
 import { quietSince } from "../state/presence.js";
@@ -21,8 +21,8 @@ import { addressableName } from "../readings/addressable-names.js";
  * @typedef {WorkRole["role"]} Role
  * @typedef {ReturnType<ReturnType<typeof widgetController>["read"]>} WidgetReading
  * @typedef {(element: Element) => WidgetReading} ReadWidget
- * @typedef {Extract<import("../records/framework/application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
- * @typedef {{tree: WorkTree, held: Map<Node, import("../records/framework/application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
+ * @typedef {Extract<import("../state/semantic-application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
+ * @typedef {{tree: WorkTree, held: Map<Node, import("../state/semantic-application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
  *   One reading's scope (`workTree`) and its open widget obligations: those each goal holds, placed
  *   once for every goal of the scope (`obligationsByRegion`); the ids of the widgets that
  *   own one; and each goal's `stopped`, which a parent's reads again.

@@ -75,7 +75,8 @@ import {
   selectEnds,
   selectionBackward,
 } from "../../dom/native-selection.js";
-import { html, render, signal } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
+import { signal } from "/vendor/signals-core.js";
 import { addressableWord } from "../../lib/element-word.js";
 import { COMMENT_HINT } from "../../base/voice.js";
 import {
@@ -157,7 +158,7 @@ import {
   pressIsKeyboardActivation,
 } from "../../base/pointer.js";
 import { anchorLabel } from "../../records/thread/messages.js";
-import { seatOf } from "../../records/thread/model.js";
+import { seatOf } from "../../state/thread/model.js";
 
 import { livePoint } from "../../readings/pointed-place.js";
 import { keeps } from "../../lib/keeps.js";

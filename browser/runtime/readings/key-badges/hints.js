@@ -39,7 +39,7 @@ import {
   hasRows,
   spell,
 } from "../../dom/keyboard/bindings.js";
-import { html, render } from "/runtime/records/framework.js";
+import { html, render } from "/vendor/lit.js";
 import {
   keySequenceModel,
   keySequenceTemplate,

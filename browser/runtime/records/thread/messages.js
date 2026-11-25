@@ -22,7 +22,7 @@ import {
   nothing,
   ref,
   render,
-} from "/runtime/records/framework.js";
+} from "/vendor/lit.js";
 import { setRenderedChildren } from "../../dom/dom-children.js";
 import { generatedElement, worksInside } from "../../dom/widget-elements.js";
 import { offeredAction } from "../../lib/controls.js";
@@ -35,7 +35,13 @@ import {
 } from "../../lib/markdown.js";
 import { pageLinks } from "../page-markdown.js";
 import { reportPageError } from "../../transport/layer-client.js";
-import { deleted, editable, isReaction, messageKey, turns } from "./model.js";
+import {
+  deleted,
+  editable,
+  isReaction,
+  messageKey,
+  turns,
+} from "../../state/thread/model.js";
 import { counted, excerptWords, labelWords } from "../../lib/words.js";
 import {
   MessageEditor,
@@ -121,7 +127,7 @@ export const loadMessageMarkdown = () =>
 // Prose parsing is shared across descriptor passes and surfaces. Its value changes
 // with admission, edits, stream text, or the lazy Markdown renderer becoming ready;
 // clock and receipt paint reuse the same HTML without retaining generated DOM.
-/** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]["msgs"][number]>} MessageRecord */
+/** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]["msgs"][number]>} MessageRecord */
 /** @typedef {{id: string | undefined, edited: string | null, text: string,
  * markdown: boolean, html: string, mediaHtml: string, plainText: string}} ProseReading */
 /** @type {Map<string | undefined, ProseReading>} */
@@ -641,7 +647,7 @@ export function authoredHolder(id) {
 }
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
- * workflows: readonly import("../framework/application.js").Workflow[],
+ * workflows: readonly import("../../state/semantic-application.js").Workflow[],
  * leaves?: {word: import("../../base/voice.js").Said, todo: string | null} | null}} options */
 export function messageReading(
   message,

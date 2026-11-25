@@ -30,7 +30,7 @@ export const NOTHING_ON_ME = emptyOnList("ready", "me");
 // Whether a list item asks something of the user, whose row draws its record's
 // prompt and the controls that answer or complete it. An
 // update's record is answered by a reply or a version, or by the user sending again.
-/** @template {import("../records/framework/snapshot.js").Immutable<import("../records/framework/application.js").CurrentQueueItem>} T
+/** @template {import("../base/snapshot.js").Immutable<import("./semantic-application.js").CurrentQueueItem>} T
  * @param {T} item
  * @returns {item is T & {obligation: import("../records/obligations/answer.js").AnswerableObligation}} */
 export const carriesObligation = (item) =>
@@ -39,7 +39,7 @@ export const carriesObligation = (item) =>
 // What a row names its item as: an update handed back to the user is one to send
 // again; one the agent owes is a reply when it stands in a thread, else an answer the
 // agent writes into the page.
-/** @param {Pick<import("../records/framework/application.js").QueueItem, "kind" | "owner" | "thread">} item */
+/** @param {Pick<import("./semantic-application.js").QueueItem, "kind" | "owner" | "thread">} item */
 export const itemNoun = (item) =>
   item.kind !== "update"
     ? item.kind
@@ -55,7 +55,7 @@ export const itemNoun = (item) =>
 // the end it gave its own to-do are its acts, in its voice; Leaf says how anything
 // else on the user's list ended (base/voice.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
-/** @param {import("../records/framework/snapshot.js").Immutable<import("../records/framework/application.js").CurrentQueueItem>} item */
+/** @param {import("../base/snapshot.js").Immutable<import("./semantic-application.js").CurrentQueueItem>} item */
 export const itemOutcome = (item) =>
   item.kind === "update"
     ? agentSays("Answered")
@@ -66,7 +66,7 @@ export const itemOutcome = (item) =>
 
 // When a finished list item ended, and the detail its ending gave: the agent's end of
 // a to-do, or the answer's own time.
-/** @param {import("../records/framework/snapshot.js").Immutable<import("../records/framework/application.js").CurrentQueueItem>} item */
+/** @param {import("../base/snapshot.js").Immutable<import("./semantic-application.js").CurrentQueueItem>} item */
 export const itemEnding = ({ obligation }) =>
   Object.freeze({
     ended: (obligation.end ?? obligation.answer)?.event?.ts ?? null,

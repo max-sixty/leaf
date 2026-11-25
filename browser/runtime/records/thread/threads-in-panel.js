@@ -19,7 +19,7 @@
 
    `chooseThreadsInPanel` is the one writer. Readers ask `threadsInPanel()`; a renderer
    that reads it repaints when it changes. */
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { tabStore } from "../../state/tab-store.js";
 import { notice } from "../../transport/notifications.js";
 import { windowHoldsRail } from "../../readings/content-layout.js";

@@ -33,7 +33,7 @@
    primitive values share a revision, a digest of the value. A null value, or an input
    the markup leaves unbound, names words no bound value supplied, stamped without a
    source. Off a Leaf page no one listens, and the marks mean nothing. */
-import { untracked } from "/runtime/records/framework.js";
+import { untracked } from "/vendor/signals-core.js";
 import {
   awaitsData,
   bindsInput,

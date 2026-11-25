@@ -5,7 +5,7 @@
  * Each line stands in a box of its own, as a page's code block's do (readings/code-lines.js), so a
  * row a long line wraps onto hangs from its indent behind the face's mark. */
 import { capitalized } from "../lib/words.js";
-import { guard, html } from "/runtime/records/framework.js";
+import { guard, html } from "/vendor/lit.js";
 import { copyControl } from "../transport/copy-control.js";
 import { indentColumns } from "../readings/code-lines.js";
 

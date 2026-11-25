@@ -39,7 +39,7 @@ import {
   openLayer,
   openerOf,
 } from "../dom/focus.js";
-import { guard, html, nothing, render, repeat } from "/runtime/records/framework.js";
+import { guard, html, nothing, render, repeat } from "/vendor/lit.js";
 import { iconTemplate } from "../lib/icons.js";
 import { keys, paintKeys, paintKeysWithin } from "../dom/keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../base/pointer.js";

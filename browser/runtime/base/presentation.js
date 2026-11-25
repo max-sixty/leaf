@@ -15,8 +15,7 @@
 /** @typedef {{ resolve: (completion?: unknown) => void; reject: (reason: unknown) => void; ready: Promise<void> }} PresentationTicket */
 /** @typedef {{ present(failSoft?: (reason: unknown) => unknown): PresentationTicket; disconnect(): void }} PresentationHandle */
 /** @typedef {{ complete: boolean; active: boolean; latest: object | null; release: (() => void) | null }} RegionRecord */
-import { signal } from "/vendor/signals-core.js";
-import { untracked } from "./snapshot.js";
+import { signal, untracked } from "/vendor/signals-core.js";
 /** @param {{reportFailure: (reason: unknown) => void}} options */
 export function createPresentationCoordinator({ reportFailure }) {
   const changes = signal(0);

@@ -3,16 +3,12 @@
    pure folds publish synchronously, and the presenters that paint it. DOM nodes and
    network promises stay out of the root, in the modules that own them. Importing this
    module mounts no view and starts no delivery. */
+import { batch, computed, effect, signal, untracked } from "/vendor/signals-core.js";
 import {
-  batch,
-  computed,
-  effect,
-  signal,
-  untracked,
   createPresentationCoordinator,
   createPresentationSchedule,
-  createSemanticApplication,
-} from "/runtime/records/framework.js";
+} from "../base/presentation.js";
+import { createSemanticApplication } from "./semantic-application.js";
 
 import { bindQueuedWork } from "../lib/queued-work.js";
 import { tick } from "./version-signal.js";
@@ -114,7 +110,7 @@ const documentPresenters = [];
 // that changes a part `paint` read schedules a paint. One that changes only parts
 // `reading` read schedules a paint only if `reading` now returns a different value. One
 // that changes neither carries the region's last paint into the new epoch
-// (records/framework/presentation.js, `begin`). Reading the whole root subscribes to every publication,
+// (base/presentation.js, `begin`). Reading the whole root subscribes to every publication,
 // so renderers select the parts they draw.
 //
 // Recording sees only synchronous code. A paint that awaits wraps each continuation in

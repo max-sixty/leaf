@@ -40,7 +40,7 @@
    the place standing while focus stays on the stop. Leaf can't tell when the list has
    changed under a place, and a chart keeps focus while its reading moves, so such a
    place could stand wrong for as long as the user stayed. The moment bounds it. */
-import { effect, untracked } from "/runtime/records/framework.js";
+import { effect, untracked } from "/vendor/signals-core.js";
 import { capitalized } from "../lib/words.js";
 import { watchOwner } from "../dom/arrivals.js";
 import { alreadyShown, scrollIntoView } from "../readings/landing-scroll.js";

@@ -59,7 +59,7 @@ import { userCaret } from "../dom/native-selection.js";
 import { focused, onCurrentLocation, onLetGo, onUserInput } from "../dom/focus.js";
 import { seenAhead } from "../readings/scroll-containers.js";
 import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
-import { isReaction } from "./thread/model.js";
+import { isReaction } from "../state/thread/model.js";
 import { threadNamed } from "./thread/state.js";
 import { keptEach } from "../state/kept.js";
 import {
@@ -109,9 +109,9 @@ export function declareSide(bridge, { beside = false } = {}) {
 // (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
 // rather than the inventory. The names are read once per list, so that holds for a
 // list the state keeps, such as the inventory, and not for one built for the call.
-/** @template {import("./framework/application.js").ObligationRecord} T
+/** @template {import("../state/semantic-application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node
- * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */
+ * @param {readonly import("../state/semantic-application.js").ObligationRecord[]} inventory */
 export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
   const names = namedPlaces(items);
@@ -139,12 +139,12 @@ export function obligationHolding(items, node, inventory = items) {
 // holds however the document changes; an id finds candidates, and placing each says
 // whether it stands there.
 const placeNames = keptEach(
-  /** @param {readonly import("./framework/application.js").ObligationRecord[]} items */
+  /** @param {readonly import("../state/semantic-application.js").ObligationRecord[]} items */
   (items) => {
-    /** @type {Map<string, [number, import("./framework/application.js").ObligationRecord][]>} */
+    /** @type {Map<string, [number, import("../state/semantic-application.js").ObligationRecord][]>} */
     const names = new Map();
     /** @param {string} name @param {number} order
-     * @param {import("./framework/application.js").ObligationRecord} item */
+     * @param {import("../state/semantic-application.js").ObligationRecord} item */
     const add = (name, order, item) => {
       const listed = names.get(name);
       if (!listed) names.set(name, [[order, item]]);
@@ -160,7 +160,7 @@ const placeNames = keptEach(
     return names;
   },
 );
-/** @template {import("./framework/application.js").ObligationRecord} T
+/** @template {import("../state/semantic-application.js").ObligationRecord} T
  * @param {readonly T[]} items @returns {Map<string, [number, T][]>} */
 const namedPlaces = (items) =>
   /** @type {Map<string, [number, T][]>} */ (placeNames(items));

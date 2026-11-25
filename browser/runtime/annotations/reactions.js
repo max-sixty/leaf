@@ -78,9 +78,9 @@ import {
   savedReadingSettled,
 } from "../dom/keyboard/bindings.js";
 import { anchorLabel } from "../records/thread/messages.js";
-import { reactionsAt, tokenChoices } from "../records/thread/model.js";
+import { reactionsAt, tokenChoices } from "../state/thread/model.js";
 import { allThreads, readThreads } from "../records/thread/state.js";
-import { effect, untracked } from "/runtime/records/framework.js";
+import { effect, untracked } from "/vendor/signals-core.js";
 import { annotationSelection } from "../features/annotation-inventory.js";
 import { readPart } from "../state/semantic-state.js";
 import { raiseError } from "../transport/errors.js";

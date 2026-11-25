@@ -21,9 +21,9 @@
    stays free of application state. */
 import { agentSays, leafSays } from "../../base/voice.js";
 
-/** @typedef {import("../framework/application.js").Workflow} Workflow */
-/** @typedef {import("../framework/application.js").ObligationRecord} ObligationRecord */
-/** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
+/** @typedef {import("../../state/semantic-application.js").Workflow} Workflow */
+/** @typedef {import("../../state/semantic-application.js").ObligationRecord} ObligationRecord */
+/** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @param {Workflow} workflow
  * @returns {workflow is Extract<Workflow, {subject: {kind: "widget"}}>} */
 const widgetWorkflow = (workflow) => workflow.subject.kind === "widget";

@@ -148,7 +148,7 @@ import {
   scrollToEnd,
   scrollLimit,
 } from "../../dom/scrolling.js";
-import { signal } from "/runtime/records/framework.js";
+import { signal } from "/vendor/signals-core.js";
 import { tick } from "../../state/version-signal.js";
 import { afterScript } from "../../base/rendering.js";
 import { cancelRender, nextRender } from "../../lib/frame-pass.js";
@@ -181,7 +181,7 @@ import { boxMotion } from "../../dom/box-motion.js";
 import { paintKeysWithin } from "../../dom/keyboard/scopes.js";
 import { drawnThreadsWithId } from "../../records/thread/selectors.js";
 import { threadIdNamed } from "../../records/thread/state.js";
-import { threadKey } from "../../records/thread/model.js";
+import { threadKey } from "../../state/thread/model.js";
 import {
   anchorLabel,
   releaseAuthoredUnder,

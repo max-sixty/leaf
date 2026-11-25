@@ -8,7 +8,7 @@
    outside the page reads that stamp to know the page has caught up. Threads then
    resolve their passages over the words it writes into authored elements. */
 import { authoredStates } from "./authored.js";
-import { projectionOrigins } from "./model.js";
+import { projectionOrigins } from "../../state/projection/model.js";
 import {
   applicationPresenter,
   applicationState,
@@ -49,7 +49,7 @@ function paintStateOrigins(projection, paint) {
 // as lf-suggestion does, has already run it in the publication before this writes the
 // same mark. A widget in a message's markup is marked before the thread mounts
 // it, so it joins the panel settled and the thread's passages skip what it retired.
-/** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").foldWidgetStates>>} widgets */
+/** @param {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/projection/model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
     const owner = addressableAt(widgetId);

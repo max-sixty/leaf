@@ -61,14 +61,14 @@
    shows only its name and words, since copying its drawing would carry its controls.
    Rejected: a clone of the place made inert, which repeats every id it holds and
    upgrades every widget in it. */
-import { html, nothing } from "/runtime/records/framework.js";
+import { html, nothing } from "/vendor/lit.js";
 import { fragmentTarget } from "../readings/anchor-resolution.js";
 import { leadingTitle, ownNaming } from "../readings/addressable-names.js";
 import { addressableWord } from "../lib/element-word.js";
 import { TEXT_BLOCK } from "../state/kernel-facts.js";
 import { obligationEnding } from "../records/obligations/answer.js";
 import { readObligations } from "../records/obligations/place.js";
-import { hasObligationSource } from "../records/obligations/source.js";
+import { hasObligationSource } from "../state/obligations/source.js";
 import {
   authoredScope,
   drawsWithin,

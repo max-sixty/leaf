@@ -17,7 +17,7 @@ from leaf.schema import (
     WIDGET_NAME,
 )
 
-from ..findings import Finding, Rejected, element_at
+from ..findings import Finding, Rejected, admitted_parts, element_at
 from .kernel import kernel_marks, verb_writers
 
 
@@ -276,9 +276,10 @@ class VisualParts:
 
     A widget admits its complete registered inventory when its opt-in attribute is
     present, or ids beginning its declared prefixes. Admission does not say a part
-    is on screen; the browser resolves that. An admitted id nothing renders detaches,
-    unless the widget's module draws parts on request or finds them by id, as a chart
-    finds its points; then it stands on the whole element.
+    is on screen; the browser resolves that, and `thread create --part` checks an
+    agent's id against what the page drew (`anchor_capture.drawn_part`). An admitted
+    id nothing renders detaches, unless the widget's module draws parts on request or
+    finds them by id, as a chart finds its points; then it stands on the whole element.
     """
 
     prefixes: tuple[str, ...] = ()
@@ -296,11 +297,7 @@ class VisualParts:
         return bool(self.prefixes or self.all)
 
     def __str__(self) -> str:
-        if self.all:
-            return "the parts the visual draws"
-        if self.prefixes:
-            return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
-        return "no visual parts"
+        return admitted_parts(self.prefixes, self.all)
 
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:

@@ -179,6 +179,13 @@ preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 
+A visual part an agent names (`thread create --part`) passes where its visual's
+declaration admits the id (`registry.contract.visual_parts`), and is then checked
+against what the page drew of that visual: the page's render reading of the version and
+data it shows (`render_reading.py`), or else a drawing the command makes itself
+(`render_gate/drawn_anchor.py`). `anchor_capture.drawn_part` says which parts each
+drawing admits.
+
 The render gate holds each `verbatim` owner to the file reading
 (`readings._verbatim_findings`). It pairs each owner with its source by document-order
 occurrence, so no authored id is needed, and compares the rendered words with the

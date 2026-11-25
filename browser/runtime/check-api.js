@@ -5,7 +5,7 @@
 export { startNearWork } from "./readings/presentation.js";
 export { declarationFor } from "./state/registry.js";
 export { validationWidgetStates } from "./validation.js";
-export { visualPartProblems } from "./state/visual-parts.js";
+export { drawsAbsentParts, visualPartProblems } from "./state/visual-parts.js";
 export {
   readApplication,
   watchSemantic,

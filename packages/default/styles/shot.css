@@ -151,7 +151,7 @@ lf-shot {
   max-inline-size: 100%;
   margin-inline: auto;
   anchor-scope: --lf-shot-options;
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 .lf-shot-actions,
 .lf-shot-tools {
@@ -196,7 +196,7 @@ lf-shot {
   inline-size: max-content;
   max-inline-size: calc(100vw - 32px);
   padding: var(--lf-sp-2);
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 .lf-shot-scale-options {
   display: flex;

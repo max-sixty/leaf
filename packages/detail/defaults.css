@@ -33,7 +33,7 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 }
 .lf-dial-depths {
   display: block;
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 /* The three depths are one width, the widest one's, so the row reads as one control
    and what stands under each depth lines up with it. In a column too narrow for that,

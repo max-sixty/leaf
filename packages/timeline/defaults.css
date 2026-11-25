@@ -33,7 +33,7 @@ lf-event::before {
   align-items: center;
   gap: var(--lf-sp-2);
   margin-block-end: var(--lf-sp-2);
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 /* The position follows both buttons, so its changing width never moves them. */
 .lf-timeline-position {
@@ -226,7 +226,7 @@ lf-event::before {
   list-style: none;
   margin: var(--lf-sp-3) 0 0;
   padding: 0;
-  font: var(--lf-font-compact);
+  font: var(--lf-font-ui);
 }
 /* The list's head names each compared run once, over its column, in the face of the
    run's heading in the chart. */

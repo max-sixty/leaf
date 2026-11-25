@@ -1043,3 +1043,84 @@ html:not([data-lf-live]) {
 :root {
   --lf-ground: var(--lf-paper);
 }
+/* The styling cut's preview. The cut drops each name below from what a package's
+ * sheet may read, and a sheet then writes the kept name beside it here. Until the
+ * sheets are rewritten, each dropped name takes the value of the name that replaces
+ * it, so a page draws as it would after the cut while the old names still resolve.
+ * Two kept names move with a merge: the tinted ground and the line each take a step
+ * between the two they replace.
+ *
+ * A dropped name whose replacement changes no pixel has no line here: an alias, such
+ * as --lf-thread for --lf-accent, and a short expression over kept names, such as
+ * --lf-r-s for half of --lf-r. Six widget rules read a kept font directly, since
+ * Leaf's panel and threads keep the faces those rules read before. */
+:root {
+  /* One tinted ground where there were three: a field's (3.1% of the way from the
+     paper to the ink, 5% in the dark scheme), a chip's (5.9%, 10.4%) and inline
+     code's (5.6%, 11.2%). It stands nearer the field's, since it backs whole columns
+     as well as chips. */
+  --lf-field: light-dark(
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 3.8%) l
+        calc(a * min(2.5, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.5, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 6.5%) l
+        calc(a * min(2.08, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.08, 1 + 0.014 / hypot(a, b)))
+    )
+  );
+  --lf-chip: var(--lf-field);
+  --lf-code-bg: var(--lf-field);
+  /* One line where there were two: a hairline (8.6%, 14.8%) and an edge (16.6%,
+     22.8%). It stands nearer the edge's, since a mark filled with it, such as a
+     board column's neutral dot, has to show on the tinted ground. */
+  --lf-rule: light-dark(
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 14%) l
+        calc(a * min(3.2, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(3.2, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 20.4%) l
+        calc(a * min(2.1, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.1, 1 + 0.014 / hypot(a, b)))
+    )
+  );
+  --lf-border: var(--lf-rule);
+  /* Two inks for words where there were four: the ink and the muted ink. */
+  --lf-ink-2: var(--lf-ink);
+  --lf-quiet: var(--lf-muted);
+  /* Code stands on the page's own surfaces: a card for its canvas, the tinted ground
+     for its gutter and head, the line for its edges, and the page's two inks. */
+  --lf-pre-bg: var(--lf-card);
+  --lf-code-chrome: var(--lf-field);
+  --lf-code-ink: var(--lf-ink);
+  --lf-code-muted: var(--lf-muted);
+  --lf-code-border: var(--lf-rule);
+  /* One tint for each status: an added line wears the ok tint, a removed line the
+     danger tint and a highlighted line the warn tint. */
+  --lf-add-tint: var(--lf-ok-tint);
+  --lf-del-tint: var(--lf-danger-tint);
+  --lf-hi-tint: var(--lf-warn-tint);
+  /* A chip's inset is a step of the spacing scale. */
+  --lf-chip-pad: 0 var(--lf-sp-2);
+  /* Two times where there were four: a frame's return takes the fold's, and a mark's
+     move a disclosure's. */
+  --lf-motion-return: var(--lf-motion-fold);
+  --lf-motion-mark: var(--lf-motion-disclosure);
+}
+:root,
+.density-working,
+.lf-chrome [part] {
+  /* Two fonts for a widget's words where there were fifteen: the interface's and the
+     small one. A widget's sentences take the interface's leading, and a label in
+     capitals the small font's. */
+  --lf-font-widget: var(--lf-t-5) / var(--lf-ui-lh) var(--lf-sans);
+  --lf-font-label: 600 var(--lf-t-6) / var(--lf-ui-lh) var(--lf-sans);
+}
+/* A denser page narrows the spacing scale, and a chip's inset with it. */
+.density-working {
+  --lf-chip-pad: 0 var(--lf-sp-2);
+}

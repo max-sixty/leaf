@@ -331,7 +331,7 @@ lf-tabs[data-lf-views] > lf-tab {
       );
     }
     lf-tabs[list="side"]:has(> lf-tab[summary]) {
-      --lf-tab-context-h: calc(var(--lf-t-working-label) * var(--lf-ui-lh));
+      --lf-tab-context-h: calc(var(--lf-t-5) * var(--lf-ui-lh));
     }
     lf-tabs[list="side"]:has(> lf-tab [data-lf-awaits]) {
       --lf-tab-outcome-h: calc(var(--lf-t-6) * var(--lf-ui-lh));
@@ -506,7 +506,7 @@ lf-tabs[data-lf-views] > lf-tab {
       grid-column: 1 / -1;
       grid-row: 2;
       padding: 0 5px;
-      font: var(--lf-font-compact);
+      font: var(--lf-font-ui);
       color: var(--lf-muted);
     }
     /* Each run of rows sharing a group, or sharing none, is a box of its own

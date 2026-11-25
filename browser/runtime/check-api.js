@@ -57,6 +57,7 @@ export {
   readingRegion,
   unconcealedReadingRegions,
   regionScrollBehavior,
+  preserveReadingRegions,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { carriersOf } from "./scroll-containers.js";

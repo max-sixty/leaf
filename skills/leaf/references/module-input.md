@@ -280,9 +280,6 @@ keeps naming the element while the window is in the background, as when a revisi
 arrives, where `:focus` and `:focus-within` stop matching. A command row may read it:
 Leaf reads a scope's rows again whenever focus moves into, out of or within the scope.
 
-`placeOf(node)` returns the page node a place stands for,
-so focus on a margin entry or in a thread card reads as being at its passage or
-obligation; a module asks it whether the user is on its content from either.
 `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it

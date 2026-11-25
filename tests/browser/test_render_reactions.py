@@ -776,7 +776,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     """The response choice shares the comment field's solid focus ring. Read in the dark
     scheme, where a ring stated as a literal value rather than the token would show: the
-    ring's ink (`--lf-here`) states both schemes in one `light-dark()`."""
+    ring's ink (`--lf-ok`) states both schemes in one `light-dark()`."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -790,7 +790,7 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     expect(suggest).to_be_focused()
     ring = suggest.evaluate("""node => {
       const ink = document.createElement('span');
-      ink.style.color = 'var(--lf-here)';
+      ink.style.color = 'var(--lf-ok)';
       node.append(ink);
       const here = getComputedStyle(ink).color;
       ink.remove();
@@ -1522,7 +1522,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     expect(part).to_have_attribute("data-lf-proxied", "")
-    assert_drawn_in(part, token_colour(page, "--lf-here"), 2)
+    assert_drawn_in(part, token_colour(page, "--lf-ok"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(

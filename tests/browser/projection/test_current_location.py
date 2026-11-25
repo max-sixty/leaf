@@ -706,7 +706,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert arrival_ring == [
         "solid",
         "2px",
-        token_colour(page, "--lf-here"),
+        token_colour(page, "--lf-ok"),
     ], f"the decision the walk stood the user on is not ringed: {arrival_ring}"
 
     # One press in, and the band moves to the row rather than doubling: the frame is the
@@ -722,7 +722,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert row_ring == [
         "solid",
         "2px",
-        token_colour(page, "--lf-here"),
+        token_colour(page, "--lf-ok"),
     ], f"the row the user is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a user working one has

@@ -111,18 +111,20 @@ protocol first where `since` already names it, and the build refuses a shape cha
 the same `since` or a `since` moved anywhere else.
 
 Each shape of a record has a file of its own, named with its `since`
-(`state.Record.file`), and a Leaf reads, replaces and removes only the files of its
-own shapes. So a Leaf finds a record of another shape as it finds none, and the Leaf
-that wrote it finds it as it left it, however the two run beside each other. What an
-update leaves behind stays until the agent removes it: `page check` names a page
-directory's records of other shapes, and `leaf page list` the state home's
-(`state.leftover_records`). Two removals take every shape, since each ends what its
-records are for: a session's end retires the session's files (`state._retire`), and a
-stop removes the page's service records, which is what stops a server another Leaf
-started (`hosting.cmd_stop`). The layer record keeps one file, since its `format` is the
-page's protocol (`registry.storage.write_layer`): its `since` is always the current
-protocol, so a layer record at another format is another Leaf's page, read as above,
-and the build lets its shape change only with a bump.
+(`state.Record.file`), and a Leaf reads and replaces only the files of its own
+shapes. So a Leaf finds a record of another shape as it finds none, and the Leaf that
+wrote it finds it as it left it, however the two run beside each other. A record that
+arbitrates between the Leaves on the machine, a page's claim with its session's
+lifecycle, a page's service, a grant or the Codex adapter's, holds while a file of any
+shape of it stands, whatever that file says: a Leaf refuses to act against it and
+names the repair, and the acts that end one, a session's end, a stop or a withdrawal,
+end it at every shape (`state.Record`). A session that dies without ending stays
+holding its pages for every Leaf of another shape until a session takes them. Records
+of other shapes in a page directory stay until the agent removes them, which `page
+check` names. The layer record keeps one file, since its `format` is the page's
+protocol (`registry.storage.write_layer`): its `since` is always the current protocol,
+so a layer record at another format is another Leaf's page, read as above, and the
+build lets its shape change only with a bump.
 
 ## Composition stamps
 

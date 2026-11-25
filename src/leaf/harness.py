@@ -771,7 +771,11 @@ class CodexHarness(EnvironmentHarness):
 
         with flocked(adapter_start_lock_path(self.session)):
             adapter = running_adapter(self.session)
-        return adapter is not None and adapter["app_server"] is not None
+        # One another Leaf version started reads its own delivery records, not this
+        # Leaf's, so input it will deliver is left to it, as to an App Server's.
+        return adapter is not None and (
+            "other" in adapter or adapter["app_server"] is not None
+        )
 
     def receive_pointer(self, payload: dict) -> list[Path]:
         from .codex_state import confirm_codex_pointer

@@ -2364,19 +2364,17 @@ _TEXT = {
         f" `leaf server start {v['page']}`"
     ),
     # `page check`'s advice on a page holding records a Leaf of another version
-    # wrote, which this one never reads (`state.leftover_records`).
+    # wrote, which this one never reads (`validation.command.other_version_records`).
     "other-version-records": lambda at, v: (
         f"{v['page']} keeps records another Leaf version wrote, which this one"
-        " doesn't read: "
-        + "; ".join(
-            f"{', '.join(group['files'])} ({group['format']}, {group['count']},"
-            f" last written {group['written']})"
-            for group in v["records"]
+        f" doesn't read: {', '.join(record['file'] for record in v['records'])}."
+        " Remove them once no Leaf of that version serves the page"
+        + (
+            "; the drafts record holds the user's unsent words, so tell the user"
+            " where it is rather than reading it, and remove it when they say"
+            if any(record["kind"] == "drafts" for record in v["records"])
+            else ""
         )
-        + ". Remove them once no Leaf of that version serves the page; where one"
-        " holds the user's unsent drafts, tell the user where it is rather than"
-        " reading it, and remove it when they say. `leaf page list` names the"
-        " machine's"
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (

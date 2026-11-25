@@ -45,6 +45,8 @@ from leaf.schema import STREAM_FILE
 from leaf.state import (
     CLAIM,
     EVENTS_FILE,
+    SESSION,
+    SESSION_SUFFIX,
     STRING,
     TIME,
     Record,
@@ -63,6 +65,7 @@ from leaf.state import (
     page_stands,
     remove_claim,
     session_claims,
+    session_file,
     session_live,
     session_lock_path,
     session_record,
@@ -216,13 +219,33 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     return session_live(session_record(session_id))
 
 
-def may_receive(claim: dict | None, session_id: str | None) -> bool:
-    """Whether `session_id` may take receipt of the page's input under `claim`
+def may_receive(page_dir: Path, claim: dict | None, session_id: str | None) -> bool:
+    """Whether `session_id` may take receipt of `page_dir`'s input under `claim`
     (`delivery.receive_batch`): the claim names it, or, for a reader with no
-    session, no session holds the page."""
+    session, no session holds the page, at this shape or another
+    (`held_at_another_shape`)."""
     if session_id is None:
-        return not claim_is_active(claim)
+        return not claim_is_active(claim) and not held_at_another_shape(page_dir, claim)
     return claim_names_session(claim, session_id)
+
+
+def held_at_another_shape(page_dir: Path, claim: dict | None) -> str | None:
+    """Who holds `page_dir` by a record a Leaf of another shape wrote, which this
+    Leaf reads as holding the page without reading it (`state.Record`): a claim of
+    another shape where this Leaf's holds none, or, for `claim`, a lifecycle of
+    another shape of its session where this Leaf's doesn't name its generation and
+    hasn't seen it end. None where neither stands."""
+    if claim is None:
+        if others := CLAIM.others(claim_path(page_dir)):
+            return f"a session of another Leaf version, by the claim {others[0]}"
+        return None
+    record = session_record(claim["id"])
+    if (
+        record is None
+        or (record["generation"] != claim["generation"] and record["ended"] is None)
+    ) and SESSION.others(session_file(claim["id"], SESSION_SUFFIX)):
+        return f"session {claim['id']}, whose lifecycle another Leaf version keeps"
+    return None
 
 
 def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
@@ -239,14 +262,17 @@ def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     )
 
 
-def held_elsewhere(page_dir: Path, harness: Harness | None) -> dict | None:
-    """The claim by which a session other than `harness`'s holds `page_dir`, or None
-    where none does: it names another session that still lives
-    (`claim_is_active`), whatever harness it names."""
+def held_elsewhere(page_dir: Path, harness: Harness | None) -> str | None:
+    """Who holds `page_dir`, where a session other than `harness`'s does, or None:
+    a claim naming another session that still lives (`claim_is_active`), whatever
+    harness it names, or a record of another shape that holds the page
+    (`held_at_another_shape`)."""
     claim = CLAIM.read(claim_path(page_dir))
-    if claimant_matches(claim, harness) or not claim_is_active(claim):
+    if claim is not None and claimant_matches(claim, harness):
         return None
-    return claim
+    if claim is not None and claim_is_active(claim):
+        return f"session {claim['id']}"
+    return held_at_another_shape(page_dir, claim)
 
 
 def refuse_held(page_dir: Path, harness: Harness | None) -> None:
@@ -256,13 +282,13 @@ def refuse_held(page_dir: Path, harness: Harness | None) -> None:
     acts for it (`harness.session_harness`), no other Leaf, such as a checkout's or a
     terminal's, moves a held page to a protocol those hooks can't read, whatever the
     protocols are."""
-    if (claim := held_elsewhere(page_dir, harness)) is None:
+    if (holder := held_elsewhere(page_dir, harness)) is None:
         return
     raise Refused(
-        f"{page_dir} is held by session {claim['id']}, and only the Leaf that "
-        "session's hooks run serves it or changes its layer. Work on the page through "
-        f"that session, or take it over first by running `leaf server start "
-        f"{page_dir}` in another agent session"
+        f"{page_dir} is held by {holder}, and only the Leaf that session's hooks run "
+        "serves it or changes its layer. Work on the page through that session, or "
+        f"take it over first by running `leaf server start {page_dir}` in an agent "
+        "session"
     )
 
 

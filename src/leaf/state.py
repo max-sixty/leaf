@@ -43,7 +43,6 @@ import time
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from types import ModuleType
 from typing import TYPE_CHECKING, Generic, TypeVar, cast
 
 if TYPE_CHECKING:
@@ -170,8 +169,12 @@ def session_file(session_id: str, suffix: str) -> Path:
     Codex task's deliveries and adapter log — is that one name with a different
     suffix, in the state home's `sessions/`.
     """
-    key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return sessions_home() / f"{key}.{suffix}"
+    return sessions_home() / f"{session_key(session_id)}.{suffix}"
+
+
+def session_key(session_id: str) -> str:
+    """The name every file of the session starts with (`session_file`)."""
+    return hashlib.sha256(session_id.encode()).hexdigest()[:32]
 
 
 def page_key(page_dir: Path) -> str:
@@ -480,17 +483,26 @@ class Record(Generic[_RecordValue]):
     protocol at which its shape last changed, so a bump for anything else leaves the
     record where it was (`layer-registry.md`, "Page protocol", says when `since`
     moves, which the browser build checks against every kind in `RECORDS`). A Leaf
-    reads, replaces and removes only the files of its own shapes, and finds a record
-    at another shape as it finds none, without touching it; the record carries its
-    `format`, `leaf-<kind>/<since>`, for whoever finds the file. No Leaf reads
-    another shape's record, not even the keys two shapes share: carrying a record
-    across shapes would bind every later shape to an earlier one's keys and their
-    meanings, which the build could check only for the keys. What other shapes'
-    files remain beside one is `others`'s to say, and the agent's to remove
-    (`leftover_records`). The layer record keeps one file, and two removals take
-    every shape (`layer-registry.md`, "Page protocol"). Every write replaces the
-    file whole, so a file that is not JSON no Leaf wrote, and reading it raises,
-    naming the file."""
+    reads and replaces only the files of its own shapes, and finds a record at
+    another shape as it finds none; the record carries its `format`,
+    `leaf-<kind>/<since>`, for whoever finds the file. No Leaf reads another shape's
+    record, not even the keys two shapes share: carrying a record across shapes
+    would bind every later shape to an earlier one's keys and their meanings, which
+    the build could check only for the keys.
+
+    A record that arbitrates between the Leaves on the machine, a page's claim with
+    its session's lifecycle, a page's service, a grant or the Codex adapter's,
+    holds while a file of any shape of it stands (`others`), whatever that file
+    says, as a lifetime of a kind this Leaf doesn't know does
+    (`service.session_lives`): this Leaf refuses to act against it and names the
+    repair. So the acts that end one end it at every shape: a session's end, a
+    stop and a withdrawal. A session that dies without ending stays holding its
+    pages for every Leaf of another shape until a session takes them. Of the rest,
+    what other shapes leave in a page directory is the agent's to remove, which
+    `page check` names (`validation.command.other_version_records`). The layer
+    record keeps one file (`layer-registry.md`, "Page protocol"). Every write
+    replaces the file whole, so a file that is not JSON no Leaf wrote, and reading
+    it raises, naming the file."""
 
     def __init__(self, kind: str, schema: dict, *, since: int):
         if kind in RECORDS:
@@ -550,12 +562,16 @@ class Record(Generic[_RecordValue]):
         ]
 
     def others(self, path: Path) -> list[Path]:
-        """The files holding the record that `path` names at other shapes than this
-        one, which this Leaf never reads, replaces or removes."""
+        """The files holding the record that `path` names, or each record whose name
+        matches it where it is a pattern, as `data/*.json`, at other shapes than this
+        one: files this Leaf reads none of. Where `path` names one that arbitrates
+        between the Leaves on the machine, their presence alone holds it (class
+        docstring)."""
         return [
             other
             for other in sorted(path.parent.glob(f"{path.stem}@*{path.suffix}"))
-            if SHAPED.fullmatch(other.name) and other != self.file(path)
+            if (shaped := SHAPED.fullmatch(other.name))
+            and shaped["since"] != str(self.since)
         ]
 
 
@@ -571,65 +587,6 @@ def record_name(name: str) -> str:
     record of any shape counts as its kind does."""
     shaped = SHAPED.fullmatch(name)
     return name if shaped is None else shaped["stem"] + shaped["suffix"]
-
-
-def declared_records(*packages: ModuleType) -> dict[str, Record]:
-    """Every `Record` that `leaf` and `packages` declare, by its kind. A kind is
-    declared as its module loads, and a command loads only the modules it uses, so
-    this loads every module of each package first."""
-    import importlib
-    import pkgutil
-
-    import leaf
-
-    for package in (leaf, *packages):
-        for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
-            if not module.name.endswith(".__main__"):
-                importlib.import_module(module.name)
-    return RECORDS
-
-
-def leftover_records(directories: list[Path]) -> list[dict]:
-    """The records in `directories` of a kind this Leaf declares, at another shape
-    than this Leaf's, which this Leaf never reads, replaces or removes: one entry for
-    each directory and `format`, with its `files`, how many there are and when the
-    newest was written. `files` is one pattern where there are several and the
-    pattern matches them and no other file, as `claims/*@13.json`, and otherwise
-    each file. Leaf takes each
-    file's `format` and nothing else from it, so the words of another shape's drafts
-    stay unread. A kind this Leaf doesn't declare, as a later Leaf's new one, isn't
-    named, since nothing here can tell its own files from another shape's."""
-    records = declared_records()
-    groups: dict[tuple[Path, str], list[Path]] = {}
-    for directory in directories:
-        for path in directory.glob("*@*"):
-            if not SHAPED.fullmatch(path.name) or not path.is_file():
-                continue
-            try:
-                form = str((stored_record(path) or {}).get("format", ""))
-            except ValueError:
-                continue
-            kind, _, since = form.rpartition("/")
-            record = records.get(kind.removeprefix("leaf-"))
-            if record is None or str(record.since) == since:
-                continue
-            groups.setdefault((directory, form), []).append(path)
-    found = []
-    for (directory, form), paths in sorted(groups.items()):
-        pattern = directory / f"*@{form.rpartition('/')[2]}{paths[0].suffix}"
-        whole = len(paths) > 1 and set(directory.glob(pattern.name)) == set(paths)
-        newest = max(path.stat().st_mtime for path in paths)
-        found.append(
-            {
-                "files": [str(pattern)] if whole else sorted(map(str, paths)),
-                "format": form,
-                "count": len(paths),
-                "written": datetime.fromtimestamp(newest)
-                .astimezone()
-                .isoformat(timespec="seconds"),
-            }
-        )
-    return found
 
 
 def stored_record(path: Path) -> dict | None:
@@ -1042,8 +999,7 @@ def _session_paths(session_id: str) -> list[Path]:
     """Every file and directory in the state home's `sessions/` that belongs to the
     session (`session_file`), its records of every shape among them
     (`Record.file`)."""
-    stem = session_file(session_id, "").stem
-    return list(sessions_home().glob(f"{stem}[.@]*"))
+    return list(sessions_home().glob(f"{session_key(session_id)}[.@]*"))
 
 
 def _retire(session_id: str) -> None:

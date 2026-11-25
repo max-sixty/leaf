@@ -39,9 +39,7 @@ from leaf.revision_artifact import (
     unanswered_media,
 )
 from leaf.sample_content import initial_sample_events
-from leaf.schema import DATA_DIR
 from leaf.server import other_serving_leaf
-from leaf.state import leftover_records
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     placed_thread,
@@ -290,9 +288,8 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     """What `page check` and the first reply on a revision
     (`thread._revision_advice`) advise beside what `check_source` found: the
     source's non-blocking drift, what the page's own declarations advise
-    (`declarations.declaration_advice`), a live server running another Leaf
-    (`server.other_serving_leaf`), and records another Leaf version left in the page
-    (`state.leftover_records`). It is read apart from the check, which every
+    (`declarations.declaration_advice`), and a live server running another Leaf
+    (`server.other_serving_leaf`). It is read apart from the check, which every
     reply and activation runs, because judging the page's recorded data can take a
     cold process about 200 ms on a large page."""
     from .declarations import declaration_advice
@@ -300,7 +297,6 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     served = other_serving_leaf(page_dir)
-    leftover = leftover_records([page_dir, page_dir / DATA_DIR])
     return [
         *checked.notes,
         *(
@@ -334,16 +330,6 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
                 )
             ]
             if served is not None
-            else []
-        ),
-        *(
-            [
-                Finding(
-                    "other-version-records",
-                    values={"page": str(page_dir), "records": leftover},
-                )
-            ]
-            if leftover
             else []
         ),
     ]

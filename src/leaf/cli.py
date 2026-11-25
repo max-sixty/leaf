@@ -669,29 +669,10 @@ def page_list() -> dict:
     harness gives it now (`session_name`), the directory it claimed from
     (`session_cwd`), and whether it still runs (`session_alive`). A serving
     page also carries how many rows On Me holds (`on_user`) and its open and
-    unread thread counts (`threads`). `page state PAGE` reads one page whole.
-
-    `other_version_records` names the records in the state home that a Leaf of
-    another version wrote, which this one never reads, by their files, `format`,
-    count and newest write (`state.leftover_records`). Remove each once no Leaf of
-    that version runs here. `page check PAGE` names a page directory's."""
+    unread thread counts (`threads`). `page state PAGE` reads one page whole."""
     from leaf.presence import page_list as listing
-    from leaf.state import leftover_records, state_home
 
-    home = state_home()
-    return {
-        "pages": listing(),
-        "other_version_records": leftover_records(
-            [
-                home,
-                *(
-                    path
-                    for path in sorted(home.iterdir())
-                    if path.is_dir() and path.name != "pages"
-                ),
-            ]
-        ),
-    }
+    return {"pages": listing()}
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")

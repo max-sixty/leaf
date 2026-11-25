@@ -1346,7 +1346,7 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        if not may_receive(page.claim, session_id):
+        if not may_receive(page.page_dir, page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
             raise ReceiptRefused(str(refusal))

@@ -47,7 +47,7 @@ the URL's key, which the browser keeps in a cookie. One key covers every page on
 machine, so sharing one page's URL gives access to all of them. Leaf opens no public
 tunnel; binding beyond loopback exposes the port to that network.
 
-A page keeps its host and port in `<page>/service.json`, so serving again, changing
+A page keeps its host and port in its directory's service record, so serving again, changing
 its packages and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
 macOS, restarting a `--host` page can wait about 30 seconds for the port to free up, and
 serving refuses if it is still taken.
@@ -95,10 +95,9 @@ as well; the refusal says how to load a newer Leaf.
 An update that changes how Leaf keeps one of its records, such as unsent drafts, a
 page's file grants or the sign-in key, leaves the earlier Leaf's file where it was and
 starts a new one, so what that record held is gone from the page under the update.
-`leaf page check` names a page's leftover records and `leaf page list` the machine's;
-remove them once no session runs the earlier Leaf. Where they include claims, your
-pages no longer reach you: take each again with `leaf server start`. A drafts file
-holds the user's unsent words, so tell the user where it is rather than reading it.
+`leaf page check` names the page's leftover records; remove them once no session runs
+the earlier Leaf. A drafts file holds the user's unsent words, so tell the user where
+it is rather than reading it.
 
 An update can change what a widget accepts or how it draws, and a page's own widgets
 may call an API the update changed. `leaf page check` reports both, the second with

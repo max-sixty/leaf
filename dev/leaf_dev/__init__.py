@@ -29,7 +29,15 @@ def declared_records() -> dict:
     (`docs.py`) and the browser build's protocol check (`contract-types.mjs`) both
     read them here. It lives in this package because only the dev group installs
     `leaf_website`."""
-    import leaf_website
-    from leaf.state import declared_records as declared
+    import importlib
+    import pkgutil
 
-    return dict(sorted(declared(leaf_website).items()))
+    import leaf
+    import leaf_website
+    from leaf.state import RECORDS
+
+    for package in (leaf, leaf_website):
+        for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
+            if not module.name.endswith(".__main__"):
+                importlib.import_module(module.name)
+    return dict(sorted(RECORDS.items()))

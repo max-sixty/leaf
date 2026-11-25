@@ -255,12 +255,16 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
 
 
 def unbind_file(page_dir: Path, binding: str) -> dict:
-    """Withdraw one grant, including for browser buffers read before this call."""
+    """Withdraw one grant, including for browser buffers read before this call. The
+    user withdraws it from every Leaf, so the records a Leaf of another shape keeps
+    go whole, since this Leaf can't read which grants they hold (`state.Record`)."""
     _validate_binding(binding)
     with page_locked(page_dir):
         grants = _grants(page_dir)
         grants.pop(binding, None)
         BINDINGS.write(page_dir / FILE_BINDINGS_FILE, {"bindings": grants})
+        for other in BINDINGS.others(page_dir / FILE_BINDINGS_FILE):
+            other.unlink(missing_ok=True)
     return {"binding": binding, "bound": False}
 
 

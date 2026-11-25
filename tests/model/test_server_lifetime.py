@@ -784,6 +784,22 @@ def test_a_service_record_this_version_cannot_read_is_no_service(page_dir, spawn
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
+def test_a_stop_ends_another_shapes_server_beside_this_shapes_record(page_dir, spawn):
+    """A page this Leaf served before a Leaf of another `SERVICE` shape served it
+    keeps both records, and the server running is that Leaf's. A stop removes that
+    record too, which ends its server, and returns once the lease is free, rather
+    than disabling only its own record and waiting on a server that never exits."""
+    fixture_service(page_dir, available_loopback_port(), "persistent")
+    process = older_server(page_dir, spawn)
+    own = server_model.read_service(page_dir)
+    assert own is not None and own["enabled"]
+
+    assert hosting_model.cmd_stop(page_dir) is True
+    assert not older_service(page_dir).exists()
+    assert process.wait(timeout=STATED_TIMEOUT) == 0
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
+
+
 def test_a_re_vendor_stops_a_server_whose_record_it_cannot_read(
     page_dir, spawn, capsys
 ):

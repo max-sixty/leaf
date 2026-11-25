@@ -1084,6 +1084,17 @@ def preparing_adapter(harness: CodexHarness):
         app_server_socket_path(app_server)
     with flocked(adapter_start_lock_path(session_id)):
         record = running_adapter(session_id)
+        if record is not None and "other" in record:
+            if app_server is not None:
+                raise Refused(
+                    f"a Codex delivery adapter another Leaf version started is "
+                    f"active for task {session_id}, through a transport this Leaf "
+                    "can't read; it hands the task to this Leaf's adapter once the "
+                    "task's hooks run this Leaf, so claim the page again after the "
+                    "task's next prompt"
+                )
+            yield
+            return
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
@@ -1173,10 +1184,18 @@ def running_adapter(session_id: str) -> dict | None:
     """The live adapter's lease record, naming its transport, or None when no
     adapter holds the lease. An adapter can let go between the question and the
     read, since only its retirement takes the start lock, and its record goes with
-    it; that reads as no adapter."""
+    it; that reads as no adapter. One a Leaf of another `ADAPTER` shape started
+    keeps its record where this Leaf reads none, so it reads as running with its
+    transport unknown, `{"other": <its record>}`, and delivers the task's input
+    until it hands the task to this Leaf's adapter (`state.Record`)."""
     if not adapter_is_live(session_id):
         return None
-    return ADAPTER.read(adapter_lease_path(session_id))
+    path = adapter_lease_path(session_id)
+    if (record := ADAPTER.read(path)) is not None:
+        return record
+    if others := ADAPTER.others(path):
+        return {"other": others[0]}
+    return None
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

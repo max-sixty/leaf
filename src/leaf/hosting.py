@@ -1028,26 +1028,19 @@ def cmd_stop(
             service = read_service(page_dir)
             others = SERVICE.others(page_dir / SERVICE_FILE)
             # Whether a server runs is the lease's to say: one a Leaf of another
-            # `SERVICE` shape started holds it with no record of this shape to show
-            # it by. A private preparation holds the lease too, but has no service
-            # record and has not become a running service.
+            # `SERVICE` shape started holds it while that shape's record stands,
+            # whatever this shape's says. A private preparation holds the lease too,
+            # but has no service record and has not become a running service.
             stopped = (
                 stopped
                 or running_server(page_dir) is not None
-                or (
-                    service is None
-                    and bool(others)
-                    and lock_is_held(page_dir / SERVER_LOCK)
-                )
+                or (bool(others) and lock_is_held(page_dir / SERVER_LOCK))
             )
-            if service is None:
-                # A record of another shape names no service this Leaf could
-                # disable. Removing it is what stops a server that Leaf started,
-                # which exits once its record is gone, and a stop ends what the
-                # record is for (`layer-registry.md`, "Page protocol").
-                for other in others:
-                    other.unlink(missing_ok=True)
-            elif first:
+            # A stop ends the page's service at every shape (`state.Record`), and
+            # a server another shape's Leaf started exits once its record is gone.
+            for other in others:
+                other.unlink(missing_ok=True)
+            if service is not None and first:
                 disabled = service.copy()
                 disabled.pop("restart", None)
                 disabled["enabled"] = False
@@ -1055,7 +1048,7 @@ def cmd_stop(
                     disabled["restart"] = restart
                 if disabled != service:
                     write_service(page_dir, disabled)
-            elif service["enabled"]:
+            elif service is not None and service["enabled"]:
                 write_service(page_dir, {**service, "enabled": False})
             first = False
             lease = take_lease(page_dir / SERVER_LOCK)

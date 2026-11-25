@@ -1666,7 +1666,8 @@ def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve
 
 def test_a_finger_copies_a_reply_s_link(browser, serve):
     """Under a finger, where the address names only the thread, a reply offers its Copy
-    link, though not its Copy, whose words a finger selects instead."""
+    link, though not its Copy, whose words a finger selects instead. The opening
+    message offers neither, its link being the thread's, which the address names."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Where does this end?")
     reply = append_carried_log_record(
@@ -1689,6 +1690,8 @@ def test_a_finger_copies_a_reply_s_link(browser, serve):
     page = open_page(browser, thread_url(url, root), context=context)
     message = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
     expect(message.locator(".lf-msg-copy")).to_be_hidden()
+    opening = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{root}"]')
+    expect(opening.locator(".lf-msg-link")).to_be_hidden()
     message.locator(".lf-msg-link").tap()
     expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
     copied = urlsplit(page.evaluate("navigator.clipboard.readText()"))

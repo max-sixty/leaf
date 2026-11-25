@@ -546,8 +546,8 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     [
         (
             "lf-activity",
-            lambda entry: entry.update(bound="top"),
-            "at `bound`: 'top' is not one of ['start', 'end']",
+            lambda entry: entry.update(content="top"),
+            "at `content`: 'top' is not one of ['markup', 'members', 'data', 'markdown', 'empty']",
         ),
         (
             "lf-options",

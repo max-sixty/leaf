@@ -5218,6 +5218,12 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
     marked = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String)"
     page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
     page.evaluate("() => document.getElementById('late').stage()")
+    # The first root the page connects asks for the layer's shadow rules, and its words
+    # move once they arrive, so the pointer is aimed after that.
+    page.wait_for_function(
+        "() => document.getElementById('late').shadowRoot"
+        ".querySelector('style[data-lf-gen]')?.textContent"
+    )
     page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
     box = page.evaluate(
         """() => {

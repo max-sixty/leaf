@@ -79,6 +79,8 @@ test("An axis of hours reads in hours and minutes on the clock's round steps", (
 });
 
 test("An axis of minutes steps by round spans of seconds", () => {
+  // The last label reads back, and the 120 pixels before it hold only one of
+  // "2 min 15 s" and "2 min 30 s", so the earlier goes unlabeled.
   const { major } = drawn(0, 150_000, 150_000, 1200 / 150_000);
   assert.deepEqual(
     major.map(({ label }) => label),
@@ -92,8 +94,28 @@ test("An axis of minutes steps by round spans of seconds", () => {
       "1 min 30 s",
       "1 min 45 s",
       "2 min",
-      "2 min 15 s",
+      "",
       "2 min 30 s",
+    ],
+  );
+});
+
+test("A label that reads back leaves its predecessor's out where the two would meet", () => {
+  // 105 minutes across 588 pixels: a major tick each 84 pixels, and "1 h 30 min"
+  // reading on from 504 pixels would run into "1 h 45 min" reading back from 588.
+  const duration = 105 * 60_000;
+  const { major } = drawn(0, duration, duration, 588 / duration);
+  assert.deepEqual(
+    major.map(({ label, flip }) => [label, flip]),
+    [
+      ["0 s", false],
+      ["15 min", false],
+      ["30 min", false],
+      ["45 min", false],
+      ["1 h", false],
+      ["1 h 15 min", false],
+      ["", false],
+      ["1 h 45 min", true],
     ],
   );
 });

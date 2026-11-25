@@ -52,7 +52,8 @@
  * step below a second labels its ticks in seconds with the decimals the step needs,
  * and a longer one as `elapsed` writes a time, such as "1 h 30 min", so a sequence of
  * hours doesn't read in thousands of seconds. A major tick's label reads back from its
- * tick (`flip`) where reading on from it would run past the axis's end. Rows are
+ * tick (`flip`) where reading on from it would run past the axis's end, and the major
+ * tick before it then goes unlabeled where the two labels would meet. Rows are
  * greedy: an extent takes the first row whose last extent ended at or before its
  * start, so overlapping extents never share a row and the row count is the smallest
  * that greedy order allows.
@@ -70,6 +71,8 @@ export const AXIS_LABEL_GAP = 8;
 // The room a major tick's label needs between its tick and the axis's end to read on
 // from it, for each character it holds: "0.125 s" is about 44 pixels wide.
 const LABEL_ROOM_PER_CHAR = 44 / 7;
+/** @param {string} label */
+const labelRoom = (label) => label.length * LABEL_ROOM_PER_CHAR;
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
@@ -168,11 +171,25 @@ function axisTicks(from, to, duration, pxPerMs) {
       time: rounded,
       major,
       label,
-      flip:
-        label !== null &&
-        (duration - rounded) * pxPerMs < label.length * LABEL_ROOM_PER_CHAR,
+      flip: label !== null && (duration - rounded) * pxPerMs < labelRoom(label),
       step,
     });
+  }
+  // A label that reads back runs toward the major tick before it, whose label reads
+  // on toward it; where the two need more room than lies between their ticks, the
+  // earlier one goes, so the axis's last time stays labeled.
+  /** @type {(typeof ticks)[number] | undefined} */
+  let before;
+  for (const tick of ticks) {
+    if (tick.label === null) continue;
+    if (
+      tick.flip &&
+      before?.label &&
+      !before.flip &&
+      (tick.time - before.time) * pxPerMs < labelRoom(before.label) + labelRoom(tick.label)
+    )
+      before.label = null;
+    before = tick;
   }
   return ticks;
 }

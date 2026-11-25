@@ -850,8 +850,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
             "Explore project files",
             "<h1>Project files</h1>"
             '<a href="#project-files">Back to files</a>'
-            '<lf-file-tree id="project-files" source="project" '
-            'data-height="280"></lf-file-tree>',
+            '<lf-file-tree id="project-files" source="project"></lf-file-tree>',
             head="<style>#project-files { --lf-file-tree-height:280px; }</style>",
         ),
         packages=("file-tree",),

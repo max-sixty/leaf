@@ -58,7 +58,7 @@
  * the page. A local page's read answers well within a second. Once a first read
  * has waited that second, as on leaf.page while a visitor's container starts, the
  * placeholder says "Loading file…" until the read answers and the page presents
- * without the file, whose text then lands as an arrival; the page's own controls
+ * without the file, whose text then lands as drawing under way; the page's own controls
  * and the names in its state don't wait for a server that is still starting.
  * Rejected: the word in the status slot, which sits at the header's far end from
  * the empty line the reader looks at; and never holding the page for the file,
@@ -75,19 +75,18 @@
  */
 import { html, nothing, render } from "/vendor/lit.js";
 import {
-  afterPresentation,
   boundFile,
   focusDestination,
   onCurrentLocation,
   rowWalk,
   shadowStage,
   tabStore,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { rove } from "/runtime/lib/roving.js";
 import { el } from "/runtime/lib/elements.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { presented } from "/runtime/lib/presented.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
@@ -127,6 +126,12 @@ customElements.define(
     #shown = null;
     /** @type {((binding: string) => string | null) | null} */
     #label = null;
+    // What each connection starts, and what its end stops.
+    /** @type {((signal: AbortSignal) => void) | null} */
+    #connect = null;
+    /** @type {(() => void) | null} */
+    #disconnect = null;
+    #connection = new AbortController();
 
     setup() {
       this.initialize();
@@ -148,9 +153,9 @@ customElements.define(
       this.#drawn?.();
     }
 
-    // A move keeps the views and the user's focus in one, since their connection
-    // lifetime follows the arrival batch (`whileConnected`), but `moveBefore` collapses
-    // the native selection, which CodeMirror would read back as a caret at the start.
+    // A move keeps the views and the user's focus in one, since it disconnects
+    // nothing, but `moveBefore` collapses the native selection, which CodeMirror would
+    // read back as a caret at the start.
     connectedMoveCallback() {
       this.#placeSelection?.();
     }
@@ -838,7 +843,7 @@ customElements.define(
         comparison?.placeSelection();
       };
       let initial = true;
-      whileConnected(this, (signal) => {
+      this.#connect = (signal) => {
         connected = true;
         editor.connect();
         comparison?.connect();
@@ -852,7 +857,7 @@ customElements.define(
           this.dispatchEvent(
             new PendingTaskEvent(Promise.race([first, waited.promise])),
           );
-          void afterPresentation(() => first);
+          void presented().then(() => this.dispatchEvent(new PendingTaskEvent(first)));
           initial = false;
         }
         watch();
@@ -861,21 +866,33 @@ customElements.define(
         const stopLanding = onCurrentLocation((/** @type {Element | null} */ node) => {
           if (node === this) returnToEditor();
         });
-        return () => {
-          connected = false;
-          stopLanding();
-          stopWatch?.();
-          stopWatch = null;
-          for (const of of files.values()) {
-            clearTimeout(of.timer);
-            finishSaving(of);
-          }
-          paint();
-          remember(file);
-          editor.disconnect();
-          comparison?.disconnect();
-        };
-      });
+        signal.addEventListener("abort", stopLanding);
+      };
+      this.#disconnect = () => {
+        connected = false;
+        stopWatch?.();
+        stopWatch = null;
+        for (const of of files.values()) {
+          clearTimeout(of.timer);
+          finishSaving(of);
+        }
+        paint();
+        remember(file);
+        editor.disconnect();
+        comparison?.disconnect();
+      };
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      this.#connection = new AbortController();
+      this.#connect?.(this.#connection.signal);
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+      this.#disconnect?.();
     }
   },
 );

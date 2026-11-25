@@ -8,7 +8,9 @@ import { createPlayground, same } from "./playground-view.js";
  * recordless action.
  * The instruction opens from its actions in a popover over the page, so reading it
  * moves nothing the user set or pressed, in any Layout; the log never records it. The
- * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
+ * popover's head holds a copy button, the UI library's, in the symbol press's face.
+ * It says its result on its own face, and a page served over plain HTTP under a machine
+ * name, which has no Clipboard API, can't copy from it. Rejected: unfolding
  * the instruction in the pane, which had to grow below the bar in a flowing page and
  * above it at the foot of a held workspace, and still moved the bar wherever a stage
  * at its floor, a resize or a short window left it no room.
@@ -65,16 +67,16 @@ import { createPlayground, same } from "./playground-view.js";
 import { render } from "/vendor/lit.js";
 import {
   aimedAt,
-  copyControl,
   focusDestination,
   holdFocus,
   onCurrentLocation,
   onPress,
   says,
   wear,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
+import { iconElement } from "/runtime/lib/icon-paths.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import "./lf-playground-output.js";
@@ -179,60 +181,71 @@ customElements.define(
     #drawn = undefined;
     #ready = false;
     #interactive = false;
+    // What the playground listens to while it stands in the page.
+    #connection = new AbortController();
 
     // A build that throws leaves the playground showing its failure (LeafElement).
     setup() {
       this.#build();
       this.#ready = true;
-      whileConnected(this, (signal) => {
-        const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
-        // The narrow layout places shared controls above the stage. Their actual
-        // height is also the landing inset for its content and any sticky toolbar. A
-        // quoted playground draws only its authored markup, with neither.
-        const controls = this.#view.controls;
-        /** @type {HTMLElement | null} */
-        const split = this.querySelector(":scope > .lf-playground-split");
-        const observer = sizeObserver((entries) => {
-          for (const entry of entries) {
-            const box = entry.borderBoxSize[0];
-            if (!box) continue;
-            split?.style.setProperty(
-              "--lf-playground-controls-height",
-              `${box.blockSize}px`,
-            );
-            return;
-          }
-        });
-        if (controls) observer.observe(controls);
-        // The instruction is a glance at the window's middle; a window changing width
-        // puts it away rather than reflowing it under the user, which also kept Web
-        // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
-        // Height alone changes as a phone's toolbars come and go, which keeps it.
-        let width = innerWidth;
-        const putAway = () => {
-          const instruction = this.#view.instruction;
-          if (innerWidth !== width && instruction) instruction.hidePopover();
-          width = innerWidth;
-        };
-        window.addEventListener("resize", putAway, { signal });
-        // Leaving the page records edits the pause hasn't yet, and nothing else: a
-        // value the controls can't hold draws as its default without being an edit.
-        const leave = () => this.#unsent.size && this.#commit();
-        document.addEventListener(
-          "visibilitychange",
-          () => document.visibilityState === "hidden" && leave(),
-          { signal },
-        );
-        window.addEventListener("pagehide", leave, { signal });
-        this.#draw();
-        // An edit left unrecorded across a disconnection records once input pauses.
-        if (this.#unsent.size) this.#recordLater();
-        return () => {
-          observer.disconnect();
-          stopPress();
-          clearTimeout(this.#pause);
-        };
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#ready) return;
+      const { signal } = (this.#connection = new AbortController());
+      const stopPress = onPress((start) => this.#holdRangePreview(start, signal));
+      // The narrow layout places shared controls above the stage. Their actual
+      // height is also the landing inset for its content and any sticky toolbar. A
+      // quoted playground draws only its authored markup, with neither.
+      const controls = this.#view.controls;
+      /** @type {HTMLElement | null} */
+      const split = this.querySelector(":scope > .lf-playground-split");
+      const observer = sizeObserver((entries) => {
+        for (const entry of entries) {
+          const box = entry.borderBoxSize[0];
+          if (!box) continue;
+          split?.style.setProperty(
+            "--lf-playground-controls-height",
+            `${box.blockSize}px`,
+          );
+          return;
+        }
       });
+      if (controls) observer.observe(controls);
+      // The instruction is a glance at the window's middle; a window changing width
+      // puts it away rather than reflowing it under the user, which also kept Web
+      // Awesome's copy icon re-measuring through the resize (a ResizeObserver loop).
+      // Height alone changes as a phone's toolbars come and go, which keeps it.
+      let width = innerWidth;
+      const putAway = () => {
+        const instruction = this.#view.instruction;
+        if (innerWidth !== width && instruction) instruction.hidePopover();
+        width = innerWidth;
+      };
+      window.addEventListener("resize", putAway, { signal });
+      // Leaving the page records edits the pause hasn't yet, and nothing else: a
+      // value the controls can't hold draws as its default without being an edit.
+      const leave = () => this.#unsent.size && this.#commit();
+      document.addEventListener(
+        "visibilitychange",
+        () => document.visibilityState === "hidden" && leave(),
+        { signal },
+      );
+      window.addEventListener("pagehide", leave, { signal });
+      this.#draw();
+      // An edit left unrecorded across a disconnection records once input pauses.
+      if (this.#unsent.size) this.#recordLater();
+      signal.addEventListener("abort", () => {
+        observer.disconnect();
+        stopPress();
+      });
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#connection.abort();
+      clearTimeout(this.#pause);
     }
 
     get values() {
@@ -334,16 +347,34 @@ customElements.define(
             this.#draw();
           });
         const { instruction } = initial;
-        // Leaf's copy control in the popover's head. A code block's Copy hides
+        // The copy button in the popover's head. A code block's Copy hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
         // shows the instruction where it was written, with no popover to copy from.
         if (instruction) {
-          const copy = copyControl("lf-playground-copy", {
-            label: "Copy instruction",
-            success: "Instruction copied",
-            error: "Unable to copy instruction",
-            role: "symbol",
+          const copy = offerActionElement(
+            document.createElement("wa-copy-button"),
+            "symbol",
+            "lf-playground-copy",
+            undefined,
+            { action: "copy" },
+          );
+          // The face's symbol, and Leaf's check and cross for the result, in the
+          // button's icon slots.
+          copy.querySelector(":scope > svg")?.setAttribute("slot", "copy-icon");
+          copy.append(
+            Object.assign(iconElement("check", "lf-playground-copy-icon"), {
+              slot: "success-icon",
+            }),
+            Object.assign(iconElement("cross", "lf-playground-copy-icon"), {
+              slot: "error-icon",
+            }),
+          );
+          Object.assign(copy, {
+            copyLabel: "Copy instruction",
+            successLabel: "Instruction copied",
+            errorLabel: "Unable to copy instruction",
+            tooltip: "none",
           });
           copy.addEventListener(
             "click",

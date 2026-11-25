@@ -33,8 +33,8 @@ assert:
       widgetController(this).read() in render() passes too. It must rely on LeafElement
       to pause while detached and catch up on
       reinsertion. The native window resize listener must still be registered on
-      connection and removed on disconnection, through whileConnected or connection
-      callbacks that call the super method; fail if it lasts the element's whole life.
+      connection and removed on disconnection, through connection callbacks that call
+      the super method; fail if it lasts the element's whole life.
   - type: llm-rubric
     metric: reading-subscription-lifetime
     value: |

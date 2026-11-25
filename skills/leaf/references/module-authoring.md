@@ -58,15 +58,12 @@ the DOM takes the element it acts for as its first argument.
 
 In this file:
 
-- "Connection lifetimes": `whileConnected` holds a connection's listeners and observers.
-- "Startup and presentation": `afterPresentation` and `whenNear` defer heavy work,
-  `growthIsSeen` says whether growing now would move what the user sees, and
-  `whileInterfaceConnected` connects a page script to a widget.
+- "Startup and presentation": `whenNear` defers heavy work until the reader comes
+  near.
 - "Retained nodes": `setChildren`, `setChildLists`, `move` and `setRenderedChildren`
   place nodes the module keeps.
 - "Shadow stages and styles": `shadowStage` builds a shadow root that wears the page's
   styles.
-- "Scheduling paints": `frameFor` schedules one paint a frame.
 - "Contained examples and scoped appearance": `mountSample` mounts a contained Leaf
   page, and `wear` gives an element a scoped appearance.
 
@@ -89,7 +86,7 @@ In [module-reading.md](module-reading.md):
 - "Reading declarations": `layerFact` reads the registry.
 - "Taking the user somewhere": `go`.
 - "Markdown": `pageLinks`.
-- "Code": `langForPath`, `dressCode` and `copyControl`.
+- "Code": `langForPath`.
 - "Media URLs": `scopedMediaUrl`.
 - "Reading obligations and the On lists": `readObligations`, `readQueues` and
   `answerWords`.
@@ -103,36 +100,23 @@ In [module-input.md](module-input.md):
 - "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
   redraw, `onCurrentLocation` reads where the user is, and `onPress` and
   `onPressAway` follow a pointer's press.
-- "Delayed work": `retainUserIntent`.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
-- "Text entry and drafts": `wireInput` wires a text box, `draft` keeps its draft, and
-  `leafEditorView` wraps a CodeMirror editor.
+- "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
+  draft.
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Reading regions": `scrollerFor`.
-- "Holding the reader's place": `holdPlace` and `HeldReading`.
-- "Scrolling to a destination": `scrollIntoView`, `alreadyShown`, `scrollersOf`,
-  `landingInsets` and `shownWindow`.
+- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
 
 - "Margin contributions": `registerContribution`.
-- "Reading and opening Threads from a widget": `readThreads`, `threadActions` and
-  `threadInput`.
+- "Reading and opening Threads from a widget": `readThreads` and `threadActions`.
 - "Owning the primary conversation presentation": `registerThreadPresentation`.
 - "Widget-local Thread placement": `threadSurface`.
 - "Page annotation presentation": `placePageThreads`.
-
-In [module-previews.md](module-previews.md):
-
-- "Previews": `placePreview`.
-
-In [module-controls.md](module-controls.md):
-
-- "Generated controls": `searchField`.
 
 ### Shared web code
 
@@ -196,8 +180,8 @@ says nothing aloud. Off Leaf:
 This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
 script", lists.
 
-- Build once, behind a first-connection guard, and hold each connection's listeners,
-  observers and registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
+- Build once, behind a first-connection guard, and end in `disconnectedCallback` what
+  each connection starts beyond the element ("Upgrade", "Connection lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
@@ -206,9 +190,9 @@ script", lists.
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
   "Words it writes").
-- Keep the widget's visible geometry stable as its state updates ("First paint"), and
-  meet the rest of [interface-goals.md](interface-goals.md).
-- Schedule paints with `frameFor`, observe size through the library's frame pass, and
+- Keep the widget's visible geometry stable as its state updates, and meet the rest of
+  [interface-goals.md](interface-goals.md).
+- Schedule paints and observe size through the library's frame pass, and
   write a value only where it changes ("Scheduling paints", "Writes that change
   nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
@@ -226,9 +210,7 @@ script", lists.
 A custom element builds behind a guard that passes only on its first connection, since
 `connectedCallback` runs again each time a revision or a thread puts the element back.
 The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, and an
-element that imports nothing keeps a flag of its own. Use `disconnectedCallback` only
-for teardown that must happen at once, such as cancelling a grab or removing hoisted
-UI.
+element that imports nothing keeps a flag of its own.
 
 A widget inside an element whose `exhibit` declaration applies (including its optional
 `when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
@@ -245,36 +227,35 @@ where the box goes and what removes it.
 
 ## Connection lifetimes
 
-A revision or a thread can take a widget out of the page and put it back. Behind the
-element's first-connection guard, register `whileConnected(element, start)` once for
-what a connection holds:
+A revision or a thread can take a widget out of the page and put it back. What a
+connection holds beyond the element and the nodes it built, such as a listener on
+`window` or `document`, a registration with Leaf or a timer, starts in
+`connectedCallback` and ends in `disconnectedCallback`. One `AbortController` ends the
+listeners together:
 
 ```js
+#connection = new AbortController();
 connectedCallback() {
-  if (this.built) return;
-  this.built = true;
-  const schedulePaint = frameFor(this, () => this.measure());
-  whileConnected(this, (signal) => {
-    window.addEventListener("resize", schedulePaint, { signal });
-    // What the signal can't end is this connection's cleanup.
-    const sizes = sizeObserver(schedulePaint);
-    sizes.observe(this.body);
-    return () => sizes.disconnect();
-  });
+  if (once(this)) this.build();
+  const { signal } = (this.#connection = new AbortController());
+  window.addEventListener("resize", this.schedulePaint, { signal });
+}
+disconnectedCallback() {
+  this.#connection.abort();
 }
 ```
 
-Leaf calls `start(signal)` now and on each return. When the element leaves, Leaf aborts
-the signal and runs the cleanup `start` returned. If `start` throws, Leaf never calls
-it again. `whileConnected` returns a function that ends the registration for good.
+A listener on the element or on a node it built, and a size observer of them, go with
+the element and need no ending. A `LeafElement` calls `super` in both callbacks.
 
-Moving an element within the page doesn't count as leaving. When a revision replaces a
-widget, the old element's cleanup runs before the new one's `start`, so a registration
-only one element may hold, such as `registerThreadPresentation`, passes to the
-replacement.
+Leaf moves an element with `moveBefore` where the browser has it, which calls the
+element's `connectedMoveCallback` in place of the other two where it defines one. An
+empty one keeps what the connection holds through the move, such as a mounted frame,
+an open card or a scrolled list. Where the browser lacks `moveBefore`, as WebKit does,
+a move leaves and returns.
 
-Have `start` restore what its cleanup removed, and when the element leaves, drop
-unfinished work but keep finished nodes.
+Have `connectedCallback` restore what `disconnectedCallback` removed, and when the
+element leaves, drop unfinished work but keep finished nodes.
 
 ## Revisions
 
@@ -332,24 +313,21 @@ its first measurements there. `lf-page-interface` fires at startup and again whe
 revision is applied in place; UI built from the authored structure rebuilds there and
 passes any asynchronous preparation to `detail.present(promise)`.
 
-A page script reaches a widget's methods only once the widget has upgraded.
-`whileInterfaceConnected(element, {declare, connect})` runs `declare()` once, for what
-the widget accepts once per lifetime, then `connect(signal)` at the first
-`lf-page-interface`, holding presentation until it returns, and again at once on each
-reconnection; the cleanup `connect` returns runs as the element leaves. A playground's
-page script is the worked example (the playground package's author instructions,
-"Stateful previews").
+A page script reaches a widget's methods only once the widget has upgraded, which every
+widget on the page has by the first `lf-page-interface`. A listener for that event
+`{ once: true }` declares what the widget accepts once per lifetime; the page presents
+after its listeners have run. A playground's page script is the worked example (the
+playground package's author instructions, "Stateful previews").
 
-Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`, or until they come near its element through
-`whenNear(element, () => …)`, which returns the step that stops waiting. Hand work that
-starts now but need not delay presentation, such as a slow load whose result moves
-nothing visible, to `afterPresentation(() => promise)`. Checks and tests that wait for
-the page wait for the work each has started; `page check --render` starts what
-`whenNear` holds.
-Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
-now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
+Start a heavy renderer that can wait until the user has the page at `lf-presentation`,
+or at once where `body[data-lf-presented]` is already set, and say what it draws with a
+`pending-task` event (`module-plain-elements.md`, "Drawing"): said after presentation,
+it holds the page's readiness rather than its presentation, so checks and tests wait
+for it. Work that starts now but need not delay presentation, such as a slow load whose
+result moves nothing visible, is said the same way once the page has presented. Run one
+that can wait until the reader comes near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting;
+`page check --render` starts what it holds.
 
 ### First paint
 
@@ -359,11 +337,11 @@ readings.
 - Draw a widget's complete view in one place, its `state` setter or its one `render()`.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
   a second initial renderer or transfer generated nodes between renderers.
-- Size the widget in the package theme, including its initial authored drawing.
-  A shadow template uses native slots for authored children, keeping their nodes and
-  browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
+- Size the widget in the package theme, including its initial authored drawing. A
+  custom element is inline until a rule gives it a `display`, so give the tag its
+  `display` there. A shadow template uses native slots for authored children, keeping
+  their nodes and browser state in the light DOM. Where the markup can't say how tall
+  the drawing will be, the page moves once as it draws.
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as
@@ -403,8 +381,8 @@ text selection the user made in it. A `LeafElement` places retained nodes in its
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
 needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
-`placeSelection()` from its `connectedMoveCallback`.
+custom element holding an editor, such as CodeMirror's, writes the editor's selection
+back from its `connectedMoveCallback`.
 
 ### Shadow stages and styles
 
@@ -432,17 +410,14 @@ page's own stylesheet.
 
 ### Scheduling paints
 
-`frameFor(element, paint)` returns a function that schedules one call to `paint` for the
-next render, however often it is called. It does nothing while the element is out of the
-page, and leaving cancels a scheduled paint, so schedule it again from `start`.
-
-Schedule a widget's other rendering work, and observe size, through the library's
+Schedule a widget's rendering work, and observe size, through the library's
 [`frame-pass.js`](../../../browser/runtime/lib/frame-pass.js), in place of
 `requestAnimationFrame` and `new ResizeObserver`. That module holds the one pass per
-frame that every rendering callback on the page runs in, which `frameFor` schedules on,
-and the size observer that goes with it. The page doesn't count as settled until that
-work runs, nor while sizes change, so motion that may run until the user stops it, such
-as playback, calls the browser's `requestAnimationFrame` instead.
+frame that every rendering callback on the page runs in, the size observer that goes
+with it, and `frameFor`, whose function schedules one paint in the next pass however
+often it is called, and paints only while the element stands in the page. The page doesn't count as settled until that work runs, nor while sizes change,
+so motion that may run until the user stops it, such as playback, calls the browser's
+`requestAnimationFrame` instead.
 
 Have a size observer's callback schedule a paint from `frameFor` rather than draw. A
 drawing made inside a size delivery has the browser report a ResizeObserver loop, which

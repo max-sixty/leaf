@@ -11,9 +11,12 @@ from leaf.render_checks import wait_until_ready
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
-    """News above a visible passage waits; its fixed control never dodges activation.
-    The control is a button, worked here by the keyboard; a tap activates the same
+def test_activity_counts_arrivals_while_closed_and_draws_them_while_open(
+    browser, serve
+):
+    """A closed feed counts what arrives and moves nothing; an open one draws each
+    arrival as it comes, with the user kept on the row they were on. The control is a
+    button of fixed size, worked here by the keyboard; a tap activates the same
     button."""
     html = leaf_page(
         "History",
@@ -24,6 +27,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
     url = live_url(serve(html))
     page = open_page(browser, url)
     control = page.locator("#feed .lf-activity-news")
+    rows = page.locator("#feed .lf-activity-row")
     line = page.locator("#reading")
     expect(control).to_have_text("Show activity")
     before = line.bounding_box()
@@ -39,20 +43,18 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
     )
     told(page)
     expect(control).to_have_text("Show activity · 1 new")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
+    expect(rows).to_have_count(1)
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
     control.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(control).to_be_focused()
     control.press("Enter")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
+    expect(rows).to_have_count(2)
     expect(control).to_have_text("Hide activity")
-    focused_row = page.locator("#feed .lf-activity-row").first.locator(
-        ".lf-activity-target"
-    )
     page.keyboard.press("Tab")
-    expect(focused_row).to_be_focused()
-    before = line.bounding_box()
+    focused_row = page.locator("#feed .lf-activity-target:focus")
+    expect(focused_row).to_have_count(1)
+    held = focused_row.evaluate("node => (window.heldRow = node, node.textContent)")
     trigger = control.bounding_box()
     append_command(
         serve.page_dir,
@@ -65,91 +67,24 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
         },
     )
     told(page)
-    expect(control).to_have_text("Show 1 new")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
-    assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
+    expect(rows).to_have_count(3)
+    expect(rows.first).to_contain_text("A second arrival")
+    expect(control).to_have_text("Hide activity")
     assert control.bounding_box() == trigger
-    expect(focused_row).to_be_focused()
-    page.keyboard.press("Shift+Tab")
-    expect(control).to_be_focused()
-    control.press("Space")
-    expect(page.locator("#feed .lf-activity-row")).to_have_count(3)
-    expect(page.locator("#feed .lf-activity-row").first).to_contain_text(
-        "A second arrival"
-    )
-    assert control.bounding_box() == trigger
-    expect(control).to_be_focused()
+    assert page.evaluate("() => document.activeElement === window.heldRow")
+    assert focused_row.text_content() == held
 
-    # An existing row changing shape is news too, even with no newly added row.
-    before = line.bounding_box()
-    resolution = append_command(
-        serve.page_dir, {"kind": "resolve", "author": "user", "parent": first["id"]}
-    )
-    told(page)
-    control.click()
-    before = line.bounding_box()
-    append_command(
-        serve.page_dir, {"kind": "undo", "author": "user", "undoes": resolution["id"]}
-    )
-    told(page)
-    expect(control).to_have_text("Activity changed")
-    assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
-    control.click()
-    expect(
-        page.locator("#feed .lf-activity-row", has_text="Me resolved")
-    ).to_have_attribute("data-lf-undone", "")
-    assert control.bounding_box() == trigger
-    before_revision = line.bounding_box()
-    stamp_page(
-        serve.page_dir,
-        html.replace("Keep this visible", "Still keep this visible"),
-        "Revise the policy",
-    )
-    wait_for_revision(page, 2)
-    expect(control).to_have_attribute("aria-expanded", "true")
-    expect(control).to_have_text("Show 1 new")
-    assert line.bounding_box()["y"] == pytest.approx(before_revision["y"], abs=0.5)
-    # Changing executable inputs replaces the document, rather than patching it.
-    page.add_init_script("""
-      window.activityFrames = [];
-      let remaining = 180;
-      function readFrame() {
-        const line = document.getElementById("reading");
-        const control = document.querySelector("#feed .lf-activity-news");
-        if (line && control) window.activityFrames.push({
-          line: line.getBoundingClientRect().y,
-          open: control.getAttribute("aria-expanded")
-        });
-        if (--remaining) requestAnimationFrame(readFrame);
-      }
-      requestAnimationFrame(readFrame);
-    """)
-    before_replacement = line.bounding_box()
+    # A revision that replaces the document keeps the feed open and the user on its
+    # control.
     original_document = page.evaluate("performance.timeOrigin")
+    control.focus()
     expect(control).to_be_focused()
     fresh = html.replace("Keep this visible", "Still keep this visible").replace(
         "</head>", '<script type="module">void 0;</script></head>'
     )
     stamp_page(serve.page_dir, fresh, "Replace executable inputs")
-    wait_for_revision(page, 3)
+    wait_for_revision(page, 2)
     wait_until_ready(page)
     expect(control).to_have_attribute("aria-expanded", "true")
     assert page.evaluate("performance.timeOrigin") != original_document
-    assert line.bounding_box()["y"] == pytest.approx(before_replacement["y"], abs=0.5)
     expect(control).to_be_focused()
-    frames = page.evaluate("window.activityFrames")
-    assert frames
-    assert all(frame["open"] == "true" for frame in frames)
-    assert all(
-        frame["line"] == pytest.approx(before_replacement["y"], abs=0.5)
-        for frame in frames
-    )
-    # Generated row targets use the same keyed handoff as the notice.
-    target = page.locator("#feed .lf-activity-row button.lf-activity-target").first
-    control.press("Tab")
-    expect(target).to_be_focused()
-    stamp_page(serve.page_dir, fresh.replace("void 0", "void 1"), "Replace again")
-    wait_for_revision(page, 4)
-    wait_until_ready(page)
-    expect(target).to_be_focused()
-    assert line.bounding_box()["y"] == pytest.approx(before_replacement["y"], abs=0.5)

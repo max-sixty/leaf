@@ -2,7 +2,6 @@
    Local selection and ordering never change the log or decide obligation membership. */
 import { noChange } from "/vendor/lit.js";
 import {
-  HeldReading,
   go,
   nameOf,
   readObligations,
@@ -13,7 +12,6 @@ import {
   setChildren,
   shadowStage,
   threadActions,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
@@ -24,21 +22,27 @@ customElements.define(
   class extends LeafElement {
     setup() {
       this.build();
-      whileConnected(this, () => {
-        this.presentation = registerThreadPresentation(this, {
-          render: (collection, parts) => this.present(collection, parts),
-          // A layout that already draws the part asked for keeps it: Shelf draws every
-          // conversation whole, and Feed every message and the selected one's reply box.
-          reveal: (key, { part }) => {
-            this.selected = key;
-            const drawn =
-              this.mode === "Shelf" ||
-              (this.mode === "Feed" && (part === "message" || part === "reply"));
-            if (!drawn) this.mode = "Conversation";
-          },
-        });
-        return () => this.presentation.unregister();
+    }
+    connectedCallback() {
+      super.connectedCallback();
+      this.presentation = registerThreadPresentation(this, {
+        render: (collection, parts) => this.present(collection, parts),
+        // A layout that already draws the part asked for keeps it: Shelf draws every
+        // conversation whole, and Feed every message and the selected one's reply box.
+        reveal: (key, { part }) => {
+          this.selected = key;
+          const drawn =
+            this.mode === "Shelf" ||
+            (this.mode === "Feed" && (part === "message" || part === "reply"));
+          if (!drawn) this.mode = "Conversation";
+        },
       });
+    }
+    // A move keeps the conversations the workspace presents.
+    connectedMoveCallback() {}
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.presentation.unregister();
     }
     render() {
       this.paintObligations();
@@ -139,7 +143,6 @@ customElements.define(
       create.addEventListener("click", (event) => {
         event.preventDefault();
         const text = this.input.value;
-        this.indexOrder.release();
         const creation = threadActions.create({ text });
         if (!creation) return;
         this.input.value = "";
@@ -152,16 +155,6 @@ customElements.define(
         this.mode = "Conversation";
         void this.presentation.update();
       });
-      this.indexOrder = new HeldReading(
-        this,
-        () => [this.list, ...Object.values(this.queues)],
-        () => {
-          void this.presentation.update();
-        },
-      );
-      this.updateLists = offerAction("word", "", "Lists current");
-      this.updateLists.addEventListener("click", () => this.indexOrder.show());
-      toolbar.append(this.updateLists);
       this.layout.append(toolbar, body, compose);
       shadowStage(this, [style, this.layout]);
     }
@@ -241,7 +234,7 @@ customElements.define(
     }
     indexLayout() {
       const queues = readQueues();
-      const current = JSON.stringify({
+      return {
         threads: readThreads().threads.map((thread) => thread.key),
         ...Object.fromEntries(
           Object.keys(this.queues).map((name) => [
@@ -249,11 +242,7 @@ customElements.define(
             queues[name].map((item) => item.id),
           ]),
         ),
-      });
-      const shown = this.indexOrder.hold(current);
-      keepsText(this.updateLists, "Show updated lists");
-      keeps(this.updateLists, "disabled", shown === current ? "" : null);
-      return JSON.parse(shown);
+      };
     }
     paintObligations() {
       const items = readObligations();

@@ -83,10 +83,7 @@ import {
   nameOf,
   motion,
   draft,
-  whileConnected,
-  dressCode,
   focusDestination,
-  retainUserIntent,
   scrollIntoView,
   onCurrentLocation,
   onPressAway,
@@ -98,6 +95,7 @@ import { addressableWord } from "/runtime/lib/element-word.js";
 import { nextRender } from "/runtime/lib/frame-pass.js";
 import { restArming } from "/runtime/lib/rest-arming.js";
 import { motionTime } from "/runtime/lib/motion-timing.js";
+import { noInputSince } from "/runtime/lib/input-since.js";
 import {
   paintMarkdown,
   markdownSourceOffset,
@@ -167,14 +165,16 @@ customElements.define(
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     #recovered = false;
+    // Whether the draft offers its doors: not as an exhibit.
+    #live = false;
+    /** @type {(() => void) | null} */
+    #disconnect = null;
     /** @type {ReturnType<typeof motion> | null} */
     #returnMotion = null;
     /** @type {number | null} */
     #cancelSize = null;
     /** @type {ReturnType<typeof onPressAway> | null} */
     #stopPressAway = null;
-    /** @type {Promise<void> | undefined} */
-    #dressing;
     #states = this.attachInternals().states;
     // The toolbar shows again, after typing put it away, while the pointer is on it, and
     // takes presses once the pointer has rested there.
@@ -244,30 +244,40 @@ customElements.define(
       // settlement is the case that does move this tab: the words are sent or discarded,
       // so an open box holding them has nothing left to hold, and closing it lets replay
       // paint whatever the log ends up saying.
-      whileConnected(this, () => {
-        const stopDraft = this.#watchDraft();
-        // Typing lasts while the caret does: a box the user has left shows Save and
-        // Discard, so it never reads as saved while it still holds their words.
-        const stopLocation = onCurrentLocation((node) => {
-          if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
-        });
-        // An editor a refused save reopened while the draft was out of the page says
-        // its keys as the draft returns.
-        this.#editor?.dispatchEvent(
-          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-        );
-        if (this.#editor && !this.#resumeProjection && this.#available())
-          this.#resumeProjection = this.defer();
-        return () => {
-          this.#returnMotion?.cancel();
-          this.#stopPressAway?.();
-          this.#stopPressAway = null;
-          stopDraft?.();
-          stopLocation();
-          this.#resumeProjection?.();
-          this.#resumeProjection = null;
-        };
+      this.#live = true;
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#live) return;
+      const stopDraft = this.#watchDraft();
+      // Typing lasts while the caret does: a box the user has left shows Save and
+      // Discard, so it never reads as saved while it still holds their words.
+      const stopLocation = onCurrentLocation((node) => {
+        if (this.#states.has("typing") && node !== this.#editor) this.#keepTools();
       });
+      this.#disconnect = () => {
+        stopDraft?.();
+        stopLocation();
+      };
+      // An editor a refused save reopened while the draft was out of the page says
+      // its keys as the draft returns.
+      this.#editor?.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
+      if (this.#editor && !this.#resumeProjection && this.#available())
+        this.#resumeProjection = this.defer();
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#returnMotion?.cancel();
+      this.#stopPressAway?.();
+      this.#stopPressAway = null;
+      this.#disconnect?.();
+      this.#disconnect = null;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     #recoverEdit() {
@@ -519,7 +529,7 @@ customElements.define(
       // another tab's settlement brings takes focus from wherever they actually are.
       const left = document.activeElement;
       const stood = this.contains(left);
-      const mayReturn = retainUserIntent({ source: left });
+      const mayReturn = noInputSince();
       this.#editor.remove();
       this.#editor = null;
       this.#keepTools();
@@ -586,19 +596,6 @@ customElements.define(
           );
         }
       }
-    }
-
-    // The body `render` painted draws its code and formulas once it stands, and the
-    // update waits for them (lib/leaf-element.js, `pending-task`).
-    /** @param {Map<PropertyKey, unknown>} changed */
-    updated(changed) {
-      super.updated(changed);
-      this.#dressing = dressCode(this.#body);
-    }
-    async getUpdateComplete() {
-      const result = await super.getUpdateComplete();
-      await this.#dressing;
-      return result;
     }
 
     // A live editor owns its transient text; the complete state waits for it.

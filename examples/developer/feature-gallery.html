@@ -176,15 +176,10 @@
       ]
     </script>
     <script type="module">
-      import {
-        afterPresentation,
-        connection,
-        generate,
-        readObligations,
-        whileConnected,
-      } from "/runtime/widget-api.js";
+      import { connection, generate, readObligations } from "/runtime/widget-api.js";
       import { once } from "/runtime/lib/once.js";
       import { keepsText } from "/runtime/lib/keeps.js";
+      import { presented } from "/runtime/lib/presented.js";
 
       document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
@@ -192,26 +187,20 @@
           return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Reading…");
-              try {
-                const response = await connection("example").fetch("/items");
-                keepsText(
-                  output,
-                  `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
-                );
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          keepsText(output, "Reading…");
+          try {
+            const response = await connection("example").fetch("/items");
+            keepsText(
+              output,
+              `HTTP ${response.status}: ${response.body.slice(0, 500)}`,
+            );
+          } catch (error) {
+            keepsText(output, error.message);
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
@@ -221,31 +210,25 @@
           return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
-        whileConnected(section, (signal) => {
-          button.addEventListener(
-            "click",
-            async () => {
-              button.disabled = true;
-              keepsText(output, "Generating…");
-              try {
-                const result = await generate({
-                  input: "Write a five-word headline: A library now opens on Sundays.",
-                  schema: {
-                    type: "object",
-                    properties: { headline: { type: "string" } },
-                    required: ["headline"],
-                    additionalProperties: false,
-                  },
-                });
-                keepsText(output, `${result.value.headline} (${result.model})`);
-              } catch (error) {
-                keepsText(output, error.message);
-              } finally {
-                button.disabled = false;
-              }
-            },
-            { signal },
-          );
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          keepsText(output, "Generating…");
+          try {
+            const result = await generate({
+              input: "Write a five-word headline: A library now opens on Sundays.",
+              schema: {
+                type: "object",
+                properties: { headline: { type: "string" } },
+                required: ["headline"],
+                additionalProperties: false,
+              },
+            });
+            keepsText(output, `${result.value.headline} (${result.model})`);
+          } catch (error) {
+            keepsText(output, error.message);
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
@@ -289,7 +272,7 @@
         if (state.versions.some(({ version }) => version === 2))
           framingScenario.hidden = false;
       };
-      void afterPresentation(revealFraming);
+      void presented().then(revealFraming);
       const frameOpener = document.querySelector("#bg-durable-frame-open");
       frameOpener.addEventListener("click", () => {
         const frame = document.querySelector("#bg-durable-frame");

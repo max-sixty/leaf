@@ -1,7 +1,7 @@
 /* Atlas owns this dashboard's composition. Shared work readings keep counts,
  * stopped tasks and assignments consistent with the recorded decisions. */
 import { html, noChange, render, repeat } from "/vendor/lit.js";
-import { elementById, HeldReading, readWork } from "/runtime/widget-api.js";
+import { elementById, readWork } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
@@ -21,19 +21,6 @@ customElements.define(
       const stopped = this.overview.querySelector(".atlas-stopped > ul");
       keeps(stopped, "data-lf-gen", "1");
       stopped.toggleAttribute("data-lf-echo", true);
-      this.hold = new HeldReading(
-        this,
-        () => [this.overview.querySelector(".atlas-stopped")],
-        () => this.requestUpdate(),
-      );
-      this.button = this.overview.querySelector(".atlas-refresh");
-      this.button.addEventListener("click", () => {
-        this.hold.release();
-        for (const child of this.querySelectorAll("lf-atlas-worker, lf-atlas-tree"))
-          child.showLatest();
-        this.requestUpdate();
-      });
-      this.addEventListener("atlas-reading", () => this.requestUpdate());
     }
     render() {
       if (!this.overview) return noChange;
@@ -50,21 +37,11 @@ customElements.define(
           this.overview.querySelector(`[data-atlas-count="${name}"]`),
           String(value),
         );
-      const next = JSON.stringify(
-        reading.stopped.map((row) => [row.element.id, row.title]),
-      );
-      const shown = this.hold.hold(next);
-      const pending =
-        next !== shown ||
-        [...this.querySelectorAll("lf-atlas-worker, lf-atlas-tree")].some(
-          (child) => child.pending,
-        );
-      this.button.toggleAttribute("disabled", !pending);
       render(
         repeat(
-          JSON.parse(shown),
-          ([id]) => id,
-          ([id, title]) => html`<li><a href=${`#${id}`}>${title}</a></li>`,
+          reading.stopped,
+          (row) => row.element.id,
+          (row) => html`<li><a href=${`#${row.element.id}`}>${row.title}</a></li>`,
         ),
         this.overview.querySelector(".atlas-stopped > ul"),
       );

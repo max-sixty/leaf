@@ -19,12 +19,7 @@
 // A `--seek` command, such as a step button's `commandfor` press, holds the result of
 // the step its button's value names.
 
-import {
-  holdFocus,
-  scrollIntoView,
-  shownWindow,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { holdFocus, scrollIntoView } from "/runtime/widget-api.js";
 import { offer } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
@@ -65,17 +60,15 @@ customElements.define(
     #inspectorPaint = 0;
 
     connectedCallback() {
-      if (!once(this)) return;
-      this.#build();
-      whileConnected(this, () => {
-        const sizing = sizeObserver(() => this.#paint());
-        sizing.observe(this.stage);
-        this.#paint();
-        return () => {
-          sizing.disconnect();
-          this.#pause();
-        };
-      });
+      if (once(this)) {
+        this.#build();
+        sizeObserver(() => this.#paint()).observe(this.stage);
+      }
+      this.#paint();
+    }
+
+    disconnectedCallback() {
+      this.#pause();
     }
 
     #build() {
@@ -311,7 +304,7 @@ customElements.define(
           offset(10),
           shift({
             boundary: this.stage,
-            rootBoundary: this.hasAttribute("data-phone") ? shownWindow() : "document",
+            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
             padding: 10,
             crossAxis: true,
           }),

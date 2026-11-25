@@ -74,7 +74,6 @@ import {
   readObligations,
   readQueues,
   scrollIntoView,
-  whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
@@ -202,14 +201,16 @@ customElements.define(
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
       if (this.matches("[data-lf-exhibit] *")) return;
-      whileConnected(this, (signal) => {
-        const options = { signal };
-        this.addEventListener("pointerdown", (event) => this.#press(event), options);
-        this.addEventListener("pointermove", (event) => this.#follow(event), options);
-        this.addEventListener("pointerup", (event) => this.#release(event), options);
-        this.addEventListener("pointercancel", () => this.#settle(), options);
-        return () => this.#settle();
-      });
+      this.addEventListener("pointerdown", (event) => this.#press(event));
+      this.addEventListener("pointermove", (event) => this.#follow(event));
+      this.addEventListener("pointerup", (event) => this.#release(event));
+      this.addEventListener("pointercancel", () => this.#settle());
+    }
+
+    // A drag the deck's departure cut short lets its card go.
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#settle();
     }
 
     // Each card's obligations, or null until the page's first reading is in: what the

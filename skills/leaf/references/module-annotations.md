@@ -10,13 +10,12 @@ A widget puts its actions and statuses in the page's margin with
 `t` reach them, and inserts nothing into the page's content. `target` is an element, or
 a function returning the one the actions currently sit beside. Set `source` to the
 widget that owns them when the controls have to sit beside an ancestor that outlives
-it. For example, behind the first-connection guard of a widget whose `save()` method
-does the work:
+it. For example, in a widget whose `save()` method does the work:
 
 ```js
-import { registerContribution, whileConnected } from "/runtime/widget-api.js";
+import { registerContribution } from "/runtime/widget-api.js";
 
-whileConnected(this, () => {
+connectedCallback() {
   this.actions = registerContribution({
     key: this.id,
     target: this,
@@ -27,8 +26,10 @@ whileConnected(this, () => {
     }),
     activate: () => this.save(),
   });
-  return () => this.actions.unregister();
-});
+}
+disconnectedCallback() {
+  this.actions.unregister();
+}
 ```
 
 `read()` returns data, never controls: the actions available in the widget's current
@@ -134,8 +135,7 @@ inside a datum. `prefix` and `suffix`, where the anchor has them, are the text b
 and after the quote, which tell two copies of the same words apart.
 [events.md](../../../src/leaf/events.md), "Anchors", defines every field.
 
-`threadInput(element)` returns the reply editor of the Thread containing that element,
-or `null` outside one. To take the user to a Thread, hand it to `go`
+To take the user to a Thread, hand it to `go`
 ([module-reading.md, "Taking the user somewhere"](module-reading.md#taking-the-user-somewhere)).
 
 `threadActions` acts on Threads through Leaf's own path, showing the result at once:
@@ -161,8 +161,8 @@ describes.
 
 A package that provides the page's main conversation reader, such as a shelf of
 conversations or a feed of turns, registers
-`registerThreadPresentation(owner, {render, reveal})` in `whileConnected`; a page has at
-most one. Leaf then opens threads there instead of in its floating panel, and widgets
+`registerThreadPresentation(owner, {render, reveal})` as it connects and unregisters
+it as it leaves; a page has at most one. Leaf then opens threads there instead of in its floating panel, and widgets
 inside the messages it draws live there.
 
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
@@ -326,7 +326,7 @@ order, one over its words in each text node they run through, to measure where t
 words are drawn.
 
 The registration throws on other pages, and returns a handle with `read()`, `update()`,
-`unregister()`, `open(node)` and `reveal(key)`; register it in `whileConnected`.
+`unregister()`, `open(node)` and `reveal(key)`.
 `read()` returns what `readThreads()` returns. `update()` asks for `render` again and
 returns nothing to await, so do what must follow a placement in the `onCommit` its
 `render` is handed, which runs once Leaf has filled the outlets. `open(node)` opens the
@@ -335,7 +335,6 @@ element with an `id`, `node` itself included, and throws where there is none.
 `reveal(key)` takes the user to that Thread, in the outlet that holds it or else in
 Leaf's panel.
 
-Keep outlets keyed by thread, and hold size changes back with `HeldReading`
-(`module-scroll-and-motion.md`, "Holding the reader's place"). An owner that scrolls
+Keep outlets keyed by thread. An owner that scrolls
 inside its own box registers it as a reading region. Whatever the owner doesn't show
 stays in Threads and the On lists of Leaf's panel.

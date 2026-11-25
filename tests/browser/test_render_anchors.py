@@ -1649,15 +1649,16 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
-          const {dressCode} = await window.__lfWidgetApi();
+          const frame = () => new Promise(requestAnimationFrame);
           const code = document.querySelector('#marked code');
           const mark = code.querySelector('mark');
           const target = code.querySelector('#target');
           const previous = [...code.querySelectorAll('[data-lf-syn]')];
           code.className = 'language-javascript';
-          await dressCode(code);
+          while (code.dataset.lfSyntax !== 'javascript') await frame();
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          await dressCode(code);
+          await frame();
+          await frame();
           return code.querySelector('mark') === mark
             && code.querySelector('#target') === target
             && mark.textContent === 'f load(path):\\n    return "rea'
@@ -1672,16 +1673,17 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
         text = page.evaluate(
             """async () => {
-              const {dressCode} = await window.__lfWidgetApi();
               const code = document.createElement('code');
               code.className = 'language-python';
               code.textContent = 'old = 1';
               document.querySelector('#later').after(
                 Object.assign(document.createElement('pre'), {id: 'rewritten'}));
               document.querySelector('#rewritten').append(code);
-              const first = dressCode(code);
+              await new Promise(requestAnimationFrame);
               code.textContent = 'new = 2';
-              await Promise.all([first, dressCode(code)]);
+              delete code.dataset.lfSyntax;
+              while (code.dataset.lfSyntax !== 'python')
+                await new Promise(requestAnimationFrame);
               return code.textContent;
             }"""
         )
@@ -3761,7 +3763,7 @@ def clearance_page(browser, serve, rail=True):
             """async offset => {
               const scroller = document.scrollingElement;
               const destination = document.getElementById('destination');
-              const clear = (await window.__lfWidgetApi()).landingInsets(scroller).bottom;
+              const clear = (await window.__lfCheckApi()).landingInsets(scroller).bottom;
               const before = destination.getBoundingClientRect();
               scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
               const after = destination.getBoundingClientRect();
@@ -3799,7 +3801,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     assert covered["bottom"] <= covered["viewport"]
     assert covered["bottom"] > covered["viewport"] - covered["clear"]
     clear_band = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "async () => (await window.__lfCheckApi()).landingInsets("
         "document.scrollingElement).bottom"
     )
     page.keyboard.press("t")

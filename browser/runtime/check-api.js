@@ -2,7 +2,7 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { startNearWork } from "./presentation.js";
+export { afterPresentation, startNearWork } from "./presentation.js";
 export { clockValue } from "./presence.js";
 export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
@@ -38,6 +38,9 @@ export {
   userScrollport,
   seenRect,
   growthAfterIsSeen,
+  growthIsSeen,
+  landingInsets,
+  shownWindow,
   stuckBox,
   stackLevel,
   shownParts,
@@ -51,6 +54,7 @@ export { NOTICE_MS, notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export {
   readingRegions,
+  scrollerFor,
   shownRegionBounds,
   userReadingRegion,
   scrollersOf,
@@ -116,6 +120,7 @@ export {
   restorePlace,
 } from "./reading-place.js";
 export { replaceEntry } from "./history.js";
+export { retainUserIntent } from "./user-intent.js";
 export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
 export { beginWalk, walkPosition } from "./walk-position.js";
 export { threadCounts } from "./thread/model.js";

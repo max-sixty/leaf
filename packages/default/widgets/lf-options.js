@@ -56,8 +56,8 @@
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
  * generated option joins the walk on replay just like an authored one.
  *
- * In a thread the existing reply box already owns those words, which `c` reaches from
- * a mark as from anywhere in the thread. Every `multiple` group grows a Done press: each toggle
+ * In a thread the existing reply box already owns those words, and the user reaches it
+ * with Leaf's own keys. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
  * whole, posted as an `answer` action and held as the obligation's closing condition
  * (`awaits.answered`). Answered is paint on the press, never a wider word. A
@@ -116,7 +116,6 @@ import {
   aimedAt,
   nameOf,
   elementById,
-  placePreview,
   rowWalk,
   named,
   focusDestination,
@@ -265,6 +264,11 @@ customElements.define(
         this.#keyed = true;
         this.#keys();
       }
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#addition.disconnect();
     }
 
     /** @param {boolean} exhibited */
@@ -530,7 +534,7 @@ customElements.define(
     // name the chrome gives it (`nameOf`), else by its word, and by the id only where no
     // block in the option's message or on the page answers to it. After § a kind word
     // such as "section" says nothing, so the name stands alone, and pointing at it
-    // previews the block, as a link into the page does (`placePreview`). It is chrome
+    // previews the block, as Leaf previews any link into the page. It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
     /** @param {Element} option */
     #reference(option) {
@@ -540,10 +544,6 @@ customElements.define(
       const label = `§ ${nameOf(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
-      ref.lfPreview = () => {
-        const named = elementById(target, this);
-        return named ? placePreview(named) : null;
-      };
       option.append(ref);
     }
 

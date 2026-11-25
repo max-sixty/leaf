@@ -16,7 +16,7 @@
    also returns them where a patch moved what they read between scrollers or into a
    closed disclosure.
 
-   Anchoring can't hold three places the user relies on, and one hold keeps each,
+   Anchoring can't hold two places the user relies on, and one hold keeps each,
    once, after the change has drawn:
    - a control under the user's hands below growth on screen, as an agent's turn
      arriving just above the reply box they type in, or an action joining Page Map
@@ -27,12 +27,9 @@
      down the window the page shows, where growth starts below the box anchoring holds
      and above the line, as an edit growing the first paragraph of the message whose
      second the user reads, with the reply box they wrote in scrolled away
-     (`holdUserPlace`, `readingAt`);
-   - a place the change hides, as Skim folds the paragraph being read, where the node
-     standing for it takes its place: the paragraph's top, or the words read where
-     the paragraph began above the window (`holdPlace`, which a module takes around
-     such a change, as lf-dial.js does).
-   A reader who focused nothing is anchoring's to keep, by the first block in view.
+     (`holdUserPlace`, `readingAt`).
+   A place a widget's own change hides, as Skim folds the paragraph being read, is the
+   widget's to keep (lf-dial.js). A reader who focused nothing is anchoring's to keep, by the first block in view.
    Rejected: holding the reading line for every reader, which kept a diff's line still
    as five rows joined above it but moved what it left alone: words
    above the line went out of view where anchoring kept them in it, and a drag
@@ -41,9 +38,7 @@
    press inside an embedded frame, which the page hears nothing
    of, left the keep to move what it opened.
    `holdPlaceOf(node)` reads where `node` stands and returns the step that, once the
-   change has drawn, scrolls it back there; `holdPlace(column, standIn)` does so for
-   what stands at the reading line, or for what `standIn` names once the change hid,
-   removed or rewrote it. The change itself scrolls nothing. A forced layout
+   change has drawn, scrolls it back there. The change itself scrolls nothing. A forced layout
    applies anchoring's correction first, so the hold pays only for what anchoring left.
    Each ends with its step, and a hold kept across tasks, as a reading's is, keeps
    nothing once a scroll was chosen since. Rejected: the hold inside every surface's
@@ -92,7 +87,7 @@ import {
   scrollersOf,
   seenAhead,
 } from "./scroll-containers.js";
-import { hostIn, isText, renderedParent, under, upFrom } from "./lib/shadow-tree.js";
+import { isText, renderedParent, under } from "./lib/shadow-tree.js";
 import { inChrome } from "./ui-marks.js";
 import { userCaret } from "./native-selection.js";
 import {
@@ -296,48 +291,6 @@ export function holdPlaceOf(node) {
   const kept = keepsWords(node);
   const top = edgeAt(node, "top");
   return () => (kept() && stillDrawn(holder) ? returnPlace(node, top) : false);
-}
-
-// The hold a module takes around a change of its own that hides what the reader reads,
-// as a fold does. It reads what stands at the reading line in `column` (`readingAt`)
-// and where each box drawn around it began, and its step puts those words back where
-// they stood. Where the change hid, removed or rewrote them, `standIn` names the node
-// that stands for them, as Skim's gist stands for the paragraph it folds. That node
-// lands where the outermost box the change hid began, so a gist's first line stands
-// where its paragraph's first line stood. A box that began above the window would take
-// the stand-in out of sight with its top, so there the stand-in lands where the words
-// stood, as it does for words rewritten in a box the change left drawn. Where `standIn`
-// names nothing, the nearest box around the words that the change left drawn goes back
-// where it began, as a disclosure the change closed over the words does, unless it
-// began above the window: the change may have taken what lay between its top and the
-// reader. `standIn` is asked of the element that held the words, or, for words a
-// widget drew in its own tree, of what stands for them in `column`'s tree, the widget.
-/** @param {Element} column
- * @param {(node: Element) => Element | null | undefined} [standIn] */
-export function holdPlace(column, standIn) {
-  const reading = readingAt(column);
-  const holder = reading && placeHolder(reading);
-  if (!reading || !holder) return () => false;
-  const kept = keepsWords(reading);
-  const read = edgeAt(reading, "top");
-  const shown = shownWindow().top;
-  const asked = hostIn(holder, column.getRootNode()) ?? holder;
-  // A box with no box of its own, as one that is `display: contents`, began nowhere.
-  /** @type {{box: Element, top: number}[]} */
-  const around = [];
-  for (let box = /** @type {Element | null} */ (holder); box; box = upFrom(box))
-    if (stillDrawn(box)) around.push({ box, top: edgeAt(box, "top") });
-  return () => {
-    const left = around.findIndex(({ box }) => stillDrawn(box));
-    if (left === 0 && kept()) return returnPlace(reading, read);
-    // The outermost box the change hid, where it hid one, and the nearest it left.
-    const hid = around[left - 1];
-    const stays = around[left];
-    const named = standIn?.(asked);
-    if (named?.isConnected)
-      return returnPlace(named, hid && hid.top >= shown ? hid.top : read);
-    return stays && stays.top >= shown ? returnPlace(stays.box, stays.top) : false;
-  };
 }
 
 // The user's place across a change that arrives from outside the tab, a reading the

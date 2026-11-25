@@ -108,8 +108,8 @@ import {
   observePreparations,
   renderingState,
 } from "./rendering.js";
-import { cancelRender, nextRender, sizeObserver } from "./lib/frame-pass.js";
-import { frameFor, watchScrollEnds } from "./arrivals.js";
+import { cancelRender, frameFor, nextRender, sizeObserver } from "./lib/frame-pass.js";
+import { watchScrollEnds } from "./arrivals.js";
 import {
   LIVE_ROOT,
   PAGE_ROOT,
@@ -2781,7 +2781,8 @@ export function createVersionController({
     effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
     const present = new Set(readingRegions().map(({ id }) => id));
-    for (const id of places.keys()) if (id !== PAGE && !present.has(id)) places.delete(id);
+    for (const id of places.keys())
+      if (id !== PAGE && !present.has(id)) places.delete(id);
   };
 
   // A place is the reader's when they chose a scroll in its box since it was last

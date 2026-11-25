@@ -81,10 +81,8 @@ import {
   elementById,
   move,
   motion,
-  scrollerFor,
   focusDestination,
   scrollIntoView,
-  whileConnected,
   layerFact,
   widgetController,
 } from "/runtime/widget-api.js";
@@ -93,6 +91,7 @@ import { offer, offerAction } from "/runtime/lib/controls.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { byRank, rankAt } from "/runtime/lib/rank.js";
+import { scrollerOf } from "/runtime/lib/scroller.js";
 
 // The attribute naming an answer: on a column, the answer the column holds, and on a
 // member a widget's answer picks, the answer that pick gives.
@@ -228,6 +227,10 @@ customElements.define(
     #namesObserver = null;
     /** @type {Set<Sortable>} */
     #sortables = new Set();
+    // Whether the board takes drags and moves: not as an exhibit.
+    #live = false;
+    /** @type {(() => void) | undefined} */
+    #stopMotion;
     /** @type {(() => void) | null} */
     #resumeProjection = null;
     // The user's hold through the gesture, settled as the card is put down.
@@ -255,18 +258,15 @@ customElements.define(
       // replay), any of which would eventually forget. #names writes an aria-label on
       // the grip, which is not a child-list mutation and cannot feed this pass back
       // into itself.
-      whileConnected(this, () => {
-        for (const col of this.#columns()) this.#sortable(col);
-        this.#observeNames();
-        const stopMotion = this.#observeMotion();
-        return () => {
-          this.#namesObserver?.disconnect();
-          this.#namesObserver = null;
-          stopMotion?.();
-          for (const sortable of this.#sortables) sortable.destroy();
-          this.#sortables.clear();
-        };
-      });
+      this.#live = true;
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      if (!this.#live) return;
+      for (const col of this.#columns()) this.#sortable(col);
+      this.#observeNames();
+      this.#stopMotion = this.#observeMotion();
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -364,6 +364,11 @@ customElements.define(
       if (this.#grabbed) this.#cancel(this.#grabbed);
       this.#superseded = null;
       this.#finishGesture();
+      this.#namesObserver?.disconnect();
+      this.#namesObserver = null;
+      this.#stopMotion?.();
+      for (const sortable of this.#sortables) sortable.destroy();
+      this.#sortables.clear();
     }
 
     #observeMotion() {
@@ -842,7 +847,7 @@ customElements.define(
 
     /** @param {HTMLElement} col */
     #sortable(col) {
-      const scroller = scrollerFor(this);
+      const scroller = scrollerOf(this);
       const group = `board-${this.id}`;
       const sortable = new Sortable(col, {
         disabled: !this.#available(),

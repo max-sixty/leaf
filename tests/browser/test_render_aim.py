@@ -164,7 +164,7 @@ def open_compact_comment(page, text=None):
 
 # The top of the window the page shows (geometry.js, `shownWindow`): what a float the
 # page places stands below.
-SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
+SHOWN_TOP = """async () => (await window.__lfCheckApi()).shownWindow().top"""
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
@@ -692,7 +692,7 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
         bar.evaluate(
             """async node => {
           const {left, right} = node.getBoundingClientRect();
-          return (await window.__lfWidgetApi())
+          return (await window.__lfCheckApi())
             .shownWindow({gap: 8, across: {left, right}}).bottom;
         }"""
         )
@@ -774,7 +774,7 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     foot = bar.evaluate(
         """async node => {
           const {left, right} = node.getBoundingClientRect();
-          return (await window.__lfWidgetApi())
+          return (await window.__lfCheckApi())
             .shownWindow({gap: 8, across: {left, right}}).bottom;
         }"""
     )
@@ -980,7 +980,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
     ceiling = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
+        """async () => (await window.__lfCheckApi())
           .shownWindow({gap: 8}).top"""
     )
     assert compact["y"] > ceiling + 20, compact
@@ -1738,7 +1738,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     # its window posture rather than choosing another side of an invisible target.
     target.evaluate(
         """async (node, up) => {
-          const {shownWindow} = await window.__lfWidgetApi();
+          const {shownWindow} = await window.__lfCheckApi();
           const boundary = shownWindow({gap: 8}), box = node.getBoundingClientRect();
           const top = up ? boundary.top + 8
             : boundary.bottom - box.height - 8;

@@ -1989,8 +1989,8 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
 
     with subtests.test(case="what the window shows"):
         reading = page.evaluate("""async () => {
-          const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
-          const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
+          const {alreadyShown, fitsWhole, landingBand, shownWindow} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
           const partly = (node) => {
             const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
             scrollBy({top, behavior: 'instant'});
@@ -2850,7 +2850,7 @@ def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
             '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
         ).replace(
             "</head>",
-            "<script type=\"module\">import {afterPresentation} from '/runtime/widget-api.js';"
+            "<script type=\"module\">const {afterPresentation} = await window.__lfCheckApi();"
             "afterPresentation(() => new Promise((done) => (window.__arrived = done)));"
             "</script></head>",
         )

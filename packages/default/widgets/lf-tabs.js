@@ -92,13 +92,11 @@ import {
   backgroundFlash,
   comparisonChanges,
   keepView,
-  whileConnected,
   openingView,
   viewMembers,
   readObligations,
   focusDestination,
   scrollIntoView,
-  landingInsets,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer, selectableOffered } from "/runtime/lib/controls.js";
@@ -162,6 +160,8 @@ export class TabSet extends LeafElement {
   #root = false;
   /** @type {(MutationObserver) | null} */
   #contextObserver = null;
+  /** @type {ResizeObserver | null} */
+  #stripSize = null;
   #strip = offer("div", "lf-tabstrip");
   #side = false;
   #pageFlow = false;
@@ -333,21 +333,27 @@ export class TabSet extends LeafElement {
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
     // measures final geometry.
     this.#activate(openingView(this) ?? null);
-    whileConnected(this, (signal) => {
-      this.#watchRootContext();
-      this.#syncRootContext();
-      const stripSize = this.#watchStrip();
-      strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
-      this.#syncListRegion();
-      return () => {
-        this.#revealMotion?.cancel();
-        this.#revealMotion = null;
-        this.#stopSelectionMotion();
-        stripSize.disconnect();
-        this.#contextObserver?.disconnect();
-        this.#contextObserver = null;
-      };
-    });
+    strip.addEventListener("scroll", this.#stopSelectionMotion);
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this.#panels.length) return;
+    this.#watchRootContext();
+    this.#syncRootContext();
+    this.#stripSize = this.#watchStrip();
+    this.#syncListRegion();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.#revealMotion?.cancel();
+    this.#revealMotion = null;
+    this.#stopSelectionMotion();
+    this.#stripSize?.disconnect();
+    this.#stripSize = null;
+    this.#contextObserver?.disconnect();
+    this.#contextObserver = null;
   }
 
   // A side list's panels are reading regions whatever their posture, as panes are
@@ -686,8 +692,11 @@ export class TabSet extends LeafElement {
     if (!run) return;
     const label = run.querySelector(":scope > .lf-tab-group");
     if (label && getComputedStyle(strip).flexDirection === "row") {
-      const inset = landingInsets(strip);
-      const room = strip.clientWidth - inset.left - inset.right;
+      const inset = getComputedStyle(strip);
+      const room =
+        strip.clientWidth -
+        (Number.parseFloat(inset.scrollPaddingLeft) || 0) -
+        (Number.parseFloat(inset.scrollPaddingRight) || 0);
       const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;

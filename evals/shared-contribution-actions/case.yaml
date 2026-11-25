@@ -28,8 +28,7 @@ assert:
       from /runtime/widget-api.js, writes its entries as plain objects, returns the
       current Edit or Save/Cancel reading from one producer, gives each action one
       route to its effect, updates that registration after the editing or disabled
-      state changes, and unregisters on disconnect, in `disconnectedCallback` or in
-      the cleanup of `whileConnected`, which the same module exports. An action's
+      state changes, and unregisters on disconnect, in `disconnectedCallback`. An action's
       route to its effect is one of two, and both pass. The first is the `activate`
       callback the answer passes to `registerContribution`. The second is a command
       the widget declares: an entry names it by setting `scope` to the object the

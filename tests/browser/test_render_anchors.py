@@ -2791,7 +2791,7 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, subtes
                   const root = host.attachShadow({mode: 'open'});
                   root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
                   document.querySelector('main').append(host);
-                  const {focusDestination} = await window.__lfWidgetApi();
+                  const {focusDestination} = await window.__lfCheckApi();
                   window.heard = [];
                   const one = root.getElementById('one');
                   one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});

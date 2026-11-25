@@ -32,15 +32,12 @@
  * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
-  focusDestination,
-  holdFocus,
   langForPath,
   move,
   threadSurface,
   setChildren,
   shadowStage,
   whileConnected,
-  scrollIntoView,
 } from "/runtime/portable-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
@@ -52,6 +49,7 @@ import { ensureSyntaxLanguage } from "/runtime/lib/syntax-tokens.js";
 import { describeFailure } from "/runtime/lib/exception.js";
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
 import { noInputSince } from "/runtime/lib/input-since.js";
+import { focusOn, keepFocus } from "/runtime/lib/focus-on.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -510,7 +508,24 @@ function diffBody(nodes) {
 // what stands in it and retires it (`retireThreadOutlets`). The user writing in one
 // keeps their place natively, and no hold of this file's stands in for theirs.
 /** @param {FileEntry} entry */
-const holdFileFocus = (entry) => holdFocus(entry.node, { key: LINE_KEY });
+const holdFileFocus = (entry) => {
+  const restore = keepFocus(entry.node);
+  if (!restore) return null;
+  let held = document.activeElement;
+  while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
+  const key = held?.closest(`[${LINE_KEY}]`)?.getAttribute(LINE_KEY);
+  const tag = held?.localName;
+  // The line drawn again under the held one's key, on the control like the one the
+  // user was on, as Comment for Comment.
+  const sameLine = () => {
+    if (!key) return null;
+    const marked = [
+      ...entry.node.querySelectorAll(`[${LINE_KEY}="${CSS.escape(key)}"]`),
+    ];
+    return marked.find((node) => node.localName === tag) ?? marked[0] ?? null;
+  };
+  return (/** @type {Element[]} */ ...standIns) => restore(sameLine, ...standIns);
+};
 
 /** @param {FileEntry} entry @param {FilePresentation} view */
 function replaceFileRendering(entry, view) {
@@ -956,7 +971,7 @@ function joinChangeRuns(file) {
 function fileError(view, error, surface) {
   const { details, header } = view;
   surface.release(details);
-  const restore = holdFocus(details);
+  const restore = keepFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
   keeps(box, "data-lf-gen", "1");
@@ -1083,8 +1098,8 @@ customElements.define(
             run: () => {
               const search = this.diffTools?.search;
               if (search) {
-                focusDestination(search, "move");
-                scrollIntoView(search, { block: "nearest" });
+                search.focus({ preventScroll: true });
+                search.scrollIntoView({ block: "nearest" });
               }
             },
           },
@@ -1113,13 +1128,13 @@ customElements.define(
               const search = this.diffTools?.search;
               if (search?.value) {
                 this.clearFilter();
-                focusDestination(search, "return");
+                search.focus({ preventScroll: true });
                 return;
               }
               // The box's container is the patch it filters, so that is where it hands
               // the user back: a blur alone would drop them out of this widget's
               // scope with no ring anywhere, and the file walk would stop answering.
-              focusDestination(this, "return");
+              focusOn(this);
             },
           },
         ],
@@ -1769,7 +1784,7 @@ customElements.define(
           ),
         );
       } else if (!opener && fileComment) {
-        const restore = holdFocus(fileComment);
+        const restore = keepFocus(fileComment);
         fileComment.remove();
         restore?.(entry.header);
       }
@@ -1777,7 +1792,7 @@ customElements.define(
         const previous = line.row.firstElementChild;
         if (!previous || (previous.localName === "button") === Boolean(opener))
           continue;
-        const restore = holdFocus(previous);
+        const restore = keepFocus(previous);
         const number = lineNumber(line, Boolean(opener));
         previous.replaceWith(number);
         restore?.(number);
@@ -2051,8 +2066,8 @@ customElements.define(
     // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoView(box, { block: "start", behavior: "smooth", sideways: false });
-      focusDestination(node, "move");
+      box.scrollIntoView({ block: "start", inline: "nearest", behavior: "smooth" });
+      focusOn(node);
     }
 
     entryAroundFocus() {

@@ -305,7 +305,7 @@ still hold the comment box the user is typing in, so remove outlets only in `onC
 which runs once this pass's placement takes effect, and keep returned ones in the
 document while redrawing around them. A widget that must remove a node holding outlets
 at another time, such as when its data goes, first calls
-`threadSurface(this).release(node)`, before any `holdFocus`, and the comment box leaves
+`threadSurface(this).release(node)`, before it holds focus, and the comment box leaves
 the widget's outlets under `node` with the user still writing in it. If `threadOutlets`
 throws, Leaf returns the widget's threads to the margin until the next pass.
 

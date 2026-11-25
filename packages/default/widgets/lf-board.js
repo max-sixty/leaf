@@ -81,8 +81,6 @@ import {
   elementById,
   move,
   motion,
-  focusDestination,
-  scrollIntoView,
   whileConnected,
   layerFact,
   widgetController,
@@ -774,8 +772,8 @@ customElements.define(
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
-        focusDestination(grip, "return");
-        scrollIntoView(card, { behavior: "smooth", block: "nearest" });
+        grip.focus({ preventScroll: true });
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
@@ -901,7 +899,7 @@ customElements.define(
           this.#beginGesture();
           // The held card owns the keyboard too, through its existing grip scope.
           const grip = evt.item.querySelector(":scope > .lf-grip");
-          if (grip) focusDestination(grip, "return");
+          if (grip instanceof HTMLElement) grip.focus({ preventScroll: true });
         },
         onEnd: (evt) => {
           // Ahead of the branches below, because the one that returns early sends

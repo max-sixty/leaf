@@ -99,10 +99,7 @@ In [module-reading.md](module-reading.md):
 
 In [module-input.md](module-input.md):
 
-- "Walks": `rowWalk` gives a list of rows its arrow keys.
-- "Focus and layers": `focusDestination` moves focus, `holdFocus` keeps it across a
-  redraw, `onCurrentLocation` reads where the user is, and `onPress` and
-  `onPressAway` follow a pointer's press.
+- "Focus and layers": `onPress` and `onPressAway` follow a pointer's press.
 - "Pointer presses": `aimedAt` says what a click on a container was for, and
   `onUserInput` hears each input before Leaf handles it.
 - "Text entry and drafts": `wireInput` wires a text box and `draft` keeps its
@@ -110,7 +107,6 @@ In [module-input.md](module-input.md):
 
 In [module-scroll-and-motion.md](module-scroll-and-motion.md):
 
-- "Scrolling to a destination": `scrollIntoView`.
 - "Motion": `motion` and `backgroundFlash`.
 
 In [module-annotations.md](module-annotations.md):
@@ -204,8 +200,6 @@ script", lists.
   widget in `tabStore`.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
-- Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
-  "Focus and layers").
 - Animate with `motion` or in a stylesheet, never with `element.animate`
   (`module-scroll-and-motion.md`, "Motion").
 
@@ -388,7 +382,7 @@ text selection the user made in it. A `LeafElement` places retained nodes in its
 `render()`, which then returns `nothing`.
 
 These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
-needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
+needs no hold on focus; a plain `append` or `insertBefore` of a node already in the page
 blurs it. A moved editable loses its selection even under `moveBefore`, so a
 custom element holding an editor, such as CodeMirror's, writes the editor's selection
 back from its `connectedMoveCallback`.

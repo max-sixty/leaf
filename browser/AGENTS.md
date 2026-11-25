@@ -33,6 +33,16 @@ rare path the user takes in at a glance may move what is on screen rather than c
 mechanism of its own (`../skills/leaf/SOUL.md`, "Keep the foundation small and
 extensible").
 
+Leaf keeps the user's focus, selection and reading place across its own revisions
+and news from outside, for every element, from what the element already states: its
+DOM, its ids and `data-lf-carry` keys, its `data-lf-scroll` regions and standard focus
+events. A widget needs no call for that. A widget's own redraw is the widget's code: it
+keeps the user on the node they stood on, or on the control that replaced it, with the
+browser's `focus()` and `scrollIntoView()`, and the library's `focus-on.js` holds the
+few lines most widgets want. Leaf reads why focus moved for itself (`focus.js`), so a
+widget tells it nothing. A widget that keeps no one's place across its own redraw
+leaves the user where the browser leaves them, as on any page.
+
 A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
 places the user can be with changes that can arrive. A new rule joins it as a place, a
 change or a move the user chose, and takes no browser test of its own, so each rule is
@@ -119,8 +129,10 @@ rule draws at once is drawn.
   panel stands over the page too, with no room kept for it: the page lays out in the
   whole window, and the user folds the panel to its leaf where it covers what they
   read; it folds itself where focus lands on a place it alone would hide
-  (`floating-panel.js`, `giveWay`). Leaf's landings and readings of what the user sees count the panel's box
-  (`geometry.js`, `declareCover`). Checks:
+  (`floating-panel.js`, `giveWay`). Leaf's own landings and readings of what the user
+  sees count the panel's box (`geometry.js`, `declareCover`); a widget's landing is
+  the browser's own, which clears what the root's `scroll-padding-top` states and can
+  stop under the panel at the window's foot. Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
 - **A box floating over the page grows inside the window**, toward the edge that has

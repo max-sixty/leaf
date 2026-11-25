@@ -36,7 +36,6 @@ import {
   setRenderedChildren,
   setChildLists,
   setChildren,
-  focusDestination,
   pageLinks,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -54,6 +53,7 @@ import {
   syntax,
 } from "/runtime/lib/syntax-tokens.js";
 import { textWidth } from "/runtime/lib/text-width.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 // A Markdown preview of text written in the page, whose rendering sets the box both
@@ -1206,7 +1206,7 @@ class TextDocument extends LeafElement {
       press.addEventListener("click", () => {
         literal.toggleAttribute("data-lf-all", true);
         box.toggleAttribute("hidden", true);
-        if (this.sourceView) focusDestination(this.sourceView.pre, "return");
+        if (this.sourceView) focusOn(this.sourceView.pre);
       });
       box.append(press);
       literal.append(box);

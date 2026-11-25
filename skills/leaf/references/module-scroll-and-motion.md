@@ -106,30 +106,23 @@ the new one, as a feed's "N new" control does.
 
 ### Scrolling to a destination
 
-To take the user somewhere, call `scrollIntoView(target, {block, behavior})`, where
-`target` is an element or a Range. It places the target at `block` in its own reading
-region, the box that scrolls it as the user reads, and every other box that scrolls
-it, inside or around that region, reveals it at the nearest edge, so a start landing in
-a bounded pane aligns it in the pane and moves the page only to show it; `block`
-defaults to `start`. A `smooth` landing glides, and lands at once for a user who asked
-for less motion. Sideways, each box reveals it at the nearest edge. A `nearest`
-landing moves nothing where the target is already shown: the user sees all of it where
-it fits, and as much of it as the window holds where it is longer.
-Pass `sideways: false` to align what the user is reading and keep their place across
-its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`: the item comes in at the nearest edge of each box,
-at once, whatever `block` and `behavior` say. Unlike native `Element.scrollIntoView`,
-it stays inside a live sample. Use it only for a deliberate move; focusing a visible
-control or redrawing keeps the scroll.
+To take the user somewhere, call the browser's own
+`element.scrollIntoView({block, inline, behavior})`. Leaf states the page's landing
+band at the root's top as its `scroll-padding-top`, so a landing clears Leaf's head
+and the headers stuck over the page; the floating panel's row at the window's foot is
+no part of that band, and a landing at the foot can stop under it. A `nearest`
+landing moves nothing where the target is already shown. To bring an item into its own
+strip or list and leave the page where it is, scroll that box alone with `scrollTo` or
+`scrollBy`, below, measured from the item's box and the strip's `scroll-padding`. Use a
+landing only for a deliberate move; focusing a visible control or redrawing keeps the
+scroll.
 
 A widget that keeps something in view as another widget moves, as `lf-code` keeps the
 line a film runs, sets the scroll of the box that scrolls it (`scrollTo`, below)
 unless that box is the page, so the page stays where the reader left it.
 
-A landing keeps the target's `scroll-margin` clear on every side, so a focused
-control's ring shows. To bring in a heading or label with an item where there is room,
-and the item alone where there is not, pass a Range or element holding both as
-`including`, which lands in the target's place where it and its margins fit.
+A landing keeps the target's `scroll-margin` clear on every side, so give a control
+a widget lands on the margin its focus ring needs.
 
 To set a box's scroll position, call the browser's own
 `box.scrollTo({top, left, behavior: "instant"})`. Leaf hears that write as it is made,

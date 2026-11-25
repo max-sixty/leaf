@@ -37,16 +37,12 @@
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
-import {
-  whileConnected,
-  mountSample,
-  focusDestination,
-  whenNear,
-} from "/runtime/widget-api.js";
+import { whileConnected, mountSample, whenNear } from "/runtime/widget-api.js";
 import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import { once } from "/runtime/lib/once.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import { describeFailure } from "/runtime/lib/exception.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 
 export class Sample extends HTMLElement {
   /** @typedef {Awaited<ReturnType<typeof mountSample>>} SampleHost */
@@ -221,7 +217,7 @@ export class Sample extends HTMLElement {
     this.#frame.title = this.getAttribute("label") || "Leaf sample";
     this.#frame.addEventListener("lf-sample-return", () => {
       if (this.#modal) this.#return();
-      else focusDestination(this, "return");
+      else focusOn(this);
     });
 
     this.#view.className = "lf-sample-view";
@@ -259,7 +255,7 @@ export class Sample extends HTMLElement {
         this.#paintFull(true);
         this.#view.showModal();
         this.#setWindow(true);
-        focusDestination(this.#full, "move");
+        this.#full.focus({ preventScroll: true });
       }
     });
     actions.append(this.#reset, this.#full, this.#status);
@@ -278,7 +274,7 @@ export class Sample extends HTMLElement {
   // the view stands embedded again.
   #return() {
     this.#embed();
-    focusDestination(this.#full, "return");
+    this.#full.focus({ preventScroll: true });
   }
 
   #embed() {

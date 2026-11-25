@@ -18,14 +18,7 @@
  * treeitem role distinguishes row clicks from search and other tree controls.
  */
 import { render } from "/vendor/lit.js";
-import {
-  focusDestination,
-  navigateToDatum,
-  onCurrentLocation,
-  scrollIntoView,
-  shadowStage,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { navigateToDatum, shadowStage, whileConnected } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { offer } from "/runtime/lib/controls.js";
 import { PRESS, plainPress } from "/runtime/lib/keys.js";
@@ -194,46 +187,55 @@ class FileTreeWidget extends LeafElement {
     whileConnected(this, (signal) => {
       mount();
       // Trees scrolls its virtualized list and focuses with preventScroll. The
-      // row can still lie outside Leaf's outer reading viewport, so hand that
-      // remaining reveal to the same scrolling owner every widget uses. A row the
-      // user pressed is where they aimed, so it stays there: focus arrives on the
-      // press's mousedown, and a reveal there would move the row from under the
-      // pointer before the mouseup, which would fall on another row and open neither.
-      const stopCurrentLocation = onCurrentLocation(
-        (
-          /** @type {Element | null} */ row,
-          cause,
-          /** @type {Element | null} */ left,
-        ) => {
-          // Only the focused row carries the rows' scope. Its `when` reads focus
-          // anywhere in this tree, and Leaf reads a scope's rows again only as focus
-          // moves into, out of or within that scope, so a row focus has left would
-          // go on naming its keys as they stood when focus left it.
-          if (
-            left !== row &&
-            left?.getAttribute("role") === "treeitem" &&
-            left.lfCommands === fileActions
-          ) {
-            left.lfCommands = null;
-            left.dispatchEvent(
-              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-            );
-          }
-          // A route to this navigator lands on its usable entry control.
-          if (row === this) {
-            const input = root.querySelector("input");
-            if (input) focusDestination(input, "return");
-          }
-          if (row?.getAttribute("role") === "treeitem" && root.contains(row)) {
-            // Each upstream row is a native button. Its exact scope precedes
-            // native activation; an ancestor scope cannot own that press.
-            row.lfCommands = fileActions;
-            row.dispatchEvent(
-              new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-            );
-            if (cause !== "press") scrollIntoView(row, { block: "nearest" });
-          }
+      // row can still lie outside the page's window, so a row the keyboard reached
+      // comes in at the nearest edge. A row the user pressed is where they aimed, so it
+      // stays there: focus arrives on the press's mousedown, and a reveal there would
+      // move the row from under the pointer before the mouseup, which would fall on
+      // another row and open neither.
+      /** @param {EventTarget | null} node */
+      const rowOf = (node) =>
+        node instanceof HTMLElement && node.getAttribute("role") === "treeitem"
+          ? node
+          : null;
+      /** @param {HTMLElement} row @param {typeof fileActions | null} commands */
+      const scope = (row, commands) => {
+        row.lfCommands = commands;
+        row.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
+      };
+      // Only the focused row carries the rows' scope. Its `when` reads focus anywhere
+      // in this tree, and Leaf reads a scope's rows again only as focus moves into, out
+      // of or within that scope, so a row focus has left would go on naming its keys
+      // as they stood when focus left it.
+      root.addEventListener(
+        "focusout",
+        (event) => {
+          const left = rowOf(event.target);
+          if (left && left.lfCommands === fileActions) scope(left, null);
         },
+        { signal },
+      );
+      root.addEventListener(
+        "focusin",
+        (event) => {
+          const row = rowOf(event.target);
+          if (!row) return;
+          // Each upstream row is a native button. Its exact scope precedes native
+          // activation; an ancestor scope cannot own that press.
+          scope(row, fileActions);
+          if (row.matches(":focus-visible")) row.scrollIntoView({ block: "nearest" });
+        },
+        { signal },
+      );
+      // A route to this navigator lands on its usable entry control.
+      this.addEventListener(
+        "focus",
+        (event) => {
+          if (event.composedPath()[0] !== this) return;
+          root.querySelector("input")?.focus({ preventScroll: true });
+        },
+        { signal },
       );
       this.addEventListener(
         "click",
@@ -254,7 +256,6 @@ class FileTreeWidget extends LeafElement {
         { signal },
       );
       return () => {
-        stopCurrentLocation();
         generation++;
         this.#shown = undefined;
         stopModel?.();

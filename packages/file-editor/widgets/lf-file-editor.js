@@ -76,9 +76,6 @@
 import { html, nothing, render } from "/vendor/lit.js";
 import {
   boundFile,
-  focusDestination,
-  onCurrentLocation,
-  rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
@@ -91,6 +88,7 @@ import { presented } from "/runtime/lib/presented.js";
 import { offered, offeredAction } from "/runtime/lib/controls.js";
 import { iconTemplate } from "/runtime/lib/icons.js";
 import { describeFailure } from "/runtime/lib/exception.js";
+import { rowWalk } from "/runtime/lib/row-walk.js";
 import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
@@ -257,7 +255,7 @@ customElements.define(
       const choiceRows = () => [...choices().querySelectorAll("button")];
       const putChoicesAway = () => {
         choices().hidePopover();
-        focusDestination(conflictControl(), "return");
+        conflictControl().focus({ preventScroll: true });
       };
       /** @param {() => unknown} run */
       const choose = (run) => () => {
@@ -273,7 +271,7 @@ customElements.define(
       const choiceOpened = (event) => {
         if (event.newState !== "open") return;
         rove(choiceRows(), controls.first);
-        focusDestination(controls.first, "move");
+        controls.first.focus({ preventScroll: true });
       };
       const choiceKeys = [
         ...rowWalk({
@@ -282,7 +280,7 @@ customElements.define(
           plural: "choices",
           rows: choiceRows,
           // A menu names its rows' places to a screen reader itself.
-          position: () => null,
+          place: false,
           landed: (row) => rove(choiceRows(), row),
         }),
         {
@@ -316,7 +314,7 @@ customElements.define(
       let connected = false;
       // Landing the reader back in the editor shows them where they type.
       const returnToEditor = () => {
-        focusDestination(editor.contentDOM, "return");
+        editor.contentDOM.focus({ preventScroll: true });
         editor.revealCaret();
       };
       // A file's text: the editor's while it is open, else what the editor kept of it
@@ -858,12 +856,15 @@ customElements.define(
         watch();
         // A route to a file, such as a link to `#<editor>:<binding>`, lands on the
         // editor, and the reader goes on to type where they left that file.
-        const stopLanding = onCurrentLocation((/** @type {Element | null} */ node) => {
-          if (node === this) returnToEditor();
-        });
+        this.addEventListener(
+          "focus",
+          (event) => {
+            if (event.composedPath()[0] === this) returnToEditor();
+          },
+          { signal },
+        );
         return () => {
           connected = false;
-          stopLanding();
           stopWatch?.();
           stopWatch = null;
           for (const of of files.values()) {

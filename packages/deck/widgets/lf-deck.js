@@ -64,7 +64,6 @@
 import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   answerWords,
-  focusDestination,
   keepView,
   motion,
   obligationActions,
@@ -73,7 +72,6 @@ import {
   nameOf,
   readObligations,
   readQueues,
-  scrollIntoView,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
@@ -82,6 +80,7 @@ import { rowArrows } from "/runtime/lib/keys.js";
 import { under } from "/runtime/lib/shadow-tree.js";
 import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
+import { focusOn } from "/runtime/lib/focus-on.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
 // to leave, and the next to come up; and how long a card that came up takes no press.
@@ -390,14 +389,13 @@ customElements.define(
       // Where the deck began above the window, it comes back from its top at once.
       // Elsewhere the card is brought in nearest once its motion ends, since until then
       // the deck keeps the height of the card that went and the page may not reach far
-      // enough. A nearest landing counts what the panel covers as unseen
-      // (`alreadyShown`), so a card ending under it comes up to its foot where it fits
-      // and to its top where it doesn't, its `scroll-margin-block` keeping the bar and
-      // edges in view.
+      // enough. A card ending past the window comes up to its foot where it fits and to
+      // its top where it doesn't, its `scroll-margin-block` keeping the bar and edges in
+      // view; the floating panel's row may still stand over its foot.
       const above = this.getBoundingClientRect().top < 0;
       const reveal = () => {
         if (above || !next || this.#open !== next) return;
-        scrollIntoView(next, { block: "nearest", behavior: "smooth" });
+        next.scrollIntoView({ block: "nearest", behavior: "smooth" });
       };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
@@ -423,7 +421,7 @@ customElements.define(
         new CustomEvent("lf-layout", { bubbles: true, composed: true }),
       );
       carry(next, answered ? SETTLE_MS : 0);
-      if (above) scrollIntoView(this, { block: "start", behavior: "smooth" });
+      if (above) this.scrollIntoView({ block: "start", behavior: "smooth" });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or
@@ -491,12 +489,12 @@ customElements.define(
     #arrive(card) {
       if (!card) {
         this.#end.toggleAttribute("hidden", false);
-        return void focusDestination(this.#again, "move");
+        return void this.#again.focus({ preventScroll: true });
       }
       const items = readObligations(card);
       const waiting = items.phase === "ready" ? items.user[0] : undefined;
       if (waiting) obligationActions.open(waiting.id);
-      else focusDestination(card, "move");
+      else focusOn(card);
     }
 
     #stepBack() {

@@ -185,7 +185,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     page.locator("#d > summary").focus()
     page.evaluate(
         """async () => {
-          const { holdFocus } = await window.__lfWidgetApi();
+          const { holdFocus } = await window.__lfCheckApi();
           window.__restore = holdFocus(document.querySelector('main'));
         }"""
     )
@@ -198,7 +198,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     assert (
         page.evaluate(
             """async () => {
-          const { holdFocus } = await window.__lfWidgetApi();
+          const { holdFocus } = await window.__lfCheckApi();
           const details = document.querySelector('#d');
           details.remove();
           return holdFocus(details) !== null;

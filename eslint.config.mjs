@@ -1764,10 +1764,6 @@ export default [
           // row's tree, so entering its shadow tree reaches the row, and a move inside
           // it is no new entry.
           "browser/runtime/thread/replies.js": ["focusin"],
-          // A widget's own subtree, whose controls stand in its tree: whether focus is
-          // within the gloss, and the contents link the user last stood on.
-          "packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
-          "packages/default/widgets/lf-toc.js": ["focusin"],
           // The text field's empty line hands focus that lands on it to the editor it
           // builds, in its own shadow tree.
           "browser/runtime/composing/text-field.js": ["focusin"],
@@ -1845,6 +1841,17 @@ export default [
         ],
       ],
       "architecture/spelled-keys": "error",
+    },
+  },
+  {
+    // The library's walk and focus are package code the packages share: they focus,
+    // reveal and read focus with the browser's own calls, as a package does (the
+    // packages' block below says why).
+    files: ["browser/runtime/lib/row-walk.js", "browser/runtime/lib/focus-on.js"],
+    plugins: { architecture: architecturePlugin },
+    rules: {
+      "architecture/placements": "off",
+      "architecture/current-location-reads": "off",
     },
   },
   {
@@ -2025,8 +2032,13 @@ export default [
     // return Leaf reads as a return, so the native-layers and layer-returns rules are
     // off here too. A package sets a box's scroll offset with the browser's own
     // `scrollTo`, which the runtime hears as it is made (runtime/arrivals.js), under the
-    // scroll-writes rule the layer keeps. Each other rule repeats what it keeps of the
-    // layer's, since a file takes a rule's options from the last block matching it.
+    // scroll-writes rule the layer keeps. A package puts the user on an element with
+    // the browser's own `focus()` and reveals one with its own `scrollIntoView`, and
+    // hears where focus goes with `focusin`, `focusout` and `focus` on its own tree:
+    // Leaf reads why focus moved for itself (runtime/focus.js), so the placements and
+    // current-location-listeners rules hold the runtime alone. Each other rule repeats
+    // what it keeps of the layer's, since a file takes a rule's options from the last
+    // block matching it.
     files: ["packages/*/**/*.js"],
     rules: {
       "no-restricted-globals": [
@@ -2046,6 +2058,8 @@ export default [
       "architecture/current-location-reads": "off",
       "architecture/native-layers": "off",
       "architecture/layer-returns": "off",
+      "architecture/placements": "off",
+      "architecture/current-location-listeners": "off",
     },
   },
   {

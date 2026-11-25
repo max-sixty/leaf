@@ -942,7 +942,7 @@ html[data-lf-draw-mode] {
      one pixel outside its border box. Every item but a widget's parts (`owners`) also
      wears its tag and id above the corner; parts are named under the pointer. Dashed,
      because a legend is structural and a solid contour is a gesture's. Under the pointer
-     the aim marks one item (`[data-lf-aimed]`) with its full name (.lf-inspect). No pointer
+     the aim marks one item (`[data-lf-aimed]`) with its full name (.lf-aim-name). No pointer
      events, so a click lands on the item. */
   /* A key chip stands in a seat anchored to what it names (chip-seats.js), in a paint
      stand that stacks under the panel it keeps clear of, so a chip riding a
@@ -1147,7 +1147,7 @@ html[data-lf-draw-mode] {
   }
   /* Standing in the planes of the box it names (readings/target-paint.js, `labelAim`), so
      a scroll carries the two together, in the user's ink the aim's brackets wear. */
-  .lf-inspect {
+  .lf-aim-name {
     position: absolute;
     pointer-events: none;
     display: none;
@@ -1161,7 +1161,7 @@ html[data-lf-draw-mode] {
     background: var(--lf-here);
     color: var(--lf-paper);
   }
-  .lf-inspect.lf-shown {
+  .lf-aim-name.lf-shown {
     display: block;
   }
 
@@ -1230,7 +1230,7 @@ html[data-lf-draw-mode] {
      move under nobody's input; under the keyboard's focus it is there at once. A preview
      that quotes a block of the page, such as the place a link opens, takes the excerpt
      room: the same face, wider. */
-  .lf-preview {
+  .lf-preview-tip {
     position: fixed;
     inset: auto;
     margin: 0;
@@ -1269,33 +1269,33 @@ html[data-lf-draw-mode] {
       opacity: 0;
     }
   }
-  .lf-preview:is([data-lf-y="below"], [data-lf-y="top"]) {
+  .lf-preview-tip:is([data-lf-y="below"], [data-lf-y="top"]) {
     top: calc(anchor(top) + var(--lf-preview-top));
   }
-  .lf-preview[data-lf-y="above"] {
+  .lf-preview-tip[data-lf-y="above"] {
     bottom: calc(anchor(top) - var(--lf-preview-bottom));
   }
-  .lf-preview:is([data-lf-x="left"], [data-lf-x="after"]) {
+  .lf-preview-tip:is([data-lf-x="left"], [data-lf-x="after"]) {
     left: calc(anchor(left) + var(--lf-preview-left));
   }
-  .lf-preview[data-lf-x="center"] {
+  .lf-preview-tip[data-lf-x="center"] {
     left: var(--lf-preview-left);
   }
-  .lf-preview:is([data-lf-x="right"], [data-lf-x="before"]) {
+  .lf-preview-tip:is([data-lf-x="right"], [data-lf-x="before"]) {
     right: calc(anchor(right) + var(--lf-preview-right));
   }
-  .lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
+  .lf-preview-tip[data-lf-route="pointer"]:not([data-lf-covers]) {
     pointer-events: auto;
   }
-  .lf-preview[data-lf-route="focus"] > .lf-preview-face {
+  .lf-preview-tip[data-lf-route="focus"] > .lf-preview-face {
     transition: none;
   }
-  .lf-preview[data-lf-face="excerpt"] {
+  .lf-preview-tip[data-lf-face="excerpt"] {
     max-width: min(26rem, var(--lf-preview-span));
   }
   /* A preview whose element draws what it shows stands unseen, so it still ends and
      describes as any other (annotations/preview.js, `unseen`). */
-  .lf-preview[data-lf-face="unseen"] {
+  .lf-preview-tip[data-lf-face="unseen"] {
     visibility: hidden;
   }
   .lf-preview-name {
@@ -1310,7 +1310,7 @@ html[data-lf-draw-mode] {
     gap: 2px;
   }
   /* Its key chips are the keys' own face, drawn in the tooltip's ink. */
-  .lf-preview .lf-key-badge {
+  .lf-preview-tip .lf-key-badge {
     background: transparent;
     border-color: color-mix(in srgb, currentColor 45%, transparent);
     color: inherit;
@@ -1332,13 +1332,13 @@ html[data-lf-draw-mode] {
      line of no height after its words is more for the clamp to hold back. With
      `overflow: hidden`, Firefox counts no such line, and with any height it would add
      to the block's scrollHeight, which the next fit reads. */
-  .lf-preview [data-lf-cut]::after {
+  .lf-preview-tip [data-lf-cut]::after {
     content: "\200b";
     display: block;
     line-height: 0;
     font-size: 0;
   }
-  .lf-preview [data-lf-clamp] {
+  .lf-preview-tip [data-lf-clamp] {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: var(--lf-preview-lines);

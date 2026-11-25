@@ -88,7 +88,7 @@
    words keep still while the user reads them, as a status that ages beneath them would
    not.
 
-   Every preview wears one face (`.lf-preview`, chrome.css): its name on the first
+   Every preview wears one face (`.lf-preview-tip`, chrome.css): its name on the first
    line with its key chips, then its lines of detail, in one type and colour. Only the
    words Leaf itself says keep their italic (base/voice.js), as they do on every seat. A
    preview that quotes a block of the page, as a link's place does, takes the face's
@@ -390,7 +390,7 @@ export const PREVIEW_TIMERS = Object.freeze({ DWELL, HOLD, WARM });
 
 // The one element every preview draws in.
 const tip = document.createElement("div");
-tip.className = "lf-ui lf-preview";
+tip.className = "lf-ui lf-preview-tip";
 tip.id = "lf-preview";
 tip.setAttribute("popover", "hint");
 tip.setAttribute("role", "tooltip");

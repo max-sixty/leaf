@@ -5017,7 +5017,7 @@ start.onclick = () => {
 
 # `implicit` is Leaf's preview: a popover shown with its anchor as `source`, under the
 # chrome guard's rollback, its insets an offset from a custom property under a rule
-# leaving them `auto` (chrome.css, `.lf-preview`), as the Leaf button carries it
+# leaving them `auto` (chrome.css, `.lf-preview-tip`), as the Leaf button carries it
 # through a fold. `reshown` asks it to show again with another `source` while it stands
 # open, which the browser ignores, keeping the first; that other element's travel then
 # explains nothing of an equal independent move.

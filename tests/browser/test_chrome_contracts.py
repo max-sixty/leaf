@@ -1233,7 +1233,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         assert ".lf-mark-el {" not in carrier
         assert ".lf-margin-preview { position: fixed" not in carrier
     assert "::highlight(lf-mark)" in selected["marks"]
-    assert ".lf-inspect {" in selected["chrome"]
+    assert ".lf-aim-name {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert ".lf-change-card {" in selected["chrome"]
     mark = page.request.get(urljoin(layer, "icon.svg"))

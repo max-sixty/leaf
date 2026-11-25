@@ -29,7 +29,7 @@ import { inChrome } from "../base/ui-marks.js";
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
 // writer (paintInspect), in the aim's planes beside the box it names.
-export const inspectEl = el("div", "lf-ui lf-inspect");
+export const inspectEl = el("div", "lf-ui lf-aim-name");
 inspectEl.setAttribute("aria-hidden", "true");
 // Design mode's legend: a box for every addressable element on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it

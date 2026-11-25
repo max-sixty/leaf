@@ -88,16 +88,16 @@ command that only reads the page leaves it and its server alone. A session's hoo
 watch run the copy of Leaf its harness loaded; `session-lifetime.md`, "Which Leaf runs
 a session", says what another Leaf may do to the pages the session holds.
 
-Renewal keeps the page's selection from the layer record's `packages`, which every
-shape of the record keeps (`registry.storage.layer_packages`).
+A change to the layer record's shape keeps `packages` as the page's selection, with the
+same meaning. It is the one field a Leaf reads from another Leaf's record, so that
+renewal keeps the page's selection (`registry.storage.layer_packages`).
 
 A Leaf's readings skip an event kind it doesn't know, and its deliveries hand such an
 event over as logged, with no handling clause. So a new kind declares `skippable` where
 that leaves an older Leaf's reading right, and bumps otherwise.
 
-`build/browser/protocol-baseline.json` keeps `$events`, each `state.Record` schema with
-the keys it keeps, and the composer's draft as they stood at the current number, and
-the build
+`build/browser/protocol-baseline.json` keeps `$events`, each `state.Record` schema and
+the composer's draft as they stood at the current number, and the build
 (`build/browser/protocol.mjs`) refuses any change to an event record beyond its
 annotations, or a new kind not declared `skippable`, until the number moves.
 
@@ -108,18 +108,26 @@ the protocol at which that record's shape last changed, so a bump for another ch
 leaves it readable. A new kind starts at the current protocol without a bump, since no
 earlier Leaf reads it. A shape change sets `since` to the current protocol, bumping the
 protocol first where `since` already names it, and the build refuses a shape change at
-the same `since` or a `since` moved anywhere else. A reader treats a record at another
-format as absent, except for the keys its kind declares every shape keeps, which any
-Leaf reads whichever Leaf wrote the record (`state.Record.read_any`). The build refuses
-a shape that drops one of those keys, changes its schema or stops requiring it, though
-a kept key's `anyOf` may gain variants, as a new kind of session lifetime does. A
-value a Leaf doesn't know in a kept key, such as a later Leaf's harness or lifetime
-kind, reads as the session still live, until its record says it ended; only code that
-acts on the value itself, as through a harness, passes over one it doesn't know. So a
-newer session that ends without recording it stays held for older Leaves until a
-session claims its page. The layer record's `since` is always the current protocol, so
-a layer record at another format is another Leaf's page, read as above, and the build
-lets its shape change only with a bump.
+the same `since` or a `since` moved anywhere else.
+
+Each shape of a record has a file of its own, named with its `since`
+(`state.Record.file`), and a Leaf reads and replaces only the files of its own
+shapes. So a Leaf finds a record of another shape as it finds none, and the Leaf that
+wrote it finds it as it left it, however the two run beside each other. A record that
+arbitrates between the Leaves on the machine, a page's claim with its session's
+lifecycle, a page's service, a grant or the Codex adapter's, holds while a file of any
+shape of it stands, whatever that file says: a Leaf refuses to act against it and
+names the repair, and the acts that end one, a session's end, a stop, a withdrawal or
+a takeover of the page, end it at every shape (`state.Record`). A session that ended
+or died under a Leaf of another shape leaves that shape's lifecycle standing, so after
+a `SESSION` shape change, which comes with a protocol bump, its pages stay held for
+the newer Leaf until an agent's session takes each over with `leaf server start`,
+which every refusal of a held page names. `page check` names a drafts store of
+another shape, the user's unsent words, for the agent to point the user at; the
+other records of other shapes are disposable. The layer record keeps one file, since its `format` is the page's
+protocol (`registry.storage.write_layer`): its `since` is always the current protocol,
+so a layer record at another format is another Leaf's page, read as above, and the
+build lets its shape change only with a bump.
 
 ## Composition stamps
 

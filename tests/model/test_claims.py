@@ -27,7 +27,6 @@ from interact_support import (
     serving,
     spawn_probe,
     wait_for,
-    woken,
 )
 
 from leaf import cli as cli_model
@@ -749,51 +748,26 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     assert not argv.exists()
 
 
-def test_a_claim_an_older_leaf_wrote_reads_as_its_claim_without_disrupting_a_watch(
-    tmp_path, page_dir, monkeypatch, capsys
+def test_a_claim_naming_a_harness_this_leaf_doesnt_know_still_names_its_session(
+    tmp_path, monkeypatch, capsys
 ):
-    """A claim an older Leaf wrote in another shape reads as the same claim, through
-    the keys every shape keeps (`state.Record.kept`), and a watcher walking every page
-    the session holds delivers what another page holds."""
+    """A claim naming a harness this Leaf doesn't know, as a later Leaf may write,
+    still names its session's claim, which that session's hooks here can't act
+    through."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
     hooks_run_this_tree("s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     leases_model.mark_hooks("s8")  # its harness runs Leaf's hooks
-    # The walk is in path order, so a name ahead of the user's page is what
-    # puts the unreadable record in front of the batch the session came for.
     stale = tmp_path / "held-preview"
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(stale)]).exit_code == 0
     )
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "hi"}
-    )
     assert service_model.claim_page(stale)
-    assert service_model.claim_page(page_dir)
-    assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
-
     claim = service_model.page_claim(stale)
     assert claim is not None
+
     cleanup_model.write_json(
-        service_model.claim_path(stale),
-        {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
-    )
-
-    # The watcher walks every page the session holds, and the record in another
-    # shape belongs to a page the user is not on.
-    waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
-    assert waited.exception is None, repr(waited.exception)
-    assert waited.exit_code == 0, repr(waited.output)
-    _, _, [event] = woken(waited.output)
-    assert event["text"] == "hi"
-
-    assert service_model.page_claim(stale) == claim
-    assert service_model.owned_pages("s8") == [stale.resolve(), page_dir.resolve()]
-
-    # A harness this Leaf doesn't know still names a claim, which its hooks can't
-    # act through.
-    cleanup_model.write_json(
-        service_model.claim_path(stale),
+        service_model.CLAIM.file(service_model.claim_path(stale)),
         service_model.CLAIM.stored(
             {**claim, "harness": "some-harness-a-later-leaf-named"}
         ),

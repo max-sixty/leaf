@@ -60,6 +60,7 @@ from leaf.schema import (
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
 )
+from leaf.state import record_name
 from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import ROOT, docs
 from leaf_dev.arms import run_leaf
@@ -274,7 +275,7 @@ def deduplicate_tree(
     for path in sorted(
         candidate for candidate in root.rglob("*") if candidate.is_file()
     ):
-        if path.name in mutable_names or path.parent.name in mutable_names:
+        if record_name(path.name) in mutable_names or path.parent.name in mutable_names:
             continue
         body = path.read_bytes()
         identity = (len(body), hashlib.sha256(body).digest())

@@ -52,7 +52,9 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
+from leaf.data import PUBLICATION
 from leaf.drafts import DRAFTS, read_drafts
+from leaf.file_bindings import BINDINGS
 from leaf.files import latest_revision, revision_path
 from leaf.http import assets_path
 from leaf.page_inputs import record_reading
@@ -61,14 +63,24 @@ from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
+    DATA_DIR,
     DRAFTS_FILE,
+    FILE_BINDINGS_FILE,
     MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
 )
 from leaf.service import PageTransaction
-from leaf.state import STRING, Record, described, object_schema, page_key, state_home
+from leaf.state import (
+    STRING,
+    Record,
+    described,
+    object_schema,
+    page_key,
+    record_name,
+    state_home,
+)
 
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.
@@ -210,8 +222,10 @@ def restore(site_root: Path) -> bool:
             for name in PAGE_OWNED_DIRS:
                 if (directory / name).exists():
                     shutil.rmtree(directory / name)
-            for name in PAGE_OWNED_FILES:
-                (directory / name).unlink(missing_ok=True)
+            # A release may not have the page's directory yet.
+            for path in directory.glob("*"):
+                if record_name(path.name) in PAGE_OWNED_FILES and path.is_file():
+                    path.unlink()
             for content, target in targets:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with target.open("wb") as output:
@@ -250,13 +264,20 @@ def _upload(blobs: _BlobSet, release: str, digest: str) -> None:
 def _record_files(page_dir: Path) -> list[Path]:
     # The drafts store is published on its own (`publish_drafts`).
     files = [
-        page_dir / name
-        for name in PAGE_OWNED_FILES
-        if name not in PAGE_PROCESS_FILES and name != DRAFTS_FILE
+        path
+        for path in page_dir.iterdir()
+        if (name := record_name(path.name)) in PAGE_OWNED_FILES
+        and name not in PAGE_PROCESS_FILES
+        and name != DRAFTS_FILE
     ]
     for name in PAGE_OWNED_DIRS:
         files.extend(path for path in (page_dir / name).rglob("*") if path.is_file())
-    return sorted(path for path in files if path.is_file())
+    # A record of another shape is no part of this release's page (`state.Record`).
+    stale = {
+        *BINDINGS.others(page_dir / FILE_BINDINGS_FILE),
+        *PUBLICATION.others(page_dir / DATA_DIR / "*.json"),
+    }
+    return sorted(path for path in files if path.is_file() and path not in stale)
 
 
 def _record(page_dir: Path, files: list[Path], blobs: _BlobSet) -> dict:

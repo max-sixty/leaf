@@ -158,6 +158,7 @@ from .schema import (
     PREVIEW_FILE,
 )
 from .service import (
+    PREVIEW,
     PageTransaction,
     owned_pages,
 )
@@ -350,7 +351,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         owed,
                         acknowledged_obligations(state),
                         watched,
-                        (page_dir / PREVIEW_FILE).exists(),
+                        PREVIEW.file(page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
                         unready,
                     )

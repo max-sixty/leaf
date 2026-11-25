@@ -269,7 +269,7 @@ def snapshot(page: Path, destination: Path) -> None:
         shutil.copytree(
             page,
             destination,
-            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+            ignore=shutil.ignore_patterns("service@*.json", "*.lock"),
         )
 
 

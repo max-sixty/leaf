@@ -310,11 +310,21 @@ its session's record alone, whatever harness the claim names
 (`service.held_elsewhere`). So no other Leaf moves a held page to a protocol its
 session's hooks can't read, whatever the two protocols are.
 
-Every Leaf reads a session's lifecycle record and its claims whichever Leaf wrote
-them, through the keys every shape of each keeps (`state.Record.read_any`). So a
-session goes on in its generation when an update changes either record's shape: its
-claims stay live, the server of its page follows it to the new copy, and its input
-stays its own. A page whose session ended under another Leaf is free.
+A Leaf reads a session's lifecycle record and its claims only at its own shapes,
+and reads a page as held while a claim of another shape stands, or a lifecycle of
+another shape for a claim's session whose generation this Leaf's record doesn't name
+(`service.page_holder`). So across an update that changes either record's
+shape, the session's pages stay held: no terminal re-initializes them, no `leaf wait`
+takes their input, and another session takes them only by claiming them, which ends
+the claim at every shape (`service.publish_claim`). One that changes the lifecycle's
+shape meets the session as a resumed one: its first prompt under the new Leaf starts
+a generation and serves its pages again (`reconnect`). One that changes the claim's
+shape leaves the new Leaf no claim of the session's to read, so nothing follows its
+pages to the new copy and their input waits until the session takes each again with
+`leaf server start`, which the refusals of its other commands on the page name. A
+session that ended under the older Leaf leaves that Leaf's lifecycle standing, so its
+pages stay held for the newer one until an agent's session takes each over the same
+way.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):

@@ -49,15 +49,14 @@ from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
 from .refusals import Refused
 from .registry.storage import (
-    LAYER,
     IncompatibleLayer,
     layer_packages,
     layer_record,
+    write_layer,
 )
 from .schema import (
     HTML_NAME,
     INIT_LOCK,
-    LAYER_FILE,
     PACKAGES_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -433,7 +432,7 @@ def _write_record(page_dir: Path, plan: _PagePlan) -> None:
             (staged / path).write_bytes(data)
         shutil.rmtree(target, ignore_errors=True)
         staged.rename(target)
-    LAYER.write(page_dir / LAYER_FILE, plan.record)
+    write_layer(page_dir, plan.record)
 
 
 def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:

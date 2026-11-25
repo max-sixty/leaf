@@ -220,7 +220,9 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     harness = session_harness()
     claim = (
         ""
-        if may_receive(page_claim(page_dir), harness.session if harness else None)
+        if may_receive(
+            page_dir, page_claim(page_dir), harness.session if harness else None
+        )
         else f" (`leaf page claim {page_dir}` first, since this session does "
         "not hold the page)"
     )

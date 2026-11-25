@@ -652,30 +652,14 @@ import weakref
 
 from leaf import page_memory
 from leaf import schema as schema_model
-from leaf import state as cleanup_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 
 
-@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
-def test_read_commands_leave_an_older_page_and_its_server_alone(
-    claimed, server, unreadable
-):
+def test_read_commands_leave_an_older_page_and_its_server_alone(claimed, server):
     """A read by another session cannot take a held page across a protocol bump."""
-    from leaf.service import claim_path
-
     publish(claimed)
     vendored_at_another_protocol(claimed)
-    record = (
-        claim_path(claimed)
-        if unreadable == "claim"
-        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    )
-    stored = interact_files.read_json(record)
-    stored["format"] = {"claim": "leaf-claim", "lifecycle": "leaf-session"}[
-        unreadable
-    ] + "/999"
-    cleanup_model.write_json(record, stored)
     revisions = interact_files.list_revisions(claimed)
     recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     hooks_run_this_tree("s2")

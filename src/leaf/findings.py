@@ -2372,6 +2372,13 @@ _TEXT = {
         f" restart it with `leaf server stop {v['page']}` then"
         f" `leaf server start {v['page']}`"
     ),
+    # `page check`'s advice on a page holding drafts a Leaf of another version kept,
+    # which this one never reads (`validation.command.other_version_drafts`).
+    "other-version-drafts": lambda at, v: (
+        f"{v['page']} keeps unsent drafts another Leaf version wrote, in {v['file']},"
+        " which this Leaf doesn't read: tell the user where they are rather than"
+        " reading them, and remove the file when they say"
+    ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
         "the URL reaches only this machine; re-serve with --host NAME for a user"
@@ -2401,8 +2408,9 @@ _TEXT = {
         + (" it" if len(v["pages"]) == 1 else " them")
     ),
     "held-for-a-session": lambda at, v: (
-        f"stopped watching {v['page']}: session {v['session']} holds it, and this "
-        "Leaf acts for no session"
+        f"stopped watching {v['page']}: {v['holder']} holds it, and this Leaf acts"
+        f" for no session; `leaf server start {v['page']}` in an agent session takes"
+        " it over"
     ),
     "nothing-to-watch": lambda at, v: (
         "nothing to watch: "

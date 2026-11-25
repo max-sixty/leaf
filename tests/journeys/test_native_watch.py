@@ -11,6 +11,7 @@ from interact_support import (
 from model.test_native_watch import DIAGNOSTIC_QUIET_WINDOW_S, _subscriber
 
 from leaf import state as cleanup_model
+from leaf.user_views import USER_VIEWS
 
 
 @pytest.mark.parametrize("owner", ["page", "session"])
@@ -89,7 +90,7 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
         for path in (
             revision / "index.html",
             revision / "resources" / "module.js",
-            page_dir / "user-views.json",
+            USER_VIEWS.file(page_dir / "user-views.json"),
             page_dir / ".leaf-staging.tmp",
         ):
             path.touch()

@@ -12,7 +12,7 @@ state`'s current `state`.
 from copy import deepcopy
 from pathlib import Path
 
-from .data import source_file
+from .data import PUBLICATION, source_file
 from .projection import (
     AuthoredOrders,
     StateProjection,
@@ -57,7 +57,7 @@ def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> di
                 "kind": "data",
                 "page": str(page_dir),
                 "source": source,
-                "file": str(source_file(page_dir, source)),
+                "file": str(PUBLICATION.file(source_file(page_dir, source))),
                 "binding_attribute": spec["source"],
             },
         }

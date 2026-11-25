@@ -492,9 +492,12 @@ customElements.define(
       }
     }
 
-    // A primary press that begins and completes outside the draft saves it, so a drag
-    // into or out of the box, a finger's scroll the browser cancels and a secondary
-    // press save nothing. Returns what stops hearing presses.
+    // A primary press that begins and completes outside the draft, and leaves the user
+    // outside it, saves it, so a drag into or out of the box, a finger's scroll the
+    // browser cancels and a secondary press save nothing. Where the press leaves the
+    // user is read once the click its release owes is past: a control that stands for
+    // the draft's place keeps the caret in it, as Leaf's writing beacon does, so a press
+    // on it takes the user back and saves nothing. Returns what stops hearing presses.
     #pressAway() {
       const listening = new AbortController();
       addEventListener(
@@ -515,7 +518,11 @@ customElements.define(
             "pointerup",
             (up) => {
               press.abort();
-              if (!up.composedPath().includes(this)) void this.#commit();
+              if (up.composedPath().includes(this)) return;
+              setTimeout(() => {
+                if (!listening.signal.aborted && !this.matches(":focus-within"))
+                  void this.#commit();
+              });
             },
             options,
           );

@@ -82,7 +82,9 @@ lf-board {
   gap: var(--lf-sp-2);
   margin: 14px 0;
   align-items: stretch;
-  overflow-x: auto;
+  /* Sideways only: a visible vertical axis would compute to auto beside it, and the
+     board would read as the box that scrolls its cards up and down. */
+  overflow: auto hidden;
   scroll-snap-type: inline proximity;
   /* Scrolling sideways, it is the scroller for anything sticking in a card. */
   --lf-top: 0px;

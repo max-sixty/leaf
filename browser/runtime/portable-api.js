@@ -5,8 +5,8 @@
    Leaf page the same widget gets Leaf's features through what Leaf reads from outside
    it, rather than through calls into Leaf: the events it dispatches
    (lib/widget-events.js), the keys it declares as `lfCommands`, what pointing at an
-   element reads (`lfPreview`, annotations/preview.js, `lf-preview` as that changes, and
-   `lf-preview-ended` as the preview goes), the words it asks a listener to hear
+   element reads (`lfPreview`, annotations/preview.js, and `lf-preview` as that
+   changes), the words it asks a listener to hear
    (`lf-announce`), where a step of its own walk landed (`lf-walk`, records/walk-position.js),
    the inventory of Comment targets it states (`lfParts`, state/visual-parts.js), and the parts it marks for Leaf to dress, a block's Copy control
    (`data-lf-copy`, records/code-copy.js) and a quiet word (`data-lf-quiet`,

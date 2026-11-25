@@ -11,13 +11,15 @@
  * Every rule reads the theme's tokens, so an idiom follows the page's palette, faces
  * and density. A theme restyles one through those tokens, or with rules of its own.
  * The user chose that an idiom be a default a theme can replace, so these rules, and
- * drawing.css's, stand in a cascade layer of their own, `lf-idioms`. It comes second
- * in the tier this sheet composes into (`lf-base` in the document, `lf-shadow` in a
- * declared tree), after markup's reading face, because shadow.css imports this sheet
- * after reading.css. Every other rule of the tier, whether a component's, a package's
- * or a theme's, outranks an idiom's whatever its weight, so a rule that dresses an
- * idiom's element weighs only what its purpose needs. An idiom outranks the face, so
- * a numeric cell stands right where the face sets every cell at its start.
+ * drawing.css's, stand in a cascade layer of their own, `lf-idioms`, the first of
+ * the tier this sheet composes into (`lf-base` in the document, above every cascade
+ * layer the page names and the theme's tier, `lf-shadow` in a declared tree, after
+ * markup's reading face, because shadow.css imports this sheet after reading.css).
+ * Every other rule of the tier, whether a component's or a package's `defaults.css`,
+ * outranks an idiom's whatever its weight, so a rule that dresses an idiom's element
+ * weighs only what its purpose needs; a theme's `theme.css` doesn't. An idiom outranks
+ * the face, so a numeric cell stands right where the face sets every cell at its
+ * start.
  * At the tier's own rank, an idiom would give way only to a rule in a later sheet at
  * least as heavy as Leaf's selector, such as `dl.lf-facts dt`.
  *

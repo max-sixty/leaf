@@ -948,8 +948,10 @@ def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
     assert evaluate_probe(page, "unreadSyntax") == []
 
 
+# A framework's reset in the layer Tailwind keeps it in, beside the author's own base
+# rules.
 RESET = (
-    "@layer reset { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
+    "@layer base { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
     " button, input { background: transparent; border-radius: 0; font: inherit;"
     " color: inherit; } }"
 )

@@ -17,11 +17,13 @@
  * control roles").
  *
  * The face is markup's default, so its rules also stand in a cascade layer of their
- * own, `lf-reading-face`, the first of the tier this sheet composes into (`lf-base` in
+ * own, `lf-reading-face`, the first of the tier this sheet composes into (`lf-theme` in
  * the document, `lf-shadow` in a declared tree). Every other rule of the tier outranks
- * them whatever its weight, a component's, a package's or a theme's, so a rule that
+ * them whatever its weight, a theme's or the page's control defaults, so a rule that
  * dresses one of these elements for its own purpose weighs only what that purpose
- * needs. The page's own sheet and every later tier outrank the whole tier.
+ * needs. In the document every cascade layer the page names, Leaf's faces for what it
+ * draws and the page's own sheet outrank the whole tier, so a page's framework resets
+ * the face on Leaf's own surfaces as on the page's markup.
  *
  * The face's rules for content wider than its box come first: a block of code wraps
  * its long lines, a table scrolls inside itself rather than widening the page, and an
@@ -499,8 +501,7 @@
         color: var(--lf-ink);
       }
     }
-    /* A list keeps the browser's markers, at each depth, over a page reset that
-       clears them (layer.py, `PAGE_RESET_LAYER`). */
+    /* A list keeps the browser's markers at each depth. */
     ul,
     ol {
       margin: 10px 0;

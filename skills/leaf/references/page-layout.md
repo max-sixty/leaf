@@ -340,22 +340,20 @@ rather than rebuilding the event log in page code.
 
 ## Page CSS and Leaf's controls
 
-The page's CSS is ordinary CSS over the whole document: a rule for `button` styles the
-buttons widgets build as well as the page's own. Give each rule a selector that names
-what it means to style, such as a class on your own controls or a widget's id before
-its controls (`#triage button`). Leaf's panel and thread cards keep their own look
-against a page rule as light as one class (`button`, `.card`); a heavier selector such
-as `button:hover`, an `!important` declaration or a rule in a cascade layer of the
-page's own reaches them too, so name your own content in it.
+The page's CSS is ordinary CSS over the whole document. Its unlayered rules outrank
+Leaf's, so a rule for `button` styles the buttons widgets build as well as the page's
+own. Give each rule a selector that names what it means to style, such as a class on
+your own controls or a widget's id before its controls (`#triage button`). Leaf's panel
+and thread cards keep their own look against a page rule as light as one class
+(`button`, `.card`); a heavier selector such as `button:hover` or an `!important`
+declaration reaches them too, so name your own content in it.
 
-A CSS reset clears the margins, borders and faces of every element, the controls
-Leaf's widgets build among them. Put one in a cascade layer named `reset`, as in
-`@layer reset { … }`. Leaf ranks that layer below its own and below the page's
-theme, so the reset applies wherever neither says anything, and Leaf's widgets,
-panel and thread cards keep their faces. A framework that keeps its reset in a
-layer of another name, as Tailwind keeps preflight in `base` beside the element
-rules its author writes there, outranks Leaf's faces from it: import or rename the
-reset into `reset`, and leave the author's rules where they are.
+A rule in a cascade layer the page names, such as a CSS framework's reset or base
+styles, outranks the page's theme and ranks below Leaf's rules for what Leaf draws: its
+widgets, idioms, controls, panel and thread cards. So a framework such as Tailwind
+needs no change to leave them their faces, and a utility class on a widget, such as
+Tailwind's `mt-0`, changes nothing the widget states itself. To restyle what Leaf draws,
+write the rule unlayered.
 
 A page whose framework has design tokens hands Leaf three of them, so
 what Leaf draws takes the framework's colours:

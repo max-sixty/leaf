@@ -156,17 +156,17 @@ const UNTRANSFORMED = { rotate: "none", scale: "none", transform: "none", zoom: 
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
-await import("../../browser/runtime/document-inputs.js");
-await import("../../browser/runtime/prepaint.js");
-// And the runtime sheets every delivery carries (`delivery_sheets` in
-// revision_delivery.py), which `runtime/stylesheets.js` constructs as it evaluates.
+// And the runtime sheets every delivery carries ahead of the prepaint (`delivery_sheets`
+// in revision_delivery.py), which the prepaint constructs, adopting Leaf's faces at once.
 // Nothing here is laid out, so their rules are empty.
 const sheets = document.createElement("script");
 sheets.type = "application/json";
 sheets.dataset.lfRuntime = "";
 sheets.dataset.lfSheets = "";
-sheets.textContent = JSON.stringify({ chrome: "", marks: "" });
+sheets.textContent = JSON.stringify({ parts: "", chrome: "", marks: "" });
 document.head.append(sheets);
+await import("../../browser/runtime/document-inputs.js");
+await import("../../browser/runtime/prepaint.js");
 
 // A test's comparisons go through `assert.mjs`, which writes a node as its opening tag.
 const ASSERT = new URL("./assert.mjs", import.meta.url).href;

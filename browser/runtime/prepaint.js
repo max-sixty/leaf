@@ -621,7 +621,10 @@
     };
     return sheets;
   };
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, window.lfSheets().parts];
+  document.adoptedStyleSheets = [
+    ...document.adoptedStyleSheets,
+    window.lfSheets().parts,
+  ];
 
   // The floating panel (floating-panel.js) is the page's chrome. The reader's one
   // preference is the size the panel was left at (`row`, the comment field and its

@@ -754,6 +754,7 @@ def compose_document(
     document = SourceDocument(source)
     if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
+
     def sheet(path):
         css = delivery.inline_stylesheet(path) if delivery.inline_stylesheet else None
         return (

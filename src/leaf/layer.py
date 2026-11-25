@@ -226,8 +226,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 
 
 # The document's cascade tiers rank each of Leaf's rules by whose element it styles.
-# A theme's rules for the author's own content (`lf-theme`: the kernel's tokens and
-# page shell, markup's reading face, the faces of the page's own controls, the marks
+# Rules for the author's own elements (`lf-theme`: the kernel's tokens and page shell,
+# markup's reading face, the faces of the page's own controls, the marks and focus band
 # Leaf draws on any element, and each package's theme.css) stand below every cascade
 # layer the page names, so a page's framework outranks a theme's look as it would any
 # site's. The chrome's form-control clearing (`lf-reset`, runtime/chrome.css) stays

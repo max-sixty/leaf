@@ -1,8 +1,9 @@
 /* Layouts: starting points a page pulls on by class, in `lf-layouts`, above the base
- * layer the kernel and widget packages share and below theme packages, semantic state
- * and the page's unlayered sheet. A Layout resets what the base sets on the boxes it
- * arranges; a page adjusts it with ordinary rules; nothing reads a Layout back. Appended
- * after every package (layer.py, composed_sheets). */
+ * layer the kernel and widget packages share, and so above every cascade layer the page
+ * names, and below package overrides, semantic state and the page's unlayered sheet. A
+ * Layout resets what the base sets on the boxes it arranges; a page adjusts it with
+ * ordinary unlayered rules; nothing reads a Layout back. Appended after every package
+ * (layer.py, composed_sheets). */
 /* `--lf-full-height: 1`: this box's children have a definite height to fill. It does
  * not inherit, so a style query holds only for a child of a box that says so; a widget
  * that fills the height passes it to its own parts (`--lf-full-height: inherit`). */

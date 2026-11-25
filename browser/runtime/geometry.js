@@ -17,7 +17,7 @@ import {
 import { cancelRender, nextRender } from "./lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
-import { isHTML, isElement, isSVG } from "./lib/shadow-tree.js";
+import { holdingElement, isHTML, isElement, isSVG } from "./lib/shadow-tree.js";
 import { elementBox } from "./lib/shown-box.js";
 import {
   carriedBox,
@@ -1603,15 +1603,11 @@ function clipEntries(item, clips, stop) {
   }
 }
 
-// The element a destination is measured through: itself, or the element holding a
-// Range's start.
+// The element a destination is measured through and scrolls with: itself, or the
+// element holding a Range's start (`holdingElement`).
 /** @param {Element | Range} where */
 export const placeHolder = (where) =>
-  where instanceof Range
-    ? isElement(where.startContainer)
-      ? where.startContainer
-      : where.startContainer.parentElement
-    : where;
+  where instanceof Range ? holdingElement(where.startContainer) : where;
 // A destination's box: a Range's own, or an element's shown box (`shownBox`).
 /** @param {Element | Range} where */
 export const placeBox = (where) =>

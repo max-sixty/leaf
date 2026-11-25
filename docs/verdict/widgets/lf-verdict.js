@@ -1,6 +1,6 @@
 import { html, render } from "/vendor/lit.js";
 
-const CHOICES = { ship: "Ship", hold: "Hold" };
+const LABELS = { ship: "Ship", hold: "Hold" };
 
 customElements.define(
   "lf-verdict",
@@ -15,7 +15,7 @@ customElements.define(
         >
           ${label}
         </button>`;
-      render(Object.entries(CHOICES).map(button), this);
+      render(Object.entries(LABELS).map(button), this);
     }
 
     press(value) {

@@ -66,7 +66,16 @@
  * A revision's reload is a reload, so it returns to this record too; its handoff
  * (version.js) adds only what history never puts back: each reading region's place,
  * the values typed, the words being written with their native editing session, the
- * comparison and the pointer. The record's thread opens where the user stands, moving
+ * comparison and the pointer. Both hold where the user was writing, and the handoff's
+ * is the newer, since words typed through the reload move its caret (bootstrap.js,
+ * `typeBack`). Focus on a control of the page's own is the handoff's to put back, with
+ * its caret where the control has one; the record's return leaves focus there and
+ * returns only the selection (`returnTo`). A draft's box stays the record's: its return
+ * reopens the box and puts the user in it, and the handoff's restore, which runs after,
+ * moves the caret to where the handoff has it (version.js, `restoreEditingContinuity`).
+ * The two aren't one rule because that restore declines once another tab has rewritten
+ * the draft, while the record's return, which doesn't check the draft, still puts the
+ * user in the box, with the caret where the record had it. The record's thread opens where the user stands, moving
  * no scroller, so a card whose passage the revision hid opens in the floating panel
  * (thread/address.js, `claim`). The panel's hold of where the user stepped in from
  * (`readPlace`) reads the same page place, focus identity and thread reading, and stays
@@ -437,9 +446,13 @@ function readingIndex(reading, node, offset) {
 // `focusByKey`), or, where the page no longer draws it, at the reading place beside the
 // page's landmark, unless focus was in the floating panel's list, which the address's
 // claim has shown standing on its row (thread/address.js). The return settles once they
-// are there, so a command acting on the returned place awaits it.
-/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent */
-async function returnTo(record, intent) {
+// are there, so a command acting on the returned place awaits it. Where the arrival's
+// handoff puts focus back on a control of the page's own itself (`returnsFocus`
+// false), focus and its caret are the handoff's, so the return leaves focus where the
+// handoff put it and returns the selection only where no caret is the selection
+// (version.js, `installArrival`).
+/** @param {EntryRecord} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
+async function returnTo(record, intent, returnsFocus = true) {
   const open = threadParts?.open() ?? null;
   const drawing = open && threadParts?.focusTarget(open.id, "thread");
   if (record.thread && drawing) showReading(drawing, record.thread);
@@ -453,12 +466,22 @@ async function returnTo(record, intent) {
     return;
   }
   const thread = key?.thread === null ? (open?.id ?? null) : key?.thread;
-  const focus =
-    key && thread !== null
+  // Focus that puts the user somewhere: on a drawn element, not the page's body, whether
+  // the record returns it or the handoff did, which finds nothing where the revision
+  // dropped the control.
+  /** @param {Element | null} target */
+  const lands = (target) =>
+    target !== null && target !== document.body && presented(target);
+  const handed = deepFocus();
+  const focus = !returnsFocus
+    ? lands(handed)
+      ? handed
+      : null
+    : key && thread !== null
       ? focusByKey(
           /** @type {import("./carry.js").FocusKey} */ ({ ...key, thread }),
           drawingOf,
-          (target) => target !== document.body && presented(target),
+          lands,
         )
       : null;
   // A field's caret is its whole selection, and clearing the document's would
@@ -746,25 +769,27 @@ export const pendingRestoration = () => restoring;
 // (version.js, `installArrival`), returning to the record where it calls for it
 // (`returnToRecord`), then settled.
 /** @param {Restoration} restoration
- * @param {(returnToRecord: () => Promise<void>) => Promise<void>} land */
+ * @param {(returnToRecord: (returnsFocus?: boolean) => Promise<void>) => Promise<void>} land */
 export const arrive = (restoration, land) =>
-  restoration.run(() => land(() => returnToRecord(restoration)));
+  restoration.run(() =>
+    land((returnsFocus) => returnToRecord(restoration, returnsFocus)),
+  );
 
 // Return to an arrival's record once the page has presented, as a traversal within the
 // document returns to its destination's: the page placed by its record, the thread or
 // list the entry shows opened by the URL's claim (thread/address.js), then where the user
 // was in it (`returnTo`).
-/** @param {Restoration} restoration */
-async function returnToRecord({ record, intent }) {
+/** @param {Restoration} restoration @param {boolean} [returnsFocus] */
+async function returnToRecord({ record, intent }, returnsFocus) {
   await afterPresentation(() => undefined);
   if (!record || !intent()) return;
   if (record.page && placesPage(record.page)) restorePlace(record.page, null, intent);
-  await claimAndReturn(new URL(location.href), record, intent);
+  await claimAndReturn(new URL(location.href), record, intent, returnsFocus);
 }
 // The thread view `url` names opened or put away by its claim (thread/address.js), then
 // the user put back where `record` says they were (`returnTo`), under `intent`.
-/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent */
-async function claimAndReturn(url, record, intent) {
+/** @param {URL} url @param {EntryRecord | null} record @param {ReturnType<typeof retainUserIntent>} intent @param {boolean} [returnsFocus] */
+async function claimAndReturn(url, record, intent, returnsFocus) {
   /** @type {unknown} */
   let work;
   intent.handoff(() => {
@@ -773,7 +798,7 @@ async function claimAndReturn(url, record, intent) {
   await work;
   if (!record || !intent()) return;
   intent.handoff(() => {
-    work = returnTo(record, intent);
+    work = returnTo(record, intent, returnsFocus);
   });
   await work;
 }

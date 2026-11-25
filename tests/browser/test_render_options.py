@@ -2123,9 +2123,7 @@ def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
     engine, request, serve
 ):
     """The row whose mark the keyboard is on wears the focus ring one band inside its
-    edge, all four sides of it. A row is a positioned table, and Firefox paints such a
-    box's own ground over an outline standing inside its edge, so a ring drawn as the
-    row's own outline would show nowhere there."""
+    edge, all four sides of it."""
     page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
     page.locator("#wh-day > .lf-pick").focus()
     page.keyboard.press("Shift+Tab")

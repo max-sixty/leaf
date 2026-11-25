@@ -176,12 +176,6 @@ inputs.observe((event) => {
   if (at instanceof Element) aimScroll(inputScroller(at, event), event);
 });
 
-// The element whose scrollers move `node`: the node itself, or for a range over
-// words, the element holding them.
-/** @param {Element | Range} node */
-export const holderOf = (node) =>
-  node instanceof Range ? node.startContainer.parentElement : node;
-
 // The distance the glides under way have still to carry `node`, through the boxes that
 // carry it (`carriersOf`), read where they leave it, all landed at once
 // (scrolling.js, `whereGlidesLand`): a page's sticky header holding the focused tab
@@ -202,7 +196,7 @@ export const holderOf = (node) =>
 /** @param {Element | Range | Anchor} node */
 export const glideTravel = (node) =>
   travelFrom(
-    node instanceof Range ? holderOf(node) : isElement(node) ? node : node.scroller,
+    node instanceof Range ? placeHolder(node) : isElement(node) ? node : node.scroller,
     node,
   );
 // The distance the glides under way have still to scroll what `box` holds: its own
@@ -334,7 +328,7 @@ export const seenAhead = (node) => {
 /** @param {Element | Range} node @param {"top" | "bottom"} edge */
 export const edgeAt = (node, edge) => {
   let at = node.getBoundingClientRect()[edge];
-  for (const box of scrollersOf(holderOf(node))) at += box.scrollTop - aimedTop(box);
+  for (const box of scrollersOf(placeHolder(node))) at += box.scrollTop - aimedTop(box);
   return at;
 };
 
@@ -343,7 +337,7 @@ export const edgeAt = (node, edge) => {
 // page instead.
 /** @param {Element | Range} node @param {"top" | "bottom"} edge @param {number} at */
 export function returnTo(node, edge, at) {
-  for (const box of scrollersOf(holderOf(node))) {
+  for (const box of scrollersOf(placeHolder(node))) {
     const moved = edgeAt(node, edge) - at;
     if (Math.abs(moved) < 0.5) return;
     moveScrollerBy(box, moved);

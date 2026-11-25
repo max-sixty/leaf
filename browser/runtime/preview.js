@@ -206,7 +206,7 @@
    - `K` reads at the caret instead where the caret stands in what focus is on, or
      anywhere while focus rests on the body, and the user can see it (`here`); for a
      selection, the caret is the end that Shift and an arrow move (native-selection.js,
-     `selectionFocusElement`). Caret browsing (F7), which Chromium and Firefox offer and
+     `userCaret`). Caret browsing (F7), which Chromium and Firefox offer and
      Safari doesn't, walks the caret through words that take no focus, such as an age's
      (age.js), so an element that previews to a resting pointer previews to the keyboard
      there with no Tab stop of its own. A Tab stop for each age was the alternative, and
@@ -323,6 +323,7 @@ import { controlKeys } from "./keyboard/control-keys.js";
 import { drawnKeys } from "./keyboard/command-hints.js";
 import { advertisesKeys, spell } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
+import { userCaret } from "./native-selection.js";
 import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
 import { offlineInteractive } from "./context.js";
@@ -350,6 +351,7 @@ import {
   clippedRect,
   drawsText,
   lined,
+  placeHolder,
   seenRect,
   shownBox,
   shownParts,
@@ -360,7 +362,6 @@ import { hasArea, holds } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
 import { markRoom } from "./mark-room.js";
 import { anchorBox } from "./css-anchors.js";
-import { selectionFocusElement } from "./native-selection.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -1106,9 +1107,7 @@ function readFrom(from, route, read) {
     const outward = from.isConnected ? readOutward(from, route) : null;
     return outward && { ...outward, holder: outward.target };
   }
-  const holder = isElement(from.startContainer)
-    ? from.startContainer
-    : from.startContainer.parentElement;
+  const holder = placeHolder(from);
   let declared = null;
   try {
     declared = holder?.isConnected && read ? read(route) : null;
@@ -2115,15 +2114,17 @@ function changed(node, aim) {
   }
 }
 
-// Where `K` reads: the element the caret stands in, where that lies inside what focus is
-// on and the user sees it, else what focus is on; the body with no caret in it is
-// nowhere. A caret scrolled out of sight is nowhere too, as a key lets go of focus
-// scrolled out of sight (keyboard/controller.js).
+// Where `K` reads: the element the caret stands in (`userCaret`), where that lies inside
+// what focus is on and the user sees the caret's letter, else what focus is on; the
+// body with no caret in it is nowhere. A caret scrolled out of sight is nowhere too, as
+// a key lets go of focus scrolled out of sight (keyboard/controller.js), though the
+// element it stands in, as a long paragraph, still shows.
 function here() {
   const on = focused() ?? document.body;
-  const selection = getSelection();
-  const caret = selection && selectionFocusElement(selection);
-  if (caret && renderedUnder(caret, on) && seenRect(caret, new Map())) return caret;
+  const caret = userCaret();
+  const at = caret?.element;
+  if (at && renderedUnder(at, on) && seenRect(caret?.letter ?? at, new Map()))
+    return at;
   return on === document.body ? null : on;
 }
 // Whether a keyboard reading is of what focus is on: its target is the focused element

@@ -27,10 +27,10 @@
    excludes those presentations. Chrome is appended after the page, so measuring its
    DOM position would incorrectly place the user after every obligation and thread.
 
-   `currentLocationOrigin` reads focus, then the selection's ends, then the page place
-   the floating panel holds while the user stands in it (`holdPagePlace`), returning
-   null when none identifies a page location. A selected tab starts a walk inside its
-   controlled panel without changing comment targets.
+   `currentLocationOrigin` reads focus, then the caret (native-selection.js,
+   `userCaret`), then the page place the floating panel holds while the user stands in it
+   (`holdPagePlace`), returning null when none identifies a page location. A selected
+   tab starts a walk inside its controlled panel without changing comment targets.
 
    Every walk (`t`, `m`, a tally's Next On Me) pages through its stops by one rule, read
    from one origin (`walkOrigin`): the node the user's place was read from, the place
@@ -55,13 +55,8 @@
    position (`renderedOrder`, lib/shadow-tree.js), including positions within a widget's
    shadow tree rather than substituting its host. */
 import { cycledRow } from "./keyboard/bindings.js";
-import {
-  focused,
-  currentLocationNodes,
-  onCurrentLocation,
-  onLetGo,
-  onUserInput,
-} from "./focus.js";
+import { userCaret } from "./native-selection.js";
+import { focused, onCurrentLocation, onLetGo, onUserInput } from "./focus.js";
 import { seenAhead } from "./scroll-containers.js";
 import { drawnThreadId, THREAD, wholeThread } from "./thread/selectors.js";
 import { isReaction } from "./thread/model.js";
@@ -283,15 +278,15 @@ export function currentLocationOrigin() {
 }
 
 // Each node the user's place can be read from, nearest first, with the place it stands
-// for. The panel's hold read its place as the user stepped in, since what showed it then,
-// such as a margin card, may be put away by the step.
+// for. The focused node comes first, unless focus rests on the body. The caret comes
+// next (`userCaret`), since a selection names where a reader is as surely as focus does.
+// Last comes the place the panel's hold read as the user stepped in, since what showed
+// it then, such as a margin card, may be put away by the step.
 /** @returns {Generator<[Element, Element | null]>} */
 function* locations() {
-  for (const at of currentLocationNodes()) {
-    const node = at instanceof Element ? at : at.parentElement;
-    if (!node) continue;
-    yield [node, placeOf(node)];
-  }
+  const at = focused();
+  for (const node of [at === document.body ? null : at, userCaret()?.element])
+    if (node) yield [node, placeOf(node)];
   const held = heldPlace();
   const node = held?.focus?.deref();
   if (held && node) yield [node, held.place?.deref() ?? null];
